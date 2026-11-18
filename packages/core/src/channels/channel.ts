@@ -8,8 +8,10 @@ import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
 import {
+  isChannelTurnStopEngine,
   isChannelTurnStopRests,
   isChannelTurnStopTarget,
+  type ChannelTurnStopEngine,
   type ChannelTurnStopRest,
   type ChannelTurnStopTarget,
 } from './turn-stop.js';
@@ -412,6 +414,7 @@ export interface ChannelTurnStop {
   cause?: 'human-stop' | 'failures' | 'quota';
   failures?: number;
   rests?: ChannelTurnStopRest[];
+  engine?: ChannelTurnStopEngine;
   target?: ChannelTurnStopTarget;
 }
 
@@ -1298,6 +1301,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         stop['cause'] !== 'failures' &&
         stop['cause'] !== 'quota') ||
       (stop['rests'] !== undefined && !isChannelTurnStopRests(stop['rests'])) ||
+      (stop['engine'] !== undefined && !isChannelTurnStopEngine(stop['engine'])) ||
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))

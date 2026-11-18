@@ -3,6 +3,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { BridgeCall } from './bridge.js';
 import type { HostAcknowledgements } from './host-acknowledgements.js';
 import type { ConfigStorage } from './roster-config.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export const TELEMETRY_NOTICE_SEEN_KEY = 'botharness.telemetryNotice.seen';
 const TELEMETRY_NOTICE_ACK = 'telemetry-notice';
@@ -42,7 +43,7 @@ export class TelemetryNoticeController {
   start(after?: Promise<unknown>): Promise<void> {
     this.started ??= this.check(after).catch((error: unknown) => {
       this.started = undefined;
-      console.warn('botharness: failed to read telemetry status', error);
+      reportFailure('failed-to-read-telemetry-status', 'failed to read telemetry status', error);
     });
     return this.started;
   }
@@ -51,7 +52,10 @@ export class TelemetryNoticeController {
     try {
       this.storage?.setItem(TELEMETRY_NOTICE_SEEN_KEY, '1');
     } catch {
-      console.warn('botharness: failed to remember the telemetry notice');
+      reportFailure(
+        'failed-to-remember-the-telemetry-notice',
+        'failed to remember the telemetry notice',
+      );
     }
     this.acks?.record(TELEMETRY_NOTICE_ACK, '1');
     this.source.update((draft) => {

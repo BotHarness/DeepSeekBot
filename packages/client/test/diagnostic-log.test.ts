@@ -7,6 +7,7 @@ import {
   describeControl,
   disposeClientLog,
   installClientLog,
+  reportFailure,
   type ClientLogRecorder,
 } from '../src/client/diagnostic-log.js';
 import { watchClientLogState } from '../src/client/diagnostic-log-state.js';
@@ -122,6 +123,28 @@ describe('Client diagnostic recorder', () => {
         category: 'invariant',
         code: 'timeline-window-lost-groups',
         fields: expect.objectContaining({ groups: 9, rendered: 0 }),
+      }),
+    ]);
+    warn.mockRestore();
+  });
+
+  it('reports a recoverable failure with its cause once, echoed to devtools', async () => {
+    const { recorder, entries } = harness(true);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cause = new Error('Host refused the write');
+    reportFailure('roster-write-failed', 'roster write failed', cause);
+    await recorder.flush();
+    expect(warn).toHaveBeenCalledWith('botharness: roster write failed', cause);
+    expect(entries().filter((entry) => entry.category !== 'lifecycle')).toEqual([
+      expect.objectContaining({
+        category: 'error',
+        level: 'warn',
+        code: 'roster-write-failed',
+        fields: expect.objectContaining({
+          message: 'roster write failed',
+          cause: 'Host refused the write',
+          causeName: 'Error',
+        }),
       }),
     ]);
     warn.mockRestore();

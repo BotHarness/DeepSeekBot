@@ -226,31 +226,5 @@
     "scripts/workspace-grant-report.mjs": 1,
     "tsdown.config.ts": 1
   },
-  "botharness/no-api-intercept": {},
-  "eslint/no-console": {
-    "packages/client/src/client/actions.ts": 19,
-    "packages/client/src/client/bot-main.tsx": 4,
-    "packages/client/src/client/bot-mode-prefs.ts": 3,
-    "packages/client/src/client/bot-presentation.ts": 1,
-    "packages/client/src/client/bot-sidebar.tsx": 2,
-    "packages/client/src/client/bridge.ts": 1,
-    "packages/client/src/client/channel-live.ts": 2,
-    "packages/client/src/client/diagnostic-log.ts": 2,
-    "packages/client/src/client/dock-panels.ts": 2,
-    "packages/client/src/client/index.ts": 1,
-    "packages/client/src/client/live-snapshots.ts": 3,
-    "packages/client/src/client/messaging-defaults-live.ts": 1,
-    "packages/client/src/client/release-notes.ts": 2,
-    "packages/client/src/client/roster-migration.ts": 1,
-    "packages/client/src/client/telemetry-notice.ts": 2,
-    "packages/connect-relay/src/cloudflare.ts": 1,
-    "packages/connect-relay/src/relay.ts": 1,
-    "packages/core/src/portability/cli.ts": 2,
-    "packages/deepseekbot/src/desktop-zoom-setup.mjs": 2,
-    "packages/deepseekbot/src/profile-cli.mjs": 1,
-    "packages/links/src/access.ts": 1,
-    "packages/links/src/redirect.ts": 2,
-    "packages/links/src/worker.ts": 2,
-    "packages/market/src/worker.ts": 3
-  }
+  "botharness/no-api-intercept": {}
 }

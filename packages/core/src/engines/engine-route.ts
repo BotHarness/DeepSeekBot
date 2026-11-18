@@ -19,6 +19,7 @@ export interface EngineApprovalCard {
 export interface EngineRouteDeps {
   host: EngineHost;
   botExists(slug: string): boolean;
+  releaseQuotaHold?(slug: string): void;
   approvals?(): EngineApprovalCard[];
 }
 
@@ -54,8 +55,19 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('invalid-input', 'Only the orchestrator role can use an engine now');
       if (engine !== null && !isEngineId(engine))
         return refusal('unknown-engine', 'Unknown engine');
-      host.use(bot, 'orchestrator', engine ?? undefined);
-      return Response.json({ bot, role: 'orchestrator', engine });
+      const fallback = body['fallback'];
+      if (fallback !== undefined && typeof fallback !== 'boolean')
+        return refusal('invalid-input', 'fallback must be true or false');
+      if (engine === null && fallback === true)
+        return refusal('invalid-input', 'fallback needs an engine');
+      host.use(bot, 'orchestrator', engine ?? undefined, { fallback: fallback === true });
+      deps.releaseQuotaHold?.(bot);
+      return Response.json({
+        bot,
+        role: 'orchestrator',
+        engine,
+        ...(engine === null ? {} : { fallback: fallback === true }),
+      });
     }
     return refusal('invalid-input', 'action must be login or use');
   } catch (error) {

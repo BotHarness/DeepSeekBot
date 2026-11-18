@@ -5,6 +5,7 @@ import type { D1Database } from './d1.js';
 import type { EmailCode } from './email-code.js';
 import type { PasswordAuth } from './password-auth.js';
 import { ONLINE, pickVictim, pickZone, type EvictionTier, type PoolTunnel } from './pool.js';
+import { logWorker } from './worker-log.js';
 
 export interface RelayOptions {
   activitySender?: ActivitySender;
@@ -243,7 +244,7 @@ export function createRelay(options: RelayOptions) {
   const hostname = (row: Pick<HostRow, 'id' | 'zone' | 'label'>) =>
     `${row.label ?? row.id}.${zoneOf(row)}`;
   const log = (event: string, fields: Record<string, unknown>) =>
-    console.warn(JSON.stringify({ event, ...fields }));
+    logWorker('warn', { event, ...fields });
   const waitingCutoff = () => new Date(now().getTime() - WAIT_STALE_MS).toISOString();
 
   let poolCache: { at: number; value: PoolStatus } | undefined;

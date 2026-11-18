@@ -97,6 +97,24 @@ function consoleText(args: readonly unknown[]): { message: string; fields: Clien
   return { message: text(message), fields };
 }
 
+function causeFields(cause: unknown): ClientLogFields {
+  if (cause === undefined) return {};
+  const { name, message, stack } = errorFields(cause);
+  return {
+    cause: message ?? '',
+    ...(name === undefined ? {} : { causeName: name }),
+    ...(stack === undefined ? {} : { stack }),
+  };
+}
+
+function devtoolsWarn(
+  win: (Window & typeof globalThis) | undefined,
+  message: string,
+  detail: readonly unknown[],
+): void {
+  (win ?? globalThis).console?.warn(`botharness: ${message}`, ...detail);
+}
+
 function batchSize(entries: readonly ClientLogEntry[]): number {
   let chars = 0;
   let count = 0;
@@ -170,6 +188,7 @@ export interface ClientLogRecorder {
     level?: ClientLogLevel,
   ): void;
   invariant(eventCode: string, message: string, fields?: unknown): void;
+  failure(eventCode: string, message: string, cause?: unknown): void;
   timeRpc<T>(
     endpoint: string,
     run: () => Promise<T>,
@@ -300,22 +319,30 @@ export function createClientLogRecorder(options: ClientLogRecorderOptions = {}):
     schedule(resolved === 'error' || category === 'invariant' ? URGENT_FLUSH_MS : FLUSH_MS);
   };
 
+  const echo = (message: string, detail: readonly unknown[]): void => {
+    quiet += 1;
+    try {
+      devtoolsWarn(win, message, detail);
+    } finally {
+      quiet -= 1;
+    }
+  };
+
   const recorder: ClientLogRecorder = {
     session,
     record,
     invariant(eventCode, message, fields) {
-      quiet += 1;
-      try {
-        console.warn(`botharness: ${message}`, fields);
-      } finally {
-        quiet -= 1;
-      }
+      echo(message, [fields]);
       record(
         'invariant',
         eventCode,
         { message: text(message), ...clientLogFields(fields) },
         'warn',
       );
+    },
+    failure(eventCode, message, cause) {
+      echo(message, cause === undefined ? [] : [cause]);
+      record('error', eventCode, { message: text(message), ...causeFields(cause) }, 'warn');
     },
     async timeRpc(endpoint, run, failed) {
       const started = win?.performance?.now() ?? now();
@@ -564,5 +591,10 @@ export function logClient(
 
 export function reportInvariant(eventCode: string, message: string, fields?: unknown): void {
   if (active !== undefined) active.invariant(eventCode, message, fields);
-  else console.warn(`botharness: ${message}`, fields);
+  else devtoolsWarn(undefined, message, [fields]);
+}
+
+export function reportFailure(eventCode: string, message: string, cause?: unknown): void {
+  if (active !== undefined) active.failure(eventCode, message, cause);
+  else devtoolsWarn(undefined, message, cause === undefined ? [] : [cause]);
 }

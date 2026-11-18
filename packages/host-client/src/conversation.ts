@@ -708,6 +708,9 @@ function present(
   };
 }
 
+const REOPEN_FIRST_MS = 1_000;
+const REOPEN_MAX_MS = 60_000;
+
 export function createConversation(options: ConversationOptions): Conversation {
   const pageSize = options.pageSize ?? 50;
   const olderPageSize = options.olderPageSize ?? 30;
@@ -1176,6 +1179,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       if (pull && !pullFirst) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       fromCache = false;
+      reopenFailures = 0;
       status = 'live';
       if (olderOffline) olderError = olderOffline = false;
       reason = undefined;
@@ -1230,12 +1234,15 @@ export function createConversation(options: ConversationOptions): Conversation {
     return channelId;
   };
 
+  let reopenFailures = 0;
   const reopen = (current: number): void => {
     unfollow?.();
     unfollow = undefined;
+    const delay = Math.min(REOPEN_MAX_MS, REOPEN_FIRST_MS * 2 ** reopenFailures);
+    reopenFailures += 1;
     setTimeout(() => {
       if (running && current === session) void open(current);
-    }, 1_000);
+    }, delay);
   };
 
   const refollow = (current: number): void => {

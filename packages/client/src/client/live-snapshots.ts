@@ -18,6 +18,7 @@ import type { ActivityLiveFrame, RosterLiveFrame } from '../../../core/src/chann
 import type { CompanionLiveFrame } from '../../../core/src/companions/live.js';
 import type { ChannelFollow } from './channel-live.js';
 import type { TypedLive } from './messaging-defaults-live.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const follow = Object.freeze({
   service: 'botharnessBridge',
@@ -177,7 +178,7 @@ export function createChannelFollow(
     let stopped = false;
     const failed = (error: unknown): void => {
       if (stopped) return;
-      console.warn(`botharness: ${name} failed`, error);
+      reportFailure('live-stream-failed', `${name} failed`, error);
       handlers.interrupted(true);
     };
     const journal = new ChannelJournal(
@@ -296,7 +297,7 @@ export function createCompanionSource(
         update: publish,
         failed: (error) => {
           if (state === 2) return;
-          console.warn(`botharness: ${name} failed`, error);
+          reportFailure('live-stream-failed', `${name} failed`, error);
           interrupted(true);
         },
       },
@@ -355,7 +356,7 @@ function supervised<Frame extends { type: string }>(
         update: handlers.update,
         failed: (error) => {
           if (stopped || current !== stream) return;
-          console.warn(`botharness: ${name} failed`, error);
+          reportFailure('live-stream-failed', `${name} failed`, error);
           handlers.interrupted();
           current = undefined;
           void stream.dispose();

@@ -170,7 +170,15 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       engine: 'claude',
       account: 'Claude max',
       state: 'idle',
+      quota: {
+        observedAt: expect.any(String),
+        resetsAt: new Date(1795400000 * 1000).toISOString(),
+        usedPercent: 12,
+      },
     });
+    expect((await host.status()).find((report) => report.engine === 'claude')?.quota).toMatchObject(
+      { usedPercent: 12 },
+    );
     await host.close();
     expect(replay.closed).toBe(1);
   });
@@ -344,7 +352,9 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
         login: 'subscription',
       },
     ]);
-    expect(listed.selections).toEqual([{ botSlug: 'ada', role: 'orchestrator', engine: 'claude' }]);
+    expect(listed.selections).toEqual([
+      { botSlug: 'ada', role: 'orchestrator', engine: 'claude', fallback: false },
+    ]);
     const login = await engineRouteFetch(
       new Request('http://host/api/botharness/engines', {
         method: 'POST',

@@ -170,7 +170,7 @@ Usage:
   tobs model-plan <id> [--home <dsh-home>]
   tobs engine list|status --host <url>
   tobs engine login codex|claude --host <url>
-  tobs engine use <id> codex|claude|none --role orchestrator --host <url>
+  tobs engine use <id> codex|claude|none --role orchestrator [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]

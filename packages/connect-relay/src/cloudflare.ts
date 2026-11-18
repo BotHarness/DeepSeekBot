@@ -1,3 +1,5 @@
+import { logWorker } from './worker-log.js';
+
 export interface TunnelState {
   status: string;
   inactiveSince?: string;
@@ -123,15 +125,13 @@ export function createCloudflareApi(options: CloudflareOptions): TunnelApi {
             : [];
         })
         .slice(0, 8);
-      console.warn(
-        JSON.stringify({
-          event: 'connect-upstream-error',
-          method,
-          resource: path.startsWith('/zones/') ? 'dns' : 'tunnel',
-          status: response.status,
-          codes,
-        }),
-      );
+      logWorker('warn', {
+        event: 'connect-upstream-error',
+        method,
+        resource: path.startsWith('/zones/') ? 'dns' : 'tunnel',
+        status: response.status,
+        codes,
+      });
       throw new CloudflareError(
         response.status,
         `${method} ${path.split('/').slice(0, 4).join('/')}`,
