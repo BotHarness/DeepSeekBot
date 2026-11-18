@@ -65,6 +65,117 @@ describe('Assignment Routing Groups in the plan (#4420)', () => {
 });
 
 describe('An Assignment on a Routing Group keeps working when its route runs out (#4420)', () => {
+  it('does not resume an Assignment stopped while its next model is being chosen', async () => {
+    const clock = Date.parse('2026-11-18T00:00:00.000Z');
+    const rests = createRouteRests({ now: () => clock });
+    let picking: (() => void) | undefined;
+    let release: () => void = () => undefined;
+    const fallback = createGroupFallback({
+      plan: () => undefined,
+      routes: () => [SPENT, DEEPSEEK],
+      rests,
+      requireAllowed: () => undefined,
+      validate: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+          picking?.();
+        }),
+    });
+    const workspace = {
+      id: 'project',
+      path: realpathSync(createTempRoot('bh-assignment-group-stop-project-')),
+      title: 'Project',
+      status: async () => 'ok' as const,
+    };
+    let orchestrator: OrchestratorAgentRun | undefined;
+    const runs: string[] = [];
+    const drive = async (run: AssignmentAgentRun) => {
+      runs.push(key(run.modelRoute));
+      if (key(run.modelRoute) !== key(SPENT)) return;
+      rests.rest(SPENT, clock + 3_600_000, 'quota');
+      run.failedTurn?.({ turn: runs.length, endSeq: runs.length });
+      throw Object.assign(new Error('QUOTA: OpenCode Go usage limit reached'), { code: 'QUOTA' });
+    };
+    const agents: BotAgentAdapter = {
+      async runOrchestrator(run) {
+        orchestrator = run;
+      },
+      runAssignment: drive,
+      requestAssignment(run) {
+        return { delivery: 'followup', accepted: Promise.resolve(), done: drive(run) };
+      },
+      async stopAssignment() {},
+      async close() {},
+    };
+    const core = createCore({
+      dshHome: createTempRoot('bh-assignment-group-stop-'),
+      agents,
+      routeRests: rests,
+      groupFallback: fallback,
+      workspaces: () => ({
+        get: (id: string) => (id === workspace.id ? workspace : undefined),
+        list: () => [workspace],
+      }),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const applied = core.registry.setModelPlan(
+        'ada',
+        { orchestrator: DEEPSEEK, assignmentDefault: DEEPSEEK, assignmentModels: options },
+        0,
+      );
+      if (!applied.ok) throw new Error('plan');
+      const grouped = core.registry.setAssignmentModels(
+        'ada',
+        DEEPSEEK,
+        options,
+        applied.record.modelPlan!.revision,
+        undefined,
+        { ids: ['g'], defaultId: 'g' },
+      );
+      if (!grouped.ok) throw new Error('groups');
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        id: 'start',
+        at: new Date(clock).toISOString(),
+        author: { kind: 'human' },
+        body: 'Start',
+      });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'start',
+        body: 'Start',
+      });
+      await core.runtime.whenIdle();
+      const grant = await core.grants.create('ada', workspace.id);
+      const choosing = new Promise<void>((resolve) => {
+        picking = resolve;
+      });
+      const created = orchestrator!.assignments.create({
+        title: 'Research',
+        grantId: grant.id,
+        description: 'Find the launch date',
+        model: SPENT,
+        modelGroupId: 'g',
+      });
+      if (created.outcome !== 'created') throw new Error('Assignment missing');
+      const sessionId = created.assignment.sessionId;
+      await choosing;
+      await orchestrator!.assignments.stop(sessionId);
+      release();
+      for (let index = 0; index < 4; index += 1) {
+        await core.runtime.whenIdle();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      expect(runs).toEqual([key(SPENT)]);
+      expect(core.runtime.getAssignment('ada', sessionId)).toMatchObject({ activity: 'stopped' });
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('moves the Session to the next member with one notice and continues the Turn', async () => {
     const clock = Date.parse('2026-11-18T00:00:00.000Z');
     const until = clock + 3_600_000;

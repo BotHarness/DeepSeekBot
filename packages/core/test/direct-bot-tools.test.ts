@@ -439,8 +439,8 @@ describe('direct Bot tool runner', () => {
     }
   });
 
-  it('resumes a stopped Assignment when the Human sends it a request directly', async () => {
-    const { runtime, owner } = setup(true);
+  it('resumes a Human-stopped Assignment when the Human sends it a request directly', async () => {
+    const { runtime, owner, host } = setup(true);
     const signal = new AbortController().signal;
     const database = attachOperationalModule(owner, 'direct-resume-test');
     try {
@@ -456,7 +456,7 @@ describe('direct Bot tool runner', () => {
         signal,
       );
       const sessionId = (created.result as { sessionId: string }).sessionId;
-      await runtime.runDirectBotTool!('ada', 'stop_assignment', { session_id: sessionId }, signal);
+      await runtime.stopSession!('ada', sessionId);
       const resumed = await runtime.runDirectBotTool!(
         'ada',
         'unarchive_assignment',
@@ -477,8 +477,16 @@ describe('direct Bot tool runner', () => {
           )
           .get(sessionId),
       ) as { body: string } | undefined;
-      expect(notice?.body).toContain('resumed this Assignment and sent it a request directly');
+      expect(notice?.body).toContain('sent this Assignment a request directly');
       expect(notice?.body).toContain('"Keep going."');
+      await vi.waitFor(() =>
+        expect(
+          (host.received.get(sessionId) ?? [])
+            .flatMap((message) => message.content)
+            .map((part) => ('text' in part ? part.text : ''))
+            .join('\n'),
+        ).toContain('Keep going.'),
+      );
     } finally {
       await runtime.close();
     }

@@ -2064,7 +2064,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               outcome: 'unarchived',
               delivery: 'refused',
               code: 'request-not-delivered',
-              message: `Assignment Session ${args.session_id} was unarchived, but the request was not delivered: ${reason}`,
+              message: `Assignment Session ${args.session_id} is active, but the request was not delivered: ${reason}`,
             });
           let request: AssignmentRequestOutcome;
           try {
@@ -2264,7 +2264,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'stop_assignment',
         description:
-          'Stop one Assignment Session for this PersonaBot. Cancels active DSH work, clears queued input, and durably prevents further requests or continuity reuse. Confirm the returned activity before telling the Human.',
+          'Stop one Assignment Session for this PersonaBot. Cancels active DSH work, clears queued input and its continuity key, and pauses it with its history kept; the next send_assignment_request to it resumes it. Confirm the returned activity before telling the Human.',
         parameters: {
           session_id: {
             type: 'string',
