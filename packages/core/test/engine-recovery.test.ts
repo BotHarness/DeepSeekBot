@@ -192,6 +192,18 @@ describe('Codex Engine Session stop and timeouts', () => {
       { cwd: '/tmp', instructions: '' },
     );
     await expect(workspace.start('t-1')).rejects.toMatchObject({ code: 'engine-failed' });
+    const wrapped = new CodexEngineSession(
+      fakeCodex({
+        'thread/resume': () => ({ error: 'thread resume failed: workspace not found' }),
+      }).transport,
+      { cwd: '/tmp', instructions: '' },
+    );
+    await expect(wrapped.start('t-1')).rejects.toMatchObject({ code: 'engine-failed' });
+    const named = new CodexEngineSession(
+      fakeCodex({ 'thread/resume': () => ({ error: 'thread t-1 not found' }) }).transport,
+      { cwd: '/tmp', instructions: '' },
+    );
+    await expect(named.start('t-1')).rejects.toMatchObject({ code: 'engine-thread-gone' });
   });
 });
 
