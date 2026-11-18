@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
 import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-channel';
@@ -56,6 +56,7 @@ export function GroupProfileScreen({
     [sourceChanged, client, id],
   );
   const [loadedNickname, setNickname] = useState<Scoped<string | null>>();
+  const latestSave = useRef(0);
   const scope = `${saved?.hostId}:${id}`;
   const nickname = loadedNickname?.scope === scope ? loadedNickname.value : undefined;
   const human = useHumanIdentity(sourceChanged ? undefined : client);
@@ -108,11 +109,13 @@ export function GroupProfileScreen({
           value: nickname,
           name: human.identity?.displayName,
           save: async (next) => {
+            const save = ++latestSave.current;
             const result = {
               scope: `${saved?.hostId}:${info.channel.id}`,
               value: await saveChannelNickname(client, info.channel.id, next),
             };
-            setNickname((current) => settleScoped(current, result));
+            if (save === latestSave.current)
+              setNickname((current) => settleScoped(current, result));
           },
         }}
         key={`${saved?.hostId}:${info.channel.id}`}
