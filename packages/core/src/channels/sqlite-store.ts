@@ -4253,10 +4253,6 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             JSON.stringify(next),
             row.source_event_id,
           );
-          if (changeLogIn(db))
-            db.prepare(
-              "INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (?, ?, 'message')",
-            ).run(channelId, messageId);
           return true;
         },
         ['channel', 'channel-changes'],
