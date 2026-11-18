@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
-import { presetDetail, presetFront, routeLabel } from '../src/ui/chat/model-route-text';
+import {
+  presetDetail,
+  presetFront,
+  routeLabel,
+  shortModelName,
+} from '../src/ui/chat/model-route-text';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const glm = { provider: 'opencode-go', model: 'glm-5.2' };
@@ -19,6 +24,9 @@ describe('phone model rows', () => {
   it('name a model by its short label without the provider, like the desktop chip', () => {
     expect(routeLabel(value, flash)).toBe('V4.1 Flash');
     expect(routeLabel(value, { provider: 'other', model: 'unknown-1' })).toBe('unknown-1');
+    expect(
+      shortModelName({ provider: 'opencode-go', model: 'minimax-m3', modelName: 'MiniMax-M3' }),
+    ).toBe('MiniMax-M3');
   });
 
   it('describe a Preset with short labels and Routing Group names', () => {

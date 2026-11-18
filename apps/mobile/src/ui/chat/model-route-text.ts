@@ -7,9 +7,12 @@ import { modelEntryLabel } from './composer-labels';
 export function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
   if (route === undefined) return t.modelSettings.inherited;
   const entry = value.models.find((item) => sameModel(item, route));
-  if (entry === undefined) return route.model;
+  return entry === undefined ? route.model : shortModelName(entry);
+}
+
+export function shortModelName(entry: { provider: string; model: string; modelName: string }) {
   const { short } = modelEntryLabel(entry);
-  return /\p{L}/u.test(short) ? short : entry.modelName;
+  return short.length > 3 && /\p{L}/u.test(short) ? short : entry.modelName;
 }
 
 function presetSide(
