@@ -43,6 +43,7 @@ export type ModelField =
   | 'orchestrator'
   | 'assignment'
   | 'allowed'
+  | 'allowed-effort'
   | 'orchestrator-effort'
   | 'assignment-effort';
 export type ModelSettingsState = BotModel & { preset?: ModelPreset };
@@ -493,6 +494,91 @@ export async function setAssignmentGroupNote(
         ...(keep ? [next] : []),
       ],
     },
+  });
+  recordFeature('model:plan_update', { via: 'assignments' });
+}
+
+export type AssignmentEffortTarget =
+  | { kind: 'model'; provider: string; model: string }
+  | { kind: 'group'; id: string };
+
+export function assignmentEffortRange(
+  state: ModelSettingsState,
+  target: AssignmentEffortTarget,
+): { allowed: string[]; defaultEffort: string; locked?: string } | undefined {
+  const routes = modelRoutes(state);
+  if (target.kind === 'model') {
+    const option = routes.assignmentModels.find((item) => sameModel(item, target));
+    if (option === undefined) return undefined;
+    const fixed =
+      routes.groups.assignmentDefaultGroupId === undefined &&
+      routes.assignmentDefault !== undefined &&
+      sameModel(routes.assignmentDefault, target);
+    return {
+      allowed: [...option.allowedEfforts],
+      defaultEffort: option.defaultEffort,
+      ...(fixed ? { locked: routes.assignmentDefault?.reasoningEffort ?? '' } : {}),
+    };
+  }
+  if (!(routes.groups.assignmentGroups ?? []).includes(target.id)) return undefined;
+  const option = routes.groups.assignmentGroupOptions?.find((item) => item.group === target.id);
+  const fixed =
+    routes.groups.assignmentDefaultGroupId === target.id && (option?.defaultEffort ?? '') !== '';
+  return {
+    allowed: [...(option?.allowedEfforts ?? [])],
+    defaultEffort: option?.defaultEffort ?? '',
+    ...(fixed ? { locked: option?.defaultEffort ?? '' } : {}),
+  };
+}
+
+function groupEffortRange(
+  options: readonly AssignmentGroupOption[],
+  groupId: string,
+  efforts: string[],
+  chosen: string,
+): AssignmentGroupOption[] {
+  const current = options.find((option) => option.group === groupId) ?? { group: groupId };
+  const { allowedEfforts: _efforts, defaultEffort: _default, ...kept } = current;
+  const next: AssignmentGroupOption =
+    efforts.length === 0 ? kept : { ...kept, allowedEfforts: efforts, defaultEffort: chosen };
+  const keep = next.allowedEfforts !== undefined || next.note !== undefined;
+  return [...options.filter((option) => option.group !== groupId), ...(keep ? [next] : [])];
+}
+
+export async function setAssignmentEfforts(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  target: AssignmentEffortTarget,
+  allowed: readonly string[],
+  defaultEffort: string,
+): Promise<void> {
+  const range = assignmentEffortRange(state, target);
+  if (range === undefined) throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  const efforts = [...new Set(allowed)];
+  if (range.locked !== undefined && !efforts.includes(range.locked))
+    throw new HostAnswerInvalid('ASSIGNMENT_DEFAULT_REQUIRED');
+  if (target.kind === 'model' && efforts.length === 0)
+    throw new HostAnswerInvalid('EFFORT_REQUIRED');
+  const chosen =
+    range.locked ?? (efforts.includes(defaultEffort) ? defaultEffort : (efforts[0] ?? ''));
+  const routes = modelRoutes(state);
+  const assignmentModels =
+    target.kind === 'model'
+      ? routes.assignmentModels.map((option) =>
+          sameModel(option, target)
+            ? { ...option, allowedEfforts: efforts, defaultEffort: chosen }
+            : option,
+        )
+      : routes.assignmentModels;
+  const options = routes.groups.assignmentGroupOptions ?? [];
+  const assignmentGroupOptions =
+    target.kind === 'group' ? groupEffortRange(options, target.id, efforts, chosen) : options;
+  await writePlan(client, scope, state, {
+    orchestrator: requireRoute(routes.orchestrator),
+    assignmentDefault: requireRoute(routes.assignmentDefault),
+    assignmentModels,
+    groups: { ...routes.groups, assignmentGroupOptions },
   });
   recordFeature('model:plan_update', { via: 'assignments' });
 }

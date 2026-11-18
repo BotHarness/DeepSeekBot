@@ -744,6 +744,17 @@ const en = {
     groupNotesHint:
       'Tell the Orchestrator when to use each Routing Group. Saved when you leave the field.',
     groupNote: (name: string) => `Note for ${name}`,
+    allowedEfforts: 'Assignment reasoning levels',
+    allowedEffortsHint:
+      'Levels the Orchestrator may choose when it starts an Assignment on each allowed model.',
+    allowedEffortModelHint: (name: string) =>
+      `Levels the Orchestrator may choose for ${name}. Keep at least one.`,
+    allowedEffortGroupHint: (name: string) =>
+      `Levels the Orchestrator may choose for ${name}. Turn all off to allow any shared level.`,
+    effortsAny: 'Any level',
+    effortRangeDefault: (level: string) => `default ${level}`,
+    effortDefaultLevel: 'Default level',
+    effortLocked: 'Used by the Assignment default',
     presets: 'Presets',
     presetRoutes: (main: string, side: string) => `Main: ${main} · Assignments: ${side}`,
     presetInherited: 'Default',
@@ -3446,6 +3457,15 @@ const zh: typeof en = {
     groupFront: (model: string) => `当前：${model}`,
     groupNotesHint: '告诉主模型什么时候用这个路由组。离开输入框时保存。',
     groupNote: (name: string) => `${name} 的备注`,
+    allowedEfforts: '副模型推理强度',
+    allowedEffortsHint: '主模型创建委派任务时，可为每个副模型选择的推理强度。',
+    allowedEffortModelHint: (name: string) => `主模型给 ${name} 可选的强度，至少保留一个。`,
+    allowedEffortGroupHint: (name: string) =>
+      `主模型给 ${name} 可选的强度。全部关闭则可选任意共有强度。`,
+    effortsAny: '任意强度',
+    effortRangeDefault: (level: string) => `默认 ${level}`,
+    effortDefaultLevel: '默认强度',
+    effortLocked: '默认副模型正在使用',
     presets: '预设',
     presetRoutes: (main: string, side: string) => `主：${main} · 副：${side}`,
     presetInherited: '跟随默认',
