@@ -202,6 +202,8 @@ export class EngineHost {
       );
     if (request.signal.aborted) return;
     const live = await this.#open(request);
+    const accountChecked = live.accountChecked;
+    live.accountChecked = false;
     const previous = live.running;
     let finish!: () => void;
     live.running = new Promise((resolve) => (finish = resolve));
@@ -215,8 +217,7 @@ export class EngineHost {
         if (!reopen)
           throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
       } else if (!request.signal.aborted) {
-        if (live.accountChecked) live.accountChecked = false;
-        else live.account = requireSubscription(await live.engine.account());
+        if (!accountChecked) live.account = requireSubscription(await live.engine.account());
         if (request.signal.aborted) return;
         const stop = new AbortController();
         live.stop = stop;

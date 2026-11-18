@@ -388,8 +388,10 @@ describe('Engine Host recovery', () => {
 
   it('sends nothing for a turn cancelled while its Session opens', async () => {
     const stop = new AbortController();
+    let plan = 'chatgpt';
     const { host, opened, request } = hostWith(() =>
       fakeCodex({
+        'account/read': () => ({ result: { account: { type: plan, planType: 'pro' } } }),
         'thread/start': () => {
           stop.abort();
           return { result: { thread: { id: 'thread-new' } } };
@@ -402,6 +404,9 @@ describe('Engine Host recovery', () => {
     cancelled.abort();
     await host.runTurn(request(cancelled.signal));
     expect(opened).toHaveLength(1);
+    plan = 'apiKey';
+    await expect(host.runTurn(request())).rejects.toBeInstanceOf(EngineRefusal);
+    expect(opened[0]!.methods()).not.toContain('turn/start');
     await host.close();
   });
 
