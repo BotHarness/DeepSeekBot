@@ -721,7 +721,12 @@ export function mountPrivateInputs(
               )
               .then(
                 () => settle(refuse('the MCP server stopped')),
-                (error: unknown) => (settled ? undefined : reject(error)),
+                (error: unknown) =>
+                  settled
+                    ? undefined
+                    : reject(
+                        error instanceof Error ? error : new Error(String(error), { cause: error }),
+                      ),
               );
           });
         };

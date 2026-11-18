@@ -87,7 +87,7 @@ function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
     stopped: 0,
   };
   let gate: Promise<void> | undefined;
-  let refusal: unknown;
+  let refusal: Error | undefined;
   const media: CallClientMedia = {
     async start({ offer }) {
       phone.offers.push(offer);
@@ -148,7 +148,7 @@ function setup(options: { readyAsr?: boolean; emit?: 'visible-changes' } = {}) {
     slowStart: (wait: Promise<void>) => {
       gate = wait;
     },
-    refuseStart: (error: unknown) => {
+    refuseStart: (error: Error) => {
       refusal = error;
     },
     get ticking() {

@@ -89,12 +89,15 @@ export function decodeInWorker(
       clearTimeout(timer);
       signal.removeEventListener('abort', abort);
       void worker.terminate();
-      if (error) reject(error);
+      if (error)
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       else {
         try {
           resolve(pcmWav(pcm!));
         } catch (failure) {
-          reject(failure);
+          reject(
+            failure instanceof Error ? failure : new Error(String(failure), { cause: failure }),
+          );
         }
       }
     };

@@ -303,7 +303,9 @@ function HostFileMenu({
           if (app === undefined) preferences.clear(scope);
           else preferences.set(scope, { application: app.id, name: app.name });
         } catch (failure) {
-          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }));
+          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }), {
+            cause: failure,
+          });
         }
         onClose(
           app === undefined

@@ -58,7 +58,7 @@ async function snapshot(sessionId) {
       const timer = setTimeout(() => reject(Error('Session snapshot timed out')), 15000);
       socket.once('error', (error) => {
         clearTimeout(timer);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       });
       socket.on('message', (raw) => {
         const frame = JSON.parse(String(raw));

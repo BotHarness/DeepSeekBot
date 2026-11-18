@@ -269,7 +269,7 @@ it('bounds long cyclic cause chains without losing the refusal code', () => {
           module: 'fixture',
           description: 'cyclic causes',
           migrate() {
-            throw errors[0];
+            throw errors[0]!;
           },
         },
       ]),

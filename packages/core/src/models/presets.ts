@@ -405,7 +405,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         legacy = JSON.parse(readFileSync(join(options.rootDir, 'model-presets.json'), 'utf8'));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-          throw new Error('Invalid Model Preset import source');
+          throw new Error('Invalid Model Preset import source', { cause: error });
         legacy = [];
       }
       if (

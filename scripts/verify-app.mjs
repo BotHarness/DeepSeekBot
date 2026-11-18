@@ -470,7 +470,9 @@ async function withClient(options, paths, label, work) {
     return await work({ page, instance, consoleLines, steps });
   } catch (error) {
     const failure = await saveFailure(page, paths, label, consoleLines);
-    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`);
+    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`, {
+      cause: error,
+    });
   } finally {
     await browser.close();
   }

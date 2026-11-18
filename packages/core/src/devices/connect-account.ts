@@ -335,7 +335,12 @@ export function createConnectAccount(options: {
     queue = next.catch(() => undefined);
     if (signal === undefined) return next;
     return new Promise<T>((resolve, reject) => {
-      const cancel = () => reject(signal.reason);
+      const cancel = () =>
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error('Connect account operation cancelled', { cause: signal.reason }),
+        );
       if (signal.aborted) cancel();
       else signal.addEventListener('abort', cancel, { once: true });
       next.then(
@@ -346,7 +351,7 @@ export function createConnectAccount(options: {
         },
         (error: unknown) => {
           signal.removeEventListener('abort', cancel);
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
         },
       );
     });

@@ -122,7 +122,7 @@ export function withWorkspaceActionDeadline<T>(
       },
       (cause: unknown) => {
         window.clearTimeout(timer);
-        reject(cause);
+        reject(cause instanceof Error ? cause : new Error(String(cause), { cause: cause }));
       },
     );
   });

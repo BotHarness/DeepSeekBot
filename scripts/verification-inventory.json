@@ -1266,7 +1266,7 @@
       "behaviors": ["desktop.assignment.lifecycle"],
       "reason": "Shared imported RPC/nativeSnapshot/capture helper; assertions support callers and are not a standalone user path.",
       "task": 1967,
-      "sha256": "72798ebe3cd51cac3315fa8f31d98fecff1b7d917eb1fca19fe56ec54729fe7d"
+      "sha256": "cc243c3026ed6f0a5443aadb59e3a96d98994ae20d7ed8871b2cc7d8b7a867a5"
     },
     {
       "path": "scripts/e2e-assignment-recovery-notice.mjs",
@@ -1322,7 +1322,7 @@
       "behaviors": ["desktop.assignment.lifecycle"],
       "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "2b946937f69f8513558d26b740faf774f6e0f3cacac1ef889405a1f449b29a8c"
+      "sha256": "f4413f167edf0446041a8e14eeada9b20cd5cba236aeca4858f034a79e3522ab"
     },
     {
       "path": "scripts/e2e-assignment-terminal-notice.mjs",
@@ -1610,7 +1610,7 @@
       "behaviors": ["desktop.memory.read-restore", "desktop.group.manage"],
       "reason": "Seeds Memory save and Channels through public RPC; browser cache/read checks and group deletion, not safe-restore proof.",
       "task": 1975,
-      "sha256": "123beef134bdae7f8167a9225522faed611ecdb7ae69ad313f53113850ef4945"
+      "sha256": "9f2d9d1122f51d8a028fc3696f33d5efd32e1729cea0de5033e55f21a4c8830e"
     },
     {
       "path": "scripts/e2e-composer-regression.mjs",
@@ -1730,7 +1730,7 @@
       "behaviors": ["desktop.group.activity", "desktop.assignment.lifecycle"],
       "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0066ac880f4a642f9b7e3011479d0ef6184e8b021b4f7bcad52c06578d5cd1aa"
+      "sha256": "87c05cf46116d18d51a312e1f6a4705389bda62d862608b0f59f76888d8a98b9"
     },
     {
       "path": "scripts/e2e-group-assignment-proof.mjs",
@@ -1786,7 +1786,7 @@
       "behaviors": ["desktop.group.activity"],
       "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ed7ee00349fef9e95b7f237bb2e58ffe48dd6b7ad9d70ad701da757696f5230e"
+      "sha256": "94e1f8655be45afebd0a4f79ea842594274a856af1934369ee66b0467303c663"
     },
     {
       "path": "scripts/e2e-group-motion-proof.mjs",
@@ -1818,7 +1818,7 @@
       "behaviors": ["desktop.group.activity"],
       "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "569cd998328030dae76aa79e0198bc903bca8e7a87580c1d3555ea5316db56e9"
+      "sha256": "68643b78ea7de1bb8f9ab704d8d6974ff283612297fc4cf92a79649deb558393"
     },
     {
       "path": "scripts/e2e-harvest.mjs",
@@ -1834,7 +1834,7 @@
       "behaviors": ["desktop.roster"],
       "reason": "Prepared hidden/deleted Channels and delayed reads; cancellation/replacement must not apply stale search results.",
       "task": 1967,
-      "sha256": "0855675f53ce3841c9df10f4cbb1de4828dad5d889b99ff3653164d93a37009c"
+      "sha256": "5fb6c57a1c5e9653165011f0637a221b8701f97ca99a5ad4412968ec5ab9fa83"
     },
     {
       "path": "scripts/e2e-human-channel-names.mjs",
@@ -2122,7 +2122,7 @@
       "behaviors": ["desktop.dm.reply"],
       "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4425f1a9c3781ca907ac4c7d17df8e869773c7ce52a12c8b1da551084ea6c162"
+      "sha256": "fc9478f8edf759fccd501b8a556ea0e6fc7811de6b4bb5c1d51996d5808cc339"
     },
     {
       "path": "scripts/e2e-output-committed.mjs",
@@ -2130,7 +2130,7 @@
       "behaviors": ["desktop.dm.reply"],
       "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0805f2ec4085538cdbf8c44aa10dfefbe49ef91a3a72bb7370038c5531d3dc5b"
+      "sha256": "6870d885da113d136bd6fe05877cf491bc54057bb98a4ed2a621f3d3e03051b9"
     },
     {
       "path": "scripts/e2e-overview-memory.mjs",
@@ -2223,7 +2223,7 @@
       "behaviors": ["desktop.activity.tool-details"],
       "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "8085246c0ba8c4878fc33ee4cfc75fd85d40eab5e73dbfae07112bd38ce36ed6"
+      "sha256": "34a1031f1478d83816f508c0c4adf05a499d25d08467e73e907da95a52a3be2c"
     },
     {
       "path": "scripts/e2e-sidebar-preview.mjs",
@@ -2425,7 +2425,7 @@
       "behaviors": ["desktop.tob.home"],
       "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
       "task": 3092,
-      "sha256": "9b542ad7c4a3f73d7b7dd79cbf94536ab233a09651d11e35cab844b66680bcc3"
+      "sha256": "2d9b848cb4ca768d6b67bc765440fa75db8bec418d4358f9f32b926ab7cf9bab"
     },
     {
       "path": "scripts/e2e-tob-delegation.mjs",
@@ -2457,7 +2457,7 @@
       "behaviors": ["desktop.tob.home"],
       "reason": "Natural Tob Group rename, member attention and removal through rendered approval, denial and stale refusal; independent avatar clearing, canonical readback and actual settings/Members UI, plus same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
       "task": 3092,
-      "sha256": "c318e2ccc7bd23ca155479db8e5f4e6e4afb5aa476c9c761722028a820ebb893"
+      "sha256": "8de0b65238e191609a86f2785e0fdd2ff16ed62e4844192f53d6ee44f87b3aeb"
     },
     {
       "path": "scripts/e2e-tob-group-decisions.mjs",
@@ -2465,7 +2465,7 @@
       "behaviors": ["desktop.tob.home"],
       "reason": "Natural Tob pending-invitation cancellation and join acceptance/decline through rendered approval, denial and concurrent stale refusal; actual ordinary-Bot selected-Group join preconditions, canonical decision history and Members UI, terminal refusal and Web/macOS restart. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
       "task": 3092,
-      "sha256": "e74a39e4791e496074e77120323711b1f7cc31256160ac5923e192d9519965f3"
+      "sha256": "d2732f7edae0b74233e5d3fd7469779b5092be08b86835f55e455eb968ec6a4c"
     },
     {
       "path": "scripts/e2e-group-busy-review.mjs",
@@ -2609,7 +2609,7 @@
       "behaviors": ["desktop.video-wallpaper"],
       "reason": "Actual loop frames, background pause/resume, decode error and saved poster restoration, explicit Client CLI and exit cleanup.",
       "task": 2263,
-      "sha256": "fe7db6af55ee97f67c27aa7f123329f745251af8b333d0df31e1bc10a058601e"
+      "sha256": "1a1a6ba9a35396455f8fd836e57aeab302df33d9c7b8dd218025f61ae509ea63"
     },
     {
       "path": "scripts/e2e-appearance-recovery.mjs",
@@ -2617,7 +2617,7 @@
       "behaviors": ["desktop.appearance-recovery"],
       "reason": "Real current-mode clear, confirmed image/video reset, failure preservation/partial retry, preview cleanup, CLI and independent Client isolation.",
       "task": 2264,
-      "sha256": "cf63aed0226320827a79779565d51888a5a618f9f6dcf9734ba002423d9132b4"
+      "sha256": "64beca39aa30762dd1f18038d33504d2e302e7a74949131e0f84b1bbde598167"
     },
     {
       "path": "scripts/e2e-message-history-mask.mjs",
@@ -2681,7 +2681,7 @@
       "behaviors": ["phone.composer"],
       "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and an unchanged nonempty static message pixel region, excluding clocks/carets (AX coordinates may change space on resume). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
       "task": 2933,
-      "sha256": "4288d4ea35c14e25b09c4d4be42927db4a580c45e8151f4f9fd569ec9bebccfc"
+      "sha256": "f4a6a11cea9d83372be2975709323ac5a217a07593430bb1676e56124f41fa20"
     },
     {
       "path": "scripts/e2e-call-media.mjs",

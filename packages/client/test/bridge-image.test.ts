@@ -177,9 +177,18 @@ it('limits concurrent requests and cancels obsolete queued images before provide
     (_url: string, options: { signal: AbortSignal }) =>
       new Promise<Response>((resolve, reject) => {
         pending.push(() => resolve(imageResponse()));
-        options.signal.addEventListener('abort', () => reject(options.signal.reason), {
-          once: true,
-        });
+        options.signal.addEventListener(
+          'abort',
+          () =>
+            reject(
+              options.signal.reason instanceof Error
+                ? options.signal.reason
+                : new Error('aborted', { cause: options.signal.reason }),
+            ),
+          {
+            once: true,
+          },
+        );
       }),
   );
   for (let i = 0; i < 5; i++) {

@@ -99,7 +99,7 @@ export function browserHostLooks(
         await work();
       });
     } catch (error) {
-      if (!acquired) throw new Error('host-look-lock-unavailable');
+      if (!acquired) throw new Error('host-look-lock-unavailable', { cause: error });
       throw error;
     }
   },

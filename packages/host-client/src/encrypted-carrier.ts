@@ -283,7 +283,7 @@ function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<vo
       },
       (error: unknown) => {
         signal.removeEventListener('abort', abort);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       },
     );
     if (signal.aborted) abort();
@@ -579,7 +579,7 @@ export function encryptedCarrier(options: {
       } catch (error) {
         cleanup();
         current.requests.delete(id);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       }
     });
   };

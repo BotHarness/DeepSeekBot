@@ -29,7 +29,7 @@ describe.skipIf(!live || !gitUrl)('mobile Marketplace import against an isolated
     const parsed = parsePairingLink(offer.link);
     if (!parsed.ok) throw new Error(parsed.code);
     let approval: Promise<void> | undefined;
-    let approvalError: unknown;
+    let approvalError: Error | undefined;
     const paired = await redeemPairing({
       payload: parsed.payload,
       deviceName: 'mobile import regression',
@@ -47,8 +47,9 @@ describe.skipIf(!live || !gitUrl)('mobile Marketplace import against an isolated
             confirm: true,
           });
           expect(result.approved).toBe(true);
-        })().catch((error) => {
-          approvalError = error;
+        })().catch((error: unknown) => {
+          approvalError =
+            error instanceof Error ? error : new Error(String(error), { cause: error });
         });
       },
     });

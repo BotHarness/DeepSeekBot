@@ -678,13 +678,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     let ownsBotDir = false;
     let importedMemory: string | undefined;
     let created = false;
-    let authorizationError: unknown;
+    let authorizationError: Error | undefined;
     const checkAuthority = () => {
       try {
         authorize?.();
       } catch (error) {
-        authorizationError = error;
-        throw error;
+        authorizationError =
+          error instanceof Error ? error : new Error(String(error), { cause: error });
+        throw authorizationError;
       }
     };
     try {

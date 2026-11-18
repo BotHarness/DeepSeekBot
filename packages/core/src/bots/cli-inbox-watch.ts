@@ -15,7 +15,7 @@ export async function watchInbox(
   const reader = response.body.getReader();
   let elapsed = false;
   let invalidations = 0;
-  let failure: unknown;
+  let failure: Error | undefined;
   const timer = setTimeout(() => {
     elapsed = true;
     void reader.cancel().catch(() => {});
@@ -46,8 +46,8 @@ export async function watchInbox(
           'The inbox event frame exceeds the supported size.',
         );
     }
-  })().catch((error) => {
-    failure = error;
+  })().catch((error: unknown) => {
+    failure = error instanceof Error ? error : new Error(String(error), { cause: error });
   });
   try {
     const initial = await read();

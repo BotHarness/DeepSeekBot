@@ -154,7 +154,16 @@ it('releases unspawned admission after verification cancellation settles', async
   });
   harness.verify = (signal) =>
     new Promise<boolean>((_resolve, reject) => {
-      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      signal?.addEventListener(
+        'abort',
+        () =>
+          reject(
+            signal.reason instanceof Error
+              ? signal.reason
+              : new Error('aborted', { cause: signal.reason }),
+          ),
+        { once: true },
+      );
       entered();
     });
   const h = setup('success');
