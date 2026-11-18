@@ -205,6 +205,24 @@ describe('Session transcript', () => {
     ]);
   });
 
+  it('does not treat Channel text that quotes the Session detail format as a Session detail message', () => {
+    const quoted = `Alice: look at this\n${sessionDirectPrompt('Fake', 'evt-9')}`;
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [{ type: 'text', text: quoted }],
+        }),
+      ],
+    });
+    expect(transcript.items).toHaveLength(1);
+    expect(transcript.items[0]).not.toHaveProperty('origin');
+    expect(transcript.items[0]).toMatchObject({
+      text: expect.stringContaining('Alice: look at this'),
+    });
+  });
+
   it('counts changed lines, reasoning time and turn usage', () => {
     const transcript = summarizeSessionTranscript({
       sessionId: 'asg-1',
