@@ -301,6 +301,7 @@ export interface ChannelAssignmentSummary {
   latestReport?: AssignmentReport;
   modelRoute?: ModelRoute;
   subagentCount?: number;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -5843,7 +5844,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
                   a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
                   a.approval_policy, a.preset_revision, a.created_at, a.updated_at,
-                  a.model_route_json
+                  a.model_route_json, a.archived_at
              FROM assignments a
              JOIN source_events s ON s.source_event_id = a.source_event_id
             WHERE s.channel_id = ?
@@ -5862,6 +5863,7 @@ class BotRuntimeImplementation implements BotRuntime {
         activity: assignment.activity,
         ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
         ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
+        ...(assignment.archivedAt === undefined ? {} : { archivedAt: assignment.archivedAt }),
         createdAt: assignment.createdAt,
         updatedAt: assignment.updatedAt,
       };

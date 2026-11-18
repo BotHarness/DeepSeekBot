@@ -15,7 +15,7 @@ export interface PersonaBotSessionRow {
   description?: string;
   cwd: string | undefined;
   updatedAt: number;
-  status: 'running' | 'stopping' | 'attention' | 'stopped' | 'idle' | 'unavailable';
+  status: 'running' | 'stopping' | 'attention' | 'idle' | 'unavailable';
   section?: AssignmentSection;
   needs?: AssignmentNeed;
   archived?: true;
@@ -40,7 +40,7 @@ function assignmentSection(
   owned: OwnedSessionSummary,
   status: PersonaBotSessionRow['status'],
 ): { section: AssignmentSection; needs?: AssignmentNeed } {
-  if (owned.assignmentArchived === true || status === 'stopped') return { section: 'resolved' };
+  if (owned.assignmentArchived === true) return { section: 'resolved' };
   if (owned.assignmentExecutionWait === 'waiting-human')
     return { section: 'needs-input', needs: 'approval' };
   if (status === 'attention') return { section: 'needs-input', needs: 'error' };
@@ -56,7 +56,7 @@ function rowStatus(
   native: NativeSessionSummary | undefined,
 ): PersonaBotSessionRow['status'] {
   if (owned.assignmentActivity === 'stopping') return 'stopping';
-  if (owned.assignmentActivity === 'stopped') return 'stopped';
+  if (owned.assignmentActivity === 'stopped') return 'idle';
   if (native?.running) return 'running';
   if (owned.assignmentActivity === 'error') return 'attention';
   if (native === undefined) return 'unavailable';
