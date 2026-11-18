@@ -283,7 +283,7 @@ export function ToolApprovalCard({
   const category = t(
     botCreate !== undefined
       ? 'approval.category.bot'
-      : request.toolName === 'bash'
+      : request.toolName === 'bash' || request.toolName === 'shell'
         ? 'approval.category.terminal'
         : summary.file !== undefined
           ? 'approval.category.file'

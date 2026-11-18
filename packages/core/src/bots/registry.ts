@@ -180,6 +180,7 @@ export interface PersonaBotRegistry {
     orchestrator: PersonaBotModelPlan['orchestrator'],
     expectedRevision: number,
     orchestratorGroupId?: string,
+    orchestratorGroupEffort?: string,
   ): UpdatePersonaBotResult;
   setAssignmentModels(
     slug: string,
@@ -312,6 +313,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(plan.orchestratorGroupId === undefined
           ? {}
           : { orchestratorGroupId: plan.orchestratorGroupId }),
+        ...(plan.orchestratorGroupEffort === undefined
+          ? {}
+          : { orchestratorGroupEffort: plan.orchestratorGroupEffort }),
         ...(plan.assignmentGroups === undefined
           ? {}
           : { assignmentGroups: [...plan.assignmentGroups] }),
@@ -691,13 +695,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     let ownsBotDir = false;
     let importedMemory: string | undefined;
     let created = false;
-    let authorizationError: unknown;
+    let authorizationError: Error | undefined;
     const checkAuthority = () => {
       try {
         authorize?.();
       } catch (error) {
-        authorizationError = error;
-        throw error;
+        authorizationError =
+          error instanceof Error ? error : new Error(String(error), { cause: error });
+        throw authorizationError;
       }
     };
     try {
@@ -1189,13 +1194,23 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(record);
       return { ok: true, record };
     },
-    customizeModelPlan(slug, orchestrator, expectedRevision, orchestratorGroupId) {
+    customizeModelPlan(
+      slug,
+      orchestrator,
+      expectedRevision,
+      orchestratorGroupId,
+      orchestratorGroupEffort,
+    ) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (record.model !== undefined) return { ok: false, reason: 'invalid-input' };
       const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
       if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
-      const { orchestratorGroupId: _previousGroup, ...kept } = record.modelPlan ?? {};
+      const {
+        orchestratorGroupId: _previousGroup,
+        orchestratorGroupEffort: _previousEffort,
+        ...kept
+      } = record.modelPlan ?? {};
       record.modelPlan = {
         ...kept,
         revision: revision + 1,
@@ -1203,6 +1218,11 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         sourcePresetName: '',
         orchestrator: { ...orchestrator },
         ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+        ...(orchestratorGroupId === undefined ||
+        orchestratorGroupEffort === undefined ||
+        orchestratorGroupEffort.trim() === ''
+          ? {}
+          : { orchestratorGroupEffort: orchestratorGroupEffort.trim() }),
         appliedAt: now().toISOString(),
       };
       write(record);

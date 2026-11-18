@@ -53,7 +53,7 @@
       "layer": "L2 lint",
       "rule": "eslint/no-console",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
-      "fix": "in packages/*/src, report through the package's logger or a Developer diagnostics log instead of console.*.",
+      "fix": "in packages/*/src, report through the package's logger instead of console.*: reportFailure in the client (Developer diagnostics log), logWorker from src/worker-log.ts in a Cloudflare Worker, process.stdout/stderr for CLI output.",
       "check": "scripts/lint-ratchet.mjs",
       "baseline": "scripts/lint-baseline.json"
     },

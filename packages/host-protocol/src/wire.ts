@@ -252,7 +252,15 @@ export interface SendStatus {
 
 export type WireBotBanner = { recipe: { scene: string; seed: number } } | { image: string };
 
+export interface OrchestratorRunner {
+  engine: string;
+  displayName: string;
+  account?: string;
+  model?: string;
+}
+
 export interface PersonaBotSummary {
+  orchestratorRunner?: OrchestratorRunner;
   tob?: { defaultName: boolean; defaultAvatar: boolean };
   slug: string;
   displayName: string;

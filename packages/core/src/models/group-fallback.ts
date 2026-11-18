@@ -30,8 +30,9 @@ export interface GroupFallback {
     failed: RestingRoute,
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   start(botSlug: string, sessionId: string): Promise<void>;
-  pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
   inherited(): string | undefined;
+  inheritedEffort(): string | undefined;
 }
 
 const same = (left: RouteKey, right: RouteKey) =>
@@ -40,12 +41,23 @@ const same = (left: RouteKey, right: RouteKey) =>
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
   inheritedGroup?(): string | undefined;
+  inheritedEffort?(): string | undefined;
   routes(groupId: string): ModelRoute[];
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
   validate(route: ModelRoute): Promise<void>;
+  withEffort?(route: ModelRoute, effort: string | undefined): Promise<ModelRoute>;
   overrides?: FallbackOverrideStore;
 }): GroupFallback {
+  const withEffort = async (route: ModelRoute, effort: string | undefined) =>
+    options.withEffort === undefined || effort === undefined
+      ? { ...route }
+      : options.withEffort(route, effort);
+  const effortOf = (botSlug: string): string | undefined => {
+    const plan = options.plan(botSlug);
+    if (plan === undefined) return options.inheritedEffort?.();
+    return plan.orchestratorGroupId === undefined ? undefined : plan.orchestratorGroupEffort;
+  };
   const overrides = options.overrides ?? createMemoryFallbackOverrides();
   const groupOf = (botSlug: string): string | undefined => {
     const plan = options.plan(botSlug);
@@ -62,13 +74,21 @@ export function createGroupFallback(options: {
   };
   return {
     inherited: () => options.inheritedGroup?.(),
+    inheritedEffort: () => options.inheritedEffort?.(),
     route(sessionId) {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;
       const group = routesOf(override.botSlug);
+      const member =
+        group?.groupId === override.groupId
+          ? group.routes.find((route) => same(route, override.route))
+          : undefined;
+      const effort = override.route.reasoningEffort;
       if (
-        group?.groupId !== override.groupId ||
-        !group.routes.some((route) => same(route, override.route))
+        member === undefined ||
+        (member.reasoningEffort === undefined
+          ? effort !== undefined && effort !== effortOf(override.botSlug)
+          : effort !== member.reasoningEffort)
       ) {
         overrides.delete(sessionId);
         return undefined;
@@ -92,11 +112,12 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: { ...route } });
+        const next = await withEffort(route, effortOf(botSlug));
+        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: next });
         return {
           kind: 'switch',
           from: { provider: failed.provider, model: failed.model },
-          to: { ...route },
+          to: { ...next },
           reason: failed.reason ?? 'quota',
           until: failed.until,
         };
@@ -114,11 +135,15 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: { ...route } });
+        overrides.set(sessionId, {
+          botSlug,
+          groupId: group.groupId,
+          route: await withEffort(route, effortOf(botSlug)),
+        });
         return;
       }
     },
-    async pick(botSlug, groupId) {
+    async pick(botSlug, groupId, effort) {
       let routes: ModelRoute[];
       try {
         routes = options.routes(groupId);
@@ -138,7 +163,7 @@ export function createGroupFallback(options: {
         } catch {
           continue;
         }
-        return { kind: 'route', route: { ...route } };
+        return { kind: 'route', route: await withEffort(route, effort) };
       }
       return { kind: 'exhausted', rests };
     },

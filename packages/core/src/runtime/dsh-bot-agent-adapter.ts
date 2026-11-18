@@ -83,12 +83,23 @@ import {
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-host.js';
 import { engineInstructions } from '../engines/engine-persona.js';
+import {
+  ENGINE_LISTED_TOOLS,
+  ENGINE_UNSUPPORTED_TOOLS,
+  type EngineBotTool,
+  type EngineToolGate,
+  type EngineToolSource,
+  searchEngineTools,
+  TOOL_CALL,
+  TOOL_SEARCH,
+} from '../engines/engine-tools.js';
 
 export interface AssignmentGroupRoutes {
-  pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
+  inheritedEffort?(): string | undefined;
 }
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
@@ -511,10 +522,13 @@ export interface DshBotAgentAdapterOptions {
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
   engines?: DshBotEngines;
   enginePersona?: (bot: PersonaBotRecord) => { soul?: string; coreMemory?: string };
+  engineTools?: EngineToolSource;
+  engineToolGate?: EngineToolGate;
 }
 
 export interface DshBotEngines {
   engineFor(botSlug: string): string | undefined;
+  runsOnEngine?(botSlug: string): boolean;
   runTurn(request: EngineTurnRequest): Promise<void>;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
@@ -776,6 +790,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
   readonly #engines: DshBotEngines | undefined;
   readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
+  readonly #engineTools: EngineToolSource | undefined;
+  readonly #engineToolGate: EngineToolGate | undefined;
   readonly #engineStops = new Map<string, AbortController>();
   readonly #engineChannels = new Map<string, string>();
   readonly #preparationVisibleMs: number;
@@ -821,6 +837,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.#engines = options.engines;
     this.#enginePersona = options.enginePersona;
+    this.#engineTools = options.engineTools;
+    this.#engineToolGate = options.engineToolGate;
   }
 
   async #prepare<T>(
@@ -930,8 +948,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       });
     try {
-      if (run.tobCliTurn === undefined && this.#engines?.engineFor(run.bot.slug) !== undefined) {
-        await this.#runEngineTurn(run, this.#engines, abandonable.abandoned);
+      const engines = this.#engines;
+      if (
+        run.tobCliTurn === undefined &&
+        engines !== undefined &&
+        this.#runsOnEngine(run.bot.slug)
+      ) {
+        await this.#runEngineTurn(run, engines, abandonable.abandoned);
         return;
       }
       if (this.#engines?.isLive(run.sessionId)) await this.#engines.release(run.sessionId);
@@ -1058,6 +1081,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
+  #runsOnEngine(botSlug: string): boolean {
+    const engines = this.#engines;
+    if (engines === undefined) return false;
+    return engines.runsOnEngine?.(botSlug) ?? engines.engineFor(botSlug) !== undefined;
+  }
+
   async #runEngineTurn(
     run: OrchestratorAgentRun,
     engines: DshBotEngines,
@@ -1078,9 +1107,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.setExecutionReady?.(true);
       run.requireContent?.();
       if (run.acceptNativeInput !== undefined && !run.acceptNativeInput()) return;
-      const tools = this.#directToolDefinitions(run).filter((tool) =>
-        ENGINE_GATEWAY_TOOLS.has(tool.name),
-      );
+      const catalog = await this.#engineCatalog(run, stop.signal);
+      if (stop.signal.aborted) return;
+      const tools = [
+        ...this.#directToolDefinitions(run).filter((tool) => ENGINE_LISTED_TOOLS.has(tool.name)),
+        TOOL_SEARCH,
+        TOOL_CALL,
+      ].filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name));
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       const promptText = this.#promptText(run.sessionId);
       const persona = this.#enginePersona?.(run.bot) ?? {};
@@ -1096,21 +1129,29 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           replyDelivery: orchestratorPromptSections(promptText).replyDelivery,
         }),
         tools,
-        execute: async (name, args, signal) => {
-          const tool = tools.find((entry) => entry.name === name);
-          if (tool === undefined)
-            throw new Error(`${name} is not available to this engine Session`);
-          const callId = `${run.sessionId}:engine:${randomUUID()}`;
-          const value = await tool.execute(args, {
-            callId,
-            rootCallId: callId,
-            name,
-            arguments: args,
-            signal,
-            deferContext: () => undefined,
-            concludeTurn: () => undefined,
-          } as unknown as ToolRunContext);
-          return value;
+        execute: async (name, args, signal, context) => {
+          if (name === TOOL_SEARCH.name) return searchEngineTools(catalog, args);
+          const [toolName, toolArgs] =
+            name === TOOL_CALL.name ? toolCallTarget(args) : [name, args];
+          const tool = catalog.find((entry) => entry.name === toolName);
+          if (
+            tool === undefined ||
+            (name !== TOOL_CALL.name && !tools.some((entry) => entry.name === name))
+          )
+            throw new Error(`refused: ${toolName} is not available to this engine Session`);
+          if (this.#engineToolGate !== undefined) {
+            const refusal = await this.#engineToolGate({
+              botSlug: run.bot.slug,
+              sessionId: run.sessionId,
+              session: context.session,
+              toolName,
+              args: toolArgs,
+              signal,
+              ask: context.ask,
+            });
+            if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
+          }
+          return tool.run(toolArgs, signal);
         },
         signal: stop.signal,
       });
@@ -1120,6 +1161,58 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#engineChannels.delete(run.sessionId);
       }
     }
+  }
+
+  async #engineCatalog(run: OrchestratorAgentRun, signal: AbortSignal): Promise<EngineBotTool[]> {
+    const own: ToolDefinition[] = [];
+    const collect = (tool: ToolDefinition) => {
+      if (!ENGINE_UNSUPPORTED_TOOLS.has(tool.name)) own.push(tool);
+    };
+    this.#orchestratorTools(
+      run,
+      { get: () => undefined } as Pick<Context, 'get'>,
+      collect,
+      collect,
+    );
+    const catalog: EngineBotTool[] = own.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.parameters as Record<string, unknown>,
+      run: async (args, toolSignal) => {
+        const callId = `${run.sessionId}:engine:${randomUUID()}`;
+        try {
+          return await tool.execute(args, {
+            callId,
+            rootCallId: callId,
+            name: tool.name,
+            arguments: args,
+            signal: toolSignal,
+            deferContext: () => undefined,
+            concludeTurn: () => undefined,
+          } as unknown as ToolRunContext);
+        } catch (error) {
+          if (error instanceof ToolArgsError)
+            throw new Error(`${tool.name}: ${error.message}`, { cause: error });
+          throw error;
+        }
+      },
+    }));
+    const contributed = await untilAborted(
+      Promise.resolve(
+        this.#engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId }) ?? [],
+      ).catch(() => []),
+      signal,
+    ).catch(() => []);
+    for (const tool of contributed)
+      if (!catalog.some((entry) => entry.name === tool.name)) catalog.push(tool);
+    return catalog;
+  }
+
+  async engineToolCatalog(botSlug: string): Promise<EngineBotTool[]> {
+    return this.#engineCatalog(
+      { sessionId: '', bot: { slug: botSlug } } as unknown as OrchestratorAgentRun,
+      AbortSignal.timeout(30_000),
+    );
   }
 
   ownsModelFreeTobTurn(agent: Agent): boolean {
@@ -2061,22 +2154,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             (args.provider === undefined
               ? (plan?.assignmentDefaultGroupId ?? inherited)
               : undefined);
-          let picked: ModelRoute | undefined;
-          if (groupId !== undefined) {
-            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
-              throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
-            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
-            if (pick?.kind !== 'route')
-              return JSON.stringify({
-                outcome: 'refused',
-                retryable: false,
-                message:
-                  pick?.kind === 'exhausted' && pick.rests.length > 0
-                    ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
-                    : `Routing Group ${groupId} has no usable model`,
-              });
-            picked = pick.route;
-          }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
           if (args.reasoning_effort !== undefined && args.provider === undefined) {
@@ -2091,9 +2168,25 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           const groupEffort =
             groupId === undefined
               ? undefined
-              : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
-          if (picked !== undefined && groupEffort !== undefined)
-            picked = { ...picked, reasoningEffort: groupEffort };
+              : (args.reasoning_effort ??
+                assignmentGroupOptionOf(plan, groupId)?.defaultEffort ??
+                (groupId === inherited ? this.#assignmentGroups?.inheritedEffort?.() : undefined));
+          let picked: ModelRoute | undefined;
+          if (groupId !== undefined) {
+            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
+            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+            if (pick?.kind !== 'route')
+              return JSON.stringify({
+                outcome: 'refused',
+                retryable: false,
+                message:
+                  pick?.kind === 'exhausted' && pick.rests.length > 0
+                    ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                    : `Routing Group ${groupId} has no usable model`,
+              });
+            picked = pick.route;
+          }
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,
@@ -5062,6 +5155,7 @@ export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): Bo
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;
   ownsModelFreeTobTurn(agent: Agent): boolean;
+  engineToolCatalog(botSlug: string): Promise<EngineBotTool[]>;
   runModelFreeTobTurn(
     agent: Agent,
     messages: readonly ReturnType<typeof createUserMessage>[],
@@ -5107,4 +5201,13 @@ async function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined
     signal.addEventListener('abort', stop, { once: true });
     work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
   });
+}
+
+function toolCallTarget(args: Record<string, unknown>): [string, Record<string, unknown>] {
+  const name = args['name'];
+  const inner = args['arguments'] ?? {};
+  if (typeof name !== 'string' || name === '') throw new Error('tool_call: name is required');
+  if (typeof inner !== 'object' || inner === null || Array.isArray(inner))
+    throw new Error('tool_call: arguments must be an object');
+  return [name, inner as Record<string, unknown>];
 }

@@ -1,3 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import type {} from '@deepseek-ai/dsh-session-title';
+import { inboundSessionTitle } from '../runtime/inbound-envelope.js';
+import { isSessionActivityName } from '../state/tool-activity.js';
+
 import {
   type ContentBlock,
   createAssistantMessage,
@@ -6,6 +11,7 @@ import {
   ToolCallId,
 } from '@deepseek-ai/dsh-llm';
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
+import { type ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval';
 
 import type { EngineEvent, EngineId, EngineTurnEnd } from './engine-session.js';
 
@@ -23,6 +29,8 @@ export function nextTurnNumber(events: readonly SessionEvent[]): number {
   return last + 1;
 }
 
+const ENVELOPE_TITLE = /^\[(?:Human DM|Group|Bot DM|Bot Inbox)/u;
+
 export class EngineTurnLog {
   readonly #target: EngineLogTarget;
   readonly #source: { provider: string; model: string };
@@ -31,19 +39,36 @@ export class EngineTurnLog {
   #stepHasResults = false;
   #pending: AssistantBlock[] = [];
   readonly #open = new Set<string>();
+  readonly #approvals = new Set<string>();
+  #ended = false;
 
   constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
     this.#target = target;
     this.#source = { provider: engine, model: account };
-    this.#turn = nextTurnNumber(target.session.snapshotEvents());
+    const events = target.session.snapshotEvents();
+    this.#turn = nextTurnNumber(events);
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
-    session.append(
+    const message = session.append(
       'user/message',
       createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
       { surfaceOp: 'append' },
     );
+    const current = events.findLast((event) => event.type === 'session/title');
+    if (
+      current === undefined ||
+      !isSessionActivityName(current.data.title) ||
+      (current.data.source?.kind === 'fallback' && ENVELOPE_TITLE.test(current.data.title))
+    ) {
+      const title = inboundSessionTitle(input);
+      if (isSessionActivityName(title))
+        session.append('session/title', {
+          title,
+          messageSeqs: [message.seq],
+          source: { kind: 'fallback' },
+        });
+    }
   }
 
   get turn(): number {
@@ -51,6 +76,7 @@ export class EngineTurnLog {
   }
 
   accept(event: EngineEvent): void {
+    if (this.#ended) return;
     switch (event.kind) {
       case 'reasoning':
       case 'text':
@@ -93,7 +119,27 @@ export class EngineTurnLog {
     }
   }
 
+  approvalAsked(request: { toolName: string; callId?: string; reason?: string }): string {
+    const id = ApprovalRequestId(randomUUID());
+    if (this.#ended) return id;
+    this.#approvals.add(id);
+    this.#target.session.append('approval/asked', {
+      id,
+      toolName: request.toolName,
+      ...(request.callId === undefined ? {} : { callId: ToolCallId(request.callId) }),
+      ...(request.reason === undefined ? {} : { reason: request.reason }),
+    });
+    return id;
+  }
+
+  approvalDecided(id: string, outcome: ApprovalOutcome): void {
+    if (this.#ended || !this.#approvals.delete(id)) return;
+    this.#target.session.append('approval/decided', { id: ApprovalRequestId(id), outcome });
+  }
+
   async end(end: EngineTurnEnd): Promise<void> {
+    for (const id of [...this.#approvals]) this.approvalDecided(id, 'cancelled');
+    this.#ended = true;
     if (this.#pending.length) this.#assistant(this.#pending);
     this.#pending = [];
     for (const callId of this.#open)

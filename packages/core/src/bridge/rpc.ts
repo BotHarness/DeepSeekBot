@@ -400,9 +400,11 @@ function presetGroupArgs(
   assignmentGroups: string[] | undefined,
   assignmentDefaultGroupId: string | null | undefined,
   assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
+  orchestratorGroupEffort?: string | null,
 ): Record<string, unknown> {
   return {
     ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+    ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
     ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
     ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
     ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
@@ -1156,6 +1158,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     globalDefault: boolean,
     expectedDefaultRevision?: number,
     groupId?: string,
+    groupEffort?: string,
+    expectedDefaultGroupRevision?: number,
   ): Promise<{ revision: number; groupRevision?: number }> {
     return unwrapAsync(
       this.methods.onboardingModel({
@@ -1165,6 +1169,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
         globalDefault,
         expectedDefaultRevision,
         ...(groupId === undefined ? {} : { groupId }),
+        ...(groupEffort === undefined ? {} : { groupEffort }),
+        ...(expectedDefaultGroupRevision === undefined ? {} : { expectedDefaultGroupRevision }),
       }),
     );
   }
@@ -1306,6 +1312,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
@@ -1319,6 +1326,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
           assignmentGroups,
           assignmentDefaultGroupId,
           assignmentGroupOptions,
+          orchestratorGroupEffort,
         ),
       }),
     );
@@ -1336,6 +1344,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1351,6 +1360,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
           assignmentGroups,
           assignmentDefaultGroupId,
           assignmentGroupOptions,
+          orchestratorGroupEffort,
         ),
       }),
     );
@@ -1406,6 +1416,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator?: ModelRoute,
     expectedRevision?: number,
     orchestratorGroupId?: string,
+    orchestratorGroupEffort?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanCustomize({
@@ -1413,6 +1424,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(orchestrator === undefined ? {} : { orchestrator }),
         expectedRevision,
         ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+        ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
       }),
     );
   }
@@ -1452,6 +1464,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
@@ -1466,6 +1479,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
           assignmentGroups,
           assignmentDefaultGroupId,
           assignmentGroupOptions,
+          orchestratorGroupEffort,
         ),
       }),
     );

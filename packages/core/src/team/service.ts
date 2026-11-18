@@ -1487,7 +1487,11 @@ export class TeamService {
       try {
         disposals.push(peer.dispose());
       } catch (error) {
-        disposals.push(Promise.reject(error));
+        disposals.push(
+          Promise.reject(
+            error instanceof Error ? error : new Error(String(error), { cause: error }),
+          ),
+        );
       }
     }
     const settled = await Promise.allSettled(disposals);

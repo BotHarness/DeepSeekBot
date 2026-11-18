@@ -6,12 +6,15 @@ import { engineLaunch } from './engine-launch.js';
 import {
   type EngineAccount,
   type EngineApprovalDecision,
+  type EngineChoice,
   type EngineEvent,
+  type EngineModel,
   type EngineSendOptions,
   type EngineSession,
   type EngineStartOptions,
   type EngineTurnEnd,
   EngineRefusal,
+  engineEffort,
   engineEnvironment,
 } from './engine-session.js';
 
@@ -29,7 +32,7 @@ export interface CodexProcessOptions {
   command: string;
   home: string;
   cwd: string;
-  gateway: EngineStartOptions['gateway'];
+  gateway?: EngineStartOptions['gateway'];
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -38,19 +41,23 @@ export function codexProcessSpec(options: CodexProcessOptions): {
   env: Record<string, string>;
 } {
   const server = `mcp_servers.${CODEX_GATEWAY_SERVER}`;
+  const { gateway } = options;
   return {
-    args: [
-      'app-server',
-      '-c',
-      `${server}.url=${JSON.stringify(options.gateway.url)}`,
-      '-c',
-      `${server}.bearer_token_env_var=${JSON.stringify(GATEWAY_TOKEN_VARIABLE)}`,
-      '-c',
-      `${server}.default_tools_approval_mode="approve"`,
-    ],
+    args:
+      gateway === undefined
+        ? ['app-server']
+        : [
+            'app-server',
+            '-c',
+            `${server}.url=${JSON.stringify(gateway.url)}`,
+            '-c',
+            `${server}.bearer_token_env_var=${JSON.stringify(GATEWAY_TOKEN_VARIABLE)}`,
+            '-c',
+            `${server}.default_tools_approval_mode="approve"`,
+          ],
     env: engineEnvironment(options.env ?? process.env, {
       CODEX_HOME: options.home,
-      [GATEWAY_TOKEN_VARIABLE]: options.gateway.token,
+      ...(gateway === undefined ? {} : { [GATEWAY_TOKEN_VARIABLE]: gateway.token }),
     }),
   };
 }
@@ -137,6 +144,73 @@ export function codexAccount(result: unknown): EngineAccount {
   return { kind: 'signed-out', engine: 'codex' };
 }
 
+const USAGE_LIMIT = /usage limit|hit your limit|rate limit reached/iu;
+
+export function codexUsageLimit(error: Json): boolean {
+  const info = error['codexErrorInfo'];
+  if (info === 'usageLimitExceeded' || record(info)['usageLimitExceeded'] !== undefined)
+    return true;
+  return USAGE_LIMIT.test(text(error['message']));
+}
+
+export function codexRateLimit(limits: Json): Extract<EngineEvent, { kind: 'rate-limit' }> {
+  const limited = limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true;
+  const windows = [record(limits['primary']), record(limits['secondary'])].filter(
+    (window) => typeof window['usedPercent'] === 'number',
+  );
+  const percent = (window: Json) => window['usedPercent'] as number;
+  const reset = (window: Json) =>
+    typeof window['resetsAt'] === 'number' ? window['resetsAt'] : undefined;
+  const spent = windows.filter((window) => percent(window) >= 100);
+  const shown =
+    limited && spent.length
+      ? spent.reduce((latest, window) =>
+          (reset(window) ?? 0) > (reset(latest) ?? 0) ? window : latest,
+        )
+      : windows.reduce<Json | undefined>(
+          (most, window) => (most === undefined || percent(window) > percent(most) ? window : most),
+          undefined,
+        );
+  const resetsAt = shown === undefined ? undefined : reset(shown);
+  return {
+    kind: 'rate-limit',
+    ...(shown === undefined ? {} : { usedPercent: percent(shown) }),
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+    limited: limited || spent.length > 0,
+  };
+}
+
+export function codexModels(pages: readonly unknown[]): EngineModel[] {
+  return pages.flatMap((page) => {
+    const data = record(page)['data'];
+    return (Array.isArray(data) ? data : []).flatMap((raw): EngineModel[] => {
+      const entry = record(raw);
+      const id = text(entry['model']) || text(entry['id']);
+      if (id === '' || entry['hidden'] === true) return [];
+      const efforts = Array.isArray(entry['supportedReasoningEfforts'])
+        ? entry['supportedReasoningEfforts'].flatMap((option) => {
+            const effort = text(record(option)['reasoningEffort']);
+            return effort === '' ? [] : [engineEffort(effort)];
+          })
+        : [];
+      const description = text(entry['description']);
+      const defaultEffort = text(entry['defaultReasoningEffort']);
+      return [
+        {
+          id,
+          name: text(entry['displayName']) || id,
+          ...(description === '' ? {} : { description }),
+          efforts,
+          ...(defaultEffort === '' ? {} : { defaultEffort }),
+          ...(entry['isDefault'] === true ? { isDefault: true } : {}),
+        },
+      ];
+    });
+  });
+}
+
+const MODEL_PAGES = 10;
+
 export const CODEX_TURN_SANDBOX = {
   type: 'workspaceWrite',
   writableRoots: [],
@@ -166,9 +240,11 @@ export class CodexEngineSession implements EngineSession {
   readonly #transport: CodexTransport;
   readonly #cwd: string;
   readonly #instructions: string;
+  readonly #choice: EngineChoice;
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
+  readonly #patches = new Map<string, string[]>();
   #initialized: Promise<void> | undefined;
   #threadId: string | undefined;
   #turn: ActiveTurn | undefined;
@@ -178,11 +254,16 @@ export class CodexEngineSession implements EngineSession {
 
   constructor(
     transport: CodexTransport,
-    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> & { requestTimeoutMs?: number },
+    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> &
+      EngineChoice & { requestTimeoutMs?: number },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
+    this.#choice = {
+      ...(options.model === undefined ? {} : { model: options.model }),
+      ...(options.effort === undefined ? {} : { effort: options.effort }),
+    };
     this.#requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     transport.onMessage((message) => this.#receive(record(message)));
     transport.onExit((detail) => {
@@ -201,6 +282,12 @@ export class CodexEngineSession implements EngineSession {
     return this.#exited !== undefined || this.#abandoned;
   }
 
+  #model: string | undefined;
+
+  get model(): string | undefined {
+    return this.#model;
+  }
+
   async account(): Promise<EngineAccount> {
     await this.#initialize();
     return codexAccount(await this.#request('account/read', {}));
@@ -213,6 +300,7 @@ export class CodexEngineSession implements EngineSession {
       approvalPolicy: 'on-request',
       sandbox: 'workspace-write',
       developerInstructions: this.#instructions,
+      ...(this.#choice.model === undefined ? {} : { model: this.#choice.model }),
     };
     let result: Json;
     if (resume === undefined)
@@ -226,6 +314,8 @@ export class CodexEngineSession implements EngineSession {
           throw new EngineRefusal('engine-thread-gone', message);
         throw new EngineRefusal('engine-failed', `Codex could not resume its thread: ${message}`);
       }
+    const model = text(result['model']) || text(record(result['thread'])['model']);
+    if (model) this.#model = model;
     const id = text(record(result['thread'])['id']);
     if (!id) throw new EngineRefusal('engine-failed', 'Codex did not return a thread id');
     this.#threadId = id;
@@ -264,6 +354,7 @@ export class CodexEngineSession implements EngineSession {
           threadId,
           input: [{ type: 'text', text: input, text_elements: [] }],
           sandboxPolicy: CODEX_TURN_SANDBOX,
+          ...this.#choice,
         }),
       );
       turnId = text(record(started['turn'])['id']) || undefined;
@@ -284,6 +375,24 @@ export class CodexEngineSession implements EngineSession {
     if (id === undefined) return;
     this.#approvals.delete(approvalId);
     this.#transport.send({ id, result: { decision } });
+  }
+
+  async models(): Promise<EngineModel[]> {
+    await this.#initialize();
+    const pages: unknown[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = record(
+        await this.#request('model/list', {
+          limit: 100,
+          includeHidden: false,
+          ...(cursor === undefined ? {} : { cursor }),
+        }),
+      );
+      pages.push(page);
+      cursor = text(page['nextCursor']) || undefined;
+    } while (cursor !== undefined && pages.length < MODEL_PAGES);
+    return codexModels(pages);
   }
 
   async close(): Promise<void> {
@@ -357,22 +466,14 @@ export class CodexEngineSession implements EngineSession {
       case 'item/completed':
         this.#itemCompleted(record(params['item']));
         return;
-      case 'account/rateLimits/updated': {
-        const limits = record(params['rateLimits']);
-        const primary = record(limits['primary']);
-        this.#emit({
-          kind: 'rate-limit',
-          ...(typeof primary['usedPercent'] === 'number'
-            ? { usedPercent: primary['usedPercent'] }
-            : {}),
-          ...(typeof primary['resetsAt'] === 'number' ? { resetsAt: primary['resetsAt'] } : {}),
-          limited: limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true,
-        });
+      case 'account/rateLimits/updated':
+        this.#emit(codexRateLimit(record(params['rateLimits'])));
         return;
-      }
       case 'error': {
         if (params['willRetry'] === true || this.#turn === undefined) return;
-        this.#turn.failure = text(record(params['error'])['message']) || 'Codex turn failed';
+        const error = record(params['error']);
+        this.#turn.failure = text(error['message']) || 'Codex turn failed';
+        if (codexUsageLimit(error)) this.#emit({ kind: 'rate-limit', limited: true });
         return;
       }
       case 'turn/completed': {
@@ -383,12 +484,15 @@ export class CodexEngineSession implements EngineSession {
         const status = turn['status'];
         if (status === 'completed') active.resolve({ status: 'completed' });
         else if (status === 'interrupted') active.resolve({ status: 'interrupted' });
-        else
+        else {
+          if (codexUsageLimit(record(turn['error'])))
+            active.options.onEvent({ kind: 'rate-limit', limited: true });
           active.resolve({
             status: 'failed',
             message:
               text(record(turn['error'])['message']) || active.failure || 'Codex turn failed',
           });
+        }
         return;
       }
       default:
@@ -398,14 +502,26 @@ export class CodexEngineSession implements EngineSession {
 
   #serverRequest(id: number | string, method: string, params: Json): void {
     if (SERVER_APPROVALS.has(method)) {
-      const approvalId = `${text(params['itemId'])}:${text(params['approvalId']) || String(id)}`;
+      const itemId = text(params['itemId']);
+      const approvalId = `${itemId}:${text(params['approvalId']) || String(id)}`;
       this.#approvals.set(approvalId, id);
       const command = text(params['command']);
+      const reason = text(params['reason']);
+      const patch = method === 'item/fileChange/requestApproval';
+      const input: Record<string, unknown> = patch
+        ? {
+            files: this.#patches.get(itemId) ?? [],
+            ...(text(params['grantRoot']) ? { grantRoot: text(params['grantRoot']) } : {}),
+          }
+        : { command, ...(text(params['cwd']) ? { cwd: text(params['cwd']) } : {}) };
+      if (reason) input['reason'] = reason;
       this.#emit({
         kind: 'approval',
         approvalId,
-        tool: method === 'item/fileChange/requestApproval' ? 'apply_patch' : 'shell',
-        summary: command || text(params['reason']) || 'Codex asks to change files',
+        ...(itemId ? { callId: itemId } : {}),
+        tool: patch ? 'apply_patch' : 'shell',
+        summary: command || reason || 'Codex asks to change files',
+        input,
       });
       if (this.#turn === undefined) this.answer(approvalId, 'decline');
       return;
@@ -435,18 +551,19 @@ export class CodexEngineSession implements EngineSession {
           arguments: JSON.stringify({ command: text(item['command']) }),
         });
         return;
-      case 'fileChange':
+      case 'fileChange': {
+        const files = (Array.isArray(item['changes']) ? item['changes'] : []).map((change) =>
+          text(record(change)['path']),
+        );
+        this.#patches.set(callId, files);
         this.#emit({
           kind: 'tool-call',
           callId,
           name: 'apply_patch',
-          arguments: JSON.stringify({
-            files: (Array.isArray(item['changes']) ? item['changes'] : []).map(
-              (change) => record(change)['path'],
-            ),
-          }),
+          arguments: JSON.stringify({ files }),
         });
         return;
+      }
       case 'mcpToolCall': {
         const server = text(item['server']);
         const tool = text(item['tool']);
@@ -498,6 +615,7 @@ export class CodexEngineSession implements EngineSession {
         return;
       }
       case 'fileChange':
+        this.#patches.delete(callId);
         this.#emit({
           kind: 'tool-result',
           callId,

@@ -118,6 +118,7 @@ import {
 } from '../models/presets.js';
 import type { RestingRoute, RouteRests } from '../models/route-rest.js';
 import type { GroupFallback, ModelSwitch } from '../models/group-fallback.js';
+import { EngineLimitError } from '../engines/engine-session.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -1035,6 +1036,7 @@ export interface BotRuntime {
     scope?: { autoContinueFor: string; channelId: string },
   ): Promise<{ sessionId: string } | undefined>;
   heldCause?(botSlug: string): BotHoldCause | undefined;
+  releaseQuotaHold?(botSlug: string): boolean;
   endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
   close(): Promise<void>;
@@ -1057,8 +1059,12 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
-  groupFallback?: Pick<GroupFallback, 'choose' | 'start' | 'pick' | 'inherited'>;
+  groupFallback?: Pick<
+    GroupFallback,
+    'choose' | 'start' | 'pick' | 'inherited' | 'inheritedEffort'
+  >;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
+  engineFallback?: (botSlug: string, limit: EngineLimitError) => ModelSwitch | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
   database: OperationalDatabaseOwner;
@@ -1718,6 +1724,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #routeRests: BotRuntimeOptions['routeRests'];
   readonly #groupFallback: BotRuntimeOptions['groupFallback'];
   readonly #sessionRoute: BotRuntimeOptions['sessionRoute'];
+  readonly #engineFallback: BotRuntimeOptions['engineFallback'];
   readonly #team: TeamService | undefined;
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
@@ -1850,6 +1857,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#routeRests = options.routeRests;
     this.#groupFallback = options.groupFallback;
     this.#sessionRoute = options.sessionRoute;
+    this.#engineFallback = options.engineFallback;
     this.#team = options.team;
     this.#requireModelRoute = options.requireModelRoute;
     this.#channels = options.channels;
@@ -6452,6 +6460,12 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#held.get(botSlug);
   }
 
+  releaseQuotaHold(botSlug: string): boolean {
+    if (this.#held.get(botSlug) !== 'quota') return false;
+    this.#release(botSlug);
+    return true;
+  }
+
   #hold(botSlug: string, cause: BotHoldCause): void {
     this.#held.set(botSlug, cause);
     this.#triageQueued.delete(botSlug);
@@ -6495,7 +6509,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #restsOf(botSlug: string, error: unknown): readonly RestingRoute[] | undefined {
-    if (error instanceof RouteRestingError) return error.rests;
+    if (error instanceof RouteRestingError || error instanceof EngineLimitError) return error.rests;
     const rest = this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
     return rest === undefined ? undefined : [rest];
   }
@@ -6504,7 +6518,24 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     sessionId: string,
     channelId: string | undefined,
+    error?: unknown,
   ): Promise<ModelSwitch | readonly RestingRoute[] | undefined> {
+    if (error instanceof EngineLimitError) {
+      const choice = this.#engineFallback?.(botSlug, error);
+      if (choice === undefined) return error.rests;
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'engine-fallback',
+          botSlug,
+          engine: error.engine,
+          to: `${choice.to.provider}/${choice.to.model}`,
+          until: choice.until,
+        }),
+      );
+      await this.#appendModelSwitch(botSlug, sessionId, channelId, choice);
+      return choice;
+    }
     const rest = this.#restingRoute(botSlug, sessionId);
     if (rest === undefined) return undefined;
     const choice = await this.#groupFallback?.choose(botSlug, sessionId, rest);
@@ -6568,7 +6599,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (rests === undefined || rests.length === 0) return false;
     const sessionId = this.currentOrchestratorSessionId(botSlug);
     if (!(error instanceof RouteRestingError) && sessionId !== undefined) {
-      const fallback = await this.#fallBack(botSlug, sessionId, channelId);
+      const fallback = await this.#fallBack(botSlug, sessionId, channelId, error);
       if (fallback !== undefined && 'kind' in fallback) {
         this.#failureStreaks.delete(botSlug);
         return true;
@@ -6578,6 +6609,29 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#held.has(botSlug)) return true;
     this.#failureStreaks.delete(botSlug);
     this.#hold(botSlug, 'quota');
+    if (error instanceof EngineLimitError) {
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'engine-limit-hold',
+          botSlug,
+          engine: error.engine,
+          until: error.until,
+        }),
+      );
+      const name = this.#registry.get(botSlug)?.displayName ?? botSlug;
+      await this.#appendHoldNotice(
+        botSlug,
+        channelId,
+        `${name} paused: the ${error.engine} subscription (${error.account}) is used up until ${error.until}. Switch it to an API model, or message it after the reset.`,
+        {
+          cause: 'quota',
+          rests: error.rests.map(({ provider, model, until }) => ({ provider, model, until })),
+          engine: { engine: error.engine, account: error.account, until: error.until },
+        },
+      );
+      return true;
+    }
     this.#warn?.(
       JSON.stringify({
         component: 'bot-runtime',
@@ -6604,7 +6658,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string | undefined,
     body: string,
-    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests'>,
+    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests' | 'engine'>,
   ): Promise<void> {
     const bot = this.#registry.get(botSlug);
     const sessionId = this.currentOrchestratorSessionId(botSlug);
@@ -6936,7 +6990,7 @@ class BotRuntimeImplementation implements BotRuntime {
         !this.#held.has(bot.slug) &&
         channelId === dmChannelId(bot.slug)
       ) {
-        const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+        const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId, error);
         if (fallback !== undefined && 'kind' in fallback) {
           this.#failureStreaks.delete(bot.slug);
           this.#armAutoContinue(
@@ -11453,15 +11507,26 @@ class BotRuntimeImplementation implements BotRuntime {
       return current;
     const rest = this.#routeRests?.restingUntil(current);
     if (rest === undefined) return current;
-    const pick = await this.#groupFallback.pick(botSlug, groupId);
-    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
-    const kept = assignmentGroupOptionOf(
-      this.#registry.get(botSlug)?.modelPlan,
+    const kept =
+      assignmentGroupOptionOf(
+        this.#registry.get(botSlug)?.modelPlan,
+        groupId,
+      )?.allowedEfforts?.includes(current.reasoningEffort ?? '') ??
+      (groupId === this.#groupFallback.inherited() &&
+        current.reasoningEffort !== undefined &&
+        current.reasoningEffort === this.#groupFallback.inheritedEffort());
+    const pick = await this.#groupFallback.pick(
+      botSlug,
       groupId,
-    )?.allowedEfforts?.includes(current.reasoningEffort ?? '');
+      kept ? current.reasoningEffort : undefined,
+    );
+    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
     const picked = {
       ...pick,
-      route: kept ? { ...pick.route, reasoningEffort: current.reasoningEffort! } : pick.route,
+      route:
+        kept && pick.route.reasoningEffort !== undefined
+          ? { ...pick.route, reasoningEffort: current.reasoningEffort! }
+          : pick.route,
     };
     const at = this.#now().toISOString();
     this.#database.transaction(

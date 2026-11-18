@@ -451,6 +451,7 @@ export function createBrowserToolProvider(
         dropCurrent(state);
         throw new Error(
           `The Bot Browser tab is gone (${message}); call browser_tabs action list to pick another tab, or browser_open`,
+          { cause: error },
         );
       }
       if (
@@ -494,6 +495,7 @@ export function createBrowserToolProvider(
         dropCurrent(state);
         throw new Error(
           `The Bot Browser tab is gone (${message}); call browser_tabs action list to pick another tab, or browser_open`,
+          { cause: error },
         );
       }
       assertControlCurrent();
@@ -668,6 +670,7 @@ export function createBrowserToolProvider(
             if (state.current === targetId) state.current = undefined;
             throw new Error(
               `The requested Bot Browser tab is gone (${message}); call browser_tabs action list to pick another tab, or browser_open`,
+              { cause: error },
             );
           }
           state.current = targetId;

@@ -770,7 +770,11 @@ it('checks opt-out at the provider final-send fence even after target inspection
   vi.mocked(transport.sendChecked).mockImplementation(async (...args) => {
     entered();
     await held;
-    if (!args[3]?.beforeSend?.()) throw { code: 'grant-revoked', outcome: 'not-started' };
+    if (!args[3]?.beforeSend?.())
+      throw Object.assign(new Error('grant-revoked'), {
+        code: 'grant-revoked',
+        outcome: 'not-started',
+      });
     delivered.push(args[2]);
     return accepted(...args);
   });

@@ -98,7 +98,7 @@ import {
   parseGenuiDocumentView as parseHostGenuiDocumentView,
   saveGenuiDocumentView as saveGenuiDocumentViewTo,
 } from '@botharness/host-client/genui/view';
-import { clientLog } from './diagnostic-log.js';
+import { clientLog, reportFailure } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
@@ -114,7 +114,10 @@ import {
 } from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
-import { isChannelTurnStopRests } from '../../../core/src/channels/turn-stop.js';
+import {
+  isChannelTurnStopEngine,
+  isChannelTurnStopRests,
+} from '../../../core/src/channels/turn-stop.js';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -310,6 +313,7 @@ export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
   defaultGroupId?: string;
+  defaultGroupEffort?: string;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroupView[];
 }
@@ -333,6 +337,9 @@ function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView 
   return {
     ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
     orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    ...(groups.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupEffort: groups.orchestratorGroupEffort ?? null }),
     assignmentGroups: ids,
     assignmentDefaultGroupId:
       groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
@@ -365,6 +372,9 @@ export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogVi
       ? {}
       : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
     ...(catalog.defaultGroupId === undefined ? {} : { defaultGroupId: catalog.defaultGroupId }),
+    ...(catalog.defaultGroupEffort === undefined
+      ? {}
+      : { defaultGroupEffort: catalog.defaultGroupEffort }),
     ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
     ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
   };
@@ -516,11 +526,12 @@ export async function chooseModelPlanGroup(
   slug: string,
   groupId: string,
   expectedRevision?: number,
+  effort = '',
 ): Promise<ModelPlanView> {
   return customizeHostModelPlan(
     bridgeHost(call),
     slug,
-    { orchestratorGroupId: groupId },
+    { orchestratorGroupId: groupId, ...(effort === '' ? {} : { orchestratorGroupEffort: effort }) },
     expectedRevision,
   );
 }
@@ -802,7 +813,28 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
   const legacyTag = record['tag'];
   const description = record['description'];
   const avatar = record['avatar'];
+  const runner = asRecord(record['orchestratorRunner']);
+  const engine = runner?.['engine'];
+  const runnerName = runner?.['displayName'];
+  const account = runner?.['account'];
+  const runnerModel = runner?.['model'];
   return {
+    ...(typeof engine === 'string' &&
+    engine.trim() &&
+    typeof runnerName === 'string' &&
+    runnerName.trim() &&
+    (account === undefined || typeof account === 'string')
+      ? {
+          orchestratorRunner: {
+            engine,
+            displayName: runnerName,
+            ...(account === undefined ? {} : { account }),
+            ...(typeof runnerModel === 'string' && runnerModel.trim()
+              ? { model: runnerModel }
+              : {}),
+          },
+        }
+      : {}),
     slug,
     displayName,
     ...(typeof asRecord(record['tob'])?.['defaultName'] === 'boolean' &&
@@ -1816,6 +1848,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
       ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
+      ...(isChannelTurnStopEngine(stop['engine']) ? { engine: stop['engine'] } : {}),
+      ...(typeof stop['botSlug'] === 'string' && stop['botSlug'] !== ''
+        ? { botSlug: stop['botSlug'] }
+        : {}),
     };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
@@ -3909,6 +3945,26 @@ export interface SessionToolTargets {
   url?: string;
 }
 
+export interface SessionTranscriptEnvelope {
+  kind: 'human-dm' | 'group' | 'bot-dm' | 'inbox' | 'other';
+  channelId?: string;
+  messageId?: string;
+}
+
+const ENVELOPE_KINDS = ['human-dm', 'group', 'bot-dm', 'inbox', 'other'] as const;
+
+function parseTranscriptEnvelope(value: unknown): SessionTranscriptEnvelope | undefined {
+  const record = asRecord(value);
+  const kind = record?.['kind'];
+  if (record === undefined || !ENVELOPE_KINDS.includes(kind as SessionTranscriptEnvelope['kind']))
+    return undefined;
+  return {
+    kind: kind as SessionTranscriptEnvelope['kind'],
+    ...(typeof record['channelId'] === 'string' ? { channelId: record['channelId'] } : {}),
+    ...(typeof record['messageId'] === 'string' ? { messageId: record['messageId'] } : {}),
+  };
+}
+
 export type SessionTranscriptItem =
   | {
       kind: 'input';
@@ -3917,6 +3973,7 @@ export type SessionTranscriptItem =
       turn: number;
       source: 'user' | 'system';
       trigger?: SessionTranscriptTrigger;
+      envelope?: SessionTranscriptEnvelope;
     }
   | { kind: 'reply'; text: string; at: string; live?: true }
   | {
@@ -3967,10 +4024,34 @@ const SESSION_TOOL_KINDS: readonly string[] = [
   'fetch',
 ];
 
+export interface SessionEngineQuota {
+  usedPercent?: number;
+  resetsAt?: string;
+  limitedUntil?: string;
+  observedAt: string;
+}
+
 export interface SessionEngine {
   engine: string;
   account?: string;
-  state: 'starting' | 'running' | 'idle';
+  state: 'starting' | 'running' | 'waiting-approval' | 'idle';
+  quota?: SessionEngineQuota;
+}
+
+export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | undefined {
+  const quota = asRecord(value);
+  if (quota === undefined || typeof quota['observedAt'] !== 'string') return undefined;
+  const time = (field: unknown) =>
+    typeof field === 'string' && Number.isFinite(Date.parse(field)) ? field : undefined;
+  const percent = quota['usedPercent'];
+  const resetsAt = time(quota['resetsAt']);
+  const limitedUntil = time(quota['limitedUntil']);
+  return {
+    ...(typeof percent === 'number' && Number.isFinite(percent) ? { usedPercent: percent } : {}),
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+    ...(limitedUntil === undefined ? {} : { limitedUntil }),
+    observedAt: quota['observedAt'],
+  };
 }
 
 export interface SessionTranscript {
@@ -3986,10 +4067,13 @@ function parseSessionEngine(value: unknown): SessionEngine | undefined {
   const engine = asRecord(value);
   if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
   const state = engine['state'];
+  const quota = parseSessionEngineQuota(engine['quota']);
   return {
     engine: engine['engine'],
     ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
-    state: state === 'starting' || state === 'running' ? state : 'idle',
+    state:
+      state === 'starting' || state === 'running' || state === 'waiting-approval' ? state : 'idle',
+    ...(quota === undefined ? {} : { quota }),
   };
 }
 
@@ -4074,6 +4158,9 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             ...(SESSION_TRIGGERS.includes(item['trigger'] as string)
               ? { trigger: item['trigger'] as SessionTranscriptTrigger }
               : {}),
+            ...(parseTranscriptEnvelope(item['envelope']) === undefined
+              ? {}
+              : { envelope: parseTranscriptEnvelope(item['envelope'])! }),
           }
         : undefined;
     case 'reply':
@@ -4612,7 +4699,11 @@ export function parseStoredChannelMessage(value: unknown): ChannelMessage | unde
   )
     return undefined;
   const revision = record?.['channelRevision'];
-  console.warn('botharness: showing an unreadable Channel message as plain text', id);
+  reportFailure(
+    'showing-an-unreadable-channel-message-as-plain-text',
+    'showing an unreadable Channel message as plain text',
+    id,
+  );
   return {
     id,
     at,

@@ -81,14 +81,20 @@ export function draftOf(
             key: modelKey(source.orchestrator),
             effort: source.orchestrator.reasoningEffort ?? '',
           }
-        : { key: groupMenuKey(source.orchestratorGroupId), effort: '' },
+        : {
+            key: groupMenuKey(source.orchestratorGroupId),
+            effort: source.orchestratorGroupEffort ?? '',
+          },
     assignment:
       defaultGroup === undefined
         ? {
             key: source.assignmentDefault === undefined ? '' : modelKey(source.assignmentDefault),
             effort: source.assignmentDefault?.reasoningEffort ?? '',
           }
-        : { key: groupMenuKey(defaultGroup), effort: '' },
+        : {
+            key: groupMenuKey(defaultGroup),
+            effort: groups.find((option) => option.group === defaultGroup)?.defaultEffort ?? '',
+          },
     allowed: allowedOf(source.assignmentDefault, source.assignmentModels),
     groups,
     advanced:
@@ -97,7 +103,12 @@ export function draftOf(
         (option) => option.note !== undefined || option.allowedEfforts.length > 1,
       ) === true ||
       groups.length > (defaultGroup === undefined ? 0 : 1) ||
-      groups.some((option) => option.note !== undefined || option.allowedEfforts !== undefined),
+      groups.some(
+        (option) =>
+          option.note !== undefined ||
+          (option.allowedEfforts !== undefined &&
+            (option.group !== defaultGroup || option.allowedEfforts.length > 1)),
+      ),
     open: source.openAssignmentModels === true,
     presetId,
     fallback: source.assignmentDefault,
@@ -115,6 +126,12 @@ export function withNote(
 
 export function assignmentChoice(draft: ModelDraft): ModelChoice {
   if (!draft.advanced) return draft.assignment;
+  const group = groupMenuId(draft.assignment.key);
+  if (group !== undefined)
+    return {
+      key: draft.assignment.key,
+      effort: draft.groups.find((option) => option.group === group)?.defaultEffort ?? '',
+    };
   const option = draft.allowed.find((item) => modelKey(item) === draft.assignment.key);
   return {
     key: draft.assignment.key,
@@ -227,7 +244,15 @@ export function planParts(
   if (defaultGroupId !== undefined && !ids.includes(defaultGroupId)) ids.unshift(defaultGroupId);
   const options = draft.advanced
     ? draft.groups.flatMap((option) => groupOptionOf(option) ?? [])
-    : [];
+    : defaultGroupId === undefined || draft.assignment.effort === ''
+      ? []
+      : [
+          {
+            group: defaultGroupId,
+            allowedEfforts: [draft.assignment.effort],
+            defaultEffort: draft.assignment.effort,
+          },
+        ];
   return {
     orchestrator,
     assignmentDefault,
@@ -237,6 +262,9 @@ export function planParts(
       : {
           groups: {
             ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+            ...(orchestratorGroupId === undefined || draft.orchestrator.effort === ''
+              ? {}
+              : { orchestratorGroupEffort: draft.orchestrator.effort }),
             assignmentGroups: ids,
             ...(defaultGroupId === undefined ? {} : { assignmentDefaultGroupId: defaultGroupId }),
             assignmentGroupOptions: options,
@@ -257,14 +285,25 @@ export function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
   if (!advanced) return { ...draft, advanced, assignment: assignmentChoice(draft) };
   const { key, effort } = draft.assignment;
   const group = groupMenuId(key);
-  if (group !== undefined)
+  if (group !== undefined) {
+    const current = draft.groups.find((option) => option.group === group) ?? { group };
+    const { allowedEfforts: allowed = [], defaultEffort: _default, ...rest } = current;
+    const next =
+      effort === ''
+        ? rest
+        : {
+            ...current,
+            allowedEfforts: allowed.includes(effort) ? allowed : [...allowed, effort],
+            defaultEffort: effort,
+          };
     return {
       ...draft,
       advanced,
       groups: draft.groups.some((option) => option.group === group)
-        ? draft.groups
-        : [{ group }, ...draft.groups],
+        ? draft.groups.map((option) => (option.group === group ? next : option))
+        : [next, ...draft.groups],
     };
+  }
   const existing = draft.allowed.find((option) => modelKey(option) === key);
   const route = routeOfKey(key, effort);
   const allowed =

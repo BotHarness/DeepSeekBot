@@ -200,7 +200,7 @@ async function nativeSnapshot(sessionId) {
       const timeout = setTimeout(() => reject(Error('native Session snapshot timeout')), 20000);
       socket.once('error', (error) => {
         clearTimeout(timeout);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       });
       socket.on('message', (raw) => {
         const frame = JSON.parse(String(raw));

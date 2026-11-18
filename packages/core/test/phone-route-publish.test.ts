@@ -23,7 +23,7 @@ const SERVED = JSON.stringify({
   },
 });
 
-function tailscale(options: { serve?: string; fail?: unknown } = {}) {
+function tailscale(options: { serve?: string; fail?: Error } = {}) {
   let served = options.serve ?? '{}';
   const calls: string[][] = [];
   const run: RunCommand = async (_file, args) => {

@@ -131,7 +131,8 @@ export async function loadPreviewImage(
   try {
     format = inspectImage(bytes);
   } catch (error) {
-    if (error instanceof ImageFormatError) throw new Error(`memory-image-${error.status}`);
+    if (error instanceof ImageFormatError)
+      throw new Error(`memory-image-${error.status}`, { cause: error });
     throw error;
   }
   const file = io.store(bytes, format.extension);

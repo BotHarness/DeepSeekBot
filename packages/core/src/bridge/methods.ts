@@ -1,3 +1,4 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
 import {
   assertQuoteTargets,
@@ -469,7 +470,12 @@ import {
   type RoutingGroupMember,
   type RoutingGroupStore,
 } from '../models/routing-groups.js';
-import { sharedEfforts, type ModelCatalog, type ModelCatalogEntry } from '../models/catalog.js';
+import {
+  groupEfforts,
+  groupMemberRoute,
+  type ModelCatalog,
+  type ModelCatalogEntry,
+} from '../models/catalog.js';
 
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
@@ -604,9 +610,10 @@ export interface ActivityOverview {
 
 export type SharedBotSummary = ReturnType<
   import('../team/bots.js').TeamBots['sharedRoster']
->[number];
+>[number] & { orchestratorRunner?: OrchestratorRunner };
 
 export interface PersonaBotSummary {
+  orchestratorRunner?: OrchestratorRunner;
   modelAllowed?: boolean;
   ownerHumanId?: string;
   owner?: boolean;
@@ -734,6 +741,13 @@ export type ChannelListChanges =
       cursor: ChannelChangeCursor;
     };
 
+export interface SessionEngineQuota {
+  usedPercent?: number;
+  resetsAt?: string;
+  limitedUntil?: string;
+  observedAt: string;
+}
+
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
@@ -748,7 +762,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
-  engine?: { engine: string; account?: string };
+  engine?: { engine: string; account?: string; quota?: SessionEngineQuota };
   agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
@@ -1470,9 +1484,15 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
-  describeEngineSession?(
-    sessionId: string,
-  ): { engine: string; account?: string; state: 'starting' | 'running' | 'idle' } | undefined;
+  orchestratorRunner?(botSlug: string): OrchestratorRunner | undefined;
+  describeEngineSession?(sessionId: string):
+    | {
+        engine: string;
+        account?: string;
+        state: 'starting' | 'running' | 'waiting-approval' | 'idle';
+        quota?: SessionEngineQuota;
+      }
+    | undefined;
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   roster: RosterStore;
@@ -1794,6 +1814,7 @@ function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
 }
 const PRESET_GROUP_KEYS = [
   'orchestratorGroupId',
+  'orchestratorGroupEffort',
   'assignmentGroups',
   'assignmentDefaultGroupId',
   'assignmentGroupOptions',
@@ -1806,11 +1827,14 @@ function presetGroupsInput(
   | { given: true; invalid: true } {
   if (!PRESET_GROUP_KEYS.some((key) => key in source)) return { given: false };
   const orchestrator = source['orchestratorGroupId'] ?? undefined;
+  const effort = source['orchestratorGroupEffort'] ?? undefined;
   const ids = source['assignmentGroups'] ?? [];
   const defaultId = source['assignmentDefaultGroupId'] ?? undefined;
   const options = assignmentGroupOptionsInput(source['assignmentGroupOptions'], ids);
   if (
     (orchestrator !== undefined && (typeof orchestrator !== 'string' || !orchestrator.trim())) ||
+    (effort !== undefined &&
+      (typeof effort !== 'string' || orchestrator === undefined || effort.trim() === '')) ||
     !Array.isArray(ids) ||
     !ids.every((id) => typeof id === 'string' && id.trim() !== '') ||
     new Set(ids).size !== ids.length ||
@@ -1822,6 +1846,7 @@ function presetGroupsInput(
     given: true,
     groups: {
       ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() }),
+      ...(effort === undefined ? {} : { orchestratorGroupEffort: effort.trim() }),
       ...(ids.length === 0 ? {} : { assignmentGroups: ids as string[] }),
       ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId }),
       ...(options === undefined || options.length === 0 ? {} : { assignmentGroupOptions: options }),
@@ -2565,22 +2590,27 @@ function buildBridgeMethods(
       ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
       ...(groups.assignmentGroups ?? []),
     ].flatMap(groupRoutes);
+  const requireGroupEfforts = async (group: string, efforts: readonly string[]): Promise<void> => {
+    if (efforts.length === 0) return;
+    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
+    const shared = groupEfforts(groupRoutes(group), await deps.modelCatalog.list());
+    const outside = efforts.filter((effort) => !shared.includes(effort));
+    if (outside.length > 0)
+      throw new RoutingGroupError(
+        'invalid-input',
+        `Routing Group ${deps.routingGroups?.get(group)?.name ?? group}: effort ${outside.join(', ')} is not supported by every reasoning member; shared levels: ${shared.join(', ') || 'none'}`,
+      );
+  };
   const validateGroupOptions = async (
     options: readonly AssignmentGroupOption[] | undefined,
   ): Promise<void> => {
-    const ranged = (options ?? []).filter((option) => option.allowedEfforts !== undefined);
-    if (ranged.length === 0) return;
-    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
-    const entries = await deps.modelCatalog.list();
-    for (const option of ranged) {
-      const shared = sharedEfforts(groupRoutes(option.group), entries);
-      const outside = option.allowedEfforts!.filter((effort) => !shared.includes(effort));
-      if (outside.length > 0)
-        throw new RoutingGroupError(
-          'invalid-input',
-          `Routing Group ${deps.routingGroups?.get(option.group)?.name ?? option.group}: effort ${outside.join(', ')} is not supported by every member; shared levels: ${shared.join(', ') || 'none'}`,
-        );
-    }
+    for (const option of options ?? [])
+      await requireGroupEfforts(option.group, option.allowedEfforts ?? []);
+  };
+  const validateGroupEffort = async (groups: ModelPresetGroups | undefined): Promise<void> => {
+    if (groups?.orchestratorGroupId === undefined || groups.orchestratorGroupEffort === undefined)
+      return;
+    await requireGroupEfforts(groups.orchestratorGroupId, [groups.orchestratorGroupEffort]);
   };
   const presetOrchestrator = async (
     orchestrator: unknown,
@@ -2994,9 +3024,14 @@ function buildBridgeMethods(
     }
   };
   const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
+  const runnerOf = (slug: string) => {
+    const orchestratorRunner = deps.orchestratorRunner?.(slug);
+    return orchestratorRunner === undefined ? {} : { orchestratorRunner };
+  };
   const detailOf = (record: PersonaBotRecord): { bot: PersonaBotDetail } => ({
     bot: {
       ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+      ...runnerOf(record.slug),
       ownerHumanId: botOwner(record),
       owner: botOwner(record) === human.humanId,
       ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
@@ -3821,6 +3856,7 @@ function buildBridgeMethods(
       const source = asObject(payload);
       const slug = asSlug(payload);
       const groupId = source['groupId'];
+      const groupEffort = source['groupEffort'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
       const defaultGroupRevision = source['expectedDefaultGroupRevision'];
@@ -3840,12 +3876,23 @@ function buildBridgeMethods(
           deps.routingGroups === undefined)
       )
         return invalidInput('A default Routing Group replaces the route and needs global scope');
+      if (
+        groupEffort !== undefined &&
+        (typeof groupEffort !== 'string' || !groupEffort.trim() || typeof groupId !== 'string')
+      )
+        return invalidInput('A default Routing Group effort needs a nonempty effort and a group');
+      const effort = typeof groupEffort === 'string' ? groupEffort.trim() : undefined;
       let route = source['route'];
       if (typeof groupId === 'string') {
         try {
           if (deps.routingGroups?.get(groupId) === undefined)
             throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
-          route = await firstUsableRoute(deps.routingGroups.routes(groupId));
+          if (effort !== undefined) await requireGroupEfforts(groupId, [effort]);
+          const first = await firstUsableRoute(deps.routingGroups.routes(groupId));
+          route =
+            effort === undefined
+              ? first
+              : groupMemberRoute(first, effort, await deps.modelCatalog.list());
         } catch (error) {
           return error instanceof RoutingGroupError
             ? routingGroupFailure(error)
@@ -3910,13 +3957,13 @@ function buildBridgeMethods(
             groups === undefined ||
             previous === undefined ||
             nextGroup === undefined ||
-            previous.groupId === nextGroup
+            (previous.groupId === nextGroup && previous.effort === effort)
               ? undefined
-              : groups.setDefaultGroup(nextGroup, previous.revision);
+              : groups.setDefaultGroup(nextGroup, previous.revision, effort);
           const restore = (): void => {
             if (reserved === undefined || previous === undefined) return;
             try {
-              groups?.setDefaultGroup(previous.groupId, reserved.revision);
+              groups?.setDefaultGroup(previous.groupId, reserved.revision, previous.effort);
             } catch {}
           };
           try {
@@ -4305,6 +4352,9 @@ function buildBridgeMethods(
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
+            ...(defaultGroup?.effort === undefined
+              ? {}
+              : { defaultGroupEffort: defaultGroup.effort }),
             ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),
@@ -4364,6 +4414,7 @@ function buildBridgeMethods(
       try {
         if (groups !== undefined) presetGroupRoutes(groups);
         await validateGroupOptions(groups?.assignmentGroupOptions);
+        await validateGroupEffort(groups);
         const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
         await deps.modelCatalog.validate(orchestrator);
         await validateAssignmentCatalog(
@@ -4438,6 +4489,7 @@ function buildBridgeMethods(
       try {
         if (groups !== undefined) presetGroupRoutes(groups);
         await validateGroupOptions(groups?.assignmentGroupOptions);
+        await validateGroupEffort(groups);
         const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
         await deps.modelCatalog.validate(orchestrator);
         await validateAssignmentCatalog(
@@ -4524,6 +4576,7 @@ function buildBridgeMethods(
         if (preset.assignmentModels !== undefined)
           await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
         await validateGroupOptions(preset.assignmentGroupOptions);
+        await validateGroupEffort(preset);
         if (changed()) return stale();
         requireRoutes(slug, [
           preset.orchestrator,
@@ -4656,7 +4709,12 @@ function buildBridgeMethods(
       const source = asObject(payload);
       const slug = source['slug'];
       const groupId = source['orchestratorGroupId'];
+      const groupEffort = source['orchestratorGroupEffort'] ?? undefined;
       if (
+        (groupEffort !== undefined &&
+          (typeof groupEffort !== 'string' ||
+            groupEffort.trim() === '' ||
+            groupId === undefined)) ||
         typeof slug !== 'string' ||
         (groupId === undefined
           ? !isModelRoute(source['orchestrator'])
@@ -4698,6 +4756,8 @@ function buildBridgeMethods(
             ? [source['orchestrator'] as ModelRoute]
             : deps.routingGroups!.routes(group.id);
         requireRoutes(slug, candidates);
+        if (group !== undefined && typeof groupEffort === 'string')
+          await requireGroupEfforts(group.id, [groupEffort.trim()]);
         const orchestrator = await firstUsableRoute(candidates);
         beforeCommit?.();
         requireRoutes(slug, candidates);
@@ -4708,6 +4768,7 @@ function buildBridgeMethods(
           orchestrator,
           expectedRevision,
           group?.id,
+          typeof groupEffort === 'string' ? groupEffort.trim() : undefined,
         );
         if (!result.ok)
           return result.reason === 'not-found'
@@ -4922,6 +4983,7 @@ function buildBridgeMethods(
         const grouped = groups === undefined ? [] : presetGroupRoutes(groups);
         requireRoutes(slug, grouped);
         await validateGroupOptions(groups?.assignmentGroupOptions);
+        await validateGroupEffort(groups);
         const route = (await presetOrchestrator(orchestrator, groups))!;
         requireRoutes(slug, [route]);
         await deps.modelCatalog.validate(route);
@@ -4974,6 +5036,7 @@ function buildBridgeMethods(
         })
         .map((record) => ({
           ...summarize(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+          ...runnerOf(record.slug),
           ...(deps.team ? { modelAllowed: allowed(record) } : {}),
           ownerHumanId: botOwner(record),
           owner: botOwner(record) === human.humanId,
@@ -4996,7 +5059,8 @@ function buildBridgeMethods(
               !query ||
               bot.displayName.toLowerCase().includes(query) ||
               bot.slug.toLowerCase().includes(query),
-          ) ?? [];
+          )
+          .map((bot) => ({ ...bot, ...runnerOf(bot.slug) })) ?? [];
       return { ok: true, value: { bots: [...bots, ...shared] } };
     },
     channelActivityToday() {
@@ -10707,6 +10771,7 @@ function buildBridgeMethods(
                 engine: {
                   engine: engine.engine,
                   ...(engine.account === undefined ? {} : { account: engine.account }),
+                  ...(engine.quota === undefined ? {} : { quota: engine.quota }),
                 },
               }),
           ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),

@@ -397,7 +397,11 @@ describe('linked account computers', () => {
             () =>
               mode === 'late-success' || mode === 'account-change'
                 ? release()
-                : reject(refreshSignal?.reason),
+                : reject(
+                    refreshSignal?.reason instanceof Error
+                      ? refreshSignal.reason
+                      : new Error('aborted', { cause: refreshSignal?.reason }),
+                  ),
             { once: true },
           );
           started.resolve();
@@ -851,7 +855,12 @@ describe('Connect account sign-in', () => {
                     resolve(
                       Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' }),
                     );
-                  else reject(signal.reason);
+                  else
+                    reject(
+                      signal.reason instanceof Error
+                        ? signal.reason
+                        : new Error('aborted', { cause: signal.reason }),
+                    );
                 },
                 { once: true },
               );

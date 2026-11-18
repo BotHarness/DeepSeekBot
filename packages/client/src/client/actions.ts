@@ -453,6 +453,7 @@ import {
   type VoiceProviderView,
   type VoiceSynthesisView,
 } from './voice-bridge.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const GIT_INSTALL_POLL_MS = 500;
 
@@ -529,7 +530,7 @@ export interface BridgeActions extends BotModeActions {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    choice: ModelRouteView | { groupId: string },
+    choice: ModelRouteView | { groupId: string; effort?: string },
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
@@ -700,6 +701,7 @@ export interface BridgeActions extends BotModeActions {
     slug: string,
     groupId: string,
     expectedRevision?: number,
+    effort?: string,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
   setModelPlanAssignments(
@@ -1504,7 +1506,7 @@ export function createActions(
         clientStore.setGit(await loadGitAvailability(call));
       }
     } catch (error) {
-      console.warn('botharness: Git install status check failed', error);
+      reportFailure('git-install-status-check-failed', 'Git install status check failed', error);
     } finally {
       followingGitInstall = false;
     }
@@ -1517,7 +1519,8 @@ export function createActions(
       clientStore.setGit(git);
       if (gitInstalling(git)) void followGitInstall();
     } catch (error) {
-      if (signal?.aborted !== true) console.warn('botharness: Git status check failed', error);
+      if (signal?.aborted !== true)
+        reportFailure('git-status-check-failed', 'Git status check failed', error);
     }
   };
 
@@ -1526,7 +1529,7 @@ export function createActions(
       clientStore.setGit(await startGitInstall(call));
       await followGitInstall();
     } catch (error) {
-      console.warn('botharness: Git install failed to start', error);
+      reportFailure('git-install-failed-to-start', 'Git install failed to start', error);
     }
   };
 
@@ -1557,7 +1560,7 @@ export function createActions(
           clientStore.select(undefined);
       }
     } else if (channelResult.status === 'rejected') {
-      console.warn('botharness: channel refresh failed', channelResult.reason);
+      reportFailure('channel-refresh-failed', 'channel refresh failed', channelResult.reason);
     }
     if (rosterResult.status === 'fulfilled') {
       const snapshot = rosterResult.value;
@@ -1578,7 +1581,7 @@ export function createActions(
     ) {
       clientStore.setRosterState({ readOnly: true });
     } else {
-      console.warn('botharness: roster refresh failed', rosterResult.reason);
+      reportFailure('roster-refresh-failed', 'roster refresh failed', rosterResult.reason);
     }
   };
 
@@ -1586,7 +1589,7 @@ export function createActions(
     if (error instanceof BridgeCallError && error.code === 'storage-unavailable') {
       clientStore.setRosterState({ readOnly: true });
     }
-    console.warn('botharness: roster write failed', error);
+    reportFailure('roster-write-failed', 'roster write failed', error);
   };
 
   const rosterMutate = async (operation: () => Promise<void>): Promise<boolean> => {
@@ -2116,7 +2119,12 @@ export function createActions(
       const result = await setOnboardingModel(host, {
         ...(slug === undefined ? {} : { slug }),
         expectedRevision,
-        ...('groupId' in choice ? { groupId: choice.groupId } : { route: choice }),
+        ...('groupId' in choice
+          ? {
+              groupId: choice.groupId,
+              ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
+            }
+          : { route: choice }),
         globalDefault,
       });
       if (globalDefault) invalidateInheritedModelPlans(actions);
@@ -2221,8 +2229,8 @@ export function createActions(
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
       ),
-    chooseModelPlanGroup: (slug, groupId, expectedRevision) =>
-      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision), () =>
+    chooseModelPlanGroup: (slug, groupId, expectedRevision, effort) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision, effort), () =>
         actions.telemetryEvent('model:plan_update', { via: 'group' }),
       ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
@@ -3902,7 +3910,7 @@ export function createActions(
         }
         return true;
       } catch (error) {
-        console.warn('botharness: channel rename failed', error);
+        reportFailure('channel-rename-failed', 'channel rename failed', error);
         return false;
       }
     },
@@ -3960,7 +3968,11 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: PersonaBot profile update failed', error);
+        reportFailure(
+          'personabot-profile-update-failed',
+          'PersonaBot profile update failed',
+          error,
+        );
         return false;
       }
     },
@@ -3970,7 +3982,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: PersonaBot avatar update failed', error);
+        reportFailure('personabot-avatar-update-failed', 'PersonaBot avatar update failed', error);
         return false;
       }
     },
@@ -3980,7 +3992,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: Bot banner update failed', error);
+        reportFailure('bot-banner-update-failed', 'Bot banner update failed', error);
         return false;
       }
     },
@@ -3990,7 +4002,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: Bot Primary Color update failed', error);
+        reportFailure('bot-primary-color-update-failed', 'Bot Primary Color update failed', error);
         return false;
       }
     },
@@ -4002,7 +4014,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group avatar update failed', error);
+        reportFailure('group-avatar-update-failed', 'Group avatar update failed', error);
         return false;
       }
     },
@@ -4014,7 +4026,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group invitation failed', error);
+        reportFailure('group-invitation-failed', 'Group invitation failed', error);
         return false;
       }
     },
@@ -4026,7 +4038,11 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group invitation cancellation failed', error);
+        reportFailure(
+          'group-invitation-cancellation-failed',
+          'Group invitation cancellation failed',
+          error,
+        );
         return false;
       }
     },
@@ -4038,7 +4054,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group join decision failed', error);
+        reportFailure('group-join-decision-failed', 'Group join decision failed', error);
         return false;
       }
     },
@@ -4050,7 +4066,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group member removal failed', error);
+        reportFailure('group-member-removal-failed', 'Group member removal failed', error);
         return false;
       }
     },
@@ -4092,7 +4108,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group wake policy update failed', error);
+        reportFailure('group-wake-policy-update-failed', 'Group wake policy update failed', error);
         return false;
       }
     },
@@ -4130,7 +4146,7 @@ export function createActions(
       try {
         await deleteGroupChannel(call, channelId);
       } catch (error) {
-        console.warn('botharness: Group deletion failed', error);
+        reportFailure('group-deletion-failed', 'Group deletion failed', error);
         return false;
       }
       const snapshot = clientStore.getSnapshot();
@@ -4142,7 +4158,7 @@ export function createActions(
       try {
         await actions.load();
       } catch (error) {
-        console.warn('botharness: Group deletion refresh failed', error);
+        reportFailure('group-deletion-refresh-failed', 'Group deletion refresh failed', error);
       }
       return true;
     },

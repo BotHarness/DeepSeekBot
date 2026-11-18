@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import {
   effortChoices,
+  groupEffortChoices,
+  groupEffortLabel,
+  groupEffortOf,
   keptEffort,
+  keptGroupEffort,
   routeEffortLabel,
   presetDetail,
   presetFront,
@@ -39,6 +43,13 @@ describe('phone model rows', () => {
     expect(
       shortModelName({ provider: 'opencode-go', model: 'minimax-m3', modelName: 'MiniMax-M3' }),
     ).toBe('MiniMax-M3');
+    expect(
+      shortModelName({
+        provider: 'opencode-go',
+        model: 'qwen3.8-flash',
+        modelName: 'Qwen3.8 Flash',
+      }),
+    ).toBe('Qwen3.8 Flash');
   });
 
   it('describe a Preset with short labels and Routing Group names', () => {
@@ -76,5 +87,31 @@ describe('phone model rows', () => {
     expect(keptEffort(flashEntry!, { ...glm, reasoningEffort: 'low' })).toBe('high');
     expect(keptEffort(flashEntry!, flash)).toBe('');
     expect(keptEffort(glmEntry!, { ...flash, reasoningEffort: 'max' })).toBe('');
+  });
+
+  it('lets a Routing Group pick one effort its reasoning members share', () => {
+    const daily = value.groups![0]!;
+    expect(groupEffortChoices(value, daily).map((option) => option.label)).toEqual([
+      'Default',
+      'High',
+      'Max',
+    ]);
+    expect(groupEffortLabel(value, daily, 'max')).toBe('Max');
+    expect(groupEffortLabel(value, daily, '')).toBe('Default');
+    expect(keptGroupEffort(value, daily, 'max')).toBe('max');
+    expect(keptGroupEffort(value, daily, 'low')).toBe('');
+    expect(groupEffortChoices(value, { ...daily, routes: [glm] })).toEqual([]);
+    expect(
+      groupEffortOf({ orchestratorGroupId: 'daily', orchestratorGroupEffort: 'max' }, false),
+    ).toBe('max');
+    expect(
+      groupEffortOf(
+        {
+          assignmentDefaultGroupId: 'daily',
+          assignmentGroupOptions: [{ group: 'daily', defaultEffort: 'high' }],
+        },
+        true,
+      ),
+    ).toBe('high');
   });
 });

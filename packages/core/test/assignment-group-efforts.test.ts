@@ -9,7 +9,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { sharedEfforts } from '../src/models/catalog.js';
+import { groupEfforts, groupMemberRoute } from '../src/models/catalog.js';
 import { createModelPresetStore, isPersonaBotModelPlan } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
@@ -62,11 +62,27 @@ async function group(methods: ReturnType<typeof setup>['methods'], name: string)
 }
 
 describe('Effort range for Routing Groups (#4502)', () => {
-  it('offers only the levels every member supports', () => {
-    expect(sharedEfforts([GO, DEEPSEEK], CATALOG)).toEqual(['high']);
-    expect(sharedEfforts([DEEPSEEK], CATALOG)).toEqual(['high', 'max']);
-    expect(sharedEfforts([GO, { provider: 'gone', model: 'x' }], CATALOG)).toEqual([]);
-    expect(sharedEfforts([], CATALOG)).toEqual([]);
+  it('offers the levels every reasoning member supports', () => {
+    const plain = { provider: 'plain', model: 'chat' };
+    const catalog = [...CATALOG, { ...plain, providerName: 'P', modelName: 'Chat', efforts: [] }];
+    expect(groupEfforts([GO, DEEPSEEK], catalog)).toEqual(['high']);
+    expect(groupEfforts([DEEPSEEK], catalog)).toEqual(['high', 'max']);
+    expect(groupEfforts([GO, { provider: 'gone', model: 'x' }], catalog)).toEqual(['low', 'high']);
+    expect(groupEfforts([plain, DEEPSEEK], catalog)).toEqual(['high', 'max']);
+    expect(groupEfforts([plain], catalog)).toEqual([]);
+    expect(groupEfforts([], catalog)).toEqual([]);
+  });
+
+  it('gives the group effort only to members that support it and keeps a member override', () => {
+    const plain = { provider: 'plain', model: 'chat' };
+    const catalog = [...CATALOG, { ...plain, providerName: 'P', modelName: 'Chat', efforts: [] }];
+    expect(groupMemberRoute(ROUTE, 'max', catalog)).toEqual({ ...ROUTE, reasoningEffort: 'max' });
+    expect(groupMemberRoute(plain, 'max', catalog)).toEqual(plain);
+    expect(groupMemberRoute({ ...ROUTE, reasoningEffort: 'high' }, 'max', catalog)).toEqual({
+      ...ROUTE,
+      reasoningEffort: 'high',
+    });
+    expect(groupMemberRoute(ROUTE, undefined, catalog)).toEqual(ROUTE);
   });
 
   it('keeps a Preset group range on update and apply, and refuses a level outside it', async () => {
@@ -86,7 +102,7 @@ describe('Effort range for Routing Groups (#4502)', () => {
       error: {
         code: 'invalid-input',
         message:
-          'Routing Group Side: effort max is not supported by every member; shared levels: high',
+          'Routing Group Side: effort max is not supported by every reasoning member; shared levels: high',
       },
     });
     expect(
@@ -165,7 +181,9 @@ describe('Effort range for Routing Groups (#4502)', () => {
       });
     expect(await set(applied.value.plan.revision, ['low'])).toMatchObject({
       ok: false,
-      error: { message: expect.stringContaining('effort low is not supported by every member') },
+      error: {
+        message: expect.stringContaining('effort low is not supported by every reasoning member'),
+      },
     });
     expect(await set(applied.value.plan.revision, ['high'])).toMatchObject({
       ok: true,
@@ -179,5 +197,47 @@ describe('Effort range for Routing Groups (#4502)', () => {
       },
     });
     expect(registry.get('ada')?.modelPlan?.assignmentGroupOptions).toHaveLength(1);
+  });
+
+  it('stores one effort for an Orchestrator Routing Group on Presets and Bot plans', async () => {
+    const { registry, methods } = setup();
+    const main = await group(methods, 'Main');
+    const base = { name: 'Grouped', assignmentDefault: ROUTE, orchestratorGroupId: main };
+    expect(
+      await methods.modelPresetCreate({ ...base, orchestratorGroupEffort: 'max' }),
+    ).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('effort max is not supported') },
+    });
+    const created = await methods.modelPresetCreate({ ...base, orchestratorGroupEffort: 'high' });
+    if (!created.ok) throw new Error(created.error.message);
+    expect(created.value.preset).toMatchObject({
+      orchestratorGroupId: main,
+      orchestratorGroupEffort: 'high',
+    });
+    const applied = await methods.modelPresetApply({
+      slug: 'ada',
+      presetId: created.value.preset.id,
+      expectedRevision: 0,
+      expectedPresetRevision: 1,
+    });
+    if (!applied.ok) throw new Error(applied.error.message);
+    expect(applied.value.plan).toMatchObject({ orchestratorGroupEffort: 'high' });
+    expect(isPersonaBotModelPlan(registry.get('ada')?.modelPlan)).toBe(true);
+    const customized = await methods.modelPlanCustomize({
+      slug: 'ada',
+      orchestratorGroupId: main,
+      expectedRevision: applied.value.plan.revision,
+    });
+    if (!customized.ok) throw new Error(customized.error.message);
+    expect(customized.value.plan.orchestratorGroupEffort).toBeUndefined();
+    const again = await methods.modelPlanCustomize({
+      slug: 'ada',
+      orchestratorGroupId: main,
+      orchestratorGroupEffort: 'high',
+      expectedRevision: customized.value.plan.revision,
+    });
+    if (!again.ok) throw new Error(again.error.message);
+    expect(again.value.plan.orchestratorGroupEffort).toBe('high');
   });
 });

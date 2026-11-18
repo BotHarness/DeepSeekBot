@@ -1,6 +1,11 @@
-export type EngineId = 'codex';
+export type EngineId = 'codex' | 'claude';
 
-export const ENGINE_IDS: readonly EngineId[] = ['codex'];
+export const ENGINE_DEFINITIONS = {
+  codex: { displayName: 'Codex' },
+  claude: { displayName: 'Claude Code' },
+} satisfies Record<EngineId, { displayName: string }>;
+
+export const ENGINE_IDS: readonly EngineId[] = ['codex', 'claude'];
 
 export function isEngineId(value: unknown): value is EngineId {
   return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
@@ -11,12 +16,52 @@ export type EngineAccount =
   | { kind: 'metered'; engine: EngineId; detail: string }
   | { kind: 'signed-out'; engine: EngineId };
 
+export interface EngineEffort {
+  id: string;
+  name: string;
+}
+
+export interface EngineModel {
+  id: string;
+  name: string;
+  description?: string;
+  efforts: EngineEffort[];
+  defaultEffort?: string;
+  isDefault?: boolean;
+}
+
+export interface EngineChoice {
+  model?: string;
+  effort?: string;
+}
+
+const EFFORT_NAMES: Record<string, string> = {
+  none: 'None',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+};
+
+export function engineEffort(id: string): EngineEffort {
+  return { id, name: EFFORT_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1) };
+}
+
 export type EngineEvent =
   | { kind: 'reasoning'; text: string }
   | { kind: 'text'; text: string }
   | { kind: 'tool-call'; callId: string; name: string; arguments: string }
   | { kind: 'tool-result'; callId: string; text: string; isError: boolean }
-  | { kind: 'approval'; approvalId: string; tool: string; summary: string }
+  | {
+      kind: 'approval';
+      approvalId: string;
+      callId?: string;
+      tool: string;
+      summary: string;
+      input: Record<string, unknown>;
+    }
   | { kind: 'rate-limit'; usedPercent?: number; resetsAt?: number; limited: boolean };
 
 export type EngineTurnEnd =
@@ -45,11 +90,37 @@ export interface EngineSendOptions {
 export interface EngineSession {
   readonly engine: EngineId;
   readonly ended: boolean;
+  readonly model?: string | undefined;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;
+  models(): Promise<EngineModel[]>;
   close(): Promise<void>;
+}
+
+export interface EngineQuota {
+  account?: string;
+  usedPercent?: number;
+  resetsAt?: string;
+  limited: boolean;
+  observedAt: string;
+}
+
+export class EngineLimitError extends Error {
+  readonly code = 'ENGINE_LIMIT';
+  constructor(
+    readonly engine: EngineId,
+    readonly account: string,
+    readonly until: string,
+  ) {
+    super(`ENGINE_LIMIT: the ${engine} subscription (${account}) is used up until ${until}`);
+    this.name = 'EngineLimitError';
+  }
+
+  get rests(): Array<{ provider: string; model: string; until: string; reason: 'quota' }> {
+    return [{ provider: this.engine, model: this.account, until: this.until, reason: 'quota' }];
+  }
 }
 
 export class EngineRefusal extends Error {

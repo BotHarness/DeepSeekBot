@@ -22,6 +22,12 @@
       "rules": {
         "eslint/no-console": "error"
       }
+    },
+    {
+      "files": ["packages/*/src/worker-log.ts"],
+      "rules": {
+        "eslint/no-console": "off"
+      }
     }
   ],
   "ignorePatterns": [

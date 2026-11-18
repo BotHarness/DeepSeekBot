@@ -163,6 +163,33 @@ describe('Tool approval card layout', () => {
     ).toEqual(['允许这次', '始终允许', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
   });
+  it('shows an engine shell request like a Terminal card, command and reason inline', async () => {
+    const card = await render(
+      message(
+        'shell',
+        JSON.stringify({
+          command: 'curl -sI https://example.com | head -1',
+          cwd: '/work',
+          reason: 'May I run the command with network access?',
+        }),
+      ),
+    );
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('终端');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe(
+      'May I run the command with network access?',
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe(
+      'curl -sI https://example.com | head -1',
+    );
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
+  it('shows every line of a multi-line command on the closed card', async () => {
+    const card = await render(
+      message('shell', JSON.stringify({ command: 'pwd\nrm -rf ./data', reason: 'Clean up' })),
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('pwd\nrm -rf ./data');
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
   it('closes as Session stopped when the Human stopped the asking Session', async () => {
     const card = await render(message(), {
       toolApprovalStatus: async () => 'stopped',
@@ -527,6 +554,12 @@ describe('Tool approval file diff', () => {
       command: 'ls -la',
       description: 'List',
     });
+    expect(
+      approvalShellCommand(
+        'shell',
+        JSON.stringify({ command: 'curl -sI https://example.com', reason: 'Needs network' }),
+      ),
+    ).toEqual({ command: 'curl -sI https://example.com', description: 'Needs network' });
     expect(approvalShellCommand('edit', '{"command":"ls"}')).toBeUndefined();
     expect(approvalFileChange('edit', 'not json')).toBeUndefined();
   });

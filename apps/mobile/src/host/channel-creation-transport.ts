@@ -39,7 +39,7 @@ export function channelCreationTransport(
         return result;
       } catch (error) {
         const refusal = deviceRefusal(error);
-        if (refusal) throw new Error(refusal);
+        if (refusal) throw new Error(refusal, { cause: error });
         if (error instanceof MethodRefused) {
           if (
             creation &&
@@ -47,9 +47,9 @@ export function channelCreationTransport(
             ['unknown-bot', 'archived-bot', 'protected-bot', 'invalid-input'].includes(error.code)
           )
             throw new ChannelCreationNotAccepted(error.code);
-          throw new Error(error.code);
+          throw new Error(error.code, { cause: error });
         }
-        if (!paired()) throw new Error('target-unpaired');
+        if (!paired()) throw new Error('target-unpaired', { cause: error });
         uncertain = true;
       } finally {
         client.stop();

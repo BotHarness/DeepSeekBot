@@ -5856,7 +5856,7 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-request-pill[data-state='pending'] { background: color-mix(in srgb, ${color.warning} 16%, transparent); color: ${color.warning}; }
 .bh-request-pill[data-state='pending'][data-urgent] { background: color-mix(in srgb, ${color.danger} 16%, transparent); color: ${color.danger}; }
 .bh-tool-approval-sentence { min-width: 0; color: var(--tobs-ink-primary); font-size: ${text.bodySize}; line-height: ${text.bodyLine}; overflow-wrap: anywhere; }
-.bh-tool-approval-line { display: block; min-width: 0; overflow: hidden; padding: ${space.x2} ${space.x3}; border-radius: ${radius.md}; background: ${color.well}; color: var(--tobs-ink-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; text-overflow: ellipsis; white-space: nowrap; }
+.bh-tool-approval-line { display: block; min-width: 0; overflow: hidden; padding: ${space.x2} ${space.x3}; border-radius: ${radius.md}; background: ${color.well}; color: var(--tobs-ink-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; white-space: pre-wrap; overflow-wrap: anywhere; }
 .bh-tool-approval-card .bh-message-card-actions button, .bh-question-card .bh-message-card-actions button { border-color: transparent; border-radius: 999px; }
 .bh-message-card-actions[data-stack] { flex-direction: column; }
 .bh-message-card-actions[data-stack] > button { width: 100%; }

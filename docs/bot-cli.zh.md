@@ -1065,17 +1065,33 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### 订阅引擎
 
-PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。第一个引擎是 Codex，运行用 ChatGPT 登录的 `codex app-server`。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录，不共用 Human 自己的 Codex 登录和配置。
+PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。目前有两个引擎：Codex 运行用 ChatGPT 登录的 `codex app-server`；Claude Code 通过 Claude Agent SDK 运行 Human 安装的 `claude`，用 Claude 订阅登录。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录和 Claude 配置目录，不共用 Human 自己的登录、CLAUDE.md、设置、MCP 服务器和 hooks。
 
 ```bash
 deepseekbot engine list
 deepseekbot engine status
+deepseekbot engine approvals
+deepseekbot engine tools <bot> [--query memory]
+echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine login codex
-deepseekbot engine use <bot> codex --role orchestrator
+deepseekbot engine login claude
+deepseekbot engine models codex|claude
+deepseekbot engine use <bot> codex --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
+deepseekbot engine use <bot> claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
-`engine list` 返回 `{engines: [{engine, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（`chatgpt`、`api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out` 或 `not-subscription`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，返回 `{engine, started, url?}`；在浏览器里用 ChatGPT 账号完成登录。`engine use` 返回 `{bot, role, engine}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受 ChatGPT 订阅（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。引擎通过本机 MCP 网关调用 `bot_send_message` 和 `channel_read`，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+`engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+
+`engine models codex|claude` 向已登录的引擎查询订阅可用的模型，返回 `{engine, models: [{id, name, description?, efforts: [{id, name}], defaultEffort?, isDefault?}]}`：Claude Code 来自 Agent SDK 的 `supportedModels()`（`default`、`sonnet`、`opus`、`haiku` 等别名，effort 从 `low` 到 `max`），Codex 来自 app-server 的 `model/list`（不含隐藏模型）。Host 为此启动引擎时不接 Bot 工具网关，和一轮对话一样拒绝非订阅登录，列表缓存五分钟。`engine use <bot> <engine> --model <id> [--effort <level>]` 让 Orchestrator 用该模型和 effort 运行：Claude Code 通过 query 的 `model` 和 `effort` 传入，Codex 通过 `thread/start` 的 `model` 以及 `turn/start` 的 `model` 和 `effort` 传入。Host 先用 `engine models` 核对（`unknown-model`、`unknown-effort`）；只给 `--effort` 时作用于引擎的默认模型。`engine use` 返回这两项，`selections` 也列出 `model` 和 `effort`；不给时 Bot 回到引擎自己的默认。如果正在运行的引擎 Session 用的是另一个引擎、模型或 effort，下一轮前会关闭它，并以新的选择恢复同一段引擎对话。
+
+订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
+
+`list` 的 Bot 摘要通过 `orchestratorRunner: {engine, displayName, account?, model?}` 返回选中的 Orchestrator 引擎；Host 提供名称和最近已知的账号标签和引擎最近报告的模型，使用 DSH 模型时省略此字段。
+
+Codex 要执行需要许可的命令或改文件时（Codex 在 Bot 自己的空文件夹里运行 Orchestrator，所以写到文件夹外面会请求许可），Host 会在这一轮来源的 Channel 里发出常规的工具审批卡片，并把 `approval/asked` 和 `approval/decided` 写进引擎的 Session。`engine approvals` 返回引擎 Session 正在等待的卡片 `{approvals: [{botSlug, sessionId, channelId, messageId, toolName, input, expiresAt}]}`；用 `tool-approval-decide <channelId> --message-id <messageId> --outcome allowed-once|allowed-always-tool|rejected` 回答。批准后 Codex 执行，拒绝会作为 decline 返回给 Codex。`allowed-always-tool` 以 Codex 自己的工具名（命令为 `shell`，改文件为 `apply_patch`）保存规则，`tool-approval-rules` 会列出；之后同一范围内该工具的请求不再弹卡片直接批准。卡片打开期间，`session-transcript` 的 `engine.state` 为 `waiting-approval`。
+
+网关只直接列出 `bot_send_message`、`channel_read`、`inbox_resolve`、`tool_search` 和 `tool_call`，让引擎的上下文保持精简。其余 Bot 层工具按需加载：`tool_search` 接受关键词或 `select:<name>,...`，返回匹配的工具及其 `input_schema`；`tool_call` 按 `name` 和 `arguments` 执行其中一个。目录包括 Orchestrator 的 Bot 工具（Channel 操作与历史、Inbox、Assignment、Group、定时任务、GenUI 卡片、记忆分支）、引擎专用的记忆工具 `memory_list`、`memory_read`、`memory_write`（与记忆命令相同的路径规则限定在 Bot 的记忆文件夹内：不能碰 `.git`，`memory_write` 只写 `.md` 文件）、Todo，以及在该 Bot 开启 Browser Access 或 Computer Access 时的 Bot 浏览器和电脑。DSH 通用工具（shell、文件、网页）既不会列出也搜不到，引擎用它自己的工具。每次调用都在引擎 Session 里运行现有工具，检查与 DSH Agent 相同：Session 必须仍属于该 Bot；需要 Human 审批的工具（例如 `bot_create`）以及每个 Session 第一次使用浏览器或电脑时，会发出常规审批卡片（“始终允许”与 DSH 一样生效）；网关拒绝当前 Channel 之外的 `channel_id`、`bot_id` 等目标，`tool_call` 的参数里也一样。`engine tools <bot>` 返回引擎搜索的同一个目录（`{tools: [{name, description}]}`，带 `--query` 时返回匹配项及其 `input_schema`）；`engine tool <bot> <name> --args-stdin` 不经模型直接运行引擎专用工具（`memory_*`、Todo、浏览器、电脑），返回 `{bot, tool, result}`。其他 Bot 工具用 `bot tool` 不经模型运行。凭据请求（`ask_secret` 和 `secret_*` 工具）暂不提供给引擎。
 
 ### 桌面在线状态
 
@@ -1415,7 +1431,7 @@ deepseekbot memory-move <bot-id> --default-location
 
 `deepseekbot tob-home` 幂等准备受保护的本地 Tob、Memory、管理 Workspace 与 DM，返回标识及权威 Attention 摘要，不发送消息。`deepseekbot home-model-set --provider <id> --model <id>` 修改原生 Host 默认模型，保留其他 Bot 的独立计划。
 
-Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)）。下方列出的 Bot 创建／资料／生命周期、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
+Tob 通过普通原生 bash／pwsh Tool 调用 `deepseekbot`；专用的 `tob_assignment_limit_read`、`tob_assignment_limit_set` Tool 及直接运行入口已移除。既有 Assignment Tools 不变。Tob 可以运行所有 Human CLI 命令（[ADR-0314](decisions/tob.md#adr-0314)）。下方列出的 Bot 创建／资料／生命周期、群组、模型、运行、隐私、Git、更新、Share Draft、诊断和语音操作保留各自的类型化审核（目标、旧值、revision、operation key）。其他命令以原样的 argv、stdin 和当前目录发给 Host，由 Host 用自己的启动 token 代为运行 Human CLI，该 token 不会进入 Tob 的 Shell。在 Host 只读清单中且不带 `--out` 的命令直接执行；其他命令（包括清单尚未收录的命令）都会先给 Human 一张审批卡，显示完整 argv、目录，以及 stdin 的字节数和 SHA-256。完全访问和审批模板都不能跳过这张卡，只有 Human 在卡上选择的“始终允许”可以；被拒绝的卡不会执行命令。Human CLI 自身的错误代码和消息原样返回。`--host`、`--token-file` 和 `--home` 会被拒绝，`ssh-tunnel` 和 `voice-local-kit` 仍只在 Human 自己的 CLI 中可用。
 
 在具备权限的 Tob Shell 执行中：
 
@@ -1436,7 +1452,7 @@ Host 将短期 loopback endpoint 与受限 token 注入这次 Shell 的子进程
 
 已认证 Human 的 `settings-set` 保持原行为，新增成对的 `--expected-revision` 与 `--previous-value` 参数，用于提交已审核的 patch；后者为与 patch 字段一致的 JSON 对象。同时省略这两个参数仍使用原有先读再写流程。Tob 的删除／归档仍返回 `protected-bot`。
 
-[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](adr/0224-tob-management-uses-scoped-native-shell-cli.md)，完整命令范围见 [ADR-0314](adr/0314-tob-runs-every-cli-command-with-approved-writes.md)。
+[UI／CLI 覆盖清单](agents/cli-ui-coverage.md) 区分既有 Human 命令和 Tob 受限访问，并跟踪后续缺口。身份与生命周期边界见 [ADR-0224](decisions/tob.md#adr-0224)，完整命令范围见 [ADR-0314](decisions/tob.md#adr-0314)。
 
 ### Tob 创建 Bot、资料与生命周期
 
@@ -1475,7 +1491,7 @@ deepseekbot bot-delete-retry <bot-id> --confirm
 
 删除默认保留 Memory。仅在 `preview.eraseAvailable` 允许时，`--erase-memory` 才选择擦除 owner 审核过的准确目录；不接受调用方另选路径。`bot-delete-memory-folder` 返回经校验的 `{target:{path,relativePath,kind}}` 供检查，不提供任意文件系统访问。预览 token、依赖范围和路径所有权检查仍具权威性。重试沿用已接受的保留／擦除选择，不得改变选择。受限 confirm 与 retry 每次都需 Human 新作决定，full access、已记住规则和自动审批不能替代。Human 的这两个命令也新增必需的 `--confirm`，已有清理脚本需更新。Tob 自身不能归档或删除（`protected-bot`）；名称、人格文本和导入内容都不能赋予其权限。
 
-详见 [ADR-0225](adr/0225-bot-creation-receipts-and-reviewed-profile-lifecycle.md) 与[覆盖清单](agents/cli-ui-coverage.md#2089-bot-management-scope)。直接 CLI、真实 Tob 对话、Web 导航和 macOS Desktop 是独立验收入口，命令契约不代表这些验证已通过。
+详见 [ADR-0225](decisions/tob.md#adr-0225) 与[覆盖清单](agents/cli-ui-coverage.md#2089-bot-management-scope)。直接 CLI、真实 Tob 对话、Web 导航和 macOS Desktop 是独立验收入口，命令契约不代表这些验证已通过。
 
 ### Tob 建群与邀请
 
@@ -2220,7 +2236,7 @@ Host 通过 ChannelStore 写入真实 Human DM，再由既有 Source Event/Admis
 
 启动返回 `{id,channelId,messageId,state,cancelRequested}`。结束状态为 `completed`（含 `result:{exitCode,stdout,stderr}`），或带错误码的 `failed` / `cancelled`。`completed` 仅表示调用已结束，仍须检查 exitCode 和 JSON stdout 中的命令拒绝。取消须等待结束，不能撤销已提交的效果。模型回合、直接工具或另一请求正在运行时返回 `bot-busy`；权限不可用返回 `tob-authority-required`，运行时关闭返回 `runtime-closed`，请求不存在或过期返回 `cli-request-unavailable`。
 
-最多保留十六条结束结果，结束十分钟后过期，Host 重启即失效；执行期限十分钟。输入最多 256 个 argv、总计 64 KiB，stdin 一 MiB；合并输出一 MiB。stdin 不写入 DM。不要共享私有输入文件。结果不确定时先读取命令 owner 的规范状态，不自动重放历史消息。此路径不增加审批存储或数据库迁移。见 [ADR-0347](adr/0347-model-free-tob-cli-uses-the-accepted-human-dm-turn.md)。
+最多保留十六条结束结果，结束十分钟后过期，Host 重启即失效；执行期限十分钟。输入最多 256 个 argv、总计 64 KiB，stdin 一 MiB；合并输出一 MiB。stdin 不写入 DM。不要共享私有输入文件。结果不确定时先读取命令 owner 的规范状态，不自动重放历史消息。此路径不增加审批存储或数据库迁移。见 [ADR-0347](decisions/tob.md#adr-0347)。
 
 ### Channel 邀请（M14）
 

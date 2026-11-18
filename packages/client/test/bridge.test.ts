@@ -3078,3 +3078,27 @@ it('preserves trusted approval effects for Chat and Activity while dropping malf
     })?.toolApprovalRequest?.effects,
   ).toBeUndefined();
 });
+
+it('parses Host-owned Orchestrator runners without restricting future engine ids', () => {
+  const bot = { slug: 'ada', displayName: 'Ada' };
+  for (const runner of [
+    { engine: 'codex', displayName: 'Codex', account: 'ChatGPT Plus' },
+    { engine: 'claude', displayName: 'Claude Code', account: 'Claude Pro' },
+    { engine: 'future-acp', displayName: 'Custom ACP' },
+  ])
+    expect(parseBotSummary({ ...bot, orchestratorRunner: runner })?.orchestratorRunner).toEqual(
+      runner,
+    );
+  expect(parseBotSummary(bot)).not.toHaveProperty('orchestratorRunner');
+  for (const runner of [
+    null,
+    {},
+    { engine: 'codex' },
+    { engine: '', displayName: 'Codex' },
+    { engine: 'codex', displayName: 7 },
+    { engine: 'codex', displayName: 'Codex', account: 3 },
+  ])
+    expect(parseBotSummary({ ...bot, orchestratorRunner: runner })).not.toHaveProperty(
+      'orchestratorRunner',
+    );
+});

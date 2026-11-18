@@ -97,6 +97,7 @@ const option = {
 
 const noGroups = {
   orchestratorGroupId: null,
+  orchestratorGroupEffort: null,
   assignmentGroups: [],
   assignmentDefaultGroupId: null,
 };
@@ -227,6 +228,15 @@ describe('Model commands', () => {
     expect(live.calls.at(-1)).toEqual({
       method: 'modelPlanSet',
       args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestratorGroupEffort: 'max' }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped, orchestratorGroupEffort: 'max' },
     });
   });
 
@@ -474,6 +484,7 @@ describe('Model commands', () => {
     await invoke(['model-preset-update', 'p1', '--name', 'Renamed'], live.url);
     await invoke(['model-preset-update', 'p1', '--assignment-groups', 'side,extra'], live.url);
     await invoke(['model-preset-update', 'p1', '--orchestrator-model', 'chat'], live.url);
+    await invoke(['model-preset-update', 'p1', '--orchestrator-effort', 'max'], live.url);
     const calls = live.calls
       .filter((call) => call.method === 'modelPresetUpdate')
       .map((call) => call.args);
@@ -491,8 +502,11 @@ describe('Model commands', () => {
     });
     expect(calls[2]).toMatchObject({
       orchestratorGroupId: null,
+      orchestratorGroupEffort: null,
       orchestrator: route('chat'),
     });
+    expect(calls[3]).toMatchObject({ orchestratorGroupId: 'main', orchestratorGroupEffort: 'max' });
+    expect(calls[3]).not.toHaveProperty('orchestrator');
   });
 });
 
@@ -578,6 +592,19 @@ describe('Routing Group commands', () => {
         args: { slug: 'ada', expectedRevision: 3, orchestratorGroupId: 'g1' },
       },
     ]);
+    await invoke(
+      ['model-plan-customize', 'ada', '--orchestrator-group', 'g1', '--orchestrator-effort', 'max'],
+      live.url,
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanCustomize',
+      args: {
+        slug: 'ada',
+        expectedRevision: 3,
+        orchestratorGroupId: 'g1',
+        orchestratorGroupEffort: 'max',
+      },
+    });
   });
 });
 
@@ -705,6 +732,31 @@ it('configures the Home native default with its actual revision and reasoning ef
     (await invoke(['home-model-set', '--group', 'daily', '--provider', ''], live.url)).json.error
       .code,
   ).toBe('usage');
+});
+it('sets the Home default Routing Group with its one effort', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : {},
+  }));
+  expect(
+    (
+      await invoke(
+        ['home-model-set', '--group', 'daily', '--orchestrator-effort', 'high'],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[1]).toEqual({
+    method: 'onboardingModel',
+    args: {
+      expectedRevision: 0,
+      expectedDefaultRevision: 7,
+      expectedDefaultGroupRevision: 2,
+      groupId: 'daily',
+      groupEffort: 'high',
+      globalDefault: true,
+    },
+  });
 });
 it('forwards explicit native default and preset target revisions', async () => {
   const live = await host(() => ({ ok: true, value: { revision: 9 } }));

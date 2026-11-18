@@ -2,7 +2,7 @@
 
 日期：2026-10-22。第三方源码固定在 [`28a2da05deeffdf0556f1e7de1f5eaec9fb5a196`](https://github.com/liguobao/ds-harness-remote/tree/28a2da05deeffdf0556f1e7de1f5eaec9fb5a196)。本轮是静态源码及第一方测试审阅，没有运行第三方程序、安装依赖、启动 Host 或验证真机。测试存在、上游报告通过和本轮复现通过是不同证据；本文不声称后者。
 
-BotHarness 的已接受基线是 [ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md)、[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555) 及其切片。Connect 加密依赖为 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)。初次审阅仅提供借鉴建议；Human 随后确认的文档与 issue 更新记录在末节“后续采纳”。
+BotHarness 的已接受基线是 [ADR-0245](../decisions/computer.md#adr-0245)、[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555) 及其切片。Connect 加密依赖为 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)。初次审阅仅提供借鉴建议；Human 随后确认的文档与 issue 更新记录在末节“后续采纳”。
 
 ## 核心区别
 

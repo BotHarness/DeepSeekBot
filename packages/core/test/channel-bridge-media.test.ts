@@ -700,9 +700,18 @@ it('revocation cancels a stalled checked acquisition', async () => {
     entered();
     return (async function* () {
       await new Promise<void>((_resolve, reject) =>
-        options.signal.addEventListener('abort', () => reject(options.signal.reason), {
-          once: true,
-        }),
+        options.signal.addEventListener(
+          'abort',
+          () =>
+            reject(
+              options.signal.reason instanceof Error
+                ? options.signal.reason
+                : new Error('aborted', { cause: options.signal.reason }),
+            ),
+          {
+            once: true,
+          },
+        ),
       );
       yield png;
     })();
