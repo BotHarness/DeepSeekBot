@@ -298,6 +298,7 @@ export class EngineHost {
     for (const cancel of this.#cancels.values()) cancel();
     await Promise.allSettled([...this.#opening.values()]);
     await Promise.allSettled([...this.#live.keys()].map((id) => this.release(id)));
+    await Promise.allSettled([...this.#releasing.values()]);
   }
 
   isLive(sessionId: string): boolean {
@@ -315,6 +316,7 @@ export class EngineHost {
     if (live !== undefined && !live.engine.ended) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
+    if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) return pending;
     const opening = this.#start(request).finally(() => this.#opening.delete(request.sessionId));

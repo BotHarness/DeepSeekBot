@@ -178,6 +178,11 @@ describe('Codex Engine Session stop and timeouts', () => {
       { cwd: '/tmp', instructions: '' },
     );
     await expect(busy.start('t-1')).rejects.toMatchObject({ code: 'engine-failed' });
+    const workspace = new CodexEngineSession(
+      fakeCodex({ 'thread/resume': () => ({ error: 'workspace not found: /tmp/x' }) }).transport,
+      { cwd: '/tmp', instructions: '' },
+    );
+    await expect(workspace.start('t-1')).rejects.toMatchObject({ code: 'engine-failed' });
   });
 });
 
@@ -480,6 +485,12 @@ describe('Codex launch and sign-in', () => {
       exists: (path) => path === 'C:\\bin\\codex.EXE',
     });
     expect(native).toEqual({ file: 'C:\\bin\\codex.EXE', args: ['--version'] });
+    const ampersand = engineLaunch('codex', ['login'], {
+      platform: 'win32',
+      env: { ...env, Path: 'C:\\R&D' },
+      exists: (path) => path === 'C:\\R&D\\codex.CMD',
+    });
+    expect(ampersand.args.at(-1)).toBe('""C:\\R&D\\codex.CMD" login"');
     expect(engineLaunch('codex', ['--version'], { platform: 'darwin' })).toEqual({
       file: 'codex',
       args: ['--version'],
@@ -503,6 +514,12 @@ describe('Codex launch and sign-in', () => {
       code: 'engine-failed',
       message: expect.stringContaining('disabled'),
     });
+    const silent = join(root, 'codex-silent');
+    writeFileSync(silent, '#!/usr/bin/env node\nsetInterval(() => undefined, 1000);\n');
+    chmodSync(silent, 0o755);
+    await expect(
+      startCodexLogin({ command: silent, home: join(root, 'home') }, 200),
+    ).rejects.toMatchObject({ code: 'engine-failed' });
   });
 });
 

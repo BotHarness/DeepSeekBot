@@ -158,7 +158,8 @@ interface ActiveTurn {
 }
 
 const REQUEST_TIMEOUT_MS = 60_000;
-const THREAD_GONE = /not found|no rollout|does not exist|unknown thread|no such thread/iu;
+const THREAD_GONE =
+  /\b(?:thread|rollout)\b[^\n]*\b(?:not found|does not exist)\b|no rollout|unknown thread|no such thread/iu;
 
 export class CodexEngineSession implements EngineSession {
   readonly engine = 'codex' as const;

@@ -38,7 +38,7 @@ function resolveWindows(
 
 function quoteForCmd(value: string): string {
   if (value === '') return '""';
-  if (!/[\s"]/u.test(value)) return value;
+  if (!/[\s"&|<>^()%!,;=]/u.test(value)) return value;
   return `"${value.replaceAll('"', '\\"')}"`;
 }
 

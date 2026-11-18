@@ -80,7 +80,10 @@ export function codexLoginUrl(line: string): string | undefined {
   return LOGIN_URL.exec(line)?.[0];
 }
 
-export function startCodexLogin(options: CodexCommandOptions): Promise<{ url?: string }> {
+export function startCodexLogin(
+  options: CodexCommandOptions,
+  timeoutMs = 10_000,
+): Promise<{ url?: string }> {
   mkdirSync(options.home, { recursive: true });
   const target = launch(options, ['login']);
   return new Promise((resolve, reject) => {
@@ -99,7 +102,15 @@ export function startCodexLogin(options: CodexCommandOptions): Promise<{ url?: s
       if (outcome instanceof Error) reject(outcome);
       else resolve(outcome);
     };
-    const timer = setTimeout(() => finish({}), 10_000);
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(
+        new EngineRefusal(
+          'engine-failed',
+          `codex login did not print a sign-in URL${tail.trim() ? `: ${tail.trim()}` : ''}`,
+        ),
+      );
+    }, timeoutMs);
     const reader = () => {
       let partial = '';
       return (chunk: Buffer) => {
