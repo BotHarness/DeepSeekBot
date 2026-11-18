@@ -34,7 +34,7 @@ _Formerly ADR-0090._
 
 Why: the browser is shared, but acting in it is a per-Bot decision. Profile-wide tools would put the catalog in every prompt and blur who did what, and without Pause a Bot could keep acting while the Human drives the same window.
 
-Enforced by: `packages/browser/test/browser-authority.property.test.ts` (for every tool and any arguments, the audit line never contains typed text or the Host folder of an upload, and a URL is capped at 160 characters), `browser-tools.test.ts`, `client-access.test.ts`.
+Enforced by: `packages/browser/test/browser-authority.property.test.ts` (for every tool, with generated values in its other arguments, the audit line never contains the typed text or the Host folder of an upload, and keeps only the first 160 characters of a URL), `browser-tools.test.ts`, `client-access.test.ts`.
 
 ## 3. Bot Tabs are background tabs
 
@@ -58,7 +58,7 @@ _Formerly ADR-0114 and ADR-0124._
 
 Local and Container each choose a driver, `current` (default) or the pinned `agent-browser` native driver. The candidate attaches only to the existing owned CDP endpoint through a private IPC directory, with its own interactive stream disabled and checked. Its accessibility snapshot is read-only text; actions still need the DOM observer's nonce-stamped refs, which refuse after navigation or reload.
 
-Changing the target, a driver or the profile opens a new authorization scope: it revokes registrations, grants and pending approvals, clears refs and tab ownership, and waits for the old runtime's disposal; a failed disposal keeps new execution closed until a later successful switch. Already-issued input cannot be undone and is never replayed.
+Changing the target, a driver or the profile opens a new authorization scope: it revokes registrations, grants and pending approvals, clears refs and tab ownership, and waits for the old runtime's disposal; a failed disposal keeps new execution closed until a later switch, idle cleanup retry or Human Stop succeeds. Already-issued input cannot be undone and is never replayed.
 
 Why: the Human wanted an isolated browser without enabling Computer or sharing the daily profile. One tool provider over two execution worlds keeps Access, Authorization and Audit identical. The agent-browser driver is measured against the same PersonaBot, model and fixtures before any default changes (`docs/agents/browser-driver-qa.md`).
 

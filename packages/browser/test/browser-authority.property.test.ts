@@ -11,19 +11,28 @@ const marker = fc.stringMatching(/^[A-Z]{6}[0-9]{4}$/u).map((value) => `SECRET${
 describe('Bot Browser authority (docs/decisions/browser.md)', () => {
   it('keeps typed text and Host directories out of Browser Audit for every tool', () => {
     fc.assert(
-      fc.property(fc.constantFrom(...BROWSER_TOOLS), marker, marker, (spec, typed, directory) => {
-        const summary = spec.audit({
-          ...Object.fromEntries(
-            Object.entries(spec.inputSchema['properties'] ?? {}).map(([key]) => [key, 'x']),
-          ),
-          text: typed,
-          path: `/home/${directory}/report.pdf`,
-        });
-        expect(summary).not.toContain(typed);
-        expect(summary).not.toContain(directory);
-        if (spec.raw === 'type') expect(summary).toContain(`chars=${typed.length}`);
-        if (spec.raw === 'upload') expect(summary).toContain('file=report.pdf');
-      }),
+      fc.property(
+        fc.constantFrom(...BROWSER_TOOLS),
+        marker,
+        marker,
+        fc.array(fc.oneof(fc.string(), fc.integer(), fc.boolean())),
+        (spec, typed, directory, values) => {
+          const summary = spec.audit({
+            ...Object.fromEntries(
+              Object.keys(spec.inputSchema['properties'] ?? {}).map((key, index) => [
+                key,
+                values[index] ?? 'x',
+              ]),
+            ),
+            text: typed,
+            path: `/home/${directory}/report.pdf`,
+          });
+          expect(summary).not.toContain(typed);
+          expect(summary).not.toContain(directory);
+          if (spec.raw === 'type') expect(summary).toContain(`chars=${typed.length}`);
+          if (spec.raw === 'upload') expect(summary).toContain('file=report.pdf');
+        },
+      ),
       { numRuns: 1000 },
     );
   });
@@ -32,8 +41,8 @@ describe('Bot Browser authority (docs/decisions/browser.md)', () => {
     fc.assert(
       fc.property(fc.string({ minLength: 161, maxLength: 4000 }), (url) => {
         for (const spec of BROWSER_TOOLS.filter((tool) => ['open', 'tabs'].includes(tool.raw)))
-          expect(spec.audit({ action: 'open', url }).length).toBeLessThanOrEqual(
-            'open '.length + 160,
+          expect(spec.audit({ action: 'open', url })).toBe(
+            spec.audit({ action: 'open', url: url.slice(0, 160) }),
           );
       }),
     );
