@@ -442,19 +442,31 @@ it('reads again after a slow read when the Host announced a change during it', a
   expect(request).toHaveBeenCalledOnce();
   const stream = streams.at(-1)!;
   stream.readyState = 1;
+  const notice = (revision: number) =>
+    act(async () => {
+      stream.dispatchEvent(
+        new MessageEvent('resource/changed', {
+          data: JSON.stringify({ resource: 'devices', revision }),
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(30);
+    });
+  const settle = (index: number) =>
+    act(async () => {
+      finishes[index]!(Response.json(snapshot));
+      await vi.advanceTimersByTimeAsync(0);
+    });
   await act(async () => {
     stream.dispatchEvent(new Event('open'));
-    stream.dispatchEvent(
-      new MessageEvent('resource/changed', {
-        data: JSON.stringify({ resource: 'devices', revision: 1 }),
-      }),
-    );
     await vi.advanceTimersByTimeAsync(30);
   });
-  expect(request).toHaveBeenCalledOnce();
-  await act(async () => {
-    finishes[0]!(Response.json(snapshot));
-    await vi.advanceTimersByTimeAsync(0);
-  });
-  expect(request).toHaveBeenCalledTimes(2);
+  await settle(0);
+  await settle(1);
+  const settled = request.mock.calls.length;
+  await notice(1);
+  expect(request).toHaveBeenCalledTimes(settled + 1);
+  await notice(2);
+  expect(request).toHaveBeenCalledTimes(settled + 1);
+  await settle(settled);
+  expect(request).toHaveBeenCalledTimes(settled + 2);
 });

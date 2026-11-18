@@ -574,10 +574,10 @@ export function createRemoteHosts(options: {
     } catch {
     } finally {
       if (relationshipPoll === abort) relationshipPoll = undefined;
-    }
-    if (reconcileAgain && relationshipPoll === undefined && listeners.size > 0) {
-      reconcileAgain = false;
-      await reconcileRelationships();
+      if (reconcileAgain && relationshipPoll === undefined && listeners.size > 0) {
+        reconcileAgain = false;
+        void reconcileRelationships();
+      }
     }
   };
   const notifications = createRemoteNotifications({
