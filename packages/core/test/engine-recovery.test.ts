@@ -308,6 +308,24 @@ describe('Engine Host recovery', () => {
     await expect(queued).rejects.toBeInstanceOf(EngineRefusal);
   });
 
+  it('starts nothing for a turn waiting on a release when the Host shuts down', async () => {
+    const { host, opened, request } = hostWith(() =>
+      fakeCodex({
+        'turn/start': () => ({ result: { turn: { id: 'turn-1' } } }),
+        'turn/interrupt': () => 'hang',
+      }),
+    );
+    const first = host.runTurn(request()).catch((error: unknown) => error);
+    await vi.waitFor(() => expect(opened[0]?.methods()).toContain('turn/start'));
+    const releasing = host.release('orchestrator-ada');
+    const waiting = host.runTurn(request()).catch((error: unknown) => error);
+    const closing = host.close();
+    await Promise.all([releasing, closing, first]);
+    expect(await waiting).toMatchObject({ code: 'engine-unavailable' });
+    expect(opened).toHaveLength(1);
+    expect(host.isLive('orchestrator-ada')).toBe(false);
+  });
+
   it('cancels a Session still opening when the Host shuts down', async () => {
     const { host, opened, request } = hostWith(() => fakeCodex({ 'account/read': () => 'hang' }));
     const turn = host.runTurn(request()).catch((error: unknown) => error);
