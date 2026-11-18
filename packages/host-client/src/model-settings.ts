@@ -136,7 +136,8 @@ export function modelRoutes(state: ModelSettingsState) {
         ]);
   const orchestratorGroupId =
     source === undefined ? state.defaultGroupId : source.orchestratorGroupId;
-  const orchestratorGroupEffort = source === undefined ? undefined : source.orchestratorGroupEffort;
+  const orchestratorGroupEffort =
+    source === undefined ? state.defaultGroupEffort : source.orchestratorGroupEffort;
   const groups: ModelPlanGroups = {
     ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
     ...(orchestratorGroupId === undefined || orchestratorGroupEffort === undefined
@@ -372,6 +373,7 @@ export async function setModelGroup(
         ? {}
         : { expectedDefaultGroupRevision: state.defaultGroupRevision }),
       groupId,
+      ...(effort === '' ? {} : { groupEffort: effort }),
       globalDefault: true,
     });
     recordFeature('model:plan_update', { via: 'group' });

@@ -14,7 +14,7 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'home-model-set',
     description:
-      'set the Host default model (--provider, --model, --orchestrator-effort, or --group <routing-group-id>; --expected-revision)',
+      'set the Host default model (--provider and --model, or --group <routing-group-id>; --orchestrator-effort; --expected-revision)',
   },
   {
     command: 'model-catalog',
@@ -309,12 +309,7 @@ export async function runModelsUsage(
   if (command === 'home-model-set') {
     const group = values.group?.trim();
     if (values.group !== undefined && !group) usage('--group must not be empty.');
-    if (
-      group &&
-      (values.provider !== undefined ||
-        values.model !== undefined ||
-        values['orchestrator-effort'] !== undefined)
-    )
+    if (group && (values.provider !== undefined || values.model !== undefined))
       usage('Use either --group or --provider/--model.');
     if (!group && (!values.provider || !values.model))
       usage('home-model-set requires --provider and --model, or --group.');
@@ -336,7 +331,12 @@ export async function runModelsUsage(
         ? {}
         : { expectedDefaultGroupRevision: catalog.defaultGroupRevision }),
       ...(group
-        ? { groupId: group }
+        ? {
+            groupId: group,
+            ...(values['orchestrator-effort']
+              ? { groupEffort: values['orchestrator-effort'] }
+              : {}),
+          }
         : {
             route: {
               provider: values.provider,

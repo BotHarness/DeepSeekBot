@@ -5,6 +5,7 @@ import { createHostClient } from '@botharness/host-client/client';
 import { modelChoiceKey } from '@botharness/host-client/model-catalog';
 import {
   inheritModel,
+  modelRoutes,
   modelSettingsResource,
   saveModelPreset,
   searchModels,
@@ -447,6 +448,37 @@ describe('native Model Plans and Presets', () => {
     });
     fake.methods.set('modelPlan', () => ({ revision: 0 }));
     expect(currentModel(await loadBotModel(client, 'qa')).group).toBe('Daily');
+  });
+
+  it('keeps one effort with the global default Routing Group (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models,
+      default: flash,
+      defaultRevision: 3,
+      defaultGroupId: 'daily',
+      defaultGroupEffort: 'high',
+      defaultGroupRevision: 2,
+      groups: [daily],
+    }));
+    fake.methods.set('modelPresets', () => ({ presets: [] }));
+    const global = await loadGlobalModel(client);
+    expect(global.defaultGroupEffort).toBe('high');
+    expect(modelRoutes(global).groups).toMatchObject({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+    fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 3 }));
+    await setModelGroup(client, { kind: 'global' }, global, 'daily', 'orchestrator', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ groupId: 'daily', groupEffort: 'high' });
+    await expect(
+      setModelGroup(client, { kind: 'global' }, global, 'daily', 'orchestrator', 'max'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+    fake.methods.set('modelPlan', () => ({ revision: 0 }));
+    expect(modelRoutes(await loadBotModel(client, 'qa')).groups).toMatchObject({
+      orchestratorGroupEffort: 'high',
+    });
   });
 
   it('saves one shared effort with a Routing Group in every slot (#4497)', async () => {

@@ -733,6 +733,31 @@ it('configures the Home native default with its actual revision and reasoning ef
       .code,
   ).toBe('usage');
 });
+it('sets the Home default Routing Group with its one effort', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : {},
+  }));
+  expect(
+    (
+      await invoke(
+        ['home-model-set', '--group', 'daily', '--orchestrator-effort', 'high'],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[1]).toEqual({
+    method: 'onboardingModel',
+    args: {
+      expectedRevision: 0,
+      expectedDefaultRevision: 7,
+      expectedDefaultGroupRevision: 2,
+      groupId: 'daily',
+      groupEffort: 'high',
+      globalDefault: true,
+    },
+  });
+});
 it('forwards explicit native default and preset target revisions', async () => {
   const live = await host(() => ({ ok: true, value: { revision: 9 } }));
   expect(

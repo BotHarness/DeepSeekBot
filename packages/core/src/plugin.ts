@@ -1974,6 +1974,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
       restingUntil: (route) => routeRests.restingUntil(route),
       inherited: () => core.routingGroups.defaultGroup().groupId,
+      inheritedEffort: () => core.routingGroups.defaultGroup().effort,
     },
     openAssignmentRoutes,
     orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
@@ -2272,6 +2273,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
+    inheritedEffort: () => core.routingGroups.defaultGroup().effort,
     routes: (groupId) => core.routingGroups.routes(groupId),
     rests: routeRests,
     requireAllowed: (botSlug, route) =>

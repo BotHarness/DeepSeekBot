@@ -1393,7 +1393,7 @@ it('uses the shared model picker for onboarding and waits for an explicit model 
   );
 });
 
-it('offers Routing Groups in the onboarding picker and saves one without an effort (#4500)', async () => {
+it('offers Routing Groups in the onboarding picker and saves one with its shared effort (#4500, #4497)', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
   document.body.append(container);
@@ -1404,6 +1404,7 @@ it('offers Routing Groups in the onboarding picker and saves one without an effo
       models: catalog,
       default: { provider: 'deepseek', model: 'flash' },
       defaultGroupId: 'main',
+      defaultGroupEffort: 'high',
       groups: [
         {
           id: 'main',
@@ -1430,11 +1431,15 @@ it('offers Routing Groups in the onboarding picker and saves one without an effo
     ),
   );
   expect(trigger('Model')?.textContent).toContain('Main');
-  expect(document.querySelector('[role="radiogroup"], [role="tablist"]')).toBeNull();
+  const tabs = () => document.querySelector('[aria-label="Model · Reasoning effort"]')!;
+  expect(tabs().querySelector('[aria-selected="true"]')?.textContent).toBe('High');
   await choose('Model', 'Flash', 'Flash');
   await choose('Model', 'Main', 'Main');
+  await act(async () =>
+    [...tabs().querySelectorAll('button')].find((item) => item.textContent === 'Low')!.click(),
+  );
   await act(async () => button('Save global default model').click());
-  expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main' }, true, 0);
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main', effort: 'low' }, true, 0);
 });
 
 it('keeps a chosen model over the default Routing Group on refresh, and blocks Save for a missing group', async () => {

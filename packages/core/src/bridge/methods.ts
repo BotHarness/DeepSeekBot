@@ -469,7 +469,12 @@ import {
   type RoutingGroupMember,
   type RoutingGroupStore,
 } from '../models/routing-groups.js';
-import { groupEfforts, type ModelCatalog, type ModelCatalogEntry } from '../models/catalog.js';
+import {
+  groupEfforts,
+  groupMemberRoute,
+  type ModelCatalog,
+  type ModelCatalogEntry,
+} from '../models/catalog.js';
 
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
@@ -3843,6 +3848,7 @@ function buildBridgeMethods(
       const source = asObject(payload);
       const slug = asSlug(payload);
       const groupId = source['groupId'];
+      const groupEffort = source['groupEffort'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
       const defaultGroupRevision = source['expectedDefaultGroupRevision'];
@@ -3862,12 +3868,23 @@ function buildBridgeMethods(
           deps.routingGroups === undefined)
       )
         return invalidInput('A default Routing Group replaces the route and needs global scope');
+      if (
+        groupEffort !== undefined &&
+        (typeof groupEffort !== 'string' || !groupEffort.trim() || typeof groupId !== 'string')
+      )
+        return invalidInput('A default Routing Group effort needs a nonempty effort and a group');
+      const effort = typeof groupEffort === 'string' ? groupEffort.trim() : undefined;
       let route = source['route'];
       if (typeof groupId === 'string') {
         try {
           if (deps.routingGroups?.get(groupId) === undefined)
             throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
-          route = await firstUsableRoute(deps.routingGroups.routes(groupId));
+          if (effort !== undefined) await requireGroupEfforts(groupId, [effort]);
+          const first = await firstUsableRoute(deps.routingGroups.routes(groupId));
+          route =
+            effort === undefined
+              ? first
+              : groupMemberRoute(first, effort, await deps.modelCatalog.list());
         } catch (error) {
           return error instanceof RoutingGroupError
             ? routingGroupFailure(error)
@@ -3932,13 +3949,13 @@ function buildBridgeMethods(
             groups === undefined ||
             previous === undefined ||
             nextGroup === undefined ||
-            previous.groupId === nextGroup
+            (previous.groupId === nextGroup && previous.effort === effort)
               ? undefined
-              : groups.setDefaultGroup(nextGroup, previous.revision);
+              : groups.setDefaultGroup(nextGroup, previous.revision, effort);
           const restore = (): void => {
             if (reserved === undefined || previous === undefined) return;
             try {
-              groups?.setDefaultGroup(previous.groupId, reserved.revision);
+              groups?.setDefaultGroup(previous.groupId, reserved.revision, previous.effort);
             } catch {}
           };
           try {
@@ -4327,6 +4344,9 @@ function buildBridgeMethods(
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
+            ...(defaultGroup?.effort === undefined
+              ? {}
+              : { defaultGroupEffort: defaultGroup.effort }),
             ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),

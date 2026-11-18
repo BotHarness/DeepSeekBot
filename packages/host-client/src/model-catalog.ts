@@ -43,6 +43,7 @@ export interface ModelCatalogAnswer {
   default?: ModelCatalogRoute;
   defaultRevision?: number;
   defaultGroupId?: string;
+  defaultGroupEffort?: string;
   defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroup[];
@@ -217,6 +218,11 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
       : {}),
     ...(typeof answer?.['defaultGroupId'] === 'string'
       ? { defaultGroupId: answer['defaultGroupId'] }
+      : {}),
+    ...(typeof answer?.['defaultGroupId'] === 'string' &&
+    typeof answer['defaultGroupEffort'] === 'string' &&
+    answer['defaultGroupEffort'] !== ''
+      ? { defaultGroupEffort: answer['defaultGroupEffort'] }
       : {}),
     ...(typeof defaultGroupRevision === 'number' &&
     Number.isSafeInteger(defaultGroupRevision) &&

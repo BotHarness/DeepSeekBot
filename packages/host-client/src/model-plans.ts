@@ -372,6 +372,7 @@ export async function setOnboardingModel(
     expectedDefaultGroupRevision?: number;
     route?: ModelRoute;
     groupId?: string;
+    groupEffort?: string;
     globalDefault: boolean;
   },
 ): Promise<{ revision: number; groupRevision?: number }> {

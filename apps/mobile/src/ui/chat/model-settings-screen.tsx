@@ -289,15 +289,13 @@ function ModelsView({
           value={value}
           group={group}
           effort={groupEffort}
-          global={scope.kind === 'global'}
           busy={models.busy}
           onChange={(effort) => pickGroup(group, effort, true)}
         />
       );
     if (picker.endsWith('-effort'))
       return frame(
-        effortGroup !== undefined &&
-          (scope.kind === 'global' || groupEffortChoices(value, effortGroup).length === 0) ? (
+        effortGroup !== undefined && groupEffortChoices(value, effortGroup).length === 0 ? (
           <GroupEfforts value={value} group={effortGroup} header={banner} />
         ) : (
           <View>
@@ -677,17 +675,14 @@ function ModelsView({
                                 : () =>
                                     pickGroup(
                                       group,
-                                      scope.kind === 'global'
-                                        ? ''
-                                        : keptGroupEffort(
-                                            value,
-                                            group,
-                                            currentGroup === undefined
-                                              ? (current?.reasoningEffort ?? '')
-                                              : groupEffort,
-                                          ),
-                                      scope.kind !== 'global' &&
-                                        groupEffortChoices(value, group).length > 0,
+                                      keptGroupEffort(
+                                        value,
+                                        group,
+                                        currentGroup === undefined
+                                          ? (current?.reasoningEffort ?? '')
+                                          : groupEffort,
+                                      ),
+                                      groupEffortChoices(value, group).length > 0,
                                     )
                     }
                   />
@@ -824,7 +819,6 @@ function ModelsView({
                 scope.kind === 'global' ? value.defaultGroupId : routes.groups.orchestratorGroupId
               }
               effort={groupEffortOf(routes.groups, false)}
-              global={scope.kind === 'global'}
               onPress={models.busy ? undefined : () => openPicker('orchestrator-effort')}
             />
           )}
@@ -852,7 +846,6 @@ function ModelsView({
                   value={value}
                   groupId={assignmentCatalogGroup?.id}
                   effort={groupEffortOf(routes.groups, true)}
-                  global={false}
                   onPress={models.busy ? undefined : () => openPicker('assignment-effort')}
                 />
               )}

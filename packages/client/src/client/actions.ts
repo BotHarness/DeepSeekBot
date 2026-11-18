@@ -530,7 +530,7 @@ export interface BridgeActions extends BotModeActions {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    choice: ModelRouteView | { groupId: string },
+    choice: ModelRouteView | { groupId: string; effort?: string },
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
@@ -2119,7 +2119,12 @@ export function createActions(
       const result = await setOnboardingModel(host, {
         ...(slug === undefined ? {} : { slug }),
         expectedRevision,
-        ...('groupId' in choice ? { groupId: choice.groupId } : { route: choice }),
+        ...('groupId' in choice
+          ? {
+              groupId: choice.groupId,
+              ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
+            }
+          : { route: choice }),
         globalDefault,
       });
       if (globalDefault) invalidateInheritedModelPlans(actions);

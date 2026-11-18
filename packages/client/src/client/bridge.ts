@@ -313,6 +313,7 @@ export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
   defaultGroupId?: string;
+  defaultGroupEffort?: string;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroupView[];
 }
@@ -371,6 +372,9 @@ export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogVi
       ? {}
       : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
     ...(catalog.defaultGroupId === undefined ? {} : { defaultGroupId: catalog.defaultGroupId }),
+    ...(catalog.defaultGroupEffort === undefined
+      ? {}
+      : { defaultGroupEffort: catalog.defaultGroupEffort }),
     ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
     ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
   };

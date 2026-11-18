@@ -4314,6 +4314,69 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
   });
 });
 
+describe('An Assignment on the inherited default Routing Group', () => {
+  it('runs at the default group effort', async () => {
+    const pro = { provider: 'deepseek', model: 'pro' };
+    const created: unknown[] = [];
+    const picks: Array<string | undefined> = [];
+    const calls: Array<Promise<unknown>> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => undefined,
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          calls.push(
+            scope!.tools
+              .find((tool) => tool.name === 'create_assignment')!
+              .execute(
+                { title: 'Inherited', description: 'Runs on the default.', grant_id: 'grant-1' },
+                {} as ToolRunContext,
+              ),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => pro },
+      resolveModelPlan: () => undefined,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async (_slug, _group, effort) => {
+          picks.push(effort);
+          return { kind: 'route', route: { ...pro, reasoningEffort: effort! } };
+        },
+        describe: (id) => (id === 'daily' ? { name: 'Daily', routes: [pro] } : undefined),
+        restingUntil: () => undefined,
+        inherited: () => 'daily',
+        inheritedEffort: () => 'high',
+      },
+    });
+    await adapter.runOrchestrator({
+      ...reportRun,
+      bot: BOT,
+      assignments: {
+        ...reportRun.assignments,
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+      },
+    });
+    try {
+      await Promise.all(calls);
+      expect(picks).toEqual(['high']);
+      expect(created).toMatchObject([
+        { model: { ...pro, reasoningEffort: 'high' }, modelGroupId: 'daily' },
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
 describe('Assignment Directory Tools', () => {
   it('forward list filters and archive decisions to the Orchestrator run', async () => {
     const calls: Array<Promise<unknown>> = [];

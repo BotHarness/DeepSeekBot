@@ -1497,6 +1497,15 @@ const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'routing-group-default-effort',
+  module: 'routing-groups',
+  description: 'Keep the reasoning effort chosen with the Profile default Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE routing_group_default ADD COLUMN effort TEXT');
+  },
+};
+
 const GROUP_FALLBACK_OVERRIDES_MIGRATION: SchemaMigration = {
   id: 'group-fallback-overrides',
   module: 'routing-groups',
@@ -4151,4 +4160,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   GROUP_FALLBACK_OVERRIDES_MIGRATION,
   ASSIGNMENT_AGENT_PRESET_MIGRATION,
   SESSION_AGENT_PRESET_MIGRATION,
+  ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
 ]);

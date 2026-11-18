@@ -1158,6 +1158,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     globalDefault: boolean,
     expectedDefaultRevision?: number,
     groupId?: string,
+    groupEffort?: string,
   ): Promise<{ revision: number; groupRevision?: number }> {
     return unwrapAsync(
       this.methods.onboardingModel({
@@ -1167,6 +1168,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         globalDefault,
         expectedDefaultRevision,
         ...(groupId === undefined ? {} : { groupId }),
+        ...(groupEffort === undefined ? {} : { groupEffort }),
       }),
     );
   }

@@ -1059,7 +1059,10 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
-  groupFallback?: Pick<GroupFallback, 'choose' | 'start' | 'pick' | 'inherited'>;
+  groupFallback?: Pick<
+    GroupFallback,
+    'choose' | 'start' | 'pick' | 'inherited' | 'inheritedEffort'
+  >;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   engineFallback?: (botSlug: string, limit: EngineLimitError) => ModelSwitch | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
@@ -11504,10 +11507,14 @@ class BotRuntimeImplementation implements BotRuntime {
       return current;
     const rest = this.#routeRests?.restingUntil(current);
     if (rest === undefined) return current;
-    const kept = assignmentGroupOptionOf(
-      this.#registry.get(botSlug)?.modelPlan,
-      groupId,
-    )?.allowedEfforts?.includes(current.reasoningEffort ?? '');
+    const kept =
+      assignmentGroupOptionOf(
+        this.#registry.get(botSlug)?.modelPlan,
+        groupId,
+      )?.allowedEfforts?.includes(current.reasoningEffort ?? '') ??
+      (groupId === this.#groupFallback.inherited() &&
+        current.reasoningEffort !== undefined &&
+        current.reasoningEffort === this.#groupFallback.inheritedEffort());
     const pick = await this.#groupFallback.pick(
       botSlug,
       groupId,

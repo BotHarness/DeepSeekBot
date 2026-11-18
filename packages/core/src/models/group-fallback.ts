@@ -32,6 +32,7 @@ export interface GroupFallback {
   start(botSlug: string, sessionId: string): Promise<void>;
   pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
   inherited(): string | undefined;
+  inheritedEffort(): string | undefined;
 }
 
 const same = (left: RouteKey, right: RouteKey) =>
@@ -40,6 +41,7 @@ const same = (left: RouteKey, right: RouteKey) =>
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
   inheritedGroup?(): string | undefined;
+  inheritedEffort?(): string | undefined;
   routes(groupId: string): ModelRoute[];
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
@@ -53,7 +55,8 @@ export function createGroupFallback(options: {
       : options.withEffort(route, effort);
   const effortOf = (botSlug: string): string | undefined => {
     const plan = options.plan(botSlug);
-    return plan?.orchestratorGroupId === undefined ? undefined : plan.orchestratorGroupEffort;
+    if (plan === undefined) return options.inheritedEffort?.();
+    return plan.orchestratorGroupId === undefined ? undefined : plan.orchestratorGroupEffort;
   };
   const overrides = options.overrides ?? createMemoryFallbackOverrides();
   const groupOf = (botSlug: string): string | undefined => {
@@ -71,6 +74,7 @@ export function createGroupFallback(options: {
   };
   return {
     inherited: () => options.inheritedGroup?.(),
+    inheritedEffort: () => options.inheritedEffort?.(),
     route(sessionId) {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;

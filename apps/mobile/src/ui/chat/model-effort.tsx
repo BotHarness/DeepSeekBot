@@ -102,21 +102,19 @@ export function GroupEffortBar({
   value,
   group,
   effort,
-  global,
   busy,
   onChange,
 }: {
   value: ModelSettingsState;
   group: ModelCatalogGroup;
   effort: string;
-  global: boolean;
   busy: boolean;
   onChange(effort: string): void;
 }) {
   const t = useStrings();
   return (
     <EffortBar
-      options={global ? [] : groupEffortChoices(value, group)}
+      options={groupEffortChoices(value, group)}
       current={effort}
       note={t.modelSettings.groupEffortShared}
       busy={busy}
@@ -129,13 +127,11 @@ export function GroupEffortLink({
   value,
   groupId,
   effort,
-  global,
   onPress,
 }: {
   value: ModelSettingsState;
   groupId: string | undefined;
   effort: string;
-  global: boolean;
   onPress: (() => void) | undefined;
 }) {
   const t = useStrings();
@@ -144,7 +140,7 @@ export function GroupEffortLink({
     <PickerLink
       label={t.modelSettings.effort}
       detail={
-        global || group === undefined || groupEffortChoices(value, group).length === 0
+        group === undefined || groupEffortChoices(value, group).length === 0
           ? t.modelSettings.groupEffort
           : groupEffortLabel(value, group, effort)
       }

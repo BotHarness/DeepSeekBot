@@ -54,11 +54,16 @@ export interface RoutingGroupStore {
   delete(id: string, expectedRevision: number): RoutingGroup;
   routes(id: string): ModelRoute[];
   defaultGroup(): RoutingGroupDefault;
-  setDefaultGroup(groupId: string | undefined, expectedRevision: number): RoutingGroupDefault;
+  setDefaultGroup(
+    groupId: string | undefined,
+    expectedRevision: number,
+    effort?: string,
+  ): RoutingGroupDefault;
 }
 
 export interface RoutingGroupDefault {
   groupId?: string;
+  effort?: string;
   revision: number;
 }
 
@@ -249,11 +254,14 @@ export function createRoutingGroupStore(options: RoutingGroupStoreOptions): Rout
   const readDefault = (): RoutingGroupDefault =>
     port.read((database) => {
       const row = database
-        .prepare('SELECT group_id, revision FROM routing_group_default WHERE singleton = 1')
+        .prepare('SELECT group_id, effort, revision FROM routing_group_default WHERE singleton = 1')
         .get();
       if (row === undefined) return { revision: 0 };
       return {
         ...(typeof row['group_id'] === 'string' ? { groupId: row['group_id'] } : {}),
+        ...(typeof row['group_id'] === 'string' && typeof row['effort'] === 'string'
+          ? { effort: row['effort'] }
+          : {}),
         revision: Number(row['revision']),
       };
     });
@@ -261,7 +269,7 @@ export function createRoutingGroupStore(options: RoutingGroupStoreOptions): Rout
     list: read,
     get: (id) => read().find((group) => group.id === id),
     defaultGroup: readDefault,
-    setDefaultGroup(groupId, expectedRevision) {
+    setDefaultGroup(groupId, expectedRevision, effort) {
       const existing = readDefault();
       if (existing.revision !== expectedRevision)
         throw new RoutingGroupError(
@@ -270,18 +278,20 @@ export function createRoutingGroupStore(options: RoutingGroupStoreOptions): Rout
         );
       if (groupId !== undefined && !read().some((group) => group.id === groupId))
         throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
+      const kept = groupId === undefined || !effort?.trim() ? undefined : effort.trim();
       const next: RoutingGroupDefault = {
         ...(groupId === undefined ? {} : { groupId }),
+        ...(kept === undefined ? {} : { effort: kept }),
         revision: existing.revision + 1,
       };
       port.transaction(
         (database) => {
           database
             .prepare(
-              `INSERT INTO routing_group_default (singleton, group_id, revision) VALUES (1, ?, ?)
-              ON CONFLICT (singleton) DO UPDATE SET group_id = excluded.group_id, revision = excluded.revision`,
+              `INSERT INTO routing_group_default (singleton, group_id, effort, revision) VALUES (1, ?, ?, ?)
+              ON CONFLICT (singleton) DO UPDATE SET group_id = excluded.group_id, effort = excluded.effort, revision = excluded.revision`,
             )
-            .run(groupId ?? null, next.revision);
+            .run(groupId ?? null, kept ?? null, next.revision);
         },
         ['routing-groups'],
       );

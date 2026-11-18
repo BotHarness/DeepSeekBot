@@ -99,6 +99,7 @@ export interface AssignmentGroupRoutes {
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
+  inheritedEffort?(): string | undefined;
 }
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
@@ -2167,7 +2168,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           const groupEffort =
             groupId === undefined
               ? undefined
-              : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
+              : (args.reasoning_effort ??
+                assignmentGroupOptionOf(plan, groupId)?.defaultEffort ??
+                (groupId === inherited ? this.#assignmentGroups?.inheritedEffort?.() : undefined));
           let picked: ModelRoute | undefined;
           if (groupId !== undefined) {
             if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
