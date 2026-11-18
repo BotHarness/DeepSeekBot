@@ -27,6 +27,8 @@ export function nextTurnNumber(events: readonly SessionEvent[]): number {
   return last + 1;
 }
 
+const ENVELOPE_TITLE = /^\[(?:Human DM|Group|Bot DM|Bot Inbox)/u;
+
 export class EngineTurnLog {
   readonly #target: EngineLogTarget;
   readonly #source: { provider: string; model: string };
@@ -49,10 +51,11 @@ export class EngineTurnLog {
       createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
       { surfaceOp: 'append' },
     );
+    const current = events.findLast((event) => event.type === 'session/title');
     if (
-      !events.some(
-        (event) => event.type === 'session/title' && isSessionActivityName(event.data.title),
-      )
+      current === undefined ||
+      !isSessionActivityName(current.data.title) ||
+      (current.data.source?.kind === 'fallback' && ENVELOPE_TITLE.test(current.data.title))
     ) {
       const title = inboundSessionTitle(input);
       if (isSessionActivityName(title))

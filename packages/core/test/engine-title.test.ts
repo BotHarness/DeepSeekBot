@@ -81,4 +81,21 @@ describe('engine Session titles', () => {
       ).toEqual(title === undefined ? [] : [title]);
     }
   });
+
+  it('replaces a raw envelope fallback title left by an earlier turn', async () => {
+    const dsh = memoryDsh();
+    const opened = await openEngineDshSession(dsh.store, dsh.persistence, 'engine-old', '/tmp');
+    opened.session.append('session/title', {
+      title: '[Human DM] Source Event ID:',
+      messageSeqs: [],
+      source: { kind: 'fallback' },
+    });
+    await new EngineTurnLog(opened, 'codex', 'ChatGPT Plus', input).end({ status: 'completed' });
+    await opened.close();
+    const titles = dsh.stored
+      .get('engine-old')!
+      .events.filter((event) => event.type === 'session/title')
+      .map((event) => event.data.title);
+    expect(titles.at(-1)).toBe('Fix the build');
+  });
 });
