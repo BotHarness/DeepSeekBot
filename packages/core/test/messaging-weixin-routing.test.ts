@@ -159,6 +159,26 @@ async function fixture() {
     },
   };
 }
+it('states the External reply rules once per Inbox and keeps each item free of repeated fields', async () => {
+  const f = await fixture();
+  await f.route(f.group.id);
+  await f.receive('one');
+  await f.receive('two');
+  await f.idle();
+  const inbox = f.runs.map((run) => run.inbox).join('\n');
+  const items = inbox.split('\n').filter((line) => line.startsWith('- Message '));
+  expect(items.length).toBeGreaterThanOrEqual(2);
+  for (const run of f.runs)
+    expect(run.inbox.split('For each External message:').length - 1).toBe(
+      run.inbox.includes('- Message ') ? 1 : 0,
+    );
+  for (const item of items) {
+    expect(item).not.toContain('Decide whether to participate');
+    expect(item).not.toContain('"sourceEventId"');
+    expect(item).not.toContain('"senderName"');
+    expect(item).not.toContain(':null');
+  }
+});
 it('fans out a WeChat DM through one canonical source with independent Channel harvest and Inbox-only; never lends the receiver identity', async () => {
   const f = await fixture();
   await f.route(f.group.id);

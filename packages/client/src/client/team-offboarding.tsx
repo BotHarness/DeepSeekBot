@@ -22,6 +22,7 @@ import {
   type TransferPreview,
 } from './team-offboarding-bridge.js';
 import { teamErrorText } from './team-settings.js';
+import { MemberInvitationPanel } from './team-invitation.js';
 import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
@@ -63,6 +64,7 @@ const styles = stylex.create({
 });
 
 type Action =
+  | { kind: 'invite' }
   | { kind: 'reset' }
   | { kind: 'revealed'; password: string }
   | { kind: 'deactivate' }
@@ -75,12 +77,14 @@ export function MemberActions({
   t,
   member,
   members,
+  memberUrls = [],
   onChanged,
 }: {
   call: BridgeCall;
   t: BotHarnessTranslate;
   member: TeamMember;
   members: readonly TeamMember[];
+  memberUrls?: readonly string[];
   onChanged(): void;
 }): ReactElement {
   const [action, setAction] = useState<Action>();
@@ -103,6 +107,11 @@ export function MemberActions({
     <div {...stylex.props(styles.group)} data-member-actions={member.username}>
       <p {...stylex.props(styles.title)}>{t('team.offboard.title')}</p>
       <div {...stylex.props(styles.actions)}>
+        {deactivated ? null : (
+          <Button variant="outline" disabled={busy} onClick={() => setAction({ kind: 'invite' })}>
+            {t('team.invite.action')}
+          </Button>
+        )}
         <Button variant="outline" disabled={busy} onClick={() => setAction({ kind: 'reset' })}>
           {t('team.offboard.reset')}
         </Button>
@@ -187,6 +196,33 @@ export function MemberActions({
             {action.password}
           </div>
           <Note tone="warning">{t('team.members.shownOnce')}</Note>
+          <MemberInvitationPanel
+            call={call}
+            t={t}
+            humanId={member.humanId}
+            username={member.username}
+            password={action.password}
+            urls={memberUrls}
+          />
+        </FormDialog>
+      ) : null}
+      {action?.kind === 'invite' ? (
+        <FormDialog
+          title={t('team.invite.title', { name: member.displayName })}
+          description={t('team.invite.hint')}
+          labels={{ close: t('common.close'), cancel: t('common.close') }}
+          submitLabel={t('team.done')}
+          showCancel={false}
+          onCancel={close}
+          onSubmit={close}
+        >
+          <MemberInvitationPanel
+            call={call}
+            t={t}
+            humanId={member.humanId}
+            username={member.username}
+            urls={memberUrls}
+          />
         </FormDialog>
       ) : null}
       {action?.kind === 'deactivate' || action?.kind === 'reactivate' ? (

@@ -243,3 +243,35 @@ it.each(['allowed', 'ask-human', 'rejected'] as const)(
     expect(activityOf({ ...message, toolAutoApproval: { outcome } })).toBeUndefined();
   },
 );
+
+it('shows a Model Switch Notice as a compact activity naming both routes and the reset (#4417)', () => {
+  const message = {
+    id: 'model-switch-1',
+    at: '2026-11-18T00:00:00Z',
+    author: { kind: 'system' },
+    body: '',
+    modelSwitch: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      sessionId: 's-1',
+      from: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      to: { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+      reason: 'quota',
+      until: '2026-11-22T10:00:00Z',
+    },
+  } as unknown as ChannelWireMessage;
+  const activity = activityOf(message);
+  expect(activity?.kind).toBe('model-switch');
+  const shown = presented(message);
+  expect(reactable(shown)).toBe(false);
+  const text = activityText(shown, activity!, roster, 1, activityStrings.zh);
+  expect(text).toMatchObject({
+    botSlug: 'ada',
+    name: 'Ada',
+    verb: '切换模型：opencode-go/deepseek-v4.1-flash → deepseek-official/deepseek-v4-pro',
+  });
+  expect(text.detail).toMatch(/^额度用完，.+ 重置$/u);
+  expect(
+    activityOf({ ...message, modelSwitch: { botSlug: 'ada' } } as unknown as ChannelWireMessage),
+  ).toBeUndefined();
+});

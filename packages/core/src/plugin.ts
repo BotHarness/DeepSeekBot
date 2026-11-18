@@ -1,3 +1,4 @@
+import { SessionLiveStreams } from './runtime/session-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
@@ -223,6 +224,7 @@ import {
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
 import { startTokenUsage } from './telemetry/token-usage.js';
+import { createBotTurnTelemetry } from './telemetry/bot-turn.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
@@ -238,11 +240,15 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import { createOpenAssignmentRoutes } from './models/open-assignments.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
+import { createGroupFallback } from './models/group-fallback.js';
+import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
@@ -572,6 +578,7 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  routingGroups: RoutingGroupStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -684,6 +691,9 @@ export function createCore(
     autoContinueDelaysMs?: readonly number[];
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
+    routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
+    sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -757,6 +767,7 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let routingGroups: RoutingGroupStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -881,6 +892,15 @@ function initializeCore(
         options.warn?.(
           `model-presets-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
+    });
+    startup.enter('routing-groups', 'initialize');
+    routingGroups = createRoutingGroupStore({
+      database: operationalDatabase,
+      references: (groupId) =>
+        registry
+          .list()
+          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
+          .map((bot) => `Bot ${bot.displayName}`),
     });
   } catch (error) {
     operationalDatabase.close();
@@ -1362,6 +1382,9 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
+    ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
+    ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
@@ -1542,6 +1565,7 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    routingGroups,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -1739,12 +1763,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
+  const openAssignmentRoutes = createOpenAssignmentRoutes({
+    catalog: modelCatalog,
+    plan: (slug) => core.registry.get(slug)?.modelPlan,
+    requireAllowed: (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
+  });
   const privateExecution = new ProtectedExecution(
     privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
   const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = new ModelFreeTobCliInvocation();
+  const sessionLive = new SessionLiveStreams();
   const agentAdapter = createDshBotAgentAdapter({
     tobCliInvocation,
     ...(config.genuiPreviewBrowserPath === undefined
@@ -1762,12 +1792,60 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    assignmentGroups: {
+      pick: (botSlug, groupId) => groupFallback.pick(botSlug, groupId),
+      describe: (groupId) => {
+        const group = core.routingGroups.get(groupId);
+        if (group === undefined) return undefined;
+        try {
+          return { name: group.name, routes: core.routingGroups.routes(groupId) };
+        } catch {
+          return undefined;
+        }
+      },
+      restingUntil: (route) => routeRests.restingUntil(route),
+    },
+    openAssignmentRoutes,
+    orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
       createBotSubagentModelTools(
         ctx,
         () => core.registry.get(slug)?.modelPlan,
         config.subagent,
-        (route) => requireBotModel(core.team, core.registry.get(slug), route),
+        async (route) => {
+          requireBotModel(core.team, core.registry.get(slug), route);
+          await openAssignmentRoutes.require(slug, route);
+        },
+        () => openAssignmentRoutes.list(slug),
+        {
+          pick: async (groupId) => {
+            const plan = core.registry.get(slug)?.modelPlan;
+            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
+            const picked = await groupFallback.pick(slug, groupId);
+            if (picked.kind === 'route') return picked.route;
+            throw new Error(
+              picked.kind === 'exhausted' && picked.rests.length > 0
+                ? `Every model in Routing Group ${groupId} is resting: ${picked.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                : `Routing Group ${groupId} has no usable model`,
+            );
+          },
+          list: () =>
+            (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
+              const group = core.routingGroups.get(groupId);
+              if (group === undefined) return [];
+              return [
+                {
+                  group: groupId,
+                  name: group.name,
+                  members: core.routingGroups.routes(groupId).map((route) => {
+                    const rest = routeRests.restingUntil(route);
+                    return rest === undefined ? route : { ...route, restingUntil: rest.until };
+                  }),
+                },
+              ];
+            }),
+        },
       ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
@@ -1986,7 +2064,23 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
+  const routeRests = createRouteRests();
+  const groupFallback = createGroupFallback({
+    plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
+    routes: (groupId) => core.routingGroups.routes(groupId),
+    rests: routeRests,
+    requireAllowed: (botSlug, route) =>
+      requireBotModel(core.team, core.registry.get(botSlug), route),
+    validate: (route) => modelCatalog.validate(route),
+  });
   const core = createCore({
+    routeRests,
+    groupFallback,
+    sessionRoute: (botSlug, sessionId) =>
+      groupFallback.route(sessionId) ??
+      agentAdapter.modelSelection(sessionId) ??
+      core.registry.get(botSlug)?.modelPlan?.orchestrator ??
+      modelCatalog.defaultRoute?.(),
     startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
@@ -2509,6 +2603,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'agent/request-error',
     createBotRequestRetry({
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+      onQuotaExhausted: (route, untilMs, reason, sessionId) => {
+        const owner = sessionId === undefined ? undefined : core.ownership.resolve(sessionId);
+        const plan = owner === undefined ? undefined : core.registry.get(owner.botSlug)?.modelPlan;
+        if (
+          reason === 'quota' ||
+          plan?.orchestratorGroupId !== undefined ||
+          (plan?.assignmentGroups?.length ?? 0) > 0
+        )
+          routeRests.rest(route, untilMs, reason);
+      },
       log: (message) => ctx.logger.info(message),
     }),
     { global: true },
@@ -2700,10 +2804,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (query) => core.runtime.toolApprovalOrigin?.(query),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -3036,7 +3141,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
+              callId: execution.callId,
+            }) === true,
           request: {
             agent,
             toolName: execution.name,
@@ -3192,7 +3302,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   ctx.on(
     'agent/assistant-stream',
-    ({ agent, frame }) => agentAdapter.acceptAssistantStream(agent.session.id, frame),
+    ({ agent, frame }) => {
+      agentAdapter.acceptAssistantStream(agent.session.id, frame);
+      sessionLive.accept(agent.session.id, frame);
+    },
     { global: true },
   );
 
@@ -3553,6 +3666,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    routingGroups: core.routingGroups,
+    routeRests,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
@@ -3585,6 +3700,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    sessionLive,
+    presentToolResult: (sessionId, name, args, result) => {
+      const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
+      const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);
+      return definition?.presentResult?.(
+        args,
+        result as Parameters<NonNullable<typeof definition.presentResult>>[1],
+      );
+    },
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);
       if (call === undefined) return undefined;
@@ -4405,6 +4529,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     { global: true },
   );
 
+  const botTurnTelemetry = createBotTurnTelemetry({
+    telemetry,
+    role: (sessionId) => core.ownership.resolve(sessionId)?.rootRole,
+    measure: (sessionId) => {
+      const agent = liveAgent(sessionId);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
+      if (agent === undefined || measurement === undefined) return undefined;
+      return {
+        nodes: measurement.nodes,
+        totalTokens: measurement.totalTokens,
+        eventAt: (seq) => agent.session.eventAt(seq),
+      };
+    },
+    log: (message) => ctx.logger.info(message),
+  });
   const turnLog = createTurnLog({
     events: diagnosticEvents,
     owner: (sessionId) => core.ownership.resolve(sessionId),
@@ -4418,6 +4557,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           .catch(() => ctx.logger.warn('user-question-reconciliation-failed'));
       });
       activity.handleSessionEvent(session.id, event);
+      sessionLive.observe(session.id, event);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -4426,6 +4566,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.usage?.handleSessionEvent(session.id, event);
       core.messagePerf.observeSessionEvent(session.id, event);
       turnLog.observe(session.id, event);
+      botTurnTelemetry.observe(session.id, event);
       idleCompaction.observeEvent(session.id, event);
       handleCompactionEvent(
         {
@@ -4452,7 +4593,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
-          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
+          async (route) => {
+            requireBotModel(core.team, core.registry.get(owner.botSlug), route);
+            await openAssignmentRoutes.require(owner.botSlug, route);
+          },
+          () => openAssignmentRoutes.list(owner.botSlug),
         );
       }
     },
@@ -4473,8 +4618,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
       turnLog.forget(agent.session.id);
+      botTurnTelemetry.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
+      sessionLive.forget(agent.session.id);
     },
     { global: true },
   );

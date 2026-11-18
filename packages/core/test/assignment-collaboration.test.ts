@@ -42,12 +42,16 @@ class ManualAgents implements BotAgentAdapter {
   failNextStop = false;
   failInbox: 'before-side-effect' | 'after-side-effect' | undefined;
   factoryUnavailableCount = 0;
+  onMessage: ((run: OrchestratorAgentRun) => Promise<void>) | undefined;
   readonly #finish = new Map<string, () => void>();
 
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.access = run.assignments;
     this.allInboxTurns.push(run.inbox);
-    if (run.message.trim().length > 0) return;
+    if (run.message.trim().length > 0) {
+      await this.onMessage?.(run);
+      return;
+    }
     if (this.factoryUnavailableCount > 0) {
       this.factoryUnavailableCount -= 1;
       throw new Error('no agent factory registered (load an agent-loop plugin)');
@@ -717,6 +721,151 @@ describe('Assignment collaboration', () => {
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === notice.id)?.state,
       ).toBe('open');
+    } finally {
+      await close();
+    }
+  });
+
+  it('does not wake for a paired completion notice once a wait took its Report', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Complete',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        await assignment.report({ state: 'completed', summary: 'Done' }, { turn: 1 });
+        const waited = await waiting;
+        expect(waited.inboxIds).toHaveLength(1);
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-start');
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(0);
+      expect(
+        sourceEvents(owner)
+          .filter((e) => e.source_kind.startsWith('assignment-'))
+          .every((e) => e.observed_at !== null),
+      ).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('wakes once when parallel Assignments from one request complete', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-start');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(1);
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
+  it('batches completions from different requests while another Assignment runs', async () => {
+    const { agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        run.assignments.create({ title: 'Job', grantId: TEST_GRANT_ID, description: 'Job' });
+      };
+      await admit('First job', 'digest-first');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(1));
+      await admit('Second job', 'digest-second');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
+  it('does not hold a blocked Report for a sibling Assignment', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-blocked');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const first = agents.started[0]!.run;
+      await first.report({ state: 'blocked', summary: 'Need a key' }, { turn: 1 });
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('Need a key');
+      agents.finishAll();
+    } finally {
+      await close();
+    }
+  });
+
+  it('leaves a Report committed after the wait returned in the Inbox', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    let claimed: string[] | undefined;
+    let late: Promise<unknown> | undefined;
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Two steps',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        const first = assignment.report({ state: 'progress', summary: 'Step one' }, { turn: 1 });
+        queueMicrotask(() => {
+          late = assignment.report({ state: 'progress', summary: 'Step two' }, { turn: 1 });
+        });
+        await first;
+        claimed = (await waiting).inboxIds;
+        await late;
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-late');
+      await runtime.whenIdle();
+      const reports = sourceEvents(owner).filter((e) => e.source_kind === 'assignment-report');
+      expect(reports).toHaveLength(2);
+      expect(claimed).toEqual([reports[0]!.source_event_id]);
     } finally {
       await close();
     }
@@ -2301,9 +2450,6 @@ describe('Assignment collaboration', () => {
     const stopped = await access.stop(sessionId);
     expect(stopped.activity).toBe('stopped');
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(
-      /stopped or stopping/,
-    );
     await expect(
       runningTurn.report({ state: 'completed', summary: '取消之后的迟到报告' }),
     ).rejects.toThrow('unavailable or stopping');
@@ -2330,7 +2476,7 @@ describe('Assignment collaboration', () => {
     await reopened.close();
   });
 
-  it('refuses new requests to a Human-stopped Assignment until unarchive revives it', async () => {
+  it('resumes a Human-stopped Assignment when the Orchestrator sends it a request', async () => {
     const { runtime, agents, admit, close } = await setup();
     await admit('开始调研', 'human-stop-3725');
     const access = agents.access;
@@ -2350,13 +2496,9 @@ describe('Assignment collaboration', () => {
     expect(stopped.stopped).toHaveLength(1);
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
 
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(/stopped/);
-    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-
-    const revived = await access.unarchive!(sessionId);
-    expect(revived).toMatchObject({ outcome: 'unarchived' });
     const resumed = access.request({ sessionId, mode: 'next-turn', text: '继续' });
     expect(resumed.delivery).toBe('followup');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).not.toBe('stopped');
     await close();
   });
 

@@ -58,7 +58,7 @@ export function deviceFailure(response: ServerResponse, error: unknown): void {
         : 'internal';
   teamJson(
     response,
-    code === 'credentials-invalid'
+    code === 'credentials-invalid' || code === 'sign-in-required'
       ? 401
       : code === 'rate-limited'
         ? 429
@@ -88,7 +88,7 @@ export function createTeamDeviceHttp(options: {
   let activeStreams = 0;
   const peerFor = (request: IncomingMessage) => {
     const peer = options.team.admitDevice(authorization(request));
-    if (!peer) throw new TeamError('credentials-invalid');
+    if (!peer) throw new TeamError(options.team.deviceRefusal(authorization(request)));
     return peer;
   };
   const assertDevice = (peer: PeerScope) => options.team.assertCall(peer.principal, 'device');

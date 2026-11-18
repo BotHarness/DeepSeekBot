@@ -182,7 +182,7 @@ describe('A Human stop mid-tool-call', () => {
           step: 1,
           callId: 'call-deploy',
           name: 'bash',
-          arguments: '{"command":"./deploy.sh production"}',
+          arguments: '{\n  "command": "./deploy.sh production"\n}',
         });
         session.append('tool/call', {
           turn: 1,
@@ -219,7 +219,7 @@ describe('A Human stop mid-tool-call', () => {
       const [, next, later] = [...f.host.received.values()][0]!;
       expect(textOf(next)).toContain('stopped by the Human with an unknown result');
       expect(textOf(next)).toContain(
-        'bash (call call-deploy): {"command":"./deploy.sh production"}',
+        'bash (call call-deploy): { "command": "./deploy.sh production" }]',
       );
       expect(textOf(next)).not.toContain('call-read');
       expect(textOf(next)).not.toContain('call-awaiting');

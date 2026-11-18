@@ -338,7 +338,7 @@ export function BotSettingsView({
   const deviceRows = rows.filter((row) => DEVICE_SETTINGS_SECTIONS.has(row.id));
   const hereName = thisHost.name ?? t('remoteHosts.this');
   const hostRows: readonly BotSettingsSectionRow[] = remote
-    ? remoteSettingsRows(t)
+    ? remoteSettingsRows(t, { member: 'member' in remote && remote.member !== undefined })
     : navSource.filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id));
   const hostLookOnAccount = grouped && !member && !remote;
   const home = grouped && pins !== undefined;

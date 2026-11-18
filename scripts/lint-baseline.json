@@ -87,7 +87,7 @@
     "apps/mobile/src/ui/chat/call-model.ts": 1,
     "apps/mobile/src/ui/chat/delivery-stack.tsx": 1,
     "apps/mobile/src/ui/chat/local-computer-screen.android.tsx": 1,
-    "apps/mobile/src/ui/chat/reply-quote.tsx": 3,
+    "apps/mobile/src/ui/chat/reply-quote.tsx": 2,
     "apps/mobile/src/ui/chat/row-status-glyph.tsx": 1,
     "apps/mobile/src/ui/theme.ts": 1,
     "packages/browser/src/runtime/provision.ts": 1,

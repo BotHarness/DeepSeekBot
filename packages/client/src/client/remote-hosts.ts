@@ -24,6 +24,7 @@ import {
   custodyResponse,
   forgetRemoteHost,
   sealRemoteHost,
+  teamCustodyResponse,
 } from './remote-custody.js';
 import { browserAdmissionProtocols } from '../../../../deploy/private-relay/admission.mjs';
 import { isPrivateRoute } from '@botharness/host-protocol/route';
@@ -1651,10 +1652,31 @@ export function createRemoteHosts(options: {
   };
 }
 
-export function browserCarrier(): HostCarrier {
+const TEAM_DEVICE_PATH = /^\/botharness-device\/team\/(device-sign-in|device-password)$/u;
+
+export function browserCarrier(options: { teamViaHost?: boolean } = {}): HostCarrier {
   const carrier: HostCarrier = {
     custody: ({ credential }) => custodyCarrier(credential, carrier),
     async request(url, init) {
+      const target = new URL(url);
+      const team = TEAM_DEVICE_PATH.exec(target.pathname)?.[1];
+      if (
+        options.teamViaHost &&
+        init.method === 'POST' &&
+        typeof init.body === 'string' &&
+        (team === 'device-sign-in' || team === 'device-password')
+      ) {
+        const response = await teamCustodyResponse(
+          target.origin,
+          team,
+          { ...(init.headers ? { headers: init.headers } : {}), body: init.body },
+          init.signal,
+        );
+        return {
+          status: response.status,
+          text: async () => new TextDecoder().decode(response.bytes),
+        };
+      }
       const response = await fetch(url, {
         method: init.method,
         signal: init.signal,
@@ -1789,7 +1811,7 @@ export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
         return undefined;
       }
     })(),
-    carrier: browserCarrier(),
+    carrier: browserCarrier({ teamViaHost: enabled }),
     loadImage: browserImage,
     releaseImage: (image) => URL.revokeObjectURL(image),
     translate: (key) => translate(key),

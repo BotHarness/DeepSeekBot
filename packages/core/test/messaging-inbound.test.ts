@@ -1954,7 +1954,7 @@ it('persists follow across restart, deduplicates redelivery and unfollows back t
       "SELECT external_thread_policy_revision, wake_policy_revision, wake_count FROM inbox_admissions WHERE reason = 'group-ordinary' ORDER BY external_thread_policy_revision",
     ),
   ).toEqual([
-    { external_thread_policy_revision: 1, wake_policy_revision: 0, wake_count: 5 },
+    { external_thread_policy_revision: 1, wake_policy_revision: 0, wake_count: 10 },
     { external_thread_policy_revision: 2, wake_policy_revision: 1, wake_count: 2 },
   ]);
 });
@@ -2486,7 +2486,7 @@ it('uses each Bot default and effective channel override in the Human query and 
         {
           botSlug: 'ada',
           inherited: true,
-          policy: { mode: 'digest', count: 5, intervalSeconds: 30 },
+          policy: { mode: 'digest', count: 10, intervalSeconds: 30 },
         },
         { botSlug: 'bea', inherited: true, policy: { mode: 'silent' } },
       ],

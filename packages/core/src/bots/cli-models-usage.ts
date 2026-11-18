@@ -2,6 +2,7 @@ export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
+import type { RoutingGroup } from '../models/routing-groups.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { isUsageOverviewPeriod, usageOverviewPeriods } from '../usage/overview.js';
@@ -37,6 +38,26 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-preset-update',
     description: 'rename or change the routes of a Model Preset',
+  },
+  {
+    command: 'model-groups',
+    description: 'list Routing Groups: named, ordered model routes a Bot can run on',
+  },
+  {
+    command: 'model-group',
+    description: 'read one Routing Group and the routes it expands to, in order',
+  },
+  {
+    command: 'model-group-create',
+    description: 'create a Routing Group (--name, members JSON from --members-stdin)',
+  },
+  {
+    command: 'model-group-update',
+    description: 'rename a Routing Group or replace its members at its revision',
+  },
+  {
+    command: 'model-group-delete',
+    description: 'delete a Routing Group that no Bot or group uses',
   },
   {
     command: 'overview-usage',
@@ -82,6 +103,9 @@ export interface ModelsUsageValues {
   'assignment-effort'?: string;
   'expected-revision'?: string;
   'plan-stdin'?: boolean;
+  'assignment-models'?: string;
+  'members-stdin'?: boolean;
+  'orchestrator-group'?: string;
   period?: string;
   after?: string;
   start?: string;
@@ -96,6 +120,8 @@ export interface ModelsUsageValues {
 const NO_TARGET = new Set([
   'home-model-set',
   'model-catalog',
+  'model-groups',
+  'model-group-create',
   'overview-usage',
   'overview-memory',
   'activity-overview',
@@ -127,6 +153,26 @@ function day(value: string | undefined, flag: string): string | undefined {
   return value;
 }
 
+async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Promise<unknown[]> {
+  if (!values['members-stdin'])
+    usage('Pass the members as JSON on stdin with --members-stdin: {"members":[...]}.');
+  let input: unknown;
+  try {
+    input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+  } catch {
+    usage('Members stdin must be one JSON object.');
+  }
+  const members =
+    typeof input === 'object' && input !== null && !Array.isArray(input)
+      ? (input as Record<string, unknown>)['members']
+      : undefined;
+  if (!Array.isArray(members) || Object.keys(input as object).length !== 1)
+    usage(
+      'Members stdin must be {"members":[{"kind":"model","provider","model","reasoningEffort"?} or {"kind":"group","id"}]}.',
+    );
+  return members;
+}
+
 async function planInput(
   io: BotCreateCliIo,
   values: ModelsUsageValues,
@@ -148,6 +194,14 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function assignmentModelsMode(value: string | undefined): {
+  openAssignmentModels?: boolean;
+} {
+  if (value === undefined) return {};
+  if (value !== 'open' && value !== 'listed') usage('--assignment-models must be open or listed.');
+  return { openAssignmentModels: value === 'open' };
 }
 
 function routeOverride(
@@ -269,23 +323,63 @@ export async function runModelsUsage(
     });
   }
 
+  if (command === 'model-groups') return (await connect())('modelGroups', {});
+  if (command === 'model-group') return (await connect())('modelGroup', { id: target });
+  if (command === 'model-group-create') {
+    const name = values.name?.trim();
+    if (!name) usage('model-group-create requires --name.');
+    const members = await membersInput(io, values);
+    return (await connect())('modelGroupCreate', { name, members });
+  }
+  if (command === 'model-group-update') {
+    const name = values.name?.trim();
+    if (values.name !== undefined && !name) usage('--name must not be empty.');
+    if (name === undefined && !values['members-stdin'])
+      usage('model-group-update needs --name, --members-stdin or both.');
+    const members = values['members-stdin'] ? await membersInput(io, values) : undefined;
+    const rpc = await connect();
+    const { group } = await rpc<{ group: RoutingGroup }>('modelGroup', { id: target });
+    return rpc('modelGroupUpdate', {
+      id: target,
+      expectedRevision: expected ?? group.revision,
+      name: name ?? group.name,
+      members: members ?? group.members,
+    });
+  }
+  if (command === 'model-group-delete') {
+    const rpc = await connect();
+    const expectedRevision =
+      expected ?? (await rpc<{ group: RoutingGroup }>('modelGroup', { id: target })).group.revision;
+    return rpc('modelGroupDelete', { id: target, expectedRevision });
+  }
   if (command === 'model-plan-customize') {
+    const group = values['orchestrator-group']?.trim();
     const provider = values['orchestrator-provider']?.trim();
     const model = values['orchestrator-model']?.trim();
     const effort = values['orchestrator-effort']?.trim();
-    if (!provider || !model)
-      usage('--orchestrator-provider and --orchestrator-model are required.');
+    if (values['orchestrator-group'] !== undefined && !group)
+      usage('--orchestrator-group must not be empty.');
+    if (group && (provider || model || effort))
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    if (!group && (!provider || !model))
+      usage(
+        '--orchestrator-provider and --orchestrator-model, or --orchestrator-group, are required.',
+      );
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
     return rpc('modelPlanCustomize', {
       slug: target,
       expectedRevision,
-      orchestrator: {
-        provider,
-        model,
-        ...(effort ? { reasoningEffort: effort } : {}),
-      },
+      ...(group
+        ? { orchestratorGroupId: group }
+        : {
+            orchestrator: {
+              provider,
+              model,
+              ...(effort ? { reasoningEffort: effort } : {}),
+            },
+          }),
     });
   }
   if (command === 'model-plan-set' || command === 'model-plan-assignments-set') {
@@ -293,7 +387,13 @@ export async function runModelsUsage(
     const required = full
       ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
       : ['assignmentDefault', 'assignmentModels'];
-    const plan = await planInput(io, values, required, required);
+    const plan = await planInput(
+      io,
+      values,
+      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      required,
+    );
+    const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
@@ -301,6 +401,7 @@ export async function runModelsUsage(
       slug: target,
       expectedRevision,
       ...plan,
+      ...mode,
     });
   }
   if (command === 'model-plan-inherit') {
@@ -315,6 +416,7 @@ export async function runModelsUsage(
     const plan = values['plan-stdin']
       ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
       : {};
+    const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const { presets } = await rpc<{ presets: ModelPreset[] }>('modelPresets', {});
     const current = presets.find((preset) => preset.id === target);
@@ -330,6 +432,7 @@ export async function runModelsUsage(
       orchestrator: routeOverride(values, 'orchestrator', current.orchestrator),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
       ...plan,
+      ...mode,
     });
   }
   return usage(`Unsupported models or usage command ${command}.`);

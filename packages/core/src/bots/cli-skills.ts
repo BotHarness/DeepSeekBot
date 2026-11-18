@@ -10,6 +10,7 @@ export { SKILL_OPTIONS } from './cli-option-spec.js';
 export interface SkillValues {
   bot?: string;
   channel?: string;
+  session?: string;
   query?: string;
   owner?: string;
   confirm?: boolean;
@@ -19,7 +20,7 @@ export const SKILL_COMMANDS = [
   {
     command: 'skills-list',
     description:
-      'list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository and Workspace Grant Project Skill, ranked by --query like the menu',
+      "list the Skills the / menu offers in a conversation (--bot <slug> for its DM, or --channel <id>): Host Skills plus each PersonaBot Memory Repository and Workspace Grant Project Skill, ranked by --query like the menu; with --bot and --session <id>, the Skills that Session's own composer offers: Host, that Bot's Memory and the Session's Workspace, one per name",
   },
   {
     command: 'skills-memory',
@@ -74,6 +75,23 @@ export async function runSkillCommand(
   }
   if (rest.length !== 0)
     usage('skills-list takes no positional arguments; use --bot or --channel.');
+  const session = values.session?.trim();
+  if (session) {
+    if (!bot || values.channel?.trim())
+      usage('skills-list --session <id> takes --bot <slug> and no --channel.');
+    const result = (await (
+      await connect()
+    )('sessionSkillCatalog', {
+      slug: bot,
+      sessionId: session,
+    })) as { skills: SkillCatalogEntry[] };
+    return {
+      sessionId: session,
+      skills: rankSkillEntries(result.skills, values.query ?? '', (entry) =>
+        entry.owner.kind === 'workspace' ? [entry.owner.name, entry.owner.workspaceId] : [],
+      ),
+    };
+  }
   const channel = values.channel?.trim();
   if ((bot ? 1 : 0) + (channel ? 1 : 0) !== 1)
     usage('skills-list requires exactly one of --bot or --channel.');
