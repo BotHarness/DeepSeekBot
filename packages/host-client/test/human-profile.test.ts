@@ -90,6 +90,32 @@ describe('Human avatar cache', () => {
     expect(calls.slice(2)).toEqual([['b'], ['b']]);
   });
 
+  it('loads a restored photo for a consumer that asks on every change, without a remount', async () => {
+    vi.useFakeTimers();
+    try {
+      const calls: string[][] = [];
+      const replies: unknown[] = [
+        { avatars: [] },
+        { avatars: [{ humanId: 'a', version: '1111111111111111', avatar }] },
+      ];
+      const cache = createHumanAvatarCache(async (ids) => {
+        calls.push(ids);
+        return replies.shift();
+      });
+      const render = () => cache.want('a', '1111111111111111');
+      cache.subscribe(render);
+      render();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toEqual([['a']]);
+      expect(cache.get('a', '1111111111111111')).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(calls).toEqual([['a'], ['a']]);
+      expect(cache.get('a', '1111111111111111')).toBe(avatar);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('asks again after a malformed reply, and retries a missing version once after a pause', async () => {
     vi.useFakeTimers();
     try {

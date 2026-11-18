@@ -51,7 +51,6 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
         if (controller.signal.aborted) return;
         setFailed(false);
         setIdentity(value);
-        cache.want(value.humanId, value.avatarVersion);
       },
       () => {
         if (!controller.signal.aborted) setFailed(true);
@@ -78,6 +77,7 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
     }
   };
 
+  if (identity !== undefined) cache.want(identity.humanId, identity.avatarVersion);
   const src =
     identity === undefined ? undefined : cache.get(identity.humanId, identity.avatarVersion);
   const initial = [...(identity?.displayName ?? '?')][0];

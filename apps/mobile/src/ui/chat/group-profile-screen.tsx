@@ -6,6 +6,7 @@ import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { followConnection } from '../../host/follow-connection';
+import { settleScoped, type Scoped } from '../../host/scoped-value';
 import {
   loadChannelNickname,
   saveChannelNickname,
@@ -54,7 +55,7 @@ export function GroupProfileScreen({
         : groupActions(client, id),
     [sourceChanged, client, id],
   );
-  const [loadedNickname, setNickname] = useState<{ scope: string; value: string | null }>();
+  const [loadedNickname, setNickname] = useState<Scoped<string | null>>();
   const scope = `${saved?.hostId}:${id}`;
   const nickname = loadedNickname?.scope === scope ? loadedNickname.value : undefined;
   const human = useHumanIdentity(sourceChanged ? undefined : client);
@@ -107,8 +108,11 @@ export function GroupProfileScreen({
           value: nickname,
           name: human.identity?.displayName,
           save: async (next) => {
-            const value = await saveChannelNickname(client, info.channel.id, next);
-            setNickname({ scope: `${saved?.hostId}:${info.channel.id}`, value });
+            const result = {
+              scope: `${saved?.hostId}:${info.channel.id}`,
+              value: await saveChannelNickname(client, info.channel.id, next),
+            };
+            setNickname((current) => settleScoped(current, result));
           },
         }}
         key={`${saved?.hostId}:${info.channel.id}`}
