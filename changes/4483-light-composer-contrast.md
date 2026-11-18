@@ -8,4 +8,4 @@ section: Changed
 
 ## zh
 
-- 浅色主题下，消息输入框改用略深的底色并加一圈细边线，和白色消息面板拉开区分，与深色主题的层次一致（[#4483](https://github.com/BotHarness/DeepSeekBot/issues/4483)）。
+- 浅色主题下，消息输入栏改用略深的底色并加一圈细边线，和白色消息面板拉开区分，与深色主题的层次一致（[#4483](https://github.com/BotHarness/DeepSeekBot/issues/4483)）。
