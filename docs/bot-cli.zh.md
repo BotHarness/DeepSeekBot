@@ -216,12 +216,14 @@ Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围
 deepseekbot send <bot-id> --body "回复 QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
+deepseekbot send <bot-id> --body "这两条还成立吗？" --quote <消息-id> --quote "<消息-id>::原文片段" --quote-note "" --quote-note "还是周五吗？"
 deepseekbot skills-list --bot <bot-id> [--query <文本>]
 deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <文本>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <名称> --owner bot:<bot-id>
 deepseekbot skills-remove <名称> --bot <bot-id> --confirm
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
+deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
@@ -236,6 +238,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<文件夹路径>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+输入框的 `/` 菜单也能引用 Assignment Session：未输入过滤词时只列出该对话中 Bot 进行中的会话，输入后会搜索全部会话（含已归档和已结束）。同样的列表可用 `assignments <bot-id> [--search <text>] [--include-archived]` 取得。选中后插入 `[<标题>](session:<session-id>)`，与 Bot 已使用的链接格式相同，所以用 `send --body` 发送这个链接得到的是同一条消息，气泡里显示为可打开会话详情的会话标签。
 
 `skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug、Workspace 名或 ID 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`），以及各 Bot 当前 Workspace Grant 根目录下这两个 Skill 目录中的 Project Skill（`owner.kind` 为 `workspace`，`workspaceId` 是稳定标识，`name` 是显示名）。同一 Workspace 在对话中只列一次，不读取上层仓库的 Skill；最后一个可用 Grant 撤销后即消失。只有发送者可读取的活跃 Bot 提供条目。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host`、`bot:<bot-id>` 或 `workspace:<workspace-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Workspace ID 取自 `skills-list`，文件夹显示名更改后身份不变。例如 `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` 保存所选 Skill 的快照，不隐式提及任何 Bot；提及仍须通过常规发送选项指定。没有该 Grant 的接收 Bot 可收到文本，但现有文件守卫会拦截其路径读取。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
 
@@ -354,7 +358,7 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。空的可选字段（`""`、`[]`、`false` 或归零的 `freshness_override`）视为未提供，因此只需恰好一个非空目标；`destination-required` 错误会列出实际收到的目标字段。
+`bot_send_message` 可用 `quotes: [{message_id, text?, note?}]`（最多 8 条）在正文上方引用目标本地 Channel 中的旧消息；`text` 必须是该消息的原文片段，`note` 是针对这一条引用的回复，显示在引用下方；外部 IM、远程 Bot 和 `bot_id` 发送不支持引用，返回 `unsupported-quotes`。`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。空的可选字段（`""`、`[]`、`false` 或归零的 `freshness_override`）视为未提供，因此只需恰好一个非空目标；`destination-required` 错误会列出实际收到的目标字段。
 
 若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`bot_send_message` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 
@@ -387,7 +391,7 @@ Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、�
 
 `channel <group-channel>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。稳定创建／邀请参数及重试语义见 [Tob 建群与邀请](#tob-建群与邀请)，Human 在线命令也可使用。
 
-与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。加上 `--recovery continue` 和失败卡片的 id 则改为在同一个 Session 里继续中断的回合：Bot 保留已经完成的工具调用，看到中断原因，并被要求先检查结果未知的调用再决定是否重做。即使这一回合已经发过消息或建过 Assignment（普通重试此时会被拒绝）也可以继续；Bot 的 Session 已被替换时以 `session-changed` 拒绝，Bot 正在工作时以 `bot-busy` 拒绝。因 `TRANSPORT`、`TIMEOUT`、`SERVER`、`RATE_LIMIT` 或 `EMPTY_RESPONSE` 失败的回合会在 60 秒后、再失败则 180 秒后自动继续；卡片上的 `autoContinue` 给出第几次和时间。`channel-bot-stop` 取消等待中的自动继续；加上 `--auto-continue-for` 和卡片的请求消息 id 时只取消这一次自动继续，不会停止正在运行的回合，该自动继续已不在等待时以 `not-working` 拒绝。私聊里的新 Human 消息也会取代它。Host 重启打断的回合在启动时以同样方式继续。卡片的 `progress` 给出已完成的工具调用数、最后一个工具和结果未知的工具。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 是 `bot-stop <bot> --channel <channel>` 的已弃用别名，会在 stderr 打印一行弃用提示；Bot 没有任何运行中的工作时它仍以 `not-working` 拒绝，而 `bot-stop` 视为成功。Bot 的自动运行连续三次因非临时性错误（例如 `INVALID_REQUEST`）失败时，Host 不再重试，而是让它保持停止：在有 Human 消息到达之前不接受自动唤醒，Channel 记录为 `turnStop.cause: "failures"`。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。 `message-search` 是 Alt+K 和移动端 Chats 搜索背后的全局搜索：在你可见的所有 Bot 私聊和已加入的群里搜索，不含已隐藏的频道，按时间从新到旧返回 `hits`，每项含 `channelId`、`message` 和单行 `snippet`。三个字及以上走全文索引，也会匹配附件文件名；一到两个字逐条扫描，最多返回 200 条。
+与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。加上 `--recovery continue` 和失败卡片的 id 则改为在同一个 Session 里继续中断的回合：Bot 保留已经完成的工具调用，看到中断原因，并被要求先检查结果未知的调用再决定是否重做。即使这一回合已经发过消息或建过 Assignment（普通重试此时会被拒绝）也可以继续；Bot 的 Session 已被替换时以 `session-changed` 拒绝，Bot 正在工作时以 `bot-busy` 拒绝。因 `TRANSPORT`、`TIMEOUT`、`SERVER`、`RATE_LIMIT` 或 `EMPTY_RESPONSE` 失败的回合会在 60 秒后、再失败则 180 秒后自动继续；卡片上的 `autoContinue` 给出第几次和时间。`channel-bot-stop` 取消等待中的自动继续；加上 `--auto-continue-for` 和卡片的请求消息 id 时只取消这一次自动继续，不会停止正在运行的回合，该自动继续已不在等待时以 `not-working` 拒绝。私聊里的新 Human 消息也会取代它。Host 重启打断的回合在启动时以同样方式继续。卡片的 `progress` 给出已完成的工具调用数、最后一个工具和结果未知的工具。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 是 `bot-stop <bot> --channel <channel>` 的已弃用别名，会在 stderr 打印一行弃用提示；Bot 没有任何运行中的工作时它仍以 `not-working` 拒绝，而 `bot-stop` 视为成功。Bot 的自动运行连续三次因非临时性错误（例如 `INVALID_REQUEST`）失败时，Host 不再重试，而是让它保持停止：在有 Human 消息到达之前不接受自动唤醒，Channel 记录为 `turnStop.cause: "failures"`。如果 Bot 的模型额度或余额用完（`QUOTA`、`ACCOUNT_QUOTA`，或要求等待超过一分钟的 `429`），则立即保持停止：该路由在整个 Host 上休息到 provider 给出的重置时间（`Retry-After` 或「resets in 5d 5h」这类提示，否则一小时），使用同一路由的其他 Bot 在发出请求前就会停下，Channel 记录为 `turnStop.cause: "quota"`，`rests` 列出每个 `provider`、`model` 和 `until`。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。 `message-search` 是 Alt+K 和移动端 Chats 搜索背后的全局搜索：在你可见的所有 Bot 私聊和已加入的群里搜索，不含已隐藏的频道，按时间从新到旧返回 `hits`，每项含 `channelId`、`message` 和单行 `snippet`。三个字及以上走全文索引，也会匹配附件文件名；一到两个字逐条扫描，最多返回 200 条。
 
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`group-delete` 解散群聊，并删除群里没有被其他会话共享的消息和文件，返回 `{"deleted": true, "messages": n}`；文件清理仍在重试时另含 `cleanupPending`，有消息无法读取删除时另含 `retained`（该群仍留在 `channel-history` 中，再次运行 `group-delete` 会重试删除）。`channel-history` 列出在此变更之前解散的群组，以及删除没有完成的群组，它们的内容仍可清除。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
@@ -456,6 +460,10 @@ deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
 deepseekbot roster-section-remove <section-id> --confirm
 deepseekbot human-identity
 deepseekbot human-name-set --name "Vain"
+deepseekbot human-avatar-set --file ./me.webp
+deepseekbot human-avatar-set --clear
+deepseekbot human-avatars <human-id> <human-id>
+deepseekbot human-profile-setup-finish
 deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
 deepseekbot part-library
 deepseekbot part-library-import --file ./parts.zip
@@ -465,7 +473,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
+图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`human-avatar-set` 设置调用者自己在该 Host 上的聊天头像（PNG、JPEG 或 WebP，不超过 96 KiB；App 会裁成 256×256 的 WebP），不需要 Tobs 账号；之后 `human-identity` 会显示 `avatarVersion`。Team 模式下作用于已登录的成员。`human-avatars` 返回自己和与你同在某个 Channel 的人的头像，每次最多 64 个，其余的不返回。还没设置聊天名字和头像的 Team 成员，`human-identity` 会显示 `profileSetup: "pending"`，App 在登录后会请他们填写一次；`human-profile-setup-finish` 结束这次询问，效果同选择“稍后”。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
 
 ### 用命令行管理 IM 应用
 
@@ -585,6 +593,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-send <bot-id> <orchestrator-session-id> [--] <text>
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
 deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
@@ -601,9 +610,11 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
 
+`session-send <bot-id> <orchestrator-session-id> <text>` 把 Human 的文字直接发进 Bot 当前的 Orchestrator Session，与该 Session 详情里的输入框相同。这是少用的主动 steer。任何 Channel 都不显示这段文字：Session 收到原文，前面只有一行说明这是 Human 在 Session 详情里写的；Bot Inbox 把它记为 Human 在其 DM 上的 Source Event，重启或 compaction 后仍在。无论 `human-dm` 投递设置如何，运行中的 turn 都在下一步收到它；Bot 正在准备或整理 Memory 时，它改为等到下一个 turn；空闲的 Orchestrator 会被唤醒。Bot 不必回复；带这个 `source_event_id` 的 `bot_send_message` 发到 Human 的 DM，不带引用。文字以 `-` 开头时，在它前面加 `--`；看起来像密钥参数的文字（如 `--token`、`--api-key=…`）仍以 `secret-in-argv` 拒绝，因为密钥从不经由参数传递。返回 `{ sourceEventId }`。Bot 能接收消息时，其他 Session 以 `invalid-input` 拒绝；Bot 此刻不能接收消息时（例如已暂停），以 `unavailable` 拒绝。
+
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
 
-停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，调用 `unarchive_assignment` 并把请求作为可选的 `message` 传入，一次调用即可恢复并继续（也可以先取消归档，再重新发送请求）。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 或 `followup` 表示已投递，`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`）表示 Assignment 已取消归档但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。不经过模型：
+停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment。停止就是暂停：该 Assignment 保留历史且不会被归档，下一条 Assignment Request（无论来自 Orchestrator 的 `send_assignment_request` 还是 Human）都会唤醒它并尝试投递请求，不管是谁停的（投递结果见下文的 `delivery`）。`unarchive_assignment` 也能恢复它，请求作为可选的 `message` 传入。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 表示已投递，`followup` 表示已排队（带 `acceptance: "pending"` 时，Assignment 接受前仍可能失败，重发前先查看该 Session），`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`，例如容量已满）表示 Assignment 已处于活动状态但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。在 Assignment 的 Session detail 里发送消息时，它以这段文字作为 `message` 调用 `unarchive_assignment`，所以已停止或已归档的 Assignment 会恢复，消息按同样的投递规则处理，Orchestrator 读到的静默直接请求通知与 `send_assignment_request` 相同。不经过模型：
 
 ```bash
 printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
@@ -805,7 +816,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 结合 `send` 与 `bot-trace` 即可定位问题：直接调用成功而同一请求经 `send` 失败，去 `bot-trace` 看模型的调用；直接调用也失败，问题在 Harness 或运行时。
 
-`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。`--reply-to <消息-id>` 把这条消息作为对该 DM 中某条旧消息的回复发出，与手机上左滑回复相同；目标不在这个 DM 中时 Host 拒绝。
+`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。`--reply-to <消息-id>` 把这条消息作为对该 DM 中某条旧消息的回复发出，与手机上左滑回复相同；目标不在这个 DM 中时 Host 拒绝。`--quote <消息-id>` 引用整条旧消息，`--quote <消息-id>::<片段>` 只引用其中一部分；可重复，最多 8 条，输入栏里显示为引用 chip，Bot 收到 `[Quoted messages]` 块。`--quote-note <文字>` 为同一位置的 `--quote` 加一句回复，显示在该引用下方；传 `""` 表示这条引用不加回复。消息不在这个 DM 中时 Host 拒绝（`quote-target-missing`）；片段不属于该消息时也拒绝，比较时只看字母和数字，所以渲染后的 Markdown 能匹配原文（`quote-text-mismatch`）。
 
 问题答案由 stdin 提供：`{"answers":[{"id":"question-id","selected":["Blue"],"custom":"可选文字"}]}`；从在线历史获取问题 ID 与选项。Host owner 只应用一次决定，重复或竞争操作返回原有错误码。工具审批提供仅允许一次和拒绝；问题状态保留 pending/submitted/answered/expired。`release-info` 只读生命周期，工作区授权使用 `workspace-options` 返回的 ID。
 
@@ -1093,6 +1104,12 @@ deepseekbot model-plan-customize <bot-id> --orchestrator-provider deepseek --orc
 printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id> --plan-stdin
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
+deepseekbot model-groups
+deepseekbot model-group <group-id>
+printf '%s' '{"members":[{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"},{"kind":"model","provider":"deepseek","model":"deepseek-v4.1-flash"}]}' | deepseekbot model-group-create --name Flash --members-stdin
+deepseekbot model-group-update <group-id> --name Fast [--members-stdin] [--expected-revision <group-revision>]
+deepseekbot model-group-delete <group-id> [--expected-revision <group-revision>]
+deepseekbot model-plan-customize <bot-id> --orchestrator-group <group-id>
 deepseekbot home-model-set --provider <provider-id> --model <model-id> [--orchestrator-effort <effort>] [--expected-revision <default-revision>]
 deepseekbot model-preset-apply <bot-id> --preset <preset-id> [--expected-revision <plan-revision>] [--preset-revision <preset-revision>]
 deepseekbot overview-usage --period week
@@ -1108,6 +1125,14 @@ deepseekbot group-activity <group-channel>
 连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
+
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表；成员可以是路由 `{"kind":"model","provider","model","reasoningEffort"?}`，也可以是另一个组 `{"kind":"group","id"}`。`model-groups` 列出所有组，并在 `rests` 中返回当前正在休息的路由及其结束时间（设置 → 模型 → 路由组显示同样内容），`model-group` 还会按顺序、去重返回组展开后的路由。`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`；每个模型成员都必须在 `model-catalog` 中，名称不能重复，会包含自身或没有任何模型的组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。被 Bot 或其他组使用的组不能用 `model-group-delete` 删除，返回 `routing-group-in-use` 并列出使用者。`model-plan-customize --orchestrator-group <id>` 把组设为 Bot 的 Orchestrator 选择：每个成员都必须是 Bot 所有者角色允许的模型（`model-not-allowed` 会指出第一个不允许的），Bot 使用第一个供应商已就绪的成员。方案里的 `orchestrator` 显示当前路由，`orchestratorGroupId` 显示所选组；重新选择单个路由会清除组。组的写入和预设一样核对 revision。
+
+当 Orchestrator 选择为 Routing Group 的 Bot 遇到额度用完、凭据被拒，或限流超过重试等待时，失败的请求结束，Host 把该 Session 切到组内下一个未在休息、所有者角色允许、且凭据就绪的成员，然后继续这一轮。失败的路由在整个 Host 上休息（额度用完则休息到重置，凭据和限流失败休息几分钟），因此使用同一组的其他 Bot 会直接从下一个成员开始，不会先失败一次。Channel 中会出现一条系统消息，带有 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}`；它是通知，不计入未读，也不会通知任何人。只有当所有成员都在休息时 Bot 才会暂停，暂停通知的 `turnStop.rests` 列出每条路由及其重置时间。已切换的 Session 在这一轮剩下的部分继续使用备用路由；前面成员的休息结束后，下一轮开始时会回到该成员，并记录一条 `reason: "returned"` 的 `modelSwitch`。如果该成员再次失败，它会重新开始休息，Session 再次切换。
+
+在 `model-preset-create`、`model-preset-update`、`model-plan-set` 和 `model-plan-assignments-set` 上加 `--assignment-models open`，Assignment 可以使用任何模型：Orchestrator 可以在 Bot 所有者角色允许、且提供方已配置 API key 的任何模型上创建 Assignment，Assignment 也可以用这些模型启动 Subagent。Assignment 默认模型仍然必填，没有指定模型时仍用它。`--assignment-models listed` 回到 Assignment 模型列表。`model-plan-assignments-set` 和 `model-preset-update` 不带这个参数时保持原设置；`model-plan-set` 会替换整个方案，不带这个参数时回到列出的模型。此时 `list_assignment_models` 和 `list_bot_subagent_models` 还会返回 `openModels`，列出每个模型的目录名称和推理强度。
+
+`model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的每次请求（不指定模型的 `send_assignment_request`，或恢复的 Session）会先回到休息已结束的前面成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 返回 `assignmentGroups` 及其成员，并给当前正在休息的路由加上 `restingUntil`；`list_bot_subagent_models` 用 `groups` 返回同样的组，`bot_subagent` 接受 `group`，从第一个可用成员启动子 Agent（Subagent 运行期间不会切换模型）。
 
 在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
 
@@ -1951,6 +1976,8 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 ### 直接调用凭据工具与来源恢复
 
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
+
+执行审批用实际 Agent Session 与 direct call ID 绑定到认证调用方的 Bot DM；并发调用分别保留来源，完成或取消时只释放本次路由。Human 决策仍沿用原有权限检查；新私密输入卡仍要求当前 Human Source Event 与既有凭据授权。只读 `secret_http` GET 被既有输入策略要求审批时，也采用这一路由。直接调用的 Reviewer 只读取选中的模板和本次输入，不附带借用的 Session 历史。
 
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
 

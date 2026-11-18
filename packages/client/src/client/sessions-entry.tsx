@@ -32,13 +32,12 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SidebarViewMenu } from './sidebar-view-menu.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { botNameSource, paintBotScale } from './bot-primary-color.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { PersonaBotAvatar } from './avatar.js';
 import { useFlipList } from './flip-list.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
-import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
 import { AssignmentWorkDialog } from './assignment-work.js';
@@ -59,15 +58,6 @@ const PROGRESS_REFRESH_MS = 60_000;
 const styles = stylex.create({
   groups: { display: 'flex', flexDirection: 'column' },
   orchestrator: { display: 'grid', placeItems: 'center' },
-  orchestratorIcon: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '20px',
-    height: '20px',
-    borderRadius: radius.sm,
-    backgroundColor: `var(--bh-bot-color, ${color.fg})`,
-    color: color.base,
-  },
 });
 
 const STATUS_TONE = {
@@ -129,10 +119,9 @@ function SessionsPanel({
   const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
   const sessions = useClientStore((state) => state.sessions);
   const conversationRevision = useClientStore((state) => state.conversation.revision);
-  const nameSource = useClientStore((state) => {
-    const bot = state.bots.find((candidate) => candidate.slug === botSlug);
-    return bot === undefined ? undefined : botNameSource(bot);
-  });
+  const ownerBot = useClientStore((state) =>
+    state.bots.find((candidate) => candidate.slug === botSlug),
+  );
   const [local, setLocal] = useState<SessionsState>({
     status: 'loading',
     items: [],
@@ -355,15 +344,22 @@ function SessionsPanel({
                   role="img"
                   aria-label={role}
                   title={role}
-                  ref={(element) => paintBotScale(element, nameSource)}
                 >
-                  <span {...stylex.props(styles.orchestratorIcon)}>
-                    <ChannelSidebarIcon name="bot" size={14} />
-                  </span>
+                  <PersonaBotAvatar
+                    personaBotId={slug}
+                    name={ownerBot?.displayName ?? slug}
+                    src={ownerBot?.avatar}
+                    appearance={ownerBot?.appearance}
+                    avatarSeed={ownerBot?.avatarSeed}
+                    size={20}
+                    indicator={false}
+                    nativeTitle={false}
+                    t={t}
+                  />
                 </span>
               ),
             }
-          : { icon: 'list-checks', iconLabel: role })}
+          : { icon: ASSIGNMENT_SESSION_ICON, iconLabel: role })}
         title={row.title}
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
@@ -378,7 +374,12 @@ function SessionsPanel({
         }
         onIntent={
           openable && botSlug !== undefined
-            ? () => prefetchSessionDetail(actions, { botSlug, sessionId: row.sessionId })
+            ? () =>
+                prefetchSessionDetail(actions, {
+                  host: actions,
+                  botSlug,
+                  sessionId: row.sessionId,
+                })
             : undefined
         }
         badge={

@@ -16,7 +16,6 @@ import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { ChannelWorkspace } from './channel-workspace.js';
 import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { PanelVisibilityLabel } from './panel-menu.js';
-import { mountPanelScrollbars } from './ds/panel-scrollbars.js';
 import { usePanelMenu } from './panel-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { workspaceColumns, moveWorkspaceRail, isFullHeightRail } from './workspace-layout.js';
@@ -440,7 +439,7 @@ function ChannelBodyPanel(): ReactElement {
   if (dock.channel !== undefined && dock.session !== undefined)
     panels[SESSION_DETAIL] = {
       label: dock.session.title,
-      header: <SessionDetailHeader dock={dock} session={dock.session} slot={setSessionSlot} />,
+      header: <SessionDockHeader dock={dock} session={dock.session} slot={setSessionSlot} />,
       content: (
         <SessionHeaderSlot.Provider value={sessionSlot}>
           {dock.session.content}
@@ -648,6 +647,62 @@ function SessionDetailHeader({
         </Tooltip>
       }
     />
+  );
+}
+
+function SessionDockHeader({
+  dock,
+  session,
+  slot,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
+}): ReactElement {
+  const appearance = useContext(AppearanceContext);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const menu = usePanelMenu({
+    items: [
+      ...(appearance
+        ? [
+            { id: 'appearance', label: dock.t('appearance.panelMenu') },
+            { type: 'separator' as const, id: 'appearance-separator' },
+          ]
+        : []),
+      ...(['left', 'right', 'above', 'below'] as const).map((direction) => ({
+        id: direction,
+        label: dock.t(`workspace.session.${direction}`),
+      })),
+    ],
+    onSelect: (id) => {
+      if (id === 'appearance') setAppearanceOpen(true);
+      else
+        dock.childLayout.setTree(
+          moveChannelSplit(
+            dock.childLayout.tree,
+            SESSION_DETAIL,
+            MESSAGE_LEAF,
+            id as DockPosition['direction'],
+          ),
+        );
+    },
+  });
+  return (
+    <>
+      {appearanceOpen && appearance && (
+        <PanelAppearanceSettings
+          owner={appearance}
+          id={panelTargetId(SESSION_DETAIL)}
+          label={session.title}
+          t={dock.t}
+          onClose={() => setAppearanceOpen(false)}
+        />
+      )}
+      <div data-appearance-header={SESSION_DETAIL} {...menu.triggerProps}>
+        {menu.menu}
+        <SessionDetailHeader dock={dock} session={session} slot={slot} />
+      </div>
+    </>
   );
 }
 
@@ -1022,6 +1077,7 @@ function SubpanelColumnEntry({
       <div
         className="bh-subpanel-entry-header"
         data-subpanel-entry-header=""
+        data-appearance-header={entry.id}
         {...contextMenu.triggerProps}
       >
         {contextMenu.menu}
@@ -2189,10 +2245,6 @@ export function ChannelDock({
     [api, workspaceMode],
   );
 
-  const scrollbarsMount = useMountedResource<HTMLSpanElement>((node) => {
-    if (node.parentElement) return mountPanelScrollbars(node.parentElement);
-  }, []);
-
   const registryMount = useMountedResource<HTMLDivElement>(() => {
     if (api === undefined) return;
     for (const panel of [...api.panels]) {
@@ -2780,7 +2832,6 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={layoutMount} hidden />
-          <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
           {dropX !== undefined && <span className="bh-workspace-drop" style={{ left: dropX }} />}
           <DockviewReact

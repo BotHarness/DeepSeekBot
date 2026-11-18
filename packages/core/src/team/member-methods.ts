@@ -88,6 +88,10 @@ export const MEMBER_GLOBAL_METHODS = [
   'channelMuteSet',
   'followRoster',
   'humanIdentity',
+  'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
+  'humanProfileSetupFinish',
   'composerIdentity',
   'ping',
   'tobHome',
@@ -96,6 +100,8 @@ export const MEMBER_GLOBAL_METHODS = [
   'createLookup',
   ...MEMBER_BOT_IMPORT_METHODS,
   'modelPresets',
+  'modelGroups',
+  'modelGroup',
   'voiceProviders',
   'promptParts',
   'promptPresets',
@@ -111,6 +117,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'activitySnapshot',
   'followActivity',
   'botSessionIds',
+  'skillShow',
 ] as const;
 
 export const MEMBER_APPROVAL_METHODS = [
@@ -127,6 +134,7 @@ export const MEMBER_CHANNEL_METHODS = [
   'grantRequestApprove',
   'channelRoleDirectory',
   'channelRename',
+  'channelHumanNameSet',
   'channelGroupAvatarSet',
   'channelDescriptionSet',
   'channelGroupInvite',
@@ -223,6 +231,7 @@ export const MEMBER_BOT_METHODS = [
   'botContext',
   'botSystemPrompt',
   'sessionStop',
+  'sessionMessageSend',
   'sessions',
   'assignments',
   'assignment',
@@ -242,6 +251,8 @@ export const MEMBER_BOT_METHODS = [
   'channelDm',
   'assignmentAccessGet',
   'assignmentAccessSet',
+  'botSkills',
+  'botSkillRemove',
 ] as const;
 
 export const MEMBER_METHODS: ReadonlySet<string> = new Set([

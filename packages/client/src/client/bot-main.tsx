@@ -4,12 +4,17 @@ import {
   DEFAULT_SESSION_FOLDED_REPLIES,
 } from '@botharness/host-client/shared/bot-mode-settings';
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
+import { QuoteIcon } from './quote-icon.js';
+import { MessageSelectionToolbar } from './message-selection-toolbar.js';
+import { selectedMessageText } from './selection-quote.js';
+import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
 import { useTeamMember, useTeamMode } from './team-state.js';
 import { AnnouncementGate } from './announcement-gate.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { humanIdOf, useSelfHumanId, SelfHumanContext } from './self-human.js';
-import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
+import { CONVERSATION_STATE_KEYS, quoteRefOf, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
 import { BubbleHoveredContext, BubbleToolbar } from './bubble-toolbar.js';
 import { AppearanceContext } from './appearance-context.js';
@@ -99,6 +104,7 @@ import {
 } from './use-client-store.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
 import { SessionOpenContext } from './session-links.js';
+import { useComposerSessionOptions } from './composer-session-options.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { conversationKey } from './remote-hosts.js';
 import { useRemoteNativeConversation } from './remote-native-conversation.js';
@@ -130,7 +136,7 @@ import { liveSkills } from './skill-refs.js';
 import type { ComposerSkillOption } from './channel-composer.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { rebaseChannelRefs } from './channel-refs.js';
-import { channelHumanName, humanLabel } from './actor-names.js';
+import { humanAuthorName } from './actor-names.js';
 import { ChannelHeaderMenu, type ChannelMenuTrigger } from './human-channel-name.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ChannelHumanMember } from './store.js';
@@ -203,6 +209,7 @@ import { GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
 import { MemoryCommitLine } from './memory-commit-line.js';
+import { ModelSwitchLine } from './model-switch-line.js';
 import { AutoApprovalLine, AutoApprovalPauseLine } from './approval-template-entry.js';
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
@@ -284,6 +291,7 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { MessageAvatarsContext } from './message-avatars.js';
+import { HumanAvatarImage } from './human-avatar.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
@@ -325,17 +333,27 @@ function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
 }
 
+function quoteSource(message: ChannelMessage, text?: string): string {
+  return (
+    text ??
+    (message.body.trim().length > 0
+      ? message.body
+      : (message.attachments ?? []).map((ref) => ref.name).join(', '))
+  )
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 function authorLabel(
   message: ChannelMessage,
   bots: readonly BotSummary[],
   t: BotHarnessTranslate,
-  humanName = 'Human',
+  humans?: Pick<ChannelSummary, 'humanMembers'>,
   remoteBot?: ChannelSummary['remoteBot'],
 ): string {
   switch (message.author.kind) {
     case 'human':
-      if (message.author.deleted === true) return t('team.deletedMember');
-      return message.author.displayName ?? humanLabel(humanName, t);
+      return humanAuthorName(message.author, humans, t);
     case 'system':
       return t('main.author.system');
     case 'bot': {
@@ -374,7 +392,10 @@ function clockTime(at: string): string {
 function fullTime(at: string, t: BotHarnessTranslate): string {
   const date = new Date(at);
   if (Number.isNaN(date.getTime())) return '';
-  return timeFormat(t('main.date.locale'), { dateStyle: 'full', timeStyle: 'short' }).format(date);
+  return timeFormat(t('main.date.locale'), {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(date);
 }
 
 const messageStyles = stylex.create({
@@ -419,10 +440,11 @@ interface MessageMenuRequest {
   message: ChannelMessage;
   x: number;
   y: number;
+  selection?: string;
 }
 
-function ReplyQuote({
-  humanName,
+function QuoteList({
+  humans,
   message,
   channelId,
   bots,
@@ -432,49 +454,89 @@ function ReplyQuote({
   message: ChannelMessage;
   channelId: string | undefined;
   bots: readonly BotSummary[];
-  humanName: string;
+  humans: Pick<ChannelSummary, 'humanMembers'>;
   onJump(messageId: string): void;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const targetId = message.replyTo;
-  if (targetId === undefined) return null;
-  const preview = message.replyToPreview;
-  if (preview === undefined || preview === null) {
-    return (
-      <div className="bh-bubble-reply bh-bubble-reply-unavailable" data-bubble-quote="unavailable">
-        {t('message.replyUnavailable')}
-      </div>
-    );
-  }
-  const quoted = preview.author;
-  const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
-  const colorSource =
-    message.author.kind === 'human' || quoted.kind !== 'bot'
-      ? undefined
-      : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
-  const media = preview.media;
-  const thumbnail =
-    media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
+  const quotes = message.quotes ?? [];
+  const replyTo = message.replyTo;
+  const reply =
+    replyTo === undefined ||
+    quotes.some((quote) => quote.messageId === replyTo && quote.text === undefined)
+      ? []
+      : [{ messageId: replyTo, preview: message.replyToPreview, reply: true }];
+  const entries = [...reply, ...quotes.map((quote) => ({ ...quote, reply: false }))];
+  if (entries.length === 0) return null;
+  const mine = message.author.kind === 'human';
   return (
-    <button
-      type="button"
-      className={`bh-bubble-reply${thumbnail === undefined ? '' : ' bh-bubble-reply-media'}`}
-      data-bubble-quote={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
-      data-bubble-quote-media={media?.kind}
-      ref={(element) => paintBotName(element, colorSource)}
-      onClick={() => onJump(targetId)}
-      aria-label={t('message.replyJump', { author })}
-    >
-      {thumbnail === undefined || channelId === undefined ? null : (
-        <ReplyQuoteThumb thumbnail={thumbnail} channelId={channelId} messageId={targetId} />
-      )}
-      <span className="bh-bubble-reply-author" data-bubble-quote-author="">
-        {author}
-      </span>
-      <span className="bh-bubble-reply-body">
-        {replyQuoteText(media, toolApprovalReplyPreview(message, preview.body, t), t)}
-      </span>
-    </button>
+    <QuoteCardList label={t('message.quotes')}>
+      {entries.map((entry, index) => {
+        const key = `${entry.messageId}:${index}`;
+        const preview = entry.preview;
+        const text = 'text' in entry ? entry.text : undefined;
+        const note = 'note' in entry ? entry.note : undefined;
+        if (preview === undefined || preview === null)
+          return (
+            <QuoteCard
+              key={key}
+              body={t('message.replyUnavailable')}
+              part={false}
+              mine={mine}
+              kind="unavailable"
+              note={note}
+            />
+          );
+        const quoted = preview.author;
+        const author = authorLabel({ ...message, author: quoted }, bots, t, humans);
+        const colorSource =
+          mine || quoted.kind !== 'bot'
+            ? undefined
+            : botNameSource(bots.find((bot) => bot.slug === quoted.slug));
+        const media = preview.media;
+        const thumbnail =
+          media?.kind === 'image' && channelId !== undefined ? media.thumbnail : undefined;
+        const body = entry.reply
+          ? toolApprovalReplyPreview(message, preview.body, t)
+          : preview.body;
+        return (
+          <QuoteCard
+            key={key}
+            ref={(element) => paintBotName(element, colorSource)}
+            author={author}
+            body={text ?? replyQuoteText(media, body, t)}
+            part={text !== undefined}
+            mine={mine}
+            kind={quoted.kind === 'bot' || quoted.kind === 'human' ? quoted.kind : 'other'}
+            media={media?.kind}
+            thumb={
+              thumbnail === undefined ||
+              channelId === undefined ||
+              text !== undefined ? undefined : (
+                <ReplyQuoteThumb
+                  thumbnail={thumbnail}
+                  channelId={channelId}
+                  messageId={entry.messageId}
+                />
+              )
+            }
+            note={note}
+            noteLabel={t('message.quoteNoteLabel', { author })}
+            jumpLabel={t('message.quoteJump', { author })}
+            onJump={() => onJump(entry.messageId)}
+          />
+        );
+      })}
+    </QuoteCardList>
+  );
+}
+
+function quotableMessage(message: ChannelMessage): boolean {
+  return (
+    message.pending !== true &&
+    message.streaming !== true &&
+    message.failed === undefined &&
+    (message.body.trim().length > 0 || (message.attachments?.length ?? 0) > 0) &&
+    !message.id.startsWith('local-')
   );
 }
 
@@ -483,20 +545,6 @@ function bubbleStamp(message: ChannelMessage): string | undefined {
     return undefined;
   const clock = clockTime(message.at);
   return clock === '' ? undefined : clock;
-}
-
-function ReplyIcon(): ReactElement {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 }
 
 const SEARCH_PANEL_GAP_PX = 8;
@@ -718,12 +766,16 @@ const MessageGroupView = memo(function MessageGroupView({
   t: BotHarnessTranslate;
   nativeChatT?: NativeChatFailureText | undefined;
 }): ReactElement {
-  const humanName = channelHumanName({ humanMembers: [...humanMembers] });
+  const humans = useMemo(() => ({ humanMembers: [...humanMembers] }), [humanMembers]);
   const first = group.messages[0]!;
   const author = first.author;
   const self = useSelfHumanId();
   const human = author.kind === 'human' && humanIdOf(author) === self;
   const otherHuman = author.kind === 'human' && !human;
+  const authorHumanId = author.kind === 'human' ? (humanIdOf(author) ?? self) : self;
+  const authorAvatarVersion = humanMembers.find(
+    (member) => member.humanId === authorHumanId,
+  )?.avatarVersion;
   const authorBot =
     author.kind === 'bot' ? bots.find((candidate) => candidate.slug === author.slug) : undefined;
   const welcomeBot =
@@ -761,7 +813,7 @@ const MessageGroupView = memo(function MessageGroupView({
         nativeTitle={false}
       />
     );
-  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName, remoteBot);
+  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humans, remoteBot);
   const authorCard =
     author.kind === 'remote-bot' &&
     remoteBot?.hostId === author.hostId &&
@@ -829,7 +881,11 @@ const MessageGroupView = memo(function MessageGroupView({
         <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             <span className="bh-message-group-human-avatar" aria-label={authorName}>
-              <IconUserOutlineRegular />
+              <HumanAvatarImage
+                cache={actions.humanAvatars}
+                humanId={authorHumanId}
+                version={authorAvatarVersion}
+              />
             </span>,
           )}
         </span>
@@ -839,7 +895,9 @@ const MessageGroupView = memo(function MessageGroupView({
             <button
               type="button"
               className="bh-message-group-avatar-link"
-              aria-label={t('message.mention.openDm', { bot: displayBot?.displayName ?? '' })}
+              aria-label={t('message.mention.openDm', {
+                bot: displayBot?.displayName ?? '',
+              })}
               {...(onAvatarMenu === undefined ? {} : { 'aria-haspopup': 'menu' as const })}
               onClick={() => void actions.openBot(author.slug)}
               onContextMenu={
@@ -875,7 +933,9 @@ const MessageGroupView = memo(function MessageGroupView({
                     ? {
                         role: 'group',
                         tabIndex: 0,
-                        'aria-label': t('message.authorCard.label', { name: authorName }),
+                        'aria-label': t('message.authorCard.label', {
+                          name: authorName,
+                        }),
                       }
                     : {})}
                   data-bot-name-color={nameColor}
@@ -942,8 +1002,8 @@ const MessageGroupView = memo(function MessageGroupView({
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
-                  <ReplyQuote
-                    humanName={humanName}
+                  <QuoteList
+                    humans={humans}
                     message={message}
                     channelId={channelId}
                     bots={bots}
@@ -1004,18 +1064,15 @@ const MessageGroupView = memo(function MessageGroupView({
                         t={t}
                       />
                     ) : null}
-                    {onReply !== undefined &&
-                    message.pending !== true &&
-                    message.streaming !== true &&
-                    message.failed === undefined ? (
-                      <Tooltip label={t('message.reply')} side="top" portal delayMs={400}>
+                    {onReply !== undefined && quotableMessage(message) ? (
+                      <Tooltip label={t('message.quote')} side="top" portal delayMs={400}>
                         <IconButton
                           size="inline"
                           data-bubble-action=""
-                          aria-label={t('message.reply')}
+                          aria-label={t('message.quote')}
                           onClick={() => onReply(message)}
                         >
-                          <ReplyIcon />
+                          <QuoteIcon />
                         </IconButton>
                       </Tooltip>
                     ) : null}
@@ -1043,7 +1100,11 @@ const MessageGroupView = memo(function MessageGroupView({
       {human && avatars.own ? (
         <span ref={follow} className="bh-message-group-avatar">
           <span className="bh-message-group-human-avatar" aria-label={authorName}>
-            <IconUserOutlineRegular />
+            <HumanAvatarImage
+              cache={actions.humanAvatars}
+              humanId={authorHumanId}
+              version={authorAvatarVersion}
+            />
           </span>
         </span>
       ) : null}
@@ -1052,7 +1113,7 @@ const MessageGroupView = memo(function MessageGroupView({
 });
 
 function MessageActionMenu({
-  onReply,
+  onQuote,
   onFeedback,
   onSelect,
   onReact,
@@ -1060,7 +1121,7 @@ function MessageActionMenu({
   onClose,
   t,
 }: {
-  onReply?(message: ChannelMessage): void;
+  onQuote?(message: ChannelMessage, text?: string): void;
   onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
   onReact?(request: MessageMenuRequest): void;
@@ -1091,16 +1152,39 @@ function MessageActionMenu({
         items={[
           ...(bubbleStamp(request.message) === undefined
             ? []
-            : [{ type: 'label' as const, id: 'time', text: fullTime(request.message.at, t) }]),
-          ...(onReply === undefined ||
-          request.message.pending === true ||
-          request.message.streaming === true
+            : [
+                {
+                  type: 'label' as const,
+                  id: 'time',
+                  text: fullTime(request.message.at, t),
+                },
+              ]),
+          ...(onQuote === undefined || !quotableMessage(request.message)
             ? []
-            : [{ id: 'reply', label: t('message.reply'), icon: <ReplyIcon /> }]),
+            : [
+                {
+                  id: 'quote',
+                  label:
+                    request.selection === undefined
+                      ? t('message.quote')
+                      : t('message.quoteSelection'),
+                  icon: <QuoteIcon />,
+                },
+              ]),
           ...(onReact === undefined
             ? []
-            : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
-          { id: 'copy', label: t('message.copy'), icon: <IconCopyOutlineRegular /> },
+            : [
+                {
+                  id: 'react',
+                  label: t('message.react'),
+                  icon: <ReactionIcon />,
+                },
+              ]),
+          {
+            id: 'copy',
+            label: request.selection === undefined ? t('message.copy') : t('message.copySelection'),
+            icon: <IconCopyOutlineRegular />,
+          },
           ...(onSelect === undefined || !selectableMessage(request.message)
             ? []
             : [
@@ -1112,14 +1196,20 @@ function MessageActionMenu({
               ]),
           ...(onFeedback === undefined || !selectableMessage(request.message)
             ? []
-            : [{ id: 'feedback', label: t('feedback.title'), icon: <ReactionIcon /> }]),
+            : [
+                {
+                  id: 'feedback',
+                  label: t('feedback.title'),
+                  icon: <ReactionIcon />,
+                },
+              ]),
         ]}
         onSelect={(id) => {
-          if (id === 'reply') onReply?.(request.message);
+          if (id === 'quote') onQuote?.(request.message, request.selection);
           else if (id === 'react') onReact?.(request);
           else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
-            void navigator.clipboard?.writeText(request.message.body);
+            void navigator.clipboard?.writeText(request.selection ?? request.message.body);
           } else if (id === 'select') onSelect?.(request.message);
           onClose();
         }}
@@ -1167,9 +1257,19 @@ export function BotAvatarMenu({
             icon: <IconNewChatOutlineRegular />,
           },
           ...(canMention
-            ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+            ? [
+                {
+                  id: 'mention',
+                  label: t('message.avatar.mention'),
+                  icon: <AtSignIcon />,
+                },
+              ]
             : []),
-          { id: 'profile', label: t('message.avatar.profile'), icon: <IconUserOutlineRegular /> },
+          {
+            id: 'profile',
+            label: t('message.avatar.profile'),
+            icon: <IconUserOutlineRegular />,
+          },
         ]}
         onSelect={(id) => {
           if (id === 'message') onMessage(request.botSlug);
@@ -1282,7 +1382,7 @@ function ConversationView({
   const workspaceEnabled = useContext(WorkspaceContext) !== undefined;
   const teamMode = useTeamMode(actions.teamCall)?.enabled === true;
   const [detail, setDetail] = useScopedState<
-    'files' | 'inbox' | { sessionId: string; title: string } | undefined
+    'files' | 'inbox' | { botSlug?: string; sessionId: string; title: string } | undefined
   >(
     scopeKey,
     state.selection?.kind === 'bot' && state.selection.inboxRequest ? 'inbox' : undefined,
@@ -1347,6 +1447,7 @@ function ConversationView({
     [dockChannelSummary?.id, dockChannelSummary?.type, dockChannelBotSlug],
   );
   const dockBotSlug = dockBotDeleted ? undefined : dockChannelContext?.botSlug;
+  const sessionOwner = sessionDetail?.botSlug ?? dockBotSlug;
   const dockInboxMount = useMountedResource<HTMLSpanElement>(() => {
     if (!inboxOpen || dockBotSlug === undefined) return;
     void actions.refreshBotInbox(dockBotSlug);
@@ -1399,13 +1500,18 @@ function ConversationView({
   const [restoreFocusSignal, setRestoreFocusSignal] = useScopedState(scopeKey, 0);
   const uploadControllers = useScopedRef(scopeKey, new Map<string, AbortController>());
   const [replyTarget, setReplyTarget] = useConversationDraft(draftScope, 'reply', undefined);
+  const [quoteTargets, setQuoteTargets] = useConversationDraft(draftScope, 'quotes', []);
   const submitting = useScopedRef(scopeKey, false);
   const recall = useScopedRef<
     | {
         scope: string;
         index: number;
         text: string;
-        saved: { text: string; mentions: SelectedMention[]; channelRefs: SelectedChannelRef[] };
+        saved: {
+          text: string;
+          mentions: SelectedMention[];
+          channelRefs: SelectedChannelRef[];
+        };
       }
     | undefined
   >(scopeKey, undefined);
@@ -1455,7 +1561,11 @@ function ConversationView({
     const saved =
       active !== undefined && active.text === draft
         ? active.saved
-        : { text: draft, mentions: mentionTokens, channelRefs: channelRefTokens };
+        : {
+            text: draft,
+            mentions: mentionTokens,
+            channelRefs: channelRefTokens,
+          };
     if (step.kind === 'restore') {
       recall.current = undefined;
       setRecallNotice(undefined);
@@ -1655,6 +1765,16 @@ function ConversationView({
     state.bots.find((candidate) => candidate.slug === channel.botSlug)?.deleted === true;
   const readOnlyDm = isHumanReadOnlyDmChannel(channel) || deletedBotDm;
   const mutationLocked = readOnlyDm || channel?.readOnly === true;
+  const composerQuotes = quoteTargets.map((quote) => {
+    if (quote.author !== undefined) return quote;
+    const target = messages.find((candidate) => candidate.id === quote.messageId) ?? quote.target;
+    if (target === undefined) return quote;
+    return {
+      ...quote,
+      author: authorLabel(target, state.bots, t, channel),
+      excerpt: Array.from(quoteSource(target, quote.text)).slice(0, 140).join(''),
+    };
+  });
   const profileBot =
     channel?.type === 'dm' && channel.botSlug !== undefined
       ? state.bots.find((candidate) => candidate.slug === channel.botSlug)
@@ -1758,6 +1878,7 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
+      item.modelSwitch === undefined &&
       item.voiceCallRecord === undefined &&
       item.toolAutoApproval === undefined &&
       item.toolAutoApprovalPause === undefined,
@@ -1791,7 +1912,10 @@ function ConversationView({
             active: selectedIds !== undefined,
             begin: (message) => {
               setMessageMenu(undefined);
-              setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+              setSelectedMessages({
+                channelId,
+                ids: toggleSelection([], message),
+              });
             },
             toggle: (message) =>
               setSelectedMessages((current) =>
@@ -1816,7 +1940,7 @@ function ConversationView({
     );
   };
   const selectionAuthor = (message: ChannelMessage): string =>
-    authorLabel(message, state.bots, t, channelHumanName(channel));
+    authorLabel(message, state.bots, t, channel);
   const copySelection = async (ids: readonly string[]): Promise<void> => {
     const text = conversationText(ids, messages, {
       title,
@@ -1978,6 +2102,13 @@ function ConversationView({
         ? state.bots.find((bot) => entry.owner.kind === 'bot' && bot.slug === entry.owner.botSlug)
         : undefined,
   }));
+  const composerSessions = useComposerSessionOptions({
+    channel: botDm ? undefined : channel,
+    bots: state.bots,
+    dmSessions: sessionItems,
+    readSessions: actions.readSessions,
+    refreshDmSessions: actions.refreshSessions,
+  });
   const [searchTop, setSearchTop] = useScopedState<number | undefined>(scopeKey, undefined);
   const searchAvailable = useScopedRef(scopeKey, false);
   const searchReturnFocus = useScopedRef<HTMLElement | null>(scopeKey, null);
@@ -2134,7 +2265,12 @@ function ConversationView({
     if (profileBot === undefined) return;
     const show = (text: string, holdMs: number, tone?: 'success') => {
       compactSeq.current += 1;
-      setCompactNotice({ seq: compactSeq.current, text, holdMs, ...(tone ? { tone } : {}) });
+      setCompactNotice({
+        seq: compactSeq.current,
+        text,
+        holdMs,
+        ...(tone ? { tone } : {}),
+      });
     };
     setCompacting(true);
     show(t('composerCompact.running'), 120000);
@@ -2333,10 +2469,49 @@ function ConversationView({
         ? undefined
         : messages.find((candidate) => candidate.id === message.replyTo),
     );
+    setQuoteTargets(
+      (message.quotes ?? []).flatMap((quote) => {
+        const target =
+          messages.find((candidate) => candidate.id === quote.messageId) ??
+          (quote.preview == null
+            ? undefined
+            : { ...message, author: quote.preview.author, body: quote.preview.body });
+        const excerpt = Array.from((quote.text ?? target?.body ?? '').replace(/\s+/gu, ' ').trim())
+          .slice(0, 140)
+          .join('');
+        return [
+          {
+            messageId: quote.messageId,
+            ...(quote.text === undefined ? {} : { text: quote.text }),
+            ...(quote.note === undefined ? {} : { note: quote.note }),
+            author:
+              target === undefined
+                ? t('message.replyUnavailable')
+                : authorLabel(target, state.bots, t, channel),
+            excerpt,
+          },
+        ];
+      }),
+    );
     setRestoreBlocked(false);
     setRestoreFocusSignal((value) => value + 1);
   };
-  const quoteMessage = (message: ChannelMessage): void => {
+  const quoteMessage = (message: ChannelMessage, text?: string): void => {
+    if (quoteTargets.length >= MAX_DRAFT_QUOTES) return;
+    const characters = Array.from(quoteSource(message, text));
+    const quote: ComposerQuote = {
+      messageId: message.id,
+      ...(text === undefined ? {} : { text: Array.from(text.trim()).slice(0, 1000).join('') }),
+      author: authorLabel(message, state.bots, t, channel),
+      excerpt: characters.slice(0, 140).join(''),
+    };
+    setQuoteTargets((current) =>
+      current.some((item) => item.messageId === quote.messageId && item.text === quote.text)
+        ? current
+        : current.length >= MAX_DRAFT_QUOTES
+          ? current
+          : [...current, quote],
+    );
     const author = message.author;
     const member =
       channel?.type === 'group' && author.kind === 'bot'
@@ -2347,24 +2522,28 @@ function ConversationView({
               candidate.paused !== true,
           )
         : undefined;
-    if (member === undefined) {
-      setReplyTarget(message);
-      return;
+    if (member !== undefined) {
+      const next = quoteMention(draft, mentionTokens, member.slug, member.displayName);
+      recovery.update({
+        text: next.value,
+        mentions: next.mentions,
+        channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
+      });
     }
-    const next = quoteMention(draft, mentionTokens, member.slug, member.displayName);
-    recovery.update({
-      reply: message,
-      text: next.value,
-      mentions: next.mentions,
-      channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
-    });
+    window.getSelection()?.removeAllRanges();
     setRestoreFocusSignal((value) => value + 1);
   };
 
   const timelineHandlers = {
     contextMenu: (message: ChannelMessage, x: number, y: number) => {
       setAvatarMenu(undefined);
-      setMessageMenu({ message, x, y });
+      const selection = selectedMessageText(message.id);
+      setMessageMenu({
+        message,
+        x,
+        y,
+        ...(selection === undefined ? {} : { selection }),
+      });
     },
     avatarMenu: (botSlug: string, x: number, y: number) => {
       setMessageMenu(undefined);
@@ -2438,7 +2617,10 @@ function ConversationView({
                     ? [
                         {
                           key: galleryImageKey(message.id, ref),
-                          src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
+                          src: channelAttachmentUrl(ref, {
+                            channelId,
+                            messageId: message.id,
+                          }),
                           alt: ref.name,
                         },
                       ]
@@ -2713,9 +2895,11 @@ function ConversationView({
   const addFiles = (files: File[], selection?: { start: number; end: number }): number | void => {
     if (recovery.blocked || unavailable || mutationLocked) return;
     const available = Math.max(0, 10 - uploadItems.length);
-    const added = files
-      .slice(0, available)
-      .map((file) => ({ id: crypto.randomUUID(), file, status: 'uploading' as const }));
+    const added = files.slice(0, available).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      status: 'uploading' as const,
+    }));
     if (added.length === 0) return;
     const selected = insertAttachmentReferences(draft, added, selection);
     recovery.update({
@@ -2749,19 +2933,31 @@ function ConversationView({
     const body = draft.trim();
     const leftTrim = draft.length - draft.trimStart().length;
     const submittedRefs = channelRefTokens.flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '#' + token.label
         ? [adjusted]
         : [];
     });
     const submittedSkills = liveSkills(draft, skillTokens).flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '/' + token.name
         ? [adjusted]
         : [];
     });
     const submittedMentions = mentionTokens.flatMap((token) => {
-      const adjusted = { ...token, start: token.start - leftTrim, end: token.end - leftTrim };
+      const adjusted = {
+        ...token,
+        start: token.start - leftTrim,
+        end: token.end - leftTrim,
+      };
       return adjusted.start >= 0 && body.slice(adjusted.start, adjusted.end) === '@' + token.label
         ? [adjusted]
         : [];
@@ -2807,6 +3003,13 @@ function ConversationView({
         .map((item) => item.id),
     );
     const submittedReplyTo = replyTarget?.id;
+    const submittedQuotes = quoteTargets.map(({ messageId, text, note }) =>
+      quoteRefOf({
+        messageId,
+        ...(text === undefined ? {} : { text }),
+        ...(note?.trim() ? { note: note.trim() } : {}),
+      }),
+    );
     const submittedAttachments = submittedUploads.flatMap((item) =>
       item.ref === undefined ? [] : [item.ref],
     );
@@ -2818,10 +3021,18 @@ function ConversationView({
             mentions: submittedMentions.flatMap((item) =>
               item.kind === 'all-bots'
                 ? []
-                : [{ botSlug: item.botSlug, label: item.label, start: item.start, end: item.end }],
+                : [
+                    {
+                      botSlug: item.botSlug,
+                      label: item.label,
+                      start: item.start,
+                      end: item.end,
+                    },
+                  ],
             ),
             channelRefs: submittedRefs,
             ...(submittedReplyTo === undefined ? {} : { replyTo: submittedReplyTo }),
+            ...(submittedQuotes.length === 0 ? {} : { quotes: submittedQuotes }),
             ...(submittedAttachments.length === 0 ? {} : { attachments: submittedAttachments }),
           });
     setSubmissionNotice(
@@ -2829,7 +3040,13 @@ function ConversationView({
     );
     recall.current = undefined;
     setRecallNotice(undefined);
-    recovery.update({ text: '', mentions: [], channelRefs: [], skills: [], uploads: [] });
+    recovery.update({
+      text: '',
+      mentions: [],
+      channelRefs: [],
+      skills: [],
+      uploads: [],
+    });
     try {
       const sent = await actions.send(
         body,
@@ -2841,10 +3058,28 @@ function ConversationView({
         undefined,
         allBotMention,
         attempt?.id,
-        submittedSkills.map(({ name, owner, start, end }) => ({ name, owner, start, end })),
+        submittedSkills.map(({ name, owner, start, end }) => ({
+          name,
+          owner,
+          start,
+          end,
+        })),
+        submittedQuotes,
       );
       if (sent) {
         setAllBotNotice(undefined);
+        if (submittedQuotes.length > 0)
+          setQuoteTargets((current) =>
+            current.filter(
+              (item) =>
+                !submittedQuotes.some(
+                  (sentQuote) =>
+                    sentQuote.messageId === item.messageId &&
+                    sentQuote.text === item.text &&
+                    sentQuote.note === (item.note?.trim() || undefined),
+                ),
+            ),
+          );
         setReplyTarget((current) => (current?.id === submittedReplyTo ? undefined : current));
       } else if (currentChannel.current === submittedFor) {
         const failedEcho = store
@@ -3102,7 +3337,9 @@ function ConversationView({
                       className="bh-channel-island"
                       {...(menu === undefined
                         ? {
-                            'aria-label': t('profile.openAvatar', { name: profileBot.displayName }),
+                            'aria-label': t('profile.openAvatar', {
+                              name: profileBot.displayName,
+                            }),
                             onClick: openProfileView,
                           }
                         : {
@@ -3268,7 +3505,9 @@ function ConversationView({
               )
                 pinTimelineToLatest(event.currentTarget);
             }}
-            style={{ display: activeMemoryView === undefined ? undefined : 'none' }}
+            style={{
+              display: activeMemoryView === undefined ? undefined : 'none',
+            }}
           >
             {conversation.timeline.hasOlder ? (
               <div className="bh-timeline-top-sentinel">
@@ -3368,6 +3607,13 @@ function ConversationView({
                           record={first.voiceCallRecord}
                           t={t}
                         />
+                      ) : first.modelSwitch !== undefined ? (
+                        <ModelSwitchLine
+                          messageId={first.id}
+                          record={first.modelSwitch}
+                          bots={state.bots}
+                          t={t}
+                        />
                       ) : first.turnStop !== undefined ? (
                         <div className="bh-member-departure" data-message-id={first.id}>
                           <span>{turnStopText(first.turnStop, t)}</span>
@@ -3430,7 +3676,10 @@ function ConversationView({
                           onOpen={() => {
                             const commit = first.memoryCommit!;
                             if (channel?.type === 'dm' && channel.botSlug === commit.botSlug) {
-                              openMemoryView({ kind: 'commit', sha: commit.sha });
+                              openMemoryView({
+                                kind: 'commit',
+                                sha: commit.sha,
+                              });
                               return;
                             }
                             const dm = state.channels.find(
@@ -3455,12 +3704,7 @@ function ConversationView({
                           <BotDmActionLabel
                             messageKey="botCreate.action"
                             senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                            senderName={authorLabel(
-                              first,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            )}
+                            senderName={authorLabel(first, state.bots, t, channel)}
                             recipientSlug={first.botCreateAction.botSlug}
                             recipientName={
                               state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
@@ -3527,12 +3771,7 @@ function ConversationView({
                         >
                           <BotDmActionLabel
                             senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                            senderName={authorLabel(
-                              first,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            )}
+                            senderName={authorLabel(first, state.bots, t, channel)}
                             recipientSlug={first.botDmAction.recipientBotSlug}
                             recipientName={memberName(
                               state.bots,
@@ -3712,6 +3951,13 @@ function ConversationView({
                 >
                   <ChannelComposer
                     key={channelId}
+                    onOverlayResize={(timeline) => {
+                      if (
+                        followingLatest.current &&
+                        !store.getSnapshot().conversation.timeline.hasNewer
+                      )
+                        pinTimelineToLatest(timeline);
+                    }}
                     context={composerContext}
                     sendKey={sendKey}
                     value={draft}
@@ -3720,6 +3966,8 @@ function ConversationView({
                     skills={skillTokens}
                     skillOptions={skillOptions}
                     readSkill={actions.skillDetail}
+                    sessionOptions={composerSessions.options}
+                    onSessionMenu={composerSessions.refresh}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')
@@ -3777,12 +4025,7 @@ function ConversationView({
                         ? undefined
                         : {
                             id: replyTarget.id,
-                            author: authorLabel(
-                              replyTarget,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            ),
+                            author: authorLabel(replyTarget, state.bots, t, channel),
                             body: replyTarget.body,
                           }
                     }
@@ -3797,6 +4040,23 @@ function ConversationView({
                       setRestoreBlocked(false);
                     }}
                     onCancelReply={() => setReplyTarget(undefined)}
+                    quotes={composerQuotes}
+                    onRemoveQuote={(quote) =>
+                      setQuoteTargets((current) =>
+                        current.filter(
+                          (item) => item.messageId !== quote.messageId || item.text !== quote.text,
+                        ),
+                      )
+                    }
+                    onQuoteNote={(quote, note) =>
+                      setQuoteTargets((current) =>
+                        current.map((item) =>
+                          item.messageId === quote.messageId && item.text === quote.text
+                            ? { ...item, note }
+                            : item,
+                        ),
+                      )
+                    }
                     onRecall={recallInput}
                     onSubmit={submit}
                   />
@@ -3804,6 +4064,19 @@ function ConversationView({
               </div>
             </div>
           )}
+          <MessageSelectionToolbar
+            enabled={!mutationLocked && activeMemoryView === undefined && messageMenu === undefined}
+            label={t('message.quoteSelection')}
+            quoteLabel={t('message.quote')}
+            canQuote={(messageId) => {
+              const target = messages.find((candidate) => candidate.id === messageId);
+              return target !== undefined && quotableMessage(target);
+            }}
+            onQuote={(messageId, text) => {
+              const target = messages.find((candidate) => candidate.id === messageId);
+              if (target !== undefined) quoteMessage(target, text);
+            }}
+          />
           {activeMemoryView !== undefined || messageMenu === undefined ? null : (
             <MessageActionMenu
               request={messageMenu}
@@ -3816,7 +4089,7 @@ function ConversationView({
               {...(readOnlyDm
                 ? {}
                 : {
-                    onReply: quoteMessage,
+                    onQuote: quoteMessage,
                     onFeedback: (message: ChannelMessage) => setFeedbackMessage(message.id),
                   })}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
@@ -3900,14 +4173,36 @@ function ConversationView({
     ) : (
       conversationPane
     );
-  const openSession = (botSlug: string, sessionId: string, title: string): void => {
-    if (botSlug !== dockBotSlug) return;
-    setDetail({
-      sessionId,
-      title:
-        title ||
-        sessionItems.find((item) => item.sessionId === sessionId)?.assignmentTitle ||
-        t('sessions.detail.title'),
+  const openSession = (botSlug: string | undefined, sessionId: string, title: string): void => {
+    const show = (owner: string): void =>
+      setDetail({
+        ...(owner === dockBotSlug ? {} : { botSlug: owner }),
+        sessionId,
+        title:
+          title ||
+          sessionItems.find((item) => item.sessionId === sessionId)?.assignmentTitle ||
+          composerSessions.options.find((option) => option.sessionId === sessionId)?.title ||
+          t('sessions.detail.title'),
+      });
+    const owner =
+      botSlug ??
+      dockBotSlug ??
+      composerSessions.options.find((option) => option.sessionId === sessionId)?.botSlug;
+    if (owner !== undefined) {
+      show(owner);
+      return;
+    }
+    if (channel?.type !== 'group') return;
+    void Promise.all(
+      channel.members.map((slug) =>
+        actions.readSessions(slug).then(
+          (items) => (items.some((item) => item.sessionId === sessionId) ? slug : undefined),
+          () => undefined,
+        ),
+      ),
+    ).then((owners) => {
+      const found = owners.find((slug) => slug !== undefined);
+      if (found !== undefined) show(found);
     });
   };
   return (
@@ -4066,7 +4361,7 @@ function ConversationView({
                 }
                 inbox={inboxAvailable ? { open: inboxOpen, setOpen: setInboxOpen } : undefined}
                 session={
-                  sessionDetail === undefined || dockBotSlug === undefined
+                  sessionDetail === undefined || sessionOwner === undefined
                     ? undefined
                     : {
                         title: sessionDetail.title,
@@ -4075,7 +4370,10 @@ function ConversationView({
                           <SessionDetail
                             key={sessionDetail.sessionId}
                             actions={actions}
-                            botSlug={dockBotSlug}
+                            botSlug={sessionOwner}
+                            botName={
+                              state.bots.find((item) => item.slug === sessionOwner)?.displayName
+                            }
                             sessionId={sessionDetail.sessionId}
                             t={t}
                           />

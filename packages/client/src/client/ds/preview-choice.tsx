@@ -64,7 +64,7 @@ const styles = stylex.create({
     gap: space.x3,
     boxSizing: 'border-box',
     height: style.controlHeightLarge,
-    paddingInlineStart: space.x2,
+    paddingInlineStart: space.x3,
     paddingInlineEnd: space.x4,
     borderWidth: 0,
     borderRadius: style.radiusChip,

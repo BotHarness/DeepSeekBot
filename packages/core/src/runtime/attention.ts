@@ -224,7 +224,9 @@ export function createBotAttentionQuery(
         const authorKind =
           row.author_kind === 'human' || row.author_kind === 'bot' || row.author_kind === 'bridged'
             ? row.author_kind
-            : 'system';
+            : row.author_kind === null && row.source_kind === 'human-message'
+              ? 'human'
+              : 'system';
         const external =
           row.source_kind === 'bridge-message' && row.payload_json !== null
             ? (JSON.parse(row.payload_json) as { external: ExternalSource }).external

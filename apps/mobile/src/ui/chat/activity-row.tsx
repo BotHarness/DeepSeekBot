@@ -12,6 +12,7 @@ import { haptic } from '../haptics';
 import { Text } from '../primitives/text';
 import {
   ChatsIcon,
+  CpuIcon,
   GitCommitIcon,
   MessageIcon,
   PersonIcon,
@@ -74,7 +75,9 @@ export function ActivityRow({
                 ? PersonIcon
                 : activity.kind === 'voice-call'
                   ? PhoneIcon
-                  : StopCircleIcon;
+                  : activity.kind === 'model-switch'
+                    ? CpuIcon
+                    : StopCircleIcon;
   const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {

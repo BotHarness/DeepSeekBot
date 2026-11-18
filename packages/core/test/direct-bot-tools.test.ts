@@ -439,6 +439,59 @@ describe('direct Bot tool runner', () => {
     }
   });
 
+  it('resumes a Human-stopped Assignment when the Human sends it a request directly', async () => {
+    const { runtime, owner, host } = setup(true);
+    const signal = new AbortController().signal;
+    const database = attachOperationalModule(owner, 'direct-resume-test');
+    try {
+      const created = await runtime.runDirectBotTool!(
+        'ada',
+        'create_assignment',
+        {
+          title: 'Nightly report',
+          description: 'Summarize the nightly build.',
+          instructions: 'Read the build log and summarize failures.',
+          grant_id: TEST_GRANT_ID,
+        },
+        signal,
+      );
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      await runtime.stopSession!('ada', sessionId);
+      const resumed = await runtime.runDirectBotTool!(
+        'ada',
+        'unarchive_assignment',
+        { session_id: sessionId, message: 'Keep going.' },
+        signal,
+      );
+      expect(resumed.result).toMatchObject({
+        outcome: 'unarchived',
+        sessionId,
+        delivery: 'followup',
+      });
+      const notice = database.read((db) =>
+        db
+          .prepare(
+            `SELECT body FROM source_events
+              WHERE assignment_session_id = ? AND source_kind = 'assignment-lifecycle'
+                AND json_extract(payload_json, '$.assignmentLifecycle.cause') = 'direct-request'`,
+          )
+          .get(sessionId),
+      ) as { body: string } | undefined;
+      expect(notice?.body).toContain('sent this Assignment a request directly');
+      expect(notice?.body).toContain('"Keep going."');
+      await vi.waitFor(() =>
+        expect(
+          (host.received.get(sessionId) ?? [])
+            .flatMap((message) => message.content)
+            .map((part) => ('text' in part ? part.text : ''))
+            .join('\n'),
+        ).toContain('Keep going.'),
+      );
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it("runs Subagent tools only on one of the Bot's Assignment Sessions", async () => {
     const { runtime, host, ownership } = setup();
     const signal = new AbortController().signal;

@@ -35,11 +35,17 @@ export function SessionJump({
           const node = event.currentTarget
             .closest('[data-session-detail]')
             ?.querySelector<HTMLElement>('[data-session-transcript]');
-          node?.scrollTo({
+          if (node == null) return;
+          const owned = document.activeElement === event.currentTarget;
+          node.scrollTo({
             top: node.scrollHeight,
             behavior:
-              document.documentElement.dataset['botharnessMotion'] === 'reduce' ? 'auto' : 'smooth',
+              event.detail === 0 ||
+              document.documentElement.dataset['botharnessMotion'] === 'reduce'
+                ? 'auto'
+                : 'smooth',
           });
+          if (owned) node.focus({ preventScroll: true });
         }}
       >
         <svg

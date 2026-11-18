@@ -12,8 +12,10 @@ import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-re
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import type { ChannelMessage } from '../channels/channel.js';
 import { BotHopLimitReached } from '../channels/hop-limit.js';
+import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../channels/quotes.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
 
 function unsupportedVoice(): VoiceAttachOutcome {
   return {
@@ -70,6 +72,7 @@ const OPTIONAL_FIELDS = [
   'draft_id',
   'recover',
   'attachments',
+  'quotes',
   'mention_bot_ids',
   'mention_human_ids',
   'freshness_override',
@@ -175,6 +178,19 @@ export function createBotMessageTool(
             name: { type: 'string', required: true },
             mime: { type: 'string', required: true },
             size: { type: 'integer', required: true },
+          },
+        },
+      },
+      quotes: {
+        type: 'array',
+        description: `Cite up to ${MAX_CHANNEL_QUOTES} earlier messages of the destination Channel that this message answers, shown to the Human above your text. Give message_id, and text only to cite a part: copy that excerpt word for word from the message. Add note to answer that one quote right under it. Local Channels only.`,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            message_id: { type: 'string', required: true },
+            text: { type: 'string' },
+            note: { type: 'string' },
           },
         },
       },
@@ -321,6 +337,25 @@ export function createBotMessageTool(
           'invalid-review',
           'Override requires the current draft, observation, version and a reason.',
         );
+      const quotes =
+        args.quotes === undefined
+          ? undefined
+          : (() => {
+              if (external || args.bot_id !== undefined)
+                throw new BotMessageError(
+                  'unsupported-quotes',
+                  'Quotes need a local Channel destination: reply with source_event_id or name channel_id.',
+                );
+              const parsed = parseQuotesInput(
+                args.quotes!.map((quote) => ({
+                  messageId: quote.message_id,
+                  ...(quote.text === undefined ? {} : { text: quote.text }),
+                  ...(quote.note === undefined ? {} : { note: quote.note }),
+                })),
+              );
+              if (typeof parsed === 'string') throw new BotMessageError('invalid-quotes', parsed);
+              return parsed;
+            })();
       if ((args.attachments?.length ?? 0) > 10)
         throw new BotMessageError('invalid-attachments', 'At most ten attachments are supported.');
       if (
@@ -471,6 +506,7 @@ export function createBotMessageTool(
             ...(genui === undefined ? {} : { genui }),
             ...(links === undefined ? {} : { sessionLinks: links }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
+            ...(quotes === undefined ? {} : { quotes }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
             ...(args.mention_human_ids === undefined
               ? {}
@@ -483,7 +519,12 @@ export function createBotMessageTool(
             ...(args.recover === undefined ? {} : { recover: args.recover }),
             ...(reply?.kind !== 'channel'
               ? {}
-              : { replyTo: reply.messageId, replySourceEventId: args.source_event_id! }),
+              : reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
+                ? { replySourceEventId: args.source_event_id! }
+                : {
+                    replyTo: reply.messageId,
+                    replySourceEventId: args.source_event_id!,
+                  }),
           });
           messageId = message.id;
           unwoken = notWoken(
@@ -517,6 +558,8 @@ export function createBotMessageTool(
             drafts?.discard(channelId!);
             return hopLimitRefusal(error, channelId);
           }
+          if (error instanceof ChannelQuoteError)
+            throw new BotMessageError(error.code, error.message);
           if (error instanceof GroupReplySourceRevoked) {
             drafts?.discard(error.channelId);
             return JSON.stringify({

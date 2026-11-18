@@ -2349,3 +2349,13 @@ it('sender permissions do not borrow a Role Binding from another Provider with m
     reason: 'binding-replaced',
   });
 });
+
+it('wakes for one external message longer than the group context budget', async () => {
+  const fx = await fixture();
+  fx.core.registry.setPromptSettings('ada', {
+    limits: { 'context-message-chars': 20_000, 'group-context-chars': 2_000 },
+  });
+  await fx.receive(dm('long', { text: 'x'.repeat(6_000) }));
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.runs[0]!.inbox).toContain('x'.repeat(2_000));
+});

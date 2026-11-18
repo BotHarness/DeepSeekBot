@@ -145,6 +145,10 @@ _Avoid_: server, instance, node, worker
 The DSH executor inside one Session. Never a PersonaBot.
 _Avoid_: using this word for PersonaBot
 
+**Subscription Engine**:
+The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in with the Human's own subscription and driven by the Host as the executor of an Orchestrator Session or Assignment Session in place of a DSH Agent. Local Hosts only.
+_Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
+
 **Subagent**:
 A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.
 _Avoid_: sub-bot, worker, helper

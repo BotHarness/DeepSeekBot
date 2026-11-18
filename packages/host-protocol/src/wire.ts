@@ -117,6 +117,7 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+  modelSwitch?: unknown;
   voiceCallRecord?: unknown;
 }
 
@@ -393,6 +394,7 @@ export interface ChannelListItem {
   members: string[];
   botSlug?: string;
   humanParticipants?: string[];
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   avatar?: string;
   ownerBotSlug?: string;
   invitations?: WireGroupInvitation[];
