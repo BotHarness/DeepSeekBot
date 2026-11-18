@@ -168,6 +168,9 @@ Usage:
                                   [--assignment-groups <id,id> [--assignment-default-group <id>]]
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
+  tobs engine list|status --host <url>
+  tobs engine login codex --host <url>
+  tobs engine use <id> codex|none --role orchestrator --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]
@@ -2521,6 +2524,7 @@ function runSecretUnset(
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'bots', description: 'bots list|create|show|delete' },
+  { command: 'engine', description: 'engine list|status|login|use: Subscription Engines' },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
@@ -2643,6 +2647,12 @@ export async function runBotCreateCli(
         command = aliases[action];
         rest = targets;
       }
+    } else if (command === 'engine') {
+      const [action, ...targets] = rest;
+      if (action !== undefined && ['list', 'status', 'login', 'use'].includes(action)) {
+        command = `engine-${action}`;
+        rest = targets;
+      } else if (values.help !== true) throw usageError('engine needs list, status, login or use.');
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;

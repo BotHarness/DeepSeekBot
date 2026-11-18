@@ -28,6 +28,7 @@ import { ChipButton } from './ds/chip-button.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { sessionEngineText } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
@@ -892,6 +893,14 @@ export function SessionDetail({
         }}
         {...stylex.props(styles.transcript)}
       >
+        {transcript?.engine === undefined ? null : (
+          <div
+            data-session-engine={transcript.engine.state}
+            {...stylex.props(styles.quiet, styles.center)}
+          >
+            {sessionEngineText(transcript.engine, t)}
+          </div>
+        )}
         {transcript !== undefined && failed ? (
           <div role="status" {...stylex.props(styles.quiet, styles.center)}>
             {t('sessions.detail.refreshFailed')}

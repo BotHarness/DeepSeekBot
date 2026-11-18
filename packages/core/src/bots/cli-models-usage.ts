@@ -23,11 +23,12 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-favorite-add',
     description:
-      'star a model (<provider>/<model>) or a Model Route Group (group:<id>) for you on every device',
+      'star a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>) for you on every device',
   },
   {
     command: 'model-favorite-remove',
-    description: 'unstar a model (<provider>/<model>) or a Model Route Group (group:<id>)',
+    description:
+      'unstar a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>)',
   },
   {
     command: 'model-plan-set',
@@ -152,10 +153,16 @@ function favoriteChoice(target: string): ModelFavorite {
     if (!id) usage('group:<id> needs a nonempty Model Route Group id.');
     return { kind: 'group', id };
   }
+  if (target.startsWith('preset:')) {
+    const id = target.slice('preset:'.length).trim();
+    if (!id) usage('preset:<id> needs a nonempty Model Preset id.');
+    return { kind: 'preset', id };
+  }
   const slash = target.indexOf('/');
   const provider = slash < 0 ? '' : target.slice(0, slash).trim();
   const model = slash < 0 ? '' : target.slice(slash + 1).trim();
-  if (!provider || !model) usage('Name a model as <provider>/<model>, or a group as group:<id>.');
+  if (!provider || !model)
+    usage('Name a model as <provider>/<model>, a group as group:<id>, or a preset as preset:<id>.');
   return { kind: 'model', provider, model };
 }
 
@@ -312,8 +319,11 @@ export async function runModelsUsage(
     if (!group && (!values.provider || !values.model))
       usage('home-model-set requires --provider and --model, or --group.');
     const rpc = await connect();
-    const expectedDefaultRevision =
-      expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
+    const catalog =
+      expected === undefined
+        ? await rpc<{ defaultRevision?: number; defaultGroupRevision?: number }>('modelCatalog', {})
+        : {};
+    const expectedDefaultRevision = expected ?? catalog.defaultRevision;
     if (!Number.isSafeInteger(expectedDefaultRevision) || Number(expectedDefaultRevision) < 0)
       throw new CliLiveError(
         'settings-unavailable',
@@ -322,6 +332,9 @@ export async function runModelsUsage(
     return rpc('onboardingModel', {
       expectedRevision: 0,
       expectedDefaultRevision,
+      ...(catalog.defaultGroupRevision === undefined
+        ? {}
+        : { expectedDefaultGroupRevision: catalog.defaultGroupRevision }),
       ...(group
         ? { groupId: group }
         : {
@@ -455,25 +468,32 @@ export async function runModelsUsage(
   }
   if (command === 'model-plan-set' || command === 'model-plan-assignments-set') {
     const full = command === 'model-plan-set';
-    const required = full
-      ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
-      : ['assignmentDefault', 'assignmentModels'];
+    const required = ['assignmentDefault', 'assignmentModels'];
     const plan = await planInput(
       io,
       values,
-      full
-        ? required
-        : [...required, 'assignmentGroups', 'assignmentDefaultGroupId', 'assignmentGroupOptions'],
+      [
+        ...required,
+        ...(full ? ['orchestrator', 'orchestratorGroupId'] : []),
+        'assignmentGroups',
+        'assignmentDefaultGroupId',
+        'assignmentGroupOptions',
+      ],
       required,
     );
+    if (full && (plan['orchestrator'] == null) === (plan['orchestratorGroupId'] == null))
+      usage('Plan stdin needs either orchestrator or orchestratorGroupId.');
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    const { orchestrator, orchestratorGroupId, ...rest } = plan;
     return rpc(full ? 'modelPlanSet' : 'modelPlanAssignmentsSet', {
       slug: target,
       expectedRevision,
-      ...plan,
+      ...rest,
+      ...(orchestrator == null ? {} : { orchestrator }),
+      ...(orchestratorGroupId == null ? {} : { orchestratorGroupId }),
       ...mode,
     });
   }

@@ -23,6 +23,7 @@ import type {
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
 import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
+import type { BotModesView } from './bot-modes.js';
 import type {
   ProviderHealth,
   VoiceDefaults,
@@ -1443,19 +1444,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanSet(
     slug: string,
     expectedRevision: number,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
         slug,
         expectedRevision,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         assignmentModels,
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1925,6 +1936,32 @@ export class BotharnessBridgeService extends TypertRemoteService {
     language?: string,
   ): { defaults: VoiceDefaults } {
     return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  botModes(slug?: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModes(slug === undefined ? {} : { slug }));
+  }
+
+  botModeDefaultSet(mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeDefaultSet({ mode }));
+  }
+
+  botModeSet(slug: string, mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeSet({ slug, mode }));
+  }
+
+  botModeTemplateSave(name: string, modes: string[], id?: string): Promise<BotModesView> {
+    return unwrapAsync(
+      this.methods.botModeTemplateSave({ name, modes, ...(id === undefined ? {} : { id }) }),
+    );
+  }
+
+  botModeTemplateDelete(id: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateDelete({ id }));
+  }
+
+  botModeTemplateSet(slug: string, template: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateSet({ slug, template }));
   }
 
   voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
@@ -3750,6 +3787,12 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'voiceTranscribe',
   'botAsrSet',
   'voiceDefaultSet',
+  'botModes',
+  'botModeDefaultSet',
+  'botModeSet',
+  'botModeTemplateSave',
+  'botModeTemplateDelete',
+  'botModeTemplateSet',
   'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',

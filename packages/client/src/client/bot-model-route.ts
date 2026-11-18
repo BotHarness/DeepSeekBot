@@ -123,3 +123,14 @@ export function applyBotModelGroup(
       return plan;
     });
 }
+
+export function applyBotModelPreset(
+  actions: Pick<BridgeActions, 'applyModelPreset'>,
+  slug: string,
+  presetId: string,
+): Promise<ModelPlanView> {
+  return actions.applyModelPreset(slug, presetId).then((plan) => {
+    rememberModelPlan(slug, plan, actions);
+    return plan;
+  });
+}

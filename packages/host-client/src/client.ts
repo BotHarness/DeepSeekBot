@@ -213,6 +213,7 @@ export interface HostClient {
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   onPurged?(listener: (placements: unknown) => void): () => void;
   onSkills?(listener: (channelIds: readonly string[]) => void): () => void;
+  onResource?(listener: (resource: string | undefined) => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
@@ -462,6 +463,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   const skillListeners = new Set<(channelIds: readonly string[]) => void>();
+  const resourceListeners = new Set<(resource: string | undefined) => void>();
+  const resourceChanged = (resource: string | undefined): void => {
+    for (const listener of [...resourceListeners]) listener(resource);
+  };
   const purgeListeners = new Set<(placements: unknown) => void>();
   let snapshot: HostSnapshot = {
     connection: { status: 'stopped', route },
@@ -1175,6 +1180,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
       publish();
     } else if (frame.type === 'skills') {
       for (const listener of skillListeners) listener(frame.change.channelIds);
+    } else if (frame.type === 'resource') {
+      resourceChanged(frame.change.resource);
     } else if (frame.type === 'changed' || frame.type === 'purged') {
       reloadInBackground();
     }
@@ -1346,10 +1353,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
             }
             if (frame.type === 'baseline') {
               baselines.roster = true;
+              resourceChanged(undefined);
               if (baselines.activity) resolveReady();
             } else {
               applyRoster(frame);
-              notifyLive('roster');
+              if (frame.type !== 'resource') notifyLive('roster');
             }
           });
           follow('botharness/followActivity', (value) => {
@@ -1855,6 +1863,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onSkills(listener) {
       skillListeners.add(listener);
       return () => skillListeners.delete(listener);
+    },
+    onResource(listener) {
+      resourceListeners.add(listener);
+      return () => resourceListeners.delete(listener);
     },
     follow(endpoint, args, handlers) {
       const follower: Follower = { endpoint, args, handlers };

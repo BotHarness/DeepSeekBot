@@ -10,6 +10,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
+import { createHostRelationships } from '../src/devices/relationships.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -61,6 +62,23 @@ describe('resource changes on the live stream', () => {
       expect(guestText).not.toContain(RESOURCE_CHANGED_EVENT);
     } finally {
       await owner.cancel();
+      await guest.cancel();
+    }
+  });
+
+  it('tells every roster stream when private input requests change', async () => {
+    const live = hub();
+    const request = () => new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`);
+    const guest = live
+      .open({ ...OWNER_HUMAN_CONTEXT, humanId: 'h_guest' }, request())
+      .body!.getReader();
+    try {
+      await readUntil(guest, 'retry:');
+      live.publishResourceChanged('private-inputs');
+      expect(await readUntil(guest, 'private-inputs')).toContain(
+        `event: ${RESOURCE_CHANGED_EVENT}\ndata: {"resource":"private-inputs","revision":1}`,
+      );
+    } finally {
       await guest.cancel();
     }
   });
@@ -129,5 +147,25 @@ describe('resource changes on the live stream', () => {
     pairing.createOffer();
     expect(step(() => pairing.clearOffers())).toBe(1);
     expect(step(() => pairing.clearOffers())).toBe(0);
+  });
+
+  it('does not announce relationship changes when the retry sweep finds nothing to do', () => {
+    const owner = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: createTempRoot('botharness-resource-sweep-'),
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
+    const topics: string[] = [];
+    owner.subscribe((event) => topics.push(...event.topics));
+    const relationships = createHostRelationships({
+      database: attachOperationalModule(owner, 'host-relationships'),
+      pairing: createDevicePairing({
+        database: attachOperationalModule(owner, 'device-pairing'),
+        hostName: 'studio',
+      }),
+    });
+    for (let i = 0; i < 5; i++) expect(relationships.enrollments.dueCleanup()).toEqual([]);
+    expect(topics).not.toContain('host-relationships');
   });
 });

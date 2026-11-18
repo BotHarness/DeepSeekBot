@@ -6,6 +6,7 @@ import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import { referencedIds } from './quotes.js';
 import {
+  OWNER_ONLY_RESOURCES,
   RESOURCE_CHANGED_EVENT,
   type LiveResource,
   type ResourceChange,
@@ -31,6 +32,7 @@ export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
 export const CHANNEL_REACTION_EVENT = 'channel/reaction';
 export const CHANNEL_VOICE_EVENT = 'channel/voice';
 export const CHANNEL_ATTACHMENTS_EVENT = 'channel/attachments';
+export const CHANNEL_SESSION_LINKS_EVENT = 'channel/session-links';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
 export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -74,6 +76,7 @@ interface Subscriber {
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
   pushVoice(messageId: string, message: ChannelMessage): void;
   pushAttachments(messageId: string, message: ChannelMessage): void;
+  pushSessionLinks(messageId: string, message: ChannelMessage): void;
   close(): void;
 }
 
@@ -113,6 +116,12 @@ export type ChannelLiveNotification =
       messageId: string;
       attachments: NonNullable<ChannelMessage['attachments']>;
       clearedAttachments: NonNullable<ChannelMessage['clearedAttachments']>;
+    }
+  | {
+      kind: 'session-links';
+      channelId: string;
+      messageId: string;
+      sessionLinks: NonNullable<ChannelMessage['sessionLinks']>;
     }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
@@ -169,6 +178,10 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_ATTACHMENTS_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'session-links') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_SESSION_LINKS_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -210,6 +223,7 @@ export interface ChannelLiveHub {
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishVoice(channelId: string, messageId: string, message: ChannelMessage): void;
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
+  publishSessionLinks(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishSkillCatalogChanged(change: SkillCatalogChange): void;
@@ -821,6 +835,17 @@ export function createChannelLiveHub(
           },
         });
       },
+      pushSessionLinks(messageId, message) {
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'session-links',
+            channelId,
+            messageId,
+            sessionLinks: message.sessionLinks ?? [],
+          },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
@@ -1082,6 +1107,10 @@ export function createChannelLiveHub(
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushAttachments(messageId, message);
     },
+    publishSessionLinks(channelId, messageId, message) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushSessionLinks(messageId, message);
+    },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
       if (channels.get(channelId) === undefined) return;
@@ -1148,7 +1177,8 @@ export function createChannelLiveHub(
     publishResourceChanged(resource) {
       const change = { resource, revision: ++resourceRevision };
       for (const subscriber of rosterSubscribers)
-        if (isOwner(subscriber.human)) subscriber.resource(change);
+        if (!OWNER_ONLY_RESOURCES.has(resource) || isOwner(subscriber.human))
+          subscriber.resource(change);
     },
     publishHumanIdentityChanged() {
       for (const group of subscribers.values())

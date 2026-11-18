@@ -79,7 +79,7 @@ export async function verifyEvidence(receipt, fetcher = fetch) {
     throw new Error('Public R2 SHA-256 or size does not match');
 }
 
-export function uploadEvidence(receipt, bytes) {
+export async function uploadEvidence(receipt, bytes) {
   const wrangler = join(ROOT, 'packages/connect-relay/node_modules/wrangler/bin/wrangler.js');
   try {
     execFileSync(

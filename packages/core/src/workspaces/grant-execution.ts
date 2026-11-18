@@ -345,6 +345,7 @@ const BOT_TOOL_NAMES = new Set([
   'inspect_assignment',
   'wait_for_assignment',
   'send_assignment_request',
+  'link_message_sessions',
   'stop_assignment',
   'channel_list',
   'channel_read',

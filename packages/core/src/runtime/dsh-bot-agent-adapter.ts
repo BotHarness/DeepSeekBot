@@ -81,6 +81,8 @@ import {
   type OrchestratorAssignmentAccess,
 } from './bot-runtime.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
+import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-host.js';
+import { engineInstructions } from '../engines/engine-persona.js';
 
 export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
@@ -444,8 +446,15 @@ export interface DshAgentHost {
   get?(id: ReturnType<typeof SessionId>): Agent | undefined;
 }
 
+export interface AssignmentModeChoices {
+  default: string;
+  allowed: Array<{ id: string; name?: string; description?: string }>;
+  restricted: boolean;
+}
+
 export interface DshAgentPresetHost {
   mount(agentCtx: Context, id?: string): Promise<unknown>;
+  presetForSession?(session: Agent['session']): string | null | undefined;
   serviceFor?(agent: Agent, name: string): unknown;
 }
 
@@ -470,7 +479,11 @@ export interface DshBotAgentAdapterOptions {
 
   resolveAgentPresets?: () => DshAgentPresetHost | undefined;
 
-  defaultAgentPreset?: string;
+  defaultAgentPreset?: string | (() => string | undefined);
+  botModeOf?: (botSlug: string) => string | undefined;
+  ensureBotModes?: () => Promise<void>;
+  recordSessionMode?: (sessionId: string, mode: string) => void;
+  assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
   ensureWorkspace?: (path: string) => void;
@@ -496,6 +509,15 @@ export interface DshBotAgentAdapterOptions {
 
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
+  engines?: DshBotEngines;
+  enginePersona?: (bot: PersonaBotRecord) => { soul?: string; coreMemory?: string };
+}
+
+export interface DshBotEngines {
+  engineFor(botSlug: string): string | undefined;
+  runTurn(request: EngineTurnRequest): Promise<void>;
+  release(sessionId: string): Promise<void>;
+  isLive(sessionId: string): boolean;
 }
 
 export interface BotAgentSetupInfo {
@@ -513,6 +535,8 @@ type ActiveRun =
       run: OrchestratorAgentRun;
       direct?: true;
       sessionLinks?: Map<string, SessionLinkKind>;
+      dmMessageIds?: string[];
+      linkedSessionIds?: Set<string>;
     }
   | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
 
@@ -523,6 +547,25 @@ function linkSession(
 ): void {
   const links = (active.sessionLinks ??= new Map());
   if (links.get(sessionId) !== 'created') links.set(sessionId, kind);
+}
+
+function linkForgottenSessions(active: Extract<ActiveRun, { role: 'orchestrator' }>): void {
+  const [messageId, ...others] = active.dmMessageIds ?? [];
+  const linkSessions = active.run.channels.linkSessions;
+  if (messageId === undefined || others.length > 0 || linkSessions === undefined) return;
+  const links = [...(active.sessionLinks ?? [])].flatMap(([sessionId, kind]) => {
+    if (active.linkedSessionIds?.has(sessionId)) return [];
+    const assignment = active.run.assignments.inspect(sessionId);
+    return assignment === undefined
+      ? []
+      : [{ sessionId, kind, title: assignment.title, createdAt: assignment.createdAt }];
+  });
+  if (links.length === 0) return;
+  try {
+    linkSessions({ messageId, links });
+  } catch {
+    return;
+  }
 }
 
 function agentOptions(
@@ -551,10 +594,10 @@ function createMeta(
   run: OrchestratorAgentRun | AssignmentAgentRun,
   cwd: string,
   ensureWorkspace: ((path: string) => void) | undefined,
-  defaultAgentPreset: string | undefined,
+  botMode: string | undefined,
 ) {
   ensureWorkspace?.(cwd);
-  const agentPreset = run.bot.preset ?? defaultAgentPreset;
+  const agentPreset = ('agentPreset' in run ? run.agentPreset : undefined) ?? botMode;
   return {
     cwd,
     ...(agentPreset === undefined ? {} : { agentPreset }),
@@ -692,12 +735,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
   readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
-  readonly #defaultAgentPreset: string | undefined;
+  readonly #defaultAgentPresetOf: () => string | undefined;
+  readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
+  readonly #ensureBotModes: (() => Promise<void>) | undefined;
+  readonly #recordSessionMode: ((sessionId: string, mode: string) => void) | undefined;
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
   readonly #admitSession: DshBotAgentAdapterOptions['admitSession'];
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
+  readonly #assignmentModes: ((botSlug: string) => Promise<AssignmentModeChoices>) | undefined;
   readonly #onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
   readonly #onAgentSetup:
     | ((agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void)
@@ -710,6 +757,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
   >();
+  readonly #orchestratorModeChoices = new Map<string, AssignmentModeChoices>();
   readonly #assignmentSelections = new Map<
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
@@ -726,6 +774,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #preparationTimeoutMs: number;
   readonly #observePreparation: DshBotAgentAdapterOptions['observePreparation'];
   readonly #observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
+  readonly #engines: DshBotEngines | undefined;
+  readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
+  readonly #engineStops = new Map<string, AbortController>();
+  readonly #engineChannels = new Map<string, string>();
   readonly #preparationVisibleMs: number;
   readonly #drafts: ChannelDraftTracker;
   #closed = false;
@@ -748,12 +800,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
-    this.#defaultAgentPreset = options.defaultAgentPreset;
+    this.#currentBotModeOf = options.botModeOf;
+    this.#ensureBotModes = options.ensureBotModes;
+    this.#recordSessionMode = options.recordSessionMode;
+    const defaultAgentPreset = options.defaultAgentPreset;
+    this.#defaultAgentPresetOf =
+      typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
     this.#authorizeBorrow = options.authorizeBorrow;
     this.#admitSession = options.admitSession;
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
     this.#resolveAgentPresets = options.resolveAgentPresets;
+    this.#assignmentModes = options.assignmentModes;
     this.#ensureWorkspace =
       options.ensureWorkspace ?? ((path) => void mkdirSync(path, { recursive: true }));
     this.#drafts = new ChannelDraftTracker(options.publishDraft ?? (() => undefined));
@@ -761,6 +819,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#observePreparation = options.observePreparation;
     this.#observeDirectToolCleanupFailure = options.observeDirectToolCleanupFailure;
     this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
+    this.#engines = options.engines;
+    this.#enginePersona = options.enginePersona;
   }
 
   async #prepare<T>(
@@ -870,6 +930,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       });
     try {
+      if (run.tobCliTurn === undefined && this.#engines?.engineFor(run.bot.slug) !== undefined) {
+        await this.#runEngineTurn(run, this.#engines, abandonable.abandoned);
+        return;
+      }
+      if (this.#engines?.isLive(run.sessionId)) await this.#engines.release(run.sessionId);
       let handle: AgentHandle;
       let shown = false;
       const reveal = setTimeout(() => {
@@ -985,9 +1050,74 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#stopSeqs.delete(run.sessionId);
       if (this.#humanStops.delete(run.sessionId)) this.#drafts.interrupt(run.sessionId);
       else this.#drafts.end(run.sessionId);
+      linkForgottenSessions(entry);
       if (this.#runs.get(run.sessionId) === entry) {
         this.#runs.delete(run.sessionId);
         run.setExecutionReady?.(false);
+      }
+    }
+  }
+
+  async #runEngineTurn(
+    run: OrchestratorAgentRun,
+    engines: DshBotEngines,
+    abandoned: Promise<'abandoned'>,
+  ): Promise<void> {
+    const stop = new AbortController();
+    this.#engineStops.set(run.sessionId, stop);
+    if (run.inboundChannelId !== undefined)
+      this.#engineChannels.set(run.sessionId, run.inboundChannelId);
+    void abandoned.then(() => stop.abort());
+    try {
+      const native = this.#handles.get(run.sessionId);
+      if (native !== undefined) {
+        this.#forgetHandle(run.sessionId);
+        await native.dispose();
+      }
+      if (stop.signal.aborted) return;
+      run.setExecutionReady?.(true);
+      run.requireContent?.();
+      if (run.acceptNativeInput !== undefined && !run.acceptNativeInput()) return;
+      const tools = this.#directToolDefinitions(run).filter((tool) =>
+        ENGINE_GATEWAY_TOOLS.has(tool.name),
+      );
+      const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
+      const promptText = this.#promptText(run.sessionId);
+      const persona = this.#enginePersona?.(run.bot) ?? {};
+      run.inputAccepted?.();
+      await engines.runTurn({
+        botSlug: run.bot.slug,
+        sessionId: run.sessionId,
+        channelId: run.inboundChannelId,
+        input: `${text}\n\n${replyReminder(promptText)}`,
+        instructions: engineInstructions({
+          name: run.bot.displayName,
+          ...persona,
+          replyDelivery: orchestratorPromptSections(promptText).replyDelivery,
+        }),
+        tools,
+        execute: async (name, args, signal) => {
+          const tool = tools.find((entry) => entry.name === name);
+          if (tool === undefined)
+            throw new Error(`${name} is not available to this engine Session`);
+          const callId = `${run.sessionId}:engine:${randomUUID()}`;
+          const value = await tool.execute(args, {
+            callId,
+            rootCallId: callId,
+            name,
+            arguments: args,
+            signal,
+            deferContext: () => undefined,
+            concludeTurn: () => undefined,
+          } as unknown as ToolRunContext);
+          return value;
+        },
+        signal: stop.signal,
+      });
+    } finally {
+      if (this.#engineStops.get(run.sessionId) === stop) {
+        this.#engineStops.delete(run.sessionId);
+        this.#engineChannels.delete(run.sessionId);
       }
     }
   }
@@ -1095,6 +1225,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     for (const [sessionId, active] of this.#runs) {
       if (active.role !== 'orchestrator' || active.direct || active.run.bot.slug !== botSlug)
         continue;
+      const engineStop = this.#engineStops.get(sessionId);
+      if (engineStop !== undefined) {
+        this.#humanStops.add(sessionId);
+        engineStop.abort();
+        return sessionId;
+      }
       if (this.#abortPreparation(sessionId)) {
         this.#humanStops.add(sessionId);
         return sessionId;
@@ -1163,6 +1299,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   #forgetHandle(sessionId: string): void {
     this.#handles.delete(sessionId);
     this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorModeChoices.delete(sessionId);
     this.#orchestratorBridgeTools.delete(sessionId);
     this.#assignmentSelections.delete(sessionId);
   }
@@ -1288,9 +1425,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#stopSeqs.delete(run.sessionId);
     const abandonable = this.#abandonable(run.sessionId);
     try {
-      const handle = await this.#prepare(run.sessionId, async () => {
+      const handle = await this.#prepare(run.sessionId, async (signal) => {
         await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
-        return this.#assignmentHandle(run);
+        return this.#assignmentHandle(run, signal);
       }).catch((error: unknown) => {
         if (error instanceof PreparationStopped)
           throw new Error('Assignment stopped before Inbox acceptance');
@@ -1367,6 +1504,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const handles = [...this.#handles.values()];
     this.#handles.clear();
     this.#orchestratorSelections.clear();
+    this.#orchestratorModeChoices.clear();
     this.#assignmentSelections.clear();
     for (const sessionId of this.#runs.keys()) this.#drafts.end(sessionId);
     for (const controller of this.#preparations.values()) controller.abort();
@@ -1414,7 +1552,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         rootRole: 'orchestrator',
       });
       if (!borrowed) {
-        await this.#composePreset(agentCtx, run.bot);
+        await this.#composePreset(agentCtx, agent, run);
       }
       const disposeFiles = await this.#onOrchestratorFileSetup?.(agentCtx, agent);
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
@@ -1541,24 +1679,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       setup,
       ...(signal === undefined ? {} : { signal }),
     };
-    const meta = createMeta(
-      run,
-      this.#resolveOrchestratorCwd(run.bot),
-      this.#ensureWorkspace,
-      this.#defaultAgentPreset,
-    );
     const resume =
       run.resume && (this.#hasSession === undefined || (await this.#hasSession(run.sessionId)));
+    const modeChoices = await this.#readAssignmentModes(run.bot.slug, signal);
+    if (modeChoices === undefined) this.#orchestratorModeChoices.delete(run.sessionId);
+    else this.#orchestratorModeChoices.set(run.sessionId, modeChoices);
     const handle = resume
       ? await this.#agents.resume({
           resumeSessionId: SessionId(run.sessionId),
           ...options,
         })
-      : await this.#agents.create({
-          sessionId: SessionId(run.sessionId),
-          ...(meta === undefined ? {} : { meta }),
-          ...options,
-        });
+      : await this.#createOrchestrator(run, options);
     try {
       signal?.throwIfAborted();
       run.tobCliTurn?.signal.throwIfAborted();
@@ -1580,6 +1711,24 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
+  }
+
+  async #createOrchestrator(
+    run: OrchestratorAgentRun,
+    options: Omit<CreateAgentOptions, 'sessionId' | 'meta'>,
+  ): Promise<AgentHandle> {
+    await this.#loadBotModes(options.signal);
+    const meta = createMeta(
+      run,
+      this.#resolveOrchestratorCwd(run.bot),
+      this.#ensureWorkspace,
+      this.#botModeOf(run.bot),
+    );
+    return this.#agents.create({
+      sessionId: SessionId(run.sessionId),
+      ...(meta === undefined ? {} : { meta }),
+      ...options,
+    });
   }
 
   #orchestratorTools(
@@ -1626,9 +1775,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           settle: (channelId, body) => this.#drafts.settle(run.sessionId, channelId, body),
           discard: (channelId) => this.#drafts.discard(run.sessionId, channelId),
         },
-        () => {
+        (messageId) => {
           const active = this.#runs.get(run.sessionId);
-          return active?.role === 'orchestrator' ? (active.sessionLinks ?? new Map()) : new Map();
+          if (active?.role === 'orchestrator') (active.dmMessageIds ??= []).push(messageId);
         },
       ),
     );
@@ -1743,7 +1892,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. assignmentModes lists the DSH modes a new Assignment may run in. Call before selecting a non-default route or mode, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1754,6 +1903,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const modeChoices = await this.#assignmentModes?.(run.bot.slug).then(
+            (modes) => ({ assignmentModes: { default: modes.default, allowed: modes.allowed } }),
+            (error: unknown) => ({
+              assignmentModesError: `DSH modes could not be read, so new Assignments use this Bot's mode: ${error instanceof Error ? error.message : String(error)}`,
+            }),
+          );
           const groups = this.#assignmentGroups;
           const resting = <T extends { provider: string; model: string }>(route: T) => {
             const rest = groups?.restingUntil(route);
@@ -1792,13 +1947,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             const inheritedGroups = inherited === undefined ? [] : describeGroup(inherited, true);
             return JSON.stringify(
               inheritedGroups.length === 0
-                ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
+                ? {
+                    configured: false,
+                    message: 'Ask the Human to apply a Model Preset first',
+                    ...modeChoices,
+                  }
                 : {
                     configured: false,
                     inherited: true,
                     assignmentGroups: inheritedGroups,
                     message:
                       'Assignments follow the Profile default Routing Group; omit provider, model and group to use it',
+                    ...modeChoices,
                   },
             );
           }
@@ -1820,6 +1980,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                   ),
                 }
               : {}),
+            ...modeChoices,
           });
         },
       }),
@@ -1828,7 +1989,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'create_assignment',
         description:
-          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort or mode; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
         parameters: {
           title: {
             type: 'string',
@@ -1877,6 +2038,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             description:
               'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
           },
+          mode: assignmentModeParameter(this.#orchestratorModeChoices.get(run.sessionId)),
         },
         output: {
           schema: { type: 'string' },
@@ -1938,6 +2100,15 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               model: args.model!,
               ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
             });
+          if (args.mode !== undefined) {
+            const modes = await this.#assignmentModes?.(run.bot.slug);
+            if (modes === undefined)
+              throw new Error('create_assignment: DSH modes are unavailable on this Host');
+            if (!modes.allowed.some((mode) => mode.id === args.mode))
+              throw new Error(
+                `create_assignment: mode ${args.mode} is not allowed; choose one of ${modes.allowed.map((mode) => mode.id).join(', ')}`,
+              );
+          }
           const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
           const outcome = active.run.assignments.create({
             title: args.title,
@@ -1945,6 +2116,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
             grantId,
             ...(args.key === undefined ? {} : { key: args.key }),
+            ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
               ? { model: picked, modelGroupId: groupId }
               : args.provider === undefined
@@ -1974,6 +2146,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               ...(outcome.assignment.modelRoute === undefined
                 ? {}
                 : { modelRoute: outcome.assignment.modelRoute }),
+              ...(outcome.assignment.agentPreset === undefined
+                ? {}
+                : { mode: outcome.assignment.agentPreset }),
             });
           }
           if (outcome.outcome === 'capacity') return JSON.stringify(outcome);
@@ -2354,6 +2529,62 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           return JSON.stringify({
             ...assignmentRequestResult(outcome),
             ...(unarchived ? { unarchived: true } : {}),
+          });
+        },
+      }),
+    );
+    registerTool(
+      defineTool({
+        name: 'link_message_sessions',
+        description:
+          'Link one of your own sent Human DM messages to the Assignment Sessions it reports on; each shows as a link on that message, marked new or sent. Pass the messageId bot_send_message returned and the Session ids from create_assignment or send_assignment_request. Calling again adds Sessions to the same message, so one message can link Sessions created in later steps or turns.',
+        parameters: {
+          message_id: {
+            type: 'string',
+            required: true,
+            description: 'messageId of your own sent message in your Human DM.',
+          },
+          session_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            required: true,
+            description: 'Assignment Session ids this message reports on.',
+          },
+        },
+        output: {
+          schema: { type: 'string' },
+          render: (_args, value) => [{ type: 'text', text: value }],
+        },
+        execute: async (args) => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role !== 'orchestrator')
+            throw new Error('link_message_sessions: Orchestrator run is unavailable');
+          const channels = active.run.channels;
+          if (channels.linkSessions === undefined)
+            throw new Error('link_message_sessions: Session links are unavailable');
+          const ids = [...new Set(args.session_ids)];
+          if (ids.length === 0)
+            throw new Error('link_message_sessions: pass at least one Session id');
+          const links = ids.map((sessionId) => {
+            const assignment = active.run.assignments.inspect(sessionId);
+            if (assignment === undefined)
+              throw new Error(`link_message_sessions: ${sessionId} is not one of your Assignments`);
+            return {
+              sessionId,
+              title: assignment.title,
+              kind: active.sessionLinks?.get(sessionId) ?? 'sent',
+              createdAt: assignment.createdAt,
+            };
+          });
+          const message = channels.linkSessions({ messageId: args.message_id, links });
+          for (const { sessionId } of links) (active.linkedSessionIds ??= new Set()).add(sessionId);
+          return JSON.stringify({
+            outcome: 'linked',
+            messageId: message.id,
+            sessions: (message.sessionLinks ?? []).map(({ sessionId, kind }) => ({
+              sessionId,
+              kind,
+            })),
           });
         },
       }),
@@ -3158,8 +3389,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator' || active.run.triage === undefined)
             throw new Error('inbox_resolve: the Orchestrator inbox is unavailable');
           const filter = inboxFilter(args);
+          const scope = this.#engineChannels.get(run.sessionId);
           return JSON.stringify(
             active.run.triage.resolve({
+              ...(scope === undefined ? {} : { channelId: scope }),
               outcome: args.outcome,
               ...(args.ids === undefined ? {} : { ids: args.ids }),
               ...(Object.keys(filter).length === 0 ? {} : { filter }),
@@ -4584,10 +4817,27 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return tools;
   }
 
-  async #composePreset(agentCtx: Context, bot: PersonaBotRecord): Promise<void> {
+  async #composePreset(
+    agentCtx: Context,
+    agent: Agent,
+    run: OrchestratorAgentRun | AssignmentAgentRun,
+  ): Promise<void> {
     const presets = this.#resolveAgentPresets?.();
     if (presets === undefined) return;
-    await presets.mount(agentCtx, bot.preset ?? this.#defaultAgentPreset);
+    let recorded: string | undefined;
+    try {
+      recorded = presets.presetForSession?.(agent.session) ?? undefined;
+    } catch {
+      recorded = undefined;
+    }
+    const mode =
+      recorded ?? ('agentPreset' in run ? run.agentPreset : undefined) ?? this.#botModeOf(run.bot);
+    await presets.mount(agentCtx, mode);
+    if (mode !== undefined) this.#recordSessionMode?.(run.sessionId, mode);
+  }
+
+  #botModeOf(bot: PersonaBotRecord): string | undefined {
+    return this.#currentBotModeOf?.(bot.slug) ?? bot.preset ?? this.#defaultAgentPresetOf();
   }
 
   #resolveOrchestratorCwd(bot: PersonaBotRecord): string {
@@ -4598,10 +4848,39 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return cwd;
   }
 
-  async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
+  async #loadBotModes(signal: AbortSignal | undefined): Promise<void> {
+    signal?.throwIfAborted();
+    const loading = this.#ensureBotModes?.();
+    if (loading !== undefined) await untilAborted(loading, signal);
+  }
+
+  async #readAssignmentModes(
+    botSlug: string,
+    signal: AbortSignal | undefined,
+  ): Promise<AssignmentModeChoices | undefined> {
+    signal?.throwIfAborted();
+    const reading = this.#assignmentModes?.(botSlug).catch(() => undefined);
+    return reading === undefined ? undefined : untilAborted(reading, signal);
+  }
+
+  async #createAssignment(
+    run: AssignmentAgentRun,
+    options: CreateAgentOptions,
+    signal: AbortSignal | undefined,
+  ): Promise<AgentHandle> {
+    await this.#loadBotModes(signal);
+    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
+    return this.#agents.create({
+      ...options,
+      ...(meta === undefined ? {} : { meta }),
+      ...(signal === undefined ? {} : { signal }),
+    });
+  }
+
+  async #assignmentHandle(run: AssignmentAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
+    signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#defaultAgentPreset);
     const resolvedAgentOptions = agentOptions(
       run,
       this.#defaultModel.currentSelection(),
@@ -4614,7 +4893,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const borrowedDisposers: Array<() => void | Promise<void>> = [];
     const createOptions: CreateAgentOptions = {
       sessionId: SessionId(run.sessionId),
-      ...(meta === undefined ? {} : { meta }),
       agentOptions: resolvedAgentOptions,
       setup: async (agentCtx, agent, borrowed = false) => {
         this.#admitSession?.(agent);
@@ -4634,7 +4912,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           rootRole: 'assignment',
         });
         if (!borrowed) {
-          await this.#composePreset(agentCtx, run.bot);
+          await this.#composePreset(agentCtx, agent, run);
         }
         const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
         if (borrowed) borrowedDisposers.push(disposeSelection);
@@ -4726,6 +5004,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         await (
           createOptions.setup as (ctx: Context, agent: Agent, borrowed: boolean) => Promise<void>
         )(live.ctx, live, true);
+        signal?.throwIfAborted();
       } catch (error) {
         for (const dispose of borrowedDisposers.reverse()) await dispose();
         throw error;
@@ -4748,8 +5027,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           resumeSessionId: SessionId(run.sessionId),
           agentOptions: resolvedAgentOptions,
           setup: createOptions.setup!,
+          ...(signal === undefined ? {} : { signal }),
         })
-      : await this.#agents.create(createOptions);
+      : await this.#createAssignment(run, createOptions, signal);
     const raced = this.#handles.get(run.sessionId);
     if (raced !== undefined || this.#closed) {
       await handle.dispose();
@@ -4790,4 +5070,41 @@ export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): Bo
   ): Promise<boolean>;
 } {
   return new DshBotAgentAdapter(options);
+}
+
+const ASSIGNMENT_MODE_GUIDANCE =
+  'A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.';
+
+export function assignmentModeParameter(choices: AssignmentModeChoices | undefined): {
+  type: 'string';
+  description: string;
+  enum?: string[];
+} {
+  if (choices === undefined || choices.allowed.length < 2)
+    return {
+      type: 'string',
+      description: `Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode (${choices?.default ?? 'unknown'}). ${ASSIGNMENT_MODE_GUIDANCE}`,
+    };
+  const modes = choices.allowed
+    .map((mode) => `- ${mode.id}: ${mode.description ?? mode.name ?? 'no description'}`)
+    .join('\n');
+  return {
+    type: 'string',
+    enum: choices.allowed.map((mode) => mode.id),
+    description: `Optional DSH mode for this Assignment; omitted uses this Bot’s mode (${choices.default}). ${ASSIGNMENT_MODE_GUIDANCE} Allowed modes:\n${modes}`,
+  };
+}
+
+async function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    const stop = () =>
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error('Preparation stopped', { cause: signal.reason }),
+      );
+    signal.addEventListener('abort', stop, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
 }

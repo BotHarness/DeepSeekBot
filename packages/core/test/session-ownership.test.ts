@@ -216,6 +216,17 @@ describe('Session ownership', () => {
     owner.close();
   });
 
+  it('records the mode a root Session was composed from', () => {
+    const { ownership } = setup();
+    ownership.claim({ sessionId: 'session-1', botSlug: 'ada', rootRole: 'assignment', at: AT });
+    expect(ownership.resolve('session-1')?.agentPreset).toBeUndefined();
+    ownership.recordAgentPreset('session-1', 'minimal');
+    ownership.recordAgentPreset('nobody', 'minimal');
+    expect(ownership.rootsFor('ada')).toEqual([
+      expect.objectContaining({ sessionId: 'session-1', agentPreset: 'minimal' }),
+    ]);
+  });
+
   it('freezes one persona snapshot per Session and clears it only on re-owning', () => {
     const { owner, ownership } = setup();
     ownership.claim({ sessionId: 'session-1', botSlug: 'ada', rootRole: 'orchestrator', at: AT });

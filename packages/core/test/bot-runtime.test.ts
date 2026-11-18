@@ -778,6 +778,92 @@ describe('Bot runtime tracer bullet', () => {
     owner.close();
   });
 
+  it('keeps the mode an Orchestrator chose for each new Assignment across restarts', async () => {
+    const home = createTempRoot('botharness-assignment-mode-');
+    const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+    const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+      id: 'human-1',
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'human' },
+      body: 'Delegate',
+    });
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const started: Array<string | undefined> = [];
+    const runtime = createBotRuntime({
+      database: owner,
+      grants: createTestWorkspaceGrants(owner, home),
+      registry,
+      channels,
+      agents: {
+        runOrchestrator: async (run) => {
+          if (run.message === '') return;
+          const create = (mode?: string, key?: string) =>
+            run.assignments.create({
+              title: 'Assignment',
+              description: 'Inspect',
+              grantId: TEST_GRANT_ID,
+              ...(mode === undefined ? {} : { mode }),
+              ...(key === undefined ? {} : { key }),
+            });
+          expect(create('ptc', 'parser').outcome).toBe('created');
+          expect(create().outcome).toBe('created');
+        },
+        runAssignment: async (run) => {
+          started.push(run.agentPreset);
+          await run.report({ state: 'completed', summary: 'Done' });
+        },
+        requestAssignment: () => ({
+          delivery: 'followup' as const,
+          accepted: Promise.resolve(),
+          done: Promise.resolve(),
+        }),
+        close: async () => undefined,
+      },
+      now: FIXED_NOW,
+      assignmentConcurrencyLimit: 4,
+      createSessionId: (() => {
+        const ids = ['orchestrator-ada', 'assignment-ptc', 'assignment-default'];
+        return () => ids.shift() ?? 'unexpected-session';
+      })(),
+    });
+    await admit(runtime, { channelId: dm.id, messageId: 'human-1', body: 'Delegate' });
+    await runtime.whenIdle();
+    expect(started).toEqual(['ptc', undefined]);
+    expect(runtime.getAssignment('ada', 'assignment-ptc')?.agentPreset).toBe('ptc');
+    expect(runtime.getAssignment('ada', 'assignment-default')?.agentPreset).toBeUndefined();
+    await runtime.close();
+    owner.close();
+    const reopenedOwner = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    const reopened = createBotRuntime({
+      database: reopenedOwner,
+      grants: createTestWorkspaceGrants(reopenedOwner, home),
+      registry,
+      channels,
+      agents: {
+        runOrchestrator: async () => undefined,
+        runAssignment: async () => undefined,
+        requestAssignment: () => ({
+          delivery: 'followup' as const,
+          accepted: Promise.resolve(),
+          done: Promise.resolve(),
+        }),
+        close: async () => undefined,
+      },
+      now: FIXED_NOW,
+    });
+    expect(
+      reopened.listAssignments('ada').find((entry) => entry.sessionId === 'assignment-ptc'),
+    ).toMatchObject({ agentPreset: 'ptc' });
+    await reopened.close();
+    reopenedOwner.close();
+  });
+
   it('snapshots default and permitted explicit Assignment routes before creating Sessions', async () => {
     const home = createTempRoot('botharness-assignment-model-');
     const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });

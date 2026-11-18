@@ -4,7 +4,7 @@ Profile 支持真实 PersonaBot 从已授权 IM 请求发起私密输入：Owner
 
 未设置 `privateInputWebUrl` 时流程照常可用：卡片仍在该 PersonaBot 的 Chat 中打开，IM 通知会提示 Owner 去那里填写，只是不带链接。设置 Web origin 只是给通知加上链接（[#3340](https://github.com/BotHarness/DeepSeekBot/issues/3340)）。
 
-密钥输入本身不需要额外配置（见[普通 Profile 指南](private-input-ordinary.zh.md)）。这条流程当初是在需要 Docker 的受保护 Profile 中验证的，该模式已删除（[ADR-0192](../../adr/0192-the-docker-protected-profile-is-removed.md)），之后还没有用真实 IM App 重新跑过。按[测试 App 指南](../../agents/im-test-apps.md)配置独立 App 并通过现有 Provider 绑定真实 Bot。不要为其他 Host 正在使用的 App 启动第二个接收器，QA1 与生产 Profile 保持独立。
+密钥输入本身不需要额外配置（见[普通 Profile 指南](private-input-ordinary.zh.md)）。这条流程当初是在需要 Docker 的受保护 Profile 中验证的，该模式已删除（[ADR-0192](../../decisions/secrets.md#adr-0192)），之后还没有用真实 IM App 重新跑过。按[测试 App 指南](../../agents/im-test-apps.md)配置独立 App 并通过现有 Provider 绑定真实 Bot。不要为其他 Host 正在使用的 App 启动第二个接收器，QA1 与生产 Profile 保持独立。
 
 在隔离 Profile 的 `botharness-core` patch 中设置 `telemetry: false` 和 `privateInputWebUrl: http://127.0.0.1:31393`。Web origin 必须是 Owner 实际可达的地址，不带登录 token、userinfo、query 或路径。构建后只重启任务自己的 Host。运行 `node scripts/ask-secret-lifecycle-fixture.mjs 31394`。
 
@@ -42,4 +42,4 @@ Host 应在原会话发送 Web 卡片定位链接，只含既有 Chat 与卡片 
 
 回归检查：等待输入时变更／撤销接收 Binding、停止 Bot 或改变 Session 归属，旧卡必须过期，已认证的迟到提交也失败。消费者运行中撤销账号或来源授权，Host 尝试停止并拒绝迟到结果回帖；Provider 已开始的副作用仍可能不确定。通知投递失败会过期当前请求，不自动重试。后续独立轮次与 Schedule 的已配置引用复用仍按各自当前授权验证。
 
-原生 Session 经[白名单导出器](../../../scripts/export-private-input-evidence.mjs)保留字段声明、引用配置、审批决定与有界 HTTP 结果；完整 Session 和原始请求体留在本机。`ask-secret-wire-probe.mjs` 记录真实模型请求的可捕获状态、次数、字节数与合成 canary 命中数。另检查留存 Session、Chat／审批、日志与 Spill；零命中仅证明指定 canary 与实际检查范围。可见 IM 回帖应关联同一 canonical Source Event、handled Admission 及通知／最终回复各自 Outbox receipt。边界见 [ADR-0172](../../adr/0172-im-private-input-keeps-owner-web-authority-and-source-reply-fences.md)；Discord、Lark 群聊与 #1386 Linux 服务器验收不能从本次私聊成功推断。
+原生 Session 经[白名单导出器](../../../scripts/export-private-input-evidence.mjs)保留字段声明、引用配置、审批决定与有界 HTTP 结果；完整 Session 和原始请求体留在本机。`ask-secret-wire-probe.mjs` 记录真实模型请求的可捕获状态、次数、字节数与合成 canary 命中数。另检查留存 Session、Chat／审批、日志与 Spill；零命中仅证明指定 canary 与实际检查范围。可见 IM 回帖应关联同一 canonical Source Event、handled Admission 及通知／最终回复各自 Outbox receipt。边界见 [ADR-0172](../../decisions/secrets.md#adr-0172)；Discord、Lark 群聊与 #1386 Linux 服务器验收不能从本次私聊成功推断。

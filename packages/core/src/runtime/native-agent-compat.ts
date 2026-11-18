@@ -173,6 +173,30 @@ export function hostAgentPresets<Presets>(ctx: Context): Presets | undefined {
     : undefined;
 }
 
+export function hostSessionStore<Store>(ctx: Context): Store | undefined {
+  const sessions: unknown = Reflect.get(ctx, 'sessions');
+  return typeof sessions === 'object' &&
+    sessions !== null &&
+    typeof Reflect.get(sessions, 'prepare') === 'function' &&
+    typeof Reflect.get(sessions, 'enter') === 'function' &&
+    typeof Reflect.get(sessions, 'announce') === 'function' &&
+    typeof Reflect.get(sessions, 'get') === 'function' &&
+    typeof Reflect.get(sessions, 'flush') === 'function'
+    ? (sessions as Store)
+    : undefined;
+}
+
+export function hostSessionPersistence<Persistence>(ctx: Context): Persistence | undefined {
+  const persistence: unknown = Reflect.get(ctx, 'get')?.call(ctx, 'sessionPersistence');
+  return typeof persistence === 'object' &&
+    persistence !== null &&
+    typeof Reflect.get(persistence, 'create') === 'function' &&
+    typeof Reflect.get(persistence, 'open') === 'function' &&
+    typeof Reflect.get(persistence, 'stat') === 'function'
+    ? (persistence as Persistence)
+    : undefined;
+}
+
 export function requireHostCapability(capability: string, cause?: unknown): never {
   throw new HostIncompatibleError(capability, installedDshVersion(), cause);
 }

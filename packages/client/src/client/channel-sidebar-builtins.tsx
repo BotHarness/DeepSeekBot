@@ -18,6 +18,7 @@ import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { AutoApprovalBadge, AutoApprovalSettingsEntry } from './approval-template-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
+import { BotModeSettingsEntry } from './bot-mode-settings.js';
 import { BotVoiceSettingsEntry } from './voice-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
@@ -1456,6 +1457,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: ModelEntry,
       badge: ModelBadge,
+    },
+    {
+      id: 'mode',
+      surface: 'settings',
+      icon: 'sliders-horizontal',
+      label: t('entry.mode'),
+      order: 25.5,
+      scope: 'personabot',
+      component: BotModeSettingsEntry,
     },
     {
       id: 'wake-policy',

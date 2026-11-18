@@ -2090,11 +2090,12 @@ describe('DSH Bot Agent adapter', () => {
   it('mounts the resolved agent preset inside every agent factory setup', async () => {
     const host = new FakeAgentHost();
     const mounted: Array<{ id: string | undefined; hasTools: boolean }> = [];
+    let globalMode = 'deepseekbot';
     const adapter = createDshBotAgentAdapter({
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => '/memory/ada',
-      defaultAgentPreset: 'standard',
+      defaultAgentPreset: () => globalMode,
       resolveAgentPresets: () => ({
         mount: async (agentCtx, id) => {
           mounted.push({ id, hasTools: agentCtx.tools !== undefined });
@@ -2103,6 +2104,7 @@ describe('DSH Bot Agent adapter', () => {
       }),
       ensureWorkspace: () => undefined,
     });
+    globalMode = 'standard';
 
     await adapter.runOrchestrator({
       sessionId: 'orchestrator-ada',
@@ -2929,6 +2931,7 @@ describe('DSH Bot Agent adapter', () => {
       'unarchive_assignment',
       'inspect_assignment',
       'send_assignment_request',
+      'link_message_sessions',
       'wait_for_assignment',
       'stop_assignment',
       'channel_list',
@@ -4463,6 +4466,301 @@ describe('Assignment Directory Tools', () => {
     }
   });
 
+  it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
+    let modesFail = false;
+    let narrowed = false;
+    let modeParameter: unknown;
+    const calls: Array<Promise<unknown>> = [];
+    const created: Array<{ title: string; mode?: string }> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const tool = (name: string) => {
+            const found = scope?.tools.find((candidate) => candidate.name === name);
+            if (found === undefined) throw new Error(`${name} not registered`);
+            return found;
+          };
+          const create = (mode: string) =>
+            tool('create_assignment').execute(
+              {
+                title: 'Port the parser',
+                description: 'Port the parser to the new API.',
+                grant_id: 'grant-1',
+                mode,
+              },
+              {} as ToolRunContext,
+            );
+          modeParameter = Reflect.get(
+            Reflect.get(tool('create_assignment').parameters, 'properties') as object,
+            'mode',
+          );
+          calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
+          calls.push(create('ptc'));
+          calls.push(create('acp').then(String, (error: Error) => error.message));
+          const settled = Promise.allSettled([...calls]);
+          calls.push(
+            settled.then(() => {
+              narrowed = true;
+              return create('ptc').then(String, (error: Error) => error.message);
+            }),
+          );
+          calls.push(
+            Promise.allSettled([...calls]).then(() => {
+              modesFail = true;
+              return tool('list_assignment_models').execute({}, {} as ToolRunContext);
+            }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentModes: async () => {
+        if (modesFail) throw new Error('roster unavailable');
+        return {
+          default: 'deepseekbot',
+          restricted: true,
+          allowed: narrowed
+            ? [{ id: 'deepseekbot' }]
+            : [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        };
+      },
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: BOT,
+      message: 'Port the parser',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: (input) => {
+          created.push(input);
+          return {
+            outcome: 'created',
+            assignment: {
+              ...ASSIGNMENT,
+              ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
+            },
+          };
+        },
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ASSIGNMENT,
+        request: () => {
+          throw new Error('unexpected Assignment request');
+        },
+      },
+    });
+    try {
+      const [models, accepted, refused, narrowedRefusal, withoutModes] = await Promise.all(calls);
+      expect(modeParameter).toMatchObject({ type: 'string', enum: ['deepseekbot', 'ptc'] });
+      expect(Reflect.get(modeParameter as object, 'description')).toContain(
+        'omitted uses this Bot’s mode (deepseekbot)',
+      );
+      expect(Reflect.get(modeParameter as object, 'description')).toContain('- ptc: PTC');
+      expect(JSON.parse(String(models))).toMatchObject({
+        assignmentModes: {
+          default: 'deepseekbot',
+          allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        },
+      });
+      expect(JSON.parse(String(accepted))).toMatchObject({
+        outcome: 'created',
+        mode: 'ptc',
+      });
+      expect(refused).toContain('"mode" must be one of ["deepseekbot","ptc"]');
+      expect(narrowedRefusal).toContain('mode ptc is not allowed; choose one of deepseekbot');
+      const fallback = JSON.parse(String(withoutModes)) as Record<string, unknown>;
+      expect(fallback['assignmentModes']).toBeUndefined();
+      expect(String(fallback['assignmentModesError'])).toContain('roster unavailable');
+      expect(created).toContainEqual({
+        title: 'Port the parser',
+        description: 'Port the parser to the new API.',
+        grantId: 'grant-1',
+        mode: 'ptc',
+      });
+      expect(created.filter((input) => input.title === 'Port the parser')).toEqual([
+        expect.objectContaining({ mode: 'ptc' }),
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('waits for the installed modes before it picks a new Session mode', async () => {
+    const host = new FakeAgentHost();
+    let current = 'stale-default';
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      botModeOf: () => current,
+      ensureBotModes: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        current = 'deepseekbot';
+      },
+    });
+    try {
+      await adapter.runAssignment({
+        sessionId: 'assignment-fresh',
+        bot: BOT,
+        text: 'Port the parser',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'deepseekbot' });
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('frees the Session for the next turn when the mode roster read never answers', async () => {
+    const host = new FakeAgentHost();
+    let hang = true;
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      preparationTimeoutMs: 20,
+      ensureBotModes: () => (hang ? new Promise<void>(() => undefined) : Promise.resolve()),
+    });
+    const run = {
+      sessionId: 'assignment-hung-roster',
+      bot: BOT,
+      text: 'Port the parser',
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write' as const,
+        approval: 'ask' as const,
+        presetRevision: 0,
+      },
+      report: vi.fn(),
+    };
+    try {
+      await expect(adapter.runAssignment(run)).rejects.toThrow('took longer than');
+      hang = false;
+      await adapter.runAssignment(run);
+      expect(host.createOptions.at(-1)?.sessionId).toBe('assignment-hung-roster');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('starts an Assignment in its chosen mode and resumes it in the mode its log records', async () => {
+    const host = new FakeAgentHost();
+    const mounted: Array<string | undefined> = [];
+    let recorded: string | null = null;
+    let current = 'deepseekbot';
+    const sessionModes: Array<[string, string]> = [];
+    const adapterFor = () =>
+      createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: {
+          currentSelection: () => ({ provider: 'test', model: 'test' }),
+        },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        botModeOf: () => current,
+        recordSessionMode: (sessionId, mode) => sessionModes.push([sessionId, mode]),
+        resolveAgentPresets: () => ({
+          mount: async (_agentCtx, id) => {
+            mounted.push(id);
+            return undefined;
+          },
+          presetForSession: () => recorded,
+        }),
+      });
+    const permission = {
+      grantId: 'grant-1',
+      workspaceId: 'workspace-1',
+      primaryCwd: '/project',
+      mode: 'workspace-write' as const,
+      approval: 'ask' as const,
+      presetRevision: 0,
+    };
+    const first = adapterFor();
+    try {
+      await first.runAssignment({
+        sessionId: 'assignment-ptc',
+        bot: BOT,
+        text: 'Port the parser',
+        agentPreset: 'ptc',
+        permission,
+        report: vi.fn(),
+      });
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'ptc' });
+    } finally {
+      await first.close();
+    }
+    recorded = 'ptc';
+    current = 'standard';
+    const second = adapterFor();
+    try {
+      await second.runAssignment({
+        sessionId: 'assignment-ptc',
+        bot: BOT,
+        text: 'Continue',
+        resume: true,
+        permission,
+        report: vi.fn(),
+      });
+      expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
+        'assignment-ptc',
+      ]);
+      expect(sessionModes).toEqual([
+        ['assignment-ptc', 'ptc'],
+        ['assignment-ptc', 'ptc'],
+      ]);
+      expect(mounted).toEqual(['ptc', 'ptc']);
+    } finally {
+      await second.close();
+    }
+  });
+
   it('unarchives and sends an optional message through the Assignment Request path', async () => {
     const calls: Array<Promise<unknown>> = [];
     const unarchived: string[] = [];
@@ -4828,8 +5126,9 @@ it.each(['create', 'resume'] as const)(
   },
 );
 
-it('links the Assignments a turn created or sent to on its Human DM message', async () => {
+it('links a sent receipt to the Assignments the turn created or sent to', async () => {
   const sent: Record<string, unknown>[] = [];
+  const linked: Record<string, unknown>[] = [];
   const outcomes: Promise<unknown>[] = [];
   const summary = (sessionId: string, title: string) => ({ sessionId, title }) as never;
   const host = new FakeAgentHost(
@@ -4846,6 +5145,7 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
             } as ToolRunContext);
         outcomes.push(
           (async () => {
+            await run('bot_send_message', { channel_id: 'dm-test', body: 'Starting both.' }, 'r');
             await run('send_assignment_request', { session_id: 'asg-old', text: 'Go on' }, 'a');
             await run(
               'create_assignment',
@@ -4854,12 +5154,8 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
             );
             await run('send_assignment_request', { session_id: 'asg-new', text: 'Also' }, 'c');
             return run(
-              'bot_send_message',
-              {
-                channel_id: 'dm-test',
-                body: 'Both underway.',
-                session_ids: ['asg-new', 'asg-old'],
-              },
+              'link_message_sessions',
+              { message_id: 'm1', session_ids: ['asg-new', 'asg-old', 'asg-new'] },
               'd',
             );
           })(),
@@ -4886,6 +5182,18 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
         sent.push(input);
         return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: input['body'] };
       },
+      linkSessions: (input: Record<string, unknown>) => {
+        linked.push(input);
+        return {
+          id: 'm1',
+          at: '',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Starting both.',
+          sessionLinks: (input['links'] as { sessionId: string; kind: string }[]).map(
+            ({ sessionId, kind }) => ({ sessionId, kind, title: sessionId }),
+          ),
+        };
+      },
     } as never,
     assignments: {
       create: () => ({ outcome: 'created', assignment: summary('asg-new', 'New') }),
@@ -4893,12 +5201,127 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
         assignment: summary(input.sessionId, input.sessionId === 'asg-new' ? 'New' : 'Old'),
         delivery: 'followup',
       }),
-      inspect: (sessionId: string) => summary(sessionId, sessionId === 'asg-new' ? 'New' : 'Old'),
+      inspect: (sessionId: string) =>
+        ({
+          sessionId,
+          title: sessionId === 'asg-new' ? 'New' : 'Old',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        }) as never,
+    } as never,
+  } as never);
+  const [result] = (await Promise.all(outcomes)) as string[];
+  expect(sent[0]?.['sessionLinks']).toBeUndefined();
+  expect(linked).toEqual([
+    {
+      messageId: 'm1',
+      links: [
+        {
+          sessionId: 'asg-new',
+          kind: 'created',
+          title: 'New',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        { sessionId: 'asg-old', kind: 'sent', title: 'Old', createdAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    },
+  ]);
+  expect(JSON.parse(result!)).toEqual({
+    outcome: 'linked',
+    messageId: 'm1',
+    sessions: [
+      { sessionId: 'asg-new', kind: 'created' },
+      { sessionId: 'asg-old', kind: 'sent' },
+    ],
+  });
+});
+
+it.each([
+  { label: 'links forgotten Sessions to the turn’s only Human DM message', sends: 1 },
+  { label: 'leaves Sessions unlinked when the turn sent two Human DM messages', sends: 2 },
+])('$label', async ({ sends }) => {
+  const linked: Record<string, unknown>[] = [];
+  const outcomes: Promise<unknown>[] = [];
+  let next = 0;
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onAgentCreated: () => {
+        const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+        const run = (name: string, args: Record<string, unknown>, id: string) =>
+          tools
+            .find((tool) => tool.name === name)!
+            .execute(args, {
+              callId: ToolCallId(id),
+              signal: new AbortController().signal,
+            } as ToolRunContext);
+        outcomes.push(
+          (async () => {
+            await run(
+              'create_assignment',
+              { title: 'New', description: 'New work', grant_id: 'g' },
+              'a',
+            );
+            for (let index = 0; index < sends; index += 1)
+              await run('bot_send_message', { channel_id: 'dm-test', body: 'On it.' }, `s${index}`);
+          })(),
+        );
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  await adapter.runOrchestrator({
+    sessionId: 'orchestrator-ada',
+    resume: false,
+    bot: BOT,
+    message: 'Start it',
+    inboundChannelId: 'dm-test',
+    inbox: '',
+    channels: {
+      list: () => ({ channels: [{ id: 'dm-test', kind: 'human-dm' }] }),
+      send: async (input: Record<string, unknown>) => {
+        next += 1;
+        return {
+          id: `m${next}`,
+          at: '',
+          author: { kind: 'bot', slug: 'ada' },
+          body: input['body'],
+        };
+      },
+      linkSessions: (input: Record<string, unknown>) => {
+        linked.push(input);
+        return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: 'On it.' };
+      },
+    } as never,
+    assignments: {
+      create: () => ({
+        outcome: 'created',
+        assignment: { sessionId: 'asg-new', title: 'New' },
+      }),
+      inspect: (sessionId: string) =>
+        ({ sessionId, title: 'New', createdAt: '2026-01-01T00:00:00.000Z' }) as never,
     } as never,
   } as never);
   await Promise.all(outcomes);
-  expect(sent[0]?.['sessionLinks']).toEqual([
-    { sessionId: 'asg-new', kind: 'created', title: 'New' },
-    { sessionId: 'asg-old', kind: 'sent', title: 'Old' },
-  ]);
+  expect(linked).toEqual(
+    sends === 1
+      ? [
+          {
+            messageId: 'm1',
+            links: [
+              {
+                sessionId: 'asg-new',
+                kind: 'created',
+                title: 'New',
+                createdAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ]
+      : [],
+  );
 });

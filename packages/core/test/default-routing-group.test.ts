@@ -37,7 +37,7 @@ function mount() {
   return { root, database };
 }
 
-function setup() {
+function setup(onSave: (route: ModelRoute) => void = () => undefined) {
   const { root, database } = mount();
   const registry = createTestRegistry({ rootDir: root, database });
   const routingGroups = createRoutingGroupStore({ database, references: () => [] });
@@ -50,6 +50,8 @@ function setup() {
     defaultModel: {
       currentSelection: () => selection,
       saveSelection: async (route: ModelRoute) => {
+        await Promise.resolve();
+        onSave(route);
         selection = { ...route };
       },
     },
@@ -127,6 +129,73 @@ describe('The default model can be a Routing Group (#4500)', () => {
     const catalog = await methods.modelCatalog({});
     expect(catalog.ok ? catalog.value.defaultGroupId : 'unread').toBeUndefined();
   });
+  it('refuses a stale default group revision and keeps the group while the default is saved', async () => {
+    let during: unknown;
+    let fail = false;
+    const { methods, routingGroups, selection } = setup(() => {
+      const group = routingGroups.list()[0]!;
+      if (fail) throw new Error('native settings refused');
+      try {
+        routingGroups.delete(group.id, group.revision);
+      } catch (error) {
+        during = error;
+      }
+    });
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [{ kind: 'model', ...DEEPSEEK }],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 3,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'routing-group-stale-revision' } });
+    expect(routingGroups.defaultGroup()).toEqual({ revision: 0 });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 0,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    expect(String(during)).toContain('the default model');
+    expect(routingGroups.get(id)).toBeDefined();
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id, defaultGroupRevision: 1 },
+    });
+    fail = true;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 1,
+        globalDefault: true,
+        route: { ...DEEPSEEK, reasoningEffort: 'high' },
+      }),
+    ).toMatchObject({ ok: false });
+    expect(routingGroups.defaultGroup().groupId).toBe(id);
+    const other = await methods.modelGroupCreate({
+      name: 'Other',
+      members: [{ kind: 'model', ...DEEPSEEK }],
+    });
+    if (!other.ok) throw new Error(other.error.message);
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: other.value.group.id,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(routingGroups.defaultGroup().groupId).toBe(id);
+    expect(selection()).toEqual(DEEPSEEK);
+  });
+
   it('sets the default group from a Bot that then follows it', async () => {
     const { methods, registry } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
