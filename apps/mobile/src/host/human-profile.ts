@@ -7,7 +7,7 @@ import {
   type HumanAvatarCache,
   type HumanIdentity,
 } from '@botharness/host-client/human-profile';
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
@@ -35,10 +35,20 @@ export function useHumanAvatar(
   version: string | undefined,
 ): string | undefined {
   const cache = client === undefined ? idle : humanAvatarCache(client);
-  useSyncExternalStore(cache.subscribe, cache.getSnapshot);
+  useSyncExternalStore(cache.subscribe, cache.getSnapshot, cache.getSnapshot);
   if (humanId === undefined) return undefined;
   cache.want(humanId, version);
   return cache.get(humanId, version);
+}
+
+export const HumanAvatarClientContext = createContext<HostClient | undefined>(undefined);
+
+export function useMemberAvatar(
+  humanId: string | undefined,
+  version: string | undefined,
+): string | undefined {
+  const client = useContext(HumanAvatarClientContext);
+  return useHumanAvatar(client, version === undefined ? undefined : humanId, version);
 }
 
 const identities = new WeakMap<HostClient, HumanIdentity>();

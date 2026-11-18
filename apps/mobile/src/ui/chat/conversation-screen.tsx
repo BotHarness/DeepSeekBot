@@ -202,6 +202,7 @@ import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
+import { HumanAvatarClientContext } from '../../host/human-profile';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
@@ -237,12 +238,6 @@ type ConversationPresentation = {
   onClose(): void;
   onNestedChange(open: boolean): void;
 };
-function currentPersonName(
-  people: readonly { humanId: string; displayName: string }[] | undefined,
-  humanId: string,
-): string | undefined {
-  return people?.find((member) => member.humanId === humanId)?.displayName;
-}
 
 export function ConversationScreen({
   expectedHostId,
@@ -1222,20 +1217,22 @@ function ChatConversation({
     (
       message: ConversationMessage,
       row: { key: string; first: boolean; last: boolean },
-    ): Speaker | undefined =>
-      message.person === undefined
-        ? undefined
-        : {
-            name:
-              currentPersonName(people, message.person.humanId) ||
-              message.person.name ||
-              personFallback ||
-              t.reply.member,
-            bot: undefined,
-            group: groupOf.get(row.key) ?? row.key,
-            first: row.first,
-            last: row.last,
-          },
+    ): Speaker | undefined => {
+      if (message.person === undefined) return undefined;
+      const { humanId } = message.person;
+      const member = people?.find((entry) => entry.humanId === humanId);
+      return {
+        name: member?.displayName || message.person.name || personFallback || t.reply.member,
+        bot: undefined,
+        human: {
+          humanId,
+          ...(member?.avatarVersion === undefined ? {} : { avatarVersion: member.avatarVersion }),
+        },
+        group: groupOf.get(row.key) ?? row.key,
+        first: row.first,
+        last: row.last,
+      };
+    },
     [people, personFallback, groupOf, t],
   );
 
@@ -2203,190 +2200,194 @@ function ChatConversation({
                     <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
                       <MarkdownViewportContext.Provider value={markdownViewport}>
                         <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-                          <SendFlightsContext.Provider value={flights}>
-                            <ChatList
-                              key={
-                                openedAtLatest || (openAtLatest && rows.length > 0)
-                                  ? 'rows'
-                                  : 'list'
-                              }
-                              inverted={android}
-                              {...(android
-                                ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
-                                : openAtLatest
+                          <HumanAvatarClientContext.Provider value={client}>
+                            <SendFlightsContext.Provider value={flights}>
+                              <ChatList
+                                key={
+                                  openedAtLatest || (openAtLatest && rows.length > 0)
+                                    ? 'rows'
+                                    : 'list'
+                                }
+                                inverted={android}
+                                {...(android
+                                  ? { initialNumToRender: 6, maxToRenderPerBatch: 6, windowSize: 5 }
+                                  : openAtLatest
+                                    ? {
+                                        initialScrollIndex: Math.max(0, rows.length - 1),
+                                        initialNumToRender: 4,
+                                      }
+                                    : {})}
+                                ref={attachList}
+                                renderScrollComponent={latest.renderScrollComponent}
+                                removeClippedSubviews={false}
+                                CellRendererComponentStyle={cellLayer}
+                                style={{
+                                  flex: 1,
+                                  opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                                }}
+                                pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                                accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                                importantForAccessibility={
+                                  !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                                }
+                                contentInsetAdjustmentBehavior="automatic"
+                                contentInset={{ bottom: -listSafeArea }}
+                                automaticallyAdjustsScrollIndicatorInsets
+                                scrollToOverflowEnabled
+                                contentContainerStyle={{
+                                  minHeight: Math.max(
+                                    0,
+                                    viewportHeight -
+                                      headerOverlap +
+                                      (Platform.OS === 'android' ? edge.hairline : 0),
+                                  ),
+                                  justifyContent: android ? 'flex-start' : 'flex-end',
+                                  paddingTop: android
+                                    ? composerHeight + edgeFade.bottom
+                                    : space.x3 + listTop,
+                                  paddingBottom: android
+                                    ? space.x3 + headerPadding
+                                    : nativeSpacer
+                                      ? 0
+                                      : composerHeight + edgeFade.bottom,
+                                }}
+                                data={rows}
+                                keyExtractor={(row) => row.key}
+                                {...((nativeRows
                                   ? {
-                                      initialScrollIndex: Math.max(0, rows.length - 1),
-                                      initialNumToRender: 4,
+                                      nativeRow,
+                                      nativeStyle,
+                                      nativeSwipe,
+                                      onNativeRow,
+                                      speakerRow,
+                                      speakerAvatar,
+                                    }
+                                  : {}) as object)}
+                                renderItem={renderItem}
+                                onViewableItemsChanged={onFocusViewabilityChange}
+                                onScrollToIndexFailed={(info) => {
+                                  const attempt = focusAttempt.current;
+                                  if (
+                                    focusCancelled.current ||
+                                    attempt === undefined ||
+                                    attempt.index !== info.index ||
+                                    attempt.message !== focusIntent.current.message ||
+                                    attempt.request !== focusIntent.current.request
+                                  )
+                                    return;
+                                  focusNeedsLayout.current = true;
+                                  jumped.current = undefined;
+                                  focusAttempt.current = undefined;
+                                  const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                                  if (focusEstimate.current === estimate) return;
+                                  focusEstimate.current = estimate;
+                                  list.current?.scrollToOffset({
+                                    offset: info.averageItemLength * info.index,
+                                    animated: false,
+                                  });
+                                }}
+                                {...(latest.ready && latest.browsed && !snapshot.olderError
+                                  ? {
+                                      [android ? 'onEndReached' : 'onStartReached']: () =>
+                                        void conversation?.loadOlder(),
                                     }
                                   : {})}
-                              ref={attachList}
-                              renderScrollComponent={latest.renderScrollComponent}
-                              removeClippedSubviews={false}
-                              CellRendererComponentStyle={cellLayer}
-                              style={{
-                                flex: 1,
-                                opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                              }}
-                              pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                              accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                              importantForAccessibility={
-                                !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                              }
-                              contentInsetAdjustmentBehavior="automatic"
-                              contentInset={{ bottom: -listSafeArea }}
-                              automaticallyAdjustsScrollIndicatorInsets
-                              scrollToOverflowEnabled
-                              contentContainerStyle={{
-                                minHeight: Math.max(
-                                  0,
-                                  viewportHeight -
-                                    headerOverlap +
-                                    (Platform.OS === 'android' ? edge.hairline : 0),
-                                ),
-                                justifyContent: android ? 'flex-start' : 'flex-end',
-                                paddingTop: android
-                                  ? composerHeight + edgeFade.bottom
-                                  : space.x3 + listTop,
-                                paddingBottom: android
-                                  ? space.x3 + headerPadding
-                                  : nativeSpacer
-                                    ? 0
-                                    : composerHeight + edgeFade.bottom,
-                              }}
-                              data={rows}
-                              keyExtractor={(row) => row.key}
-                              {...((nativeRows
-                                ? {
-                                    nativeRow,
-                                    nativeStyle,
-                                    nativeSwipe,
-                                    onNativeRow,
-                                    speakerRow,
-                                    speakerAvatar,
-                                  }
-                                : {}) as object)}
-                              renderItem={renderItem}
-                              onViewableItemsChanged={onFocusViewabilityChange}
-                              onScrollToIndexFailed={(info) => {
-                                const attempt = focusAttempt.current;
-                                if (
-                                  focusCancelled.current ||
-                                  attempt === undefined ||
-                                  attempt.index !== info.index ||
-                                  attempt.message !== focusIntent.current.message ||
-                                  attempt.request !== focusIntent.current.request
-                                )
-                                  return;
-                                focusNeedsLayout.current = true;
-                                jumped.current = undefined;
-                                focusAttempt.current = undefined;
-                                const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                                if (focusEstimate.current === estimate) return;
-                                focusEstimate.current = estimate;
-                                list.current?.scrollToOffset({
-                                  offset: info.averageItemLength * info.index,
-                                  animated: false,
-                                });
-                              }}
-                              {...(latest.ready && latest.browsed && !snapshot.olderError
-                                ? {
-                                    [android ? 'onEndReached' : 'onStartReached']: () =>
-                                      void conversation?.loadOlder(),
-                                  }
-                                : {})}
-                              onStartReachedThreshold={0.5}
-                              onEndReachedThreshold={0.5}
-                              {...latest.listProps}
-                              maintainVisibleContentPosition={
-                                positioningFocus
-                                  ? undefined
-                                  : latest.listProps.maintainVisibleContentPosition
-                              }
-                              onScrollBeginDrag={(event: ScrollEvent) => {
-                                focusCancelled.current = true;
-                                focusAttempt.current = undefined;
-                                if (android)
-                                  setAnchoredFocus({ message: focus, request: focusRequest });
-                                pull.onScrollBeginDrag(event);
-                                latest.listProps.onScrollBeginDrag();
-                              }}
-                              onScroll={(event: ScrollEvent) => {
-                                latest.listProps.onScroll(event);
-                                pull.onScroll(event);
-                              }}
-                              onScrollEndDrag={(event: ScrollEvent) => {
-                                latest.listProps.onScrollEndDrag(event);
-                                pull.onScrollEndDrag(event);
-                              }}
-                              onContentSizeChange={(width: number, height: number) => {
-                                latest.listProps.onContentSizeChange(width, height);
-                                focusNeedsLayout.current = false;
-                                if (positioningFocus && !focusCancelled.current) {
-                                  focusHasLiveLayout.current =
-                                    snapshot.status === 'live' && !snapshot.fromCache;
-                                  jumped.current = undefined;
+                                onStartReachedThreshold={0.5}
+                                onEndReachedThreshold={0.5}
+                                {...latest.listProps}
+                                maintainVisibleContentPosition={
+                                  positioningFocus
+                                    ? undefined
+                                    : latest.listProps.maintainVisibleContentPosition
                                 }
-                                jump();
-                              }}
-                              scrollEventThrottle={
-                                (!dm && SpeakerAnchor === undefined) ||
-                                (Platform.OS === 'android' && !latest.ready)
-                                  ? 16
-                                  : 32
-                              }
-                              {...{
-                                [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
-                                  LatestAnchor === undefined ? undefined : nativeSpacer ? (
-                                    <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
+                                onScrollBeginDrag={(event: ScrollEvent) => {
+                                  focusCancelled.current = true;
+                                  focusAttempt.current = undefined;
+                                  if (android)
+                                    setAnchoredFocus({ message: focus, request: focusRequest });
+                                  pull.onScrollBeginDrag(event);
+                                  latest.listProps.onScrollBeginDrag();
+                                }}
+                                onScroll={(event: ScrollEvent) => {
+                                  latest.listProps.onScroll(event);
+                                  pull.onScroll(event);
+                                }}
+                                onScrollEndDrag={(event: ScrollEvent) => {
+                                  latest.listProps.onScrollEndDrag(event);
+                                  pull.onScrollEndDrag(event);
+                                }}
+                                onContentSizeChange={(width: number, height: number) => {
+                                  latest.listProps.onContentSizeChange(width, height);
+                                  focusNeedsLayout.current = false;
+                                  if (positioningFocus && !focusCancelled.current) {
+                                    focusHasLiveLayout.current =
+                                      snapshot.status === 'live' && !snapshot.fromCache;
+                                    jumped.current = undefined;
+                                  }
+                                  jump();
+                                }}
+                                scrollEventThrottle={
+                                  (!dm && SpeakerAnchor === undefined) ||
+                                  (Platform.OS === 'android' && !latest.ready)
+                                    ? 16
+                                    : 32
+                                }
+                                {...{
+                                  [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
+                                    LatestAnchor === undefined ? undefined : nativeSpacer ? (
+                                      <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
+                                        <LatestAnchor
+                                          following={latest.ready && !latest.away}
+                                          animated={!latest.reducedMotion}
+                                          style={{ height: 0 }}
+                                        />
+                                      </ComposerSpacer>
+                                    ) : (
                                       <LatestAnchor
                                         following={latest.ready && !latest.away}
                                         animated={!latest.reducedMotion}
                                         style={{ height: 0 }}
                                       />
-                                    </ComposerSpacer>
-                                  ) : (
-                                    <LatestAnchor
-                                      following={latest.ready && !latest.away}
-                                      animated={!latest.reducedMotion}
-                                      style={{ height: 0 }}
-                                    />
-                                  ),
-                              }}
-                              keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                              keyboardShouldPersistTaps="never"
-                              {...{
-                                [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
-                                  snapshot.loadingOlder || snapshot.olderError ? (
-                                    <View style={{ padding: space.x4, gap: space.x2 }}>
+                                    ),
+                                }}
+                                keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                                keyboardShouldPersistTaps="never"
+                                {...{
+                                  [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
+                                    snapshot.loadingOlder || snapshot.olderError ? (
+                                      <View style={{ padding: space.x4, gap: space.x2 }}>
+                                        <Text
+                                          variant="meta"
+                                          tone="muted"
+                                          accessibilityLiveRegion="polite"
+                                        >
+                                          {snapshot.loadingOlder
+                                            ? t.olderLoading
+                                            : t.olderLoadFailed}
+                                        </Text>
+                                        <Button
+                                          label={t.retry}
+                                          variant="text"
+                                          busy={snapshot.loadingOlder}
+                                          testID="history-retry"
+                                          onPress={() => void conversation?.loadOlder()}
+                                        />
+                                      </View>
+                                    ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
                                       <Text
                                         variant="meta"
                                         tone="muted"
-                                        accessibilityLiveRegion="polite"
+                                        style={{ textAlign: 'center', padding: space.x5 }}
                                       >
-                                        {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
+                                        {dm || person !== undefined
+                                          ? t.beginning
+                                          : t.beginningChannel}
                                       </Text>
-                                      <Button
-                                        label={t.retry}
-                                        variant="text"
-                                        busy={snapshot.loadingOlder}
-                                        testID="history-retry"
-                                        onPress={() => void conversation?.loadOlder()}
-                                      />
-                                    </View>
-                                  ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                                    <Text
-                                      variant="meta"
-                                      tone="muted"
-                                      style={{ textAlign: 'center', padding: space.x5 }}
-                                    >
-                                      {dm || person !== undefined
-                                        ? t.beginning
-                                        : t.beginningChannel}
-                                    </Text>
-                                  ) : undefined,
-                              }}
-                            />
-                          </SendFlightsContext.Provider>
+                                    ) : undefined,
+                                }}
+                              />
+                            </SendFlightsContext.Provider>
+                          </HumanAvatarClientContext.Provider>
                         </SpeakerStageContext.Provider>
                       </MarkdownViewportContext.Provider>
                       <Animated.View
