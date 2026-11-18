@@ -1865,7 +1865,7 @@ tunnel is free, `nextFreeAt` (the earliest time a tunnel can be released). While
 from a paired phone pushes it back. When the pool is full the account reports `error` with
 `relay-full`, `recovery: automatic` and `wait` (`reason` `pool-full`, `zone-full` or `queued`,
 `position` in the first-come queue, `retryAfter` seconds and `since`); the Host retries on its own
-([ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)).
+([ADR-0313](decisions/connections.md#adr-0313)).
 `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 
@@ -1892,7 +1892,7 @@ take the slot first; the returned status then remains `host-limit`. `signed-out`
 
 The relay's session migration and Worker rollout are prerequisites for remote sign-out. Local code
 and tests alone do not prove the deployed service supports it. See the [ADR-0241 linked-computer
-amendment](adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672).
+amendment](decisions/connections.md#adr-0241).
 
 ## Device-local DeepSeekBot appearance
 
@@ -1988,7 +1988,7 @@ Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must 
 
 The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback requests and streams after pairing, so a changed listener cannot receive device credentials in plaintext. Use the remote Host's existing `device-revoke <device-id> --confirm` to revoke access; closing the tunnel is not revocation. Do not downgrade the browser client after creating an SSH pairing.
 
-Read structured lifecycle events on stderr to distinguish `ssh-missing`, `ssh-host-key-refused`, `ssh-authentication-refused`, `ssh-local-port-unavailable`, `ssh-host-unready` and `ssh-host-identity-mismatch`. Remote process errors never cause automatic bootstrap or a plaintext fallback. No raw SSH output or pairing link is printed. See [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md) for ownership and qualification boundaries.
+Read structured lifecycle events on stderr to distinguish `ssh-missing`, `ssh-host-key-refused`, `ssh-authentication-refused`, `ssh-local-port-unavailable`, `ssh-host-unready` and `ssh-host-identity-mismatch`. Remote process errors never cause automatic bootstrap or a plaintext fallback. No raw SSH output or pairing link is printed. See [ADR-0246](decisions/connections.md#adr-0246) for ownership and qualification boundaries.
 `ssh-tunnel` exposes only the encrypted Device Gateway on its public loopback port. It is not a general HTTP proxy: opening that port directly in a browser returns 403. Use Add remote in your local Host browser. Ambient local browser cookies are discarded by the carrier and never reach the remote Host.
 
 ### Pinned Git import and recovery
@@ -2144,7 +2144,7 @@ deepseekbot private-route remove custom --confirm
 
 Use the existing Host connection arguments for every command. Named connector tokens enter through stdin only. Add retries are idempotent; changing an occupied slot requires Replace. Stop retains configuration and disabled intent; only enabled routes resume after Host restart. Remove forgets the selected configuration, without revoking paired phones. Revoke the device through the existing device command to remove its access across both routes. Legacy no-ID enable/disable refuses ambiguous multi-route operations.
 
-An invitation admits only connected private routes. Updated phones retain at most two explicitly admitted origins under the same pinned Host identity; older phones use its primary origin. A restarted Quick Tunnel may change address and require rescanning. Neither route enables an official-service fallback. Before upgrading an existing Profile, follow the protected backup and matching-version rollback instructions in [ADR-0333](adr/0333-bounded-private-route-coexistence.md); reverting packages alone cannot read the migrated credentials.
+An invitation admits only connected private routes. Updated phones retain at most two explicitly admitted origins under the same pinned Host identity; older phones use its primary origin. A restarted Quick Tunnel may change address and require rescanning. Neither route enables an official-service fallback. Before upgrading an existing Profile, follow the protected backup and matching-version rollback instructions in [ADR-0333](decisions/connections.md#adr-0333); reverting packages alone cannot read the migrated credentials.
 
 `private-tunnel-enable --quick --confirm` starts a Quick Tunnel; `private-tunnel-enable --hostname <name> --token-stdin --confirm` runs your own Named Tunnel with its connector token from stdin. Both publish only the encrypted device channel through the Host's bundled cloudflared and persist the enabled state, so a restarted Host restores it. `devices` reports `privateTunnel` (`state`, `mode`, `origin`, `originPort`, coded `issue`/`probe`, `addressChanged`). A pairing offer is refused with `private-tunnel-unreachable` until the public address reaches this Host. `private-tunnel-disable --confirm` stops it and forgets the token and phone admission. See [private connection](private-connect.md).
 
@@ -2156,7 +2156,7 @@ An invitation admits only connected private routes. Updated phones retain at mos
 
 A phone signed into the same Tobs Connect account as a Host can enroll without Host-side approval or manual fingerprint comparison. Account authentication and the relay authorize this path; unsigned/QR/private pairing retains existing device approval. `connect-status` reports account and connection state, `devices` lists resulting grants, and `device-revoke` revokes an exact device. No review-specific configuration is required.
 
-Signing out stops new account enrollment but leaves existing grants intact. Code rollback also leaves issued grants intact. A holder of account access can enroll again after a device is revoked; secure account access when responding to compromise. Existing signature, account/Host, freshness, phone-verifier and pinned encrypted-channel checks still apply. See [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md).
+Signing out stops new account enrollment but leaves existing grants intact. Code rollback also leaves issued grants intact. A holder of account access can enroll again after a device is revoked; secure account access when responding to compromise. Existing signature, account/Host, freshness, phone-verifier and pinned encrypted-channel checks still apply. See [ADR-0327](decisions/connections.md#adr-0327).
 
 QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set qq --input-stdin` with the same input as Discord. Set `collection: "all"` and `newConversations: "auto"` for new groups to inherit all-message intake. Existing custom identities and groups retain their overrides until explicitly restored to inheritance. The preference does not prove that QQ delivers ordinary messages or unsupported media. Generation 138 preserves defaults from the historical QQ hotfix; use a complete fresh Profile backup for rollback.
 

@@ -1790,7 +1790,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 让给排队者的时间，手机每次使用都会往后推。隧道池满时账号报告 `error`，`issue` 为 `relay-full`，
 `recovery` 为 `automatic`，并带 `wait`（`reason` 为 `pool-full`、`zone-full` 或 `queued`，先来先到
 队列里的 `position`、`retryAfter` 秒数和 `since`），Host 会自己重试
-（[ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)）。`connect-sign-out` 在 relay 上解除
+（[ADR-0313](decisions/connections.md#adr-0313)）。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
@@ -1812,7 +1812,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 `session-unknown`、`relay-unavailable` 都是明确的拒绝，不会只在本机隐藏电脑。
 
 远端退出依赖 relay 会话迁移和 Worker 上线；本地代码与测试不能证明线上行为。参见
-[ADR-0241 补充](adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672)。
+[ADR-0241 补充](decisions/connections.md#adr-0241)。
 
 ## 设备本地 DeepSeekBot 外观
 
@@ -1908,7 +1908,7 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
 隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
 
-stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md)。
+stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](decisions/connections.md#adr-0246)。
 `ssh-tunnel` 的本地端口只提供加密 Device Gateway，直接在浏览器打开会返回 403。请在本地 Host 浏览器中使用“添加远端”。载体会丢弃浏览器自动附带的本地登录 Cookie，不会将它发送给远端 Host。
 
 ### 固定 Git 来源并恢复导入
@@ -2060,7 +2060,7 @@ deepseekbot private-route remove custom --confirm
 
 每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
 
-邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](adr/0333-bounded-private-route-coexistence.md) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
+邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](decisions/connections.md#adr-0333) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
 
 `private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
 
@@ -2072,7 +2072,7 @@ deepseekbot private-route remove custom --confirm
 
 手机与 Host 登录同一 Tobs Connect 账号后，连接无需电脑批准或手工核对指纹。此路径信任账号认证和中继来授权新设备；未登录的扫码和私有连接保留现有设备批准。`connect-status` 查看账号及连接状态，`devices` 查看设备授权，`device-revoke` 撤销准确设备。不需要审核专用配置。
 
-退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md)。
+退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](decisions/connections.md#adr-0327)。
 
 QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set qq --input-stdin`，输入格式与 Discord 一致。配置 `collection: "all"` 和 `newConversations: "auto"` 后，新群继承全量收件；现有自定义身份与群保留覆盖值，直到显式恢复继承。配置成功不代表 QQ 已实际投递普通消息或未支持的媒体。第 138 代迁移保留历史 QQ 热修复的默认策略；回滚需要升级前新做的完整 Profile 备份。
 
