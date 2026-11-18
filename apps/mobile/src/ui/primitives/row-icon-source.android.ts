@@ -14,6 +14,7 @@ export const ROW_ICON_SOURCES: Record<
   light: require('../../../assets/row-icons/light.xml'),
   dark: require('../../../assets/row-icons/dark.xml'),
   model: require('../../../assets/row-icons/model.xml'),
+  prompts: require('../../../assets/row-icons/prompts.xml'),
   computer: require('../../../assets/row-icons/computer.xml'),
   notifications: require('../../../assets/row-icons/notifications.xml'),
   storage: require('../../../assets/row-icons/storage.xml'),

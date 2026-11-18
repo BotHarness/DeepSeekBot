@@ -1,7 +1,9 @@
 import { SegmentedControl } from './ds/segmented.js';
 import { useId, type ReactElement, type ReactNode } from 'react';
 import type { ModelCatalogEntryView } from './bridge.js';
-import { Combobox, type ComboboxOption } from './combobox.js';
+import type { ComboboxOption } from './combobox.js';
+import { ModelTrigger } from './model-trigger.js';
+import { modelMenuItems } from './model-menu.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 interface ModelChoice {
@@ -32,6 +34,7 @@ export function ModelPicker({
 }): ReactElement {
   const id = useId();
   const entry = catalog.find((item) => JSON.stringify([item.provider, item.model]) === choice.key);
+  const items = modelMenuItems(options, catalog);
   const efforts = [
     { value: '', label: t('modelPreset.providerDefault') },
     ...(entry?.efforts ?? []).map((effort) => ({
@@ -55,19 +58,19 @@ export function ModelPicker({
           {action}
         </div>
       )}
-      <Combobox
-        value={entry === undefined ? '' : choice.key}
-        options={options}
-        onSelect={(key) => onChange({ key, effort: '' })}
+      <ModelTrigger
         label={title}
-        toggleLabel={t('modelPreset.showModels')}
+        items={items}
+        value={choice.key}
         placeholder={
-          options.find((option) => option.value === choice.key)?.label ??
-          (entry === undefined ? t('modelPreset.routeUnavailable') : t('modelPreset.chooseModel'))
+          entry === undefined && !options.some((option) => option.value === choice.key)
+            ? t('modelPreset.routeUnavailable')
+            : t('modelPreset.chooseModel')
         }
-        emptyLabel={t('modelPreset.noMatch')}
-        disabled={disabled}
         invalid={entry === undefined && !options.some((option) => option.value === choice.key)}
+        disabled={disabled}
+        onSelect={(key) => onChange({ key, effort: '' })}
+        t={t}
       />
       {entry !== undefined && efforts.length > 1 && (
         <div className="bh-model-picker-effort">

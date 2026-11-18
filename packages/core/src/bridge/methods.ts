@@ -437,6 +437,7 @@ import {
   type ModelPresetStore,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import { modelFavorite, type ModelFavorite, type ModelFavoriteStore } from '../models/favorites.js';
 import {
   isRoutingGroupMember,
   RoutingGroupError,
@@ -857,8 +858,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
       default?: ModelRoute;
       defaultRevision?: number;
       defaultGroupId?: string;
+      favorites?: ModelFavorite[];
     }>
   >;
+  modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
   modelPresets(payload: unknown): BridgeResult<{ presets: ModelPreset[] }>;
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
@@ -1403,6 +1406,7 @@ export interface BridgeMethodsDeps {
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
+  modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
   routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
@@ -2349,6 +2353,8 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
+  const favoritesOf = (): { favorites?: ModelFavorite[] } =>
+    deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   const channelSkillBots = (channel: ChannelRecord): string[] => {
@@ -4050,6 +4056,7 @@ function buildBridgeMethods(
                     allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`),
                 )
                 .map(({ credential: _credential, ...route }) => route),
+              ...favoritesOf(),
             },
           };
         }
@@ -4069,12 +4076,30 @@ function buildBridgeMethods(
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
+            ...favoritesOf(),
           },
         };
       } catch (error) {
         return !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
+      }
+    },
+    modelFavoriteSet(payload) {
+      if (deps.modelFavorites === undefined) return unavailable();
+      const input = asObject(payload);
+      const favorite = modelFavorite(input['choice']);
+      if (favorite === undefined || typeof input['favorite'] !== 'boolean')
+        return invalidInput(
+          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id}, favorite: boolean}",
+        );
+      try {
+        return {
+          ok: true,
+          value: { favorites: deps.modelFavorites.set(human.humanId, favorite, input['favorite']) },
+        };
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
     modelPresets() {

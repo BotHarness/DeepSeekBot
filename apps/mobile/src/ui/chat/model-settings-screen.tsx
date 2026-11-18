@@ -1,14 +1,20 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Keyboard, View } from 'react-native';
+import { FlatList, Keyboard, ScrollView, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
   applyModelPreset,
   errorText,
   sameModel,
+  type ModelChoice,
   type ModelRoute,
 } from '@botharness/host-client/bot-settings';
+import {
+  applyModelFavoriteChanges,
+  modelChoiceKey,
+  type ModelFavoriteChange,
+} from '@botharness/host-client/model-catalog';
 import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import {
@@ -24,7 +30,13 @@ import {
   type ModelScope,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
+import { modelFamilies } from '@botharness/host-client/shared/model-brand';
+import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
+import { Chip } from '../primitives/chip';
+import { FavoriteButton } from '../primitives/favorite-button';
+import { modelEntryLabel, modelFamilyKey } from './composer-labels';
+import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
@@ -35,12 +47,16 @@ import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
+const FAVORITES = 'favorites';
+const ALL = 'all';
+
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, key]);
   const [value, setValue] = useState(resource.peek);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [changes, setChanges] = useState<readonly ModelFavoriteChange[]>([]);
   const pending = useRef(false);
   const generation = useRef(0);
   const refresh = useCallback(() => {
@@ -94,7 +110,25 @@ function useModels(client: HostClient, scope: ModelScope) {
         setBusy(false);
       });
   };
-  return { value, error, busy, refresh, run };
+  const favorites = applyModelFavoriteChanges(value?.favorites ?? [], changes);
+  const favorite = (choice: ModelChoice, on: boolean) => {
+    const change: ModelFavoriteChange = { choice, favorite: on };
+    generation.current += 1;
+    setChanges((current) => [...current, change]);
+    setError(undefined);
+    const settle = () => setChanges((current) => current.filter((entry) => entry !== change));
+    void resource.favorite(choice, on).then(
+      (list) => {
+        setValue((current) => (current === undefined ? current : { ...current, favorites: list }));
+        settle();
+      },
+      (cause: unknown) => {
+        settle();
+        setError(errorText(cause));
+      },
+    );
+  };
+  return { value, error, busy, refresh, run, favorites, favorite };
 }
 
 function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
@@ -129,7 +163,14 @@ function ModelsView({
   const t = useStrings();
   const router = useRouter();
   const models = useModels(client, scope);
+  const theme = useDesignTheme();
   const [query, setQuery] = useState('');
+  const [family, setFamily] = useState<string>();
+  const [held, setHeld] = useState<ReadonlySet<string>>();
+  const chooseFamily = (next: string) => {
+    setFamily(next);
+    setHeld(undefined);
+  };
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
   const value = models.value;
@@ -233,7 +274,59 @@ function ModelsView({
         />,
       );
     }
-    const entries = searchModels(value.models, query);
+    const families = modelFamilies(
+      value.models.map((entry) => ({
+        provider: entry.provider,
+        model: entry.model,
+        name: entry.modelName,
+      })),
+    );
+    const starredKeys = new Set(models.favorites.map(modelChoiceKey));
+    const starredModel = (entry: ModelRoute) =>
+      starredKeys.has(
+        modelChoiceKey({ kind: 'model', provider: entry.provider, model: entry.model }),
+      );
+    const listedModel = (entry: ModelRoute) =>
+      held === undefined
+        ? starredModel(entry)
+        : held.has(JSON.stringify([entry.provider, entry.model]));
+    const favoriteCount = value.models.filter(starredModel).length;
+    const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
+    const filter =
+      family === FAVORITES || (family === undefined && showFavorites)
+        ? showFavorites
+          ? FAVORITES
+          : ALL
+        : family === undefined
+          ? ALL
+          : family;
+    const shownFamily = families.some((entry) => (entry.brand ?? 'other') === filter)
+      ? filter
+      : filter === FAVORITES
+        ? FAVORITES
+        : ALL;
+    const found = searchModels(value.models, query).filter((entry) =>
+      shownFamily === FAVORITES
+        ? query.trim() !== '' || listedModel(entry)
+        : shownFamily === ALL || modelFamilyKey(entry) === shownFamily,
+    );
+    const entries =
+      shownFamily === FAVORITES
+        ? found
+        : [...found.filter(listedModel), ...found.filter((entry) => !listedModel(entry))];
+    const star = (entry: ModelRoute, on: boolean) => {
+      if (family === undefined) setFamily(shownFamily);
+      setHeld(
+        (current) =>
+          current ??
+          new Set(
+            value.models
+              .filter(starredModel)
+              .map((item) => JSON.stringify([item.provider, item.model])),
+          ),
+      );
+      models.favorite({ kind: 'model', provider: entry.provider, model: entry.model }, on);
+    };
     return frame(
       <>
         <SearchField
@@ -242,6 +335,53 @@ function ModelsView({
           placeholder={t.modelSettings.search}
           onChangeText={setQuery}
         />
+        {families.length > 1 || showFavorites ? (
+          <ScrollView
+            horizontal
+            testID="model-family-filters"
+            accessibilityLabel={t.modelSettings.families}
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={{
+              gap: space.x2,
+              paddingHorizontal: space.x5,
+              paddingVertical: space.x2,
+            }}
+          >
+            {showFavorites ? (
+              <Chip
+                testID="model-family-favorites"
+                label={t.modelSettings.favorites}
+                count={favoriteCount}
+                selected={shownFamily === FAVORITES}
+                onPress={() => chooseFamily(FAVORITES)}
+              />
+            ) : null}
+            <Chip
+              testID="model-family-all"
+              label={t.modelSettings.allFamilies}
+              count={value.models.length}
+              selected={shownFamily === ALL}
+              onPress={() => chooseFamily(ALL)}
+            />
+            {families.length > 1
+              ? families.map((entry) => {
+                  const key = entry.brand ?? 'other';
+                  return (
+                    <Chip
+                      key={key}
+                      testID={`model-family-${key}`}
+                      label={entry.title ?? t.modelSettings.otherFamily}
+                      count={entry.count}
+                      selected={shownFamily === key}
+                      onPress={() => chooseFamily(shownFamily === key ? ALL : key)}
+                    />
+                  );
+                })
+              : null}
+          </ScrollView>
+        ) : null}
         {banner}
         {models.busy ? <LoadingIndicator /> : null}
         <FlatList
@@ -261,6 +401,7 @@ function ModelsView({
                 : sameModel(item, current);
             const usable = item.credential === undefined;
             const required = picker === 'allowed' && sameModel(item, routes.assignmentDefault);
+            const isFavorite = starredModel(item);
             return (
               <SettingsGroupItem
                 first={index === 0}
@@ -269,7 +410,15 @@ function ModelsView({
               >
                 <SettingsRow
                   on={SHEET_GROUP}
-                  title={item.modelName}
+                  leading={
+                    <ModelBrandIcon
+                      brand={modelEntryLabel(item).brand}
+                      size={theme.type.title.line}
+                      color={usable ? theme.color.fg : theme.color.muted}
+                    />
+                  }
+                  title={modelEntryLabel(item).name}
+                  accessibilityLabel={`${item.modelName}, ${item.providerName}`}
                   detail={
                     item.credential === 'missing'
                       ? t.modelNeedsKey(item.providerName)
@@ -280,6 +429,19 @@ function ModelsView({
                   tone={usable ? 'fg' : 'muted'}
                   selected={selected}
                   control={selected ? { kind: 'check' } : undefined}
+                  accessory={
+                    <FavoriteButton
+                      testID={`model-favorite-${item.provider}-${item.model}`}
+                      label={
+                        isFavorite
+                          ? t.modelSettings.favoriteRemove(item.modelName)
+                          : t.modelSettings.favoriteAdd(item.modelName)
+                      }
+                      favorite={isFavorite}
+                      disabled={models.busy}
+                      onPress={() => star(item, !isFavorite)}
+                    />
+                  }
                   onPress={
                     models.busy || (!usable && !(picker === 'allowed' && selected)) || required
                       ? undefined

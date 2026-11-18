@@ -15,6 +15,8 @@ import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { ModelCatalogEntryView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { ModelPicker } from './model-picker.js';
+import { ModelBrandIcon } from './model-brand.js';
+import { catalogMenuItems } from './model-menu.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
@@ -753,26 +755,43 @@ export function DefaultModelSettings({
   t: BotHarnessTranslate;
 }): ReactElement {
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState('');
+  const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const [current, setCurrent] = useState<string>();
   const mount = useMountedResource<HTMLDivElement>(() => {
-    void actions
-      .modelCatalog()
-      .then((catalog) =>
-        setLabel(
-          catalog.default
-            ? `${catalog.default.provider} / ${catalog.default.model}`
-            : t('modelPreset.noPlan'),
-        ),
+    void actions.modelCatalog().then((catalog) => {
+      setModels(catalog.models);
+      setCurrent(
+        catalog.default === undefined
+          ? ''
+          : JSON.stringify([catalog.default.provider, catalog.default.model]),
       );
+    });
   }, [actions]);
+  const item = catalogMenuItems(models, t).find((entry) => entry.value === current);
   return (
     <SettingsRow
       rootRef={mount}
       title={t('onboarding.defaultTitle')}
       description={t('onboarding.defaultDescription')}
       control={
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-          {label || t('onboarding.model')}
+        <Button
+          variant="outline"
+          size="sm"
+          title={item?.name}
+          aria-label={
+            item === undefined
+              ? t('onboarding.defaultTitle')
+              : `${t('onboarding.defaultTitle')} · ${item.name}`
+          }
+          onClick={() => setOpen(true)}
+        >
+          {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
+          {item?.label ??
+            (current === ''
+              ? t('modelPreset.noPlan')
+              : current === undefined
+                ? t('onboarding.model')
+                : (JSON.parse(current) as string[]).join(' / '))}
         </Button>
       }
     >
@@ -785,7 +804,7 @@ export function DefaultModelSettings({
           onClose={() => setOpen(false)}
           onConfirm={async (route) => {
             await actions.onboardingModel(undefined, 0, route, true);
-            setLabel(`${route.provider} / ${route.model}`);
+            setCurrent(JSON.stringify([route.provider, route.model]));
             setOpen(false);
           }}
         />

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { ModelBrandIcon, modelBrand, modelShortName } from '../src/client/model-brand.js';
-import { MODEL_BRAND_ICONS } from '../src/client/model-brand-icons.js';
+import { MODEL_BRAND_ICONS } from '@botharness/host-client/shared/model-brand-icons';
 
 describe('model brand', () => {
   it('matches the model family before the provider that serves it', () => {

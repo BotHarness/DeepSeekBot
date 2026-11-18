@@ -3000,9 +3000,13 @@ describe('DSH Bot Agent adapter', () => {
     expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
     expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
-    expect(received).toHaveLength(2);
+    expect(received).toHaveLength(3);
     expect(received?.[0]).toEqual({ type: 'text', text: '请核对发布状态' });
     expect(received?.[1]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('[Host context]'),
+    });
+    expect(received?.[2]).toMatchObject({
       type: 'text',
       text: expect.stringContaining('[Host reply transport reminder]'),
     });

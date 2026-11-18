@@ -5,6 +5,7 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
 const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -219,6 +220,9 @@ vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
+}));
+vi.mock('../src/host/native-header-model', () => ({
+  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
 }));
 vi.mock('../src/host/native-send-jump', () => ({
   sendJumpPreferences: {

@@ -242,6 +242,7 @@ import {
 } from './bots/bot-descriptor-sync.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
@@ -578,6 +579,7 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  modelFavorites: ModelFavoriteStore;
   routingGroups: RoutingGroupStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
@@ -767,6 +769,7 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let modelFavorites: ModelFavoriteStore;
   let routingGroups: RoutingGroupStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
@@ -884,6 +887,8 @@ function initializeCore(
       warn: options.warn,
       onCommitted: () => live?.publishRosterCommitted(),
     });
+    startup.enter('model-favorites', 'initialize');
+    modelFavorites = createModelFavoriteStore({ database: operationalDatabase });
     startup.enter('model-presets', 'initialize');
     modelPresets = createModelPresetStore({
       rootDir: join(dshHome, 'botharness'),
@@ -1565,6 +1570,7 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    modelFavorites,
     routingGroups,
     configureBotHopLimit: (read) => {
       const registration = { read };
@@ -3668,6 +3674,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,
     routeRests,
     modelCatalog,

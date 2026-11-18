@@ -1,6 +1,7 @@
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
+import * as prompts from '@botharness/host-client/prompt-presets';
 import {
   createHumanAvatarCache,
   type HumanAvatarCache,
@@ -30,6 +31,7 @@ import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { modelFavoritesEpoch, rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -296,6 +298,7 @@ import {
   type UsageQueryResult,
   loadGroupProfileActivity,
   loadModelCatalog,
+  setModelFavorite,
   loadModelPresets,
   loadModelPlan,
   loadModelPlanState,
@@ -315,6 +318,7 @@ import {
   setModelPlan,
   setStandingLimits,
   type ModelCatalogView,
+  type ModelChoice,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -545,32 +549,17 @@ export interface BridgeActions {
   botSystemPrompt(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
-  promptParts?(): Promise<{
-    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
-    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
-  }>;
-  promptPresets?(): Promise<{
-    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
-    globalPresetId: string | null;
-  }>;
+  promptParts?(): Promise<import('@botharness/host-client/prompt-presets').PromptParts>;
+  promptPresets?(): Promise<import('@botharness/host-client/prompt-presets').PromptPresets>;
   promptPresetCreate?(
     name: string,
     parts: Record<string, string | null>,
     limits?: Record<string, number | null>,
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetUpdate?(
     id: string,
-    change: {
-      name?: string;
-      parts?: Record<string, string | null>;
-      limits?: Record<string, number | null>;
-      expectedRevision?: number;
-    },
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+    change: import('@botharness/host-client/prompt-presets').PromptPresetChange,
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
@@ -660,6 +649,7 @@ export interface BridgeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   routingGroups(): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }>;
   createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
@@ -1997,6 +1987,9 @@ export function createActions(
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return result.value as T;
   };
+  const host: prompts.PromptPresetClient = {
+    call: (method, args) => invoke(method, args ?? {}),
+  };
   const humanAvatars = createHumanAvatarCache(async (humanIds) => ({
     avatars: await loadHumanAvatars(call, humanIds),
   }));
@@ -2114,17 +2107,13 @@ export function createActions(
     async botSystemPrompt(botSlug) {
       return invoke('botSystemPrompt', { slug: botSlug });
     },
-    promptParts: () => invoke('promptParts', {}),
-    promptPresets: () => invoke('promptPresets', {}),
+    promptParts: () => prompts.loadPromptParts(host),
+    promptPresets: () => prompts.loadPromptPresets(host),
     promptPresetCreate: (name, parts, limits) =>
-      invoke('promptPresetCreate', {
-        name,
-        parts,
-        ...(limits === undefined ? {} : { limits }),
-      }),
-    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
-    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
-    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+      prompts.createPromptPreset(host, name, parts, limits),
+    promptPresetUpdate: (id, change) => prompts.updatePromptPreset(host, id, change),
+    promptPresetDelete: (id) => prompts.deletePromptPreset(host, id),
+    promptGlobalSet: (presetId) => prompts.setGlobalPromptPreset(host, presetId),
     botPrompt: (slug) => invoke('botPrompt', { slug }),
     botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
     async botTurnInput(botSlug, turns = 1) {
@@ -2169,7 +2158,19 @@ export function createActions(
       });
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
-    modelCatalog: () => loadModelCatalog(call),
+    modelCatalog: () => {
+      const seen = modelFavoritesEpoch();
+      return loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(
+          catalog.favorites,
+          call,
+          (choice, favorite) => setModelFavorite(call, choice, favorite),
+          seen,
+        );
+        return catalog;
+      });
+    },
+    setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
     createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),

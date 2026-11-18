@@ -336,6 +336,8 @@ export const CLI_EFFECTS = {
   'messaging-targets': { effects: externalRead, brokerRead: true },
   'messaging-thread-policy': { effects: management, brokerRead: false },
   'model-catalog': { effects: read, brokerRead: true },
+  'model-favorite-add': { effects: write, brokerRead: false },
+  'model-favorite-remove': { effects: write, brokerRead: false },
   'model-plan': { effects: read, brokerRead: true },
   'model-plan-assignments-set': { effects: write, brokerRead: false },
   'model-plan-customize': { effects: write, brokerRead: false },

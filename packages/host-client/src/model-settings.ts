@@ -6,14 +6,17 @@ import {
   loadBotModel,
   loadGlobalModel,
   sameModel,
+  setModelFavorite,
   type AssignmentModelOption,
   type BotModel,
   type ModelCatalogEntry,
+  type ModelChoice,
   type ModelPreset,
   type ModelRoute,
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
+import { serialWrites } from './model-catalog';
 
 export type ModelScope =
   | { kind: 'global' }
@@ -36,6 +39,20 @@ export function modelScopeKey(scope: ModelScope): string {
 }
 
 const owners = new WeakMap<ModelSettingsClient, QueryClient>();
+const favoriteWriters = new WeakMap<
+  ModelSettingsClient,
+  (choice: ModelChoice, favorite: boolean) => Promise<ModelChoice[]>
+>();
+function writeFavorite(client: ModelSettingsClient) {
+  let write = favoriteWriters.get(client);
+  if (write === undefined) {
+    write = serialWrites((choice: ModelChoice, favorite: boolean) =>
+      setModelFavorite(client, choice, favorite),
+    );
+    favoriteWriters.set(client, write);
+  }
+  return write;
+}
 export function modelSettingsResource(client: ModelSettingsClient, scope: ModelScope) {
   let queries = owners.get(client);
   if (queries === undefined) {
@@ -53,6 +70,14 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
       await work();
       await owner.cancelQueries({ queryKey, exact: true });
       await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
+    },
+    favorite: async (choice: ModelChoice, favorite: boolean) => {
+      const favorites = await writeFavorite(client)(choice, favorite);
+      owner.setQueriesData<ModelSettingsState>({ queryKey: ['mobile-model-settings'] }, (old) =>
+        old === undefined ? old : { ...old, favorites },
+      );
+      await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
+      return favorites;
     },
     refresh: () =>
       owner.fetchQuery({
