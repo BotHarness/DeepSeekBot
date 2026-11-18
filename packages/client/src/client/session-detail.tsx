@@ -18,9 +18,8 @@ import type {
   SessionToolDetail,
   SessionTranscript,
   SessionTranscriptItem,
-  SessionTranscriptEnvelope,
-  SessionTranscriptTrigger,
 } from './bridge.js';
+import { SessionEnvelopeLabel, TRIGGER_ICONS } from './session-input-meta.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { MessageMarkdown } from './channel-message-body.js';
@@ -89,27 +88,6 @@ const GROUP_ICONS: Record<ToolGroup, string> = {
   other: 'puzzle',
 };
 
-const TRIGGER_ICONS: Record<SessionTranscriptTrigger, string> = {
-  request: 'inbox',
-  goal: 'target',
-  agent: 'messages-square',
-  team: 'users',
-  subagent: 'bot',
-  github: 'git-branch',
-  webhook: 'globe',
-  schedule: 'alarm-clock',
-  job: 'list-checks',
-  plugin: 'plug',
-};
-
-const ENVELOPE_ICONS: Record<SessionTranscriptEnvelope['kind'], string> = {
-  'human-dm': 'message-square',
-  group: 'hash',
-  'bot-dm': 'bot',
-  inbox: 'inbox',
-  other: 'inbox',
-};
-
 const styles = stylex.create({
   root: {
     position: 'relative',
@@ -161,16 +139,6 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   center: { textAlign: 'center' },
-  envelope: {
-    alignSelf: 'flex-end',
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x1,
-    marginTop: space.x3,
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
   afterEnvelope: { marginTop: space.x1 },
   input: {
     alignSelf: 'flex-end',
@@ -557,27 +525,21 @@ function InputBlock({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
-  if (item.source === 'user') {
-    const bubble = (
-      <div
-        data-transcript="input"
-        data-quote-source={quoteSourceId(sessionId, block.key)}
-        {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
-      >
-        <MessageMarkdown text={item.text} t={t} />
-      </div>
-    );
-    if (item.envelope === undefined) return bubble;
+  if (item.source === 'user')
     return (
       <>
-        <span data-transcript-envelope={item.envelope.kind} {...stylex.props(styles.envelope)}>
-          <ChannelSidebarIcon name={ENVELOPE_ICONS[item.envelope.kind]} size={12} />
-          {t(`sessions.detail.envelope.${item.envelope.kind}`)}
-        </span>
-        {bubble}
+        {item.envelope === undefined ? null : (
+          <SessionEnvelopeLabel kind={item.envelope.kind} t={t} />
+        )}
+        <div
+          data-transcript="input"
+          data-quote-source={quoteSourceId(sessionId, block.key)}
+          {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
+        >
+          <MessageMarkdown text={item.text} t={t} />
+        </div>
       </>
     );
-  }
   const trigger = item.trigger ?? 'request';
   const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
   return (
