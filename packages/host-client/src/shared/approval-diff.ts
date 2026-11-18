@@ -93,11 +93,11 @@ export function approvalShellCommand(
   toolName: string,
   input: string,
 ): { command: string; description?: string } | undefined {
-  if (toolName !== 'bash') return undefined;
+  if (toolName !== 'bash' && toolName !== 'shell') return undefined;
   const args = parseArgs(input);
   const command = text(args?.['command']);
   if (command === undefined || command.trim() === '') return undefined;
-  const description = text(args?.['description'])?.trim();
+  const description = (text(args?.['description']) ?? text(args?.['reason']))?.trim();
   return description ? { command, description } : { command };
 }
 
