@@ -1219,10 +1219,12 @@ describe('Model entry', () => {
     await type('When to use Pro', '  Hard debugging  ');
     await type('When to use Kimi K2', 'Quick lookups');
     await type('When to use Flash', '   ');
-    const high = [...card('Flash').querySelectorAll('label')].find(
-      (label) => label.textContent === 'High',
+    const effortBoxes = [...card('Flash').querySelectorAll<HTMLInputElement>('label input')];
+    expect(effortBoxes.map((input) => input.checked)).toEqual([true, true, true]);
+    const low = [...card('Flash').querySelectorAll('label')].find(
+      (label) => label.textContent === 'Low',
     )!;
-    await act(async () => high.querySelector('input')!.click());
+    await act(async () => low.querySelector('input')!.click());
     await act(async () =>
       card('Flash')
         .querySelector<HTMLButtonElement>(
