@@ -10800,20 +10800,6 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(parentSessionId ?? null);
       return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
     });
-    const waking = row.activity === 'idle' || recovering;
-    if (waking) {
-      const refusal = this.#assignmentCapacityRefusal('awakened');
-      if (refusal !== undefined) {
-        return {
-          ...refusal,
-          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-          delivery: 'capacity',
-        };
-      }
-      if (stopped !== undefined)
-        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running');
-      this.#setActivity(input.sessionId, 'working');
-    }
     const run: AssignmentAgentRun = {
       beginTurn: () => {
         if (typeof initiatingHuman !== 'string') return;
@@ -10852,6 +10838,20 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'cancelled'),
       failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
     };
+    const waking = row.activity === 'idle' || recovering;
+    if (waking) {
+      const refusal = this.#assignmentCapacityRefusal('awakened');
+      if (refusal !== undefined) {
+        return {
+          ...refusal,
+          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
+          delivery: 'capacity',
+        };
+      }
+      if (stopped !== undefined)
+        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running', 'working');
+      else this.#setActivity(input.sessionId, 'working');
+    }
     let delivery: AssignmentRequestDelivery;
     try {
       delivery = this.#agents.requestAssignment(run);
@@ -12319,6 +12319,7 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ['assignments'],
     );
+    this.#approvalCapacity.changed();
   }
 
   #setActivity(sessionId: string, activity: AssignmentActivity): void {
