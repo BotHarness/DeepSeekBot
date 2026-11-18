@@ -4,6 +4,7 @@ import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { attachOperationalModule } from '../src/database/owner.js';
+import { sessionDirectBody } from '../src/runtime/session-direct-message.js';
 import { createTempRoot } from './helpers.js';
 
 const cores: BotHarnessCore[] = [];
@@ -164,6 +165,28 @@ it('continues a transient failure by itself, twice at most, then waits for the H
   expect(cards.map((auto) => auto?.attempt)).toEqual([1, 2, undefined]);
   expect(cards[0]?.maxAttempts).toBe(2);
   expect(attemptState(fx.core, 'human-request')).toBe('retryable');
+});
+
+it('continues a transient failure of a message sent from Session detail', async () => {
+  const fx = await fixture(
+    async (_run, index) => {
+      if (index === 2) throw new Error('TRANSPORT: socket hang up');
+    },
+    [5, 5],
+  );
+  const sessionId = fx.core.runtime.currentOrchestratorSessionId?.('ada');
+  const sent = await fx.methods.sessionMessageSend({
+    botSlug: 'ada',
+    sessionId,
+    text: 'Skip the charts.',
+  });
+  expect(sent).toMatchObject({ ok: true });
+  await until(() => fx.runs.length === 3);
+  await fx.core.runtime.whenIdle();
+  expect(fx.runs[2]!.sessionId).toBe(sessionId);
+  expect(fx.runs[2]!.message).toContain('because it failed with TRANSPORT');
+  expect(fx.runs[2]!.message).toContain('Skip the charts.');
+  expect(sessionDirectBody(fx.runs[2]!.message)).toBe('Skip the charts.');
 });
 
 it('does not continue by itself after errors that would fail the same way again', async () => {

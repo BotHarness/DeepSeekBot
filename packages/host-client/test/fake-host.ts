@@ -182,6 +182,7 @@ export class FakeHost {
   readonly credential = 'device-1.secret-1';
   offer = 'offer-1';
   revoked = false;
+  teamRefusal: { status: number; code: string } | undefined;
   up = true;
   olderHost = false;
   changes = true;
@@ -240,6 +241,8 @@ export class FakeHost {
           }),
         );
       }
+      if (this.teamRefusal !== undefined)
+        return response(this.teamRefusal.status, JSON.stringify({ code: this.teamRefusal.code }));
       const refusal = this.refusal(init.headers?.['authorization']);
       if (refusal !== undefined) return response(401, JSON.stringify({ code: refusal }));
       if (parsed.pathname === '/botharness-device/feed-read')

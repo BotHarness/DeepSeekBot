@@ -401,6 +401,36 @@ describe('bridge parsers', () => {
     expect(messages[1]?.replyToPreview).toBeNull();
   });
 
+  it('parses quotes with previews and refuses malformed ones', () => {
+    const base = { id: 'q', at: '2026-11-17T00:00:00.000Z', author: { kind: 'human' }, body: 'x' };
+    const messages = parseChannelMessages({
+      messages: [
+        {
+          ...base,
+          quotes: [
+            {
+              messageId: 'a',
+              text: 'part',
+              preview: { author: { kind: 'bot', slug: 'ada' }, body: 'whole' },
+            },
+            { messageId: 'gone', preview: null },
+          ],
+        },
+        { ...base, id: 'no-id', quotes: [{ text: 'part' }] },
+        { ...base, id: 'bad-preview', quotes: [{ messageId: 'a', preview: { body: 1 } }] },
+      ],
+    });
+    expect(messages.map((message) => message.id)).toEqual(['q']);
+    expect(messages[0]?.quotes).toEqual([
+      {
+        messageId: 'a',
+        text: 'part',
+        preview: { author: { kind: 'bot', slug: 'ada' }, body: 'whole' },
+      },
+      { messageId: 'gone', preview: null },
+    ]);
+  });
+
   it('parses the media hint of a reply preview and drops one it does not understand', () => {
     const thumbnail = {
       fileId: 'file:00000000-0000-4000-8000-000000000001',

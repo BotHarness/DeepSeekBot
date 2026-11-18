@@ -40,12 +40,14 @@ describe('PersonaBot Session view preferences', () => {
     expect(sessionViewPreferenceSnapshot('menu-bot-a')).toEqual({
       scope: 'all',
       layout: 'workspace',
+      links: true,
       collapsedWorkspaces: ['cwd:/projects/a'],
       collapsedSections: [],
     });
     expect(sessionViewPreferenceSnapshot('menu-bot-b')).toEqual({
       scope: 'current',
       layout: 'status',
+      links: true,
       collapsedWorkspaces: [],
       collapsedSections: ['resolved'],
     });
@@ -61,6 +63,7 @@ describe('PersonaBot Session view preferences', () => {
       {
         scope: 'all',
         layout: 'workspace',
+        links: false,
         collapsedWorkspaces: ['cwd:/projects/a'],
         collapsedSections: [],
       },
@@ -68,24 +71,33 @@ describe('PersonaBot Session view preferences', () => {
     );
     writeSessionViewPreference(
       'bot-b',
-      { scope: 'current', layout: 'workspace', collapsedWorkspaces: [], collapsedSections: [] },
+      {
+        scope: 'current',
+        layout: 'workspace',
+        links: true,
+        collapsedWorkspaces: [],
+        collapsedSections: [],
+      },
       storage,
     );
     expect(readSessionViewPreference('bot-a', storage)).toEqual({
       scope: 'all',
       layout: 'workspace',
+      links: false,
       collapsedWorkspaces: ['cwd:/projects/a'],
       collapsedSections: [],
     });
     expect(readSessionViewPreference('bot-b', storage)).toEqual({
       scope: 'current',
       layout: 'workspace',
+      links: true,
       collapsedWorkspaces: [],
       collapsedSections: [],
     });
     expect(readSessionViewPreference('bot-c', storage)).toEqual({
       scope: 'current',
       layout: 'status',
+      links: true,
       collapsedWorkspaces: [],
       collapsedSections: ['resolved'],
     });
@@ -109,6 +121,7 @@ describe('PersonaBot Session view preferences', () => {
     expect(readSessionViewPreference('bot-a', storage)).toEqual({
       scope: 'current',
       layout: 'workspace',
+      links: true,
       collapsedWorkspaces: ['cwd:/a'],
       collapsedSections: [],
     });

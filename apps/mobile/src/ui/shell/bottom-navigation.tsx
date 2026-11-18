@@ -1,3 +1,4 @@
+import { useMemberCanCreateBots } from '../../host/member-permissions';
 import { ChatsSheetRoot } from './chats-sheet-root';
 import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
@@ -11,6 +12,7 @@ import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
+import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import {
   creationTargets,
   type CreationAction,
@@ -26,6 +28,7 @@ import { fab, materialNavigationBar, navigationBar, radius, space } from '../des
 import { useMounted } from '../mounted';
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
+import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
@@ -70,8 +73,11 @@ function NavigationLayout() {
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
+  const profileSetup = useProfileSetupPrompt();
   return (
     <FloatingTabInset.Provider value={reserved}>
+      <View ref={profileSetup.load} collapsable={false} />
+      <View ref={profileSetup.prompt} collapsable={false} />
       <WorkspacePager>
         <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
           <Tabs
@@ -127,11 +133,16 @@ function ScopedNavigationBar({
   const { saved } = useHostSession();
   const look = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
+  const canCreateBots = useMemberCanCreateBots(
+    saved?.member === undefined ? undefined : saved.hostId,
+  );
   const targets = creationTargets(
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
   ).map((target) =>
-    target.kind === 'computer' ? { ...target, channelCreation: Platform.OS === 'android' } : target,
+    target.kind === 'computer'
+      ? { ...target, channelCreation: Platform.OS === 'android', botCreation: canCreateBots }
+      : target,
   );
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
@@ -215,15 +226,18 @@ function ScopedNavigationBar({
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
   const fabBottom = size + bottom + fab.margin;
-  const create = (buttonSize: number) => (
-    <CreationMenuButton
-      scope={scope}
-      targets={targets}
-      size={buttonSize}
-      busy={busy}
-      onPick={(action, target) => void choose(action, target)}
-    />
-  );
+  const creatable =
+    creationMenuItems({ scope, targets, nativeChannelForm: Platform.OS === 'android' }).length > 0;
+  const create = (buttonSize: number) =>
+    creatable ? (
+      <CreationMenuButton
+        scope={scope}
+        targets={targets}
+        size={buttonSize}
+        busy={busy}
+        onPick={(action, target) => void choose(action, target)}
+      />
+    ) : null;
   if (Platform.OS === 'android')
     return (
       <>

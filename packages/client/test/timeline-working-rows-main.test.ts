@@ -403,6 +403,8 @@ describe('Bot working status in the Channel header', () => {
       }),
     );
     expect(container.querySelector('.bh-timeline-new-count')?.textContent).toBe('1');
+    expect(container.querySelector('.bh-timeline-new svg')).toBeNull();
+    expect(container.querySelector('.bh-timeline-new')?.hasAttribute('data-unseen')).toBe(true);
     expect(container.querySelector('.bh-timeline-new')?.getAttribute('aria-description')).toBe(
       '1 条新消息 · 跳到最新',
     );

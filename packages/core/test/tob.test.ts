@@ -761,6 +761,58 @@ describe('authenticated model-free Tob CLI DM admission', () => {
     },
   );
 
+  it('queues a Session detail message behind a running CLI request instead of steering it', async () => {
+    let entered!: (run: OrchestratorAgentRun) => void;
+    const running = new Promise<OrchestratorAgentRun>((resolve) => {
+      entered = resolve;
+    });
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const messages: string[] = [];
+    const steer = vi.fn(() => true);
+    const f = fixture(
+      async (run) => {
+        if (!run.tobCliTurn) {
+          messages.push(run.message);
+          return;
+        }
+        entered(run);
+        await released;
+        run.tobCliTurn.complete({ exitCode: 0, stdout: '{}', stderr: '' });
+      },
+      {},
+      steer,
+    );
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      const run = await running;
+      const sent = await bridge.sessionMessageSend({
+        botSlug: run.bot.slug,
+        sessionId: run.sessionId,
+        text: 'Wait for my answer.',
+      });
+      expect(sent).toMatchObject({ ok: true });
+      expect(steer).not.toHaveBeenCalled();
+      release();
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'completed' },
+      });
+      expect(messages.some((message) => message.includes('Wait for my answer.'))).toBe(true);
+    } finally {
+      release();
+      await f.close();
+    }
+  });
+
   it('rejects a second lease, cancels the active turn, and refuses supplied authority', async () => {
     let ready!: () => void;
     const entered = new Promise<void>((resolve) => {

@@ -3,7 +3,7 @@ import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 import type { SkillCatalogEntry, SkillOwner } from './entries.js';
-import { readWorkspaceSkills, type SkillWorkspace } from './workspace.js';
+import { readWorkspaceSkillAt, readWorkspaceSkills, type SkillWorkspace } from './workspace.js';
 import type { WorkspaceGrant } from '../workspaces/grants.js';
 
 export {
@@ -357,9 +357,19 @@ export class SkillCatalog {
         (entry) => entry.workspaceId === owner.workspaceId,
       );
       if (workspace === undefined) return undefined;
-      const skill = (await readWorkspaceSkills(workspace.path)).find(
+      const cachedPath = (await this.#workspaceEntries(workspace)).find(
         (entry) => entry.name === name && entry.invocation.userInvocable,
-      );
+      )?.path;
+      const direct =
+        cachedPath === undefined
+          ? undefined
+          : await readWorkspaceSkillAt(workspace.path, cachedPath);
+      const skill =
+        direct?.name === name && direct.invocation.userInvocable
+          ? direct
+          : (await readWorkspaceSkills(workspace.path)).find(
+              (entry) => entry.name === name && entry.invocation.userInvocable,
+            );
       if (
         skill === undefined ||
         !this.workspaces(botSlugs).some(
@@ -413,4 +423,29 @@ export class SkillCatalog {
       throw new SkillContentTooLargeError(name);
     return resolved;
   }
+}
+
+export function sessionSkills(
+  entries: readonly SkillCatalogEntry[],
+  botSlug: string,
+  workspaceIds: ReadonlySet<string>,
+): SkillCatalogEntry[] {
+  const rank = (owner: SkillOwner): number =>
+    owner.kind === 'workspace'
+      ? workspaceIds.has(owner.workspaceId)
+        ? 0
+        : -1
+      : owner.kind === 'bot'
+        ? owner.botSlug === botSlug
+          ? 1
+          : -1
+        : 2;
+  const winners = new Map<string, SkillCatalogEntry>();
+  for (const entry of entries) {
+    const level = rank(entry.owner);
+    if (level < 0) continue;
+    const current = winners.get(entry.name);
+    if (current === undefined || level < rank(current.owner)) winners.set(entry.name, entry);
+  }
+  return [...winners.values()];
 }

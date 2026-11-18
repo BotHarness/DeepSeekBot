@@ -1,5 +1,6 @@
 import { mountWorkspaceChrome, updateWorkspaceChrome } from './workspace-chrome.js';
 import { AppearancePanelHeader } from './appearance-panel-header.js';
+import { SessionHeaderSlot } from './session-header-slot.js';
 import { AppearanceContext } from './appearance-context.js';
 import { PanelAppearanceSettings } from './appearance-panel-settings.js';
 import { panelTargetId } from './appearance-panels.js';
@@ -15,7 +16,6 @@ import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { ChannelWorkspace } from './channel-workspace.js';
 import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { PanelVisibilityLabel } from './panel-menu.js';
-import { mountPanelScrollbars } from './ds/panel-scrollbars.js';
 import { usePanelMenu } from './panel-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { workspaceColumns, moveWorkspaceRail, isFullHeightRail } from './workspace-layout.js';
@@ -103,6 +103,7 @@ import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
 const styles = stylex.create({
+  sessionChips: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
   storageWarning: {
     position: 'absolute',
     bottom: space.x4,
@@ -185,6 +186,12 @@ interface ChannelInboxView {
   setOpen(open: boolean): void;
 }
 
+export interface ChannelSessionView {
+  title: string;
+  content: ReactNode;
+  close(): void;
+}
+
 export interface ChannelFilesView {
   open: boolean;
   setOpen(open: boolean): void;
@@ -228,6 +235,7 @@ interface DockContextValue {
   hasHeader: boolean;
   files?: { open: boolean; setOpen(open: boolean): void } | undefined;
   inbox?: ChannelInboxView | undefined;
+  session?: ChannelSessionView | undefined;
   railed: boolean;
   channelsHeader: HTMLSpanElement | null;
   setChannelsHeader(node: HTMLSpanElement | null): void;
@@ -412,6 +420,7 @@ function workspaceState(dock: DockContextValue, id: string): SubpanelState | und
 
 function ChannelBodyPanel(): ReactElement {
   const dock = useDock();
+  const [sessionSlot, setSessionSlot] = useState<HTMLElement | null>(null);
   if (dock.column) return <>{dock.conversation(<SimpleMessageContent column={dock.column} />)}</>;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
@@ -427,6 +436,16 @@ function ChannelBodyPanel(): ReactElement {
         content: <ChannelEntryContent entryId={id} />,
       };
   }
+  if (dock.channel !== undefined && dock.session !== undefined)
+    panels[SESSION_DETAIL] = {
+      label: dock.session.title,
+      header: <SessionDockHeader dock={dock} session={dock.session} slot={setSessionSlot} />,
+      content: (
+        <SessionHeaderSlot.Provider value={sessionSlot}>
+          {dock.session.content}
+        </SessionHeaderSlot.Provider>
+      ),
+    };
   return (
     <>
       {dock.conversation(
@@ -543,6 +562,7 @@ function ChannelMessageContent(): ReactElement {
 }
 
 const GENERATED_FILES = 'generated-files';
+const SESSION_DETAIL = 'session-detail';
 
 interface ColumnEntry {
   id: string;
@@ -598,6 +618,149 @@ interface SubpanelReorderApi {
   finish(): void;
   cancel(): void;
   nudge(id: string, delta: -1 | 1): void;
+}
+
+function SessionDetailHeader({
+  dock,
+  session,
+  slot,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
+}): ReactElement {
+  const label = dock.t('dock.close', { label: session.title });
+  return (
+    <PanelHeader
+      label={session.title}
+      onHide={session.close}
+      hideLabel={label}
+      hideHint={dock.t('dock.headHintHide')}
+      badge={
+        <span ref={slot} data-session-header-chips="" {...stylex.props(styles.sessionChips)} />
+      }
+      action={
+        <Tooltip label={label} side="bottom">
+          <IconButton aria-label={label} onClick={session.close}>
+            <ChannelSidebarIcon name="x" />
+          </IconButton>
+        </Tooltip>
+      }
+    />
+  );
+}
+
+function SessionDockHeader({
+  dock,
+  session,
+  slot,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
+}): ReactElement {
+  const appearance = useContext(AppearanceContext);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const menu = usePanelMenu({
+    items: [
+      ...(appearance
+        ? [
+            { id: 'appearance', label: dock.t('appearance.panelMenu') },
+            { type: 'separator' as const, id: 'appearance-separator' },
+          ]
+        : []),
+      ...(['left', 'right', 'above', 'below'] as const).map((direction) => ({
+        id: direction,
+        label: dock.t(`workspace.session.${direction}`),
+      })),
+    ],
+    onSelect: (id) => {
+      if (id === 'appearance') setAppearanceOpen(true);
+      else
+        dock.childLayout.setTree(
+          moveChannelSplit(
+            dock.childLayout.tree,
+            SESSION_DETAIL,
+            MESSAGE_LEAF,
+            id as DockPosition['direction'],
+          ),
+        );
+    },
+  });
+  return (
+    <>
+      {appearanceOpen && appearance && (
+        <PanelAppearanceSettings
+          owner={appearance}
+          id={panelTargetId(SESSION_DETAIL)}
+          label={session.title}
+          t={dock.t}
+          onClose={() => setAppearanceOpen(false)}
+        />
+      )}
+      <div data-appearance-header={SESSION_DETAIL} {...menu.triggerProps}>
+        {menu.menu}
+        <SessionDetailHeader dock={dock} session={session} slot={slot} />
+      </div>
+    </>
+  );
+}
+
+function SessionDetailAside({
+  dock,
+  session,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+}): ReactElement {
+  const members = dock.members;
+  const ratio = members?.ratio ?? 0.4;
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <div
+        className="bh-message-member-divider"
+        role="separator"
+        tabIndex={0}
+        aria-label={session.title}
+        aria-orientation="vertical"
+        aria-valuemin={20}
+        aria-valuemax={60}
+        aria-valuenow={Math.round(ratio * 100)}
+        onKeyDown={(event) => {
+          if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+          event.preventDefault();
+          members?.setRatio(ratio + (event.key === 'ArrowLeft' ? 0.02 : -0.02));
+        }}
+        onPointerDown={(event) => {
+          if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          const box = event.currentTarget.parentElement!.getBoundingClientRect();
+          const aside = event.currentTarget.nextElementSibling!.getBoundingClientRect();
+          members?.setRatio((aside.right - event.clientX) / box.width);
+        }}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+      />
+      <aside
+        className="bh-message-members"
+        aria-label={session.title}
+        data-session-aside=""
+        style={{ width: `${ratio * 100}%` }}
+      >
+        <AppearancePanelHeader id={SESSION_DETAIL} label={session.title} t={dock.t}>
+          <SessionDetailHeader dock={dock} session={session} slot={setSlot} />
+        </AppearancePanelHeader>
+        <div className="bh-channel-subpanel-body" data-appearance-body={SESSION_DETAIL}>
+          <SessionHeaderSlot.Provider value={slot}>{session.content}</SessionHeaderSlot.Provider>
+        </div>
+      </aside>
+    </>
+  );
 }
 
 function SimpleMessageContent({ column }: { column: SubpanelColumnView }): ReactElement {
@@ -762,6 +925,9 @@ function SimpleMessageContent({ column }: { column: SubpanelColumnView }): React
       <div className="bh-message-content">
         <DockBodySlot />
       </div>
+      {dock.channel !== undefined && dock.session !== undefined ? (
+        <SessionDetailAside dock={dock} session={dock.session} />
+      ) : null}
       {column.state.open && dock.channel && (
         <>
           <div
@@ -911,6 +1077,7 @@ function SubpanelColumnEntry({
       <div
         className="bh-subpanel-entry-header"
         data-subpanel-entry-header=""
+        data-appearance-header={entry.id}
         {...contextMenu.triggerProps}
       >
         {contextMenu.menu}
@@ -1532,6 +1699,7 @@ export interface ChannelDockProps {
   body: ReactNode;
   files?: ChannelFilesView | undefined;
   inbox?: ChannelInboxView | undefined;
+  session?: ChannelSessionView | undefined;
   revealBody?: boolean | undefined;
   panels: readonly DockPanelRegistration[];
   channel?: DockPanelChannel | undefined;
@@ -1559,6 +1727,7 @@ export function ChannelDock({
   body,
   files,
   inbox,
+  session,
   revealBody = false,
   panels,
   channel,
@@ -1613,7 +1782,7 @@ export function ChannelDock({
   let childTree =
     (channel && channelSplits[channel.id]) ||
     legacyChannelSplit({ ...botStates, sessions: sessionState });
-  for (const id of channelPanelIds) {
+  for (const id of session === undefined ? channelPanelIds : [...channelPanelIds, SESSION_DETAIL]) {
     if (!splitPanels(childTree).includes(id))
       childTree = { axis: 'horizontal', ratio: 0.7, first: childTree, second: { panel: id } };
   }
@@ -2075,10 +2244,6 @@ export function ChannelDock({
     },
     [api, workspaceMode],
   );
-
-  const scrollbarsMount = useMountedResource<HTMLSpanElement>((node) => {
-    if (node.parentElement) return mountPanelScrollbars(node.parentElement);
-  }, []);
 
   const registryMount = useMountedResource<HTMLDivElement>(() => {
     if (api === undefined) return;
@@ -2553,6 +2718,7 @@ export function ChannelDock({
       hasHeader: header !== undefined,
       files: filesValue,
       inbox: inboxValue,
+      session,
       railed: !!rail,
       channelsHeader,
       setChannelsHeader,
@@ -2666,7 +2832,6 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={layoutMount} hidden />
-          <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
           {dropX !== undefined && <span className="bh-workspace-drop" style={{ left: dropX }} />}
           <DockviewReact

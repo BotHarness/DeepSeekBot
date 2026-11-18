@@ -40,3 +40,46 @@ it('names the stopped Session or the whole Bot in the notice', () => {
   ).toBe('Human 停止了 Ada 的 Assignment「Crawl every page」');
   expect(text({ scope: 'nope' })).toBe('Human 停止了 Ada');
 });
+
+it('names the route that ran out of quota and when it resets (#4414)', () => {
+  const parsed = parseChannelMessage({
+    id: 'turn-stopped-3',
+    at: '2026-11-18T00:00:00.000Z',
+    body: 'Ada paused.',
+    author: { kind: 'system' },
+    turnStop: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      humanName: 'Human',
+      sessionId: 's-1',
+      held: true,
+      cause: 'quota',
+      rests: [
+        {
+          provider: 'opencode-go',
+          model: 'deepseek-v4.1-flash',
+          until: '2026-11-23T00:00:00.000Z',
+        },
+      ],
+    },
+  });
+  expect(parsed?.turnStop).toMatchObject({ cause: 'quota', rests: [{ provider: 'opencode-go' }] });
+  const text = turnStopText(parsed!.turnStop!, zhTranslate);
+  expect(text).toContain('Ada 已暂停：opencode-go/deepseek-v4.1-flash 额度用完');
+  expect(text).toContain('重置后给它发消息即可重试');
+  const malformed = parseChannelMessage({
+    id: 'turn-stopped-4',
+    at: '2026-11-18T00:00:00.000Z',
+    body: 'Ada paused.',
+    author: { kind: 'system' },
+    turnStop: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      humanName: 'Human',
+      sessionId: 's-1',
+      cause: 'quota',
+      rests: [{}],
+    },
+  });
+  expect(malformed?.turnStop?.rests).toBeUndefined();
+});

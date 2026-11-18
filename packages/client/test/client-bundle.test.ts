@@ -284,6 +284,12 @@ describe('@botharness/ui browser bundle', () => {
       },
       {
         name: 'shell.overlay',
+        id: 'botharness-human-profile-setup',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
+      {
+        name: 'shell.overlay',
         id: 'botharness-window-companion',
         locale: 'botharness',
         inject: expect.any(Function),

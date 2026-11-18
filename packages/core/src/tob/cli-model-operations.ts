@@ -81,6 +81,10 @@ function route(value: unknown): ModelRoute {
   text(value.model);
   return structuredClone(value);
 }
+function openFlag(value: unknown): boolean | undefined {
+  if (value !== undefined && typeof value !== 'boolean') throw new TobError('invalid-input');
+  return value;
+}
 function choices(value: unknown): AssignmentModelOption[] {
   if (!Array.isArray(value) || !value.every(isAssignmentModelOption))
     throw new TobError('invalid-input');
@@ -322,8 +326,10 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         'orchestrator',
         'assignmentDefault',
         'assignmentModels',
+        'openAssignmentModels',
         ...(update ? ['id', 'expectedRevision'] : []),
       ]);
+      const open = openFlag(args.openAssignmentModels);
       const id = update ? text(args.id) : undefined;
       const current = id ? deps.presets.get(id) : undefined;
       if (update && !current) throw new TobError('unknown-preset');
@@ -342,6 +348,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels ? { assignmentModels } : {}),
+        ...(open === undefined ? {} : { openAssignmentModels: open }),
       };
       const routes = [
         orchestrator,
@@ -414,14 +421,21 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         'slug',
         'assignmentDefault',
         'assignmentModels',
+        'openAssignmentModels',
         'expectedRevision',
         ...(full ? ['orchestrator'] : []),
       ]);
+      const open = openFlag(args.openAssignmentModels);
       const assignmentDefault = route(args.assignmentDefault),
         assignmentModels = choices(args.assignmentModels);
       const orchestrator = full ? route(args.orchestrator) : undefined;
       if (!full && !current.plan) throw new TobError('model-plan-required');
-      patch = { assignmentDefault, assignmentModels, ...(orchestrator ? { orchestrator } : {}) };
+      patch = {
+        assignmentDefault,
+        assignmentModels,
+        ...(orchestrator ? { orchestrator } : {}),
+        ...(open === undefined ? {} : { openAssignmentModels: open }),
+      };
       routes = [
         ...(orchestrator ? [orchestrator] : []),
         ...assignmentRoutes(assignmentDefault, assignmentModels),
@@ -430,10 +444,21 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         orchestrator
           ? deps.registry.setModelPlan(
               slug,
-              { orchestrator, assignmentDefault, assignmentModels },
+              {
+                orchestrator,
+                assignmentDefault,
+                assignmentModels,
+                ...(open === undefined ? {} : { openAssignmentModels: open }),
+              },
               expected,
             )
-          : deps.registry.setAssignmentModels(slug, assignmentDefault, assignmentModels, expected);
+          : deps.registry.setAssignmentModels(
+              slug,
+              assignmentDefault,
+              assignmentModels,
+              expected,
+              open,
+            );
     }
     await validate(routes);
     return prepared(command, slug, current, patch, expected, async (guard, beforeEffect) => {

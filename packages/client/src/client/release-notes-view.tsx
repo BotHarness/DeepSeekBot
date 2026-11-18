@@ -2,6 +2,7 @@ import { Button } from './ds/button.js';
 import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import { SettingsGroupPart } from './ds/settings-row.js';
 
 import {
   IconCloseOutlineRegular,
@@ -695,7 +696,7 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
   const installing = install.status === 'installing';
   const view = releaseView(snapshot);
   return (
-    <div className="bh-release-settings" ref={mount} data-release-settings>
+    <SettingsGroupPart rootRef={mount} data={{ 'data-release-settings': '' }}>
       <StatusBlock
         icon={view.icon}
         tone={view.tone}
@@ -831,6 +832,6 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
         }}
         t={t}
       />
-    </div>
+    </SettingsGroupPart>
   );
 }

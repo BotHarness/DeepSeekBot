@@ -274,7 +274,7 @@ describe('Remote Host credential custody', () => {
     const f = fixture();
     const http = createRemoteCustodyHttp(f.custody);
     expect(REMOTE_CUSTODY_ACTIONS).toEqual(
-      expect.arrayContaining(['seal', 'forget', 'request', 'socket', 'send', 'close']),
+      expect.arrayContaining(['seal', 'forget', 'request', 'team', 'socket', 'send', 'close']),
     );
     const post = async (body: unknown) =>
       http(
@@ -306,6 +306,49 @@ describe('Remote Host credential custody', () => {
     });
     expect(refused.status).toBe(409);
     expect(await refused.json()).toEqual({ code: 'custody-handle-unknown', refused: false });
+  });
+
+  it("signs a member in to a Team Host on the Client's behalf without a browser Origin", async () => {
+    const f = fixture();
+    const http = createRemoteCustodyHttp(f.custody);
+    const post = (body: unknown) =>
+      http(
+        new Request('http://localhost/api/botharness/remote-custody', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    const reply = await post({
+      action: 'team',
+      route: 'https://team.example.ts.net',
+      path: 'device-sign-in',
+      body: '{"username":"alice"}',
+    });
+    expect(reply.status).toBe(200);
+    expect(f.requests).toEqual([
+      {
+        url: 'https://team.example.ts.net/botharness-device/team/device-sign-in',
+        headers: { 'content-type': 'application/json' },
+      },
+    ]);
+    for (const route of [
+      'http://team.example.ts.net',
+      'https://127.0.0.1:8443',
+      'https://localhost',
+      'https://team.example.ts.net/elsewhere',
+    ]) {
+      const refused = await post({ action: 'team', route, path: 'device-sign-in', body: '{}' });
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({ code: 'custody-route-unknown', refused: false });
+    }
+    const other = await post({
+      action: 'team',
+      route: 'https://team.example.ts.net',
+      path: 'sign-in',
+      body: '{}',
+    });
+    expect(other.status).toBe(400);
+    expect(f.requests).toHaveLength(1);
   });
 
   it('lets the Client transport hand a handle to custody instead of opening its own session', () => {

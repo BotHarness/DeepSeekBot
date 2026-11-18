@@ -56,6 +56,7 @@ export interface BotSummary {
 export interface ChannelHumanMember {
   humanId: string;
   displayName: string;
+  avatarVersion?: string;
 }
 
 export interface ChannelSummary {
@@ -119,6 +120,24 @@ export type ChannelAuthor =
   | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
+
+export interface QuoteRef {
+  messageId: string;
+  text?: string;
+  note?: string;
+}
+
+export function quoteRefOf({ messageId, text, note }: QuoteRef): QuoteRef {
+  return {
+    messageId,
+    ...(text === undefined ? {} : { text }),
+    ...(note === undefined ? {} : { note }),
+  };
+}
+
+export interface ChannelMessageQuote extends QuoteRef {
+  preview?: ChannelReplyPreview | null;
+}
 
 export interface ChannelReplyPreview {
   author: ChannelAuthor;
@@ -274,9 +293,11 @@ export interface ChannelMessage {
       | { scope: 'bot' }
       | { scope: 'session'; role: 'orchestrator' | 'assignment'; title?: string };
     held?: boolean;
-    cause?: 'human-stop' | 'failures';
+    cause?: 'human-stop' | 'failures' | 'quota';
     failures?: number;
+    rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
   };
+  modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
@@ -289,6 +310,7 @@ export interface ChannelMessage {
   grantRequest?: true;
   grantRequestResolved?: boolean;
   assignmentReply?: { sessionId: string; sourceEventId: string };
+  sessionLinks?: { sessionId: string; kind: 'created' | 'sent'; title: string }[];
   grantRequestResolution?: { requestMessageId: string; grantId: string };
   toolApprovalRequest?: ToolApprovalRequestCard;
   approval?: ApprovalCardView;
@@ -306,6 +328,7 @@ export interface ChannelMessage {
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;
+  quotes?: ChannelMessageQuote[];
   pending?: boolean;
   failed?: string;
   unconfirmed?: boolean;
@@ -1047,6 +1070,7 @@ export function createStore({
         activityList: {
           ...initialActivityList(),
           unreadCount: state.activityList.unreadCount,
+          channelUnread: state.activityList.channelUnread,
           hasAction: state.activityList.hasAction,
           messageCounts: state.activityList.messageCounts,
           attentionStatus: state.activityList.attentionStatus,
