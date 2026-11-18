@@ -318,16 +318,21 @@ export class EngineHost {
   }
 
   async runTurn(request: EngineTurnRequest): Promise<void> {
-    const engine = this.engineFor(request.botSlug);
-    if (engine === undefined)
+    const selected = this.engineFor(request.botSlug);
+    if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
         'This Bot does not run on a Subscription Engine',
       );
     if (request.signal.aborted) return;
-    const limited = this.limit(engine);
-    if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);
+    const limited = this.limit(selected);
+    if (limited !== undefined) throw new EngineLimitError(selected, limited.account, limited.until);
     const live = await this.#open(request);
+    const engine = live.engine.engine;
+    if (engine !== selected) {
+      const opened = this.limit(engine);
+      if (opened !== undefined) throw new EngineLimitError(engine, opened.account, opened.until);
+    }
     const accountChecked = live.accountChecked;
     live.accountChecked = false;
     const previous = live.running;
