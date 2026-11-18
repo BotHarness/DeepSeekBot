@@ -1913,7 +1913,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultAgentPreset: globalBotMode,
     botModeOf,
     ensureBotModes: async () => {
-      if (installedBotModeIds !== undefined) return;
       await installedBotModes().catch(() => undefined);
     },
     assignmentModes: async (slug) => {

@@ -90,6 +90,16 @@ describe('Bot mode settings', () => {
     expect(() => reread.setTemplateOf('ada', 'missing')).toThrow(/unknown mode template/);
   });
 
+  it('refuses to point a Bot at a template another instance deleted', () => {
+    const home = dir();
+    const first = createBotModeSettings(home);
+    const coding = first.saveTemplate({ name: 'Coding', modes: ['ptc'] });
+    expect(first.template(coding.id)).toBeDefined();
+    createBotModeSettings(home).deleteTemplate(coding.id);
+    expect(() => first.setTemplateOf('ada', coding.id)).toThrow(/unknown mode template/);
+    expect(JSON.parse(readFileSync(join(home, BOT_MODE_SETTINGS_FILE), 'utf8'))).toEqual({});
+  });
+
   it('falls back to the product default when the file cannot be read, and reports why', () => {
     const home = dir();
     writeFileSync(join(home, BOT_MODE_SETTINGS_FILE), '{"defaultMode": 3}');
@@ -333,6 +343,70 @@ describe('Bot mode bridge methods', () => {
     });
   });
 
+  it('reports the default Sessions use when the saved default is uninstalled', async () => {
+    const settings = createBotModeSettings(dir());
+    settings.setDefaultMode('acp');
+    const methods = createBotModeBridgeMethods({
+      modes: {
+        settings,
+        productDefault: 'deepseekbot',
+        roster: async () => ROSTER.filter((mode) => mode.id !== 'acp'),
+      },
+      registry: registry({}),
+    });
+    expect(await methods.botModes({})).toMatchObject({
+      ok: true,
+      value: { globalDefault: 'acp', effectiveDefault: 'deepseekbot' },
+    });
+  });
+
+  it('refuses changes while the settings file cannot be read, except clearing a Bot’s mode', async () => {
+    const home = dir();
+    writeFileSync(join(home, BOT_MODE_SETTINGS_FILE), 'not json');
+    const bots: Record<string, Partial<PersonaBotRecord>> = { ada: { preset: 'ptc' } };
+    const methods = createBotModeBridgeMethods({
+      modes: {
+        settings: createBotModeSettings(home),
+        productDefault: 'deepseekbot',
+        roster: async () => ROSTER,
+      },
+      registry: registry(bots),
+    });
+    const refused = { ok: false, error: { code: 'settings-unreadable' } };
+    expect(await methods.botModeSet({ slug: 'ada', mode: 'acp' })).toMatchObject(refused);
+    expect(await methods.botModeDefaultSet({ mode: 'ptc' })).toMatchObject(refused);
+    expect(await methods.botModeTemplateSave({ name: 'Coding', modes: ['ptc'] })).toMatchObject(
+      refused,
+    );
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: null })).toMatchObject(
+      refused,
+    );
+    expect(bots['ada']!.preset).toBe('ptc');
+    expect(await methods.botModeSet({ slug: 'ada', mode: null })).toMatchObject({ ok: true });
+    expect(bots['ada']!.preset).toBeUndefined();
+  });
+
+  it('checks every Bot that uses a template, not only the caller’s own', async () => {
+    const settings = createBotModeSettings(dir());
+    const bots: Record<string, Partial<PersonaBotRecord>> = { ada: {} };
+    const others: Record<string, Partial<PersonaBotRecord>> = { ...bots, max: { preset: 'ptc' } };
+    const methods = createBotModeBridgeMethods({
+      modes: { settings, productDefault: 'deepseekbot', roster: async () => ROSTER },
+      registry: registry(bots),
+      everyone: registry(others),
+    });
+    const saved = await methods.botModeTemplateSave({ name: 'Coding', modes: ['ptc', 'acp'] });
+    const id = saved.ok ? saved.value.templates[0]!.id : '';
+    settings.setTemplateOf('max', id);
+    expect(await methods.botModeTemplateSave({ id, name: 'Coding', modes: ['acp'] })).toMatchObject(
+      { ok: false, error: { code: 'mode-not-allowed', message: /max/ } },
+    );
+    expect(await methods.botModeTemplateDelete({ id })).toMatchObject({
+      ok: false,
+      error: { code: 'template-in-use', message: /max/ },
+    });
+  });
+
   it('reports the methods unavailable without the DSH mode service', async () => {
     const methods = createBotModeBridgeMethods({ modes: undefined, registry: registry({}) });
     expect(await methods.botModes({})).toMatchObject({
@@ -397,6 +471,7 @@ describe('bot-modes CLI', () => {
     ['bot-mode-template-save', ['Coding']],
     ['bot-mode-template-save', ['--id', ' ', 'Coding', 'ptc']],
     ['bot-mode-template-delete', []],
+    ['bot-mode-template-delete', ['t1', '--id', 't2']],
     ['bot-mode-template-set', ['ada']],
   ])('refuses %s %j with a usage error', async (command, rest) => {
     await expect(run(command, rest)).rejects.toMatchObject({ code: 'usage' });

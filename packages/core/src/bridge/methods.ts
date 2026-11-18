@@ -2927,7 +2927,11 @@ function buildBridgeMethods(
       registry: deps.registry,
       log: deps.voiceLog,
     }),
-    ...createBotModeBridgeMethods({ modes: deps.botModes, registry: deps.registry }),
+    ...createBotModeBridgeMethods({
+      modes: deps.botModes,
+      registry: deps.registry,
+      everyone: globalRegistry,
+    }),
     channelBridges(payload) {
       const input = z
         .object({
@@ -5542,6 +5546,15 @@ function buildBridgeMethods(
         ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
         ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
       };
+      const presetSettingsError =
+        preset.value !== undefined && preset.value.trim().length > 0
+          ? deps.botModes?.settings.readError()
+          : undefined;
+      if (presetSettingsError !== undefined)
+        return {
+          ok: false,
+          error: { code: 'settings-unreadable', message: presetSettingsError },
+        };
       const allowedModes = deps.botModes?.settings.allowedModes(slug);
       if (
         preset.value !== undefined &&

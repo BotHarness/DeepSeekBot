@@ -53,6 +53,8 @@ export async function runBotModeCommand(
   options: { id?: string } = {},
 ): Promise<unknown> {
   const args = rest.map((value) => value.trim());
+  if (options.id !== undefined && command !== 'bot-mode-template-save')
+    usage(`${command} does not take --id; only bot-mode-template-save does.`);
   if (command === 'bot-modes') {
     if (args.length > 1 || args[0] === '') usage('bot-modes takes at most one <slug>.');
     return (await connect())('botModes', args.length === 0 ? {} : { slug: args[0] });

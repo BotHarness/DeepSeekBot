@@ -224,9 +224,9 @@ export function createBotModeSettings(dir: string): BotModeSettings {
       return id !== undefined && settings.template(id) !== undefined ? id : undefined;
     },
     setTemplateOf(slug, template) {
-      if (template !== undefined && settings.template(template) === undefined)
-        throw new Error(`unknown mode template: ${template}`);
       const state = fresh();
+      if (template !== undefined && !(state.templates ?? []).some((entry) => entry.id === template))
+        throw new Error(`unknown mode template: ${template}`);
       const { [slug]: _previous, ...others } = state.botTemplates ?? {};
       write({
         ...state,

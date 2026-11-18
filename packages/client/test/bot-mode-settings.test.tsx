@@ -64,10 +64,12 @@ describe('Bot mode page', () => {
         } as never),
       );
     });
+    await vi.waitFor(() =>
+      expect(host.querySelector('[data-bot-mode-settings] section[aria-label]')).not.toBeNull(),
+    );
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await Promise.resolve();
     });
-    expect(host.querySelector('[data-bot-mode-settings]')).not.toBeNull();
     expect(botModes).toHaveBeenCalledTimes(1);
   });
 });

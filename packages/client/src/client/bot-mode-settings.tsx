@@ -134,10 +134,7 @@ export function BotModeDefaultSetting({
   const [error, setError] = useState<string>();
   if (actions.botModes === undefined || actions.setBotModeDefault === undefined) return null;
   const set = actions.setBotModeDefault;
-  const value =
-    view === undefined || view.globalDefault === null || view.globalDefault === view.productDefault
-      ? PRODUCT
-      : view.globalDefault;
+  const value = view === undefined || view.globalDefault === null ? PRODUCT : view.globalDefault;
   const options =
     view === undefined
       ? [{ value, label: '…' }]
@@ -156,7 +153,10 @@ export function BotModeDefaultSetting({
               ]
             : []),
           ...view.modes
-            .filter((mode) => mode.id !== view.productDefault && mode.broken === undefined)
+            .filter(
+              (mode) =>
+                (mode.id !== view.productDefault || value === mode.id) && mode.broken === undefined,
+            )
             .map((mode) => ({ value: mode.id, label: modeText(mode, t).name })),
         ];
   const choose = (next: string): void => {
@@ -455,10 +455,7 @@ export function BotModeTemplateSettings({
               save({
                 ...(draft.id === undefined ? {} : { id: draft.id }),
                 name: draft.name.trim(),
-                modes: installed
-                  .map((mode) => mode.id)
-                  .filter((id) => draft.modes.includes(id))
-                  .concat(unavailable),
+                modes: draft.modes,
               }),
             )
           }

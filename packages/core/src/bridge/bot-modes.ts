@@ -56,19 +56,30 @@ function object(payload: unknown): Record<string, unknown> {
 export function createBotModeBridgeMethods(deps: {
   modes: BotModesDeps | undefined;
   registry: PersonaBotRegistry;
+  everyone?: PersonaBotRegistry;
 }): BotModeBridgeMethods {
+  const everyone = deps.everyone ?? deps.registry;
   const unavailable = () =>
     fail('modes-unavailable', 'DSH modes (Agent Presets) are unavailable on this Host.');
+  const unreadable = (modes: BotModesDeps): BridgeResult<never> | undefined => {
+    const error = modes.settings.readError();
+    return error === undefined ? undefined : fail('settings-unreadable', error);
+  };
   const view = async (
     modes: BotModesDeps,
     slug?: string,
-    roster?: BotModeOption[],
+    known?: BotModeOption[],
   ): Promise<BotModesView> => {
+    const roster = known ?? (await modes.roster());
     const globalDefault = modes.settings.defaultMode() ?? null;
-    const effectiveDefault = globalDefault ?? modes.productDefault;
+    const effectiveDefault =
+      globalDefault !== null &&
+      roster.some((entry) => entry.id === globalDefault && entry.broken === undefined)
+        ? globalDefault
+        : modes.productDefault;
     const bot = slug === undefined ? undefined : deps.registry.get(slug);
     return {
-      modes: roster ?? (await modes.roster()),
+      modes: roster,
       productDefault: modes.productDefault,
       globalDefault,
       effectiveDefault,
@@ -104,8 +115,8 @@ export function createBotModeBridgeMethods(deps: {
   return {
     async botModes(payload) {
       if (deps.modes === undefined) return unavailable();
-      const unreadable = deps.modes.settings.readError();
-      if (unreadable !== undefined) return fail('settings-unreadable', unreadable);
+      const refused = unreadable(deps.modes);
+      if (refused !== undefined) return refused;
       const slug = object(payload)['slug'];
       if (slug !== undefined && typeof slug !== 'string')
         return fail('invalid-input', 'slug must be a string');
@@ -116,11 +127,14 @@ export function createBotModeBridgeMethods(deps: {
     async botModeDefaultSet(payload) {
       const modes = deps.modes;
       if (modes === undefined) return unavailable();
-      const mode = await chosen(modes, object(payload)['mode']);
+      const refused = unreadable(modes);
+      if (refused !== undefined) return refused;
+      const roster = await modes.roster();
+      const mode = await chosen(modes, object(payload)['mode'], roster);
       if (!mode.ok) return mode;
       modes.settings.setDefaultMode(mode.value ?? undefined);
       modes.changed?.();
-      return { ok: true, value: await view(modes) };
+      return { ok: true, value: await view(modes, undefined, roster) };
     },
     async botModeSet(payload) {
       const modes = deps.modes;
@@ -131,8 +145,13 @@ export function createBotModeBridgeMethods(deps: {
         return fail('invalid-input', 'slug is required');
       if (deps.registry.get(slug) === undefined)
         return fail('not-found', `unknown PersonaBot: ${slug}`);
-      const mode = await chosen(modes, source['mode']);
+      const roster = await modes.roster();
+      const mode = await chosen(modes, source['mode'], roster);
       if (!mode.ok) return mode;
+      if (mode.value !== null) {
+        const refused = unreadable(modes);
+        if (refused !== undefined) return refused;
+      }
       const allowed = modes.settings.allowedModes(slug);
       if (mode.value !== null && allowed !== undefined && !allowed.includes(mode.value))
         return fail(
@@ -141,11 +160,13 @@ export function createBotModeBridgeMethods(deps: {
         );
       const result = deps.registry.update(slug, { preset: mode.value ?? '' });
       if (!result.ok) return fail('not-found', `unknown PersonaBot: ${slug}`);
-      return { ok: true, value: await view(modes, slug) };
+      return { ok: true, value: await view(modes, slug, roster) };
     },
     async botModeTemplateSave(payload) {
       const modes = deps.modes;
       if (modes === undefined) return unavailable();
+      const refused = unreadable(modes);
+      if (refused !== undefined) return refused;
       const source = object(payload);
       const id = source['id'];
       if (id !== undefined && (typeof id !== 'string' || modes.settings.template(id) === undefined))
@@ -165,7 +186,7 @@ export function createBotModeBridgeMethods(deps: {
         if (!mode.ok) return mode;
       }
       if (typeof id === 'string') {
-        const outside = deps.registry
+        const outside = everyone
           .list()
           .filter(
             (bot) =>
@@ -190,10 +211,12 @@ export function createBotModeBridgeMethods(deps: {
     async botModeTemplateDelete(payload) {
       const modes = deps.modes;
       if (modes === undefined) return unavailable();
+      const refused = unreadable(modes);
+      if (refused !== undefined) return refused;
       const id = object(payload)['id'];
       if (typeof id !== 'string' || modes.settings.template(id) === undefined)
         return fail('not-found', `No mode template has id ${String(id)}; read botModes.`);
-      const users = deps.registry
+      const users = everyone
         .list()
         .filter((bot) => modes.settings.templateOf(bot.slug) === id)
         .map((bot) => bot.slug);
@@ -209,6 +232,8 @@ export function createBotModeBridgeMethods(deps: {
     async botModeTemplateSet(payload) {
       const modes = deps.modes;
       if (modes === undefined) return unavailable();
+      const refused = unreadable(modes);
+      if (refused !== undefined) return refused;
       const source = object(payload);
       const slug = source['slug'];
       if (typeof slug !== 'string' || slug.length === 0)

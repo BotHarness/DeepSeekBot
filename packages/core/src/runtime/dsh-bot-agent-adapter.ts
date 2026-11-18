@@ -1506,13 +1506,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       setup,
       ...(signal === undefined ? {} : { signal }),
     };
-    await this.#ensureBotModes?.();
-    const meta = createMeta(
-      run,
-      this.#resolveOrchestratorCwd(run.bot),
-      this.#ensureWorkspace,
-      this.#botModeOf(run.bot),
-    );
     const resume =
       run.resume && (this.#hasSession === undefined || (await this.#hasSession(run.sessionId)));
     const handle = resume
@@ -1520,11 +1513,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           resumeSessionId: SessionId(run.sessionId),
           ...options,
         })
-      : await this.#agents.create({
-          sessionId: SessionId(run.sessionId),
-          ...(meta === undefined ? {} : { meta }),
-          ...options,
-        });
+      : await this.#createOrchestrator(run, options);
     try {
       signal?.throwIfAborted();
       run.tobCliTurn?.signal.throwIfAborted();
@@ -1546,6 +1535,24 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
+  }
+
+  async #createOrchestrator(
+    run: OrchestratorAgentRun,
+    options: Omit<CreateAgentOptions, 'sessionId' | 'meta'>,
+  ): Promise<AgentHandle> {
+    await this.#ensureBotModes?.();
+    const meta = createMeta(
+      run,
+      this.#resolveOrchestratorCwd(run.bot),
+      this.#ensureWorkspace,
+      this.#botModeOf(run.bot),
+    );
+    return this.#agents.create({
+      sessionId: SessionId(run.sessionId),
+      ...(meta === undefined ? {} : { meta }),
+      ...options,
+    });
   }
 
   #orchestratorTools(
@@ -4565,11 +4572,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return cwd;
   }
 
+  async #createAssignment(
+    run: AssignmentAgentRun,
+    options: CreateAgentOptions,
+  ): Promise<AgentHandle> {
+    await this.#ensureBotModes?.();
+    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
+    return this.#agents.create({ ...options, ...(meta === undefined ? {} : { meta }) });
+  }
+
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    await this.#ensureBotModes?.();
-    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
     const resolvedAgentOptions = agentOptions(
       run,
       this.#defaultModel.currentSelection(),
@@ -4582,7 +4596,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const borrowedDisposers: Array<() => void | Promise<void>> = [];
     const createOptions: CreateAgentOptions = {
       sessionId: SessionId(run.sessionId),
-      ...(meta === undefined ? {} : { meta }),
       agentOptions: resolvedAgentOptions,
       setup: async (agentCtx, agent, borrowed = false) => {
         this.#admitSession?.(agent);
@@ -4717,7 +4730,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           agentOptions: resolvedAgentOptions,
           setup: createOptions.setup!,
         })
-      : await this.#agents.create(createOptions);
+      : await this.#createAssignment(run, createOptions);
     const raced = this.#handles.get(run.sessionId);
     if (raced !== undefined || this.#closed) {
       await handle.dispose();
