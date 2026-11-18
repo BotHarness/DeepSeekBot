@@ -727,6 +727,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
+  agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;
@@ -10274,6 +10275,7 @@ function buildBridgeMethods(
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
           ...(modelRoute === undefined ? {} : { modelRoute }),
+          ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });

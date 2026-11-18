@@ -662,5 +662,9 @@
   {
     "id": "assignment-agent-preset",
     "sha256": "144837582ece0ca36c27feae9b720c07d660e8aa97e57f01bae83a2a8792eacd"
+  },
+  {
+    "id": "session-agent-preset",
+    "sha256": "8b15fd67839a58fc2c25f36cc286e7fab968b37435a0fd05be41fa6acb3cc5a0"
   }
 ]

@@ -1462,6 +1462,15 @@ const ASSIGNMENT_AGENT_PRESET_MIGRATION: SchemaMigration = {
   },
 };
 
+const SESSION_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'session-agent-preset',
+  module: 'session-ownership',
+  description: 'Record the DSH mode each owned root Session was composed from',
+  migrate(database) {
+    database.exec(`ALTER TABLE session_ownership ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
 const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
   id: 'routing-group-storage',
   module: 'routing-groups',
@@ -4091,4 +4100,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_AVATAR_CHANGE_MIGRATION,
   HUMAN_PROFILE_SETUP_MIGRATION,
   ASSIGNMENT_AGENT_PRESET_MIGRATION,
+  SESSION_AGENT_PRESET_MIGRATION,
 ]);

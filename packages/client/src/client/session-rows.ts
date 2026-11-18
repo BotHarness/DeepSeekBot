@@ -21,6 +21,7 @@ export interface PersonaBotSessionRow {
   archived?: true;
   triageOpenCount?: number;
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  mode?: string;
   subagentCount?: number;
 }
 
@@ -107,6 +108,7 @@ export function personaBotSessionRows(
         ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
           ? {}
           : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
+        ...(item.agentPreset === undefined ? {} : { mode: item.agentPreset }),
         ...(item.subagentCount === undefined ? {} : { subagentCount: item.subagentCount }),
       },
     ];

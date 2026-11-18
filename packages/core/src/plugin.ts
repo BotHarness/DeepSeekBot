@@ -1912,6 +1912,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     defaultAgentPreset: globalBotMode,
     botModeOf,
+    recordSessionMode: (sessionId, mode) => {
+      try {
+        core.ownership.recordAgentPreset(sessionId, mode);
+      } catch (error) {
+        ctx.logger.warn(`Could not record the mode of Session ${sessionId}: ${String(error)}`);
+      }
+    },
     ensureBotModes: async () => {
       await installedBotModes().catch(() => {
         installedBotModeIds ??= new Set();

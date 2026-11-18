@@ -3979,6 +3979,7 @@ export const zh = {
   'sessions.role.orchestrator': 'Orchestrator',
   'sessions.role.assignment': 'Assignment',
   'sessions.access.danger': '完整文件访问',
+  'sessions.mode': '模式：{name}。会话开始后不能更换。',
   'sessions.access.dangerDetails':
     '此事项会话可访问授权工作区之外的文件；关闭 Bot 默认设置不会降低此会话的权限。',
   'sessions.status.running': '运行中',
@@ -10414,6 +10415,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sessions.role.orchestrator': 'Orchestrator',
   'sessions.role.assignment': 'Assignment',
   'sessions.access.danger': 'Full file access',
+  'sessions.mode': 'Mode: {name}. It stays fixed once the Session starts.',
   'sessions.access.dangerDetails':
     'This Assignment Session can access files outside its workspace. Turning off the Bot default does not downgrade this Session.',
   'sessions.status.running': 'Running',

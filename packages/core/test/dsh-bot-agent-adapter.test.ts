@@ -4504,6 +4504,7 @@ describe('Assignment Directory Tools', () => {
     const mounted: Array<string | undefined> = [];
     let recorded: string | null = null;
     let current = 'deepseekbot';
+    const sessionModes: Array<[string, string]> = [];
     const adapterFor = () =>
       createDshBotAgentAdapter({
         agents: host,
@@ -4513,6 +4514,7 @@ describe('Assignment Directory Tools', () => {
         orchestratorCwd: () => '/memory/ada',
         ensureWorkspace: () => undefined,
         botModeOf: () => current,
+        recordSessionMode: (sessionId, mode) => sessionModes.push([sessionId, mode]),
         resolveAgentPresets: () => ({
           mount: async (_agentCtx, id) => {
             mounted.push(id);
@@ -4557,6 +4559,10 @@ describe('Assignment Directory Tools', () => {
       });
       expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
         'assignment-ptc',
+      ]);
+      expect(sessionModes).toEqual([
+        ['assignment-ptc', 'ptc'],
+        ['assignment-ptc', 'ptc'],
       ]);
       expect(mounted).toEqual(['ptc', 'ptc']);
     } finally {

@@ -440,6 +440,7 @@ export interface DshBotAgentAdapterOptions {
   defaultAgentPreset?: string | (() => string | undefined);
   botModeOf?: (botSlug: string) => string | undefined;
   ensureBotModes?: () => Promise<void>;
+  recordSessionMode?: (sessionId: string, mode: string) => void;
   assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
@@ -664,6 +665,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #defaultAgentPresetOf: () => string | undefined;
   readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
   readonly #ensureBotModes: (() => Promise<void>) | undefined;
+  readonly #recordSessionMode: ((sessionId: string, mode: string) => void) | undefined;
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
@@ -721,6 +723,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#currentBotModeOf = options.botModeOf;
     this.#ensureBotModes = options.ensureBotModes;
+    this.#recordSessionMode = options.recordSessionMode;
     const defaultAgentPreset = options.defaultAgentPreset;
     this.#defaultAgentPresetOf =
       typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
@@ -1840,7 +1843,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           mode: {
             type: 'string',
             description:
-              'Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode. The mode is fixed once the Assignment starts.',
+              'Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode. A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work, such as a terminal-only mode for a lookup or a script. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.',
           },
         },
         output: {
@@ -4555,10 +4558,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     } catch {
       recorded = undefined;
     }
-    await presets.mount(
-      agentCtx,
-      recorded ?? ('agentPreset' in run ? run.agentPreset : undefined) ?? this.#botModeOf(run.bot),
-    );
+    const mode =
+      recorded ?? ('agentPreset' in run ? run.agentPreset : undefined) ?? this.#botModeOf(run.bot);
+    await presets.mount(agentCtx, mode);
+    if (mode !== undefined) this.#recordSessionMode?.(run.sessionId, mode);
   }
 
   #botModeOf(bot: PersonaBotRecord): string | undefined {

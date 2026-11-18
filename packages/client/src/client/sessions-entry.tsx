@@ -12,6 +12,8 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { Icon } from './ds/icon.js';
+import { modeText } from './bot-mode-settings.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientStore } from './use-client-store.js';
@@ -450,6 +452,7 @@ function SessionsPanel({
         {...(summary === undefined ? {} : { summary })}
         {...(showWorkspace ||
         row.modelRoute !== undefined ||
+        row.mode !== undefined ||
         row.assignmentAccessMode === 'danger-full-access' ||
         rowProgress?.todos !== undefined ||
         rowProgress?.goal !== undefined
@@ -466,6 +469,14 @@ function SessionsPanel({
                   ) : null}
                   {row.modelRoute === undefined ? null : (
                     <SessionModelChip route={row.modelRoute} models={models} />
+                  )}
+                  {row.mode === undefined ? null : (
+                    <SessionMetaChip
+                      kind="mode"
+                      icon={<Icon name="sliders-horizontal" />}
+                      label={modeText({ id: row.mode }, t).name}
+                      title={t('sessions.mode', { name: modeText({ id: row.mode }, t).name })}
+                    />
                   )}
                   {row.assignmentAccessMode === 'danger-full-access' ? (
                     <span title={t('sessions.access.dangerDetails')}>

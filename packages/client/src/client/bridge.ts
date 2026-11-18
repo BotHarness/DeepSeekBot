@@ -2541,6 +2541,9 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(parseSessionModelRoute(record['modelRoute'])
           ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
           : {}),
+        ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
+          ? { agentPreset: record['agentPreset'] }
+          : {}),
         ...(typeof record['subagentCount'] === 'number' &&
         Number.isSafeInteger(record['subagentCount']) &&
         record['subagentCount'] > 0

@@ -3328,13 +3328,19 @@ describe('bridge methods', () => {
       workspaces: ['/srv/ada/'],
     });
 
+    ownership.recordAgentPreset('session-2', 'minimal');
     const result = methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toEqual([
       expect.objectContaining({ sessionId: 'session-1', role: 'orchestrator' }),
-      expect.objectContaining({ sessionId: 'session-2', role: 'assignment' }),
+      expect.objectContaining({
+        sessionId: 'session-2',
+        role: 'assignment',
+        agentPreset: 'minimal',
+      }),
     ]);
+    expect(result.value.sessions[0]).not.toHaveProperty('agentPreset');
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
