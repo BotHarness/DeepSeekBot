@@ -21,6 +21,7 @@ export default function ChatNameScreen() {
       {human.identity === undefined ? null : (
         <AccountNameEditor
           name={human.identity.defaultDisplayName ?? ''}
+          placeholder={human.identity.displayName}
           onSave={async (next) => {
             if (client === undefined) throw new Error('host-unavailable');
             await saveHumanName(client, next);

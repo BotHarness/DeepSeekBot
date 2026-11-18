@@ -15,11 +15,16 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+const tobs = vi.hoisted(() => ({ state: { status: 'signed-out' } as { status: string } }));
+vi.mock('../src/account/native-account-profile', () => ({
+  useAccountProfile: () => tobs.state,
+}));
 
 import type { AccountProfileState } from '../src/account/account-profile';
 import { AccountNameEditor } from '../src/ui/shell/account-name-editor';
 import { ProfileSetupView } from '../src/ui/shell/profile-setup-view';
 import { AccountProfileView } from '../src/ui/shell/account-profile-view';
+import { AccountProfileRow } from '../src/ui/shell/account-profile-row';
 import { UploadedBotsView } from '../src/ui/shell/uploaded-bots-view';
 import type { MarketplaceAuthoredBot } from '../../../packages/core/src/marketplace/client';
 import { t } from '../src/ui/strings';
@@ -177,7 +182,33 @@ describe('Account Profile screen', () => {
     await act(async () => (byTestId(view, 'profile-setup-later') as HTMLButtonElement).click());
     expect(onLater).toHaveBeenCalled();
     await act(async () => (byTestId(view, 'profile-setup-photo') as HTMLButtonElement).click());
-    expect(editor.choose).toHaveBeenCalled();
+    expect(editor.choose).toHaveBeenCalledTimes(1);
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChange);
+    await act(async () =>
+      (byTestId(view, 'profile-setup-choose-photo') as HTMLButtonElement).click(),
+    );
+    expect(editor.choose).toHaveBeenCalledTimes(2);
+  });
+
+  it('leads Settings with the Host chat name and photo when signed out of Tobs', async () => {
+    const view = await render(
+      <AccountProfileRow
+        chat={{ name: 'Little Bear', avatar: 'data:image/png;base64,AAAA' }}
+        onPress={vi.fn()}
+      />,
+    );
+    const row = byTestId(view, 'settings-account-profile')!;
+    expect(row.textContent).toContain('Little Bear');
+    expect(row.textContent).toContain(t.accountProfile.tobsSignedOut);
+    expect(row.textContent).not.toContain(t.accountProfile.signInHint);
+    expect(row.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,AAAA');
+  });
+
+  it('asks to sign in from Settings before the Host chat name loads', async () => {
+    const view = await render(<AccountProfileRow onPress={vi.fn()} />);
+    const row = byTestId(view, 'settings-account-profile')!;
+    expect(row.textContent).toContain(t.accountProfile.signIn);
+    expect(row.textContent).toContain(t.accountProfile.signInHint);
   });
 
   it('lists uploaded Bots with size, date and a taken-down mark', async () => {

@@ -77,6 +77,14 @@ export function ProfileSetupView({
           <EditableAvatar editor={editor} corner={radius.round} testID="profile-setup-photo">
             <AccountAvatar uri={avatar} name={draft || name} size={profileShell.avatar} />
           </EditableAvatar>
+          <Button
+            label={t.avatarChange}
+            variant="text"
+            busy={editor.busy}
+            disabled={busy}
+            testID="profile-setup-choose-photo"
+            onPress={() => void editor.choose()}
+          />
           {editor.error === undefined ? null : (
             <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
               {editor.error}

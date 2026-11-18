@@ -174,20 +174,21 @@ function RenameSheet({
       avoidKeyboard
     >
       <KeyboardFormScroll enabled={false} nestedScrollEnabled>
-        <TextField
-          value={draft}
-          onChangeText={setDraft}
-          accessibilityLabel={fieldLabel ?? t.groupName}
-          placeholder={placeholder ?? name}
-          {...(testID === undefined ? {} : { testID })}
-          maxLength={GROUP_NAME_MAX}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={() => {
-            if ((allowEmpty || next !== '') && next !== name) void save();
-          }}
-          style={{ marginHorizontal: space.x5 }}
-        />
+        <View style={{ paddingHorizontal: space.x5 }}>
+          <TextField
+            value={draft}
+            onChangeText={setDraft}
+            accessibilityLabel={fieldLabel ?? t.groupName}
+            placeholder={placeholder ?? name}
+            {...(testID === undefined ? {} : { testID })}
+            maxLength={GROUP_NAME_MAX}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if ((allowEmpty || next !== '') && next !== name) void save();
+            }}
+          />
+        </View>
         <SheetActions>
           <View>
             <Button label={t.cancel} on="canvas" onPress={onClose} />
