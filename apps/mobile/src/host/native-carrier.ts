@@ -78,7 +78,10 @@ export function nativeCarrier(): HostCarrier {
         if (Object.keys(headers).length > 0) throw new Error('encrypted-channel-required');
         return openLanSocket(url, events);
       }
-      const socket = new (WebSocket as unknown as NativeWebSocket)(url, undefined, { headers });
+      const socket =
+        Object.keys(headers).length === 0
+          ? new WebSocket(url)
+          : new (WebSocket as unknown as NativeWebSocket)(url, undefined, { headers });
       let done = false;
       const closed = (reason: string): void => {
         if (done) return;
