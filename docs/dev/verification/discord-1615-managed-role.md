@@ -58,4 +58,4 @@ Provider `518314f6cf495aea093c0a93b0107de25b66e60d` (`4.32.0-botharness.25`) ran
 
 Earlier T3 snapshot/open attempts refused with no connected automation host, and a fallback browser reached Discord's login route. Those failures are retained as setup evidence. After the Human requested another built-in-browser attempt, T3 worked with the existing signed-in account and the qualification above completed. The earlier browser-access limit no longer blocks native testing.
 
-References: [issue #1615](https://github.com/BotHarness/DeepSeekBot/issues/1615), [role tags](https://docs.discord.com/developers/topics/permissions#role-object), [message fields](https://docs.discord.com/developers/resources/message#message-object), [ADR-0128](../../adr/0128-discord-checked-replies-preserve-native-child-channel-routing.md).
+References: [issue #1615](https://github.com/BotHarness/DeepSeekBot/issues/1615), [role tags](https://docs.discord.com/developers/topics/permissions#role-object), [message fields](https://docs.discord.com/developers/resources/message#message-object), [ADR-0128](../../decisions/im-providers.md#adr-0128).

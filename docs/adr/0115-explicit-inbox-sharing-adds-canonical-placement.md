@@ -21,4 +21,4 @@ The initial tracer supports one Group placement for an Inbox-only source. Retryi
 
 Sharing is an explicit disclosure to existing Channel members; a code revert cannot retract that accepted history. Recovery uses forward corrections through the existing owners. No schema, Provider SDK, new account or additional receiver is required. Source content stays external, untrusted material and does not gain Memory authority through local placement.
 
-References: [#636](https://github.com/BotHarness/BotHarness/issues/636), [#629](https://github.com/BotHarness/BotHarness/issues/629), [ADR-0108](0108-shared-channel-bridge-places-canonical-external-sources.md), [ADR-0113](0113-shared-external-traffic-uses-member-channel-harvest.md).
+References: [#636](https://github.com/BotHarness/BotHarness/issues/636), [#629](https://github.com/BotHarness/BotHarness/issues/629), [ADR-0108](../decisions/im-providers.md#adr-0108), [ADR-0113](0113-shared-external-traffic-uses-member-channel-harvest.md).
