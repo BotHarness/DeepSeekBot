@@ -86,7 +86,7 @@ describe('Group Channel info', () => {
 
     expect(info.channel).toMatchObject({
       name: 'Launch',
-      memberCount: 2,
+      memberCount: 4,
       avatar: 'data:image/jpeg;base64,/9j/AA==',
       ownerBotSlug: 'ada',
     });

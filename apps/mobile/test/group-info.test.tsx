@@ -313,7 +313,11 @@ describe('Group profile', () => {
     const view = await render(
       <GroupProfilePage
         {...sheet({
-          info: { ...info, channel: { ...info.channel, humanMembers: people }, people },
+          info: {
+            ...info,
+            channel: { ...info.channel, memberCount: 4, humanMembers: people },
+            people,
+          },
         })}
       />,
     );

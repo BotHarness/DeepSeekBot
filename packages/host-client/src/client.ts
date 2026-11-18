@@ -591,13 +591,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
           members: channel.members,
           ...previewOf(channel),
         });
-      else if (channel.type === 'group')
+      else if (channel.type === 'group') {
+        const humans = rosterHumans(channel.humanMembers);
         groups.push({
           id: channel.id,
           name: channel.name,
-          memberCount: channel.members.length,
+          memberCount: channel.members.length + (humans.humanMembers?.length ?? 0),
           members: channel.members,
-          ...rosterHumans(channel.humanMembers),
+          ...humans,
           ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])
@@ -614,6 +615,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
             })),
           ...previewOf(channel),
         });
+      }
     }
     groups.sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
     return {

@@ -608,7 +608,7 @@ function GroupIdentity({
       }
     >
       <Text pointerEvents="none" variant="meta" tone="muted">
-        {t.members(channel.memberCount + (channel.humanMembers?.length ?? 0))}
+        {t.members(channel.memberCount)}
       </Text>
       {error === undefined ? null : (
         <Text
