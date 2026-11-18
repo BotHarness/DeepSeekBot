@@ -347,6 +347,7 @@ Usage:
   tobs session-ids
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs session-send <id> <orchestrator-session-id> <text>
   tobs session-stop <id> <session-id> [--channel <channel-id>]
   tobs bot-stop <id> [--channel <channel-id>]
   tobs tool-approval-rules <id>

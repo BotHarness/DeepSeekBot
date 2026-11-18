@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { TRANSCRIPT_ITEMS, summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import { sessionDirectPrompt } from '../src/runtime/session-direct-message.js';
 import type { DshSessionEvent } from '../src/sessions/source.js';
 
 const at = (seq: number) => Date.UTC(2026, 10, 17, 0, 0, seq);
@@ -148,6 +149,33 @@ describe('Session transcript', () => {
     expect(transcript.items).toMatchObject([
       { kind: 'input', text: 'PR opened.', trigger: 'github' },
       { kind: 'input', text: 'Keep going.', trigger: 'goal' },
+    ]);
+  });
+
+  it('shows only the raw text of a message the Human sent from Session detail', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: sessionDirectPrompt('Stop and check the logs.', 'evt-1'),
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toEqual([
+      {
+        kind: 'input',
+        text: 'Stop and check the logs.',
+        at: iso(1),
+        turn: 1,
+        source: 'user',
+        origin: 'session-detail',
+      },
     ]);
   });
 

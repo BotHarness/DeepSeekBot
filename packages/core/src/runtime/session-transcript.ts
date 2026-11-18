@@ -3,6 +3,7 @@ import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 import { isPublicToolDetail } from '../state/tool-activity.js';
+import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
 
 export type SessionTranscriptTrigger =
@@ -31,6 +32,7 @@ export type SessionTranscriptItem =
       turn: number;
       source: 'user' | 'system';
       trigger?: SessionTranscriptTrigger;
+      origin?: 'session-detail';
     }
   | { kind: 'reply'; text: string; at: string }
   | { kind: 'reasoning'; text: string; at: string; durationMs?: number }
@@ -249,15 +251,17 @@ export function summarizeSessionTranscript(input: {
       const kind = source['kind'];
       if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) continue;
       const text = joined(blocks(data), 'text').replace(HOST_BLOCK, '').trim();
-      const human = kind === undefined || kind === 'user';
+      const direct = sessionDirectBody(text);
+      const human = direct !== undefined || kind === undefined || kind === 'user';
       if (text !== '')
         items.push({
           kind: 'input',
-          text,
+          text: direct ?? text,
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',
           ...(human ? {} : { trigger: transcriptTrigger(source) }),
+          ...(direct === undefined ? {} : { origin: 'session-detail' as const }),
         });
     } else if (event.type === 'assistant/message') {
       const parts = blocks(data);

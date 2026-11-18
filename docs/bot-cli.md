@@ -630,6 +630,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-send <bot-id> <orchestrator-session-id> <text>
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
 deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
@@ -645,6 +646,8 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 Card-created rules also appear under **Always allow · this Bot** in Bot permissions. This is the same canonical rule list: `tool-approval-rules` reads it and `tool-approval-rule-revoke` revokes it. Rules retain their Bot, role and authority scope independently of shared template text and copies. Reload the permissions list after a CLI revoke; the next matching call returns to the existing review flow.
 
 `session-stop <bot-id> <session-id>` stops one running Session of a Bot, as the stop button on its row in the Sessions panel does. Its Subagents stop with it, and the Bot's other Sessions keep running. It returns `stopped` and `alreadyIdle`, each a list of `{ botSlug, sessionId, role }`: a Session that is idle, already stopped or stopped twice comes back in `alreadyIdle` and still succeeds. A Session the Bot does not own is refused with `unknown-session`. With `--channel`, the Channel the stop came from gets a one-line notice (`turnStop.target`, plus `messageId` in the result), but only when the Session belongs there: the Bot's Orchestrator in a Channel the Bot is in, an Assignment only in the Channel that started it.
+
+`session-send <bot-id> <orchestrator-session-id> <text>` sends the Human's text straight into the Bot's current Orchestrator Session, as the input box in that Session's detail does. It is a deliberate steer and is rare. No Channel shows the text: the Session receives it raw under one line saying the Human wrote it in Session detail, and the Bot Inbox keeps it as a Human Source Event on the Human's DM, so it survives a restart or compaction. A running turn takes it at its next step; an idle Orchestrator wakes for it. The Bot does not have to reply; a `bot_send_message` with that `source_event_id` lands in the Human's DM without a quote. It returns `{ sourceEventId }`. Any other Session is refused with `invalid-input`.
 
 `session-stop <bot-id> --activity <activity-id>` stops the Session behind one row of the Bot's live activity snapshot (`sessions[].id`), as the stop on a row of the Messages header popover does. A row that has already gone means the Session finished, so the command returns empty `stopped` and `alreadyIdle` lists and still succeeds. Pass either a Session id or `--activity`, not both.
 

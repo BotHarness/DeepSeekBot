@@ -187,6 +187,7 @@ import {
   loadSessionLive,
   loadSessionToolDetail,
   sendSessionRequest,
+  sendOrchestratorMessage,
   type SessionProgress,
   type SessionTranscript,
   type SessionLiveSnapshot,
@@ -1195,6 +1196,7 @@ export interface BridgeActions {
   ): Promise<SessionLiveSnapshot>;
   sessionToolDetail?(slug: string, sessionId: string, callId: string): Promise<SessionToolDetail>;
   sendSessionRequest?(slug: string, sessionId: string, text: string, steer: boolean): Promise<void>;
+  sendOrchestratorMessage?(slug: string, sessionId: string, text: string): Promise<void>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -3998,6 +4000,9 @@ export function createActions(
     },
     sendSessionRequest(slug, sessionId, text, steer) {
       return sendSessionRequest(call, slug, sessionId, text, steer);
+    },
+    sendOrchestratorMessage(slug, sessionId, text) {
+      return sendOrchestratorMessage(call, slug, sessionId, text);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

@@ -76,6 +76,11 @@ export const INBOX_COMMANDS = [
       "stop one of a Bot's running Sessions (its Orchestrator or one Assignment); its other Sessions keep running",
   },
   {
+    command: 'session-send',
+    description:
+      "send a message straight into a Bot's current Orchestrator Session, without posting it in a Channel",
+  },
+  {
     command: 'bot-stop',
     description:
       'stop every running Session of one Bot; its Orchestrator stays quiet until a Human writes to it',
@@ -540,6 +545,18 @@ function prepare(
             ? {}
             : { channelId: required(values.channel, 'channel', command) }),
         },
+      };
+    }
+    case 'session-send': {
+      const [botSlug, sessionId, text] = positionals(
+        command,
+        rest,
+        3,
+        'a bot id, its current Orchestrator Session id and the message text',
+      );
+      return {
+        method: 'sessionMessageSend',
+        args: { botSlug, sessionId, text },
       };
     }
     case 'bot-stop': {

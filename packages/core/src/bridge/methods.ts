@@ -777,6 +777,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       stopped: { botSlug: string; sessionId: string; messageId: string };
     }>
   >;
+  sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
   sessionStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -3893,6 +3894,34 @@ function buildBridgeMethods(
         if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
       }
       return stopBotSessions(source, botSlug, channelId);
+    },
+    async sessionMessageSend(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const text = typeof source['text'] === 'string' ? source['text'] : undefined;
+      if (!botSlug || !sessionId || text === undefined || text.trim() === '')
+        return invalidInput('botSlug, sessionId and a non-blank text are required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      if (deps.runtime?.sendOrchestratorMessage === undefined) return unavailable();
+      const outcome = deps.runtime.sendOrchestratorMessage(human, {
+        botSlug,
+        sessionId,
+        text,
+      });
+      if (!outcome.delivered)
+        return {
+          ok: false,
+          error: {
+            code: outcome.reason === 'not-current-orchestrator' ? 'invalid-input' : 'unavailable',
+            message:
+              outcome.reason === 'not-current-orchestrator'
+                ? "Only the Bot's current Orchestrator Session accepts a direct message"
+                : `The message was not delivered: ${outcome.reason}`,
+          },
+        };
+      void outcome.settled.catch(() => undefined);
+      return { ok: true, value: { sourceEventId: outcome.sourceEventId } };
     },
     async sessionStop(payload) {
       const source = asObject(payload);

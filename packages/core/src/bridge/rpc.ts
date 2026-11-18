@@ -1217,6 +1217,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  sessionMessageSend(
+    botSlug: string,
+    sessionId: string,
+    text: string,
+  ): Promise<{ sourceEventId: string }> {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
+  }
   sessionStop(
     botSlug: string,
     sessionId?: string,
@@ -3468,6 +3475,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botTurnInput',
   'channelBotStop',
   'sessionStop',
+  'sessionMessageSend',
   'botStop',
   'modelCatalog',
   'modelPresets',

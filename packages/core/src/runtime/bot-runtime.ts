@@ -173,6 +173,7 @@ import {
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
 import { sessionMentionText } from './session-mentions.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX, sessionDirectPrompt } from './session-direct-message.js';
 import { botMentionLabel, resolveBotMentionText } from '../channels/bot-mention-text.js';
 import {
   createBotSourcePolicyStore,
@@ -850,6 +851,13 @@ export type DmAdmissionFailure =
   | 'blank-body'
   | 'cli-request-expired';
 
+export type OrchestratorMessageOutcome =
+  | { delivered: true; sourceEventId: string; settled: Promise<void> }
+  | {
+      delivered: false;
+      reason: DmAdmissionFailure | 'not-current-orchestrator';
+    };
+
 export type DmMessageAdmission =
   | { admitted: true; settled: Promise<void> }
   | { admitted: false; reason: DmAdmissionFailure };
@@ -948,6 +956,10 @@ export interface BotRuntime {
   ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
+  sendOrchestratorMessage?(
+    human: HumanContext,
+    input: { botSlug: string; sessionId: string; text: string },
+  ): OrchestratorMessageOutcome;
 
   admitGroupMessage(channelId: string, messageId: string): void;
 
@@ -2707,6 +2719,67 @@ class BotRuntimeImplementation implements BotRuntime {
               undefined,
               tobCliTurn,
             ),
+          ),
+    };
+  }
+
+  sendOrchestratorMessage(
+    human: HumanContext,
+    input: { botSlug: string; sessionId: string; text: string },
+  ): OrchestratorMessageOutcome {
+    if (this.#closed) return { delivered: false, reason: 'runtime-closed' };
+    const bot = this.#registry.get(input.botSlug);
+    if (
+      bot === undefined ||
+      (this.#team ? !this.#team.bots.canReach(human, bot.slug) : botOwner(bot) !== human.humanId)
+    )
+      return { delivered: false, reason: 'unknown-bot' };
+    if (!this.#memberBotEnabled(bot) || bot.paused === true)
+      return { delivered: false, reason: 'archived-bot' };
+    if (input.text.trim().length === 0) return { delivered: false, reason: 'blank-body' };
+    if (this.currentOrchestratorSessionId(bot.slug) !== input.sessionId)
+      return { delivered: false, reason: 'not-current-orchestrator' };
+    const principal = botOwner(bot);
+    const channel = this.#channels
+      .list()
+      .find(
+        (candidate) =>
+          candidate.type === 'dm' &&
+          candidate.botSlug === bot.slug &&
+          !candidate.deletedAt &&
+          !candidate.humanParticipants &&
+          (candidate.dmHumanId ?? principal) === human.humanId,
+      );
+    if (channel === undefined) return { delivered: false, reason: 'unknown-channel' };
+    this.#cancelAutoContinue(bot.slug);
+    this.#release(bot.slug);
+    const messageId = SESSION_DIRECT_MESSAGE_PREFIX + randomUUID();
+    const claim = this.#claimSourceEvent(
+      human,
+      bot.slug,
+      channel.id,
+      messageId,
+      input.text,
+      this.#now().toISOString(),
+    );
+    const steered =
+      claim.shouldRun &&
+      this.#delivery(bot.slug, 'human-dm') === 'steer' &&
+      this.#steerDmAdmission(
+        bot.slug,
+        channel.id,
+        messageId,
+        claim.sourceEventId,
+        'human-dm',
+        sessionDirectPrompt(input.text, claim.sourceEventId),
+      );
+    return {
+      delivered: true,
+      sourceEventId: claim.sourceEventId,
+      settled: steered
+        ? Promise.resolve()
+        : this.#enqueue(bot.slug, () =>
+            this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
           ),
     };
   }
@@ -4559,6 +4632,8 @@ class BotRuntimeImplementation implements BotRuntime {
   ): string {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
+    if (messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX) && message === undefined)
+      return sessionDirectPrompt(body, sourceEventId);
     if (messageId.startsWith('group-invite-') && message === undefined)
       return '[Bot Inbox: Group invitation]\n' + body;
     if (messageId.startsWith('group-join-decision-') && message === undefined)
@@ -8459,7 +8534,8 @@ class BotRuntimeImplementation implements BotRuntime {
       const channel = resolve(source.channel_id);
       if (
         (channel.type === 'dm' && !isBotDmChannel(channel) && channel.botSlug !== botSlug) ||
-        !this.#channels.hasMessage(channel.id, source.message_id)
+        (!this.#channels.hasMessage(channel.id, source.message_id) &&
+          !source.message_id.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
       )
         throw new Error('Trusted local reply source is unavailable');
       return { channelId: channel.id, messageId: source.message_id };
@@ -9263,7 +9339,13 @@ class BotRuntimeImplementation implements BotRuntime {
       send: async (input) => {
         if (input.replySourceEventId !== undefined) {
           const reply = replySource(input.replySourceEventId);
-          if (input.channelId !== reply.channelId || input.replyTo !== reply.messageId)
+          if (
+            input.channelId !== reply.channelId ||
+            input.replyTo !==
+              (reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
+                ? undefined
+                : reply.messageId)
+          )
             throw new Error('Reply destination does not match the trusted source');
         }
         requireReplySource();

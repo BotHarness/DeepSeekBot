@@ -226,6 +226,7 @@ export const MEMBER_BOT_METHODS = [
   'botContext',
   'botSystemPrompt',
   'sessionStop',
+  'sessionMessageSend',
   'sessions',
   'assignments',
   'assignment',
