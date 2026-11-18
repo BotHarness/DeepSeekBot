@@ -20,7 +20,8 @@ vi.mock('../src/client/model-usage-charts.js', () => ({
   UsageToneLegend: () => createElement('div', { 'data-tone-legend': '' }),
   UsageMeasures: () => null,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => createElement('svg'),
   IconRightUpOutlineRegular: () => createElement('svg'),
   Button: ({

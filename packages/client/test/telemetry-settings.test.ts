@@ -11,6 +11,7 @@ vi.mock('../src/client/ds/switch.js', async () => ({
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement: h } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Switch: (props: {
       checked: boolean;
       disabled?: boolean;

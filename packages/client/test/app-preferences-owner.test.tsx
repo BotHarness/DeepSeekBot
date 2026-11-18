@@ -3,7 +3,9 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 vi.mock('../src/client/appearance-pickers.js', () => ({
   ColorSchemePicker: ({ onChange }: { onChange(value: 'dark'): void }) =>
     createElement('button', { onClick: () => onChange('dark') }, 'Change Client theme'),

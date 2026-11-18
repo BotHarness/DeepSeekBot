@@ -11,6 +11,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   Button: ({
@@ -20,8 +21,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
     createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
 }));
 
 import { BridgeCallError, type BridgeCall } from '../src/client/bridge.js';
@@ -148,7 +147,7 @@ describe('Channel invitations client', () => {
         document.querySelector<HTMLButtonElement>('[data-channel-add-people-submit]')!;
       expect(submit().disabled).toBe(false);
       fail = true;
-      const input = container.querySelector<HTMLInputElement>('input')!;
+      const input = document.body.querySelector<HTMLInputElement>('input')!;
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
           input,

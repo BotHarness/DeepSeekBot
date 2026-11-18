@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Menu: () => null }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 import { pointerMenuPosition } from '../src/client/ds/pointer-menu.js';
 
 describe('pointer-menu safe viewport', () => {

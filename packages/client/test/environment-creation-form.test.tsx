@@ -71,6 +71,7 @@ vi.mock('../src/client/ds/select.js', () => ({
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconCheckOutlineRegular: () => null,
     IconEditOutlineRegular: () => null,

@@ -15,10 +15,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     ['useAnchoredPosition', () => ({ top: 0, left: 0 })],
   ]);
   return new Proxy(
-    {},
+    { ...(await import('./primitive-mocks.js')).shellPrimitives() },
     {
       has: () => true,
       get: (_target, key) => {
+        if (key in _target) return Reflect.get(_target, key);
         if (typeof key !== 'string' || key === 'then' || key === '__esModule') return undefined;
         if (!cache.has(key)) cache.set(key, key.startsWith('use') ? () => undefined : passthrough);
         return cache.get(key);

@@ -4,9 +4,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Item = { id: string; type?: string; label?: string; text?: string };
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Button: ({
       children,
       onClick,
@@ -16,8 +17,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       createElement('button', { onClick, disabled, type: type ?? 'button' }, children),
     Input: (props: Record<string, unknown>) => createElement('input', props),
     Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Modal: ({ children, title }: PropsWithChildren<{ title: string }>) =>
-      createElement('div', { role: 'dialog', 'aria-label': title }, children),
+
     StateDot: stub,
     IconChevronDownOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
@@ -25,30 +25,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSearchOutlineRegular: stub,
     IconPlusOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
-    Menu: ({
-      anchor,
-      items,
-      onSelect,
-    }: {
-      anchor: ReactNode;
-      items: readonly Item[];
-      onSelect(id: string): void;
-    }) =>
-      createElement(
-        'div',
-        null,
-        anchor,
-        items.map((item) =>
-          item.type === undefined
-            ? createElement(
-                'button',
-                { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-                item.label,
-              )
-            : createElement('span', { key: item.id }, item.text),
-        ),
-      ),
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -95,9 +72,10 @@ async function render(slug = 'plan-qa') {
       } as unknown as ChannelSidebarEntryProps),
     );
   });
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!.click());
 }
 function item(label: string) {
-  return [...host.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(
+  return [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find(
     (node) => node.textContent === label,
   );
 }
@@ -128,9 +106,9 @@ describe('Sessions header settings', () => {
   });
   it('edits the shared Assignment concurrency limit in a dialog', async () => {
     await render();
-    expect(host.querySelector('[role=dialog]')).toBeNull();
+    expect(document.body.querySelector('[role=dialog]')).toBeNull();
     act(() => item('同时最多 4 个…')!.click());
-    const dialog = host.querySelector('[role=dialog]')!;
+    const dialog = document.body.querySelector('[role=dialog]')!;
     expect(dialog.getAttribute('aria-label')).toBe('Assignment 并发上限');
     expect(dialog.querySelector('input')?.value).toBe('4');
   });

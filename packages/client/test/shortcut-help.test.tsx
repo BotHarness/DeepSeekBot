@@ -6,13 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { cloneElement } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...(await import('./primitive-mocks.js')).dialogPrimitives(),
     IconEditOutlineRegular: () => null,
-    Tooltip: ({ label, children }: { label: string; children: ReactElement }) =>
-      cloneElement(children, { 'data-tooltip': label } as never),
   };
 });
 
+import { openTooltip } from './primitive-mocks.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
 import {
   SHORTCUT_HELP_GROUPS,
@@ -79,7 +79,7 @@ describe('shortcut list', () => {
     expect(shortcutKeyLabel('Shift', false)).toBe('⇧');
   });
 
-  it('records, refuses and resets a changed shortcut', () => {
+  it('records, refuses and resets a changed shortcut', async () => {
     const bindings = new ShortcutBindings(undefined, () => false);
     const host = document.createElement('div');
     document.body.append(host);
@@ -87,9 +87,9 @@ describe('shortcut list', () => {
     act(() =>
       root.render(createElement(ShortcutHelpList, { t, apple: false, shortcutBindings: bindings })),
     );
-    const row = () => host.querySelector('[data-shortcut="bot-mode"]')!;
+    const row = () => document.body.querySelector('[data-shortcut="bot-mode"]')!;
     const change = () =>
-      host.querySelector<HTMLButtonElement>(
+      document.body.querySelector<HTMLButtonElement>(
         'button[aria-label="Change the shortcut for “Enter or leave Bot mode”"]',
       )!;
     const recorder = () => row().querySelector<HTMLButtonElement>('[data-shortcut-recorder]');
@@ -103,19 +103,22 @@ describe('shortcut list', () => {
     };
     document.addEventListener('keydown', onDocument);
 
-    const locked = host.querySelector<HTMLButtonElement>(
+    const locked = document.body.querySelector<HTMLButtonElement>(
       '[data-shortcut="recall"] [data-shortcut-locked]',
     )!;
     expect(locked.getAttribute('aria-disabled')).toBe('true');
-    expect(locked.dataset.tooltip).toBe("Can't be changed");
+    expect((await openTooltip(locked)).textContent).toBe("Can't be changed");
     act(() => locked.click());
-    expect(host.querySelector('[data-shortcut-recorder]')).toBeNull();
-    expect(
-      host.querySelector<HTMLElement>('[data-shortcut="send"] [data-shortcut-locked]')?.dataset
-        .tooltip,
-    ).toBe("Can't be changed here; switch it in Bot settings › Messaging › Send messages");
-    expect(change().dataset.tooltip).toBe('Change');
+    expect(document.body.querySelector('[data-shortcut-recorder]')).toBeNull();
+    const send = document.body.querySelector<HTMLElement>(
+      '[data-shortcut="send"] [data-shortcut-locked]',
+    )!;
+    expect((await openTooltip(send)).textContent).toBe(
+      "Can't be changed here; switch it in Bot settings › Messaging › Send messages",
+    );
+    expect((await openTooltip(change())).textContent).toBe('Change');
     expect(change().textContent).toBe('');
+    leaked = 0;
 
     act(() => change().click());
     expect(recorder()?.textContent).toBe('Press new keys, Esc to cancel');
@@ -155,13 +158,15 @@ describe('shortcut list', () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     act(() => root.render(createElement(ShortcutHelpView, { shortcutHelp: help, t })));
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     act(() => help.open());
-    expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+    expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
       'Keyboard shortcuts',
     );
-    act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click());
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    act(() =>
+      document.body.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click(),
+    );
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     act(() => root.unmount());
   });
 
@@ -199,10 +204,12 @@ it('waits for native recording acknowledgement and releases interception after s
       }),
     ),
   );
-  act(() => host.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click());
+  act(() =>
+    document.body.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click(),
+  );
   const press = () =>
     act(() => {
-      host.querySelector('[data-shortcut-recorder]')!.dispatchEvent(
+      document.body.querySelector('[data-shortcut-recorder]')!.dispatchEvent(
         new KeyboardEvent('keydown', {
           key: 'b',
           code: 'KeyB',
@@ -243,10 +250,10 @@ it('refuses recording when the native shell cannot acknowledge interception', as
     ),
   );
   await act(async () => {
-    host.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click();
+    document.body.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click();
   });
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Could not save');
-  expect(host.querySelector('[data-shortcut-recorder]')).toBeNull();
+  expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Could not save');
+  expect(document.body.querySelector('[data-shortcut-recorder]')).toBeNull();
   expect(bindings.isCustom('bot-mode')).toBe(false);
   act(() => root.unmount());
   host.remove();

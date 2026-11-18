@@ -3,10 +3,11 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Button: ({
       children,
       onClick,
@@ -15,13 +16,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       createElement('button', { onClick, disabled }, children),
     Input: stub,
     Tag,
-    Modal: ({ children, onClose }: PropsWithChildren<{ onClose(): void }>) =>
-      createElement(
-        'div',
-        { role: 'dialog' },
-        children,
-        createElement('button', { onClick: onClose }, 'Close source'),
-      ),
+
     StateDot: stub,
     IconChevronDownOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
@@ -29,8 +24,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSearchOutlineRegular: stub,
     IconPlusOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
-    Menu: ({ anchor }: { anchor: unknown }) => anchor,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -129,14 +123,14 @@ describe('DM Bot Inbox sidebar entry', () => {
             }),
           ),
         );
-        expect(container.querySelector('[data-inbox-group] > summary')?.textContent).toContain(
+        expect(document.body.querySelector('[data-inbox-group] > summary')?.textContent).toContain(
           type === 'dm' ? 'Ada Lovelace' : 'Team',
         );
-        expect(container.textContent).toContain('待处理');
-        expect(container.textContent).toContain('已忽略');
-        const button = [...container.querySelectorAll<HTMLButtonElement>('.bh-inbox-item')].find(
-          (node) => node.textContent?.includes('Please check this'),
-        );
+        expect(document.body.textContent).toContain('待处理');
+        expect(document.body.textContent).toContain('已忽略');
+        const button = [
+          ...document.body.querySelectorAll<HTMLButtonElement>('.bh-inbox-item'),
+        ].find((node) => node.textContent?.includes('Please check this'));
         expect(button).toBeDefined();
         await act(async () => {
           button?.click();
@@ -178,13 +172,13 @@ describe('DM Bot Inbox sidebar entry', () => {
           }),
         ),
       );
-      expect(container.querySelector('[data-panel-empty]')?.textContent).toContain(
+      expect(document.body.querySelector('[data-panel-empty]')?.textContent).toContain(
         '此 Bot 还没有收件记录',
       );
       await act(async () => store.setBotInbox({ status: 'error', error: 'offline' }));
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain('offline');
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('offline');
       await act(async () =>
-        container.querySelector<HTMLButtonElement>('[role="alert"] button')!.click(),
+        document.body.querySelector<HTMLButtonElement>('[role="alert"] button')!.click(),
       );
       expect(refreshBotInbox).toHaveBeenCalledWith('ada');
     } finally {
@@ -228,7 +222,7 @@ describe('DM Bot Inbox sidebar entry', () => {
     };
     try {
       await render();
-      const group = container.querySelector<HTMLDetailsElement>('[data-inbox-group]')!;
+      const group = document.body.querySelector<HTMLDetailsElement>('[data-inbox-group]')!;
       expect(group.open).toBe(false);
       await act(async () =>
         store.setBotInbox({
@@ -296,8 +290,8 @@ describe('DM Bot Inbox sidebar entry', () => {
           }),
         ),
       );
-      expect(container.querySelector<HTMLButtonElement>('.bh-inbox-item')?.disabled).toBe(true);
-      expect(container.textContent).toContain('来源不可打开');
+      expect(document.body.querySelector<HTMLButtonElement>('.bh-inbox-item')?.disabled).toBe(true);
+      expect(document.body.textContent).toContain('来源不可打开');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -351,9 +345,9 @@ describe('DM Bot Inbox sidebar entry', () => {
           }),
         ),
       );
-      expect(container.textContent).toContain('Investigate the issue');
-      expect(container.textContent).toContain('等你处理');
-      const button = container.querySelector<HTMLButtonElement>('.bh-inbox-item');
+      expect(document.body.textContent).toContain('Investigate the issue');
+      expect(document.body.textContent).toContain('等你处理');
+      const button = document.body.querySelector<HTMLButtonElement>('.bh-inbox-item');
       expect(button?.disabled).toBe(false);
       await act(async () => {
         button?.click();
@@ -407,8 +401,8 @@ it('lists every source newest first by default with a compact author, time and s
         }),
       ),
     );
-    expect(container.querySelector('[data-inbox-group]:not([data-section])')).toBeNull();
-    const rows = [...container.querySelectorAll('.bh-card-row')];
+    expect(document.body.querySelector('[data-inbox-group]:not([data-section])')).toBeNull();
+    const rows = [...document.body.querySelectorAll('.bh-card-row')];
     expect(rows.map((row) => row.querySelector('.bh-card-summary')?.textContent)).toEqual([
       'Newer pending note',
       'Older handled note',
@@ -498,11 +492,11 @@ it('clears previous source content and ignores older requests after reopening', 
     },
   };
   const open = async () =>
-    act(async () => container.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
+    act(async () => document.body.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
   const close = async () =>
     act(async () =>
-      [...container.querySelectorAll('button')]
-        .find((b) => b.textContent === 'Close source')!
+      [...document.body.querySelectorAll('button')]
+        .find((b) => b.getAttribute('aria-label') === zhTranslate('common.close'))!
         .click(),
     );
   try {
@@ -527,8 +521,8 @@ it('clears previous source content and ignores older requests after reopening', 
     await open();
     await act(async () => requests[1]!.resolve(source));
     await act(async () => requests[0]!.reject(new Error('Old request failed')));
-    expect(container.textContent).toContain('CURRENT SOURCE');
-    const messages = [...container.querySelectorAll('.bh-external-message')];
+    expect(document.body.textContent).toContain('CURRENT SOURCE');
+    const messages = [...document.body.querySelectorAll('.bh-external-message')];
     const context = messages[1]!;
     expect(context.querySelector('strong')?.textContent).toBe('Alex');
     expect(context.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-01T00:00:00Z');
@@ -540,24 +534,24 @@ it('clears previous source content and ignores older requests after reopening', 
     expect(details.open).toBe(false);
     details.open = true;
     expect(details.textContent).toContain('@_user_1 and @_user_10');
-    expect(container.textContent).toContain('上下文不完整');
-    expect(container.querySelector('.bh-external-audit')?.hasAttribute('open')).toBe(false);
-    expect(container.textContent).toContain('ONLY RETURNED CONTEXT');
-    expect(container.textContent).toContain('context-one');
-    expect(container.textContent).toContain('Alex (external-human)');
-    expect(container.textContent).toContain('消息 remote-one [事件 context-one]');
-    expect(container.textContent).toContain('@_user_1 → QA Bot (bot-one)');
-    expect(container.textContent).toContain('消息 om [事件 source-1]');
-    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.textContent).toContain('上下文不完整');
+    expect(document.body.querySelector('.bh-external-audit')?.hasAttribute('open')).toBe(false);
+    expect(document.body.textContent).toContain('ONLY RETURNED CONTEXT');
+    expect(document.body.textContent).toContain('context-one');
+    expect(document.body.textContent).toContain('Alex (external-human)');
+    expect(document.body.textContent).toContain('消息 remote-one [事件 context-one]');
+    expect(document.body.textContent).toContain('@_user_1 → QA Bot (bot-one)');
+    expect(document.body.textContent).toContain('消息 om [事件 source-1]');
+    expect(document.body.querySelector('[role="alert"]')).toBeNull();
     await close();
     await open();
-    expect(container.textContent).not.toContain('CURRENT SOURCE');
+    expect(document.body.textContent).not.toContain('CURRENT SOURCE');
     await close();
     await open();
     await act(async () => requests[3]!.resolve({ ...source, body: 'NEWEST SOURCE' }));
     await act(async () => requests[2]!.resolve({ ...source, body: 'STALE SOURCE' }));
-    expect(container.textContent).toContain('NEWEST SOURCE');
-    expect(container.textContent).not.toContain('STALE SOURCE');
+    expect(document.body.textContent).toContain('NEWEST SOURCE');
+    expect(document.body.textContent).not.toContain('STALE SOURCE');
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -638,12 +632,17 @@ it('loads checked images into their message bubble on open, retries refusals and
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
   const click = async (label: string) =>
     act(async () => {
-      [...container.querySelectorAll<HTMLButtonElement>('button')]
-        .find((b) => b.textContent === label)!
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')]
+        .find(
+          (b) =>
+            b.textContent === label ||
+            b.getAttribute('aria-label') ===
+              (label === 'Close source' ? zhTranslate('common.close') : label),
+        )!
         .click();
     });
   const open = async () =>
-    act(async () => container.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
+    act(async () => document.body.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
   try {
     await act(async () =>
       root.render(
@@ -663,20 +662,20 @@ it('loads checked images into their message bubble on open, retries refusals and
     );
     expect(fetchImage).not.toHaveBeenCalled();
     await open();
-    expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).not.toContain(
+    expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).not.toContain(
       '[Image]',
     );
     expect(create).not.toHaveBeenCalled();
     await click('重新加载图片');
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.querySelector('.bh-external-message-text img')?.getAttribute('src')).toBe(
+    expect(document.body.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text img')?.getAttribute('src')).toBe(
       'blob:checked-preview',
     );
-    expect(container.querySelector('.bh-external-message-text')?.textContent).not.toContain(
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).not.toContain(
       '[Image]',
     );
-    expect(container.querySelector('.bh-external-source-file img')).toBeNull();
+    expect(document.body.querySelector('.bh-external-source-file img')).toBeNull();
     expect(fetchImage.mock.calls[1]?.[0]).toBe(
       './api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=image-one',
     );
@@ -688,8 +687,8 @@ it('loads checked images into their message bubble on open, retries refusals and
       blob: async () => new Blob(['<svg/>'], { type: 'image/svg+xml' }),
     });
     await open();
-    expect(container.querySelector('img')).toBeNull();
-    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.body.querySelector('img')).toBeNull();
+    expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
     expect(create).toHaveBeenCalledTimes(1);
     fetchImage.mockImplementationOnce(
       (_url, request) =>
@@ -704,8 +703,8 @@ it('loads checked images into their message bubble on open, retries refusals and
     expect(signal.aborted).toBe(true);
     source.body = 'Please inspect this layout';
     await open();
-    expect(container.querySelector('.bh-external-message-text img')).not.toBeNull();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).toContain(
+    expect(document.body.querySelector('.bh-external-message-text img')).not.toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).toContain(
       'Please inspect this layout',
     );
     await click('Close source');
@@ -713,8 +712,8 @@ it('loads checked images into their message bubble on open, retries refusals and
     source.event.attachments = [];
     const imageCalls = fetchImage.mock.calls.length;
     await open();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).toBe('[Image]');
-    expect(container.querySelector('.bh-external-message-text img')).toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).toBe('[Image]');
+    expect(document.body.querySelector('.bh-external-message-text img')).toBeNull();
     expect(fetchImage).toHaveBeenCalledTimes(imageCalls);
     await act(async () => root.unmount());
     expect(revoke).toHaveBeenCalledTimes(2);
@@ -834,13 +833,15 @@ it('opening a Lark video source does not acquire the video or cover before an ex
         }),
       ),
     );
-    await act(async () => container.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
-    expect(container.textContent).toContain('Please inspect the quoted video');
-    expect(fetchMedia).not.toHaveBeenCalled();
-    expect(container.querySelector('video')).toBeNull();
-    expect(container.querySelector('.bh-external-message-text img')).toBeNull();
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('.bh-external-source-file button')!.click(),
+      document.body.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click(),
+    );
+    expect(document.body.textContent).toContain('Please inspect the quoted video');
+    expect(fetchMedia).not.toHaveBeenCalled();
+    expect(document.body.querySelector('video')).toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text img')).toBeNull();
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('.bh-external-source-file button')!.click(),
     );
     expect(fetchMedia).toHaveBeenCalledTimes(1);
     expect(fetchMedia.mock.calls[0]?.[0]).toBe(
@@ -934,12 +935,17 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revoke });
   const click = async (label: string) =>
     act(async () => {
-      [...container.querySelectorAll<HTMLButtonElement>('button')]
-        .find((b) => b.textContent === label)!
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')]
+        .find(
+          (b) =>
+            b.textContent === label ||
+            b.getAttribute('aria-label') ===
+              (label === 'Close source' ? zhTranslate('common.close') : label),
+        )!
         .click();
     });
   const open = async () =>
-    act(async () => container.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
+    act(async () => document.body.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
   try {
     await act(async () =>
       root.render(
@@ -959,21 +965,21 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
     );
     expect(fetchVideo).not.toHaveBeenCalled();
     await open();
-    expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).not.toContain(
+    expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).not.toContain(
       '[Video]',
     );
     expect(create).not.toHaveBeenCalled();
     await click('重试播放');
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.querySelector('.bh-external-message-text video')?.getAttribute('src')).toBe(
-      'blob:checked-preview',
-    );
-    expect(container.querySelector('.bh-external-message-text')?.textContent).not.toContain(
+    expect(document.body.querySelector('[role="alert"]')).toBeNull();
+    expect(
+      document.body.querySelector('.bh-external-message-text video')?.getAttribute('src'),
+    ).toBe('blob:checked-preview');
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).not.toContain(
       '[Video]',
     );
-    expect(container.querySelector('.bh-external-source-file video')).toBeNull();
-    const player = container.querySelector('video')!;
+    expect(document.body.querySelector('.bh-external-source-file video')).toBeNull();
+    const player = document.body.querySelector('video')!;
     expect(player.controls).toBe(true);
     expect(player.autoplay).toBe(false);
     expect(fetchVideo.mock.calls[1]?.[0]).toBe(
@@ -987,8 +993,8 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
       blob: async () => new Blob(['not-mp4'], { type: 'text/html' }),
     });
     await open();
-    expect(container.querySelector('video')).toBeNull();
-    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.body.querySelector('video')).toBeNull();
+    expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
     expect(create).toHaveBeenCalledTimes(1);
     fetchVideo.mockImplementationOnce(
       (_url, request) =>
@@ -1003,8 +1009,8 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
     expect(signal.aborted).toBe(true);
     source.body = 'Please inspect this layout';
     await open();
-    expect(container.querySelector('.bh-external-message-text video')).not.toBeNull();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).toContain(
+    expect(document.body.querySelector('.bh-external-message-text video')).not.toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).toContain(
       'Please inspect this layout',
     );
     await click('Close source');
@@ -1012,8 +1018,8 @@ it('loads checked video into its bubble without autoplay, retries refusals and p
     source.event.attachments = [];
     const videoCalls = fetchVideo.mock.calls.length;
     await open();
-    expect(container.querySelector('.bh-external-message-text')?.textContent).toBe('[Video]');
-    expect(container.querySelector('.bh-external-message-text video')).toBeNull();
+    expect(document.body.querySelector('.bh-external-message-text')?.textContent).toBe('[Video]');
+    expect(document.body.querySelector('.bh-external-message-text video')).toBeNull();
     expect(fetchVideo).toHaveBeenCalledTimes(videoCalls);
     await act(async () => root.unmount());
     expect(revoke).toHaveBeenCalledTimes(2);
@@ -1102,11 +1108,11 @@ it('puts open items first, snoozed by return time next, and folds done items wit
         ),
       ),
     );
-    expect(container.querySelector('.badge')?.textContent).toBe('2');
-    const rows = [...container.querySelectorAll('.bh-card-row')].filter(
+    expect(document.body.querySelector('.badge')?.textContent).toBe('2');
+    const rows = [...document.body.querySelectorAll('.bh-card-row')].filter(
       (row) => !row.textContent?.includes('Ship the release notes'),
     );
-    const lifecycle = [...container.querySelectorAll('.bh-card-row')].find((row) =>
+    const lifecycle = [...document.body.querySelectorAll('.bh-card-row')].find((row) =>
       row.textContent?.includes('Ship the release notes'),
     );
     expect(lifecycle?.querySelector('.bh-inbox-item-author')?.textContent).toBe(
@@ -1119,7 +1125,7 @@ it('puts open items first, snoozed by return time next, and folds done items wit
       'Done item',
     ]);
     const sections = [
-      ...container.querySelectorAll<HTMLDetailsElement>('[data-inbox-group][data-section]'),
+      ...document.body.querySelectorAll<HTMLDetailsElement>('[data-inbox-group][data-section]'),
     ];
     expect(sections.map((section) => [section.dataset['section'], section.open])).toEqual([
       ['snoozed', true],
@@ -1135,7 +1141,7 @@ it('puts open items first, snoozed by return time next, and folds done items wit
       error: undefined,
     });
     await act(async () => undefined);
-    expect(container.querySelector('.badge')?.textContent).toBe('');
+    expect(document.body.querySelector('.badge')?.textContent).toBe('');
   } finally {
     await act(async () => root.unmount());
     container.remove();

@@ -7,6 +7,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     Checkbox: (props: {
       checked: boolean;
@@ -80,12 +81,12 @@ async function fixture() {
   }
   await render();
   function checkbox() {
-    const input = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const input = document.body.querySelector<HTMLInputElement>('input[type="checkbox"]');
     if (input === null) throw new Error('Memory choice missing');
     return input;
   }
   async function click(label: string) {
-    const button = buttonNamed(label, host);
+    const button = buttonNamed(label, document.body);
     await act(async () => button.click());
   }
   return {
@@ -110,14 +111,14 @@ describe('PersonaBot deletion Memory consent', () => {
     const f = await fixture();
     try {
       expect(dialog().getAttribute('aria-label')).toBe('删除 Bot');
-      expect(f.host.textContent).toContain('删除后，Ada 会永久停止运行，无法撤销。');
-      const notices = f.host.querySelector('section[aria-label="删除前请确认"]');
+      expect(document.body.textContent).toContain('删除后，Ada 会永久停止运行，无法撤销。');
+      const notices = document.body.querySelector('section[aria-label="删除前请确认"]');
       expect(notices?.querySelector('h3')?.textContent).toBe('删除前请确认');
       const titles = Array.from(notices?.querySelectorAll('strong') ?? []).map(
         (node) => node.textContent,
       );
       expect(titles).toEqual(['密钥会立即删除', '运行和授权会停止', '历史会保留', '记忆文件']);
-      expect(f.host.textContent).toContain('1 个会话停止运行，0 项授权与身份绑定被撤销。');
+      expect(document.body.textContent).toContain('1 个会话停止运行，0 项授权与身份绑定被撤销。');
     } finally {
       await f.dispose();
     }
@@ -147,7 +148,7 @@ describe('PersonaBot deletion Memory consent', () => {
       await f.click('删除 Bot 和记忆文件');
       expect(f.actions.deletionConfirm).toHaveBeenCalledWith('ada', 'reviewed', true);
       expect(f.checkbox().checked).toBe(false);
-      expect(f.host.querySelector('[role="alert"]')?.textContent).toBe(
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
         'Scope changed; review again',
       );
       await f.click('删除 Bot，保留记忆');
@@ -175,9 +176,9 @@ describe('PersonaBot deletion dialog actions', () => {
       ),
     );
     try {
-      expect(host.textContent).toContain('正在读取删除范围…');
-      expect(buttonNamed('删除 Bot，保留记忆', host).disabled).toBe(true);
-      await act(async () => buttonNamed('取消', host).click());
+      expect(document.body.textContent).toContain('正在读取删除范围…');
+      expect(buttonNamed('删除 Bot，保留记忆', document.body).disabled).toBe(true);
+      await act(async () => buttonNamed('取消', document.body).click());
       expect(onClose).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => root.unmount());
@@ -206,9 +207,9 @@ describe('PersonaBot deletion dialog actions', () => {
       ),
     );
     try {
-      expect(host.textContent).toContain('记忆文件保留在上方位置。');
-      expect(host.querySelector('input[type="checkbox"]')).toBeNull();
-      expect(() => buttonNamed('取消', host)).toThrow();
+      expect(document.body.textContent).toContain('记忆文件保留在上方位置。');
+      expect(document.body.querySelector('input[type="checkbox"]')).toBeNull();
+      expect(() => buttonNamed('取消', document.body)).toThrow();
       const form = dialog().querySelector('form');
       await act(async () => form?.requestSubmit());
       expect(onClose).toHaveBeenCalledTimes(1);

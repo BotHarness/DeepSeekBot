@@ -8,8 +8,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement: element } = await import('react');
   const icon = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    MenuSurface: comboboxPrimitives().MenuSurface,
+
     IconCheckOutlineRegular: icon,
     IconCopyOutlineRegular: icon,
     IconDownloadOutlineRegular: icon,

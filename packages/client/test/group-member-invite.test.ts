@@ -6,12 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconPlusOutlineRegular: () => null,
     IconEllipsisOutlineRegular: () => null,
-    Menu: () => null,
+
     Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Tooltip: ({ children }: PropsWithChildren) => children,
   };
 });
 
@@ -98,7 +98,7 @@ async function openInvite(): Promise<void> {
       }),
     ),
   );
-  await act(async () => buttonNamed(t('group.invite'), host).click());
+  await act(async () => buttonNamed(t('group.invite'), document.body).click());
 }
 
 function options(): string[] {

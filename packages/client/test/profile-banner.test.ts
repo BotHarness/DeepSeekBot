@@ -8,15 +8,15 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconCloseOutlineRegular: stub,
     IconEditOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     IconShareOutlineRegular: stub,
-    Menu: stub,
+
     Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Tooltip: ({ children }: PropsWithChildren) => children,
   };
 });
 
@@ -80,7 +80,7 @@ function bot(banner?: BotSummary['banner']): BotSummary {
   };
 }
 
-const button = (label: string): HTMLButtonElement => buttonNamed(label, host);
+const button = (label: string): HTMLButtonElement => buttonNamed(label, document.body);
 
 function scenes(): HTMLButtonElement[] {
   const group = dialog().querySelector(
@@ -107,7 +107,7 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
   const setBotBanner = vi.fn(async () => true);
   await render(bot(), { setBotBanner });
   const seeded = seededBannerRecipe('Ada');
-  expect(host.querySelector('.bh-profile-banner canvas')?.getAttribute('data-scene')).toBe(
+  expect(document.body.querySelector('.bh-profile-banner canvas')?.getAttribute('data-scene')).toBe(
     seeded.scene,
   );
   expect(painted).toHaveBeenCalled();
@@ -134,7 +134,7 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
   expect(setBotBanner).toHaveBeenLastCalledWith('dm-ada', {
     recipe: { scene: 'space', seed: seeded.seed },
   });
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
   await act(async () => button('更换横幅').click());
   await act(async () => button('换一张').click());
@@ -147,11 +147,11 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
 it('shows an uploaded banner as an image and resets it to the generated one', async () => {
   const setBotBanner = vi.fn(async () => true);
   await render(bot({ image: '/api/botharness/bot-banner?slug=ada&v=1' }), { setBotBanner });
-  expect(host.querySelector('.bh-profile-banner img')?.getAttribute('src')).toBe(
+  expect(document.body.querySelector('.bh-profile-banner img')?.getAttribute('src')).toBe(
     '/api/botharness/bot-banner?slug=ada&v=1',
   );
   await act(async () => button('更换横幅').click());
-  expect(host.textContent).toContain('当前使用上传的图片。');
+  expect(document.body.textContent).toContain('当前使用上传的图片。');
   expect(button('换一张').disabled).toBe(true);
   await act(async () => button('保存').click());
   expect(setBotBanner).not.toHaveBeenCalled();

@@ -1,7 +1,9 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import * as stylex from '@stylexjs/stylex';
 import {
+  createContext,
   forwardRef,
+  useContext,
   useCallback,
   useRef,
   useState,
@@ -52,6 +54,8 @@ export interface MenuLabel {
 }
 
 export type MenuEntry = MenuItem | MenuSeparator | MenuLabel;
+
+const MenuContext = createContext(false);
 
 const POINTER_GRACE_MS = 300;
 const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
@@ -262,7 +266,10 @@ function Entries({
             data-selected={selected ? '' : undefined}
             data-danger={item.danger ? '' : undefined}
             aria-keyshortcuts={item.shortcut?.aria}
-            onClick={() => context.onSelect?.(item.id)}
+            onClick={(event) => {
+              event.preventBaseUIHandler();
+              context.onSelect?.(item.id);
+            }}
             {...rowStyles(
               context.look,
               selected && context.selection === 'fill',
@@ -307,7 +314,31 @@ export function MenuItemButton({
   separatorBefore = false,
   onSelect,
 }: MenuItemButtonProps): ReactElement {
+  const nested = useContext(MenuContext);
   const reason = disabled ? disabledReason : undefined;
+  const content = <RowContent icon={icon} label={children} shortcut={shortcut} />;
+  if (!nested)
+    return (
+      <>
+        {separatorBefore ? <div role="separator" {...stylex.props(styles.separator)} /> : null}
+        <button
+          type="button"
+          role="menuitem"
+          disabled={disabled && reason === undefined}
+          aria-disabled={disabled ? true : undefined}
+          aria-current={current ? 'page' : undefined}
+          aria-description={reason}
+          title={reason}
+          aria-keyshortcuts={shortcut?.aria}
+          onClick={() => {
+            if (!disabled) onSelect();
+          }}
+          {...rowStyles({ dense: false, compact: false }, current, danger)}
+        >
+          {content}
+        </button>
+      </>
+    );
   return (
     <>
       {separatorBefore ? <div role="separator" {...stylex.props(styles.separator)} /> : null}
@@ -320,12 +351,13 @@ export function MenuItemButton({
         closeOnClick={false}
         data-danger={danger ? '' : undefined}
         aria-keyshortcuts={shortcut?.aria}
-        onClick={() => {
+        onClick={(event) => {
+          event.preventBaseUIHandler();
           if (!disabled) onSelect();
         }}
         {...rowStyles({ dense: false, compact: false }, current, danger)}
       >
-        <RowContent icon={icon} label={children} shortcut={shortcut} />
+        {content}
       </BaseMenu.Item>
     </>
   );
@@ -388,16 +420,30 @@ export function Menu({
 }: MenuProps): ReactElement {
   const wrapper = useRef<HTMLSpanElement | null>(null);
   const popup = useRef<HTMLDivElement | null>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
   const leave = useRef<number | undefined>(undefined);
+  const focusFrame = useRef<number | undefined>(undefined);
   const [mounted, setMounted] = useState(false);
   const attach = useCallback(
     (node: HTMLDivElement | null) => {
+      if (node !== null && popup.current === null) {
+        const active = node.ownerDocument.activeElement;
+        previousFocus.current =
+          active instanceof HTMLElement && active !== node.ownerDocument.body ? active : null;
+      }
+      if (node === null) {
+        if (focusFrame.current !== undefined) window.cancelAnimationFrame(focusFrame.current);
+        focusFrame.current = undefined;
+        if (leave.current !== undefined) window.clearTimeout(leave.current);
+        leave.current = undefined;
+      }
       popup.current = node;
       setMounted(node !== null);
       if (node !== null && autoFocus)
-        window.requestAnimationFrame(() =>
-          node.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')?.focus(),
-        );
+        focusFrame.current = window.requestAnimationFrame(() => {
+          focusFrame.current = undefined;
+          node.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')?.focus();
+        });
     },
     [autoFocus],
   );
@@ -456,7 +502,7 @@ export function Menu({
       >
         <BaseMenu.Portal
           container={
-            container instanceof HTMLElement
+            typeof HTMLElement !== 'undefined' && container instanceof HTMLElement
               ? container
               : portal || point !== undefined
                 ? undefined
@@ -474,20 +520,35 @@ export function Menu({
           >
             <BaseMenu.Popup
               ref={attach}
+              data-pointer-menu={point === undefined ? undefined : ''}
               className={listClass}
-              finalFocus={() => returnFocus?.() ?? firstButton(wrapper.current)}
+              finalFocus={() => {
+                if (returnFocus !== undefined) return returnFocus() ?? false;
+                const active = document.activeElement;
+                if (
+                  active !== document.body &&
+                  active instanceof HTMLElement &&
+                  !popup.current?.contains(active)
+                )
+                  return active;
+                return previousFocus.current?.isConnected
+                  ? previousFocus.current
+                  : firstButton(wrapper.current);
+              }}
               onPointerEnter={stay}
               onPointerLeave={away}
             >
-              <div {...stylex.props(styles.scroll)}>
-                <Entries entries={items} context={context} />
-                {children}
-              </div>
-              {footer === undefined || footer.length === 0 ? null : (
-                <div {...stylex.props(styles.footer)}>
-                  <Entries entries={footer} context={context} />
+              <MenuContext.Provider value>
+                <div {...stylex.props(styles.scroll)}>
+                  <Entries entries={items} context={context} />
+                  {children}
                 </div>
-              )}
+                {footer === undefined || footer.length === 0 ? null : (
+                  <div {...stylex.props(styles.footer)}>
+                    <Entries entries={footer} context={context} />
+                  </div>
+                )}
+              </MenuContext.Provider>
             </BaseMenu.Popup>
           </BaseMenu.Positioner>
         </BaseMenu.Portal>

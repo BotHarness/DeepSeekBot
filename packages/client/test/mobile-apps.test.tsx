@@ -6,7 +6,8 @@ import { MobileAppsEntry, TESTFLIGHT_URL } from '../src/client/mobile-apps.js';
 import { COMMUNITY } from '../src/client/community-links.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     children,
     icon,

@@ -5,12 +5,16 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PromptPresetSettings } from '../src/client/prompt-preset-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = ({ children }: { children?: ReactNode }) =>
     createElement('span', null, children ?? null);
   return new Proxy(
-    {},
-    { has: (_, key) => key !== 'then', get: (_, key) => (key === 'then' ? undefined : stub) },
+    { ...(await import('./primitive-mocks.js')).shellPrimitives() },
+    {
+      has: (_, key) => key !== 'then',
+      get: (target, key) =>
+        key in target ? Reflect.get(target, key) : key === 'then' ? undefined : stub,
+    },
   );
 });
 

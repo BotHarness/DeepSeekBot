@@ -2,7 +2,8 @@
 import { act, createElement, type ButtonHTMLAttributes } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) =>
     createElement('button', props, children),
   IconRefreshOutlineRegular: () => createElement('svg'),

@@ -3,10 +3,11 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
@@ -32,42 +33,18 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPinFillRegular: stub,
     IconPinOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
-    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
-      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
+
     fileSizeText: (size: number) => `${size} B`,
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: stub,
-    Menu: ({
-      items,
-      onSelect,
-    }: {
-      items: readonly { id: string; label?: string; icon?: React.ReactNode }[];
-      onSelect(id: string): void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        items
-          .filter((item) => item.label !== undefined)
-          .map((item) =>
-            createElement(
-              'button',
-              { key: item.id, type: 'button', role: 'menuitem', onClick: () => onSelect(item.id) },
-              item.icon === undefined
-                ? null
-                : createElement('span', { 'data-menu-icon': '' }, item.icon),
-              item.label,
-            ),
-          ),
-      ),
-    MenuItemButton: stub,
+
     MarkdownText: stub,
-    Modal: stub,
+
     SegmentedControl: stub,
     StateDot: stub,
     Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -160,7 +137,7 @@ async function renderGroup(openBot = vi.fn(async () => undefined)) {
     });
   const item = (label: string) =>
     Array.from(
-      document.querySelectorAll<HTMLButtonElement>('[data-pointer-menu] [role="menuitem"]'),
+      document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]'),
     ).find((button) => button.textContent === label);
   return { node, root, avatar, openMenu, item, openBot };
 }
@@ -170,14 +147,14 @@ describe('group Channel Bot avatar menu', () => {
     const view = await renderGroup();
     expect(view.avatar.getAttribute('aria-haspopup')).toBe('menu');
     await view.openMenu();
-    const labels = Array.from(
-      document.querySelectorAll('[data-pointer-menu] [role="menuitem"]'),
-    ).map((button) => button.textContent);
+    const labels = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]')).map(
+      (button) => button.textContent,
+    );
     expect(labels).toEqual(['发送消息', '@ TA', '查看资料']);
 
     await act(() => view.item('发送消息')!.click());
     expect(view.openBot).toHaveBeenLastCalledWith('ada');
-    expect(document.querySelector('[data-pointer-menu]')).toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
 
     await view.openMenu();
     await act(() => view.item('查看资料')!.click());
@@ -249,14 +226,14 @@ describe('Channel sidebar member menu', () => {
             );
         });
       await open();
-      const items = Array.from(document.querySelectorAll('[data-pointer-menu] [role="menuitem"]'));
+      const items = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]'));
       expect(items.map((item) => item.textContent)).toEqual([
         '打开私聊',
         '@ TA',
         '消息提醒设置',
         '移出群聊',
       ]);
-      expect(items.every((item) => item.querySelector('[data-menu-icon]') !== null)).toBe(true);
+      expect(items.every((item) => item.children.length >= 2)).toBe(true);
       await act(() => view.item('@ TA')!.click());
       expect(readRichMentionDraft(editor)).toMatchObject({
         value: 'Please review @Ada ',
@@ -265,7 +242,7 @@ describe('Channel sidebar member menu', () => {
       expect(document.activeElement).toBe(editor);
       expect(richSelectionOffsets(editor)?.end).toBe(19);
       expect(view.openBot).not.toHaveBeenCalled();
-      expect(document.querySelector('[data-pointer-menu]')).toBeNull();
+      expect(document.querySelector('[role="menu"]')).toBeNull();
       await open();
       await act(() => view.item('@ TA')!.click());
       expect(editor.querySelectorAll('[data-bot-id]')).toHaveLength(1);

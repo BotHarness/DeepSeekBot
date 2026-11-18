@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement, forwardRef } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Button: ({
       children,
       onClick,
@@ -71,42 +72,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
       createElement('span', null, createElement('input', props)),
     IconChevronDownOutlineRegular: () => null,
-    MenuSurface: forwardRef<
-      HTMLDivElement,
-      import('react').HTMLAttributes<HTMLDivElement> & { compact?: boolean }
-    >(({ compact: _compact, ...props }, ref) => createElement('div', { ...props, ref })),
+
     useAnchoredPosition: () => ({ top: 0, left: 0 }),
     useDismissOnOutsidePointer: () => undefined,
-    Menu: ({
-      items,
-      onSelect,
-    }: {
-      items: { id: string; label: ReactNode }[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        items.map((item) =>
-          createElement(
-            'button',
-            { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-            item.label,
-          ),
-        ),
-      ),
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: {
-      open: boolean;
-      title: string;
-      children?: ReactNode;
-      footer?: ReactNode;
-    }) =>
-      open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
   };
 });
 
@@ -408,17 +376,17 @@ async function render(actions: BridgeActions, onClose?: () => void): Promise<HTM
 }
 
 const cards = (host: HTMLElement): string =>
-  host.querySelector('.bh-model-entry .bh-card-list')?.textContent ?? '';
+  document.body.querySelector('.bh-model-entry .bh-card-list')?.textContent ?? '';
 
 async function openEditor(host: HTMLElement): Promise<void> {
   await act(async () => {
-    host.querySelector<HTMLButtonElement>('.bh-model-entry button.bh-card-main')?.click();
+    document.body.querySelector<HTMLButtonElement>('.bh-model-entry button.bh-card-main')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
 function button(text: string): HTMLButtonElement {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const found = [...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]')].find(
     (candidate) => candidate.textContent === text,
   );
   if (found === undefined) throw new Error(`No button ${text}`);
@@ -698,7 +666,7 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(cards(host)).toContain('Select an available model');
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
       'shared-model matches multiple providers',
     );
   });
@@ -758,7 +726,7 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('flash · high');
     expect(cards(host)).toContain('Task model');
     expect(cards(host)).toContain('k2 · Default');
-    expect(host.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
+    expect(document.body.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
   });
 
   it('preselects the DSH default model and offers keyless providers as unpickable', async () => {
@@ -1215,9 +1183,9 @@ it('offers general, daily check-in and timed-test requests through the normal we
     [en['onboarding.dailyRequest'], 'daily'],
     [en['onboarding.testRequest'], 'reminder'],
   ] as const) {
-    const option = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-      (candidate) => candidate.querySelector('.bh-card-title')?.textContent === title,
-    );
+    const option = [
+      ...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+    ].find((candidate) => candidate.querySelector('.bh-card-title')?.textContent === title);
     if (option === undefined) throw new Error('Missing scheduling card');
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     expect(option.textContent).toContain(

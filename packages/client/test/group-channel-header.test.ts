@@ -1,11 +1,11 @@
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Pill: ({ children, className }: { children: ReactNode; className?: string }) =>
     createElement('span', { className }, children),
-  Modal: ({ children }: { children: ReactNode }) => children,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   IconChevronLeftOutlineRegular: () => null,
   IconChevronRightOutlineRegular: () => null,
   IconPinFillRegular: () => null,

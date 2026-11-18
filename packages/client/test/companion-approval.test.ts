@@ -11,11 +11,12 @@ import type { BridgeCall } from '../src/client/bridge.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 import type { ChannelMessage } from '../src/client/store.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => null,
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
-  Menu: () => null,
+
   IconEllipsisOutlineRegular: () => null,
   IconCloseFillRegular: () => null,
   IconNewChatOutlineRegular: () => null,

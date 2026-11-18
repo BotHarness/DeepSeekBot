@@ -29,7 +29,5 @@ type PointerMenuProps = Omit<
 > & { point: MenuPoint; container?: Element; align?: 'start' | 'end' };
 
 export function PointerMenu({ point, container, align = 'start', ...props }: PointerMenuProps) {
-  return (
-    <Menu {...props} open point={point} align={align} portal container={container} />
-  );
+  return <Menu {...props} open point={point} align={align} portal container={container} />;
 }

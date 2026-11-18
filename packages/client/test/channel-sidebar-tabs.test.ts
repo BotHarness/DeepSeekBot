@@ -2,16 +2,10 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
   IconChevronRightOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ open, anchor, children }: { open: boolean; anchor: ReactNode; children: ReactNode }) =>
-    createElement('div', null, anchor, open ? children : null),
-  MenuItemButton: ({ onSelect, children }: { onSelect(): void; children: ReactNode }) =>
-    createElement('button', { onClick: onSelect }, children),
-  MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('div', props, children),
 }));
 import { ChannelSidebarTabs } from '../src/client/channel-sidebar-tabs.js';
 import {

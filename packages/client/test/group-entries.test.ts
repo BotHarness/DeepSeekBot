@@ -13,6 +13,7 @@ import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bri
 import type { ConversationIngestSnapshot } from '../../core/src/messaging/conversation-ingest.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: ({
     variant: _variant,
@@ -23,16 +24,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
   Switch: ({ label, checked }: { label: string; checked: boolean }) =>
     createElement('button', { role: 'switch', 'aria-label': label, 'aria-checked': checked }),
-  Menu: () => null,
+
   IconEllipsisOutlineRegular: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Modal: ({
-    open,
-    title,
-    children,
-    footer,
-  }: PropsWithChildren<{ open: boolean; title: string; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
@@ -156,7 +149,7 @@ function props() {
 
 it('lists one wake card per member Bot and edits it in a dialog', async () => {
   await act(async () => root.render(createElement(GroupWakePolicyEntry, props())));
-  const rows = [...host.querySelectorAll('.bh-card-row')];
+  const rows = [...document.body.querySelectorAll('.bh-card-row')];
   expect(rows.map((row) => row.querySelector('.bh-card-title')?.textContent)).toEqual([
     'Ada',
     'Bob',
@@ -168,7 +161,7 @@ it('lists one wake card per member Bot and edits it in a dialog', async () => {
   );
 
   await act(async () => rows[1]!.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
-  const dialog = host.querySelector('[role="dialog"]');
+  const dialog = document.body.querySelector('[role="dialog"]');
   expect(dialog?.getAttribute('aria-label')).toBe(
     zhTranslate('members.policy.title', { bot: 'Bob' }),
   );
@@ -185,7 +178,7 @@ it('lists one wake card per member Bot and edits it in a dialog', async () => {
     count: 5,
     intervalSeconds: 30,
   });
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   expect(actions.groupWakePolicies).toHaveBeenCalledTimes(2);
 });
 
@@ -193,10 +186,10 @@ it('lists the group connectors as card rows that open the edit dialog', async ()
   await act(async () => root.render(createElement(GroupConnectorsEntry, props())));
   expect(actions.channelBridges).toHaveBeenCalledWith(GROUP.id, 'saved');
   expect(actions.channelIngests).toHaveBeenCalledWith(GROUP.id);
-  const row = host.querySelector('.bh-card-row')!;
+  const row = document.body.querySelector('.bh-card-row')!;
   expect(row.querySelector('.bh-card-title')?.textContent).toBe('QA intake');
   await act(async () => row.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
-  expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+  expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
     zhTranslate('bridge.edit'),
   );
 });
@@ -205,7 +198,7 @@ it('renders nothing for a channel that is not a group', async () => {
   await act(async () =>
     root.render(createElement(GroupWakePolicyEntry, { ...props(), channelId: 'missing' })),
   );
-  expect(host.textContent).toBe('');
+  expect(document.body.textContent).toBe('');
   expect(actions.groupWakePolicies).not.toHaveBeenCalled();
 });
 

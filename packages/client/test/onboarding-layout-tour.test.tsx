@@ -2,10 +2,11 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   SegmentedControl: ({
     label,
     value,

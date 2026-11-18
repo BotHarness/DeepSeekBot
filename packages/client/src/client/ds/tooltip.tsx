@@ -2,7 +2,9 @@ import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import * as stylex from '@stylexjs/stylex';
 import {
   createContext,
+  useCallback,
   useContext,
+  useId,
   useRef,
   useState,
   type Context,
@@ -87,8 +89,12 @@ export function Tooltip({
   children,
 }: TooltipProps): ReactElement {
   const instant = useContext(InstantTooltips);
+  const descriptionId = useId();
   const trigger = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
+  const attach = useCallback((node: HTMLElement | null) => {
+    trigger.current = node;
+  }, []);
   const text = typeof label === 'function' ? label() : label;
   return (
     <BaseTooltip.Root
@@ -100,9 +106,8 @@ export function Tooltip({
       }}
     >
       <BaseTooltip.Trigger
-        ref={(node: HTMLElement | null) => {
-          trigger.current = node;
-        }}
+        ref={attach}
+        aria-describedby={open ? descriptionId : undefined}
         delay={instant ? 0 : delayMs}
         closeOnClick={!openOnClick}
         render={children}
@@ -117,6 +122,8 @@ export function Tooltip({
           {...stylex.props(styles.positioner)}
         >
           <BaseTooltip.Popup
+            id={descriptionId}
+            role="tooltip"
             className={[APPEARANCE_CLASS, stylex.props(styles.popup).className].join(' ')}
             style={{ maxWidth }}
           >

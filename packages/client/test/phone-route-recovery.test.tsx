@@ -5,9 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
-  Modal: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
+
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 
@@ -35,7 +36,7 @@ function devices(connect?: Record<string, unknown>) {
 }
 
 const button = (label: string) =>
-  [...host.querySelectorAll('button')].find((node) => node.textContent === label);
+  [...document.body.querySelectorAll('button')].find((node) => node.textContent === label);
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -98,14 +99,14 @@ it('shows unavailable Serve addresses even when the current phone route is ready
     },
   };
   await mountWithTimers();
-  const warning = host.querySelector('[data-tailscale-stale]');
+  const warning = document.body.querySelector('[data-tailscale-stale]');
   expect(warning?.textContent).toContain(zhTranslate('devices.tailscale.stale'));
   expect(warning?.textContent).toContain('https://studio.tail1.ts.net:8443');
   expect(warning?.textContent).toContain('4000');
   expect(posts).toEqual([]);
   snapshot = tailnet('running');
   await poll();
-  expect(host.querySelector('[data-tailscale-stale]')).toBeNull();
+  expect(document.body.querySelector('[data-tailscale-stale]')).toBeNull();
 });
 
 it('shows retry instead of indefinite loading when the first status check fails', async () => {
@@ -116,8 +117,8 @@ it('shows retry instead of indefinite loading when the first status check fails'
     }),
   );
   await mountWithTimers();
-  expect(host.querySelector('[data-device-status="stale"]')).not.toBeNull();
-  expect(host.textContent).not.toContain(zhTranslate('devices.list.loading'));
+  expect(document.body.querySelector('[data-device-status="stale"]')).not.toBeNull();
+  expect(document.body.textContent).not.toContain(zhTranslate('devices.list.loading'));
   expect(button(zhTranslate('devices.connection.retry'))?.disabled).toBe(false);
 });
 
@@ -140,37 +141,37 @@ it('accepts a slow check without overlapping polling requests', async () => {
   await poll();
   expect(request).toHaveBeenCalledOnce();
   await act(async () => finish?.(Response.json(snapshot)));
-  expect(host.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale')).toBe(
-    'ready',
-  );
+  expect(
+    document.body.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale'),
+  ).toBe('ready');
 });
 
 it('live Tailscale loss and recovery update the page without remounting', async () => {
   snapshot = tailnet('running');
   await mountWithTimers();
-  expect(host.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale')).toBe(
-    'ready',
-  );
+  expect(
+    document.body.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale'),
+  ).toBe('ready');
   snapshot = tailnet('stopped');
   await poll();
-  expect(host.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale')).toBe(
-    'unprepared',
-  );
+  expect(
+    document.body.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale'),
+  ).toBe('unprepared');
   await act(async () => button(zhTranslate('devices.tailscale.setup'))?.click());
-  expect(host.querySelector('[data-pair-route-step="signIn"]')?.getAttribute('data-state')).toBe(
-    'current',
-  );
-  expect(host.textContent).toContain('4100');
+  expect(
+    document.body.querySelector('[data-pair-route-step="signIn"]')?.getAttribute('data-state'),
+  ).toBe('current');
+  expect(document.body.textContent).toContain('4100');
   snapshot = tailnet('running', false);
   await poll();
-  expect(host.querySelector('[data-pair-route-command="publish"]')?.textContent).toContain(
+  expect(document.body.querySelector('[data-pair-route-command="publish"]')?.textContent).toContain(
     'tailscale serve --bg 4100',
   );
   snapshot = tailnet('running');
   await poll();
-  expect(host.querySelector('[data-pair-route-steps]')?.getAttribute('data-pair-route-steps')).toBe(
-    'done',
-  );
+  expect(
+    document.body.querySelector('[data-pair-route-steps]')?.getAttribute('data-pair-route-steps'),
+  ).toBe('done');
 });
 
 it('invalidates the old QR and offers regeneration when its address changes', async () => {
@@ -197,7 +198,7 @@ it('invalidates the old QR and offers regeneration when its address changes', as
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
   expect(offerRequests).toHaveLength(1);
-  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(document.body.querySelector('[data-pair-qr]')).not.toBeNull();
   snapshot = {
     ...tailnet('running'),
     routes: {
@@ -207,14 +208,14 @@ it('invalidates the old QR and offers regeneration when its address changes', as
     },
   };
   await poll();
-  expect(host.querySelector('[data-pair-qr]')).toBeNull();
-  expect(host.textContent).toContain(zhTranslate('devices.pair.routeChanged'));
+  expect(document.body.querySelector('[data-pair-qr]')).toBeNull();
+  expect(document.body.textContent).toContain(zhTranslate('devices.pair.routeChanged'));
   expect(button(zhTranslate('devices.pair.copy'))).toBeUndefined();
   expect(button(zhTranslate('devices.pair.renew'))).toBeDefined();
   address = 'https://new.tail2.ts.net';
   await act(async () => button(zhTranslate('devices.pair.renew'))?.click());
   expect(offerRequests).toHaveLength(2);
-  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(document.body.querySelector('[data-pair-qr]')).not.toBeNull();
 });
 
 it('recovers a stale snapshot on retry and enables pairing again', async () => {
@@ -227,14 +228,14 @@ it('recovers a stale snapshot on retry and enables pairing again', async () => {
     }),
   );
   await poll();
-  expect(host.querySelector('[data-device-status="stale"]')).not.toBeNull();
+  expect(document.body.querySelector('[data-device-status="stale"]')).not.toBeNull();
   expect(button(zhTranslate('devices.pair.open'))?.disabled).toBe(true);
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => Response.json(snapshot)),
   );
   await act(async () => button(zhTranslate('devices.connection.retry'))?.click());
-  expect(host.querySelector('[data-device-status="stale"]')).toBeNull();
+  expect(document.body.querySelector('[data-device-status="stale"]')).toBeNull();
   expect(button(zhTranslate('devices.pair.open'))?.disabled).toBe(false);
 });
 
@@ -260,13 +261,13 @@ it('retries QR creation after a temporary failure without closing the dialog', a
   await mountWithTimers();
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
-  expect(host.querySelector('[data-pair-qr]')).toBeNull();
-  expect(host.querySelector('[data-pair-dialog]')?.textContent).not.toContain(
+  expect(document.body.querySelector('[data-pair-qr]')).toBeNull();
+  expect(document.body.querySelector('[data-pair-dialog]')?.textContent).not.toContain(
     zhTranslate('devices.list.loading'),
   );
   fail = false;
   await act(async () => button(zhTranslate('devices.connection.retry'))?.click());
-  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(document.body.querySelector('[data-pair-qr]')).not.toBeNull();
 });
 
 it('does not treat working Connect as working Tailscale', async () => {
@@ -274,9 +275,9 @@ it('does not treat working Connect as working Tailscale', async () => {
   await mountWithTimers();
   expect(button(zhTranslate('devices.pair.open'))?.disabled).toBe(false);
   await act(async () => button(zhTranslate('devices.tailscale.setup'))?.click());
-  expect(host.querySelector('[data-pair-route-step="install"]')?.getAttribute('data-state')).toBe(
-    'current',
-  );
+  expect(
+    document.body.querySelector('[data-pair-route-step="install"]')?.getAttribute('data-state'),
+  ).toBe('current');
 });
 
 it('a network failure invalidates the published status instead of leaving it ready', async () => {
@@ -291,7 +292,7 @@ it('a network failure invalidates the published status instead of leaving it rea
   await poll();
   await poll();
   expect(
-    host.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale'),
+    document.body.querySelector('[data-device-tailscale]')?.getAttribute('data-device-tailscale'),
   ).not.toBe('ready');
 });
 
@@ -308,7 +309,7 @@ it('failed QR creation gives an in-dialog retry action', async () => {
   await mountWithTimers();
   await act(async () => button(zhTranslate('devices.pair.open'))?.click());
   await act(async () => button(zhTranslate('connections.phoneApp.ready'))?.click());
-  const dialog = host.querySelector('[data-pair-dialog]');
+  const dialog = document.body.querySelector('[data-pair-dialog]');
   expect(dialog?.textContent).toContain(zhTranslate('devices.error'));
   const actions = [...(dialog?.querySelectorAll('button') ?? [])].map((node) => node.textContent);
   expect(
@@ -342,7 +343,7 @@ it.each(['managed-tls', 'untrusted'] as const)(
   async (memberSignIn) => {
     snapshot = managedIngress(memberSignIn);
     await mountStandalone();
-    const status = host.querySelector(`[data-member-sign-in="${memberSignIn}"]`);
+    const status = document.body.querySelector(`[data-member-sign-in="${memberSignIn}"]`);
     expect(status?.textContent).toBe(
       zhTranslate(
         memberSignIn === 'managed-tls'
@@ -350,7 +351,7 @@ it.each(['managed-tls', 'untrusted'] as const)(
           : 'devices.tailscale.memberSignIn.untrusted',
       ),
     );
-    expect(host.querySelectorAll('[data-member-sign-in]')).toHaveLength(1);
+    expect(document.body.querySelectorAll('[data-member-sign-in]')).toHaveLength(1);
   },
 );
 
@@ -359,8 +360,8 @@ it('labels the Host port from the loopback route, not the managed ingress port',
   await mountStandalone();
   await act(async () => button(zhTranslate('privateTunnel.panel.manage'))?.click());
   const label = zhTranslate('devices.route.step.publish.title', { port: '4100' });
-  expect(host.textContent).toContain(label);
-  expect(host.textContent).not.toContain(
+  expect(document.body.textContent).toContain(label);
+  expect(document.body.textContent).not.toContain(
     zhTranslate('devices.route.step.publish.title', { port: '51442' }),
   );
 });
