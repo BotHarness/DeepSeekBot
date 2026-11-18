@@ -468,10 +468,7 @@ export async function runModelsUsage(
       ],
       required,
     );
-    if (
-      full &&
-      (plan['orchestrator'] === undefined) === (plan['orchestratorGroupId'] === undefined)
-    )
+    if (full && (plan['orchestrator'] == null) === (plan['orchestratorGroupId'] == null))
       usage('Plan stdin needs either orchestrator or orchestratorGroupId.');
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();

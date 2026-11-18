@@ -114,6 +114,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import type { ModelPlanView, ModelPresetView } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
+import { draftOf, planParts } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
@@ -1034,6 +1035,44 @@ describe('Model entry', () => {
     );
   });
 
+  it('clears a group effort limit its members no longer share (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 5,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels: [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      assignmentGroups: ['main'],
+      assignmentGroupOptions: [{ group: 'main', allowedEfforts: ['high'], defaultEffort: 'high' }],
+      appliedAt: '',
+    };
+    const groups = [
+      { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'kimi', model: 'k2' }] },
+    ];
+    const setModelPlan = vi.fn(async () => ({ ...plan, revision: 6 }));
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+      setModelPlan,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    expect(host.textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    await act(async () => button(translate('modelPreset.groupEffortsClear')).click());
+    await act(async () => button(translate('modelPreset.save')).click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      5,
+      route,
+      route,
+      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      undefined,
+      { assignmentGroups: ['main'], assignmentGroupOptions: [] },
+    );
+  });
+
   it('saves the current settings as a new preset and links the Bot to it', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     let plan: ModelPlanView = {
@@ -1475,4 +1514,54 @@ it('keeps inherited Assignment settings when editing an Orchestrator-only plan',
     7,
   );
   expect(setModelPlan).not.toHaveBeenCalled();
+});
+
+const draftA = { provider: 'p', model: 'a' };
+const draftB = { provider: 'p', model: 'b' };
+const draftDaily = { id: 'daily', name: 'Daily', revision: 1, routes: [draftA, draftB] };
+
+describe('planParts under an Assignment Routing Group', () => {
+  it('keeps the stored Assignment default and allowed models under a Routing Group', () => {
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: { ...draftB, reasoningEffort: 'high' },
+        assignmentModels: [draftB].map((route) => ({
+          ...route,
+          allowedEfforts: ['high'],
+          defaultEffort: 'high',
+        })),
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(false);
+    const parts = planParts(draft, [draftDaily]);
+    expect(parts?.assignmentDefault).toEqual({ ...draftB, reasoningEffort: 'high' });
+    expect(parts?.assignmentModels).toEqual([
+      { ...draftB, allowedEfforts: ['high'], defaultEffort: 'high' },
+    ]);
+    expect(parts?.groups?.assignmentDefaultGroupId).toBe('daily');
+  });
+
+  it('keeps a later stored default in advanced mode', () => {
+    const options = [draftA, draftB].map((route) => ({
+      ...route,
+      allowedEfforts: [''],
+      defaultEffort: '',
+    }));
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: draftB,
+        assignmentModels: options,
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(true);
+    expect(planParts(draft, [draftDaily])?.assignmentDefault).toEqual(draftB);
+  });
 });

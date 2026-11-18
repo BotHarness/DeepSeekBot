@@ -60,6 +60,26 @@ export function restingHint(until: string, t: BotHarnessTranslate): string {
   });
 }
 
+export function groupFrontHint(
+  group: ModelCatalogGroupView | undefined,
+  catalog: readonly ModelCatalogEntryView[],
+  t: BotHarnessTranslate,
+): string | undefined {
+  if (group === undefined || group.routes.length === 0) return undefined;
+  const entryOf = (route: { provider: string; model: string }) =>
+    catalog.find((item) => item.provider === route.provider && item.model === route.model);
+  const usable = group.routes.some((route) => {
+    const entry = entryOf(route);
+    return entry?.credential === undefined && entry?.restingUntil === undefined;
+  });
+  if (!usable) return t('modelPreset.routeUnavailable');
+  const front = modelCatalogGroupFront(group, [...catalog]);
+  const entry = entryOf(front);
+  return t('modelMenu.groupFront', {
+    model: entry === undefined ? front.model : `${entry.modelName} · ${entry.providerName}`,
+  });
+}
+
 export function modelMenuItems(
   options: readonly ComboboxOption[],
   catalog: readonly ModelCatalogEntryView[],

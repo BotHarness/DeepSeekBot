@@ -3523,6 +3523,8 @@ export const zh = {
   'modelPreset.makeDefault': '设为默认',
   'modelPreset.groupCount': '{count} 个模型',
   'modelPreset.groupEffortsHint': '都不勾选时，每个模型用自己的默认强度',
+  'modelPreset.groupEffortsStale': '组内模型变了，原来的思考强度限制已不适用',
+  'modelPreset.groupEffortsClear': '清除强度限制',
   'modelPreset.defaultEffort': '默认强度',
   'modelPreset.noteLabel': '{model} 的使用说明',
   'modelPreset.notePlaceholder': '什么时候用这个模型？（可选）',
@@ -9910,6 +9912,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'modelPreset.makeDefault': 'Make default',
   'modelPreset.groupCount': '{count} models',
   'modelPreset.groupEffortsHint': 'With none checked, each model uses its own default effort',
+  'modelPreset.groupEffortsStale':
+    'The group’s models changed, so its effort limit no longer applies',
+  'modelPreset.groupEffortsClear': 'Clear effort limit',
   'modelPreset.defaultEffort': 'Default effort',
   'modelPreset.noteLabel': 'When to use {model}',
   'modelPreset.notePlaceholder': 'When should tasks use it? (optional)',
