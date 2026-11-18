@@ -55,6 +55,23 @@ describe('PersonaBot Session projection', () => {
     expect(rows[1]?.cwd).toBe('/projects/a');
   });
 
+  it('carries the subscription engine a Session runs on onto its row', () => {
+    const rows = personaBotSessionRows(
+      owned.map((item) =>
+        item.sessionId === 'orchestrator'
+          ? { ...item, engine: { engine: 'codex', account: 'ChatGPT pro' } }
+          : item,
+      ),
+      native,
+      'current',
+    );
+    expect(rows.find((row) => row.sessionId === 'orchestrator')?.engine).toEqual({
+      engine: 'codex',
+      account: 'ChatGPT pro',
+    });
+    expect(rows.find((row) => row.sessionId === 'active')?.engine).toBeUndefined();
+  });
+
   it('names an Assignment row by its Assignment Title before the native Session title', () => {
     const titled = owned.map((item) =>
       item.sessionId === 'active' || item.sessionId === 'missing'

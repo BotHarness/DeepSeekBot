@@ -723,6 +723,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
+  engine?: { engine: string; account?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;
@@ -10265,12 +10266,15 @@ function buildBridgeMethods(
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
+        const engine = deps.describeEngineSession?.(root.sessionId);
         const modelRoute =
-          deps.usage?.latestRoute(root.sessionId) ??
-          (root.rootRole === 'assignment'
-            ? (assignment?.modelRoute ?? plan?.assignmentDefault)
-            : plan?.orchestrator) ??
-          fallbackRoute;
+          engine !== undefined
+            ? undefined
+            : (deps.usage?.latestRoute(root.sessionId) ??
+              (root.rootRole === 'assignment'
+                ? (assignment?.modelRoute ?? plan?.assignmentDefault)
+                : plan?.orchestrator) ??
+              fallbackRoute);
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
@@ -10303,6 +10307,14 @@ function buildBridgeMethods(
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
           ...(modelRoute === undefined ? {} : { modelRoute }),
+          ...(engine === undefined
+            ? {}
+            : {
+                engine: {
+                  engine: engine.engine,
+                  ...(engine.account === undefined ? {} : { account: engine.account }),
+                },
+              }),
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });

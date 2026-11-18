@@ -1,7 +1,7 @@
 import type { SessionEngine } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-function engineName(engine: string): string {
+export function engineName(engine: string): string {
   return engine === 'codex' ? 'Codex' : engine;
 }
 

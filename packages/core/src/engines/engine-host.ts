@@ -32,6 +32,7 @@ import {
 export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
   'bot_send_message',
   'channel_read',
+  'inbox_resolve',
 ]);
 
 export interface EngineTool {

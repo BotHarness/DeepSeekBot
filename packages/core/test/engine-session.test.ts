@@ -250,11 +250,15 @@ describe('Codex Subscription Engine Session (replay)', () => {
         ANTHROPIC_API_KEY: 'a',
         ANTHROPIC_AUTH_TOKEN: 'b',
         AZURE_OPENAI_API_KEY: 'c',
+        OPENCODE_GO_API_KEY: 'd',
+        GITHUB_TOKEN: 'e',
+        LC_ALL: 'C.UTF-8',
       },
     });
     expect(spec.env).toEqual({
       PATH: '/usr/bin',
       HOME: '/Users/human',
+      LC_ALL: 'C.UTF-8',
       CODEX_HOME: '/bots/engines/codex/home',
       DEEPSEEKBOT_ENGINE_GATEWAY_TOKEN: 'secret-token',
     });

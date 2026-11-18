@@ -6,6 +6,7 @@ import { useCallback, useState, useSyncExternalStore, type ReactElement } from '
 import * as stylex from '@stylexjs/stylex';
 import {
   Checkbox,
+  IconCordisPluginOutlineRegular,
   IconFolderOpenOutlineRegular,
   IconStopFillRegular,
   Tag,
@@ -51,6 +52,7 @@ import {
   SessionMetaChip,
   TodoProgressChip,
 } from './session-progress-view.js';
+import { engineName, sessionEngineText } from './session-engine.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -461,6 +463,7 @@ function SessionsPanel({
         {...(summary === undefined ? {} : { summary })}
         {...(showWorkspace ||
         row.modelRoute !== undefined ||
+        row.engine !== undefined ||
         row.assignmentAccessMode === 'danger-full-access' ||
         rowProgress?.todos !== undefined ||
         rowProgress?.goal !== undefined
@@ -477,6 +480,14 @@ function SessionsPanel({
                   ) : null}
                   {row.modelRoute === undefined ? null : (
                     <SessionModelChip route={row.modelRoute} models={models} />
+                  )}
+                  {row.engine === undefined ? null : (
+                    <SessionMetaChip
+                      kind="engine"
+                      icon={<IconCordisPluginOutlineRegular size={12} />}
+                      label={engineName(row.engine.engine)}
+                      title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
+                    />
                   )}
                   {row.assignmentAccessMode === 'danger-full-access' ? (
                     <span title={t('sessions.access.dangerDetails')}>

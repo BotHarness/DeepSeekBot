@@ -53,6 +53,7 @@ it('runs an engine-backed Orchestrator turn without a DSH Agent and offers only 
   expect(request.tools.map((tool) => tool.name).sort()).toEqual([
     'bot_send_message',
     'channel_read',
+    'inbox_resolve',
   ]);
   expect(request.channelId).toBe('dm-test');
   expect(request.input.startsWith('Hi Ada')).toBe(true);

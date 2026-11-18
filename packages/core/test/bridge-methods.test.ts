@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 
 import { createChannelStore, type ChannelStore } from '../src/channels/store.js';
 import type { MemoryService } from '../src/memory/service.js';
@@ -148,6 +148,7 @@ function setup(
   usage?: UsageProjection,
   modelCatalog?: ModelCatalog,
   readUsageSessionLog?: DshUsageSessionLogReader,
+  describeEngineSession?: BridgeMethodsDeps['describeEngineSession'],
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -199,6 +200,7 @@ function setup(
       ...(memory === undefined ? {} : { memory }),
       ...(usage === undefined ? {} : { usage }),
       ...(readUsageSessionLog === undefined ? {} : { readUsageSessionLog }),
+      ...(describeEngineSession === undefined ? {} : { describeEngineSession }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
@@ -3351,6 +3353,46 @@ describe('bridge methods', () => {
     ).toEqual({
       orc: orchestrator,
       work: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    });
+  });
+
+  it('names the engine instead of a model for a Session that runs on a subscription engine', () => {
+    const ownership = createTestOwnership({
+      engine: { botSlug: 'ada', rootRole: 'orchestrator' },
+      native: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const usage = {
+      latestRoute: () => ({ provider: 'deepseek', model: 'deepseek-v4.1-flash' }),
+    } as unknown as UsageProjection;
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+      undefined,
+      undefined,
+      (sessionId) =>
+        sessionId === 'engine'
+          ? { engine: 'codex', account: 'ChatGPT pro', state: 'idle' }
+          : undefined,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    const byId = Object.fromEntries(
+      result.value.sessions.map((session) => [session.sessionId, session]),
+    );
+    expect(byId['engine']?.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro' });
+    expect(byId['engine']?.modelRoute).toBeUndefined();
+    expect(byId['native']?.engine).toBeUndefined();
+    expect(byId['native']?.modelRoute).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash',
     });
   });
 

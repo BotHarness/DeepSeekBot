@@ -359,6 +359,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  engine?: { engine: string; account?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;

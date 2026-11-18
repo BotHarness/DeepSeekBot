@@ -66,8 +66,47 @@ export class EngineRefusal extends Error {
   }
 }
 
-const KEY_VARIABLE =
-  /^(OPENAI_.*|CODEX_API_KEY|CODEX_ACCESS_TOKEN|CODEX_HOME|ANTHROPIC_.*|CLAUDE_CODE_.*|AZURE_OPENAI_.*|AWS_BEARER_TOKEN_BEDROCK|GEMINI_API_KEY|GOOGLE_API_KEY|DEEPSEEK_API_KEY)$/u;
+const PASSED_VARIABLES = new Set([
+  'path',
+  'pathext',
+  'home',
+  'user',
+  'username',
+  'logname',
+  'shell',
+  'lang',
+  'language',
+  'term',
+  'tz',
+  'tmpdir',
+  'temp',
+  'tmp',
+  'systemroot',
+  'systemdrive',
+  'windir',
+  'comspec',
+  'userprofile',
+  'appdata',
+  'localappdata',
+  'programdata',
+  'programfiles',
+  'programfiles(x86)',
+  'homedrive',
+  'homepath',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'no_proxy',
+  'ssl_cert_file',
+  'ssl_cert_dir',
+  'node_extra_ca_certs',
+  '__cf_user_text_encoding',
+]);
+
+function passes(key: string): boolean {
+  const name = key.toLowerCase();
+  return PASSED_VARIABLES.has(name) || name.startsWith('lc_') || name.startsWith('xdg_');
+}
 
 export function engineEnvironment(
   env: Readonly<Record<string, string | undefined>>,
@@ -75,6 +114,6 @@ export function engineEnvironment(
 ): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(env))
-    if (value !== undefined && !KEY_VARIABLE.test(key)) out[key] = value;
+    if (value !== undefined && passes(key)) out[key] = value;
   return { ...out, ...extra };
 }
