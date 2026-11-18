@@ -44,11 +44,14 @@ export type OfferStatus =
   | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
   | { receipt: string; state: 'unknown' };
 
+type SettledOfferStatus = Exclude<OfferStatus, { state: 'pending' | 'unknown' }>;
+
 export type OfferRefusal =
   | 'offer-invalid'
   | 'offer-expired'
   | 'device-approval-required'
   | 'relationship-inactive';
+export type KeyWatchEvent = { state: 'approved' } | Exclude<OfferStatus, { state: 'pending' }>;
 export type DeviceRefusal =
   | 'device-credential-missing'
   | 'device-unknown'
@@ -110,6 +113,11 @@ export interface DevicePairing {
   }): { ok: true; receipt: string } | { ok: false; code: OfferRefusal };
   pendingKeys(): PendingDeviceKey[];
   approveKey(receipt: string, publicKey: string): boolean;
+  watchKey(
+    receipt: string,
+    publicKey: string,
+    listener: (event: KeyWatchEvent) => void,
+  ): () => void;
   cancelRelationshipOffers(relationshipId: string, publicKey: string): number;
   admitKey(authorization: string | undefined, publicKey: string): Admission;
   admit(authorization: string | undefined): Admission;
@@ -206,7 +214,11 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       relationshipId?: string;
     }
   >();
-  const settled = new Map<string, OfferStatus>();
+  const settled = new Map<string, SettledOfferStatus>();
+  const keyWatches = new Map<
+    string,
+    { listeners: Set<(event: KeyWatchEvent) => void>; timer: ReturnType<typeof setTimeout> }
+  >();
   const streams = new Map<string, Set<() => void>>();
 
   const settle = (
@@ -217,7 +229,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   ): void => {
     settled.delete(receipt);
     while (settled.size >= MAX_SETTLED_OFFERS) settled.delete(settled.keys().next().value!);
-    settled.set(receipt, { receipt, ...outcome, settledAt: iso(now()) });
+    const status = { receipt, ...outcome, settledAt: iso(now()) };
+    settled.set(receipt, status);
+    const watch = keyWatches.get(receipt);
+    if (watch) {
+      keyWatches.delete(receipt);
+      clearTimeout(watch.timer);
+      const listeners = [...watch.listeners];
+      watch.listeners.clear();
+      for (const listener of listeners) listener(status);
+    }
   };
 
   const sweep = (): void => {
@@ -307,8 +328,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       sweep();
       while (offers.size >= MAX_OPEN_OFFERS) {
         const oldest = offers.keys().next().value!;
-        settle(offers.get(oldest)!.receipt, { state: 'superseded' });
+        const receipt = offers.get(oldest)!.receipt;
         offers.delete(oldest);
+        settle(receipt, { state: 'superseded' });
       }
       const offer = token(24);
       const receipt = token(9);
@@ -325,11 +347,12 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     clearOffers() {
-      for (const open of offers.values()) {
+      const pending = [...offers.values()];
+      offers.clear();
+      for (const open of pending) {
         settle(open.receipt, { state: 'superseded' });
         record({ phase: 'offer-refused' });
       }
-      offers.clear();
     },
 
     offerStatus(receipt) {
@@ -411,10 +434,51 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           /^[0-9a-f]{64}$/u.test(publicKey)
         ) {
           open.approved = true;
+          const watch = keyWatches.get(receipt);
+          if (watch)
+            for (const listener of [...watch.listeners]) {
+              if (!watch.listeners.delete(listener)) continue;
+              if (watch.listeners.size === 0) {
+                keyWatches.delete(receipt);
+                clearTimeout(watch.timer);
+              }
+              listener({ state: 'approved' });
+            }
           return true;
         }
       }
       return false;
+    },
+
+    watchKey(receipt, publicKey, listener) {
+      sweep();
+      const open = [...offers.values()].find((offer) => offer.receipt === receipt);
+      if (!open || open.publicKey !== publicKey) {
+        listener(settled.get(receipt) ?? { receipt, state: 'unknown' });
+        return () => {};
+      }
+      if (open.approved) {
+        listener({ state: 'approved' });
+        return () => {};
+      }
+      let watch = keyWatches.get(receipt);
+      if (!watch) {
+        watch = {
+          listeners: new Set(),
+          timer: setTimeout(sweep, Math.max(0, open.expiresAt - now())),
+        };
+        watch.timer.unref();
+        keyWatches.set(receipt, watch);
+      }
+      const notify = (event: KeyWatchEvent) => listener(event);
+      watch.listeners.add(notify);
+      return () => {
+        watch.listeners.delete(notify);
+        if (keyWatches.get(receipt) === watch && watch.listeners.size === 0) {
+          keyWatches.delete(receipt);
+          clearTimeout(watch.timer);
+        }
+      };
     },
     cancelRelationshipOffers(relationshipId, publicKey) {
       let cancelled = 0;
