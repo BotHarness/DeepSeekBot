@@ -2593,7 +2593,9 @@ window.__ModuleLoader__.load({
 						"aria-expanded": expanded,
 						"aria-controls": controls,
 						onClick,
-						onPointerEnter: onIntent,
+						onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
+							if (event.pointerType !== "touch") onIntent();
+						},
 						onFocus: onIntent,
 						children: body
 					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {

@@ -7,33 +7,48 @@ export interface SessionDetailSnapshot {
 }
 
 export interface SessionDetailKey {
+  host: object;
   botSlug: string;
   sessionId: string;
 }
 
 const LIMIT = 24;
+const hosts = new WeakMap<object, number>();
 const entries = new Map<string, SessionDetailSnapshot>();
-const writes = new Map<string, number>();
-const pending = new Set<string>();
+const transcriptWrites = new Map<string, number>();
+const pending = new Map<string, symbol>();
+let nextHost = 0;
+let generation = 0;
 
-function key({ botSlug, sessionId }: SessionDetailKey): string {
-  return `${botSlug}\u0000${sessionId}`;
+function key({ host, botSlug, sessionId }: SessionDetailKey): string {
+  let id = hosts.get(host);
+  if (id === undefined) {
+    id = nextHost++;
+    hosts.set(host, id);
+  }
+  return `${id}\u0000${botSlug}\u0000${sessionId}`;
+}
+
+function touch(id: string, value: SessionDetailSnapshot): void {
+  entries.delete(id);
+  entries.set(id, value);
 }
 
 export function cachedSessionDetail(at: SessionDetailKey): SessionDetailSnapshot | undefined {
-  return entries.get(key(at));
+  const id = key(at);
+  const value = entries.get(id);
+  if (value !== undefined) touch(id, value);
+  return value;
 }
 
 export function rememberSessionDetail(at: SessionDetailKey, patch: SessionDetailSnapshot): void {
   const id = key(at);
-  const next = { ...entries.get(id), ...patch };
-  entries.delete(id);
-  entries.set(id, next);
-  writes.set(id, (writes.get(id) ?? 0) + 1);
+  touch(id, { ...entries.get(id), ...patch });
+  if (patch.transcript !== undefined) transcriptWrites.set(id, (transcriptWrites.get(id) ?? 0) + 1);
   while (entries.size > LIMIT) {
     const oldest = entries.keys().next().value!;
     entries.delete(oldest);
-    writes.delete(oldest);
+    transcriptWrites.delete(oldest);
   }
 }
 
@@ -44,20 +59,26 @@ export function prefetchSessionDetail(
   const id = key(at);
   const read = actions.sessionTranscript;
   if (read === undefined || pending.has(id) || entries.get(id)?.transcript !== undefined) return;
-  pending.add(id);
-  const version = writes.get(id);
+  const token = Symbol(id);
+  const started = generation;
+  const version = transcriptWrites.get(id);
+  pending.set(id, token);
   void read(at.botSlug, at.sessionId)
     .then(
       (transcript) => {
-        if (writes.get(id) === version) rememberSessionDetail(at, { transcript });
+        if (generation === started && transcriptWrites.get(id) === version)
+          rememberSessionDetail(at, { transcript });
       },
       () => {},
     )
-    .finally(() => pending.delete(id));
+    .finally(() => {
+      if (pending.get(id) === token) pending.delete(id);
+    });
 }
 
 export function clearSessionDetailCache(): void {
+  generation += 1;
   entries.clear();
-  writes.clear();
+  transcriptWrites.clear();
   pending.clear();
 }

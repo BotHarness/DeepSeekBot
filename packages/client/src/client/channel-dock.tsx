@@ -436,7 +436,7 @@ function ChannelBodyPanel(): ReactElement {
   if (dock.channel !== undefined && dock.session !== undefined)
     panels[SESSION_DETAIL] = {
       label: dock.session.title,
-      header: <SessionDetailHeader dock={dock} session={dock.session} />,
+      header: <SessionDockHeader dock={dock} session={dock.session} />,
       content: dock.session.content,
     };
   return (
@@ -635,6 +635,60 @@ function SessionDetailHeader({
         </Tooltip>
       }
     />
+  );
+}
+
+function SessionDockHeader({
+  dock,
+  session,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+}): ReactElement {
+  const appearance = useContext(AppearanceContext);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const menu = usePanelMenu({
+    items: [
+      ...(appearance
+        ? [
+            { id: 'appearance', label: dock.t('appearance.panelMenu') },
+            { type: 'separator' as const, id: 'appearance-separator' },
+          ]
+        : []),
+      ...(['left', 'right', 'above', 'below'] as const).map((direction) => ({
+        id: direction,
+        label: dock.t(`workspace.session.${direction}`),
+      })),
+    ],
+    onSelect: (id) => {
+      if (id === 'appearance') setAppearanceOpen(true);
+      else
+        dock.childLayout.setTree(
+          moveChannelSplit(
+            dock.childLayout.tree,
+            SESSION_DETAIL,
+            MESSAGE_LEAF,
+            id as DockPosition['direction'],
+          ),
+        );
+    },
+  });
+  return (
+    <>
+      {appearanceOpen && appearance && (
+        <PanelAppearanceSettings
+          owner={appearance}
+          id={panelTargetId(SESSION_DETAIL)}
+          label={session.title}
+          t={dock.t}
+          onClose={() => setAppearanceOpen(false)}
+        />
+      )}
+      <div data-appearance-header={SESSION_DETAIL} {...menu.triggerProps}>
+        {menu.menu}
+        <SessionDetailHeader dock={dock} session={session} />
+      </div>
+    </>
   );
 }
 

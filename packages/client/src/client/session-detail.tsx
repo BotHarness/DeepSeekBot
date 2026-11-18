@@ -1,4 +1,11 @@
-import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
@@ -626,7 +633,8 @@ export function SessionDetail({
   t: BotHarnessTranslate;
 }): ReactElement {
   const prefs = useContext(SessionDetailPrefsContext);
-  const [cached] = useState(() => cachedSessionDetail({ botSlug, sessionId }));
+  const [cached] = useState(() => cachedSessionDetail({ host: actions, botSlug, sessionId }));
+  const openedCached = useRef(cached?.transcript !== undefined);
   const [transcript, setTranscript] = useState<SessionTranscript | undefined>(cached?.transcript);
   const [live, setLive] = useState<SessionTranscriptItem[]>([]);
   const [progress, setProgress] = useState<SessionProgress | undefined>(cached?.progress);
@@ -651,7 +659,19 @@ export function SessionDetail({
       let lastLoad = 0;
       let gap: ReturnType<typeof setTimeout> | undefined;
       const pinned = (): boolean => node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-      if (cached?.transcript !== undefined) node.scrollTop = node.scrollHeight;
+      const at = { host: actions, botSlug, sessionId };
+      let progressSeq = 0;
+      const measure = (): void =>
+        setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
+      if (openedCached.current) {
+        openedCached.current = false;
+        requestAnimationFrame(() => {
+          if (!abort.signal.aborted) node.scrollTop = node.scrollHeight;
+        });
+      }
+      const resize =
+        typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+      resize?.observe(node);
       const follow = (wasPinned: boolean): void => {
         if (wasPinned) requestAnimationFrame(() => (node.scrollTop = node.scrollHeight));
       };
@@ -675,7 +695,7 @@ export function SessionDetail({
               const wasPinned = pinned();
               durableSeq = next.seq;
               busy = next.running;
-              rememberSessionDetail({ botSlug, sessionId }, { transcript: next });
+              rememberSessionDetail(at, { transcript: next });
               setTranscript(next);
               setFailed(false);
               if (latest.seq <= durableSeq) setLive(liveOf(latest.items));
@@ -692,11 +712,12 @@ export function SessionDetail({
               load();
             }
           });
+        const progressAt = ++progressSeq;
         void actions.sessionProgress?.(botSlug, [sessionId]).then(
           (next) => {
-            if (abort.signal.aborted) return;
+            if (abort.signal.aborted || progressAt !== progressSeq) return;
             const value = next[sessionId];
-            rememberSessionDetail({ botSlug, sessionId }, { progress: value });
+            rememberSessionDetail(at, { progress: value });
             setProgress(value);
           },
           () => {},
@@ -743,6 +764,7 @@ export function SessionDetail({
         })();
       return () => {
         abort.abort();
+        resize?.disconnect();
         if (timer !== undefined) clearTimeout(timer);
         if (gap !== undefined) clearTimeout(gap);
       };
@@ -906,6 +928,7 @@ export function SessionDetail({
       <div
         ref={mount}
         data-session-transcript=""
+        tabIndex={-1}
         onScroll={(event) => {
           const node = event.currentTarget;
           setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
@@ -920,6 +943,11 @@ export function SessionDetail({
           <div {...stylex.props(styles.quiet)}>{t('sessions.detail.empty')}</div>
         ) : (
           <>
+            {failed ? (
+              <div role="status" {...stylex.props(styles.quiet, styles.center)}>
+                {t('sessions.detail.refreshFailed')}
+              </div>
+            ) : null}
             {transcript.omitted === 0 ? null : (
               <div {...stylex.props(styles.quiet, styles.center)}>
                 {t('sessions.detail.omitted', { count: transcript.omitted })}

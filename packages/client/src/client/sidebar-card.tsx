@@ -182,7 +182,13 @@ export function SidebarCardRow({
             aria-expanded={expanded}
             aria-controls={controls}
             onClick={onClick}
-            onPointerEnter={onIntent}
+            onPointerEnter={
+              onIntent === undefined
+                ? undefined
+                : (event) => {
+                    if (event.pointerType !== 'touch') onIntent();
+                  }
+            }
             onFocus={onIntent}
           >
             {body}
