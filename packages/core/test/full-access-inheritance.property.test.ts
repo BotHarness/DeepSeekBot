@@ -19,7 +19,9 @@ const scene = fc.record({
   foreignAt: fc.option(fc.integer({ min: 1, max: 3 }), { nil: undefined }),
 });
 
-function build(input: fc.RecordValue<typeof scene>) {
+type Scene = typeof scene extends fc.Arbitrary<infer T> ? T : never;
+
+function build(input: Scene) {
   const records = new Map<string, SessionOwnershipRecord>();
   const record = (
     sessionId: string,
