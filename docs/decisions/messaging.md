@@ -49,7 +49,7 @@ _Formerly ADR-0061 and ADR-0293._
 
 Why: a message-id-only query has no direction or boundary, and a full-history snapshot grows without bound. The change inventory found 54 write paths; a notification per call site would miss the next one, while a trigger cannot.
 
-Enforced by: `channel-timeline.test.ts`, `channel-timeline-bounded.test.ts`, `channel-changes.test.ts` ("a test fails when a projection table has no trigger").
+Enforced by: `channel-timeline.test.ts`, `channel-timeline.property.test.ts` (any history, page sizes, starting window and appends: one contiguous window with no gap or duplicate), `channel-timeline-bounded.test.ts`, `channel-changes.test.ts` ("a test fails when a projection table has no trigger").
 
 ## 5. PersonaBots collaborate through Channels; references do not grant membership
 
