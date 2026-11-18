@@ -48,13 +48,18 @@ const styles = stylex.create({
   above: { marginBottom: space.x2 },
   below: { marginTop: space.x2 },
   elbow: { width: '14px', height: '100%', minHeight: '20px', color: color.subtle },
-  rows: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: space.x1 },
-  head: { display: 'flex', alignItems: 'center', gap: space.x2 },
+  later: { paddingTop: space.x1 },
   row: { display: 'flex', alignItems: 'center', gap: space.x2, minWidth: 0, maxWidth: '100%' },
   needs: { color: color.warning, flexShrink: 0 },
 });
 
-function Elbow({ kind }: { kind: SessionLink['kind'] }): ReactElement {
+const ELBOW_PATH = {
+  created: 'M2 0 V10 Q2 14 6 14 H14',
+  sent: 'M2 20 V10 Q2 6 6 6 H14',
+  through: 'M2 0 V20',
+} as const;
+
+function Elbow({ path }: { path: keyof typeof ELBOW_PATH }): ReactElement {
   return (
     <svg
       viewBox="0 0 14 20"
@@ -63,7 +68,7 @@ function Elbow({ kind }: { kind: SessionLink['kind'] }): ReactElement {
       {...stylex.props(styles.elbow)}
     >
       <path
-        d={kind === 'created' ? 'M2 0 V10 Q2 14 6 14 H14' : 'M2 20 V10 Q2 6 6 6 H14'}
+        d={ELBOW_PATH[path]}
         fill="none"
         stroke="currentColor"
         strokeWidth="1.25"
@@ -98,19 +103,19 @@ export function SessionLinkRail({
       data-session-links={kind}
       {...stylex.props(styles.rail, kind === 'created' ? styles.below : styles.above)}
     >
-      <Elbow kind={kind} />
-      <div {...stylex.props(styles.rows)}>
-        {own.length > 1 ? (
+      {[
+        own.length > 1 ? (
           <ChipButton
+            key="toggle"
             data-session-links-toggle=""
             aria-expanded={!folded}
             onClick={() => setExpanded(!expanded)}
-            icon={<ChannelSidebarIcon name="chevron-right" size={12} />}
+            icon={<ChannelSidebarIcon name={folded ? 'chevron-right' : 'chevron-down'} size={12} />}
             label={t('sessions.link.count', { label, count: own.length })}
           />
-        ) : null}
-        {folded
-          ? null
+        ) : null,
+        ...(folded
+          ? []
           : own.map((link) => {
               const row = rows.find((entry) => entry.sessionId === link.sessionId);
               return (
@@ -128,8 +133,24 @@ export function SessionLinkRail({
                   )}
                 </span>
               );
-            })}
-      </div>
+            })),
+      ]
+        .filter((item) => item !== null)
+        .flatMap((item, index) => [
+          index === 0 ? (
+            <Elbow key={`elbow-${item.key}`} path={kind} />
+          ) : kind === 'sent' ? (
+            <Elbow key={`elbow-${item.key}`} path="through" />
+          ) : (
+            <span key={`elbow-${item.key}`} />
+          ),
+          <span
+            key={`cell-${item.key}`}
+            {...stylex.props(styles.row, index === 0 ? null : styles.later)}
+          >
+            {item}
+          </span>,
+        ])}
     </div>
   );
 }
