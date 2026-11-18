@@ -413,6 +413,7 @@ describe('native Model Plans and Presets', () => {
       default: flash,
       defaultRevision: 3,
       defaultGroupId: 'daily',
+      defaultGroupRevision: 2,
       groups: [daily],
     }));
     fake.methods.set('modelPresets', () => ({ presets: [] }));
@@ -428,6 +429,7 @@ describe('native Model Plans and Presets', () => {
       args: {
         expectedRevision: 0,
         expectedDefaultRevision: 3,
+        expectedDefaultGroupRevision: 2,
         groupId: 'daily',
         globalDefault: true,
       },

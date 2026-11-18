@@ -671,7 +671,8 @@ describe('Usage and activity commands', () => {
 it('configures the Home native default with its actual revision and reasoning effort', async () => {
   const live = await host((method) => ({
     ok: true,
-    value: method === 'modelCatalog' ? { defaultRevision: 7 } : { revision: 8 },
+    value:
+      method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : { revision: 8 },
   }));
   const result = await invoke(
     [
@@ -693,6 +694,7 @@ it('configures the Home native default with its actual revision and reasoning ef
       args: {
         expectedRevision: 0,
         expectedDefaultRevision: 7,
+        expectedDefaultGroupRevision: 2,
         route: { provider: 'deepseek', model: 'test-model', reasoningEffort: 'high' },
         globalDefault: true,
       },

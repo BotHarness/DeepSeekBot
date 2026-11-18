@@ -33,6 +33,7 @@ export interface ModelCatalogAnswer {
   default?: ModelCatalogRoute;
   defaultRevision?: number;
   defaultGroupId?: string;
+  defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroup[];
 }
@@ -174,6 +175,7 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
   if (!Array.isArray(rows)) throw new ModelCatalogInvalid('modelCatalog returned no models.');
   const fallback = catalogRoute(answer?.['default']);
   const defaultRevision = answer?.['defaultRevision'];
+  const defaultGroupRevision = answer?.['defaultGroupRevision'];
   return {
     models: rows.flatMap((row) => {
       const entry = modelCatalogEntry(row);
@@ -187,6 +189,11 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
       : {}),
     ...(typeof answer?.['defaultGroupId'] === 'string'
       ? { defaultGroupId: answer['defaultGroupId'] }
+      : {}),
+    ...(typeof defaultGroupRevision === 'number' &&
+    Number.isSafeInteger(defaultGroupRevision) &&
+    defaultGroupRevision >= 0
+      ? { defaultGroupRevision }
       : {}),
     ...(Array.isArray(answer?.['favorites'])
       ? {

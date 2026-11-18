@@ -235,6 +235,9 @@ export async function setModelRoute(
     await setOnboardingModel(client, {
       expectedRevision: 0,
       expectedDefaultRevision: state.defaultRevision,
+      ...(state.defaultGroupRevision === undefined
+        ? {}
+        : { expectedDefaultGroupRevision: state.defaultGroupRevision }),
       route,
       globalDefault: true,
     });
@@ -338,6 +341,9 @@ export async function setModelGroup(
       ...(state.defaultRevision === undefined
         ? {}
         : { expectedDefaultRevision: state.defaultRevision }),
+      ...(state.defaultGroupRevision === undefined
+        ? {}
+        : { expectedDefaultGroupRevision: state.defaultGroupRevision }),
       groupId,
       globalDefault: true,
     });
