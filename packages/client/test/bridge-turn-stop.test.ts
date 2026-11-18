@@ -1,7 +1,17 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { parseChannelMessage } from '../src/client/bridge.js';
-import { zhTranslate } from '../src/client/locale.js';
+import { parseChannelMessage, parseSessionEngineQuota } from '../src/client/bridge.js';
+import { en, zhTranslate } from '../src/client/locale.js';
+import { engineChipLabel, sessionEngineText } from '../src/client/session-engine.js';
 import { turnStopText } from '../src/client/turn-stop.js';
+import { TurnStopLine } from '../src/client/turn-stop-line.js';
+
+const enTranslate = (key: string, params?: Record<string, unknown>) =>
+  Object.entries(params ?? {}).reduce(
+    (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+    (en as Record<string, string>)[key] ?? key,
+  );
 
 it('keeps the Human stop notice and drops a malformed one', () => {
   const stop = {
@@ -11,7 +21,11 @@ it('keeps the Human stop notice and drops a malformed one', () => {
     author: { kind: 'system' },
     turnStop: { botSlug: 'ada', botName: 'Ada', humanName: 'Human', sessionId: 's-1' },
   };
-  expect(parseChannelMessage(stop)?.turnStop).toEqual({ botName: 'Ada', humanName: 'Human' });
+  expect(parseChannelMessage(stop)?.turnStop).toEqual({
+    botName: 'Ada',
+    humanName: 'Human',
+    botSlug: 'ada',
+  });
   expect(parseChannelMessage({ ...stop, turnStop: { botName: 'Ada' } })).toBeUndefined();
   expect(
     parseChannelMessage({ ...stop, author: { kind: 'bot', slug: 'ada' } })?.turnStop,
@@ -82,4 +96,74 @@ it('names the route that ran out of quota and when it resets (#4414)', () => {
     },
   });
   expect(malformed?.turnStop?.rests).toBeUndefined();
+});
+
+it('shows a subscription limit card with a one-tap switch to the API model (#4493)', () => {
+  const until = '2026-11-18T18:40:00.000Z';
+  const parsed = parseChannelMessage({
+    id: 'turn-stopped-5',
+    at: '2026-11-18T14:00:00.000Z',
+    body: 'Ada paused.',
+    author: { kind: 'system' },
+    turnStop: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      humanName: 'Human',
+      sessionId: 's-1',
+      held: true,
+      cause: 'quota',
+      rests: [{ provider: 'codex', model: 'ChatGPT pro', until }],
+      engine: { engine: 'codex', account: 'ChatGPT pro', until },
+    },
+  });
+  const stop = parsed!.turnStop!;
+  expect(stop.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro', until });
+  expect(turnStopText(stop, zhTranslate)).toContain(
+    'Ada 已暂停：Codex 订阅（ChatGPT pro）额度用完',
+  );
+  const html = renderToStaticMarkup(
+    createElement(TurnStopLine, { messageId: 'turn-stopped-5', stop, t: enTranslate }),
+  );
+  expect(html).toContain('data-engine-limit="codex"');
+  expect(html).toContain('Switch to API model');
+  const plain = renderToStaticMarkup(
+    createElement(TurnStopLine, {
+      messageId: 'turn-stopped-5',
+      stop: { ...stop, engine: undefined },
+      t: enTranslate,
+    }),
+  );
+  expect(plain).not.toContain('Switch to API model');
+  expect(
+    parseChannelMessage({
+      id: 'turn-stopped-6',
+      at: '2026-11-18T14:00:00.000Z',
+      body: 'Ada paused.',
+      author: { kind: 'system' },
+      turnStop: { ...stop, sessionId: 's-1', engine: { engine: 'codex', until: 'soon' } },
+    })?.turnStop?.engine,
+  ).toBeUndefined();
+});
+
+it('names the quota left, or the limit, where the engine is shown (#4493)', () => {
+  const quota = parseSessionEngineQuota({
+    usedPercent: 79.4,
+    resetsAt: '2026-11-21T08:26:07.000Z',
+    observedAt: '2026-11-18T14:00:00.000Z',
+  });
+  const engine = { engine: 'codex', account: 'ChatGPT pro', state: 'idle' as const };
+  expect(sessionEngineText({ ...engine, quota: quota! }, enTranslate)).toMatch(
+    /^Runs on Codex \(ChatGPT pro\) · 79% used, resets /,
+  );
+  expect(engineChipLabel({ engine: 'codex', quota: quota! }, enTranslate)).toBe('Codex · 79%');
+  const limited = parseSessionEngineQuota({
+    usedPercent: 100,
+    limitedUntil: '2026-11-18T18:40:00.000Z',
+    observedAt: '2026-11-18T14:00:00.000Z',
+  })!;
+  expect(sessionEngineText({ ...engine, quota: limited }, zhTranslate)).toContain('订阅额度已用完');
+  expect(engineChipLabel({ engine: 'codex', quota: limited }, enTranslate)).toBe(
+    'Codex · limit reached',
+  );
+  expect(parseSessionEngineQuota({ usedPercent: 3 })).toBeUndefined();
 });

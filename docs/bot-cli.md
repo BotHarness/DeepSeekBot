@@ -1104,11 +1104,13 @@ A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH mo
 deepseekbot engine list
 deepseekbot engine status
 deepseekbot engine login codex
-deepseekbot engine use <bot> codex --role orchestrator
+deepseekbot engine use <bot> codex --role orchestrator [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
 `engine list` returns `{engines: [{engine, available, reason?}]}`; `engine status` adds `installed`, `version` and `login` (`chatgpt`, `api-key`, `signed-out` or `unknown`) and lists `selections` as `{botSlug, role, engine}`. `reason` is `not-installed`, `signed-out` or `not-subscription`. A Cloud or VPS Host (`subscriptionEngines: false`, or `DEEPSEEKBOT_HOST_KIND=cloud|vps`) lists no engines. `engine login codex` starts `codex login` for the Bot's Codex home on the Host computer and returns `{engine, started, url?}`; finish the sign-in in the browser with the ChatGPT account. `engine use` returns `{bot, role, engine}`; `none` returns the Bot to its DSH model. Before a turn the Host reads the engine's account and refuses anything but a ChatGPT subscription (`engine-not-subscription`, `engine-signed-out`). The engine reaches `bot_send_message` and `channel_read` through a loopback MCP gateway whose token is bound to the Bot, the Session and the current Channel; its own final text is not posted. Refusals: `unknown-bot`, `unknown-engine`, `engine-unavailable`, `invalid-input` and `usage`.
+
+Subscription quota comes only from what the engine reports during a turn (Codex `account/rateLimits/updated`); no OAuth token is read. `engine status` adds `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}` to an engine that has reported one, and lists `fallback` on each selection; the Session list and Session detail show the same quota. When a turn reports the subscription is used up, the Bot stops (`ENGINE_LIMIT`), posts a limit card with the reset time and a one-tap switch to its API model, and later turns are refused without starting the engine until the reset. With `--fallback on`, chosen beforehand, the Bot instead continues on its own Orchestrator Model Choice (an exact route or a Routing Group, so Model Fallback continues from there) with a Model Switch Notice, and returns to the engine at the first turn after the reset. Without it nothing falls back to metered billing. `engine use` resumes a Bot paused by a subscription limit; `engine use <bot> none` is the CLI form of the card's switch.
 
 ### Desktop presence
 

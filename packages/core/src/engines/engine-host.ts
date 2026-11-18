@@ -18,8 +18,11 @@ import type { EngineGateway, EngineGatewayTool, EngineGrant } from './engine-gat
 import { EngineTurnLog } from './engine-log.js';
 import {
   type EngineAccount,
+  type EngineEvent,
   type EngineId,
+  type EngineQuota,
   type EngineSession,
+  EngineLimitError,
   EngineRefusal,
 } from './engine-session.js';
 import {
@@ -58,6 +61,14 @@ export interface EngineSessionDescription {
   engine: EngineId;
   account?: string;
   state: EngineSessionState;
+  quota?: EngineQuotaView;
+}
+
+export interface EngineQuotaView {
+  usedPercent?: number;
+  resetsAt?: string;
+  limitedUntil?: string;
+  observedAt: string;
 }
 
 export interface EngineStatusReport {
@@ -67,6 +78,7 @@ export interface EngineStatusReport {
   installed: boolean;
   version?: string;
   login: CodexStatus['login'];
+  quota?: EngineQuotaView;
 }
 
 export interface EngineHostOptions {
@@ -79,6 +91,7 @@ export interface EngineHostOptions {
   persistence(): EngineSessionPersistence | undefined;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState): void;
   releaseGraceMs?: number;
+  now?: () => number;
   openCodex?(options: CodexProcessOptions): CodexTransport;
   detectCodex?(options: { command: string; home: string }): Promise<CodexStatus>;
   startCodexLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
@@ -102,6 +115,8 @@ interface LiveEngineSession {
   accountChecked: boolean;
   running: Promise<void>;
 }
+
+const LIMIT_REST_MS = 60 * 60_000;
 
 const SIGN_IN_HINT =
   'Sign the Bot in with your ChatGPT subscription: run `deepseekbot engine login codex` on this computer.';
@@ -138,25 +153,96 @@ export class EngineHost {
     return this.store.selection(botSlug, role);
   }
 
-  use(botSlug: string, role: EngineRole, engine: EngineId | undefined): void {
+  use(
+    botSlug: string,
+    role: EngineRole,
+    engine: EngineId | undefined,
+    options: { fallback?: boolean } = {},
+  ): void {
     if (engine !== undefined && !this.#options.local)
       throw new EngineRefusal(
         'engine-unavailable',
         'Subscription Engines run only on a local Host',
       );
-    this.store.select(botSlug, role, engine);
+    this.store.select(botSlug, role, engine, options);
+  }
+
+  fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
+    return this.engineFor(botSlug, role) !== undefined && this.store.fallback(botSlug, role);
+  }
+
+  runsOnEngine(botSlug: string): boolean {
+    const engine = this.engineFor(botSlug);
+    if (engine === undefined) return false;
+    return !(this.fallsBack(botSlug) && this.limit(engine) !== undefined);
+  }
+
+  limit(engine: EngineId): { account: string; until: string } | undefined {
+    const quota = this.store.quota(engine);
+    if (quota?.limited !== true) return undefined;
+    const until =
+      quota.resetsAt !== undefined && Number.isFinite(Date.parse(quota.resetsAt))
+        ? Date.parse(quota.resetsAt)
+        : Date.parse(quota.observedAt) + LIMIT_REST_MS;
+    if (!(until > this.#now())) return undefined;
+    return { account: quota.account ?? engine, until: new Date(until).toISOString() };
+  }
+
+  quota(engine: EngineId): EngineQuotaView | undefined {
+    const quota = this.store.quota(engine);
+    if (quota === undefined) return undefined;
+    const limit = this.limit(engine);
+    const current =
+      quota.resetsAt === undefined || Date.parse(quota.resetsAt) > this.#now()
+        ? quota.usedPercent
+        : undefined;
+    return {
+      ...(current === undefined ? {} : { usedPercent: current }),
+      ...(quota.resetsAt === undefined ? {} : { resetsAt: quota.resetsAt }),
+      ...(limit === undefined ? {} : { limitedUntil: limit.until }),
+      observedAt: quota.observedAt,
+    };
   }
 
   describe(sessionId: string): EngineSessionDescription | undefined {
     const live = this.#states.get(sessionId);
-    if (live !== undefined) return live;
-    const stored = this.store.nativeSession(sessionId);
-    if (stored === undefined) return undefined;
-    return {
-      engine: stored.engine,
-      ...(stored.account === undefined ? {} : { account: stored.account }),
-      state: 'idle',
+    const stored = live === undefined ? this.store.nativeSession(sessionId) : undefined;
+    const base: EngineSessionDescription | undefined =
+      live ??
+      (stored === undefined
+        ? undefined
+        : {
+            engine: stored.engine,
+            ...(stored.account === undefined ? {} : { account: stored.account }),
+            state: 'idle',
+          });
+    if (base === undefined) return undefined;
+    const quota = this.quota(base.engine);
+    return quota === undefined ? base : { ...base, quota };
+  }
+
+  #now(): number {
+    return (this.#options.now ?? Date.now)();
+  }
+
+  #record(engine: EngineId, account: string, event: Extract<EngineEvent, { kind: 'rate-limit' }>) {
+    const previous = this.store.quota(engine);
+    const resetsAt =
+      event.resetsAt !== undefined
+        ? new Date(event.resetsAt * 1000).toISOString()
+        : event.limited && previous?.limited === true && previous.account === account
+          ? previous.resetsAt
+          : undefined;
+    const usedPercent =
+      event.usedPercent ?? (event.limited ? 100 : undefined) ?? previous?.usedPercent;
+    const quota: EngineQuota = {
+      account,
+      ...(usedPercent === undefined ? {} : { usedPercent }),
+      ...(resetsAt === undefined ? {} : { resetsAt }),
+      limited: event.limited,
+      observedAt: new Date(this.#now()).toISOString(),
     };
+    this.store.rememberQuota(engine, quota);
   }
 
   async status(): Promise<EngineStatusReport[]> {
@@ -179,6 +265,7 @@ export class EngineHost {
         installed: detected.installed,
         ...(detected.version === undefined ? {} : { version: detected.version }),
         login: detected.login,
+        ...(this.quota('codex') === undefined ? {} : { quota: this.quota('codex')! }),
       },
     ];
   }
@@ -201,6 +288,8 @@ export class EngineHost {
         'This Bot does not run on a Subscription Engine',
       );
     if (request.signal.aborted) return;
+    const limited = this.limit(engine);
+    if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);
     const live = await this.#open(request);
     const accountChecked = live.accountChecked;
     live.accountChecked = false;
@@ -229,12 +318,17 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
+        let limitedNow = false;
         try {
           const end = await live.engine.send(request.input, {
             signal: AbortSignal.any([request.signal, stop.signal]),
             onEvent: (event) => {
               log.accept(event);
               if (event.kind === 'approval') live.engine.answer(event.approvalId, 'decline');
+              if (event.kind === 'rate-limit') {
+                limitedNow = event.limited;
+                this.#record(engine, live.account, event);
+              }
             },
           });
           try {
@@ -243,7 +337,11 @@ export class EngineHost {
             broken = true;
             throw error;
           }
-          if (end.status === 'failed') throw new EngineRefusal('engine-failed', end.message);
+          if (end.status === 'failed') {
+            const limit = limitedNow ? this.limit(engine) : undefined;
+            if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
+            throw new EngineRefusal('engine-failed', end.message);
+          }
         } finally {
           if (live.turn === scope) live.turn = undefined;
           if (live.stop === stop) live.stop = undefined;

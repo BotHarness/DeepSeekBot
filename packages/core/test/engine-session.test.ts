@@ -155,6 +155,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
       engine: 'codex',
       account: 'ChatGPT pro',
       state: 'idle',
+      quota: expect.objectContaining({ usedPercent: 79 }),
     });
     await host.close();
     expect(replay.closed).toBe(true);
@@ -361,7 +362,7 @@ describe('Engine selection, status and route', () => {
       await (
         await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: 'codex' })
       ).json(),
-    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex' });
+    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex', fallback: false });
     expect(
       (await post({ action: 'use', bot: 'eve', role: 'orchestrator', engine: 'codex' })).status,
     ).toBe(404);
@@ -380,7 +381,7 @@ describe('Engine selection, status and route', () => {
       engines: [
         { engine: 'codex', available: true, installed: true, version: '0.170.0', login: 'chatgpt' },
       ],
-      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
+      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex', fallback: false }],
     });
     await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: null });
     expect(host.engineFor('ada')).toBeUndefined();

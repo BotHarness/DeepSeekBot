@@ -295,7 +295,7 @@ import { HumanAvatarImage } from './human-avatar.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
-import { turnStopText } from './turn-stop.js';
+import { TurnStopLine } from './turn-stop-line.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
@@ -3624,9 +3624,7 @@ function ConversationView({
                           t={t}
                         />
                       ) : first.turnStop !== undefined ? (
-                        <div className="bh-member-departure" data-message-id={first.id}>
-                          <span>{turnStopText(first.turnStop, t)}</span>
-                        </div>
+                        <TurnStopLine messageId={first.id} stop={first.turnStop} t={t} />
                       ) : first.memberDeparture !== undefined ? (
                         <div className="bh-member-departure" data-message-id={first.id}>
                           <span>

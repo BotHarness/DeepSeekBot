@@ -52,6 +52,30 @@ export interface EngineSession {
   close(): Promise<void>;
 }
 
+export interface EngineQuota {
+  account?: string;
+  usedPercent?: number;
+  resetsAt?: string;
+  limited: boolean;
+  observedAt: string;
+}
+
+export class EngineLimitError extends Error {
+  readonly code = 'ENGINE_LIMIT';
+  constructor(
+    readonly engine: EngineId,
+    readonly account: string,
+    readonly until: string,
+  ) {
+    super(`ENGINE_LIMIT: the ${engine} subscription (${account}) is used up until ${until}`);
+    this.name = 'EngineLimitError';
+  }
+
+  get rests(): Array<{ provider: string; model: string; until: string; reason: 'quota' }> {
+    return [{ provider: this.engine, model: this.account, until: this.until, reason: 'quota' }];
+  }
+}
+
 export class EngineRefusal extends Error {
   constructor(
     readonly code:
