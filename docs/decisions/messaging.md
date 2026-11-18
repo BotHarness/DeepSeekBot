@@ -38,7 +38,155 @@ A message is visible to other clients only after its commit. The Host then publi
 
 Why: showing an uncommitted message lets a client act on something that may never exist. One HTTP response per live stream exhausted the browser's six connections per origin once two documents were open; the Remote carrier is outside that budget. DSH already ships the gap-repair helper for its own timeline, so the Client stops reimplementing it.
 
-Enforced by: `channel-live.test.ts`, `journal-stream-contract.test.ts`.
+Enforced by: `channel-live.test.ts`, `journal-stream-contract.test.ts`, and the TLA+ model `verification/live/Live.tla` (`node scripts/verify-tla.mjs live`; the `verify-live` skill). TLC checks every order of writes that commit or roll back, publishes in any order (a caller may await between its commit and `onPlaced`), opens, dropped streams and received entries, for three messages and two opens. It confirms that the client never shows a message twice, shows only committed messages, and shows the committed messages in revision order with none skipped. Three broken variants show what each guard buys: publishing inside the transaction shows a message that rolled back; without the subscriber's `delivered` check and the client's cursor check, a commit that the opening page already holds shows twice; without the client's gap repair, a commit published before an earlier one leaves the earlier one missing. Either duplicate check alone is enough.
+
+Generated from the model by `/statechart` (two messages, one open):
+
+```mermaid
+---
+title: "Live delivery follows the commit"
+config:
+  markdownAutoWrap: false
+  state:
+    useMaxWidth: false
+---
+stateDiagram-v2
+  classDef works fill:#f4f6f7,stroke:#566573,color:#1b2631
+  classDef wrong fill:#fdedec,stroke:#c0392b,color:#7b241c
+  classDef fixed fill:#e9f7ef,stroke:#1e8449,color:#145a32
+  classDef mixed fill:#fdebd0,stroke:#d35400,color:#7e5109
+  classDef after fill:#ffffff,stroke:#808b96,color:#566573
+  classDef worse fill:#f4ecf7,stroke:#7d3c98,color:#4a235a
+  classDef worksPath fill:#f4f6f7,stroke:#1f3a93,stroke-width:4px,color:#1b2631
+  classDef wrongPath fill:#fdedec,stroke:#1f3a93,stroke-width:4px,color:#7b241c
+  classDef fixedPath fill:#e9f7ef,stroke:#1f3a93,stroke-width:4px,color:#145a32
+  classDef mixedPath fill:#fdebd0,stroke:#1f3a93,stroke-width:4px,color:#7e5109
+  classDef afterPath fill:#ffffff,stroke:#1f3a93,stroke-width:4px,color:#566573
+  classDef worsePath fill:#f4ecf7,stroke:#1f3a93,stroke-width:4px,color:#4a235a
+  state "Legend" as legend {
+    state "Works" as legendWorks
+  }
+  class legendWorks works
+  state "Following, shows 0 of 0" as s0
+  state "Following, shows 0 of 1, 1<br/>on the way" as s1
+  state "Following, shows 0 of 1, 1<br/>to publish" as s2
+  state "Following, shows 0 of 2, 1<br/>on the way" as s3
+  state "Following, shows 0 of 2, 1<br/>to publish, 1 on the way" as s4
+  state "Following, shows 0 of 2, 2<br/>on the way" as s5
+  state "Following, shows 0 of 2, 2<br/>to publish" as s6
+  state "Following, shows 1 of 1" as s7
+  state "Following, shows 1 of 1, 1<br/>to publish" as s8
+  state "Following, shows 1 of 2, 1<br/>on the way" as s9
+  state "Following, shows 1 of 2, 1<br/>to publish" as s10
+  state "Following, shows 1 of 2, 1<br/>to publish, 1 on the way" as s11
+  state "Following, shows 1 of 2, 2<br/>to publish" as s12
+  state "Following, shows 2 of 2" as s13
+  state "Following, shows 2 of 2, 1<br/>to publish" as s14
+  state "Following, shows 2 of 2, 2<br/>to publish" as s15
+  state "Not following, shows 0 of<br/>0" as s16
+  state "Not following, shows 0 of<br/>1" as s17
+  state "Not following, shows 0 of<br/>1, 1 to publish" as s18
+  state "Not following, shows 0 of<br/>2" as s19
+  state "Not following, shows 0 of<br/>2, 1 to publish" as s20
+  state "Not following, shows 0 of<br/>2, 2 to publish" as s21
+  state "Not following, shows 1 of<br/>1" as s22
+  state "Not following, shows 1 of<br/>1, 1 to publish" as s23
+  state "Not following, shows 1 of<br/>2" as s24
+  state "Not following, shows 1 of<br/>2, 1 to publish" as s25
+  state "Not following, shows 1 of<br/>2, 2 to publish" as s26
+  state "Not following, shows 2 of<br/>2" as s27
+  state "Not following, shows 2 of<br/>2, 1 to publish" as s28
+  state "Not following, shows 2 of<br/>2, 2 to publish" as s29
+  [*] --> s16
+  s16 --> s0 : the client opens the Channel
+  s16 --> s18 : the write commits
+  s0 --> s16 : the stream drops
+  s18 --> s17 : the Host publishes a commit
+  s18 --> s8 : the client opens the Channel
+  s0 --> s2 : the write commits
+  s18 --> s21 : the write commits
+  s17 --> s7 : the client opens the Channel
+  s8 --> s7 : the Host publishes a commit
+  s8 --> s23 : the stream drops
+  s2 --> s1 : the Host publishes a commit
+  s2 --> s18 : the stream drops
+  s21 --> s20 : the Host publishes a commit
+  s21 --> s15 : the client opens the Channel
+  s17 --> s20 : the write commits
+  s8 --> s12 : the write commits
+  s7 --> s22 : the stream drops
+  s23 --> s22 : the Host publishes a commit
+  s2 --> s6 : the write commits
+  s1 --> s17 : the stream drops
+  s1 --> s7 : the client receives an entry
+  s20 --> s19 : the Host publishes a commit
+  s20 --> s14 : the client opens the Channel
+  s15 --> s14 : the Host publishes a commit
+  s15 --> s29 : the stream drops
+  s7 --> s10 : the write commits
+  s12 --> s10 : the Host publishes a commit
+  s12 --> s11 : the Host publishes a commit
+  s12 --> s26 : the stream drops
+  s23 --> s26 : the write commits
+  s6 --> s4 : the Host publishes a commit
+  s6 --> s21 : the stream drops
+  s1 --> s4 : the write commits
+  s19 --> s13 : the client opens the Channel
+  s14 --> s13 : the Host publishes a commit
+  s14 --> s28 : the stream drops
+  s29 --> s28 : the Host publishes a commit
+  s10 --> s9 : the Host publishes a commit
+  s10 --> s25 : the stream drops
+  s22 --> s25 : the write commits
+  s11 --> s9 : the Host publishes a commit
+  s11 --> s25 : the stream drops
+  s11 --> s14 : the client receives an entry
+  s26 --> s25 : the Host publishes a commit
+  s4 --> s5 : the Host publishes a commit
+  s4 --> s20 : the stream drops
+  s4 --> s10 : the client receives an entry
+  s4 --> s3 : the Host publishes a commit
+  s4 --> s14 : the client receives an entry
+  s13 --> s27 : the stream drops
+  s28 --> s27 : the Host publishes a commit
+  s9 --> s24 : the stream drops
+  s9 --> s13 : the client receives an entry
+  s25 --> s24 : the Host publishes a commit
+  s5 --> s19 : the stream drops
+  s5 --> s9 : the client receives an entry
+  s3 --> s19 : the stream drops
+  s3 --> s13 : the client receives an entry
+  class s0 works
+  class s1 works
+  class s2 works
+  class s3 works
+  class s4 works
+  class s5 works
+  class s6 works
+  class s7 works
+  class s8 works
+  class s9 works
+  class s10 works
+  class s11 works
+  class s12 works
+  class s13 works
+  class s14 works
+  class s15 works
+  class s16 works
+  class s17 works
+  class s18 works
+  class s19 works
+  class s20 works
+  class s21 works
+  class s22 works
+  class s23 works
+  class s24 works
+  class s25 works
+  class s26 works
+  class s27 works
+  class s28 works
+  class s29 works
+```
 
 ## 4. Timeline pages use Host-owned cursors, and a database change log feeds caches
 
