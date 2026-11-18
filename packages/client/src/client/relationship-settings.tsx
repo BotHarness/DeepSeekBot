@@ -21,6 +21,7 @@ import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import { useMountedResource } from './mounted-resource.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
+import { observeResource } from './messaging-defaults-live.js';
 
 export function RelationshipSettings({
   t,
@@ -129,11 +130,9 @@ export function RelationshipSettings({
   const mount = useMountedResource<HTMLDivElement>(() => {
     abort.current = new AbortController();
     void load();
-    const timer = setInterval(() => {
-      void load();
-    }, 2000);
+    const stopObserving = observeResource('relationships', () => void load(), 2000);
     return () => {
-      clearInterval(timer);
+      stopObserving();
       abort.current?.abort();
       enrollment.current?.abort('owner-disposed');
     };

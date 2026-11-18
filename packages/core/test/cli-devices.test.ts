@@ -9,6 +9,43 @@ const reply = (value: unknown) => ({
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
 
 describe('devices CLI', () => {
+  it('counts only device changes the Host announces while watching', async () => {
+    const http = vi.fn(async () => reply({ devices: [{ id: 'd1' }], pendingKeys: [] }));
+    const encoder = new TextEncoder();
+    const stream = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(encoder.encode('retry: 1500\n\n'));
+              for (const resource of ['devices', 'relationships', 'devices'])
+                controller.enqueue(
+                  encoder.encode(
+                    `event: resource/changed\ndata: {"resource":"${resource}","revision":1}\n\n`,
+                  ),
+                );
+              controller.enqueue(encoder.encode('event: human-attention/changed\ndata: {}\n\n'));
+            },
+          }),
+          { headers: { 'content-type': 'text/event-stream' } },
+        ),
+    );
+    expect(
+      await runDevicesCommand('devices-watch', [], { 'watch-seconds': '1' }, async () => ({
+        http,
+        stream,
+      })),
+    ).toEqual({
+      seconds: 1,
+      invalidations: 2,
+      initial: { devices: [{ id: 'd1' }], pendingKeys: [] },
+      current: { devices: [{ id: 'd1' }], pendingKeys: [] },
+    });
+    expect(stream).toHaveBeenCalledWith('/api/botharness/stream?scope=roster');
+    await expect(
+      runDevicesCommand('devices-watch', [], { 'watch-seconds': '61' }, async () => ({ http })),
+    ).rejects.toThrow('--watch-seconds');
+  });
   it.each(['devices', 'device-requests'])(
     'shows pending full public-key fingerprints through %s',
     async (command) => {

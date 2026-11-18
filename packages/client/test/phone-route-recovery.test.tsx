@@ -364,3 +364,48 @@ it('labels the Host port from the loopback route, not the managed ingress port',
     zhTranslate('devices.route.step.publish.title', { port: '51442' }),
   );
 });
+
+it('shows a newly paired phone as soon as the Host announces it, without route polling while live', async () => {
+  const streams: Array<EventTarget & { readyState: number; close(): void }> = [];
+  vi.stubGlobal(
+    'EventSource',
+    class extends EventTarget {
+      readyState = 0;
+      constructor() {
+        super();
+        streams.push(this);
+      }
+      close() {
+        this.readyState = 2;
+      }
+    },
+  );
+  snapshot = tailnet('running');
+  await mountWithTimers();
+  const stream = streams.at(-1)!;
+  stream.readyState = 1;
+  await act(async () => {
+    stream.dispatchEvent(new Event('open'));
+    await vi.advanceTimersByTimeAsync(30);
+  });
+  const reads = () =>
+    vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/devices')).length;
+  const before = reads();
+  await poll();
+  await poll();
+  expect(reads()).toBe(before);
+  snapshot = {
+    ...tailnet('running'),
+    devices: [{ id: 'd1', name: 'Pixel Live', pairedAt: '2026-11-18T00:00:00.000Z' }],
+  };
+  await act(async () => {
+    stream.dispatchEvent(
+      new MessageEvent('resource/changed', {
+        data: JSON.stringify({ resource: 'devices', revision: 1 }),
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(30);
+  });
+  expect(reads()).toBe(before + 1);
+  expect(host.textContent).toContain('Pixel Live');
+});

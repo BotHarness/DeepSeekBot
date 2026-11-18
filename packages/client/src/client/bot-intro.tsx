@@ -52,6 +52,7 @@ import {
   type PersonaPrompt,
 } from './onboarding-personas.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { observeResource } from './messaging-defaults-live.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
@@ -459,10 +460,10 @@ export function BotIntro({
       }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
+    const stopObserving = observeResource('devices', () => void refresh(), 3000);
     return () => {
       abort.abort();
-      clearInterval(timer);
+      stopObserving();
     };
   }, [phoneDevice]);
   if (!intro) return null;

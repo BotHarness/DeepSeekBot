@@ -80,6 +80,7 @@ import { createRemoteNotifications, type RemoteNotifications } from './remote-no
 import { en } from './locale.js';
 import { hostSettingsDrafts } from './host-settings-drafts.js';
 import { relationshipListSchema } from '../../../core/src/devices/relationship-contract.js';
+import { observeResource } from './messaging-defaults-live.js';
 
 export const REMOTE_HOSTS_STORAGE_KEY = 'botharness.remoteHosts.v1';
 export const HOST_TAB_STORAGE_KEY = 'botharness.hostTab.v1';
@@ -496,7 +497,7 @@ export function createRemoteHosts(options: {
   let tab = readTab(storage);
   let open: RemoteConversationTarget | undefined;
   let snapshot: RemoteHostsSnapshot = { hosts: [], avatars, tab };
-  let relationshipTimer: ReturnType<typeof setInterval> | undefined;
+  let stopRelationships: (() => void) | undefined;
   let relationshipPoll: AbortController | undefined;
   const reconcileRelationships = async () => {
     if (
@@ -1370,17 +1371,19 @@ export function createRemoteHosts(options: {
         globalThis.addEventListener?.('storage', storageChanged);
         refreshCredentials();
         for (const entry of clients.values()) start(entry);
-        relationshipTimer = setInterval(() => {
-          void reconcileRelationships();
-        }, 2000);
+        stopRelationships = observeResource(
+          'relationships',
+          () => void reconcileRelationships(),
+          2000,
+        );
         void reconcileRelationships();
       }
       return () => {
         listeners.delete(listener);
         if (listeners.size > 0) return;
         globalThis.removeEventListener?.('storage', storageChanged);
-        if (relationshipTimer !== undefined) clearInterval(relationshipTimer);
-        relationshipTimer = undefined;
+        stopRelationships?.();
+        stopRelationships = undefined;
         relationshipPoll?.abort();
         for (const entry of clients.values()) stop(entry);
         notifications.stop();
