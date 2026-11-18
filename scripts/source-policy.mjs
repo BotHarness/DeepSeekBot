@@ -30,6 +30,7 @@ const licenseHeaderHashes = new Map([
   ['packages/client/src/client/at-sign-icon.tsx', '872b937bc972ab3c'],
   ['packages/client/src/client/exit-icon.tsx', '3fdff4d1d1c27b3e'],
   ['packages/client/src/client/bug-icon.tsx', '30ae9e83121b3a2a'],
+  ['packages/client/src/client/quote-icon.tsx', '4c7e7129d7394642'],
 ]);
 const firstPartyPrefixes = ['packages/', 'scripts/', 'apps/docs/', 'apps/mobile/', 'design/'];
 

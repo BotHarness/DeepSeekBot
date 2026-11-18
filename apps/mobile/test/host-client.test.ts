@@ -1086,6 +1086,39 @@ describe('Host client', () => {
     expect(host.requests.length).toBe(attempts);
   });
 
+  it.each([
+    [401, 'credentials-invalid', 'sign-in-required'],
+    [401, 'sign-in-required', 'sign-in-required'],
+    [403, 'member-suspended', 'member-suspended'],
+  ] as const)(
+    'stops retrying and names why a Team Host refused this member (%i %s)',
+    async (status, code, expected) => {
+      const host = new FakeHost();
+      const target = connect(host);
+      await until(target, (s) => s.connection.status === 'connected');
+      host.teamRefusal = { status, code };
+      host.revoke();
+      const refused = await until(target, (s) => s.connection.status === 'refused');
+      expect(refused.connection).toMatchObject({ code: expected });
+      const attempts = host.requests.length;
+      target.retryNow('resume');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(host.requests.length).toBe(attempts);
+    },
+  );
+
+  it('stops at a member refusal that an upload meets first', async () => {
+    const host = new FakeHost();
+    const target = connect(host);
+    await until(target, (s) => s.connection.status === 'connected');
+    host.teamRefusal = { status: 403, code: 'member-suspended' };
+    await expect(target.upload('qa.txt', new Blob(['qa']))).rejects.toThrow();
+    expect(target.getSnapshot().connection).toMatchObject({
+      status: 'refused',
+      code: 'member-suspended',
+    });
+  });
+
   it('asks to pair again when the Host does not know this phone', async () => {
     const host = new FakeHost();
     const target = connect(host, 'device-9.unknown');

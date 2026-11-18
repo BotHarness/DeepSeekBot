@@ -1,17 +1,17 @@
 import { GroupWorkEntry } from './group-work-entry.js';
 import { useSessionTarget } from './session-target.js';
 import type { SessionsState } from './store.js';
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useCallback, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 import {
   Checkbox,
+  IconFolderOpenOutlineRegular,
   IconStopFillRegular,
   Tag,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ConfirmDialog } from './ds/form-dialog.js';
-import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientStore } from './use-client-store.js';
@@ -25,36 +25,38 @@ import {
   type PersonaBotSessionRow,
 } from './session-rows.js';
 import {
-  sessionViewPreferenceSnapshot,
-  subscribeSessionViewPreference,
+  useSessionViewPreference,
   updateSessionViewPreference,
   type SessionStatusSection,
 } from './session-view-prefs.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SidebarViewMenu } from './sidebar-view-menu.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { botNameSource, paintBotScale } from './bot-primary-color.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { PersonaBotAvatar } from './avatar.js';
 import { useFlipList } from './flip-list.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
-import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
-import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
+import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
+import { AssignmentWorkDialog } from './assignment-work.js';
+import { Menu } from './appearance-primitives.js';
+import type { ModelCatalogEntryView, SessionProgress } from './bridge.js';
+import {
+  currentTodo,
+  GoalChip,
+  isStuck,
+  SessionMetaChip,
+  TodoProgressChip,
+} from './session-progress-view.js';
+
+const PROGRESS_SESSIONS = 30;
+const PROGRESS_REFRESH_MS = 60_000;
 
 const styles = stylex.create({
   groups: { display: 'flex', flexDirection: 'column' },
   orchestrator: { display: 'grid', placeItems: 'center' },
-  orchestratorIcon: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '20px',
-    height: '20px',
-    borderRadius: radius.sm,
-    backgroundColor: `var(--bh-bot-color, ${color.fg})`,
-    color: color.base,
-  },
 });
 
 const STATUS_TONE = {
@@ -69,6 +71,7 @@ const STATUS_TONE = {
 const IMPLIED_STATUS = {
   'needs-input': undefined,
   working: 'running',
+  stuck: 'running',
   idle: 'idle',
   resolved: 'any',
 } as const;
@@ -86,14 +89,6 @@ function workspaceName(path: string | undefined): string | undefined {
   return path?.split(/[\\/]/u).filter(Boolean).at(-1);
 }
 
-function useSessionViewPreference(botSlug: string) {
-  return useSyncExternalStore(
-    (listener) => subscribeSessionViewPreference(botSlug, listener),
-    () => sessionViewPreferenceSnapshot(botSlug),
-    () => sessionViewPreferenceSnapshot(botSlug),
-  );
-}
-
 function SessionsPanel({
   botSlug,
   channelId,
@@ -101,6 +96,8 @@ function SessionsPanel({
   t,
   nativeSessions,
   assignmentLimit,
+  onSessionSelect,
+  selectedSessionId,
 }: ChannelSidebarEntryProps & {
   nativeSessions: NativeSessionCatalog;
   assignmentLimit?: number | undefined;
@@ -121,10 +118,9 @@ function SessionsPanel({
   const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
   const sessions = useClientStore((state) => state.sessions);
   const conversationRevision = useClientStore((state) => state.conversation.revision);
-  const nameSource = useClientStore((state) => {
-    const bot = state.bots.find((candidate) => candidate.slug === botSlug);
-    return bot === undefined ? undefined : botNameSource(bot);
-  });
+  const ownerBot = useClientStore((state) =>
+    state.bots.find((candidate) => candidate.slug === botSlug),
+  );
   const [local, setLocal] = useState<SessionsState>({
     status: 'loading',
     items: [],
@@ -176,6 +172,60 @@ function SessionsPanel({
     preference.layout === 'status' ? personaBotSessionRows(owned.items, native.byId, 'all') : rows;
   const groups = groupSessionRowsByWorkspace(rows);
   const flip = useFlipList<HTMLDivElement>();
+  const [progress, setProgress] = useState<Readonly<Record<string, SessionProgress>>>({});
+  const progressIds = [
+    ...new Set(
+      [...rows, ...statusRows]
+        .filter((row) => native.byId[row.sessionId] !== undefined && row.archived !== true)
+        .map((row) => row.sessionId),
+    ),
+  ]
+    .slice(0, PROGRESS_SESSIONS)
+    .join(',');
+  const anyRunning = statusRows.some((row) => row.status === 'running');
+  const progressMount = useMountedResource<HTMLDivElement>(() => {
+    const read = actions.sessionProgress;
+    if (botSlug === undefined || read === undefined || progressIds === '') return;
+    let live = true;
+    const load = (): void => {
+      void read(botSlug, progressIds.split(',')).then(
+        (next) => {
+          if (live) setProgress(next);
+        },
+        () => {},
+      );
+    };
+    load();
+    const timer = anyRunning ? setInterval(load, PROGRESS_REFRESH_MS) : undefined;
+    return () => {
+      live = false;
+      if (timer !== undefined) clearInterval(timer);
+    };
+  }, [actions, botSlug, progressIds, anyRunning, signature, conversationRevision, reload]);
+  const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const catalogMount = useMountedResource<HTMLDivElement>(() => {
+    let live = true;
+    void Promise.resolve(actions.modelCatalog?.()).then(
+      (catalog) => {
+        if (live && catalog !== undefined) setModels(catalog.models);
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [actions]);
+  const rootRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      mount(node);
+      progressMount(node);
+      catalogMount(node);
+    },
+    [mount, progressMount, catalogMount],
+  );
+  const now = Date.now();
+  const stuckOf = (row: PersonaBotSessionRow): boolean =>
+    isStuck(row.status === 'running', progress[row.sessionId], now);
   const statusLabel = {
     running: t('sessions.status.running'),
     stopping: t('sessions.status.stopping'),
@@ -219,6 +269,13 @@ function SessionsPanel({
     const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
     const workable = row.role === 'assignment' && botSlug !== undefined;
     const locallyStopping = stopping.has(row.sessionId);
+    const rowProgress = progress[row.sessionId];
+    const stuck = stuckOf(row);
+    const summary = stuck
+      ? t('sessions.stuck.line', {
+          minutes: Math.floor((now - (rowProgress?.lastEventAt ?? now)) / 60_000),
+        })
+      : currentTodo(rowProgress);
     const status = locallyStopping ? 'stopping' : row.status;
     const stoppable = botSlug !== undefined && (status === 'running' || status === 'stopping');
     const archivable = !(
@@ -227,6 +284,52 @@ function SessionsPanel({
       botSlug === undefined ||
       (native.byId[row.sessionId] === undefined && row.archived !== true)
     );
+    const openable = onSessionSelect !== undefined && native.byId[row.sessionId] !== undefined;
+    const menu: MenuEntry[] = [
+      ...(stoppable
+        ? [
+            {
+              id: 'stop',
+              label: t(status === 'stopping' ? 'sessions.status.stopping' : 'sessions.stop'),
+              icon: <IconStopFillRegular size={12} />,
+              disabled: status === 'stopping',
+            },
+          ]
+        : []),
+      ...(workable
+        ? [
+            {
+              id: 'work',
+              label: t('assignmentWork.tooltip'),
+              icon: <ChannelSidebarIcon name="panel-right" size={14} />,
+            },
+          ]
+        : []),
+      ...(openable
+        ? [
+            {
+              id: 'open',
+              label: t('sessions.openInHarness'),
+              icon: <ChannelSidebarIcon name="external-link" size={14} />,
+            },
+          ]
+        : []),
+      ...(archivable
+        ? [
+            {
+              id: 'archive',
+              label: t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive'),
+              icon: (
+                <ChannelSidebarIcon
+                  name={row.archived === true ? 'archive-restore' : 'archive'}
+                  size={14}
+                />
+              ),
+              disabled: archiving !== undefined,
+            },
+          ]
+        : []),
+    ];
     return (
       <SidebarCardRow
         key={row.sessionId}
@@ -240,22 +343,34 @@ function SessionsPanel({
                   role="img"
                   aria-label={role}
                   title={role}
-                  ref={(element) => paintBotScale(element, nameSource)}
                 >
-                  <span {...stylex.props(styles.orchestratorIcon)}>
-                    <ChannelSidebarIcon name="bot" size={14} />
-                  </span>
+                  <PersonaBotAvatar
+                    personaBotId={slug}
+                    name={ownerBot?.displayName ?? slug}
+                    src={ownerBot?.avatar}
+                    appearance={ownerBot?.appearance}
+                    avatarSeed={ownerBot?.avatarSeed}
+                    size={20}
+                    indicator={false}
+                    nativeTitle={false}
+                    t={t}
+                  />
                 </span>
               ),
             }
-          : { icon: 'list-checks', iconLabel: role })}
+          : { icon: ASSIGNMENT_SESSION_ICON, iconLabel: role })}
         title={row.title}
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
         state={status}
-        muted={native.byId[row.sessionId] === undefined}
-        disabled={native.byId[row.sessionId] === undefined}
-        onClick={() => void actions.openSession(row.sessionId)}
+        muted={onSessionSelect === undefined && native.byId[row.sessionId] === undefined}
+        disabled={onSessionSelect === undefined && native.byId[row.sessionId] === undefined}
+        expanded={onSessionSelect === undefined ? undefined : selectedSessionId === row.sessionId}
+        onClick={() =>
+          onSessionSelect === undefined
+            ? void actions.openSession(row.sessionId)
+            : onSessionSelect(row.sessionId, row.title)
+        }
         badge={
           row.triageOpenCount !== undefined ? (
             <Tag tone="info">{t('sessions.triage', { count: row.triageOpenCount })}</Tag>
@@ -267,18 +382,12 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[status]}>{statusLabel[status]}</Tag>
           )
         }
-        {...(!archivable && !workable && !stoppable && subagents === undefined
+        {...(menu.length === 0 && subagents === undefined
           ? {}
           : {
+              trailingAlign: 'start' as const,
               trailing: (
                 <>
-                  {workable ? (
-                    <AssignmentWorkButton
-                      title={row.title}
-                      onOpen={() => setWork({ sessionId: row.sessionId, title: row.title })}
-                      t={t}
-                    />
-                  ) : null}
                   {subagents === undefined ? null : (
                     <SessionSubagentToggle
                       count={subagents}
@@ -288,42 +397,22 @@ function SessionsPanel({
                       t={t}
                     />
                   )}
-                  {stoppable ? (
-                    <Tooltip label={t('sessions.stop')} side="top" portal delayMs={400}>
-                      <IconButton
-                        size="inline"
-                        data-session-stop=""
-                        disabled={status === 'stopping'}
-                        aria-label={t('sessions.stopNamed', { title: row.title })}
-                        onClick={() => {
+                  {menu.length === 0 ? null : (
+                    <SessionRowMenu
+                      label={t('sessions.moreNamed', { title: row.title })}
+                      items={menu}
+                      onSelect={(id) => {
+                        if (botSlug === undefined) return;
+                        if (id === 'stop') {
                           if (row.role === 'orchestrator' && runningAssignments > 0) {
                             setStopAll(false);
                             setConfirmStop({ sessionId: row.sessionId, title: row.title });
                           } else runStop(botSlug, row.sessionId, false);
-                        }}
-                      >
-                        <IconStopFillRegular size={12} />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
-                  {archivable ? (
-                    <Tooltip
-                      label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
-                      side="top"
-                      portal
-                      delayMs={400}
-                    >
-                      <IconButton
-                        size="inline"
-                        data-session-archive=""
-                        disabled={archiving !== undefined}
-                        aria-label={t(
-                          row.archived === true
-                            ? 'sessions.unarchiveNamed'
-                            : 'sessions.archiveNamed',
-                          { title: row.title },
-                        )}
-                        onClick={() => {
+                        } else if (id === 'work') {
+                          setWork({ sessionId: row.sessionId, title: row.title });
+                        } else if (id === 'open') {
+                          void actions.openSession(row.sessionId);
+                        } else if (id === 'archive') {
                           setArchiving(row.sessionId);
                           setArchiveError(undefined);
                           void actions
@@ -337,15 +426,10 @@ function SessionsPanel({
                               setArchiving(undefined);
                               setReload((value) => value + 1);
                             });
-                        }}
-                      >
-                        <ChannelSidebarIcon
-                          name={row.archived === true ? 'archive-restore' : 'archive'}
-                          size={14}
-                        />
-                      </IconButton>
-                    </Tooltip>
-                  ) : null}
+                        }
+                      }}
+                    />
+                  )}
                 </>
               ),
             })}
@@ -363,21 +447,39 @@ function SessionsPanel({
               ),
             }
           : {})}
-        {...(row.assignmentAccessMode === 'danger-full-access'
+        {...(summary === undefined ? {} : { summary })}
+        {...(showWorkspace ||
+        row.modelRoute !== undefined ||
+        row.assignmentAccessMode === 'danger-full-access' ||
+        rowProgress?.todos !== undefined ||
+        rowProgress?.goal !== undefined
           ? {
               chips: (
-                <span title={t('sessions.access.dangerDetails')}>
-                  <Tag tone="warning">{t('sessions.access.danger')}</Tag>
-                </span>
+                <>
+                  {showWorkspace ? (
+                    <SessionMetaChip
+                      kind="workspace"
+                      icon={<IconFolderOpenOutlineRegular size={12} />}
+                      label={workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}
+                      title={row.cwd}
+                    />
+                  ) : null}
+                  {row.modelRoute === undefined ? null : (
+                    <SessionModelChip route={row.modelRoute} models={models} />
+                  )}
+                  {row.assignmentAccessMode === 'danger-full-access' ? (
+                    <span title={t('sessions.access.dangerDetails')}>
+                      <Tag tone="warning">{t('sessions.access.danger')}</Tag>
+                    </span>
+                  ) : null}
+                  <TodoProgressChip todos={rowProgress?.todos} t={t} />
+                  <GoalChip goal={rowProgress?.goal} t={t} />
+                </>
               ),
             }
           : {})}
         meta={
           <>
-            {showWorkspace ? (
-              <span>{workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}</span>
-            ) : null}
-            {row.modelRoute === undefined ? null : <span>{modelRouteText(row.modelRoute)}</span>}
             <span>{formatRelativeTime(row.updatedAt, Date.now(), t)}</span>
           </>
         }
@@ -391,7 +493,9 @@ function SessionsPanel({
   const sections = ASSIGNMENT_SECTIONS.map((id) => ({
     id,
     implied: IMPLIED_STATUS[id],
-    rows: assignments.filter((row) => row.section === id),
+    rows: assignments.filter(
+      (row) => (row.section === 'working' && stuckOf(row) ? 'stuck' : row.section) === id,
+    ),
   }));
   const runningCount = assignments.filter((row) => row.status === 'running').length;
   const toggleSection = (id: SessionStatusSection): void => {
@@ -424,7 +528,7 @@ function SessionsPanel({
   );
 
   return (
-    <div data-sessions="" ref={mount}>
+    <div data-sessions="" ref={rootRef}>
       {owned.status === 'loading' && rows.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('sessions.loading')} />
       ) : null}
@@ -562,6 +666,8 @@ export function SessionsHeaderAction({
               { type: 'label' as const, id: 'layout-label', text: t('sessions.layout') },
               { id: 'layout:status', label: t('sessions.layout.status') },
               { id: 'layout:workspace', label: t('sessions.layout.workspace') },
+              { type: 'separator' as const, id: 'links-separator' },
+              { id: 'links:on', label: t('sessions.link.toggle') },
             ]
           : []),
         ...extraItems,
@@ -569,9 +675,14 @@ export function SessionsHeaderAction({
       selectedIds={[
         ...extraSelectedIds,
         ...(botSlug ? ['scope:' + preference.scope, 'layout:' + preference.layout] : []),
+        ...(botSlug && preference.links ? ['links:on'] : []),
       ]}
       onSelect={(id) => {
         const [kind, value] = id.split(':');
+        if (kind === 'links') {
+          updateSessionViewPreference(slug, (current) => ({ ...current, links: !current.links }));
+          return;
+        }
         if (kind !== 'scope' && kind !== 'layout') {
           onExtraSelect?.(id);
           return;
@@ -597,5 +708,76 @@ export function SessionsEntry(
     <GroupWorkEntry key={props.channelId} {...props} nativeSessions={props.nativeSessions} />
   ) : (
     <SessionsPanel key={props.channelId + ':' + target.slug} {...props} botSlug={target.slug} />
+  );
+}
+
+function SessionRowMenu({
+  label,
+  items,
+  onSelect,
+}: {
+  label: string;
+  items: readonly MenuEntry[];
+  onSelect(id: string): void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      portal
+      dense
+      align="end"
+      anchor={
+        <span data-session-more={open ? 'open' : 'closed'}>
+          <IconButton
+            size="inline"
+            aria-label={label}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <ChannelSidebarIcon name="ellipsis-vertical" size={14} />
+          </IconButton>
+        </span>
+      }
+      items={items}
+      onSelect={(id) => {
+        setOpen(false);
+        onSelect(id);
+      }}
+      onClose={() => setOpen(false)}
+    />
+  );
+}
+
+function SessionModelChip({
+  route,
+  models,
+}: {
+  route: { provider: string; model: string; reasoningEffort?: string };
+  models: readonly ModelCatalogEntryView[];
+}): ReactElement {
+  const entry = models.find(
+    (item) => item.provider === route.provider && item.model === route.model,
+  );
+  const name = entry?.modelName ?? route.model;
+  const brand = modelBrand({
+    provider: route.provider,
+    model: route.model,
+    name: entry?.modelName,
+  });
+  const effort =
+    route.reasoningEffort === undefined
+      ? undefined
+      : (entry?.efforts.find((item) => item.id === route.reasoningEffort)?.name ??
+        route.reasoningEffort);
+  const short = modelShortName(name, brand);
+  return (
+    <SessionMetaChip
+      kind="model"
+      icon={<ModelBrandIcon brand={brand} size={12} />}
+      label={effort === undefined ? short : `${short} · ${effort}`}
+      title={modelRouteText(route)}
+    />
   );
 }

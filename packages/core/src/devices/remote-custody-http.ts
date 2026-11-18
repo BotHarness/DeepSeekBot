@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { custodyFailure, type RemoteCustody } from './remote-custody.js';
+import {
+  custodyFailure,
+  TEAM_DEVICE_PATHS,
+  type CustodyResponse,
+  type RemoteCustody,
+} from './remote-custody.js';
 
 export const REMOTE_CUSTODY_PATH = '/api/botharness/remote-custody';
 export const REMOTE_CUSTODY_STREAM_PATH = '/api/botharness/remote-custody/stream';
@@ -21,6 +26,13 @@ const command = z.discriminatedUnion('action', [
     bodyBase64: z.string().max(12_000_000).optional(),
   }),
   z.object({ action: z.literal('socket'), handle, url, headers }),
+  z.object({
+    action: z.literal('team'),
+    route: url,
+    path: z.enum(TEAM_DEVICE_PATHS),
+    headers,
+    body: z.string().max(64_000),
+  }),
   z.object({ action: z.literal('send'), socket, text: z.string().max(70_000) }),
   z.object({ action: z.literal('close'), socket }),
 ]);
@@ -31,6 +43,12 @@ export const REMOTE_CUSTODY_ACTIONS: readonly string[] = command.options.map(
 
 const reply = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
+const forwarded = (response: CustodyResponse) =>
+  reply({
+    status: response.status,
+    contentType: response.contentType,
+    body: Buffer.from(response.body).toString('base64'),
+  });
 
 export function createRemoteCustodyHttp(custody: RemoteCustody) {
   return async (request: Request): Promise<Response> => {
@@ -64,11 +82,17 @@ export function createRemoteCustodyHttp(custody: RemoteCustody) {
               : {}),
           signal: AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]),
         });
-        return reply({
-          status: response.status,
-          contentType: response.contentType,
-          body: Buffer.from(response.body).toString('base64'),
+        return forwarded(response);
+      }
+      if (input.action === 'team') {
+        const response = await custody.teamRequest({
+          route: input.route,
+          path: input.path,
+          ...(input.headers ? { headers: input.headers } : {}),
+          body: input.body,
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(30_000)]),
         });
+        return forwarded(response);
       }
       if (input.action === 'socket')
         return reply({

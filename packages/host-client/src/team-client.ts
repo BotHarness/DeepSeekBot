@@ -156,6 +156,22 @@ async function encryptedSignIn(options: {
   });
 }
 
+export function signInAgainInvitation(
+  host: SavedHost,
+  now = Date.now(),
+): TeamInvitation | undefined {
+  const member = host.member;
+  if (member === undefined || member.username === '') return undefined;
+  const routes = host.routes.filter(teamHttpsRoute);
+  if (!routes.length) return undefined;
+  return {
+    v: 1,
+    host: { id: host.hostId, name: host.hostName, fingerprint: member.fingerprint },
+    routes,
+    username: member.username,
+    expiresAt: new Date(now + 10 * 60_000).toISOString(),
+  };
+}
 export interface TeamDeviceSignInOptions {
   carrier: HostCarrier;
   invitation: TeamInvitation;

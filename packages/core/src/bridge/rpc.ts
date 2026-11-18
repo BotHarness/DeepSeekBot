@@ -37,6 +37,9 @@ import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
+import type { SessionTranscript } from '../runtime/session-transcript.js';
+import type { SessionLiveSnapshot } from '../runtime/session-live.js';
+import type { SessionToolDetail } from '../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../sessions/ownership.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -161,6 +164,7 @@ import type {
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import type { RoutingGroup, RoutingGroupMember } from '../models/routing-groups.js';
 import type {
   BridgeError,
   BridgeMethods,
@@ -177,6 +181,7 @@ import type {
   ProfileActivity,
   ProfileSessionUsage,
   SkillDetail,
+  SessionProgressEntry,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
@@ -1265,6 +1270,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
@@ -1272,6 +1278,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1283,6 +1290,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1292,6 +1300,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1312,16 +1321,49 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  modelGroups(): { groups: RoutingGroup[] } {
+    return unwrap(this.methods.modelGroups({}));
+  }
+
+  modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
+    return unwrap(this.methods.modelGroup({ id }));
+  }
+
+  modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupCreate({ name, members }));
+  }
+
+  modelGroupUpdate(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMember[],
+  ): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupUpdate({ id, expectedRevision, name, members }));
+  }
+
+  modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
+    return unwrap(this.methods.modelGroupDelete({ id, expectedRevision }));
+  }
+
   modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
     return unwrapAsync(this.methods.modelPlan({ slug }));
   }
 
   modelPlanCustomize(
     slug: string,
-    orchestrator: ModelRoute,
+    orchestrator?: ModelRoute,
     expectedRevision?: number,
+    orchestratorGroupId?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(this.methods.modelPlanCustomize({ slug, orchestrator, expectedRevision }));
+    return unwrapAsync(
+      this.methods.modelPlanCustomize({
+        slug,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
+        expectedRevision,
+        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+      }),
+    );
   }
 
   modelPlanAssignmentsSet(
@@ -1329,6 +1371,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1336,6 +1381,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
         expectedRevision,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
       }),
     );
   }
@@ -1346,6 +1394,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
@@ -1354,6 +1403,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -2094,12 +2144,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.composerIdentity({}));
   }
 
-  composerValidate(channelId: string, attachments: ChannelAttachmentRef[], replyTo?: string) {
+  composerValidate(
+    channelId: string,
+    attachments: ChannelAttachmentRef[],
+    replyTo?: string,
+    quotes?: Array<{ messageId: string; text?: string }>,
+  ) {
     return unwrap(
       this.methods.composerValidate({
         channelId,
         attachments,
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(quotes === undefined ? {} : { quotes }),
       }),
     );
   }
@@ -2302,10 +2358,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     allBotMention?: AllBotMention,
     genuiReply?: GenuiMessageReply,
     skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: ChannelMessage['quotes'],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
         ...(skillInvocations === undefined ? {} : { skillInvocations }),
+        ...(quotes === undefined ? {} : { quotes }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),
@@ -2517,6 +2575,38 @@ export class BotharnessBridgeService extends TypertRemoteService {
     omittedSubagents: number;
   }> {
     return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
+  }
+
+  sessionProgress(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<{ sessions: SessionProgressEntry[] }> {
+    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+  }
+
+  sessionTranscript(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+  }
+
+  sessionLive(
+    slug: string,
+    sessionId: string,
+    after?: number,
+  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+    return unwrapAsync(
+      this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
+    );
+  }
+
+  sessionToolDetail(
+    slug: string,
+    sessionId: string,
+    callId: string,
+  ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
+    return unwrapAsync(this.methods.sessionToolDetail({ slug, sessionId, callId }));
   }
 
   workspaceOptions(): {
@@ -3388,6 +3478,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelPresetCreate',
   'modelPresetUpdate',
   'modelPresetApply',
+  'modelGroups',
+  'modelGroup',
+  'modelGroupCreate',
+  'modelGroupUpdate',
+  'modelGroupDelete',
   'modelPlan',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',
@@ -3481,6 +3576,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignment',
   'assignmentTimeline',
   'sessionSubagents',
+  'sessionProgress',
+  'sessionTranscript',
+  'sessionLive',
+  'sessionToolDetail',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',

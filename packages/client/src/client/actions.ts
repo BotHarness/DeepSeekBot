@@ -182,6 +182,15 @@ import {
   loadChannelAssignments,
   loadSessionSubagents,
   loadAssignmentWork,
+  loadSessionProgress,
+  loadSessionTranscript,
+  loadSessionLive,
+  loadSessionToolDetail,
+  sendSessionRequest,
+  type SessionProgress,
+  type SessionTranscript,
+  type SessionLiveSnapshot,
+  type SessionToolDetail,
   type SessionSubagent,
   type AssignmentWork,
   deleteGroupChannel,
@@ -284,6 +293,13 @@ import {
   loadModelPlanState,
   type ModelPlanStateView,
   createModelPreset,
+  createRoutingGroup,
+  deleteRoutingGroup,
+  loadRoutingGroups,
+  updateRoutingGroup,
+  type RestingRouteView,
+  type RoutingGroupMemberView,
+  type RoutingGroupView,
   updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
@@ -364,7 +380,7 @@ import {
   type RosterSection,
   type TopOrderEntry,
 } from './roster.js';
-import { initialTimeline } from './store.js';
+import { initialTimeline, quoteRefOf, type QuoteRef } from './store.js';
 import {
   completeFlatEntries,
   flatRosterChannelIds,
@@ -483,9 +499,11 @@ export interface BridgeActions {
     channelId: string,
     attachments: ChannelAttachmentRef[],
     replyTo?: string,
+    quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
   ): Promise<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
   }>;
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot>;
   onboardingModel(
@@ -633,6 +651,15 @@ export interface BridgeActions {
 
   modelCatalog(): Promise<ModelCatalogView>;
   modelPresets(): Promise<ModelPresetView[]>;
+  routingGroups(): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }>;
+  createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
+  updateRoutingGroup(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMemberView[],
+  ): Promise<RoutingGroupView>;
+  deleteRoutingGroup(id: string, expectedRevision: number): Promise<RoutingGroupView>;
   modelPlan(slug: string): Promise<ModelPlanView | undefined>;
   modelPlanState(slug: string): Promise<ModelPlanStateView>;
   createModelPreset(
@@ -640,6 +667,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels?: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -667,6 +695,7 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
   ): Promise<ModelPlanView>;
   listHostFolders(
     path?: string,
@@ -1045,6 +1074,7 @@ export interface BridgeActions {
     allBotMention?: AllBotMention,
     submissionId?: string,
     skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: readonly QuoteRef[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
   botSkills?(slug: string): Promise<BotSkillRow[]>;
@@ -1057,7 +1087,7 @@ export interface BridgeActions {
     begin(
       channelId: string,
       attempt: Pick<SubmissionAttempt, 'text' | 'mentions' | 'channelRefs'> &
-        Partial<Pick<SubmissionAttempt, 'replyTo' | 'attachments'>>,
+        Partial<Pick<SubmissionAttempt, 'replyTo' | 'quotes' | 'attachments'>>,
     ): { id: string; persisted: boolean } | undefined;
     cancel(channelId: string, id: string): void;
     sync(channelId: string): void;
@@ -1168,6 +1198,19 @@ export interface BridgeActions {
     sessionId: string,
   ): Promise<{ subagents: SessionSubagent[]; omitted: number }>;
   assignmentWork?(slug: string, sessionId: string): Promise<AssignmentWork>;
+  sessionProgress?(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<Record<string, SessionProgress>>;
+  sessionTranscript?(slug: string, sessionId: string): Promise<SessionTranscript>;
+  sessionLive?(
+    slug: string,
+    sessionId: string,
+    after: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<SessionLiveSnapshot>;
+  sessionToolDetail?(slug: string, sessionId: string, callId: string): Promise<SessionToolDetail>;
+  sendSessionRequest?(slug: string, sessionId: string, text: string, steer: boolean): Promise<void>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -1315,7 +1358,10 @@ export function createActions(
       ? { kind: 'human' }
       : { kind: 'human', humanId: identity.humanId };
   };
-  const submissionEcho = (attempt: SubmissionAttempt): ChannelMessage => ({
+  const submissionEcho = (
+    attempt: SubmissionAttempt,
+    known: readonly ChannelMessage[] = [],
+  ): ChannelMessage => ({
     id: attempt.id,
     at: attempt.at,
     author: currentHumanAuthor(),
@@ -1324,6 +1370,18 @@ export function createActions(
     ...(attempt.channelRefs.length === 0 ? {} : { channelRefs: attempt.channelRefs }),
     ...(attempt.attachments === undefined ? {} : { attachments: attempt.attachments }),
     ...(attempt.replyTo === undefined ? {} : { replyTo: attempt.replyTo, replyToPreview: null }),
+    ...(attempt.quotes === undefined || attempt.quotes.length === 0
+      ? {}
+      : {
+          quotes: attempt.quotes.map((quote) => {
+            const target =
+              known.find((item) => item.id === quote.messageId) ??
+              clientStore
+                .getSnapshot()
+                .conversation.messages.find((item) => item.id === quote.messageId);
+            return { ...quote, preview: target === undefined ? null : replyPreviewOf(target) };
+          }),
+        }),
     pending: false,
     failed: attempt.error ?? '',
     ...(attempt.state === 'unknown' ? { unconfirmed: true } : {}),
@@ -1338,7 +1396,7 @@ export function createActions(
     if (scope !== undefined) submissions.settle(scope, id, state, error);
   };
   const failedByChannel = new Map<string, ChannelMessage[]>();
-  const localFailedFor = (id: string): ChannelMessage[] => {
+  const localFailedFor = (id: string, known: readonly ChannelMessage[] = []): ChannelMessage[] => {
     const held = failedByChannel.get(id) ?? [];
     const scope = submissionScope(id);
     if (scope === undefined) return held;
@@ -1359,7 +1417,7 @@ export function createActions(
             !heldIds.has(attempt.id) &&
             !active.has(attempt.id),
         )
-        .map(submissionEcho),
+        .map((attempt) => submissionEcho(attempt, known)),
     ];
   };
   const remainingFailures = (
@@ -1367,7 +1425,7 @@ export function createActions(
     committed: readonly ChannelMessage[],
   ): ChannelMessage[] => {
     const committedIds = new Set(committed.map((message) => message.id));
-    const current = localFailedFor(channelId);
+    const current = localFailedFor(channelId, committed);
     const next = current.filter((message) => !committedIds.has(message.id));
     if (next.length !== current.length) {
       for (const message of current)
@@ -2091,10 +2149,15 @@ export function createActions(
     },
     modelCatalog: () => loadModelCatalog(call),
     modelPresets: () => loadModelPresets(call),
+    routingGroups: () => loadRoutingGroups(call),
+    createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
+    updateRoutingGroup: (id, expectedRevision, name, members) =>
+      updateRoutingGroup(call, id, expectedRevision, name, members),
+    deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels) =>
-      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
+    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open) =>
+      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels, open),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
@@ -2111,7 +2174,14 @@ export function createActions(
         setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
         () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
       ),
-    setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
+    setModelPlan: (
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+    ) =>
       recorded(
         setModelPlan(
           call,
@@ -2120,6 +2190,7 @@ export function createActions(
           orchestrator,
           assignmentDefault,
           assignmentModels,
+          openAssignmentModels,
         ),
         () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
       ),
@@ -3354,8 +3425,8 @@ export function createActions(
     botSkills: (slug) => loadBotSkills(call, slug),
     skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
     botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
-    validateComposerDraft: (channelId, attachments, replyTo) =>
-      validateComposerDraft(call, channelId, attachments, replyTo),
+    validateComposerDraft: (channelId, attachments, replyTo, quotes) =>
+      validateComposerDraft(call, channelId, attachments, replyTo, quotes),
     async send(
       body,
       replyTo,
@@ -3367,6 +3438,7 @@ export function createActions(
       allBotMention,
       submissionId,
       skillInvocations,
+      quotes,
     ) {
       let snapshot = clientStore.getSnapshot();
       const channel = snapshot.conversation.channel;
@@ -3382,6 +3454,7 @@ export function createActions(
         channel.botSlug !== undefined &&
         !attachments?.length &&
         !replyTo &&
+        !quotes?.length &&
         !mentions?.length &&
         !channelRefs?.length &&
         !skillInvocations?.length &&
@@ -3392,6 +3465,15 @@ export function createActions(
         if (!(typeof prepared === 'boolean' ? prepared : await prepared)) return false;
       }
       const replyTarget = snapshot.conversation.messages.find((message) => message.id === replyTo);
+      const quoteEcho = quotes?.map((quote) => {
+        const target = snapshot.conversation.messages.find(
+          (message) => message.id === quote.messageId,
+        );
+        return {
+          ...quoteRefOf(quote),
+          preview: target === undefined ? null : replyPreviewOf(target),
+        };
+      });
       if (snapshot.conversation.timeline.hasNewer) {
         try {
           const { page, revision } = await loadTimelinePage(call, channel.id);
@@ -3426,6 +3508,11 @@ export function createActions(
           mentions: mentions ?? [],
           channelRefs: channelRefs ?? [],
           ...(replyTo === undefined ? {} : { replyTo }),
+          ...(quotes === undefined || quotes.length === 0
+            ? {}
+            : {
+                quotes: quotes.map(quoteRefOf),
+              }),
           ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
         });
       onboardingFor(actions).markSubmitted(channel.id, text);
@@ -3449,6 +3536,7 @@ export function createActions(
                   replyTo,
                   replyToPreview: replyTarget === undefined ? null : replyPreviewOf(replyTarget),
                 }),
+            ...(quoteEcho === undefined || quoteEcho.length === 0 ? {} : { quotes: quoteEcho }),
             pending: true,
           },
         ],
@@ -3473,6 +3561,7 @@ export function createActions(
           allBotMention,
           undefined,
           skillInvocations,
+          quotes,
         );
         remainingFailures(channel.id, [message]);
         settleSubmission(channel.id, localId, 'sent');
@@ -3915,6 +4004,21 @@ export function createActions(
     },
     assignmentWork(slug, sessionId) {
       return loadAssignmentWork(call, slug, sessionId);
+    },
+    sessionProgress(slug, sessionIds) {
+      return loadSessionProgress(call, slug, sessionIds);
+    },
+    sessionTranscript(slug, sessionId) {
+      return loadSessionTranscript(call, slug, sessionId);
+    },
+    sessionLive(slug, sessionId, after, signal) {
+      return loadSessionLive(call, slug, sessionId, after, signal);
+    },
+    sessionToolDetail(slug, sessionId, callId) {
+      return loadSessionToolDetail(call, slug, sessionId, callId);
+    },
+    sendSessionRequest(slug, sessionId, text, steer) {
+      return sendSessionRequest(call, slug, sessionId, text, steer);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

@@ -921,6 +921,9 @@ importers:
       css-tree:
         specifier: 3.2.1
         version: 3.2.1
+      decode-named-character-reference:
+        specifier: 1.3.0
+        version: 1.3.0
       linkedom:
         specifier: 0.18.15
         version: 0.18.15
@@ -967,6 +970,9 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: 0.2.2-rc.1
         version: 0.2.2-rc.1(d9740b81bf2b48fd86b0c38a41e906a0)
+      '@deepseek-ai/dsh-agent-loop':
+        specifier: 0.2.2-rc.1
+        version: 0.2.2-rc.1(9e7b418363416bf010cab87e6e1b8cb9)
       '@deepseek-ai/dsh-agent-preset-registry':
         specifier: 0.2.2-rc.1
         version: 0.2.2-rc.1(7137409e0258bf069afa9a47c7e154d1)

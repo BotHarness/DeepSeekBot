@@ -27,6 +27,9 @@ import {
   DmAvatarSetting,
   OwnAvatarSetting,
   StreamRepliesSetting,
+  SessionCollapseSetting,
+  SessionDetailLevelSetting,
+  SessionFoldedRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { PromptPresetSettings } from './prompt-preset-settings.js';
@@ -41,6 +44,7 @@ import { HumanNameSettings } from './human-name-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
+import { RoutingGroupSettings } from './routing-group-settings.js';
 import { ConnectionsPage } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
@@ -141,6 +145,7 @@ export function ModelsSection(
       <SettingsSection title={props.t('models.section.default')}>
         <DefaultModelSettings actions={props.actions} t={props.t} />
       </SettingsSection>
+      <RoutingGroupSettings actions={props.actions} t={props.t} />
       <SettingsSection title={props.t('models.section.context')}>
         <IdleCompactionSetting call={props.call} t={props.t} />
         <CompactionThresholdSetting call={props.call} t={props.t} />
@@ -201,6 +206,11 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
         <OwnAvatarSetting {...props} />
         <DeliveryReceiptsSetting {...props} />
         <StreamRepliesSetting {...props} />
+      </SettingsSection>
+      <SettingsSection title={props.t('sessions.settings.section')}>
+        <SessionDetailLevelSetting {...props} />
+        <SessionCollapseSetting {...props} />
+        <SessionFoldedRepliesSetting {...props} />
       </SettingsSection>
       <SettingsSection title={props.t('messaging.section.bots')}>
         <GroupAutoAcceptSetting {...props} />

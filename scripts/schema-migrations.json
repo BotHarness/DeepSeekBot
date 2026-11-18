@@ -634,5 +634,17 @@
   {
     "id": "remote-host-custody",
     "sha256": "dd021b886ab5da94cee4107b3aaf769ed7e3ffd2b150cc687806a63ac4c469e6"
+  },
+  {
+    "id": "routing-group-storage",
+    "sha256": "4c436be1c4f473f989a913facfa748906bd7be55ac5c21fb3ad9b51f5e3f4e2c"
+  },
+  {
+    "id": "model-switch-notice",
+    "sha256": "cf7d113580319972cb05aab4ebb89e7e48057ce50960791faf4bb165c82f6e29"
+  },
+  {
+    "id": "assignment-model-group",
+    "sha256": "13a736b040c4019d21fc4942a5f27a8f1b0924b632af6f1dff0380a018cc7a76"
   }
 ]

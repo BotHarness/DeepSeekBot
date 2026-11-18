@@ -1,4 +1,11 @@
 import { HarnessError } from '@deepseek-ai/dsh-llm';
+import {
+  assertQuoteTargets,
+  ChannelQuoteError,
+  quotePromptBlock,
+  sameQuoteIntent,
+  type ChannelQuote,
+} from '../channels/quotes.js';
 import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
 
 import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
@@ -104,13 +111,20 @@ import { readFileSync, statSync } from 'node:fs';
 import {
   isAssignmentModelChoice,
   isModelRoute,
+  selectAssignmentGroup,
   selectAssignmentRoute,
   type ModelRoute,
 } from '../models/presets.js';
+import type { RestingRoute, RouteRests } from '../models/route-rest.js';
+import type { GroupFallback, ModelSwitch } from '../models/group-fallback.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import type { BotCreatePreview } from '../workspaces/tool-approval.js';
+import type {
+  BotCreatePreview,
+  ToolApprovalOrigin,
+  ToolApprovalOriginQuery,
+} from '../workspaces/tool-approval.js';
 import {
   MemoryAcceptError,
   type MemoryChangeDelta,
@@ -132,6 +146,7 @@ import {
   type ChannelReaction,
   type ChannelRecord,
   type ChannelSkillInvocation,
+  type ChannelTurnStop,
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
@@ -348,7 +363,9 @@ export interface OrchestratorAssignmentAccess {
     key?: string;
     grantId: string;
     model?: ModelRoute;
+    modelGroupId?: string;
   }): AssignmentCreateOutcome;
+  refreshRoute?(sessionId: string): Promise<unknown>;
   grants(): WorkspaceGrant[];
   list(): AssignmentSummary[];
   inspect(sessionId: string): AssignmentDetail | undefined;
@@ -694,6 +711,7 @@ export interface OrchestratorChannelAccess {
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
     genui?: import('../channels/genui.js').GenuiContent;
+    sessionLinks?: import('../channels/channel.js').ChannelSessionLink[];
     replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
@@ -702,6 +720,7 @@ export interface OrchestratorChannelAccess {
     body: string;
     channelId?: string;
     replyTo?: string;
+    quotes?: ChannelQuote[];
     attachments?: ChannelAttachmentRef[];
     mentionBotIds?: string[];
     mentionHumanIds?: string[];
@@ -883,6 +902,8 @@ export interface BotRuntime {
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
   askChannel?(sessionId: string): string | undefined;
+  toolApprovalOrigin?(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined;
+  hasDirectToolInvocation?(query: ToolApprovalOriginQuery): boolean;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -1010,6 +1031,9 @@ export interface BotRuntimeOptions {
   messagePerf?: MessagePerfTracker;
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
+  routeRests?: Pick<RouteRests, 'restingUntil'>;
+  groupFallback?: Pick<GroupFallback, 'choose' | 'restore' | 'pick'>;
+  sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
   database: OperationalDatabaseOwner;
@@ -1106,6 +1130,7 @@ interface AssignmentRow {
   approval_policy: string | null;
   preset_revision: number | null;
   model_route_json: string | null;
+  model_group_id?: string | null;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -1573,7 +1598,16 @@ const TRANSIENT_FAILURE_CODES = new Set([
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
 const FAILURE_HOLD_THRESHOLD = 3;
 
-export type BotHoldCause = 'human-stop' | 'failures';
+export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
+
+class RouteRestingError extends Error {
+  readonly code = 'ROUTE_RESTING';
+  constructor(readonly rests: readonly RestingRoute[]) {
+    super(
+      `ROUTE_RESTING: ${rests.map((rest) => `${rest.provider}/${rest.model} rests until ${rest.until}`).join('; ')}; no request was sent.`,
+    );
+  }
+}
 
 export interface StoppedSessionRef {
   botSlug: string;
@@ -1602,6 +1636,14 @@ function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
   });
   return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
 }
+
+const ASSIGNMENT_FALLBACK_NOTE =
+  'The previous model stopped before finishing this Turn (out of quota or unavailable). The Host moved this Session to the next model in its Routing Group. Continue the work from where it stopped.';
+
+const sameModelRoute = (left: ModelRoute, right: ModelRoute) =>
+  left.provider === right.provider &&
+  left.model === right.model &&
+  (left.reasoningEffort ?? '') === (right.reasoningEffort ?? '');
 
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
@@ -1638,6 +1680,9 @@ function continuationNote(continuation: DmContinuation): string {
 class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
+  readonly #routeRests: BotRuntimeOptions['routeRests'];
+  readonly #groupFallback: BotRuntimeOptions['groupFallback'];
+  readonly #sessionRoute: BotRuntimeOptions['sessionRoute'];
   readonly #team: TeamService | undefined;
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
@@ -1680,11 +1725,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
   readonly #triageContinuation: boolean;
+  readonly #quoteBlocks = new Map<string, { channelId: string; message: ChannelMessage }>();
   readonly #tails = new Map<string, Promise<unknown>>();
   readonly #activeTurns = new Map<string, Promise<void>>();
   readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
   readonly #preparedOrchestrators = new Set<string>();
   readonly #preparedAssignments = new Set<string>();
+  readonly #groupContinuations = new Map<string, { error?: unknown }>();
   readonly #nativeAssignmentSteps = new Map<
     string,
     { step: Promise<boolean>; signal: AbortSignal }
@@ -1738,7 +1785,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
-  readonly #activeDirectTools = new Map<string, { botSlug: string; approvalChannelId?: string }>();
+  readonly #activeDirectTools = new Map<
+    string,
+    { botSlug: string; agentSessionId: string; approvalHuman?: HumanContext }
+  >();
   readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
   readonly #tob: TobService | undefined;
@@ -1762,6 +1812,9 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#registry = options.registry;
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
+    this.#routeRests = options.routeRests;
+    this.#groupFallback = options.groupFallback;
+    this.#sessionRoute = options.sessionRoute;
     this.#team = options.team;
     this.#requireModelRoute = options.requireModelRoute;
     this.#channels = options.channels;
@@ -3203,7 +3256,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows: DigestRow[] = [];
     let characters = 0;
     for (const row of candidates) {
-      const cost = Math.min(row.body.length, bodyLimit) + 80;
+      const cost =
+        Math.min(row.body.length, bodyLimit) +
+        80 +
+        this.#rowQuotes(channelId, row.message_id).length;
       if (
         rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
         characters + cost > limits['dm-context-chars']
@@ -3244,7 +3300,7 @@ class BotRuntimeImplementation implements BotRuntime {
             row.body.length > context.bodyLimit
               ? ` [excerpt; ${row.body.length - context.bodyLimit} more characters available with channel_read]`
               : ''
-          }`
+          }${this.#rowQuotes(context.channelId, row.message_id)}`
         );
       }),
       context.omittedCount > 0
@@ -3280,7 +3336,10 @@ class BotRuntimeImplementation implements BotRuntime {
           )
         : `Source Event ID: ${sourceEventId}\n` +
           this.#groupMentionPrompt(botSlug, channelId, messageId, source.body) +
-          (steered?.author.kind === 'human' ? skillInvocationPrompt(steered.skillInvocations) : '');
+          (steered?.author.kind === 'human'
+            ? skillInvocationPrompt(steered.skillInvocations)
+            : '') +
+          this.#quotePrompt(channelId, steered);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -4311,7 +4370,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row, context.channelId)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}${groupSkillInvocationPrompt(row, context.channelId)}${this.#rowQuotes(context.channelId, row.message_id)}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -4336,7 +4395,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row, channelId)}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}${groupSkillInvocationPrompt(row, channelId)}${this.#rowQuotes(channelId, row.message_id)}`,
       ),
       ...(omittedCount > 0
         ? [
@@ -4473,6 +4532,57 @@ class BotRuntimeImplementation implements BotRuntime {
     return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${formatCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
   }
 
+  #rowQuotes(channelId: string, messageId: string): string {
+    return this.#quotePrompt(channelId, this.#channels.message(channelId, messageId));
+  }
+
+  #quotePrompt(channelId: string, message: ChannelMessage | undefined): string {
+    const block = this.#renderQuotePrompt(channelId, message);
+    if (block.length > 0 && message !== undefined) {
+      this.#quoteBlocks.delete(block);
+      this.#quoteBlocks.set(block, { channelId, message });
+      if (this.#quoteBlocks.size > 256)
+        this.#quoteBlocks.delete(this.#quoteBlocks.keys().next().value!);
+    }
+    return block;
+  }
+
+  #turnQuoteBlocks(
+    body: string,
+  ): ReadonlyArray<readonly [string, { channelId: string; message: ChannelMessage }]> {
+    return [...this.#quoteBlocks].filter(([block]) => body.includes(block));
+  }
+
+  #refreshQuoteBlocks(
+    body: string,
+    sources: ReadonlyArray<readonly [string, { channelId: string; message: ChannelMessage }]>,
+  ): string {
+    let refreshed = body;
+    for (const [block, source] of sources) {
+      if (!refreshed.includes(block)) continue;
+      const current = this.#renderQuotePrompt(source.channelId, source.message);
+      if (current !== block) refreshed = refreshed.split(block).join(current);
+    }
+    return refreshed;
+  }
+
+  #renderQuotePrompt(channelId: string, message: ChannelMessage | undefined): string {
+    return quotePromptBlock(message?.quotes, (messageId) => {
+      const target = this.#channels.message(channelId, messageId);
+      if (target === undefined || Reflect.get(target, 'contentPurge') !== undefined)
+        return undefined;
+      const author =
+        target.author.kind === 'bot' || target.author.kind === 'remote-bot'
+          ? `PersonaBot ${target.author.slug}`
+          : target.author.kind === 'human'
+            ? `Human${target.author.displayName === undefined ? '' : ` ${JSON.stringify(target.author.displayName)}`}`
+            : target.author.kind === 'bridged'
+              ? `${JSON.stringify(target.bridgeOrigin?.senderName ?? target.bridgeOrigin?.senderId ?? 'unknown')} (${target.bridgeOrigin?.platform ?? target.author.source}, external)`
+              : 'Channel system';
+      return { author, body: target.body };
+    });
+  }
+
   #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
     const message = this.#channels.message(channelId, messageId);
     const sender = message?.author.kind === 'bot' ? `PersonaBot ${message.author.slug}` : 'Human';
@@ -4504,7 +4614,7 @@ class BotRuntimeImplementation implements BotRuntime {
       isBotDmChannel(channel) &&
       (message?.author.kind === 'bot' || message?.author.kind === 'remote-bot')
     )
-      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
+      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}${this.#quotePrompt(channelId, message)}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
     if (message?.takeoverResolution !== undefined)
       return takeoverResolutionPrompt(
         sourceEventId,
@@ -4519,7 +4629,8 @@ class BotRuntimeImplementation implements BotRuntime {
       return `[Bot Inbox: Human allowed an auto-rejected call once]\nChannel: ${channelId}\nMessage ID: ${messageId}\nTool: ${target.toolName}\nSession: ${target.sessionId}\nInput:\n${input}\nThe Approval Reviewer rejected this call earlier, and the Human allowed it once anyway. You may retry it in that Session with exactly this input, every argument unchanged; that one retry runs without review. Later calls are still reviewed under your Approval Template. If the call came from an Assignment Session, relay this with send_assignment_request.`;
     }
     const skills =
-      message?.author.kind === 'human' ? skillInvocationPrompt(message.skillInvocations) : '';
+      (message?.author.kind === 'human' ? skillInvocationPrompt(message.skillInvocations) : '') +
+      this.#quotePrompt(channelId, message);
     if (channel?.type === 'group' && message?.mentions?.length)
       return (
         `Source Event ID: ${sourceEventId}\n` +
@@ -4631,15 +4742,40 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   askChannel(sessionId: string): string | undefined {
+    return this.#askOrigin({ sessionId })?.channelId;
+  }
+
+  hasDirectToolInvocation({ sessionId, callId }: ToolApprovalOriginQuery): boolean {
+    return this.#activeDirectTools.get(callId)?.agentSessionId === sessionId;
+  }
+
+  toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
+    return this.#askOrigin(query);
+  }
+
+  #askOrigin({
+    sessionId,
+    callId,
+  }: {
+    sessionId: string;
+    callId?: string;
+  }): ToolApprovalOrigin | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
-    const direct = this.#activeDirectTools.get(sessionId);
-    if (direct?.botSlug === owner.botSlug) {
+    const direct = this.#activeDirectTools.get(callId ?? sessionId);
+    if (direct !== undefined) {
+      if (direct.botSlug !== owner.botSlug || direct.agentSessionId !== sessionId) return undefined;
       const channel =
-        direct.approvalChannelId === undefined
+        direct.approvalHuman === undefined
           ? undefined
-          : this.#channels.get(direct.approvalChannelId);
-      return channel?.type === 'dm' && channel.botSlug === owner.botSlug ? channel.id : undefined;
+          : this.#channels.getOrCreateDm(
+              direct.approvalHuman,
+              owner.botSlug,
+              this.#registry.get(owner.botSlug)?.displayName,
+            );
+      return channel?.type === 'dm' && channel.botSlug === owner.botSlug
+        ? { kind: 'direct', channelId: channel.id }
+        : undefined;
     }
     const turn = this.#turnSources.get(owner.botSlug);
     if (
@@ -4651,8 +4787,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const channel = this.#channels.get(turn.inboundChannelId);
     if (channel === undefined) return undefined;
     if (channel.type === 'group')
-      return channel.members.includes(owner.botSlug) ? channel.id : undefined;
-    return channel.botSlug === owner.botSlug ? channel.id : undefined;
+      return channel.members.includes(owner.botSlug)
+        ? { kind: 'turn', channelId: channel.id }
+        : undefined;
+    return channel.botSlug === owner.botSlug ? { kind: 'turn', channelId: channel.id } : undefined;
   }
 
   botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
@@ -5343,20 +5481,21 @@ class BotRuntimeImplementation implements BotRuntime {
         observeReads: false,
       }),
     };
-    let approvalChannelId: string | undefined;
+    let approvalHuman: HumanContext | undefined;
     if (
+      PRIVATE_INPUT_TOOLS.has(tool) ||
       hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
       toolEffects(tool, args)?.authority === 'management'
     ) {
-      if (human !== undefined)
-        approvalChannelId = this.#channels.getOrCreateDm(human, botSlug, bot.displayName)?.id;
-      this.#ownership.claim({
-        sessionId,
-        botSlug,
-        rootRole: 'orchestrator',
-        provenance: 'created',
-        at: this.#now().toISOString(),
-      });
+      approvalHuman = human;
+      if (!PRIVATE_INPUT_TOOLS.has(tool))
+        this.#ownership.claim({
+          sessionId,
+          botSlug,
+          rootRole: 'orchestrator',
+          provenance: 'created',
+          at: this.#now().toISOString(),
+        });
     }
     const started = this.#now();
     const record = (outcome: 'ok' | 'error', result: string) => {
@@ -5372,18 +5511,18 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
+    const executionParentSessionId = delegation
+      ? parentSessionId
+      : this.currentOrchestratorSessionId(botSlug);
     this.#activeDirectTools.set(sessionId, {
       botSlug: bot.slug,
-      ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
+      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool)
+        ? (executionParentSessionId ?? sessionId)
+        : sessionId,
+      ...(approvalHuman === undefined ? {} : { approvalHuman }),
     });
     try {
-      const result = await runDirect(
-        run,
-        tool,
-        args,
-        signal,
-        delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
-      );
+      const result = await runDirect(run, tool, args, signal, executionParentSessionId);
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
@@ -5463,7 +5602,7 @@ class BotRuntimeImplementation implements BotRuntime {
     } else {
       if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
       cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly through the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
     }
     const id = this.#createEventId();
     const at = this.#now().toISOString();
@@ -5919,8 +6058,10 @@ class BotRuntimeImplementation implements BotRuntime {
         };
         const abort = () => finish(false);
         cancellation.addEventListener('abort', abort, { once: true });
-        const modelRoute = modelRouteFromRow(row);
         this.#trackAssignmentRun(sessionId, async () => {
+          const modelRoute = await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
+            modelRouteFromRow(row),
+          );
           try {
             await this.#agents.runAssignment({
               sessionId,
@@ -5955,8 +6096,7 @@ class BotRuntimeImplementation implements BotRuntime {
                 this.#recordCompletedAssignment(bot.slug, sessionId, execution),
               cancelledTurn: (execution) =>
                 this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
-              failedTurn: (execution) =>
-                this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'failed'),
+              failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
             });
           } finally {
             this.#preparedAssignments.delete(sessionId);
@@ -6232,25 +6372,143 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
-  async #noteAutomaticFailure(
+  #restingRoute(botSlug: string, sessionId: string | undefined): RestingRoute | undefined {
+    if (this.#routeRests === undefined || sessionId === undefined) return undefined;
+    const route = this.#sessionRoute?.(botSlug, sessionId);
+    return route === undefined ? undefined : this.#routeRests.restingUntil(route);
+  }
+
+  #restsOf(botSlug: string, error: unknown): readonly RestingRoute[] | undefined {
+    if (error instanceof RouteRestingError) return error.rests;
+    const rest = this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
+    return rest === undefined ? undefined : [rest];
+  }
+
+  async #fallBack(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+  ): Promise<ModelSwitch | readonly RestingRoute[] | undefined> {
+    const rest = this.#restingRoute(botSlug, sessionId);
+    if (rest === undefined) return undefined;
+    const choice = await this.#groupFallback?.choose(botSlug, sessionId, rest);
+    if (choice?.kind !== 'switch') return choice?.rests ?? [rest];
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'model-fallback',
+        botSlug,
+        from: `${choice.from.provider}/${choice.from.model}`,
+        to: `${choice.to.provider}/${choice.to.model}`,
+        reason: choice.reason,
+        until: choice.until,
+      }),
+    );
+    await this.#appendModelSwitch(botSlug, sessionId, channelId, choice);
+    return choice;
+  }
+
+  async #returnToPreferred(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+  ): Promise<void> {
+    const back = await this.#groupFallback?.restore(botSlug, sessionId);
+    if (back === undefined) return;
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'model-return',
+        botSlug,
+        from: `${back.from.provider}/${back.from.model}`,
+        to: `${back.to.provider}/${back.to.model}`,
+      }),
+    );
+    await this.#appendModelSwitch(botSlug, sessionId, channelId, back);
+  }
+
+  async #appendModelSwitch(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+    choice: ModelSwitch,
+  ): Promise<void> {
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined) return;
+    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
+    const channel =
+      original !== undefined &&
+      !isBotDmChannel(original) &&
+      (original.type !== 'group' || original.members.includes(botSlug))
+        ? original.id
+        : this.#channels.getOrCreateDm(humanContext(botOwner(bot)), botSlug, bot.displayName)?.id;
+    if (channel === undefined) return;
+    await this.#channels
+      .appendMessage(OWNER_HUMAN_CONTEXT, channel, {
+        id: `model-switch-${randomUUID()}`,
+        at: this.#now().toISOString(),
+        author: { kind: 'system' },
+        body: '',
+        modelSwitch: {
+          botSlug,
+          botName: bot.displayName,
+          sessionId,
+          from: { provider: choice.from.provider, model: choice.from.model },
+          to: { provider: choice.to.provider, model: choice.to.model },
+          reason: choice.reason,
+          ...(choice.until === undefined ? {} : { until: choice.until }),
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  async #holdForRestingRoute(
     botSlug: string,
     channelId: string | undefined,
     error: unknown,
-  ): Promise<void> {
-    const code = sessionFailureDetails(error).code;
-    if (this.#held.has(botSlug)) return;
-    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
-      this.#failureStreaks.delete(botSlug);
-      return;
+  ): Promise<boolean> {
+    const rests = this.#restsOf(botSlug, error);
+    if (rests === undefined || rests.length === 0) return false;
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    if (!(error instanceof RouteRestingError) && sessionId !== undefined) {
+      const fallback = await this.#fallBack(botSlug, sessionId, channelId);
+      if (fallback !== undefined && 'kind' in fallback) {
+        this.#failureStreaks.delete(botSlug);
+        return true;
+      }
     }
-    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
-    this.#failureStreaks.set(botSlug, streak);
-    if (streak < FAILURE_HOLD_THRESHOLD) return;
+    const rest = rests[0]!;
+    if (this.#held.has(botSlug)) return true;
     this.#failureStreaks.delete(botSlug);
-    this.#hold(botSlug, 'failures');
+    this.#hold(botSlug, 'quota');
     this.#warn?.(
-      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'quota-hold',
+        botSlug,
+        provider: rest.provider,
+        model: rest.model,
+        until: rest.until,
+      }),
     );
+    await this.#appendHoldNotice(
+      botSlug,
+      channelId,
+      `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: ${rests.map((item) => `${item.provider}/${item.model} rests until ${item.until}`).join('; ')}. Send it a message to try again.`,
+      {
+        cause: 'quota',
+        rests: rests.map(({ provider, model, until }) => ({ provider, model, until })),
+      },
+    );
+    return true;
+  }
+
+  async #appendHoldNotice(
+    botSlug: string,
+    channelId: string | undefined,
+    body: string,
+    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests'>,
+  ): Promise<void> {
     const bot = this.#registry.get(botSlug);
     const sessionId = this.currentOrchestratorSessionId(botSlug);
     const original = channelId === undefined ? undefined : this.#channels.get(channelId);
@@ -6272,7 +6530,7 @@ class BotRuntimeImplementation implements BotRuntime {
         id: `turn-stopped-${randomUUID()}`,
         at: this.#now().toISOString(),
         author: { kind: 'system' },
-        body: `${bot.displayName} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+        body,
         turnStop: {
           botSlug,
           botName: bot.displayName,
@@ -6281,11 +6539,38 @@ class BotRuntimeImplementation implements BotRuntime {
             'Human',
           sessionId,
           held: true,
-          cause: 'failures',
-          failures: streak,
+          ...stop,
         },
       })
       .catch(() => undefined);
+  }
+
+  async #noteAutomaticFailure(
+    botSlug: string,
+    channelId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    const code = sessionFailureDetails(error).code;
+    if (this.#held.has(botSlug)) return;
+    if (await this.#holdForRestingRoute(botSlug, channelId, error)) return;
+    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
+    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
+    this.#failureStreaks.set(botSlug, streak);
+    if (streak < FAILURE_HOLD_THRESHOLD) return;
+    this.#failureStreaks.delete(botSlug);
+    this.#hold(botSlug, 'failures');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+    );
+    await this.#appendHoldNotice(
+      botSlug,
+      channelId,
+      `${this.#registry.get(botSlug)?.displayName ?? botSlug} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+      { cause: 'failures', failures: streak },
+    );
   }
 
   async endGroup(channelId: string): Promise<void> {
@@ -6545,8 +6830,30 @@ class BotRuntimeImplementation implements BotRuntime {
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
+      const resting = this.#restsOf(bot.slug, error) !== undefined;
+      if (
+        resting &&
+        !(error instanceof RouteRestingError) &&
+        tobCliTurn === undefined &&
+        !this.#stoppedTurns.has(bot.slug) &&
+        !this.#held.has(bot.slug) &&
+        channelId === dmChannelId(bot.slug)
+      ) {
+        const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+        if (fallback !== undefined && 'kind' in fallback) {
+          this.#failureStreaks.delete(bot.slug);
+          this.#armAutoContinue(
+            bot.slug,
+            { channelId, messageId, sessionId: orchestrator.sessionId, attempt: autoAttempts },
+            0,
+            code ?? 'ROUTE_FALLBACK',
+          );
+          throw error;
+        }
+      }
       const autoContinue =
         tobCliTurn === undefined &&
+        !resting &&
         code !== undefined &&
         TRANSIENT_FAILURE_CODES.has(code) &&
         delayMs !== undefined &&
@@ -6570,6 +6877,7 @@ class BotRuntimeImplementation implements BotRuntime {
         progress: await this.#readTurnProgress?.(sessionId).catch(() => undefined),
         ...(autoContinue === undefined ? {} : { autoContinue }),
       });
+      if (resting) await this.#holdForRestingRoute(bot.slug, channelId, error);
       if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
         this.#armAutoContinue(
           bot.slug,
@@ -6634,6 +6942,9 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
+    await this.#returnToPreferred(bot.slug, orchestrator.sessionId, channelId);
+    const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+    if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
     const turnSources = new Set([
       ...(sourceEventId === undefined ? [] : [sourceEventId]),
       ...wakeEventIds,
@@ -6716,6 +7027,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ['bot-inbox'],
         );
       if (observeMemory) this.#memoryTurnOperations.add(bot.slug);
+      const quoteSources = this.#turnQuoteBlocks(body);
       const change = observeMemory
         ? await (this.#memory?.prepareTurnAsync ?? this.#memory?.prepareTurn)?.(
             bot.slug,
@@ -6727,6 +7039,7 @@ class BotRuntimeImplementation implements BotRuntime {
         : undefined;
       if (this.#closed || this.#stoppedTurns.has(bot.slug))
         throw new Error(SESSION_STOPPED_REFUSAL);
+      body = this.#refreshQuoteBlocks(body, quoteSources);
       const observation = observeMemory
         ? this.#memory?.preparedObservation?.(bot.slug, orchestrator.sessionId)
         : undefined;
@@ -7285,6 +7598,7 @@ class BotRuntimeImplementation implements BotRuntime {
     progress?: SessionFailureProgress | undefined;
     autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
+    if (input.error instanceof RouteRestingError) return;
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,
@@ -7360,6 +7674,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }
         return outcome;
       },
+      refreshRoute: (sessionId) => this.refreshAssignmentRoute(bot.slug, sessionId),
       grants: () => this.#grants?.list(bot.slug) ?? [],
       list: () => this.listAssignments(bot.slug),
       query: (input) => queryAssignmentDirectory(this.listAssignments(bot.slug), input),
@@ -9071,6 +9386,11 @@ class BotRuntimeImplementation implements BotRuntime {
         const exhaustedDraftId = exhaustedDrops.get(channel.id);
         if (input.genui !== undefined && (channel.type !== 'dm' || channel.botSlug !== botSlug))
           throw new Error('GenUI reports require the Bot Human DM');
+        if (
+          input.sessionLinks !== undefined &&
+          (channel.type !== 'dm' || channel.botSlug !== botSlug)
+        )
+          throw new Error('Session links require the Bot Human DM');
         if (exhaustedDraftId)
           throw new SendReviewRequired({
             status: 'requires-review',
@@ -9087,6 +9407,11 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Human mentions require a Group Channel');
         if (isBotDmChannel(channel)) {
           if (channel.remoteBot !== undefined) {
+            if (input.quotes?.length)
+              throw new ChannelQuoteError(
+                'unsupported-quotes',
+                'Quotes are not supported in remote Bot DMs',
+              );
             if (
               input.attachments?.length ||
               (input.replyTo !== undefined && input.replySourceEventId === undefined)
@@ -9123,6 +9448,7 @@ class BotRuntimeImplementation implements BotRuntime {
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
             body: input.body,
             replyTo: input.replyTo,
+            quotes: input.quotes,
             attachments: input.attachments,
             deliveryKey: input.deliveryKey,
           });
@@ -9147,6 +9473,7 @@ class BotRuntimeImplementation implements BotRuntime {
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
             body: input.body,
             replyTo: input.replyTo,
+            quotes: input.quotes,
             attachments: input.attachments,
             mentionBotIds: input.mentionBotIds,
             mentionHumanIds: input.mentionHumanIds,
@@ -9211,16 +9538,20 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo)) {
           throw new ChannelReplyTargetError();
         }
+        const messageId = this.#deliveryMessageId(sessionId, input.deliveryKey);
+        this.#assertQuoteTargets(channel.id, messageId, input.quotes);
         beforeSend();
         const message: ChannelMessage = {
-          id: this.#deliveryMessageId(sessionId, input.deliveryKey),
+          id: messageId,
           at: this.#now().toISOString(),
           author: { kind: 'bot', slug: botSlug },
           body,
           ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+          ...(input.quotes?.length ? { quotes: input.quotes } : {}),
           ...this.#perf(sessionId, body),
           ...(input.genui === undefined ? {} : { genui: input.genui }),
+          ...(input.sessionLinks === undefined ? {} : { sessionLinks: input.sessionLinks }),
         };
         const originId = input.replySourceEventId ?? sourceEventId;
         const origin = {
@@ -9279,6 +9610,7 @@ class BotRuntimeImplementation implements BotRuntime {
     afterSend?: () => void;
     body: string;
     replyTo?: string | undefined;
+    quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
     mentionBotIds?: string[] | undefined;
     mentionHumanIds?: string[] | undefined;
@@ -9360,8 +9692,9 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#channels.assertAttachmentRefs(input.attachments ?? []);
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
+    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {
-      id: this.#deliveryMessageId(input.sessionId, input.deliveryKey),
+      id: messageId,
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       body,
@@ -9373,6 +9706,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(mentions.length === 0 ? {} : { mentions }),
       ...(humanMentions.length === 0 ? {} : { humanMentions }),
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+      ...(input.quotes?.length ? { quotes: input.quotes } : {}),
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
       ...this.#perf(input.sessionId, body),
     };
@@ -9399,6 +9733,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return committed;
       }
     }
+    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     let reviewOutcome: import('../channels/send-review.js').SendReviewOutcome | undefined;
     const originId = input.sourceEventId ?? message.botCausation!.parentSourceEventId;
     const result = await this.#channels.appendMessageOnce(
@@ -9547,6 +9882,19 @@ class BotRuntimeImplementation implements BotRuntime {
       parentSourceEventId: sourceEventId,
       hop: inheritedHop + 1,
     };
+  }
+
+  #assertQuoteTargets(
+    channelId: string,
+    messageId: string,
+    quotes: readonly ChannelQuote[] | undefined,
+  ): void {
+    if (
+      quotes?.length &&
+      sameQuoteIntent(this.#channels.storedQuotes(channelId, messageId), quotes)
+    )
+      return;
+    assertQuoteTargets(quotes, (id) => this.#channels.message(channelId, id));
   }
 
   #deliveryMessageId(sessionId: string, deliveryKey?: string): string {
@@ -9779,6 +10127,7 @@ class BotRuntimeImplementation implements BotRuntime {
     afterSend?: () => void;
     body: string;
     replyTo?: string | undefined;
+    quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
     deliveryKey?: string | undefined;
   }): Promise<{ channelId: string; message: ChannelMessage }> {
@@ -9798,6 +10147,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#channels.assertAttachmentRefs(input.attachments ?? []);
     if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo))
       throw new ChannelReplyTargetError();
+    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
+    this.#assertQuoteTargets(channel.id, messageId, input.quotes);
     const sender = this.#registry.get(botSlug);
     if (this.#team) this.#team.bots.requireChannel(botSlug, channel, true);
     else if (sender && botOwner(sender) !== botOwner(recipient))
@@ -9818,7 +10169,6 @@ class BotRuntimeImplementation implements BotRuntime {
         input.sourceEventId,
     );
     this.#requireBotHop(botCausation);
-    const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {
       id: messageId,
       at: this.#now().toISOString(),
@@ -9826,6 +10176,7 @@ class BotRuntimeImplementation implements BotRuntime {
       body: input.body,
       botCausation,
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+      ...(input.quotes?.length ? { quotes: input.quotes } : {}),
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
       ...this.#perf(input.sessionId, input.body),
     };
@@ -10063,6 +10414,7 @@ class BotRuntimeImplementation implements BotRuntime {
       key?: string;
       grantId: string;
       model?: ModelRoute;
+      modelGroupId?: string;
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentCreateOutcome {
@@ -10084,7 +10436,21 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error('Assignment model choice is invalid');
     if (input.model !== undefined && plan === undefined)
       throw new Error('Apply a Model Preset before choosing an Assignment model');
-    const modelRoute = plan === undefined ? undefined : selectAssignmentRoute(plan, input.model);
+    const modelGroupId =
+      input.modelGroupId === undefined || plan === undefined
+        ? undefined
+        : selectAssignmentGroup(plan, { group: input.modelGroupId });
+    if (
+      input.modelGroupId !== undefined &&
+      (modelGroupId === undefined || input.model === undefined)
+    )
+      throw new Error('An Assignment Routing Group needs its chosen member route');
+    const modelRoute =
+      plan === undefined
+        ? undefined
+        : modelGroupId !== undefined
+          ? { ...input.model! }
+          : selectAssignmentRoute(plan, input.model);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
     const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
@@ -10184,8 +10550,8 @@ class BotRuntimeImplementation implements BotRuntime {
             `INSERT INTO assignments (
                session_id, source_event_id, bot_slug, title, description, activity,
                continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
-               approval_policy, preset_revision, model_route_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               approval_policy, preset_revision, model_route_json, model_group_id, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             sessionId,
@@ -10201,6 +10567,7 @@ class BotRuntimeImplementation implements BotRuntime {
             permission.approval,
             permission.presetRevision,
             modelRoute === undefined ? null : JSON.stringify(modelRoute),
+            modelGroupId ?? null,
             createdAt,
             createdAt,
           );
@@ -10228,8 +10595,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#recordCompletedAssignment(bot.slug, sessionId, execution),
         cancelledTurn: (execution) =>
           this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
-        failedTurn: (execution) =>
-          this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'failed'),
+        failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
       }),
     );
     return {
@@ -10373,8 +10739,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#recordCompletedAssignment(bot.slug, input.sessionId, execution),
       cancelledTurn: (execution) =>
         this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'cancelled'),
-      failedTurn: (execution) =>
-        this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'failed'),
+      failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
     };
     let delivery: AssignmentRequestDelivery;
     try {
@@ -10765,6 +11130,12 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#setActivity(sessionId, 'idle');
       } catch (error) {
         if (this.#assignmentRuns.get(sessionId) !== tracked) return;
+        const continuation = this.#groupContinuations.get(sessionId);
+        if (continuation !== undefined) {
+          continuation.error = error;
+          this.#setActivity(sessionId, 'idle');
+          return;
+        }
         const refused = failure();
         this.#setActivity(sessionId, refused.activity);
         const row = this.#assignmentRow(undefined, sessionId);
@@ -10856,6 +11227,121 @@ class BotRuntimeImplementation implements BotRuntime {
     const assignment = this.getAssignment(botSlug, sessionId);
     if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
     return assignment;
+  }
+
+  #assignmentFailed(
+    botSlug: string,
+    sessionId: string,
+    execution: { turn: number; endSeq: number },
+  ): void {
+    const row = this.#assignmentRow(botSlug, sessionId);
+    const current = row === undefined ? undefined : modelRouteFromRow(row);
+    if (
+      row?.model_group_id == null ||
+      current === undefined ||
+      this.#groupFallback === undefined ||
+      this.#routeRests?.restingUntil(current) === undefined
+    ) {
+      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      return;
+    }
+    const continuation: { error?: unknown } = {};
+    this.#groupContinuations.set(sessionId, continuation);
+    void this.#continueOnGroup(botSlug, sessionId, current, execution, continuation).finally(() => {
+      if (this.#groupContinuations.get(sessionId) === continuation)
+        this.#groupContinuations.delete(sessionId);
+    });
+  }
+
+  async #continueOnGroup(
+    botSlug: string,
+    sessionId: string,
+    failed: ModelRoute,
+    execution: { turn: number; endSeq: number },
+    continuation: { error?: unknown },
+  ): Promise<void> {
+    const fail = (error: unknown) => {
+      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      this.#setActivity(sessionId, 'error');
+      const row = this.#assignmentRow(botSlug, sessionId);
+      const channel = row === undefined ? undefined : this.#assignmentDmChannel(row);
+      if (row === undefined || channel === undefined || row.stop_state !== 'running') return;
+      void this.#publishSessionFailure({
+        channelId: channel.id,
+        botSlug,
+        sessionId,
+        role: 'assignment',
+        error,
+        context: row.title,
+      });
+    };
+    try {
+      await Promise.resolve();
+      const running = this.#assignmentRuns.get(sessionId);
+      if (running !== undefined) await running.catch(() => undefined);
+      if (this.#groupContinuations.get(sessionId) === continuation)
+        this.#groupContinuations.delete(sessionId);
+      const cause = continuation.error ?? new Error('The Assignment model stopped');
+      const next = await this.refreshAssignmentRoute(botSlug, sessionId);
+      const bot = this.#registry.get(botSlug);
+      if (next === undefined || sameModelRoute(next, failed) || bot === undefined) {
+        fail(cause);
+        return;
+      }
+      const request = this.#requestAssignment(bot, {
+        sessionId,
+        mode: 'next-turn',
+        text: ASSIGNMENT_FALLBACK_NOTE,
+      });
+      if (request.delivery === 'refused' || request.delivery === 'capacity') fail(cause);
+    } catch (error) {
+      fail(continuation.error ?? error);
+    }
+  }
+
+  async refreshAssignmentRoute(
+    botSlug: string,
+    sessionId: string,
+  ): Promise<ModelRoute | undefined> {
+    const row = this.#assignmentRow(botSlug, sessionId);
+    const groupId = row?.model_group_id;
+    const current = row === undefined ? undefined : modelRouteFromRow(row);
+    if (groupId == null || current === undefined || this.#groupFallback === undefined)
+      return current;
+    const picked = await this.#groupFallback.pick(botSlug, groupId);
+    if (picked.kind !== 'route' || sameModelRoute(picked.route, current)) return current;
+    const rest = this.#routeRests?.restingUntil(current);
+    const at = this.#now().toISOString();
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `UPDATE assignments SET model_route_json = ?, updated_at = ?
+              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
+          )
+          .run(JSON.stringify(picked.route), at, sessionId, botSlug);
+      },
+      ['assignments'],
+    );
+    const choice: ModelSwitch = {
+      kind: 'switch',
+      from: { provider: current.provider, model: current.model },
+      to: picked.route,
+      reason: rest === undefined ? 'returned' : (rest.reason ?? 'quota'),
+      ...(rest === undefined ? {} : { until: rest.until }),
+    };
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: rest === undefined ? 'model-return' : 'model-fallback',
+        botSlug,
+        session: sessionId,
+        from: `${choice.from.provider}/${choice.from.model}`,
+        to: `${choice.to.provider}/${choice.to.model}`,
+      }),
+    );
+    await this.#appendModelSwitch(botSlug, sessionId, undefined, choice);
+    return picked.route;
   }
 
   #recordUnsuccessfulAssignment(

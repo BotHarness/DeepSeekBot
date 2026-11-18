@@ -12,6 +12,11 @@ import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
 import { DSH_RESKIN, tobsBridgeCss } from './tobs-bridge.js';
 import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
+const WALLPAPER_INK = [
+  ['--tobs-ink-secondary', 40],
+  ['--tobs-ink-tertiary', 35],
+  ['--tobs-ink-quiet', 30],
+] as const;
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const { config, mode } = snapshot;
   const selected = config.modes[mode];
@@ -22,6 +27,10 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
     ...(mode === 'dark' ? NATIVE_DARK : {}),
     ...tobsTokens(mode, selected.preset, selected.primary, config.style),
   };
+  if (mode === 'light')
+    for (const [token, share] of WALLPAPER_INK)
+      tokens[token] =
+        `color-mix(in srgb, ${tokens['--tobs-ink-primary']} calc(var(--bh-wallpaper-ink, 0) * ${share}%), ${tokens[token]})`;
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];
     tokens[`--bh-global-${part}-fill`] =

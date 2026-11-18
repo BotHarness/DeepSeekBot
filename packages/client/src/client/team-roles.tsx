@@ -7,7 +7,7 @@ import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SettingsGroupPart, SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { RoleModelsField } from './team-role-models.js';
@@ -121,21 +121,24 @@ export function RolesSection({
 }): ReactElement {
   const [editing, setEditing] = useState<TeamRole | 'new'>();
   return (
-    <SettingsSection>
-      <SettingsRow
-        title={t('team.roles.title')}
-        data={{ 'data-team-row': 'roles' }}
-        control={
-          canEdit ? (
-            <Button variant="outline" onClick={() => setEditing('new')}>
-              {t('team.roles.new')}
-            </Button>
-          ) : undefined
-        }
-      />
-      <div role="list" aria-label={t('team.roles.title')}>
+    <SettingsSection
+      title={t('team.roles.title')}
+      data={{ 'data-team-row': 'roles' }}
+      action={
+        canEdit ? (
+          <Button variant="ghost" size="sm" onClick={() => setEditing('new')}>
+            {t('team.roles.new')}
+          </Button>
+        ) : undefined
+      }
+    >
+      <SettingsGroupPart role="list" label={t('team.roles.title')}>
         {roles.map((role) => (
-          <div role="listitem" key={role.roleId} data-team-role={role.roleId}>
+          <SettingsGroupPart
+            role="listitem"
+            key={role.roleId}
+            data={{ 'data-team-role': role.roleId }}
+          >
             <SettingsRow
               title={roleLabel(t, role)}
               description={t(
@@ -159,9 +162,9 @@ export function RolesSection({
                 ) : undefined
               }
             />
-          </div>
+          </SettingsGroupPart>
         ))}
-      </div>
+      </SettingsGroupPart>
       {editing === undefined ? null : (
         <RoleDialog
           call={call}
@@ -337,6 +340,7 @@ export function MemberSheet({
   viewer,
   members = [],
   canOffboard = false,
+  memberUrls = [],
   onClose,
   onChanged,
 }: {
@@ -345,6 +349,7 @@ export function MemberSheet({
   member: TeamMember;
   members?: readonly TeamMember[];
   canOffboard?: boolean;
+  memberUrls?: readonly string[];
   roles: readonly TeamRole[];
   viewer: GrantingViewer;
   canManageRoles: boolean;
@@ -488,6 +493,7 @@ export function MemberSheet({
             t={t}
             member={member}
             members={members}
+            memberUrls={memberUrls}
             onChanged={() => {
               refresh();
               onChanged();
