@@ -4,17 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { parseApprovalReview } from '../src/workspaces/approval-reviewer.js';
 import { decideToolApproval, type ToolEffects } from '../src/workspaces/tool-effects.js';
 
+const changes = fc.constantFrom<ToolEffects['changes'][]>('none', 'reversible', 'irreversible');
+const reach = fc.constantFrom<ToolEffects['reach'][]>('local', 'workspace', 'memory', 'external');
 const effects: fc.Arbitrary<ToolEffects | undefined> = fc.option(
-  fc.record(
-    {
-      changes: fc.constantFrom('none', 'reversible', 'irreversible'),
-      reach: fc.constantFrom('local', 'workspace', 'memory', 'external'),
-      personalData: fc.boolean(),
-      secrets: fc.boolean(),
-      authority: fc.constant('management'),
-    },
-    { requiredKeys: ['changes', 'reach', 'personalData'] },
-  ) as fc.Arbitrary<ToolEffects>,
+  fc
+    .tuple(changes, reach, fc.boolean(), fc.option(fc.boolean(), { nil: undefined }), fc.boolean())
+    .map(([change, place, personalData, secrets, management]): ToolEffects => ({
+      changes: change,
+      reach: place,
+      personalData,
+      ...(secrets === undefined ? {} : { secrets }),
+      ...(management ? { authority: 'management' as const } : {}),
+    })),
   { nil: undefined },
 );
 
@@ -82,17 +83,31 @@ describe('approval authority follows docs/decisions/approvals.md', () => {
         effects,
         fc.constantFrom('native' as const, 'existing' as const, 'always' as const),
         fc.boolean(),
-        fc.constantFrom('none', 'reversible', 'irreversible'),
-        fc.constantFrom('local', 'workspace', 'memory', 'external'),
-        (effect, admission, legacyProtected, changes, reach) => {
+        changes,
+        reach,
+        (effect, admission, legacyProtected, change, place) => {
           const context = { stage: 'admission' as const, admission, legacyProtected };
-          const moved =
-            effect === undefined ? effect : ({ ...effect, changes, reach } as ToolEffects);
+          const moved: ToolEffects | undefined =
+            effect === undefined ? effect : { ...effect, changes: change, reach: place };
           expect(decideToolApproval(moved, context).path).toBe(
             decideToolApproval(effect, context).path,
           );
         },
       ),
+    );
+  });
+
+  it('admits an attachment open exactly when it writes, unless it is already protected', () => {
+    fc.assert(
+      fc.property(effects, fc.boolean(), (effect, legacyProtected) => {
+        const { path } = decideToolApproval(effect, {
+          stage: 'admission',
+          admission: 'attachment',
+          legacyProtected,
+        });
+        const protectedOperation = legacyProtected || effect?.authority === 'management';
+        expect(path).toBe(protectedOperation || effect?.changes !== 'none' ? 'request' : 'native');
+      }),
     );
   });
 

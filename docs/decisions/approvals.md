@@ -54,11 +54,11 @@ Enforced by: `approval-authority.property.test.ts` (for any effects and context,
 
 _Formerly the admission amendment of ADR-0342 (confirmed 2026-11-18, restoring the behavior of #4337)._
 
-Each first-party tool declares its effects and an admission class in `FIRST_PARTY_TOOL_EFFECTS`: `native` (DSH decides), `existing` (an existing check decides), `always` (always ask) or `attachment` (ask when writing an original attachment). A request reaches the owner when its class requires it, its effects declare management, or it is protected. Effect labels describe the call and appear on its card, but an irreversible external effect alone does not add a card or override Full Access. Secret, Bot-creation, attachment-write and protected-management checks keep their own boundaries, and Browser and Computer keep per-Session authorization instead of a card per action.
+Each first-party tool declares its effects and an admission class in `FIRST_PARTY_TOOL_EFFECTS`: `native` (DSH decides), `existing` (an existing check decides), `always` (always ask) or `attachment` (ask when writing an original attachment). A request reaches the owner when its class requires it, its effects declare management, or it is protected. Outside `attachment`, effect labels describe the call and appear on its card but never decide admission, so an irreversible external effect alone does not add a card or override Full Access. `attachment` is the one class that reads an effect: opening an original attachment to read (`changes: 'none'`) runs natively, and any write asks. Secret, Bot-creation, attachment-write and protected-management checks keep their own boundaries, and Browser and Computer keep per-Session authorization instead of a card per action.
 
 Why: a blanket card for every irreversible external effect put a card in front of ordinary messaging, delegation and already-authorized device actions. The Human chose fewer cards and no claim of a universal guarantee for every external effect.
 
-Enforced by: `approval-authority.property.test.ts` (changing a call's changes and reach never changes whether it is admitted), `tool-effects.test.ts`.
+Enforced by: `approval-authority.property.test.ts` (for every class but `attachment`, changing a call's changes and reach never changes whether it is admitted; for `attachment`, exactly the writes are admitted), `tool-effects.test.ts`.
 
 ## 5. A Bot uses one Approval Template: the global one, a specific one, or none
 
