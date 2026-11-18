@@ -27,6 +27,12 @@ describe('host readers', () => {
     ]);
   });
 
+  it('reads double-quoted and template method names the same as single-quoted', () => {
+    const source =
+      'call("channels"); unwrap(call, "storageUsage", {}); rpc(`list`); call(\'mixed");';
+    expect([...hostMethods(source)].sort()).toEqual(['channels', 'list', 'storageUsage']);
+  });
+
   it('flags a method read on desktop and on mobile, not one read on a single side', () => {
     const readers = readersByMethod({
       'packages/client/src/client/bridge.ts':

@@ -1,0 +1,71 @@
+import { useRef, useState, type ReactElement } from 'react';
+
+import { PickerTrigger } from './ds/picker-trigger.js';
+import type { BotHarnessTranslate } from './locale.js';
+import { ModelBrandIcon } from './model-brand.js';
+import { ModelMenu, type ModelMenuEffort, type ModelMenuItem } from './model-menu.js';
+
+export function ModelTrigger({
+  label,
+  items,
+  value,
+  placeholder,
+  invalid = false,
+  disabled = false,
+  onSelect,
+  efforts,
+  effort,
+  onEffort,
+  t,
+}: {
+  label: string;
+  items: readonly ModelMenuItem[];
+  value: string;
+  placeholder: string;
+  invalid?: boolean;
+  disabled?: boolean;
+  onSelect(value: string): void;
+  efforts?: readonly ModelMenuEffort[] | undefined;
+  effort?: string | undefined;
+  onEffort?: ((value: string) => void) | undefined;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const current = items.find((item) => item.value === value);
+  return (
+    <>
+      <PickerTrigger
+        ref={trigger}
+        label={current?.label ?? placeholder}
+        placeholder={current === undefined}
+        icon={
+          current?.model === undefined ? undefined : (
+            <ModelBrandIcon brand={current.brand} size={16} />
+          )
+        }
+        hint={current?.hint}
+        invalid={invalid}
+        disabled={disabled}
+        expanded={open}
+        accessibleLabel={current === undefined ? label : `${label} · ${current.name}`}
+        title={current?.name}
+        onClick={() => setOpen((shown) => !shown)}
+      />
+      {open && !disabled ? (
+        <ModelMenu
+          label={label}
+          items={items}
+          value={value}
+          onSelect={onSelect}
+          efforts={efforts}
+          effort={effort}
+          onEffort={onEffort}
+          anchorRef={trigger}
+          onClose={() => setOpen(false)}
+          t={t}
+        />
+      ) : null}
+    </>
+  );
+}

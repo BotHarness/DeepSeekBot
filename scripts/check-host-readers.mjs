@@ -13,14 +13,14 @@ export const SIDES = {
 };
 
 const GENERIC = String.raw`(?:<(?:[^<>()]|<[^<>()]*>)*>)?`;
-const METHOD = String.raw`'([A-Za-z][\w/.-]*)'`;
+const method = (quote) => `(['"\\x60])([A-Za-z][\\w/.-]*)\\${quote}`;
 const CALL = new RegExp(
-  String.raw`\b(?:call|invoke|rpc)\s*${GENERIC}\(\s*${METHOD}|\bunwrap\(\s*[\w.]+,\s*${METHOD}`,
+  String.raw`\b(?:call|invoke|rpc)\s*${GENERIC}\(\s*${method(1)}|\bunwrap\(\s*[\w.]+,\s*${method(3)}`,
   'gu',
 );
 
 export function hostMethods(source) {
-  return new Set([...source.matchAll(CALL)].map((match) => match[1] ?? match[2]));
+  return new Set([...source.matchAll(CALL)].map((match) => match[2] ?? match[4]));
 }
 
 export const sideOf = (path) =>

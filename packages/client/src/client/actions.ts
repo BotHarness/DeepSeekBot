@@ -30,6 +30,7 @@ import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { modelFavoritesEpoch, rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -296,6 +297,7 @@ import {
   type UsageQueryResult,
   loadGroupProfileActivity,
   loadModelCatalog,
+  setModelFavorite,
   loadModelPresets,
   loadModelPlan,
   loadModelPlanState,
@@ -315,6 +317,7 @@ import {
   setModelPlan,
   setStandingLimits,
   type ModelCatalogView,
+  type ModelChoice,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -660,6 +663,7 @@ export interface BridgeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   routingGroups(): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }>;
   createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
@@ -2169,7 +2173,19 @@ export function createActions(
       });
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
-    modelCatalog: () => loadModelCatalog(call),
+    modelCatalog: () => {
+      const seen = modelFavoritesEpoch();
+      return loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(
+          catalog.favorites,
+          call,
+          (choice, favorite) => setModelFavorite(call, choice, favorite),
+          seen,
+        );
+        return catalog;
+      });
+    },
+    setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
     createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),

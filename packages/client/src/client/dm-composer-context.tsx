@@ -46,6 +46,7 @@ import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
 import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
+import { ModelMenu, catalogMenuItems } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
@@ -281,6 +282,8 @@ export function useDmComposerContext({
           models={catalog?.models ?? []}
           modelStatus={modelStatus}
           route={route}
+          modelBusy={modelBusy || planState === undefined || modelStatus !== 'ready'}
+          onChooseModel={applyModelRoute}
         />
         {modelError === undefined ? null : (
           <Toast
@@ -311,6 +314,8 @@ function DmComposerContextView({
   models,
   modelStatus,
   route,
+  modelBusy,
+  onChooseModel,
 }: {
   footerSettings?: Ref<ComposerFooterHandle>;
   bot: BotSummary;
@@ -327,7 +332,11 @@ function DmComposerContextView({
   models: readonly ModelCatalogEntryView[];
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
+  modelBusy: boolean;
+  onChooseModel(route: ModelRouteView): void;
 }): ReactElement {
+  const modelTrigger = useRef<HTMLButtonElement>(null);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -404,6 +413,18 @@ function DmComposerContextView({
           : 'composerContext.noModel',
     );
   const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
+  const currentEntry = models.find(
+    (entry) => entry.provider === route?.provider && entry.model === route?.model,
+  );
+  const modelEfforts =
+    currentEntry === undefined
+      ? undefined
+      : [
+          { value: '', label: t('modelPreset.providerDefault') },
+          ...currentEntry.efforts
+            .filter((effort) => effort.id !== '')
+            .map((effort) => ({ value: effort.id, label: effort.name })),
+        ];
   const modelChipLabel =
     modelStatus === 'unavailable' || (modelName ?? route?.model) === undefined
       ? modelLabel
@@ -466,7 +487,14 @@ function DmComposerContextView({
           icon={<ModelBrandIcon brand={brand} />}
           label={modelChipLabel}
           title={modelLabel}
-          onClick={() => onOpen('model')}
+          ref={modelTrigger}
+          onClick={() =>
+            modelStatus === 'unavailable' || models.length === 0
+              ? onOpen('model')
+              : setModelMenuOpen((open) => !open)
+          }
+          aria-haspopup="dialog"
+          aria-expanded={modelMenuOpen}
           aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
         />
         {avgPerf === undefined ? null : (
@@ -490,6 +518,43 @@ function DmComposerContextView({
           aria-label={`${t('entry.workspaceGrants')} · ${bot.displayName} · ${workspaceLabel}`}
         />
       </ComposerContextBar>
+      {modelMenuOpen ? (
+        <ModelMenu
+          label={`${t('entry.model')} · ${bot.displayName}`}
+          items={catalogMenuItems(models, t)}
+          value={route === undefined ? '' : JSON.stringify([route.provider, route.model])}
+          onSelect={(key) => {
+            const entry = models.find(
+              (item) => JSON.stringify([item.provider, item.model]) === key,
+            );
+            if (entry === undefined || modelBusy) return;
+            const same = entry.provider === route?.provider && entry.model === route.model;
+            const reasoningEffort = same ? route.reasoningEffort : entry.defaultEffort;
+            onChooseModel({
+              provider: entry.provider,
+              model: entry.model,
+              ...(reasoningEffort === undefined || reasoningEffort === ''
+                ? {}
+                : { reasoningEffort }),
+            });
+          }}
+          busy={modelBusy}
+          efforts={modelEfforts}
+          effort={route?.reasoningEffort ?? ''}
+          onEffort={(effort) => {
+            if (route === undefined || modelBusy) return;
+            onChooseModel({
+              provider: route.provider,
+              model: route.model,
+              ...(effort === '' ? {} : { reasoningEffort: effort }),
+            });
+          }}
+          onSettings={() => onOpen('model')}
+          anchorRef={modelTrigger}
+          onClose={() => setModelMenuOpen(false)}
+          t={t}
+        />
+      ) : null}
       {usageOpen ? (
         <DmComposerUsagePopover
           context={context}

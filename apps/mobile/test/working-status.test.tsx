@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/minute-clock', () => ({
   useMinuteClock: () => new Date('2026-11-06T10:00:00Z'),

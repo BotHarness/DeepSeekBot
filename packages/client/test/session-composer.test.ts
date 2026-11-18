@@ -83,13 +83,13 @@ const options: ComposerSessionOption[] = composerSessionOptions([
     bot: ben,
     items: [
       assignment('asg-shop', '重构 shop 后端'),
-      assignment('asg-done', '给 calc.js 写测试', { assignmentActivity: 'stopped' }),
+      assignment('asg-done', '给 calc.js 写测试', { assignmentArchived: true }),
     ],
   },
 ]);
 
 describe('session references', () => {
-  it('keeps only Assignment Sessions and marks archived or stopped ones done', () => {
+  it('keeps only Assignment Sessions and marks archived ones done', () => {
     expect(options.map((option) => [option.sessionId, option.botSlug, option.done]).sort()).toEqual(
       [
         ['asg-done', 'ben', true],
@@ -98,6 +98,15 @@ describe('session references', () => {
         ['asg-slug', 'ada', false],
       ],
     );
+    expect(
+      composerSessionOptions([
+        {
+          botSlug: 'ben',
+          bot: ben,
+          items: [assignment('asg-stopped', '已停止的任务', { assignmentActivity: 'stopped' })],
+        },
+      ]).map((option) => option.done),
+    ).toEqual([false]);
   });
 
   it('lists live sessions for a bare / and searches every session once filtered', () => {

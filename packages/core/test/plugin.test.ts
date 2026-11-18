@@ -963,6 +963,7 @@ describe('plugin entry', () => {
       'sessionMessageSend',
       'botStop',
       'modelCatalog',
+      'modelFavoriteSet',
       'modelPresets',
       'modelPresetCreate',
       'modelPresetUpdate',

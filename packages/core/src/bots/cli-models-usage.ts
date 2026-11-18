@@ -1,5 +1,6 @@
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
@@ -18,6 +19,15 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-catalog',
     description: 'list the models the Host can run, with the default',
+  },
+  {
+    command: 'model-favorite-add',
+    description:
+      'star a model (<provider>/<model>) or a Model Route Group (group:<id>) for you on every device',
+  },
+  {
+    command: 'model-favorite-remove',
+    description: 'unstar a model (<provider>/<model>) or a Model Route Group (group:<id>)',
   },
   {
     command: 'model-plan-set',
@@ -131,6 +141,19 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/u;
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
+}
+
+function favoriteChoice(target: string): ModelFavorite {
+  if (target.startsWith('group:')) {
+    const id = target.slice('group:'.length).trim();
+    if (!id) usage('group:<id> needs a nonempty Model Route Group id.');
+    return { kind: 'group', id };
+  }
+  const slash = target.indexOf('/');
+  const provider = slash < 0 ? '' : target.slice(0, slash).trim();
+  const model = slash < 0 ? '' : target.slice(slash + 1).trim();
+  if (!provider || !model) usage('Name a model as <provider>/<model>, or a group as group:<id>.');
+  return { kind: 'model', provider, model };
 }
 
 function revision(value: string | undefined): number | undefined {
@@ -271,6 +294,11 @@ export async function runModelsUsage(
     });
   }
   if (command === 'model-catalog') return (await connect())('modelCatalog', {});
+  if (command === 'model-favorite-add' || command === 'model-favorite-remove')
+    return (await connect())('modelFavoriteSet', {
+      choice: favoriteChoice(target),
+      favorite: command === 'model-favorite-add',
+    });
   if (command === 'activity-overview') return (await connect())('activityOverview', {});
   if (command === 'channel-activity-today') return (await connect())('channelActivityToday', {});
   if (command === 'overview-memory') {
