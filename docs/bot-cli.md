@@ -1066,6 +1066,20 @@ deepseekbot device-revoke <device-id> --confirm
 
 `devices` returns `{host, devices, routes}`: this Host's pairing identity, every paired device with `id`, `name`, `pairedAt`, `lastSeenAt` and `revokedAt` once revoked, and the phone routes as `phone-route` reports them. Device credentials are never listed. `device-offer` opens a one-time offer for 10 minutes and writes its `deepseekbot://pair?…` link only to `--out`, a new file created with mode 0600 (an existing file is refused with `output-exists` before any offer opens); stdout carries `{receipt, expiresAt, routes, reachable, link: {path}}`. Open the link on the phone, or pair from the QR code in Devices instead; `device-offer` refuses without `--out` (`out-required`). The receipt names the offer without being able to redeem it. `device-offer-status` returns `state`: `pending` with `expiresAt`, `redeemed` with the new `deviceId`, `expired`, `refused` (a redemption with the wrong verifier used it up), `superseded` (more than 16 offers were open) or `unknown`; offers live in Host memory, so every receipt is `unknown` after a Host restart. `device-revoke` returns `{revoked, closedStreams, device: {id, name}}`; the device's next request is refused with `device-revoked` and its open streams close at once. Refusals: `confirm-required`, `device-unknown`, `device-already-revoked`, `receipt-required` and `usage`.
 
+### Subscription Engines
+
+A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH model: the Host drives the engine with the Human's own subscription on this computer (ADR-0353). Codex is the first engine; it runs `codex app-server` signed in with ChatGPT. The Bot signs in to its own Codex home under `$DSH_HOME/botharness/engines`, so it never shares the Human's own Codex login or config.
+
+```bash
+deepseekbot engine list
+deepseekbot engine status
+deepseekbot engine login codex
+deepseekbot engine use <bot> codex --role orchestrator
+deepseekbot engine use <bot> none --role orchestrator
+```
+
+`engine list` returns `{engines: [{engine, available, reason?}]}`; `engine status` adds `installed`, `version` and `login` (`chatgpt`, `api-key`, `signed-out` or `unknown`) and lists `selections` as `{botSlug, role, engine}`. `reason` is `not-installed`, `signed-out` or `not-subscription`. A Cloud or VPS Host (`subscriptionEngines: false`, or `DEEPSEEKBOT_HOST_KIND=cloud|vps`) lists no engines. `engine login codex` starts `codex login` for the Bot's Codex home on the Host computer and returns `{engine, started, url?}`; finish the sign-in in the browser with the ChatGPT account. `engine use` returns `{bot, role, engine}`; `none` returns the Bot to its DSH model. Before a turn the Host reads the engine's account and refuses anything but a ChatGPT subscription (`engine-not-subscription`, `engine-signed-out`). The engine reaches `bot_send_message` and `channel_read` through a loopback MCP gateway whose token is bound to the Bot, the Session and the current Channel; its own final text is not posted. Refusals: `unknown-bot`, `unknown-engine`, `engine-unavailable`, `invalid-input` and `usage`.
+
 ### Desktop presence
 
 While a desktop or web Client is in use, the Host holds Bot reply pushes to phones so the phone stays quiet. Approvals, questions and private-input requests still push at once. A Client counts as active while its window is visible and it saw input in the last 10 minutes; it renews a 90-second lease every 30 seconds. One minute after the window is hidden (or the screen locks), or after 10 minutes without input, the Client reports idle. When no Client is active, replies that are still unread push to phones. A reply read on the desktop in the meantime never pushes.

@@ -4176,12 +4176,30 @@ const SESSION_TOOL_KINDS: readonly string[] = [
   'fetch',
 ];
 
+export interface SessionEngine {
+  engine: string;
+  account?: string;
+  state: 'starting' | 'running' | 'idle';
+}
+
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
   seq: number;
+  engine?: SessionEngine;
+}
+
+function parseSessionEngine(value: unknown): SessionEngine | undefined {
+  const engine = asRecord(value);
+  if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
+  const state = engine['state'];
+  return {
+    engine: engine['engine'],
+    ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
+    state: state === 'starting' || state === 'running' ? state : 'idle',
+  };
 }
 
 export interface SessionLiveSnapshot {
@@ -4473,12 +4491,14 @@ export async function loadSessionTranscript(
   const items = value?.['items'];
   if (value === undefined || !Array.isArray(items))
     throw new Error('invalid sessionTranscript response');
+  const engine = parseSessionEngine(value['engine']);
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
     items: parseItems(items),
     omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
     running: value['running'] === true,
     seq: finite(value['seq']) ?? 0,
+    ...(engine === undefined ? {} : { engine }),
   };
 }
 

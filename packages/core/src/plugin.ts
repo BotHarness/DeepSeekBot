@@ -145,6 +145,11 @@ import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { createEngineGateway } from './engines/engine-gateway.js';
+import { EngineHost } from './engines/engine-host.js';
+import type { EngineSessionPersistence, EngineSessionStore } from './engines/engine-dsh-session.js';
+import { readEnginePersona, subscriptionEnginesAllowed } from './engines/engine-plugin.js';
+import { ENGINES_PATH, engineRouteFetch } from './engines/engine-route.js';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
@@ -263,6 +268,8 @@ import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-
 import {
   degradeHostCapability,
   hostAgentPresets,
+  hostSessionPersistence,
+  hostSessionStore,
   hostSkillRegistry,
   installHostSkillInvalidation,
   onHostSkillsChange,
@@ -505,6 +512,7 @@ export interface BotHarnessConfig {
   activityDetailConsumers?: string[];
   marketplaceUrl?: string;
   telemetry?: boolean;
+  subscriptionEngines?: boolean;
 }
 
 export const DEFAULT_AGENT_PRESET = 'standard';
@@ -552,6 +560,11 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   marketplaceUrl: Schema.string()
     .default(DEFAULT_MARKETPLACE_URL)
     .description('Bot Marketplace 服务地址'),
+  subscriptionEngines: Schema.boolean()
+    .default(true)
+    .description(
+      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex). Cloud and VPS Hosts set false.',
+    ),
   telemetry: Schema.boolean()
     .default(true)
     .description(
@@ -1775,7 +1788,31 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = new ModelFreeTobCliInvocation();
   const sessionLive = new SessionLiveStreams();
+  const engineGateway = createEngineGateway();
+  const engineHost = new EngineHost({
+    root: join(dshHome, 'botharness', 'engines'),
+    local: subscriptionEnginesAllowed(config, process.env),
+    gateway: engineGateway,
+    sessions: () => hostSessionStore<EngineSessionStore>(ctx),
+    persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
+    observe: (slug, sessionId, state) => {
+      if (state === 'starting')
+        core.states.setSessionState(slug, sessionId, 'thinking', undefined, 'orchestrator');
+      else if (core.states.snapshot(slug).sessions[sessionId] === 'thinking')
+        core.states.setSessionState(slug, sessionId, 'done', undefined, 'orchestrator');
+    },
+  });
+  ctx.effect(
+    () => async () => {
+      await engineHost.close();
+      await engineGateway.close();
+    },
+    'botharness: Subscription Engine Sessions',
+  );
   const agentAdapter = createDshBotAgentAdapter({
+    engines: engineHost,
+    enginePersona: (bot) =>
+      readEnginePersona(core.registry.memoryDirFor(bot.slug), bot.standingLimits),
     tobCliInvocation,
     ...(config.genuiPreviewBrowserPath === undefined
       ? {}
@@ -3709,6 +3746,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         result as Parameters<NonNullable<typeof definition.presentResult>>[1],
       );
     },
+    describeEngineSession: (sessionId) => engineHost.describe(sessionId),
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);
       if (call === undefined) return undefined;
@@ -4181,6 +4219,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: ENGINES_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: (request) =>
+            engineRouteFetch(request, {
+              host: engineHost,
+              botExists: (slug) => core.registry.get(slug) !== undefined,
+            }),
+        }),
+      'botharness: Subscription Engine route',
+    );
     connectionCtx.effect(
       () =>
         connection.fetch.register({

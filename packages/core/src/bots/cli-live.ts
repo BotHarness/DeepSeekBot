@@ -17,6 +17,7 @@ import { runPhoneNotifications } from './cli-phone-notifications.js';
 import { WINDOW_ZOOM_COMMANDS, runWindowZoomCommand } from './cli-window-zoom.js';
 import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
 import { PRESENCE_COMMANDS, runPresenceCommand } from './cli-presence.js';
+import { ENGINE_COMMANDS, runEngineCommand } from './cli-engine.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
 import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
@@ -215,6 +216,7 @@ export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
   ...DESKTOP_WINDOW_COMMANDS,
   ...PRESENCE_COMMANDS,
+  ...ENGINE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
   ...RELATIONSHIP_COMMANDS,
@@ -1037,6 +1039,10 @@ export async function runLiveCli(
     );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (ENGINE_COMMANDS.some((entry) => entry.command === command))
+    return runEngineCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (PRESENCE_COMMANDS.some((entry) => entry.command === command))

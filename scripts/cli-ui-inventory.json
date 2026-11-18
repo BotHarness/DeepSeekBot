@@ -1042,6 +1042,13 @@
       "commands": ["presence-status", "presence-report"]
     },
     {
+      "id": "subscription-engines",
+      "description": "The Host lists Subscription Engines, starts the Bot's own Codex sign-in and runs a Bot's Orchestrator on an engine instead of a DSH model.",
+      "scope": "Host / PersonaBot Orchestrator",
+      "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
+      "commands": ["engine-list", "engine-status", "engine-login", "engine-use"]
+    },
+    {
       "id": "desktop-window-zoom-setup",
       "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
       "scope": "Host / desktop Profile",

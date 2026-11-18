@@ -1429,6 +1429,9 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  describeEngineSession?(
+    sessionId: string,
+  ): { engine: string; account?: string; state: 'starting' | 'running' | 'idle' } | undefined;
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   roster: RosterStore;
@@ -9325,11 +9328,13 @@ function buildBridgeMethods(
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
+      const engine = deps.describeEngineSession?.(sessionId);
       return {
         ok: true,
         value: {
           sessionId,
           role: owner.rootRole,
+          ...(engine === undefined ? {} : { engine }),
           ...summarizeSessionTranscript({
             sessionId,
             events: log?.events ?? [],
