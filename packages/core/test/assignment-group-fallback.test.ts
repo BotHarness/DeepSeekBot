@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { groupMemberRoute } from '../src/models/catalog.js';
 import { createGroupFallback } from '../src/models/group-fallback.js';
 import {
   isPersonaBotModelPlan,
@@ -441,114 +442,123 @@ describe('A Bot without a Model Plan runs Assignments on the default Routing Gro
 });
 
 describe('An Assignment on a Routing Group keeps its chosen effort after a fallback (#4502)', () => {
-  it('moves to the next member at the same effort and stays there after the rest ends', async () => {
-    let clock = Date.parse('2026-11-18T00:00:00.000Z');
-    const rests = createRouteRests({ now: () => clock });
-    const fallback = createGroupFallback({
-      plan: () => undefined,
-      routes: () => [SPENT, { ...DEEPSEEK, reasoningEffort: 'max' }],
-      rests,
-      requireAllowed: () => undefined,
-      validate: async () => undefined,
-    });
-    const workspace = {
-      id: 'project',
-      path: realpathSync(createTempRoot('bh-assignment-effort-project-')),
-      title: 'Project',
-      status: async () => 'ok' as const,
-    };
-    let orchestrator: OrchestratorAgentRun | undefined;
-    const runs: (ModelRoute | undefined)[] = [];
-    const drive = async (run: AssignmentAgentRun) => {
-      runs.push(run.modelRoute);
-      if (key(run.modelRoute) !== key(SPENT)) return;
-      rests.rest(SPENT, clock + 3_600_000, 'quota');
-      run.failedTurn?.({ turn: runs.length, endSeq: runs.length });
-      throw Object.assign(new Error('QUOTA: OpenCode Go usage limit reached'), { code: 'QUOTA' });
-    };
-    const agents: BotAgentAdapter = {
-      async runOrchestrator(run) {
-        orchestrator = run;
-      },
-      runAssignment: drive,
-      requestAssignment(run) {
-        return { delivery: 'followup', accepted: Promise.resolve(), done: drive(run) };
-      },
-      async close() {},
-    };
-    const core = createCore({
-      dshHome: createTempRoot('bh-assignment-effort-'),
-      agents,
-      routeRests: rests,
-      groupFallback: fallback,
-      workspaces: () => ({
-        get: (id: string) => (id === workspace.id ? workspace : undefined),
-        list: () => [workspace],
-      }),
-    });
-    const settle = async () => {
-      for (let index = 0; index < 4; index += 1) {
-        await core.runtime.whenIdle();
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-    };
-    try {
-      core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const applied = core.registry.setModelPlan(
-        'ada',
-        { orchestrator: DEEPSEEK, assignmentDefault: DEEPSEEK, assignmentModels: options },
-        0,
-      );
-      if (!applied.ok) throw new Error('plan');
-      const grouped = core.registry.setAssignmentModels(
-        'ada',
-        DEEPSEEK,
-        options,
-        applied.record.modelPlan!.revision,
-        undefined,
-        {
-          ids: ['g'],
-          defaultId: 'g',
-          options: [{ group: 'g', allowedEfforts: ['high'], defaultEffort: 'high' }],
+  it.each([
+    {
+      member: { ...DEEPSEEK, reasoningEffort: 'max' },
+      next: { ...DEEPSEEK, reasoningEffort: 'high' },
+    },
+    { member: DEEPSEEK, next: DEEPSEEK },
+  ])(
+    'moves to the next member at the same effort it supports and stays there after the rest ends',
+    async ({ member, next }) => {
+      let clock = Date.parse('2026-11-18T00:00:00.000Z');
+      const rests = createRouteRests({ now: () => clock });
+      const fallback = createGroupFallback({
+        plan: () => undefined,
+        routes: () => [SPENT, member],
+        rests,
+        requireAllowed: () => undefined,
+        validate: async () => undefined,
+        withEffort: async (route, effort) =>
+          groupMemberRoute(route, effort, [
+            { ...DEEPSEEK, providerName: 'DeepSeek', modelName: 'Plain', efforts: [] },
+          ]),
+      });
+      const workspace = {
+        id: 'project',
+        path: realpathSync(createTempRoot('bh-assignment-effort-project-')),
+        title: 'Project',
+        status: async () => 'ok' as const,
+      };
+      let orchestrator: OrchestratorAgentRun | undefined;
+      const runs: (ModelRoute | undefined)[] = [];
+      const drive = async (run: AssignmentAgentRun) => {
+        runs.push(run.modelRoute);
+        if (key(run.modelRoute) !== key(SPENT)) return;
+        rests.rest(SPENT, clock + 3_600_000, 'quota');
+        run.failedTurn?.({ turn: runs.length, endSeq: runs.length });
+        throw Object.assign(new Error('QUOTA: OpenCode Go usage limit reached'), { code: 'QUOTA' });
+      };
+      const agents: BotAgentAdapter = {
+        async runOrchestrator(run) {
+          orchestrator = run;
         },
-      );
-      if (!grouped.ok) throw new Error('groups');
-      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
-      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
-        id: 'start',
-        at: new Date(clock).toISOString(),
-        author: { kind: 'human' },
-        body: 'Start',
+        runAssignment: drive,
+        requestAssignment(run) {
+          return { delivery: 'followup', accepted: Promise.resolve(), done: drive(run) };
+        },
+        async close() {},
+      };
+      const core = createCore({
+        dshHome: createTempRoot('bh-assignment-effort-'),
+        agents,
+        routeRests: rests,
+        groupFallback: fallback,
+        workspaces: () => ({
+          get: (id: string) => (id === workspace.id ? workspace : undefined),
+          list: () => [workspace],
+        }),
       });
-      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
-        channelId: dm.id,
-        messageId: 'start',
-        body: 'Start',
-      });
-      await settle();
-      const grant = await core.grants.create('ada', workspace.id);
-      const created = orchestrator!.assignments.create({
-        title: 'Research',
-        grantId: grant.id,
-        description: 'Find the launch date',
-        model: { ...SPENT, reasoningEffort: 'high' },
-        modelGroupId: 'g',
-      });
-      if (created.outcome !== 'created') throw new Error('Assignment missing');
-      await settle();
+      const settle = async () => {
+        for (let index = 0; index < 4; index += 1) {
+          await core.runtime.whenIdle();
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      };
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const applied = core.registry.setModelPlan(
+          'ada',
+          { orchestrator: DEEPSEEK, assignmentDefault: DEEPSEEK, assignmentModels: options },
+          0,
+        );
+        if (!applied.ok) throw new Error('plan');
+        const grouped = core.registry.setAssignmentModels(
+          'ada',
+          DEEPSEEK,
+          options,
+          applied.record.modelPlan!.revision,
+          undefined,
+          {
+            ids: ['g'],
+            defaultId: 'g',
+            options: [{ group: 'g', allowedEfforts: ['high'], defaultEffort: 'high' }],
+          },
+        );
+        if (!grouped.ok) throw new Error('groups');
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+          id: 'start',
+          at: new Date(clock).toISOString(),
+          author: { kind: 'human' },
+          body: 'Start',
+        });
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: 'start',
+          body: 'Start',
+        });
+        await settle();
+        const grant = await core.grants.create('ada', workspace.id);
+        const created = orchestrator!.assignments.create({
+          title: 'Research',
+          grantId: grant.id,
+          description: 'Find the launch date',
+          model: { ...SPENT, reasoningEffort: 'high' },
+          modelGroupId: 'g',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        await settle();
 
-      expect(runs).toEqual([
-        { ...SPENT, reasoningEffort: 'high' },
-        { ...DEEPSEEK, reasoningEffort: 'high' },
-      ]);
-      clock += 3_600_000;
-      expect(await orchestrator!.assignments.refreshRoute?.(created.assignment.sessionId)).toEqual({
-        ...DEEPSEEK,
-        reasoningEffort: 'high',
-      });
-    } finally {
-      await core.runtime.close();
-      core.operationalDatabase.close();
-    }
-  });
+        expect(runs).toEqual([{ ...SPENT, reasoningEffort: 'high' }, next]);
+        clock += 3_600_000;
+        expect(
+          await orchestrator!.assignments.refreshRoute?.(created.assignment.sessionId),
+        ).toEqual(next);
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
 });

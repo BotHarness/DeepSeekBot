@@ -987,6 +987,39 @@ describe('Model entry', () => {
     expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
   });
 
+  it('offers a group the efforts of its reasoning members in advanced mode', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 3,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      appliedAt: '',
+    };
+    const groups = [
+      {
+        id: 'main',
+        name: 'Main',
+        revision: 1,
+        routes: [
+          { provider: 'deepseek', model: 'flash' },
+          { provider: 'kimi', model: 'k2' },
+        ],
+      },
+    ];
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    await act(async () => button('Advanced').click());
+    await choose('Add an allowed model', 'Main', 'Main');
+    const card = document.querySelector<HTMLElement>('li[data-model-group]')!;
+    expect([...card.querySelectorAll('label')].map((item) => item.textContent)).toContain('High');
+  });
+
   it('opens a grouped plan and saves it back with its groups (#4501)', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
