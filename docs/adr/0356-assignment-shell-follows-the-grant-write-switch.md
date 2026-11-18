@@ -15,11 +15,11 @@ ADR-0238 made a Grant's **Allow Bot to write in this folder** switch govern nati
 The Human chose one write switch for every Bot write path in a granted Workspace.
 
 - A `workspace-write` Assignment runs in DSH's `read-only` sandbox while its Grant does not allow Bot writes, and returns to `workspace-write` on its next admission after the Human turns the switch on. Its permission snapshot is unchanged; a write the Shell still needs goes through DSH's own escalation approval. `danger-full-access` stays independent, as in ADR-0238.
-- A native write inside a Workspace the Session may read but not write is refused as read-only, not as outside the workspace.
+- A native write inside a Workspace the Session may read but not write is refused as read-only, not as outside the workspace, and the refusal names the existing request flow: the Orchestrator calls `request_workspace_grant`, and an Assignment reports the need so its Orchestrator can. The Human's confirmation upgrades the same Grant (ADR-0238).
 - Tob creates the Grant for its own files folder with writes allowed, as member Bots' account Grants already are. This is a new Grant's initial state, not an upgrade: an existing read-only Grant stays read-only until the Human enables it, as ADR-0238 requires.
 
 This amends ADR-0238's statement that ADR-0205's Shell policy remains independent for Assignments; the Orchestrator's Shell was already confined to writable roots by its execution-root selection.
 
 ## Consequences
 
-Assignments on read-only Grants lose the Shell writes they had. Hosts whose Tob Grant was created before this change keep it read-only; the Human enables writes on that Grant once. Revoking a Grant now reports `GRANT_UNAVAILABLE` for a running Assignment before any mode mismatch.
+Assignments on read-only Grants lose the Shell writes they had. Hosts whose Tob Grant was created before this change keep it read-only; the Bot asks for write access through `request_workspace_grant` the first time it needs it. Revoking a Grant now reports `GRANT_UNAVAILABLE` for a running Assignment before any mode mismatch.

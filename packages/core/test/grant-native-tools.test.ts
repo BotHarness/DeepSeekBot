@@ -148,7 +148,7 @@ describe('Grant policy for native DSH file tools', () => {
       f.gate(f.orchestrator, 'write', { file_path: 'new.txt', content: 'remembered' }),
     ).toBeUndefined();
     expect(f.gate(f.orchestrator, 'edit', { file_path: join(f.project, 'project.txt') })).toMatch(
-      /read-only/,
+      /read-only.*request_workspace_grant/,
     );
     expect(readFileSync(join(f.project, 'project.txt'), 'utf8')).toBe('project');
   });
@@ -164,7 +164,7 @@ describe('Grant policy for native DSH file tools', () => {
     ).toBeUndefined();
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
-    ).toMatch(/read-only/);
+    ).toMatch(/read-only.*report.*Orchestrator can ask the Human/);
     f.allowWrite(true);
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),

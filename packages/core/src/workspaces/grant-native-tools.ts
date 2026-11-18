@@ -128,7 +128,24 @@ export function sessionRoots(
 
 const OUTSIDE_WORKSPACE = "Path is outside this Session's authorized workspace";
 const READ_ONLY_WORKSPACE =
-  'This Workspace Grant is read-only: the Human has not allowed this Bot to write in this folder. Do not write it another way; ask the Human to allow writing in this folder';
+  'This Workspace Grant is read-only: the Human has not allowed this Bot to write in this folder. Do not write it another way.';
+const READ_ONLY_NEXT_STEP = {
+  orchestrator:
+    ' Call request_workspace_grant with a short reason so the Human can allow writing in this folder, then end your turn.',
+  assignment:
+    ' Stop and report that this work needs write access to this folder, so your Orchestrator can ask the Human for it.',
+};
+
+function rootRole(core: GrantCore, sessionId: string): string | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  const seen = new Set<string>();
+  while (owner?.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    owner = core.ownership.resolve(owner.parentSessionId);
+  }
+  return owner?.rootRole;
+}
 
 function insideAnyRoot(roots: readonly string[], target: string): boolean {
   return roots.some((root) => {
@@ -143,9 +160,13 @@ function outsideDenial(
   kind: AccessKind,
   target: string,
 ): string {
-  return kind === 'write' && insideAnyRoot(currentRoots(core, session, 'read'), target)
-    ? READ_ONLY_WORKSPACE
-    : OUTSIDE_WORKSPACE;
+  if (kind !== 'write' || !insideAnyRoot(currentRoots(core, session, 'read'), target))
+    return OUTSIDE_WORKSPACE;
+  const role = rootRole(core, session.id);
+  return (
+    READ_ONLY_WORKSPACE +
+    (role === 'orchestrator' || role === 'assignment' ? READ_ONLY_NEXT_STEP[role] : '')
+  );
 }
 
 function nativePath(name: string, args: unknown): { path: string; kind: AccessKind } | undefined {
