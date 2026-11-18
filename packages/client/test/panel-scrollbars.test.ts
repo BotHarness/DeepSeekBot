@@ -10,7 +10,7 @@ import {
 const property = '--bh-panel-scrollbar-opacity';
 let root: HTMLDivElement;
 let release: () => void;
-function scroller(parent = root) {
+function scroller(parent: HTMLElement = root) {
   const node = document.createElement('div');
   Object.defineProperties(node, { scrollHeight: { value: 400 }, clientHeight: { value: 100 } });
   parent.append(node);
