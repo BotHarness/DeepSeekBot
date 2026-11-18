@@ -20,7 +20,6 @@ describe('call frames are harvested without loss (docs/decisions/calls.md)', () 
         const sent: number[] = [];
         const emitted: number[] = [];
         let added = 0;
-        let restoredEver = false;
         const write = (commits: number[][]) => {
           for (const commit of commits) {
             expect(commit.length).toBeGreaterThan(0);
@@ -39,7 +38,6 @@ describe('call frames are harvested without loss (docs/decisions/calls.md)', () 
             write(commits);
             expect(sentence.length).toBeLessThanOrEqual(HARVEST_BATCH);
             if (next.drop) {
-              restoredEver ||= sentence.length > 0;
               harvest.restore(sentence);
             } else {
               sent.push(...sentence);
@@ -50,10 +48,9 @@ describe('call frames are harvested without loss (docs/decisions/calls.md)', () 
           const seen = [...written, ...sent, ...harvest.pending];
           expect(new Set(seen).size).toBe(seen.length);
           expect(seen.length + harvest.dropped).toBe(added);
-          if (!restoredEver)
-            expect(
-              emitted.every((frame, index) => index === 0 || frame > emitted[index - 1]!),
-            ).toBe(true);
+          expect(emitted.every((frame, index) => index === 0 || frame > emitted[index - 1]!)).toBe(
+            true,
+          );
         }
       }),
       { numRuns: 500 },
@@ -65,7 +62,13 @@ describe('call frames are harvested without loss (docs/decisions/calls.md)', () 
       fc.property(fc.integer({ min: 0, max: VOICE_CALL_LIMITS.pendingFrames }), (count) => {
         const harvest = createHarvest<number>(VOICE_CALL_LIMITS.pendingFrames);
         for (let frame = 0; frame < count; frame += 1) harvest.add(frame);
-        harvest.due(true);
+        const commits = harvest.due(true);
+        const written =
+          HARVEST_BATCH * Math.max(0, Math.ceil((count - 2 * HARVEST_BATCH + 1) / HARVEST_BATCH));
+        expect(commits.flat()).toEqual(Array.from({ length: written }, (_, index) => index));
+        expect(harvest.pending).toEqual(
+          Array.from({ length: count - written }, (_, index) => written + index),
+        );
         const { sentence } = harvest.cut();
         expect(sentence).toEqual(
           Array.from(
