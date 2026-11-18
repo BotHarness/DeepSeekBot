@@ -105,6 +105,12 @@ describe('PersonaBot Session projection', () => {
       personaBotSessionRows(archived, native, 'all').find((row) => row.sessionId === 'stopped')
         ?.section,
     ).toBe('resolved');
+    const blocked = owned.map((item) =>
+      item.sessionId === 'stopped' ? { ...item, assignmentReportState: 'blocked' as const } : item,
+    );
+    expect(
+      personaBotSessionRows(blocked, native, 'current').find((row) => row.sessionId === 'stopped'),
+    ).toMatchObject({ status: 'idle', section: 'idle' });
   });
 
   it('pins the Orchestrator the runtime resumes, not a newer archived one', () => {

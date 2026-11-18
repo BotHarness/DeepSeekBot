@@ -41,6 +41,7 @@ function assignmentSection(
   status: PersonaBotSessionRow['status'],
 ): { section: AssignmentSection; needs?: AssignmentNeed } {
   if (owned.assignmentArchived === true) return { section: 'resolved' };
+  if (owned.assignmentActivity === 'stopped') return { section: 'idle' };
   if (owned.assignmentExecutionWait === 'waiting-human')
     return { section: 'needs-input', needs: 'approval' };
   if (status === 'attention') return { section: 'needs-input', needs: 'error' };
