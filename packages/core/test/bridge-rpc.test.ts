@@ -692,6 +692,8 @@ describe('bridge typert service', () => {
       'globalDefault',
       'expectedDefaultRevision',
       'groupId',
+      'groupEffort',
+      'expectedDefaultGroupRevision',
     ]);
     expect(parameterNames(service.modelPresetApply)).toEqual([
       'slug',
@@ -743,6 +745,18 @@ describe('bridge typert service', () => {
       route,
       globalDefault: true,
       expectedDefaultRevision: 7,
+    });
+    await expect(
+      service.onboardingModel(undefined, 0, undefined, true, 7, 'daily', 'high', 2),
+    ).rejects.toThrow('stale test');
+    expect(defaultCall).toHaveBeenLastCalledWith({
+      slug: undefined,
+      expectedRevision: 0,
+      globalDefault: true,
+      expectedDefaultRevision: 7,
+      groupId: 'daily',
+      groupEffort: 'high',
+      expectedDefaultGroupRevision: 2,
     });
     await expect(service.modelPresetApply('one', 'preset', 2, 3)).rejects.toThrow('stale test');
     expect(applyCall).toHaveBeenCalledWith({
