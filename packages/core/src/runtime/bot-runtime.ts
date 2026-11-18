@@ -182,6 +182,11 @@ import {
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
 import { sessionMentionText } from './session-mentions.js';
+import {
+  SESSION_DIRECT_MESSAGE_PREFIX,
+  sessionDirectPrompt,
+  sessionDirectSpeaker,
+} from './session-direct-message.js';
 import { botMentionLabel, resolveBotMentionText } from '../channels/bot-mention-text.js';
 import {
   createBotSourcePolicyStore,
@@ -861,6 +866,13 @@ export type DmAdmissionFailure =
   | 'blank-body'
   | 'cli-request-expired';
 
+export type OrchestratorMessageOutcome =
+  | { delivered: true; sourceEventId: string; settled: Promise<void> }
+  | {
+      delivered: false;
+      reason: DmAdmissionFailure | 'not-current-orchestrator';
+    };
+
 export type DmMessageAdmission =
   | { admitted: true; settled: Promise<void> }
   | { admitted: false; reason: DmAdmissionFailure };
@@ -959,6 +971,10 @@ export interface BotRuntime {
   ): Promise<void>;
   compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission;
+  sendOrchestratorMessage?(
+    human: HumanContext,
+    input: { botSlug: string; sessionId: string; text: string },
+  ): OrchestratorMessageOutcome;
 
   admitGroupMessage(channelId: string, messageId: string): void;
 
@@ -1631,7 +1647,8 @@ const SESSION_STOPPED_REFUSAL =
 
 function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
   const lines = calls.map((call) => {
-    const args = call.arguments.length > 300 ? `${call.arguments.slice(0, 300)}…` : call.arguments;
+    const line = call.arguments.replace(/\s*[\r\n]+\s*/gu, ' ');
+    const args = line.length > 300 ? `${line.slice(0, 300)}…` : line;
     return `- ${call.name} (call ${call.callId}): ${args}`;
   });
   return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
@@ -2164,24 +2181,25 @@ class BotRuntimeImplementation implements BotRuntime {
   #retryableDmMessage(channelId: string, messageId: string) {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
-    if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
+    const direct = message === undefined && messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX);
+    if (channel?.type !== 'dm' || !channel.botSlug || (message?.author.kind !== 'human' && !direct))
       throw new Error('Retry requires the original Human DM message');
-    if (message.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
+    if (message?.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
     const safe = this.#database.read((database) =>
       database
         .prepare(
           `
-      SELECT 1 FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+      SELECT e.body FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
       WHERE e.channel_id = ? AND e.message_id = ? AND a.bot_slug = ?
         AND e.attempt_state = 'retryable' AND a.attempt_state = 'retryable'
         AND e.side_effect_started_at IS NULL AND a.side_effect_started_at IS NULL
     `,
         )
         .get(channelId, messageId, channel.botSlug!),
-    );
+    ) as { body: string } | undefined;
     if (!safe)
       throw new Error('This message cannot be safely retried; inspect its original Session');
-    return message;
+    return { body: message?.body ?? safe.body };
   }
 
   #continuableDmEvent(channelId: string, messageId: string): string | undefined {
@@ -2189,7 +2207,11 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
-    if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
+    if (
+      channel?.type !== 'dm' ||
+      !channel.botSlug ||
+      (message?.author.kind !== 'human' && !messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
+    )
       return undefined;
     const row = this.#database.read((database) =>
       database
@@ -2215,11 +2237,19 @@ class BotRuntimeImplementation implements BotRuntime {
     continuation: DmContinuation,
   ): Promise<void> | undefined {
     const bot = this.#registry.get(botSlug);
-    const message = this.#channels.message(channelId, messageId);
-    if (this.#closed || bot === undefined || bot.paused === true || message === undefined)
-      return undefined;
+    if (this.#closed || bot === undefined || bot.paused === true) return undefined;
     const sourceEventId = this.#continuableDmEvent(channelId, messageId);
     if (sourceEventId === undefined) return undefined;
+    const body =
+      this.#channels.message(channelId, messageId)?.body ??
+      (
+        this.#database.read((database) =>
+          database
+            .prepare('SELECT body FROM source_events WHERE source_event_id = ?')
+            .get(sourceEventId),
+        ) as { body: string } | undefined
+      )?.body;
+    if (body === undefined) return undefined;
     const claimed = this.#database.transaction(
       (database) => {
         const events = database
@@ -2245,7 +2275,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#runHumanDmTurn(
         bot,
         channelId,
-        message.body,
+        body,
         { sourceEventId, shouldRun: true },
         messageId,
         continuation,
@@ -2684,6 +2714,69 @@ class BotRuntimeImplementation implements BotRuntime {
               undefined,
               tobCliTurn,
             ),
+          ),
+    };
+  }
+
+  sendOrchestratorMessage(
+    human: HumanContext,
+    input: { botSlug: string; sessionId: string; text: string },
+  ): OrchestratorMessageOutcome {
+    if (this.#closed) return { delivered: false, reason: 'runtime-closed' };
+    const bot = this.#registry.get(input.botSlug);
+    if (
+      bot === undefined ||
+      (this.#team ? !this.#team.bots.canReach(human, bot.slug) : botOwner(bot) !== human.humanId)
+    )
+      return { delivered: false, reason: 'unknown-bot' };
+    if (!this.#memberBotEnabled(bot) || bot.paused === true)
+      return { delivered: false, reason: 'archived-bot' };
+    if (input.text.trim().length === 0) return { delivered: false, reason: 'blank-body' };
+    if (this.currentOrchestratorSessionId(bot.slug) !== input.sessionId)
+      return { delivered: false, reason: 'not-current-orchestrator' };
+    const principal = botOwner(bot);
+    const channel = this.#channels
+      .list()
+      .find(
+        (candidate) =>
+          candidate.type === 'dm' &&
+          candidate.botSlug === bot.slug &&
+          !candidate.deletedAt &&
+          !candidate.humanParticipants &&
+          (candidate.dmHumanId ?? principal) === human.humanId,
+      );
+    if (channel === undefined) return { delivered: false, reason: 'unknown-channel' };
+    const messageId = SESSION_DIRECT_MESSAGE_PREFIX + randomUUID();
+    const claim = this.#claimSourceEvent(
+      human,
+      bot.slug,
+      channel.id,
+      messageId,
+      input.text,
+      this.#now().toISOString(),
+    );
+    this.#cancelAutoContinue(bot.slug);
+    this.#release(bot.slug);
+    const steered =
+      claim.shouldRun &&
+      ![...this.#tobCliRequests.values()].some(
+        (request) => request.botSlug === bot.slug && request.status.state === 'running',
+      ) &&
+      this.#steerDmAdmission(
+        bot.slug,
+        channel.id,
+        messageId,
+        claim.sourceEventId,
+        'human-dm',
+        sessionDirectPrompt(input.text, claim.sourceEventId),
+      );
+    return {
+      delivered: true,
+      sourceEventId: claim.sourceEventId,
+      settled: steered
+        ? Promise.resolve()
+        : this.#enqueue(bot.slug, () =>
+            this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
           ),
     };
   }
@@ -4603,6 +4696,8 @@ class BotRuntimeImplementation implements BotRuntime {
   ): string {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
+    if (messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX) && message === undefined)
+      return sessionDirectPrompt(body, sourceEventId);
     if (messageId.startsWith('group-invite-') && message === undefined)
       return '[Bot Inbox: Group invitation]\n' + body;
     if (messageId.startsWith('group-join-decision-') && message === undefined)
@@ -8519,7 +8614,8 @@ class BotRuntimeImplementation implements BotRuntime {
       const channel = resolve(source.channel_id);
       if (
         (channel.type === 'dm' && !isBotDmChannel(channel) && channel.botSlug !== botSlug) ||
-        !this.#channels.hasMessage(channel.id, source.message_id)
+        (!this.#channels.hasMessage(channel.id, source.message_id) &&
+          !source.message_id.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
       )
         throw new Error('Trusted local reply source is unavailable');
       return { channelId: channel.id, messageId: source.message_id };
@@ -9323,7 +9419,13 @@ class BotRuntimeImplementation implements BotRuntime {
       send: async (input) => {
         if (input.replySourceEventId !== undefined) {
           const reply = replySource(input.replySourceEventId);
-          if (input.channelId !== reply.channelId || input.replyTo !== reply.messageId)
+          if (
+            input.channelId !== reply.channelId ||
+            input.replyTo !==
+              (reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
+                ? undefined
+                : reply.messageId)
+          )
             throw new Error('Reply destination does not match the trusted source');
         }
         requireReplySource();
@@ -10245,6 +10347,11 @@ class BotRuntimeImplementation implements BotRuntime {
         pending,
       );
       envelopes.push(envelope);
+      const direct = sessionDirectSpeaker(text, id, envelope.text);
+      if (direct !== undefined) {
+        text = direct;
+        continue;
+      }
       const header = `Source Event ID: ${id}`;
       const anchor = text.includes(header) ? header : `[Source Event ${id}]`;
       if (text.includes(anchor))

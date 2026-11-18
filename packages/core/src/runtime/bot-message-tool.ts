@@ -15,6 +15,7 @@ import { BotHopLimitReached } from '../channels/hop-limit.js';
 import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../channels/quotes.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
 
 function unsupportedVoice(): VoiceAttachOutcome {
   return {
@@ -518,7 +519,12 @@ export function createBotMessageTool(
             ...(args.recover === undefined ? {} : { recover: args.recover }),
             ...(reply?.kind !== 'channel'
               ? {}
-              : { replyTo: reply.messageId, replySourceEventId: args.source_event_id! }),
+              : reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
+                ? { replySourceEventId: args.source_event_id! }
+                : {
+                    replyTo: reply.messageId,
+                    replySourceEventId: args.source_event_id!,
+                  }),
           });
           messageId = message.id;
           unwoken = notWoken(

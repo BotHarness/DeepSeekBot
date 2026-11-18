@@ -840,6 +840,7 @@ describe('bridge typert service', () => {
       'botTurnInput',
       'channelBotStop',
       'sessionStop',
+      'sessionMessageSend',
       'botStop',
       'modelCatalog',
       'modelPresets',

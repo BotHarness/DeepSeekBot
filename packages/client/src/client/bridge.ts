@@ -4499,6 +4499,15 @@ export async function sendSessionRequest(
     );
 }
 
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
+}
+
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
 
 export interface AssignmentWorkStep {
