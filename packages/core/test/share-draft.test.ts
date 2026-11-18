@@ -14,6 +14,7 @@ import { createCore } from '../src/plugin.js';
 import { createTobShareDraftOperations } from '../src/tob/cli-share-draft-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const closes: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -254,26 +255,28 @@ describe('share-draft CLI', () => {
 
   async function host() {
     const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-    const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method === 'GET') {
-        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-        res.writeHead(302, { location: '/' }).end();
-        return;
-      }
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = JSON.parse(Buffer.concat(chunks).toString());
-      const method = body.method.replace('botharness/', '');
-      calls.push({ method, args: body.payload.args });
-      res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: body.rpcId,
-          result: { ok: true, value: { method } },
-        }),
-      );
-    });
+    const server = createServer(
+      requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'GET') {
+          res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+          res.writeHead(302, { location: '/' }).end();
+          return;
+        }
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const method = body.method.replace('botharness/', '');
+        calls.push({ method, args: body.payload.args });
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId: body.rpcId,
+            result: { ok: true, value: { method } },
+          }),
+        );
+      }),
+    );
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();

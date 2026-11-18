@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -44,30 +45,32 @@ const ready = (channel = 'weixin') => ({
 
 async function host(handler: (method: string, payload: Record<string, unknown>) => unknown) {
   const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
-        'private-host-token',
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
+          'private-host-token',
+        );
+        res.writeHead(302, { 'set-cookie': 'authority=signed; HttpOnly', location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      calls.push({ method: body.method, payload: body.payload });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(body.method, body.payload),
+        }),
       );
-      res.writeHead(302, { 'set-cookie': 'authority=signed; HttpOnly', location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    calls.push({ method: body.method, payload: body.payload });
-    res.setHeader('content-type', 'application/json');
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(body.method, body.payload),
-      }),
-    );
-  });
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

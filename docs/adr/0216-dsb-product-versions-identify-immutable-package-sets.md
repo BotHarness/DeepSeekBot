@@ -10,7 +10,7 @@ DeepSeekBot on the computer is an npm-delivered DSH Bundle, not a separately ver
 desktop executable. One **Product Release Version** identifies `deepseekbot` and its
 co-released Core, UI, Browser and Computer packages, with matching runtime UI/CLI, Git tag
 and Release Ledger identities. Independent DSH, Provider, tool/Skill and mobile versions
-remain separate. This preserves [ADR-0127](0127-product-artifacts-compose-an-independently-versioned-im-provider.md)
+remain separate. This preserves [ADR-0127](../decisions/im-providers.md#adr-0127)
 and the accepted independent phone/computer qualification policy in [#1930](https://github.com/BotHarness/DeepSeekBot/issues/1930).
 
 The Human confirmed this policy; enforcement is tracked in #1980–#1982, not asserted by

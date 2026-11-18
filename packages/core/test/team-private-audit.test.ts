@@ -27,6 +27,7 @@ import type { ChannelMessageAuthor } from '../src/channels/message-author.js';
 import { createTobHostCliOperations } from '../src/tob/cli-host-commands.js';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const alice = humanContext('alice');
 const bob = humanContext('bob');
@@ -159,55 +160,61 @@ async function fixture() {
 }
 
 async function cliHost(f: Awaited<ReturnType<typeof fixture>>) {
-  const server = createServer(async (request, response) => {
-    if (request.method === 'GET') {
-      response.writeHead(302, { 'set-cookie': 'authority=owner; HttpOnly', location: '/' }).end();
-      return;
-    }
-    if (request.headers.cookie !== 'authority=owner') {
-      response.writeHead(401).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const input = z
-      .object({
-        method: z.string(),
-        args: z.record(z.string(), z.unknown()).optional(),
-        payload: z.object({ args: z.record(z.string(), z.unknown()) }).optional(),
-        rpcId: z.unknown().optional(),
-        username: z.string().optional(),
-      })
-      .parse(JSON.parse(Buffer.concat(chunks).toString()));
-    try {
-      const value =
-        input.username === undefined
-          ? await f.invoke(input.method.replace('botharness/', ''), input.payload?.args ?? {})
-          : await f.team.asMember(input.username, (peer) =>
-              f.invoke(input.method, input.args ?? {}, peer),
-            );
-      response.setHeader('content-type', 'application/json');
-      response.end(
-        JSON.stringify(
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.method === 'GET') {
+        response.writeHead(302, { 'set-cookie': 'authority=owner; HttpOnly', location: '/' }).end();
+        return;
+      }
+      if (request.headers.cookie !== 'authority=owner') {
+        response.writeHead(401).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const input = z
+        .object({
+          method: z.string(),
+          args: z.record(z.string(), z.unknown()).optional(),
+          payload: z.object({ args: z.record(z.string(), z.unknown()) }).optional(),
+          rpcId: z.unknown().optional(),
+          username: z.string().optional(),
+        })
+        .parse(JSON.parse(Buffer.concat(chunks).toString()));
+      try {
+        const value =
           input.username === undefined
-            ? { type: 'server-response', rpcId: input.rpcId, result: { ok: true, value } }
-            : { ok: true, value },
-        ),
-      );
-    } catch (error) {
-      const failure = z
-        .object({ code: z.string(), message: z.string(), details: z.unknown().optional() })
-        .parse(error);
-      response.setHeader('content-type', 'application/json');
-      response.end(
-        JSON.stringify(
-          input.username === undefined
-            ? { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error: failure } }
-            : { ok: false, error: failure },
-        ),
-      );
-    }
-  });
+            ? await f.invoke(input.method.replace('botharness/', ''), input.payload?.args ?? {})
+            : await f.team.asMember(input.username, (peer) =>
+                f.invoke(input.method, input.args ?? {}, peer),
+              );
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify(
+            input.username === undefined
+              ? { type: 'server-response', rpcId: input.rpcId, result: { ok: true, value } }
+              : { ok: true, value },
+          ),
+        );
+      } catch (error) {
+        const failure = z
+          .object({ code: z.string(), message: z.string(), details: z.unknown().optional() })
+          .parse(error);
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify(
+            input.username === undefined
+              ? {
+                  type: 'server-response',
+                  rpcId: input.rpcId,
+                  result: { ok: false, error: failure },
+                }
+              : { ok: false, error: failure },
+          ),
+        );
+      }
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   closes.push(async () => {
     server.closeAllConnections();
