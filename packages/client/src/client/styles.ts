@@ -13,6 +13,9 @@ import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 import { font } from './ds/tobs.stylex.js';
+import { ASSIGNMENT_SESSION_ICON, channelSidebarIconMask } from './channel-sidebar-icon.js';
+
+const ASSIGNMENT_SESSION_MASK = channelSidebarIconMask(ASSIGNMENT_SESSION_ICON);
 
 export const CSS =
   WORKSPACE_CSS +
@@ -3468,7 +3471,7 @@ button.bh-profile-heat-cell:focus-visible {
   position: relative;
 }
 .bh-chat-body {
-  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - var(--bh-composer-overlay, 0px)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - var(--bh-composer-overlay, 0px) - ${space.x6}), transparent calc(100% - var(--bh-composer-overlay, 0px)));
   mask-mode: alpha;
   position: relative;
   z-index: 1;
@@ -3478,7 +3481,7 @@ button.bh-profile-heat-cell:focus-visible {
   display: flex;
   flex-direction: column;
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
-  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
+  padding: 74px ${space.x5} calc(${space.x6} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
 }
 .bh-chat-empty {
@@ -4223,7 +4226,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   box-sizing: border-box;
   padding: 0 ${space.x3};
   color: var(--bh-timeline-new-fg, var(--tobs-ink-secondary));
-  background: var(--bh-timeline-new-bg, var(--tobs-layer-raised));
+  background: var(--bh-timeline-new-bg, var(--tobs-layer-elevated));
+  box-shadow: var(--tobs-elevation-1);
   opacity: 1;
   cursor: pointer;
   transition:
@@ -4232,11 +4236,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-timeline-new:hover {
   color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
-  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 6%, var(--bh-timeline-new-bg, var(--tobs-layer-elevated)));
 }
 .bh-timeline-new:active {
   color: var(--bh-timeline-new-fg, var(--tobs-ink-primary));
-  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--bh-timeline-new-bg, var(--tobs-layer-raised)));
+  background: color-mix(in srgb, var(--tobs-ink-primary) 12%, var(--bh-timeline-new-bg, var(--tobs-layer-elevated)));
 }
 .bh-timeline-new-count {
   color: inherit;
@@ -4294,6 +4298,20 @@ a[href^="https://session.tobs.invalid/"] {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
+}
+a[href^="https://session.tobs.invalid/"] > svg:first-child {
+  display: none;
+}
+a[href^="https://session.tobs.invalid/"]::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: ${space.x1};
+  vertical-align: -2px;
+  background: currentColor;
+  -webkit-mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
+  mask: ${ASSIGNMENT_SESSION_MASK} center / contain no-repeat;
 }
 .bh-inline-mention-link:hover,
 .bh-bubble-body-markdown a[href^="https://session.tobs.invalid/"]:hover {
@@ -4604,7 +4622,8 @@ a[href^="https://session.tobs.invalid/"] {
   padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
   border: ${border.hairline} solid transparent;
   border-radius: calc(${radius.panel} + ${space.x3});
-  background: var(--tobs-layer-raised);
+  background: var(--tobs-layer-elevated);
+  box-shadow: var(--tobs-elevation-1);
   transition:
     padding 180ms var(--bh-ease-out),
     border-color 160ms var(--ds-ease-in-out);
@@ -7067,8 +7086,8 @@ html[data-bh-intro-see-through] [role='presentation'] > [aria-hidden='true']::af
 .bh-schedule-muted {margin:0;}
 .bh-schedule-empty {display:flex;flex-direction:column;align-items:flex-start;gap:${space.x3};}
 .bh-schedule-error {margin:0;color:var(--tobs-status-danger-base);font-size:${text.metaSize};}
-.bh-card-list {display:flex;flex-direction:column;margin:0;padding:0;list-style:none;overflow:hidden;border:${border.hairline} solid ${color.border};border-radius:${radius.md};}
-.bh-card-list + .bh-card-list {margin-top:${space.x3};}
+.bh-card-list {display:flex;flex-direction:column;gap:var(--bh-card-list-gap, 0px);margin:0;padding:var(--bh-card-list-padding, 0px);list-style:none;overflow:hidden;border:${border.hairline} solid var(--bh-card-list-edge, ${color.border});border-radius:var(--bh-card-list-radius, ${radius.md});background:var(--bh-card-list-fill, transparent);box-shadow:var(--bh-card-list-shadow, none);}
+.bh-card-list + .bh-card-list {margin-top:var(--bh-card-list-stack, ${space.x3});}
 .bh-card-list[data-flush] {border:0;border-radius:0;}
 .bh-card-list[data-flush] + .bh-card-list[data-flush] {margin-top:0;border-top:${border.hairline} solid ${color.divider};}
 .bh-card-list.bh-message-card-list {border:0;background:${color.well};}
@@ -7084,11 +7103,11 @@ label.bh-card-main {cursor:pointer;}
 label.bh-card-main:has(.bh-card-checkbox:disabled) {cursor:default;}
 .bh-card-row:not([data-selected="true"]):has(> .bh-card-line > label.bh-card-main > .bh-card-checkbox:not(:disabled)):hover {background:var(--tobs-state-hover);}
 
-.bh-card-row {min-width:0;}
-.bh-card-row + .bh-card-row {border-top:${border.hairline} solid ${color.divider};}
+.bh-card-row {min-width:0;border-radius:var(--bh-card-row-radius, 0px);background:var(--bh-card-row-fill, transparent);}
+.bh-card-row + .bh-card-row {border-top:${border.hairline} solid var(--bh-card-row-separator, ${color.divider});}
 .bh-card-line {display:flex;align-items:center;gap:${space.x3};min-width:0;}
 .bh-card-row:not([data-selected="true"]):has(> .bh-card-line > button.bh-card-main:not(:disabled):hover) {background:var(--tobs-state-hover);}
-.bh-card-main {display:flex;flex:1;align-items:flex-start;gap:${space.x3};min-width:0;margin:0;padding:${space.x3} ${space.x3};border:0;border-radius:0;background:transparent;color:var(--tobs-ink-primary);font:inherit;text-align:left;}
+.bh-card-main {display:flex;flex:1;align-items:flex-start;gap:${space.x3};min-width:0;margin:0;padding:${space.x3} var(--bh-card-main-inline, ${space.x3});border:0;border-radius:0;background:transparent;color:var(--tobs-ink-primary);font:inherit;text-align:left;}
 button.bh-card-main {cursor:pointer;}
 button.bh-card-main:disabled {cursor:default;}
 .bh-card-main:focus-visible {outline:${border.focus} solid var(--tobs-ink-primary);outline-offset:-2px;}
@@ -7111,7 +7130,7 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-card-glyph {display:inline-grid;place-items:center;color:var(--tobs-ink-secondary);}
 .bh-card-meta {display:flex;flex-wrap:wrap;align-items:baseline;gap:${space.x1} ${space.x3};min-width:0;color:var(--tobs-ink-secondary);font-size:${text.metaSize};line-height:${text.metaLine};overflow-wrap:anywhere;}
 .bh-card-meta-line {flex-basis:100%;}
-.bh-card-trailing {display:flex;flex:none;align-items:center;gap:${space.x2};padding-right:${space.x3};color:var(--tobs-ink-secondary);}
+.bh-card-trailing {display:flex;flex:none;align-items:center;gap:${space.x2};padding-right:var(--bh-card-main-inline, ${space.x3});color:var(--tobs-ink-secondary);}
 .bh-card-detail {padding:0 ${space.x3} ${space.x3} 34px;}
 .bh-card-row[data-muted="true"] .bh-card-icon,
 .bh-card-row[data-muted="true"] .bh-card-title {color:var(--tobs-ink-secondary);}

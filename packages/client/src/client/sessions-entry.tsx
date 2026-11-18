@@ -32,7 +32,7 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SidebarViewMenu } from './sidebar-view-menu.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { botNameSource, paintBotScale } from './bot-primary-color.js';
 import { useFlipList } from './flip-list.js';
 import { GroupHeading } from './ds/group-heading.js';
@@ -362,7 +362,7 @@ function SessionsPanel({
                 </span>
               ),
             }
-          : { icon: 'list-checks', iconLabel: role })}
+          : { icon: ASSIGNMENT_SESSION_ICON, iconLabel: role })}
         title={row.title}
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"

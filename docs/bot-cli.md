@@ -219,6 +219,7 @@ deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <name> --owner bot:<bot-id>
 deepseekbot skills-remove <name> --bot <bot-id> --confirm
 deepseekbot send <bot-id> --body "/summarize-pr #42" --skill bot:<bot-id>/summarize-pr
+deepseekbot send <bot-id> --body "Check [Fix slugify](session:<session-id>)"
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>
@@ -240,6 +241,8 @@ deepseekbot workspace-options
 deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
+
+The composer's `/` menu also cites an Assignment Session: with an empty filter it lists the Channel Bots' live Sessions, and once the person types it searches all of them, archived and finished included. The same list comes from `assignments <bot-id> [--search <text>] [--include-archived]`. Picking one inserts `[<title>](session:<session-id>)`, the link form Bots already write, so `send --body` with that link sends the same message, and the bubble shows it as a Session chip that opens Session detail.
 
 Trusted effect declarations describe tool calls on approval cards; they do not by themselves require approval or override Full Access. `bot-tool` uses the same Host admission without a model; a valid saved authorization is checked before any Reviewer call. Read `toolApprovalRequest.effects` and bilingual `effectLabels.en` / `effectLabels.zh` on approval messages from online `channel-messages`. These labels describe trusted declarations, not claims in tool input or output. Management operations still require their dedicated explicit authorization (ADR-0249).
 
@@ -2042,6 +2045,8 @@ Submission uses the existing PostHog ingest path without extra configuration. No
 ### Private credential tools in the direct runner
 
 After a Bot has a live Orchestrator Agent, `bot-tools` also lists its registered `ask_secret`, `protected_cli`, `secret_http`, `secret_cli` and `secret_mcp_connect` tools. Invoke them with `bot-tool <bot-id> <tool> --args-stdin`. Arguments are a JSON object on stdin; never put private values or references in shell arguments. The runner uses the existing Agent and native tool execution/approval pipeline without calling the model or creating a new source. Missing live registration is refused. An execution approval can be pending while the command waits; use the usual approval commands or Web card. Private arguments/results are omitted from both direct and native diagnostic traces.
+
+Execution approvals follow the authenticated caller's Bot DM, bound to the live Agent Session and exact direct call ID. Concurrent callers keep separate destinations; completing or cancelling a call releases only its routing record. Human decision permissions still apply, and opening a new secret-input card still requires a current Human Source Event and existing credential authorization. This routing also covers a read-only `secret_http` GET when the existing input policy requires approval. Direct-call review uses the selected template and pending input without copying the borrowed Session history into the Reviewer.
 
 For several IM requests in one turn, call `ask_secret` with the existing account and field declaration plus the exact accepted `source_event_id` of the request being handled before consuming the references. Configured accounts reuse their values without another card or a Web notification address. Web and Schedule reuse omit the selector. `private-source-required` supplies this recovery; `private-source-invalid`, `private-source-unavailable`, `private-source-ambiguous`, `private-source-revoked` and `private-account-unavailable` distinguish the other refusals. Do not retry an unchanged operation, choose a historical source, or treat a Host refusal as a remote outage. Conflicting account associations require a new turn; revocation remains authoritative.
 

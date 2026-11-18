@@ -54,11 +54,6 @@ export function AppearanceSection(
         />
       </SettingsSection>
       <SettingsSection title={t('appearance.palette')}>
-        <ThemePresetPicker
-          config={theme.config}
-          t={t}
-          onSelect={(preset) => applyPreset(appearance, preset)}
-        />
         <SettingsRow
           title={t('appearance.primary')}
           control={(['light', 'dark'] as const).map((mode) => (
@@ -70,7 +65,13 @@ export function AppearanceSection(
               onChange={(primary) => change({ mode, primary })}
             />
           ))}
-        />
+        >
+          <ThemePresetPicker
+            config={theme.config}
+            t={t}
+            onSelect={(preset) => applyPreset(appearance, preset)}
+          />
+        </SettingsRow>
       </SettingsSection>
       <WallpaperSettings owner={wallpaper} appearance={appearance} t={t} />
       <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
