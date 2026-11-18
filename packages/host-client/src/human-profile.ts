@@ -82,6 +82,7 @@ export function createHumanAvatarCache(
   const settled = new Set<string>();
   const loading = new Set<string>();
   const missed = new Map<string, number>();
+  const retrying = new Set<string>();
   const queued = new Map<string, string>();
   const listeners = new Set<() => void>();
   let revision = 0;
@@ -120,14 +121,24 @@ export function createHumanAvatarCache(
       })
       .catch(release);
   };
-  return {
+  const cache: HumanAvatarCache = {
     get: (humanId, version) =>
       version === undefined ? undefined : images.get(key(humanId, version)),
     want(humanId, version) {
       if (version === undefined) return;
       const wanted = key(humanId, version);
       if (settled.has(wanted) || loading.has(wanted) || queued.get(humanId) === version) return;
-      if (Date.now() - (missed.get(wanted) ?? -Infinity) < HUMAN_AVATAR_RETRY_MS) return;
+      const wait = (missed.get(wanted) ?? -Infinity) + HUMAN_AVATAR_RETRY_MS - Date.now();
+      if (wait > 0) {
+        if (!retrying.has(wanted)) {
+          retrying.add(wanted);
+          setTimeout(() => {
+            retrying.delete(wanted);
+            cache.want(humanId, version);
+          }, wait);
+        }
+        return;
+      }
       queued.set(humanId, version);
       if (!scheduled) {
         scheduled = true;
@@ -145,6 +156,7 @@ export function createHumanAvatarCache(
     },
     getSnapshot: () => revision,
   };
+  return cache;
 }
 
 export function parseChannelNickname(value: unknown): string | null {

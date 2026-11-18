@@ -90,31 +90,39 @@ describe('Human avatar cache', () => {
     expect(calls.slice(2)).toEqual([['b'], ['b']]);
   });
 
-  it('asks again after a malformed reply, and for a replaced version only after a pause', async () => {
-    const calls: string[][] = [];
-    const replies: unknown[] = [
-      { avatars: 'broken' },
-      { avatars: [{ humanId: 'a', version: '2222222222222222', avatar }] },
-      { avatars: [{ humanId: 'a', version: '1111111111111111', avatar }] },
-    ];
-    const cache = createHumanAvatarCache(async (ids) => {
-      calls.push(ids);
-      return replies.shift();
-    });
-    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
-    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000);
-    cache.want('a', '1111111111111111');
-    await tick();
-    cache.want('a', '1111111111111111');
-    await tick();
-    cache.want('a', '1111111111111111');
-    await tick();
-    expect(calls).toEqual([['a'], ['a']]);
-    clock.mockReturnValue(31_000);
-    cache.want('a', '1111111111111111');
-    await tick();
-    clock.mockRestore();
-    expect(calls).toEqual([['a'], ['a'], ['a']]);
-    expect(cache.get('a', '1111111111111111')).toBe(avatar);
+  it('asks again after a malformed reply, and retries a missing version once after a pause', async () => {
+    vi.useFakeTimers();
+    try {
+      const calls: string[][] = [];
+      const replies: unknown[] = [
+        { avatars: 'broken' },
+        { avatars: [{ humanId: 'a', version: '2222222222222222', avatar }] },
+        { avatars: [] },
+        { avatars: [{ humanId: 'a', version: '1111111111111111', avatar }] },
+      ];
+      const cache = createHumanAvatarCache(async (ids) => {
+        calls.push(ids);
+        return replies.shift();
+      });
+      const tick = () => vi.advanceTimersByTimeAsync(0);
+      cache.want('a', '1111111111111111');
+      await tick();
+      cache.want('a', '1111111111111111');
+      await tick();
+      cache.want('a', '1111111111111111');
+      cache.want('a', '1111111111111111');
+      await tick();
+      expect(calls).toEqual([['a'], ['a']]);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(calls).toEqual([['a'], ['a'], ['a']]);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(calls).toEqual([['a'], ['a'], ['a']]);
+      cache.want('a', '1111111111111111');
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(calls).toEqual([['a'], ['a'], ['a'], ['a']]);
+      expect(cache.get('a', '1111111111111111')).toBe(avatar);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
