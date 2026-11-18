@@ -1,7 +1,7 @@
 # Team mode：Bot 执行与数据隔离（VPS 与 macOS）
 
 日期：2026-11-14 · 读者：Vain、架构师 · 状态：调研建议，不是已接受的决定
-关联：spec #4137、hub #4138、[ADR-0336](../adr/0336-hosts-have-members.md)、[ADR-0205](../adr/0205-bot-sessions-follow-dsh-permission-mode-for-shell-and-plugin-tools.md)、[ADR-0067](../adr/0067-workspace-grants-bound-personabot-file-access.md)、M5 #4144、M6 #4145、M7 #4150
+关联：spec #4137、hub #4138、[ADR-0336](../adr/0336-hosts-have-members.md)、[ADR-0205](../decisions/sessions.md#adr-0205)、[ADR-0067](../adr/0067-workspace-grants-bound-personabot-file-access.md)、M5 #4144、M6 #4145、M7 #4150
 
 ## 已敲定的范围（2026-11-14，Vain 确认）
 

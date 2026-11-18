@@ -5,6 +5,11 @@ import type { PurgedPlacement } from '../purge/contracts.js';
 import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import { referencedIds } from './quotes.js';
+import {
+  RESOURCE_CHANGED_EVENT,
+  type LiveResource,
+  type ResourceChange,
+} from './resource-events.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
 import { MAX_MESSAGE_PAGE, type ChannelChangeCursor, type ChannelJournalPage } from './timeline.js';
@@ -77,6 +82,7 @@ export type RosterLiveFrame =
   | { type: 'skills'; change: SkillCatalogChange }
   | { type: 'changed' }
   | { type: 'attention' }
+  | { type: 'resource'; change: ResourceChange }
   | { type: 'latest'; channelId: string; message: ChannelMessage }
   | { type: 'purged'; placements: PurgedPlacement[] };
 
@@ -207,6 +213,7 @@ export interface ChannelLiveHub {
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishSkillCatalogChanged(change: SkillCatalogChange): void;
+  publishResourceChanged(resource: LiveResource): void;
   refreshAccess(): void;
   publishContentPurged(): void;
   publishHumanIdentityChanged(): void;
@@ -408,12 +415,14 @@ export function createChannelLiveHub(
     human: HumanContext;
     skills(change: SkillCatalogChange): void;
     attention(): void;
+    resource(change: ResourceChange): void;
     push(): void;
     latest(channelId: string, message: ChannelMessage): void;
     purge(placements: PurgedPlacement[]): void;
     close(): void;
   }
   const rosterSubscribers = new Set<RosterSubscriber>();
+  let resourceRevision = 0;
   const offAttention = watchAttention?.(() => {
     for (const subscriber of rosterSubscribers) subscriber.attention();
   });
@@ -484,6 +493,19 @@ export function createChannelLiveHub(
             try {
               controller.enqueue(
                 encoder.encode(`event: ${HUMAN_ATTENTION_CHANGED_EVENT}\ndata: {}\n\n`),
+              );
+            } catch {
+              this.close();
+            }
+          },
+          resource(change) {
+            if (ended) return;
+            if ((controller.desiredSize ?? 0) <= -64) return this.close();
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  `event: ${RESOURCE_CHANGED_EVENT}\ndata: ${JSON.stringify(change)}\n\n`,
+                ),
               );
             } catch {
               this.close();
@@ -569,6 +591,16 @@ export function createChannelLiveHub(
       attention() {
         if (ended) return;
         if (!queue.some((frame) => frame.type === 'attention')) queue.push({ type: 'attention' });
+        wake?.();
+      },
+      resource(change) {
+        if (ended) return;
+        const stale = queue.findIndex(
+          (frame) => frame.type === 'resource' && frame.change.resource === change.resource,
+        );
+        if (stale !== -1) queue.splice(stale, 1);
+        queue.push({ type: 'resource', change });
+        if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
         wake?.();
       },
       purge(placements) {
@@ -1112,6 +1144,11 @@ export function createChannelLiveHub(
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();
+    },
+    publishResourceChanged(resource) {
+      const change = { resource, revision: ++resourceRevision };
+      for (const subscriber of rosterSubscribers)
+        if (isOwner(subscriber.human)) subscriber.resource(change);
     },
     publishHumanIdentityChanged() {
       for (const group of subscribers.values())

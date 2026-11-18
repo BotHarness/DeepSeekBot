@@ -223,7 +223,7 @@ it('marks a total that leaves out unreported usage as a lower bound', async () =
       async () => ({ ok: true, value: { ...value, totals: { ...value.totals, partial: 'yes' } } }),
       'today',
     ),
-  ).rejects.toThrow('invalid Overview usage');
+  ).rejects.toThrow('overviewUsage returned an unreadable usage overview.');
 });
 
 it('preserves unknown totals and rejects malformed usage instead of reporting zero', async () => {
@@ -233,7 +233,9 @@ it('preserves unknown totals and rejects malformed usage instead of reporting ze
   const call: BridgeCall = async () => ({ ok: true, value });
   expect((await loadOverviewUsage(call, 'today')).totals.totalTokens).toBeNull();
   value.totals.totalTokens = -1;
-  await expect(loadOverviewUsage(call, 'today')).rejects.toThrow('invalid Overview usage');
+  await expect(loadOverviewUsage(call, 'today')).rejects.toThrow(
+    'overviewUsage returned an unreadable usage overview.',
+  );
 });
 it('accepts 28 and 84 day ranges only when the day list matches the period', async () => {
   for (const period of ['month', 'quarter'] as const) {
@@ -243,7 +245,9 @@ it('accepts 28 and 84 day ranges only when the day list matches the period', asy
     );
   }
   const short: BridgeCall = async () => ({ ok: true, value: result('quarter', 155, 28) });
-  await expect(loadOverviewUsage(short, 'quarter')).rejects.toThrow('invalid Overview usage');
+  await expect(loadOverviewUsage(short, 'quarter')).rejects.toThrow(
+    'overviewUsage returned an unreadable usage overview.',
+  );
 });
 it('keeps all expanded Bot pages fresh during polling and manual refresh', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

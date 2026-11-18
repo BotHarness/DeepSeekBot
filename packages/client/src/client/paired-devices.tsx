@@ -39,6 +39,7 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import { useMountedResource } from './mounted-resource.js';
+import { observeResource } from './messaging-defaults-live.js';
 import {
   PhoneRouteSteps,
   type PhoneRouteStatus,
@@ -48,6 +49,7 @@ import {
 const PATH = './api/botharness/devices';
 const LIST_POLL_MS = 2000;
 const ROUTE_POLL_MS = 3000;
+const NETWORK_POLL_MS = 15_000;
 const NEW_DEVICE_MS = 24 * 60 * 60 * 1000;
 
 interface PairedDevice {
@@ -403,16 +405,30 @@ export function PairedDevicesSettings({
     mounted.current = true;
     const controller = new AbortController();
     void load(controller.signal);
-    const timer = setInterval(() => {
+    let queued = false;
+    const refresh = (): void => {
       setNow(Date.now());
-      void load(controller.signal);
-    }, ROUTE_POLL_MS);
+      const current = reading.current;
+      if (current === undefined) {
+        void load(controller.signal);
+        return;
+      }
+      if (queued) return;
+      queued = true;
+      void current.finally(() => {
+        queued = false;
+        if (!controller.signal.aborted) void load(controller.signal);
+      });
+    };
+    const timer = setInterval(refresh, NETWORK_POLL_MS);
+    const stopObserving = observeResource('devices', refresh, ROUTE_POLL_MS);
     return () => {
       mounted.current = false;
       controller.abort();
       offerAbort.current?.abort();
       offerRequest.current += 1;
       clearInterval(timer);
+      stopObserving();
     };
   }, []);
 

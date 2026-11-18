@@ -240,6 +240,10 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import {
+  createFallbackOverrideStore,
+  type FallbackOverrideStore,
+} from './models/fallback-overrides.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
@@ -581,6 +585,7 @@ export interface BotHarnessCore {
   modelPresets: ModelPresetStore;
   modelFavorites: ModelFavoriteStore;
   routingGroups: RoutingGroupStore;
+  fallbackOverrides: FallbackOverrideStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -771,6 +776,7 @@ function initializeCore(
   let modelPresets: ModelPresetStore;
   let modelFavorites: ModelFavoriteStore;
   let routingGroups: RoutingGroupStore;
+  let fallbackOverrides: FallbackOverrideStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -899,6 +905,7 @@ function initializeCore(
         ),
     });
     startup.enter('routing-groups', 'initialize');
+    fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
     routingGroups = createRoutingGroupStore({
       database: operationalDatabase,
       references: (groupId) => {
@@ -1582,6 +1589,7 @@ function initializeCore(
     modelPresets,
     modelFavorites,
     routingGroups,
+    fallbackOverrides,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -2090,6 +2098,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
     validate: (route) => modelCatalog.validate(route),
+    overrides: {
+      get: (sessionId) => core.fallbackOverrides.get(sessionId),
+      set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),
+      delete: (sessionId) => core.fallbackOverrides.delete(sessionId),
+    },
   });
   const core = createCore({
     routeRests,
@@ -2259,8 +2272,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   const team = core.team;
+  ctx.effect(
+    () =>
+      core.operationalDatabase.subscribe(({ topics }) => {
+        if (topics.includes('paired-devices')) core.live.publishResourceChanged('devices');
+        if (topics.includes('host-relationships'))
+          core.live.publishResourceChanged('relationships');
+      }),
+    'botharness: live resource changes',
+  );
   mountDevicePairing(ctx, {
     team,
+    onDevicesChanged: () => core.live.publishResourceChanged('devices'),
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -3447,6 +3470,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     defaultModel,
+    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean')
         developerModeTarget.gate?.set(patch.developerMode);
@@ -3543,7 +3567,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )
         refresh.reconcile();
     });
-    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
     const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
     return () => {
       offAgents();

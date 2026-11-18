@@ -25,7 +25,7 @@ function startPolling(): () => void {
       for (const listener of pendingListeners) listener(pendingRequests);
     } catch {
     } finally {
-      if (!abort.signal.aborted) timer = setTimeout(read, 3000);
+      if (!abort.signal.aborted) timer = setTimeout(() => void read(), 3000);
     }
   };
   void read();

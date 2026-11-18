@@ -326,12 +326,13 @@ describe('Bot workspace from the composer', () => {
       if (args['path'] === 'D:\\missing') throw new Error('gone');
       return {
         path: args['path'] ?? 'C:\\Users\\ada',
-        crumbs: [{ name: 'C:\\', path: 'C:\\' }],
-        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code' }],
+        home: 'C:\\Users\\ada',
+        crumbs: [{ name: 'C:\\', path: 'C:\\', hidden: false }],
+        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code', hidden: false }],
         truncated: false,
         roots: [
-          { name: 'ada', path: 'C:\\Users\\ada' },
-          { name: 'D:\\', path: 'D:\\' },
+          { name: 'ada', path: 'C:\\Users\\ada', hidden: false },
+          { name: 'D:\\', path: 'D:\\', hidden: false },
         ],
       };
     });

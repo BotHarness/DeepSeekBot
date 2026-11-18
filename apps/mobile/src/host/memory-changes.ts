@@ -1,5 +1,6 @@
 import { dmChannel, type ProfileBotRef } from './bot-profile';
 import type { HostClient } from '@botharness/host-client/client';
+import { loadMemoryGitCommitDiff, loadMemoryGitGraph } from '@botharness/host-client/memory';
 
 export type MemoryChangeStatus = 'accepted' | 'pending' | 'needs-repair';
 
@@ -52,11 +53,7 @@ export async function loadMemoryChanges(
   path?: string,
 ): Promise<MemoryChangesPage> {
   const channelId = await dmChannel(client, bot);
-  const graph = await client.call<{ commits: MemoryChange[]; hasMore: boolean }>('memoryGitGraph', {
-    channelId,
-    offset,
-    ...(path === undefined ? {} : { path }),
-  });
+  const graph = await loadMemoryGitGraph(client, channelId, offset, path);
   return {
     commits: graph.commits.map(({ sha, subject, authoredAt, status }) => ({
       sha,
@@ -68,7 +65,12 @@ export async function loadMemoryChanges(
   };
 }
 
-type DiffSection = { rows: MemoryDiffRow[]; added: number; removed: number; binary: boolean };
+type DiffSection = {
+  rows: MemoryDiffRow[];
+  added: number;
+  removed: number;
+  binary: boolean;
+};
 type DiffLine = Extract<MemoryDiffRow, { kind: 'line' }>;
 
 const WORD_LIMIT = 40_000;
@@ -161,7 +163,12 @@ export function splitUnifiedDiff(diff: string): Map<string, DiffSection> {
   let oldLine = 0;
   let newLine = 0;
   const start = (path: string) => {
-    current = sections.get(path) ?? { rows: [], added: 0, removed: 0, binary: false };
+    current = sections.get(path) ?? {
+      rows: [],
+      added: 0,
+      removed: 0,
+      binary: false,
+    };
     sections.set(path, current);
   };
   for (const line of diff.split('\n')) {
@@ -236,16 +243,11 @@ export async function loadMemoryCommit(
   sha: string,
 ): Promise<MemoryCommit> {
   const channelId = await dmChannel(client, bot);
-  const commit = await client.call<{
-    sha: string;
-    subject: string;
-    files: { path: string; status: string }[];
-    diff: string;
-  }>('memoryGitCommitDiff', { channelId, sha });
+  const commit = await loadMemoryGitCommitDiff(client, channelId, sha);
   const sections = splitUnifiedDiff(commit.diff);
   return {
     sha: commit.sha,
-    subject: commit.subject,
+    subject: commit.subject ?? '',
     files: commit.files.map((file) => {
       const section = sections.get(file.path);
       return {

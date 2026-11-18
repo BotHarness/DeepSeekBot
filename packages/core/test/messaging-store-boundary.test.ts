@@ -1,20 +1,6 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const SOURCE = join(import.meta.dirname, '..', 'src');
-
-const sourceFiles = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(path);
-    return entry.name.endsWith('.ts') ? [relative(SOURCE, path).split('\\').join('/')] : [];
-  });
-
-const filesMatching = (pattern: RegExp) =>
-  sourceFiles(SOURCE)
-    .filter((file) => pattern.test(readFileSync(join(SOURCE, file), 'utf8')))
-    .sort();
+import { sourceFilesMatching, writesTables } from './source-files.js';
 
 const SQLITE_OPENERS = [
   'database/owner.ts',
@@ -47,12 +33,12 @@ const MESSAGING_TABLE_WRITERS = [
 
 describe('Messaging store boundary', () => {
   it('opens SQLite only through the operational database owner, the log store and the Purge Ledger', () => {
-    expect(filesMatching(/^[^`\n]*new DatabaseSync\(/mu)).toEqual(SQLITE_OPENERS);
+    expect(sourceFilesMatching(/^[^`\n]*new DatabaseSync\(/mu)).toEqual(SQLITE_OPENERS);
   });
 
   it('writes the Messaging tables only from the files that already do, and drops a file once it stops', () => {
-    const writers = filesMatching(
-      /(INSERT(\s+OR\s+[A-Z]+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+(source_events|channel_placements|inbox_admissions|messaging_outbox)\b/u,
+    const writers = sourceFilesMatching(
+      writesTables(['source_events', 'channel_placements', 'inbox_admissions', 'messaging_outbox']),
     );
     expect(writers).toEqual(MESSAGING_TABLE_WRITERS);
   });

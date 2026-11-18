@@ -221,6 +221,7 @@ export const CLI_EFFECTS = {
   'device-requests': { effects: read, brokerRead: true },
   'device-revoke': { effects: management, brokerRead: false },
   devices: { effects: read, brokerRead: true },
+  'devices-watch': { effects: read, brokerRead: true },
   'diagnostic-log-record': { effects: write, brokerRead: false },
   'diagnostic-logs': { effects: read, brokerRead: false },
   'diagnostic-logs-export': { effects: write, brokerRead: false },

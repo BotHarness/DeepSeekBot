@@ -57,6 +57,7 @@ vi.mock('../src/client/ds/select.js', async () => {
 import type { BridgeCall } from '../src/client/bridge.js';
 import { StorageSettings, type StorageSettingsSource } from '../src/client/storage-settings.js';
 import { MethodRefused } from '@botharness/host-client/client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import { zhTranslate } from '../src/client/locale.js';
 import { buttonNamed } from './primitive-mocks.js';
 
@@ -188,6 +189,67 @@ describe('StorageSettings', () => {
       }
     },
   );
+  it('drops the old total and shows the error when a refresh fails', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: vi.fn(),
+      confirmMedia: vi.fn(),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
+      await view.open();
+      await view.press(buttonNamed('关闭', view.host));
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('shows the read-back error after a cleanup instead of the old total', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: async (scope) => preview({ ...scope }) as never,
+      confirmMedia: vi.fn(async () => ({ messages: 2, files: 3, freedBytes: 4 * 1024 * 1024 })),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+        '已清理 3 个文件，释放 4.0 MB。',
+      );
+      expect(load).toHaveBeenCalledTimes(3);
+      expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(
+        '读取失败，重新加载后再试。',
+      );
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      await view.press(buttonNamed('关闭', view.host));
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('cannot publish an old Host cleanup result into a newly selected source', async () => {
     let finish:
       | ((value: Awaited<ReturnType<StorageSettingsSource['confirmMedia']>>) => void)

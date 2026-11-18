@@ -17,6 +17,14 @@ import {
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
 import { serialWrites } from './model-catalog';
+import {
+  createModelPreset,
+  customizeModelPlan,
+  inheritModelPlan,
+  setModelPlan,
+  setOnboardingModel,
+  updateModelPreset,
+} from './model-plans';
 
 export type ModelScope =
   | { kind: 'global' }
@@ -69,14 +77,20 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
       await owner.cancelQueries({ queryKey, exact: true });
       await work();
       await owner.cancelQueries({ queryKey, exact: true });
-      await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
+      await owner.invalidateQueries({
+        queryKey: ['mobile-model-settings'],
+        refetchType: 'none',
+      });
     },
     favorite: async (choice: ModelChoice, favorite: boolean) => {
       const favorites = await writeFavorite(client)(choice, favorite);
       owner.setQueriesData<ModelSettingsState>({ queryKey: ['mobile-model-settings'] }, (old) =>
         old === undefined ? old : { ...old, favorites },
       );
-      await owner.invalidateQueries({ queryKey: ['mobile-model-settings'], refetchType: 'none' });
+      await owner.invalidateQueries({
+        queryKey: ['mobile-model-settings'],
+        refetchType: 'none',
+      });
       return favorites;
     },
     refresh: () =>
@@ -147,18 +161,12 @@ async function writePlan(
   if (scope.kind === 'preset') {
     if (state.preset?.revision === undefined)
       throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
-    await client.call('modelPresetUpdate', {
-      id: scope.id,
-      expectedRevision: state.preset.revision,
+    await updateModelPreset(client, scope.id, state.preset.revision, {
       name: state.preset.name,
       ...routes,
     });
   } else {
-    await client.call('modelPlanSet', {
-      slug: scope.slug,
-      expectedRevision: state.plan?.revision ?? state.revision,
-      ...routes,
-    });
+    await setModelPlan(client, scope.slug, state.plan?.revision ?? state.revision, routes);
   }
 }
 
@@ -180,7 +188,7 @@ export async function setModelRoute(
       state.defaultRevision < 0
     )
       throw new HostAnswerInvalid('MODEL_DEFAULT_REVISION_REQUIRED');
-    await client.call('onboardingModel', {
+    await setOnboardingModel(client, {
       expectedRevision: 0,
       expectedDefaultRevision: state.defaultRevision,
       route,
@@ -191,11 +199,12 @@ export async function setModelRoute(
   }
   const previous = modelRoutes(state);
   if (scope.kind === 'bot' && field === 'orchestrator') {
-    await client.call('modelPlanCustomize', {
-      slug: scope.slug,
-      expectedRevision: state.plan?.revision ?? state.revision,
-      orchestrator: route,
-    });
+    await customizeModelPlan(
+      client,
+      scope.slug,
+      { orchestrator: route },
+      state.plan?.revision ?? state.revision,
+    );
     recordFeature('model:plan_update', { via: 'custom' });
     return;
   }
@@ -239,15 +248,28 @@ export async function setModelGroup(
   state: ModelSettingsState,
   groupId: string,
 ): Promise<void> {
-  if (scope.kind !== 'bot') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
+  if (scope.kind === 'preset') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
   const group = state.groups?.find((entry) => entry.id === groupId);
   if (group === undefined || group.restingUntil !== undefined)
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
-  await client.call('modelPlanCustomize', {
-    slug: scope.slug,
-    expectedRevision: state.plan?.revision ?? state.revision,
-    orchestratorGroupId: groupId,
-  });
+  if (scope.kind === 'global') {
+    await setOnboardingModel(client, {
+      expectedRevision: 0,
+      ...(state.defaultRevision === undefined
+        ? {}
+        : { expectedDefaultRevision: state.defaultRevision }),
+      groupId,
+      globalDefault: true,
+    });
+    recordFeature('model:plan_update', { via: 'group' });
+    return;
+  }
+  await customizeModelPlan(
+    client,
+    scope.slug,
+    { orchestratorGroupId: groupId },
+    state.plan?.revision ?? state.revision,
+  );
   recordFeature('model:plan_update', { via: 'group' });
 }
 
@@ -290,10 +312,7 @@ export async function inheritModel(
   slug: string,
   state: ModelSettingsState,
 ): Promise<void> {
-  await client.call('modelPlanInherit', {
-    slug,
-    expectedRevision: state.plan?.revision ?? state.revision,
-  });
+  await inheritModelPlan(client, slug, state.plan?.revision ?? state.revision);
   recordFeature('model:plan_update', { via: 'inherit' });
 }
 
@@ -321,22 +340,20 @@ export async function saveModelPreset(
   const preset = state.preset;
   if (update && preset?.revision === undefined)
     throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
-  const value = await client.call(update ? 'modelPresetUpdate' : 'modelPresetCreate', {
-    ...(update && preset !== undefined ? { id: preset.id, expectedRevision: preset.revision } : {}),
+  const input = {
     name: name.trim(),
     orchestrator,
     assignmentDefault,
     assignmentModels,
-  });
-  if (typeof value !== 'object' || value === null || !('preset' in value))
-    throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
-  const presetAnswer = value.preset;
-  if (
-    typeof presetAnswer !== 'object' ||
-    presetAnswer === null ||
-    !('id' in presetAnswer) ||
-    typeof presetAnswer.id !== 'string'
-  )
-    throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
-  return presetAnswer.id;
+  };
+  try {
+    const saved =
+      update && preset?.revision !== undefined
+        ? await updateModelPreset(client, preset.id, preset.revision, input)
+        : await createModelPreset(client, input);
+    return saved.id;
+  } catch (error) {
+    if (error instanceof HostAnswerInvalid) throw new HostAnswerInvalid('MODEL_PRESET_NOT_SAVED');
+    throw error;
+  }
 }

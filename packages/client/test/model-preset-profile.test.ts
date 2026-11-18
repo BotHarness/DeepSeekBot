@@ -1160,6 +1160,50 @@ it('uses the shared model picker for onboarding and waits for an explicit model 
   );
 });
 
+it('offers Routing Groups in the onboarding picker and saves one without an effort (#4500)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const onConfirm = vi.fn(async () => {});
+  const actions = {
+    modelCatalog: vi.fn(async () => ({
+      models: catalog,
+      default: { provider: 'deepseek', model: 'flash' },
+      defaultGroupId: 'main',
+      groups: [
+        {
+          id: 'main',
+          name: 'Main',
+          revision: 1,
+          routes: [
+            { provider: 'kimi', model: 'k2' },
+            { provider: 'deepseek', model: 'flash' },
+          ],
+        },
+      ],
+    })),
+  } as unknown as BridgeActions;
+  await act(async () =>
+    root!.render(
+      createElement(OnboardingModelDialog, {
+        actions,
+        title: 'Default model',
+        globalOnly: true,
+        onClose: vi.fn(),
+        onConfirm,
+        t: translate,
+      }),
+    ),
+  );
+  expect(trigger('Model')?.textContent).toContain('Main');
+  expect(document.querySelector('[role="radiogroup"], [role="tablist"]')).toBeNull();
+  await choose('Model', 'Flash', 'Flash');
+  await choose('Model', 'Main', 'Main');
+  await act(async () => button('Save global default model').click());
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main' }, true, 0);
+});
+
 it('offers general, daily check-in and timed-test requests through the normal welcome send path', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');

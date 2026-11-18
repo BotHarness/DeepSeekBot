@@ -128,6 +128,7 @@ export interface DevicePairingOptions {
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
+  onChange?: () => void;
   onPaired?: (device: PairedDevice) => void;
   members?: {
     redeem(
@@ -190,6 +191,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   const ownerHumanId = options.ownerHumanId ?? (() => OWNER_HUMAN_CONTEXT.humanId);
   const now = options.now ?? Date.now;
   const record = options.record ?? (() => {});
+  const changed = options.onChange ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
 
   const offers = new Map<
@@ -221,12 +223,15 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   };
 
   const sweep = (): void => {
+    let swept = false;
     for (const [key, { expiresAt, receipt }] of offers)
       if (expiresAt <= now()) {
         offers.delete(key);
         settle(receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
+        swept = true;
       }
+    if (swept) changed();
   };
 
   const row = (deviceId: string) => {
@@ -325,11 +330,13 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     clearOffers() {
+      if (offers.size === 0) return;
       for (const open of offers.values()) {
         settle(open.receipt, { state: 'superseded' });
         record({ phase: 'offer-refused' });
       }
       offers.clear();
+      changed();
     },
 
     offerStatus(receipt) {
@@ -384,6 +391,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         open.publicKey = input.publicKey;
         open.name = deviceName(input.name ?? open.name);
         open.approved = open.memberHumanId !== undefined;
+        changed();
       }
       return { ok: true, receipt: open.receipt };
     },
@@ -411,6 +419,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           /^[0-9a-f]{64}$/u.test(publicKey)
         ) {
           open.approved = true;
+          changed();
           return true;
         }
       }
@@ -424,6 +433,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         settle(open.receipt, { state: 'refused' });
         cancelled++;
       }
+      if (cancelled > 0) changed();
       return cancelled;
     },
 
@@ -449,7 +459,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         (open.publicKey !== input.publicKey || open.approved !== true)
       )
         return { ok: false, code: 'device-approval-required' };
-      offers.delete(key);
+      if (offers.delete(key)) changed();
       if (
         open === undefined ||
         open.humanId !== ownerHumanId() ||

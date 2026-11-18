@@ -795,19 +795,21 @@ export function WindowCompanionView({
                   {...stylex.props(styles.headerButton, styles.sourceButton)}
                   disabled={head.canOpen === false}
                   title={head.canOpen === false ? t('companion.sourceUnavailable') : undefined}
-                  onClick={async () => {
+                  onClick={() => {
                     if (head.canOpen === false) return;
-                    try {
-                      await openChannel(head.channelId, head.messageId);
-                      setUnavailable(
-                        (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                    Promise.resolve()
+                      .then(() => openChannel(head.channelId, head.messageId))
+                      .then(
+                        () =>
+                          setUnavailable(
+                            (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                          ),
+                        () =>
+                          setUnavailable(
+                            (prior) =>
+                              new Set([...prior, headIdentity].slice(-view.capacity.retention)),
+                          ),
                       );
-                    } catch {
-                      setUnavailable(
-                        (prior) =>
-                          new Set([...prior, headIdentity].slice(-view.capacity.retention)),
-                      );
-                    }
                   }}
                 >
                   {t(

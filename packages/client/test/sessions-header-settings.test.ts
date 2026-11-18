@@ -95,14 +95,14 @@ describe('Sessions header settings', () => {
   it('shows both default models and opens the Model settings', async () => {
     await render();
     expect(item('主模型 · deepseek-v4 · high')).toBeDefined();
-    act(() => item('执行模型 · deepseek-v4-flash')!.click());
+    act(() => item('副模型 · deepseek-v4-flash')!.click());
     expect(channelSettings.getSnapshot()).toEqual({ open: true, sectionId: 'model' });
   });
   it('says the Bot inherits the global models when it has no plan', async () => {
     plan = undefined;
     await render('no-plan-qa');
     expect(item('主模型 · 继承全局')).toBeDefined();
-    expect(item('执行模型 · 继承全局')).toBeDefined();
+    expect(item('副模型 · 继承全局')).toBeDefined();
   });
   it('edits the shared Assignment concurrency limit in a dialog', async () => {
     await render();
