@@ -85,7 +85,12 @@ describe('Prompt preset settings', () => {
     await act(async () => undefined);
     expect(setGlobal).toHaveBeenCalledWith('concise');
     expect(row(view, 'prompt-global-concise').getAttribute('aria-selected')).toBe('true');
-    expect(row(view, 'prompt-preset-concise').textContent).toContain(t.prompts.globalTag);
+    expect(row(view, 'prompt-preset-concise').textContent?.endsWith(t.prompts.globalTag)).toBe(
+      true,
+    );
+    expect(row(view, 'prompt-preset-concise').textContent).not.toContain(
+      `${t.prompts.globalTag} · `,
+    );
     await act(async () => row(view, 'prompt-global-built-in').click());
     await act(async () => undefined);
     expect(setGlobal).toHaveBeenLastCalledWith(null);

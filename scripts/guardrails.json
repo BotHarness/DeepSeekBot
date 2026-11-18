@@ -151,6 +151,14 @@
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
       "fix": "a metric more than 20% over its 7-night median raises a warning in the nightly summary: bisect the nights between with scripts/perf-idle-timeline.mjs (A/B protocol in the verify-deepseekbot performance guide) and fix the change that caused it.",
       "check": "scripts/health-trend.mjs"
+    },
+    {
+      "id": "host-readers",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/pull/4399 (modelCatalog parsed differently on desktop and mobile)",
+      "fix": "keep one reader for the Host method in packages/host-client/src that parses the answer from unknown, call it from desktop (through bridgeHost(call)) and mobile, and delete the other reader; then lower the baseline with node scripts/check-host-readers.mjs --update.",
+      "check": "scripts/check-host-readers.mjs",
+      "baseline": "scripts/host-reader-baseline.json"
     }
   ]
 }
