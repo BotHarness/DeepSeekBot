@@ -112,6 +112,21 @@ describe('PR and issue provenance', () => {
     ).toEqual(['harness:opencode', 'model:glm-5.3']);
   });
 
+  it('falls back to commit trailers when no declared value is an existing label', () => {
+    const commit =
+      'x\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: s';
+    const result = plan({
+      body: 'Harness: Claude Code\nModel: Claude Opus 5.5',
+      labels: [],
+      existing,
+      external: false,
+      commits: [commit],
+    });
+    expect(result.add).toEqual(['harness:claude-code', 'model:claude-opus-5-5']);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([expect.stringContaining('`model:claude-opus-5.5`')]);
+  });
+
   it('treats a private org member with write access as internal', () => {
     expect(isInternal('MEMBER', 'none')).toBe(true);
     expect(isInternal('CONTRIBUTOR', 'write')).toBe(true);

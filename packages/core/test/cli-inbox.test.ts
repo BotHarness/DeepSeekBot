@@ -4,6 +4,7 @@ import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
 import { decideToolApproval } from '../src/workspaces/tool-effects.js';
 import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -25,40 +26,42 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -99,6 +102,37 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     const result = await invoke(['inbox', '--search', 'budget'], live.url);
     expect(result.code).not.toBe(0);
     expect(result.text).toContain('host-query-unsupported');
+  });
+
+  it('sends raw text straight into the Orchestrator Session with session-send', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
+    const result = await invoke(
+      ['session-send', ' ada ', 'bot-1', '    keep\n  this indent  '],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({ sourceEventId: 'evt-1' });
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '    keep\n  this indent  ' },
+      },
+    ]);
+  });
+
+  it('sends text that starts with a dash after --', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-2' } }));
+    const result = await invoke(
+      ['session-send', 'ada', 'bot-1', '--', '-1 is the answer'],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '-1 is the answer' },
+      },
+    ]);
   });
 
   it('searches and orders personal Activity through the same Host query', async () => {

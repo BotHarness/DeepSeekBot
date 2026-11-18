@@ -47,6 +47,7 @@ jobs:
       related: ${{ steps.plan.outputs.related }}
       android-native: ${{ steps.plan.outputs.android-native }}
       perf: ${{ steps.plan.outputs.perf }}
+      ui-visual: ${{ steps.plan.outputs.ui-visual }}
       mobile: ${{ steps.plan.outputs.mobile }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
@@ -117,6 +118,15 @@ jobs:
             node scripts/lint-ratchet.mjs --base="$BASELINE_BASE"
           else
             node scripts/lint-ratchet.mjs --base=HEAD^
+          fi
+      - name: Reject a raised host-reader baseline
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/check-host-readers.mjs --base="$BASELINE_BASE"
+          else
+            node scripts/check-host-readers.mjs --base=HEAD^
           fi
       - name: Report codebase health against the base
         env:
@@ -426,6 +436,32 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:smoke
 
+  ui-visual:
+    name: UI visual checks (alignment, accessibility, keyboard, zoom)
+    needs: plan
+    if: needs.plan.outputs.ui-visual == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-ui-visual.mjs --screenshots .humanlayer/ui-visual
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-visual
+          path: .humanlayer/ui-visual/*.png
+          if-no-files-found: ignore
+
   perf-budget:
     name: timeline performance budget
     needs: plan
@@ -530,6 +566,7 @@ jobs:
         docs-site,
         e2e-smoke,
         perf-budget,
+        ui-visual,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -549,6 +586,7 @@ jobs:
           if (plan['docs-site'] === 'true') required.push('docs-site');
           if (plan.tests !== 'none') required.push('e2e-smoke');
           if (plan.perf === 'true') required.push('perf-budget');
+          if (plan['ui-visual'] === 'true') required.push('ui-visual');
           if (plan.tests === 'full') required.push('test-full');
           if (plan.tests === 'affected') {
             const count = plan.count;

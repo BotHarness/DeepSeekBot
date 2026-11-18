@@ -26,6 +26,15 @@ import {
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
+import type { HostClient } from '@botharness/host-client/client';
+import { setModelFavorite as setHostModelFavorite } from '@botharness/host-client/bot-settings';
+import { parseModelCatalog, type ModelChoice } from '@botharness/host-client/model-catalog';
+import * as channelHost from '@botharness/host-client/channel-messages';
+import {
+  loadGenuiDocumentView as loadGenuiDocumentViewFrom,
+  parseGenuiDocumentView as parseHostGenuiDocumentView,
+  saveGenuiDocumentView as saveGenuiDocumentViewTo,
+} from '@botharness/host-client/genui/view';
 import { clientLog } from './diagnostic-log.js';
 import {
   genuiReplySchema,
@@ -37,7 +46,6 @@ import {
 } from '../../../core/src/channels/genui.js';
 import {
   genuiDocumentReplySchema,
-  validateGenuiDocumentState,
   type GenuiDocument,
   type GenuiDocumentState,
 } from '../../../core/src/channels/genui-document.js';
@@ -238,11 +246,33 @@ export interface ModelCatalogEntryView {
   efforts: { id: string; name: string }[];
   defaultEffort?: string;
   credential?: 'missing' | 'invalid';
+  restingUntil?: string;
+}
+
+export interface ModelCatalogGroupView {
+  id: string;
+  name: string;
+  revision: number;
+  routes: ModelRouteView[];
+  restingUntil?: string;
 }
 
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
+  defaultGroupId?: string;
+  favorites?: ModelChoice[];
+  groups?: ModelCatalogGroupView[];
+}
+
+export type { ModelChoice };
+
+export async function setModelFavorite(
+  call: BridgeCall,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  return setHostModelFavorite(bridgeHost(call), choice, favorite);
 }
 
 export interface ModelPresetView {
@@ -261,6 +291,7 @@ export interface ModelPlanView {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRouteView;
+  orchestratorGroupId?: string;
   assignmentDefault?: ModelRouteView;
   assignmentModels?: AssignmentModelOptionView[];
   openAssignmentModels?: true;
@@ -275,16 +306,15 @@ export async function loadActivitySnapshot(
 }
 
 export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogView> {
-  const value = asRecord(await unwrap(call, 'modelCatalog', {}));
-  if (!Array.isArray(value?.['models'])) throw new Error('Invalid model catalog');
-  const fallback = asRecord(value['default']);
+  const catalog = parseModelCatalog(await unwrap(call, 'modelCatalog', {}));
   return {
-    models: value['models'] as ModelCatalogEntryView[],
-    ...(typeof fallback?.['provider'] === 'string' && typeof fallback['model'] === 'string'
-      ? {
-          default: { provider: fallback['provider'], model: fallback['model'] },
-        }
-      : {}),
+    models: catalog.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] })),
+    ...(catalog.default === undefined
+      ? {}
+      : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
+    ...(catalog.defaultGroupId === undefined ? {} : { defaultGroupId: catalog.defaultGroupId }),
+    ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
+    ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
   };
 }
 
@@ -445,6 +475,23 @@ export async function customizeModelPlan(
 ): Promise<ModelPlanView> {
   const value = asRecord(
     await unwrap(call, 'modelPlanCustomize', { slug, orchestrator, expectedRevision }),
+  );
+  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
+  return value!['plan'] as ModelPlanView;
+}
+
+export async function chooseModelPlanGroup(
+  call: BridgeCall,
+  slug: string,
+  groupId: string,
+  expectedRevision?: number,
+): Promise<ModelPlanView> {
+  const value = asRecord(
+    await unwrap(call, 'modelPlanCustomize', {
+      slug,
+      orchestratorGroupId: groupId,
+      expectedRevision,
+    }),
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
@@ -746,6 +793,13 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : [];
+}
+
+export function bridgeHost(call: BridgeCall, signal?: AbortSignal): Pick<HostClient, 'call'> {
+  return {
+    call: async <T>(method: string, args: Record<string, unknown> = {}) =>
+      (await unwrap(call, method, args, signal)) as T,
+  };
 }
 
 export async function unwrap(
@@ -1366,8 +1420,20 @@ export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  const value = asRecord(await unwrap(call, 'channelSkillCatalog', { channelId }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid channelSkillCatalog response');
+  return skillCatalogEntries(await unwrap(call, 'channelSkillCatalog', { channelId }));
+}
+
+export async function loadSessionSkillCatalog(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<SkillCatalogEntry[]> {
+  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
+}
+
+function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
+  const value = asRecord(response);
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
   return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
     const item = asRecord(entry);
     const owner = asRecord(item?.['owner']);
@@ -2274,26 +2340,7 @@ export function parseMessageVoice(value: unknown): ChannelMessageVoice | undefin
 }
 
 export function parseReactions(value: unknown): ChannelReaction[] | undefined {
-  if (!Array.isArray(value) || value.length > 200) return undefined;
-  const reactions: ChannelReaction[] = [];
-  for (const entry of value) {
-    const item = asRecord(entry);
-    const emoji = item?.['emoji'];
-    const actors = item?.['actors'];
-    if (typeof emoji !== 'string' || emoji.length === 0 || emoji.length > 16) return undefined;
-    if (!Array.isArray(actors) || actors.length === 0) return undefined;
-    const parsed: ChannelReaction['actors'] = [];
-    for (const actor of actors) {
-      const record = asRecord(actor);
-      const kind = record?.['kind'];
-      const id = record?.['id'];
-      if ((kind !== 'human' && kind !== 'bot') || typeof id !== 'string' || id.length === 0)
-        return undefined;
-      parsed.push({ kind, id });
-    }
-    reactions.push({ emoji, actors: parsed });
-  }
-  return reactions;
+  return channelHost.parseReactions(value);
 }
 
 export async function reactToChannelMessage(
@@ -2303,12 +2350,7 @@ export async function reactToChannelMessage(
   emoji: string,
   active: boolean,
 ): Promise<ChannelReaction[]> {
-  const value = asRecord(
-    await unwrap(call, 'channelReact', { channelId, messageId, emoji, active }),
-  );
-  const reactions = parseReactions(value?.['reactions']);
-  if (reactions === undefined) throw new Error('invalid channelReact response');
-  return reactions;
+  return channelHost.reactToMessage(bridgeHost(call), { channelId, messageId, emoji, active });
 }
 
 export async function searchChannelMessages(
@@ -2351,29 +2393,7 @@ export async function searchAllMessages(
   cursor?: string,
   limit = 8,
 ): Promise<MessageSearchPage> {
-  const value = asRecord(
-    await unwrap(call, 'messageSearch', {
-      text,
-      limit,
-      ...(cursor === undefined ? {} : { cursor }),
-    }),
-  );
-  const hits = value?.['hits'];
-  const nextCursor = value?.['nextCursor'];
-  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
-    throw new Error('invalid messageSearch response');
-  return {
-    hits: hits.flatMap((entry) => {
-      const hit = asRecord(entry);
-      const message = parseChannelMessage(hit?.['message']);
-      const channelId = hit?.['channelId'];
-      const snippet = hit?.['snippet'];
-      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
-        ? []
-        : [{ channelId, message, snippet }];
-    }),
-    ...(nextCursor === undefined ? {} : { nextCursor }),
-  };
+  return channelHost.searchMessages(bridgeHost(call), { text, limit, cursor }, parseChannelMessage);
 }
 
 export function parseChannelMessages(value: unknown): ChannelMessage[] {
@@ -3355,283 +3375,8 @@ export async function confirmDataReset(call: BridgeCall, token: string): Promise
     : { status: 'restart-required' };
 }
 
-export type StorageMediaKind = 'image' | 'video' | 'audio' | 'file';
-export const STORAGE_MEDIA_KINDS: readonly StorageMediaKind[] = ['image', 'video', 'audio', 'file'];
-
-export interface StorageMediaTotal {
-  kind: StorageMediaKind;
-  count: number;
-  bytes: number;
-}
-
-export interface StorageChatUsage {
-  channelId: string;
-  name: string;
-  type: 'dm' | 'group';
-  deleted?: true;
-  messages: number;
-  oldestAt?: string;
-  mediaBytes: number;
-  media: StorageMediaTotal[];
-}
-
-export interface StorageUsage {
-  totalBytes: number;
-  parts: { kind: 'media' | 'messages' | 'memory' | 'other'; bytes: number }[];
-  chats: StorageChatUsage[];
-}
-
-export interface StorageCleanupScope {
-  before: string;
-  channelIds?: string[];
-  kinds?: StorageMediaKind[];
-}
-
-export interface StorageCleanupPreview {
-  token: string;
-  scope: { before: string; channelIds: string[]; kinds: StorageMediaKind[] };
-  messages: number;
-  files: number;
-  bytes: number;
-  freedBytes: number;
-  kinds: StorageMediaTotal[];
-  chats: { channelId: string; name: string; files: number; bytes: number }[];
-  kept: { reason: 'bot-working' | 'delivery-pending' | 'memory' | 'migration'; files: number }[];
-}
-
-export interface StorageCleanupResult {
-  messages: number;
-  files: number;
-  freedBytes: number;
-}
-
-export interface StorageMessagesPreview {
-  token: string;
-  scope: { before: string; channelIds: string[] };
-  messages: number;
-  bytes: number;
-  files: number;
-  chats: { channelId: string; name: string; messages: number }[];
-  kept: { reason: 'bot-working' | 'delivery-pending' | 'shared'; messages: number }[];
-  memoryReferences: number;
-  more: boolean;
-}
-
-export interface StorageMessagesResult {
-  messages: number;
-  freedBytes: number;
-}
-
-const STORAGE_MESSAGES_KEPT = new Set(['bot-working', 'delivery-pending', 'shared']);
-const STORAGE_PARTS = new Set(['media', 'messages', 'memory', 'other']);
-const STORAGE_KEPT = new Set(['bot-working', 'delivery-pending', 'memory', 'migration']);
-
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
-}
-
-function mediaTotals(value: unknown): StorageMediaTotal[] {
-  return (Array.isArray(value) ? value : []).flatMap((entry) => {
-    const item = asRecord(entry);
-    const kind = item?.['kind'];
-    return typeof kind === 'string' && (STORAGE_MEDIA_KINDS as readonly string[]).includes(kind)
-      ? [
-          {
-            kind: kind as StorageMediaKind,
-            count: count(item?.['count']),
-            bytes: count(item?.['bytes']),
-          },
-        ]
-      : [];
-  });
-}
-
-function parseStorageUsage(value: unknown): StorageUsage {
-  const usage = asRecord(value);
-  const parts = usage?.['parts'];
-  const chats = usage?.['chats'];
-  if (usage === undefined || !Array.isArray(parts) || !Array.isArray(chats))
-    throw new BridgeCallError('invalid-response', 'Invalid storage usage');
-  return {
-    totalBytes: count(usage['totalBytes']),
-    parts: parts.flatMap((entry) => {
-      const part = asRecord(entry);
-      const kind = part?.['kind'];
-      return typeof kind === 'string' && STORAGE_PARTS.has(kind)
-        ? [{ kind: kind as StorageUsage['parts'][number]['kind'], bytes: count(part?.['bytes']) }]
-        : [];
-    }),
-    chats: chats.flatMap((entry) => {
-      const chat = asRecord(entry);
-      const channelId = chat?.['channelId'];
-      const name = chat?.['name'];
-      if (typeof channelId !== 'string' || typeof name !== 'string') return [];
-      return [
-        {
-          channelId,
-          name,
-          type: chat?.['type'] === 'dm' ? ('dm' as const) : ('group' as const),
-          ...(chat?.['deleted'] === true ? { deleted: true as const } : {}),
-          messages: count(chat?.['messages']),
-          ...(typeof chat?.['oldestAt'] === 'string' ? { oldestAt: chat['oldestAt'] } : {}),
-          mediaBytes: count(chat?.['mediaBytes']),
-          media: mediaTotals(chat?.['media']),
-        },
-      ];
-    }),
-  };
-}
-
-function parseStorageCleanupPreview(value: unknown): StorageCleanupPreview {
-  const preview = asRecord(value);
-  const scope = asRecord(preview?.['scope']);
-  const token = preview?.['token'];
-  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
-    throw new BridgeCallError('invalid-response', 'Invalid storage cleanup preview');
-  return {
-    token,
-    scope: {
-      before: scope['before'],
-      channelIds: Array.isArray(scope['channelIds'])
-        ? scope['channelIds'].filter((id): id is string => typeof id === 'string')
-        : [],
-      kinds: Array.isArray(scope['kinds'])
-        ? (scope['kinds'].filter((kind) =>
-            (STORAGE_MEDIA_KINDS as readonly unknown[]).includes(kind),
-          ) as StorageMediaKind[])
-        : [...STORAGE_MEDIA_KINDS],
-    },
-    messages: count(preview?.['messages']),
-    files: count(preview?.['files']),
-    bytes: count(preview?.['bytes']),
-    freedBytes: count(preview?.['freedBytes']),
-    kinds: mediaTotals(preview?.['kinds']),
-    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
-      const chat = asRecord(entry);
-      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
-        ? [
-            {
-              channelId: chat['channelId'],
-              name: chat['name'],
-              files: count(chat['files']),
-              bytes: count(chat['bytes']),
-            },
-          ]
-        : [];
-    }),
-    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
-      const item = asRecord(entry);
-      const reason = item?.['reason'];
-      return typeof reason === 'string' && STORAGE_KEPT.has(reason)
-        ? [
-            {
-              reason: reason as StorageCleanupPreview['kept'][number]['reason'],
-              files: count(item?.['files']),
-            },
-          ]
-        : [];
-    }),
-  };
-}
-
-export async function loadStorageUsage(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<StorageUsage> {
-  return parseStorageUsage(await unwrap(call, 'storageUsage', {}, signal));
-}
-
-export async function previewStorageCleanup(
-  call: BridgeCall,
-  scope: StorageCleanupScope,
-  signal?: AbortSignal,
-): Promise<StorageCleanupPreview> {
-  return parseStorageCleanupPreview(
-    await unwrap(call, 'storageCleanupPreview', { ...scope }, signal),
-  );
-}
-
-export async function confirmStorageCleanup(
-  call: BridgeCall,
-  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
-): Promise<StorageCleanupResult> {
-  const result = asRecord(
-    await unwrap(call, 'storageCleanupConfirm', {
-      before: preview.scope.before,
-      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
-      kinds: preview.scope.kinds,
-      token: preview.token,
-    }),
-  );
-  return {
-    messages: count(result?.['messages']),
-    files: count(result?.['files']),
-    freedBytes: count(result?.['freedBytes']),
-  };
-}
-
-function parseStorageMessagesPreview(value: unknown): StorageMessagesPreview {
-  const preview = asRecord(value);
-  const scope = asRecord(preview?.['scope']);
-  const token = preview?.['token'];
-  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
-    throw new BridgeCallError('invalid-response', 'Invalid message cleanup preview');
-  return {
-    token,
-    scope: {
-      before: scope['before'],
-      channelIds: (Array.isArray(scope['channelIds']) ? scope['channelIds'] : []).filter(
-        (id): id is string => typeof id === 'string',
-      ),
-    },
-    messages: count(preview?.['messages']),
-    bytes: count(preview?.['bytes']),
-    files: count(preview?.['files']),
-    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
-      const chat = asRecord(entry);
-      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
-        ? [{ channelId: chat['channelId'], name: chat['name'], messages: count(chat['messages']) }]
-        : [];
-    }),
-    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
-      const item = asRecord(entry);
-      const reason = item?.['reason'];
-      return typeof reason === 'string' && STORAGE_MESSAGES_KEPT.has(reason)
-        ? [
-            {
-              reason: reason as StorageMessagesPreview['kept'][number]['reason'],
-              messages: count(item?.['messages']),
-            },
-          ]
-        : [];
-    }),
-    memoryReferences: count(preview?.['memoryReferences']),
-    more: preview?.['more'] === true,
-  };
-}
-
-export async function previewStorageMessages(
-  call: BridgeCall,
-  scope: { before: string; channelIds?: string[] },
-  signal?: AbortSignal,
-): Promise<StorageMessagesPreview> {
-  return parseStorageMessagesPreview(
-    await unwrap(call, 'storageMessagesCleanupPreview', { ...scope }, signal),
-  );
-}
-
-export async function confirmStorageMessages(
-  call: BridgeCall,
-  preview: StorageMessagesPreview,
-): Promise<StorageMessagesResult> {
-  const result = asRecord(
-    await unwrap(call, 'storageMessagesCleanupConfirm', {
-      before: preview.scope.before,
-      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
-      token: preview.token,
-    }),
-  );
-  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
 }
 
 export async function loadTelemetryStatus(
@@ -4483,8 +4228,8 @@ export async function sendSessionRequest(
   const value = asRecord(
     await unwrap(call, 'botToolRun', {
       slug,
-      tool: 'send_assignment_request',
-      args: { session_id: sessionId, text, mode: steer ? 'next-step' : 'next-turn' },
+      tool: 'unarchive_assignment',
+      args: { session_id: sessionId, message: text, mode: steer ? 'next-step' : 'next-turn' },
     }),
   );
   let result: unknown = value?.['result'];
@@ -4500,6 +4245,15 @@ export async function sendSessionRequest(
     throw new Error(
       typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
     );
+}
+
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }
 
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
@@ -4782,36 +4536,15 @@ export function parseStoredChannelMessage(value: unknown): ChannelMessage | unde
 }
 
 export function parseJournalEntry(value: unknown): JournalEntry | undefined {
-  const record = asRecord(value);
-  const revision = record?.['revision'];
-  const message = parseStoredChannelMessage(record?.['message']);
-  if (
-    typeof record?.['channelId'] !== 'string' ||
-    typeof revision !== 'number' ||
-    !Number.isSafeInteger(revision) ||
-    revision < 1 ||
-    message === undefined
-  )
-    return undefined;
-  return { channelId: record['channelId'], message, revision };
+  return channelHost.parseJournalEntry(value, parseStoredChannelMessage);
 }
 
 export function parseJournalPage(value: unknown): JournalPage | undefined {
-  const raw = asRecord(value);
-  const entries = raw?.['entries'];
-  if (
-    !Array.isArray(entries) ||
-    !(raw?.['olderCursor'] === null || typeof raw?.['olderCursor'] === 'string') ||
-    typeof raw?.['hasOlder'] !== 'boolean'
-  )
+  try {
+    return channelHost.parseJournalPage(value, parseStoredChannelMessage);
+  } catch {
     return undefined;
-  const parsed = entries.map((entry) => parseJournalEntry(entry));
-  if (parsed.some((entry) => entry === undefined)) return undefined;
-  return {
-    entries: parsed as JournalEntry[],
-    olderCursor: raw['olderCursor'] as string | null,
-    hasOlder: raw['hasOlder'],
-  };
+  }
 }
 
 export interface FilesPage {
@@ -4847,11 +4580,12 @@ export async function loadJournalPage(
   request: { through: number; before?: number; limit?: number },
   signal?: AbortSignal,
 ): Promise<JournalPage> {
-  const page = parseJournalPage(
-    await unwrap(call, 'channelJournalPage', { channelId, ...request }, signal),
+  return channelHost.readChannelJournal(
+    bridgeHost(call, signal),
+    channelId,
+    request,
+    parseStoredChannelMessage,
   );
-  if (page === undefined) throw new Error('invalid channelJournalPage response');
-  return page;
 }
 
 export async function loadTimelinePage(
@@ -4860,36 +4594,12 @@ export async function loadTimelinePage(
   request: TimelinePageRequest = {},
   signal?: AbortSignal,
 ): Promise<{ page: TimelinePage; revision: number }> {
-  const response = asRecord(
-    await unwrap(call, 'channelTimeline', { channelId, ...request }, signal),
+  return channelHost.readChannelTimeline(
+    bridgeHost(call, signal),
+    channelId,
+    request,
+    parseStoredChannelMessage,
   );
-  const revision = response?.['revision'];
-  const raw = asRecord(response?.['page']);
-  const entries = Array.isArray(raw?.['entries'])
-    ? raw['entries'].map((entry: unknown) => parseStoredChannelMessage(entry))
-    : undefined;
-  if (
-    typeof revision !== 'number' ||
-    !Number.isSafeInteger(revision) ||
-    revision < 0 ||
-    entries === undefined ||
-    entries.some((entry) => entry === undefined) ||
-    !(raw?.['olderCursor'] === null || typeof raw?.['olderCursor'] === 'string') ||
-    !(raw?.['newerCursor'] === null || typeof raw?.['newerCursor'] === 'string') ||
-    typeof raw?.['hasOlder'] !== 'boolean' ||
-    typeof raw?.['hasNewer'] !== 'boolean'
-  )
-    throw new Error('invalid channelTimeline response');
-  return {
-    revision,
-    page: {
-      entries: entries as ChannelMessage[],
-      olderCursor: raw['olderCursor'] as string | null,
-      newerCursor: raw['newerCursor'] as string | null,
-      hasOlder: raw['hasOlder'],
-      hasNewer: raw['hasNewer'],
-    },
-  };
 }
 
 export async function loadReadPosition(
@@ -4911,7 +4621,7 @@ export async function markReadPosition(
   channelId: string,
   messageId: string,
 ): Promise<void> {
-  await unwrap(call, 'channelMarkRead', { channelId, messageId });
+  await channelHost.markChannelRead(bridgeHost(call), channelId, messageId);
 }
 
 export async function loadHumanAssignmentContext(
@@ -5034,9 +4744,8 @@ export async function sendChannelMessage(
   skillInvocations?: ChannelSkillInvocationToken[],
   quotes?: readonly QuoteRef[],
 ): Promise<ChannelMessage> {
-  const value = await unwrap(
-    call,
-    'channelSend',
+  return channelHost.sendToChannel(
+    bridgeHost(call, signal),
     {
       channelId,
       body,
@@ -5059,25 +4768,22 @@ export async function sendChannelMessage(
       ...(allBotMention === undefined ? {} : { allBotMention }),
       ...(genuiReply === undefined ? {} : { genuiReply }),
     },
-    signal,
+    parseChannelMessage,
   );
-  const message = parseChannelMessage(asRecord(value)?.['message']);
-  if (message === undefined) throw new Error('invalid channelSend response');
-  return message;
+}
+
+function genuiViewState(state: unknown): GenuiViewState {
+  const parsed = genuiViewSchema.safeParse(state);
+  if (!parsed.success) throw new Error('Invalid private report view');
+  return parsed.data;
 }
 
 export function parseGenuiView(value: unknown): GenuiView {
   const record = asRecord(value);
   const version = record?.['version'];
-  const state = genuiViewSchema.safeParse(record?.['state']);
-  if (
-    typeof version !== 'number' ||
-    !Number.isSafeInteger(version) ||
-    version < 0 ||
-    !state.success
-  )
+  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
     throw new Error('Invalid private report view');
-  return { version, state: state.data };
+  return { version, state: genuiViewState(record?.['state']) };
 }
 
 export async function loadGenuiView(
@@ -5085,7 +4791,7 @@ export async function loadGenuiView(
   channelId: string,
   messageId: string,
 ): Promise<GenuiView> {
-  return parseGenuiView(await unwrap(call, 'channelGenuiView', { channelId, messageId }));
+  return channelHost.loadPrivateView(bridgeHost(call), channelId, messageId, genuiViewState);
 }
 
 export async function saveGenuiView(
@@ -5096,15 +4802,10 @@ export async function saveGenuiView(
   expectedVersion: number,
   state: GenuiViewState,
 ): Promise<GenuiView> {
-  state = genuiViewSchema.parse(state);
-  return parseGenuiView(
-    await unwrap(call, 'channelGenuiViewSave', {
-      channelId,
-      messageId,
-      snapshotId,
-      expectedVersion,
-      state,
-    }),
+  return channelHost.savePrivateView(
+    bridgeHost(call),
+    { channelId, messageId, snapshotId, expectedVersion, state: genuiViewSchema.parse(state) },
+    genuiViewState,
   );
 }
 
@@ -5115,11 +4816,7 @@ export function parseGenuiDocumentView(
   version: number;
   state: GenuiDocumentState;
 } {
-  const record = asRecord(value);
-  const version = record?.['version'];
-  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
-    throw new Error('Invalid private document view');
-  return { version, state: validateGenuiDocumentState(document, record?.['state']) };
+  return parseHostGenuiDocumentView(value, document);
 }
 
 export async function loadGenuiDocumentView(
@@ -5128,10 +4825,7 @@ export async function loadGenuiDocumentView(
   messageId: string,
   document: GenuiDocument,
 ) {
-  return parseGenuiDocumentView(
-    await unwrap(call, 'channelGenuiView', { channelId, messageId }),
-    document,
-  );
+  return loadGenuiDocumentViewFrom(bridgeHost(call), channelId, messageId, document);
 }
 
 export async function saveGenuiDocumentView(
@@ -5142,15 +4836,13 @@ export async function saveGenuiDocumentView(
   expectedVersion: number,
   state: GenuiDocumentState,
 ) {
-  return parseGenuiDocumentView(
-    await unwrap(call, 'channelGenuiViewSave', {
-      channelId,
-      messageId,
-      snapshotId: document.snapshotId,
-      expectedVersion,
-      state: validateGenuiDocumentState(document, state),
-    }),
+  return saveGenuiDocumentViewTo(
+    bridgeHost(call),
+    channelId,
+    messageId,
     document,
+    expectedVersion,
+    state,
   );
 }
 
@@ -5484,12 +5176,13 @@ export async function loadPrivateInputStatus(
   channelId: string,
   messageId: string,
 ): Promise<import('../../../core/src/credentials/contracts.js').PrivateInputStatus> {
-  const result = await call('privateInputStatus', { channelId, messageId });
-  if (!result.ok) throw new Error('Private input status is unavailable');
-  const status = (result.value as { status?: unknown }).status;
-  if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(status)))
-    throw new Error('Private input status is invalid');
-  return status as import('../../../core/src/credentials/contracts.js').PrivateInputStatus;
+  try {
+    return await channelHost.loadPrivateInputStatus(bridgeHost(call), channelId, messageId);
+  } catch (error) {
+    if (error instanceof BridgeCallError)
+      throw new Error('Private input status is unavailable', { cause: error });
+    throw error;
+  }
 }
 
 export async function submitPrivateInput(
@@ -6063,23 +5756,11 @@ export async function loadHumanAttentionStatus(call: BridgeCall): Promise<{
   };
 }
 export async function loadChannelUnreadCounts(call: BridgeCall): Promise<Record<string, number>> {
-  const channels = asRecord(await unwrap(call, 'channelUnreadCounts', {}))?.['channels'];
-  if (!Array.isArray(channels)) throw new Error('invalid channelUnreadCounts response');
-  const counts: Record<string, number> = {};
-  for (const entry of channels) {
-    const row = asRecord(entry);
-    const channelId = row?.['channelId'];
-    const unreadCount = row?.['unreadCount'];
-    if (
-      typeof channelId !== 'string' ||
-      channelId.length === 0 ||
-      !Number.isSafeInteger(unreadCount) ||
-      (unreadCount as number) < 0
-    )
-      throw new Error('invalid channelUnreadCounts response');
-    if ((unreadCount as number) > 0) counts[channelId] = unreadCount as number;
-  }
-  return counts;
+  return Object.fromEntries(
+    (await channelHost.loadUnreadCounts(bridgeHost(call)))
+      .filter((entry) => entry.unreadCount > 0)
+      .map((entry) => [entry.channelId, entry.unreadCount]),
+  );
 }
 
 export async function dismissActivityListItem(
@@ -7902,14 +7583,7 @@ export async function markAllReadPositions(
   call: BridgeCall,
   scope: { channelId?: string | undefined; botSlug?: string | undefined } = {},
 ): Promise<void> {
-  const row = asRecord(
-    await unwrap(call, 'channelMarkAllRead', {
-      ...(scope.channelId === undefined ? {} : { channelId: scope.channelId }),
-      ...(scope.botSlug === undefined ? {} : { botSlug: scope.botSlug }),
-    }),
-  );
-  if (!row || !Number.isSafeInteger(row['channels']) || (row['channels'] as number) < 0)
-    throw new Error('invalid all-read result');
+  await channelHost.markAllChannelsRead(bridgeHost(call), scope);
 }
 
 export async function loadOverviewUsage(

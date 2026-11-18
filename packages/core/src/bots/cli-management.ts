@@ -5,7 +5,9 @@ import { validBotCreationKey, type BotCreationReceipt } from './creation.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { PersonaBotDetail } from '../bridge/methods.js';
 import {
+  isAssignmentGroupOption,
   isAssignmentModelOption,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
   type ModelRoute,
@@ -19,7 +21,7 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-import { assignmentModelsMode } from './cli-models-usage.js';
+import { assignmentModelsMode, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 import type { PersonaBotDeletionPreview } from './deletion.js';
 
@@ -152,38 +154,68 @@ export async function runOnlineManagement(
   let presetInput:
     | {
         name: string;
-        orchestrator: ModelRoute;
+        orchestrator?: ModelRoute;
         assignmentDefault: ModelRoute;
         assignmentModels?: AssignmentModelOption[];
         openAssignmentModels?: boolean;
+        orchestratorGroupId?: string | null;
+        assignmentGroups?: string[];
+        assignmentDefaultGroupId?: string | null;
+        assignmentGroupOptions?: AssignmentGroupOption[];
       }
     | undefined;
   if (command === 'model-preset-create') {
     const name = values.name?.trim();
     if (!name) usage('--name is required for a Model Preset.');
+    const groups = presetGroupFlags(values);
+    if (groups.orchestratorGroupId && values['orchestrator-provider'] !== undefined)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    if (
+      groups.assignmentDefaultGroupId &&
+      !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
+    )
+      usage('--assignment-default-group must be one of --assignment-groups.');
     presetInput = {
       name,
-      orchestrator: route(values, 'orchestrator'),
+      ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
       assignmentDefault: route(values, 'assignment'),
       ...assignmentModelsMode(values['assignment-models']),
+      ...groups,
     };
     if (values['plan-stdin']) {
       let input: unknown;
       try {
         input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
       } catch {
-        usage('Plan stdin must contain assignmentModels.');
+        usage('Plan stdin must contain assignmentModels or assignmentGroupOptions.');
       }
+      const plan = input as Record<string, unknown> | null;
+      const models = plan?.['assignmentModels'];
+      const options = plan?.['assignmentGroupOptions'];
       if (
-        typeof input !== 'object' ||
-        input === null ||
-        !('assignmentModels' in input) ||
-        !Array.isArray(input.assignmentModels) ||
-        !input.assignmentModels.every(isAssignmentModelOption) ||
-        Object.keys(input).some((key) => key !== 'assignmentModels')
+        typeof plan !== 'object' ||
+        plan === null ||
+        Array.isArray(plan) ||
+        (models === undefined && options === undefined) ||
+        (models !== undefined &&
+          (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
+        (options !== undefined &&
+          (!Array.isArray(options) ||
+            !options.every(
+              (option) =>
+                isAssignmentGroupOption(option) &&
+                (groups.assignmentGroups ?? []).includes(option.group),
+            ))) ||
+        Object.keys(plan).some(
+          (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+        )
       )
-        usage('Plan stdin must contain only valid assignmentModels.');
-      presetInput.assignmentModels = input.assignmentModels;
+        usage(
+          'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
+        );
+      if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
+      if (options !== undefined)
+        presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
     }
   }
   if (command === 'model-preset-apply' && !values.preset?.trim()) usage('--preset is required.');

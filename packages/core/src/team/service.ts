@@ -896,8 +896,8 @@ export class TeamService {
     return peer;
   }
 
-  assertCall(principal: Principal, method: string): void {
-    if (principal.kind !== 'botharness-member') return;
+  assertCall(principal: Principal | undefined, method: string): void {
+    if (principal?.kind !== 'botharness-member') return;
     if (!this.resolve(principal)) throw new TeamError('credentials-invalid');
     if (
       this.member(principal.humanId)?.mustChangePassword &&

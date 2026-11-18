@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 
 import type { SessionGoal, SessionProgress, SessionTodo } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ChipButton } from './ds/chip-button.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -13,6 +14,7 @@ const RING = 5.5;
 const RING_LENGTH = 2 * Math.PI * RING;
 
 const styles = stylex.create({
+  goalChip: { display: 'inline-flex', minWidth: 0, maxWidth: '200px' },
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -149,5 +151,50 @@ export function GoalChip({
       <ChannelSidebarIcon name="target" size={12} />
       <span {...stylex.props(styles.goalText)}>{goal.objective}</span>
     </span>
+  );
+}
+
+export function SessionProgressChips({
+  goal,
+  todos,
+  open,
+  toggle,
+  t,
+}: {
+  goal: SessionGoal | undefined;
+  todos: readonly SessionTodo[] | undefined;
+  open: 'goal' | 'todos' | undefined;
+  toggle(key: 'goal' | 'todos'): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const count = todoCount(todos);
+  return (
+    <>
+      {goal === undefined ? null : (
+        <span {...stylex.props(styles.goalChip)}>
+          <ChipButton
+            data-session-chip="goal"
+            aria-expanded={open === 'goal'}
+            title={t('sessions.progress.goal', {
+              objective: goal.objective,
+              phase: t(`sessions.goal.${goal.phase}`),
+            })}
+            icon={<ChannelSidebarIcon name="target" size={12} />}
+            label={goal.objective}
+            onClick={() => toggle('goal')}
+          />
+        </span>
+      )}
+      {todos === undefined ? null : (
+        <ChipButton
+          data-session-chip="todos"
+          aria-expanded={open === 'todos'}
+          title={t('sessions.progress.todos', count)}
+          icon={<TodoRing {...count} />}
+          label={`${count.done}/${count.total}`}
+          onClick={() => toggle('todos')}
+        />
+      )}
+    </>
   );
 }

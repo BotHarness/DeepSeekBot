@@ -124,12 +124,40 @@ The Human-selected Channel scope for a Window Companion's PersonaBot-authored me
 _Avoid_: Channel pin, Channel membership, Agent Scope
 
 **Model Preset**:
-A reusable, deployment-local Human-authored model plan for PersonaBots: one Orchestrator provider, model, and reasoning effort, plus allowed Assignment models and efforts with a default. Applying it copies the plan to a PersonaBot; later preset edits do not update that copy.
+A reusable, deployment-local Human-authored model plan for PersonaBots: one Orchestrator Model Choice, plus the Assignment Model Choices (a listed set or Open Assignment Models) with a default. Applying it copies the plan to a PersonaBot; later preset edits do not update that copy. It references Routing Groups by identity rather than copying them.
 _Avoid_: DSH Agent preset, SoulSnapshot
 
 **PersonaBot Model Plan**:
-The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. Its Assignment policy may remain inherited from the global model while its Orchestrator is customized independently. It is operational configuration, not Soul or Memory.
+The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. Its Assignment policy may remain inherited from the Default Model Choice while its Orchestrator is customized independently. It is operational configuration, not Soul or Memory.
 _Avoid_: Soul, DSH Agent preset, model usage
+
+**Default Model Choice**:
+The Profile-wide Model Choice, an exact route or a Routing Group, used by a PersonaBot without its own Orchestrator choice and by every Assignment that inherits. It is not a Model Preset.
+_Avoid_: global preset, default preset, global model (bare)
+
+**Model Choice**:
+What a Human or an Orchestrator picks wherever a model is chosen: either one provider, model and reasoning effort route, or one Routing Group.
+_Avoid_: model (bare, when a Routing Group is possible), template
+
+**Routing Group**:
+A named, Host-wide, ordered set of model routes and other Routing Groups that is chosen as one Model Choice. A new Session on it starts on the first member that is not a Resting Route, and moves to another member only through Model Fallback; it stays there until that member fails too.
+_Avoid_: model pool, fallback chain, template, Model Preset, group (bare)
+
+**Model Fallback**:
+A Session moving from its current route to the next usable member of its Routing Group because the current one is out of quota or balance, has a missing or invalid credential, or stays rate limited past the wait. Context overflow never causes it.
+_Avoid_: failover, retry, reroute
+
+**Resting Route**:
+A route the Host skips for every Session after its quota or balance ran out, until the reset time its provider named or a default rest ends. Sessions that fell back return to their preferred route at their next Turn after the rest ends.
+_Avoid_: disabled model, banned model, cooldown
+
+**Model Switch Notice**:
+The line in a Session's history that records one Model Fallback or one return to the preferred route: from which route, to which, why, and until when the left route rests. It informs and never wakes or notifies anyone.
+_Avoid_: error, failure notice, system message (bare)
+
+**Open Assignment Models**:
+An Assignment policy under which an Orchestrator may choose any route its PersonaBot's owner is allowed to use and has a configured credential for, instead of a listed set. It still names an Assignment default.
+_Avoid_: unrestricted mode, any model, no preset
 
 ### Support and execution
 
@@ -144,6 +172,10 @@ _Avoid_: server, instance, node, worker
 **Agent**:
 The DSH executor inside one Session. Never a PersonaBot.
 _Avoid_: using this word for PersonaBot
+
+**Subscription Engine**:
+The Human's own, unmodified official agent CLI (Claude Code or Codex), signed in with the Human's own subscription and driven by the Host as the executor of an Orchestrator Session or Assignment Session in place of a DSH Agent. Local Hosts only.
+_Avoid_: driver, provider (a DSH Provider calls a model API), ACP agent (ACP is one protocol an engine may speak)
 
 **Subagent**:
 A DSH child agent and child Session that a Session starts for bounded work; it inherits the parent Session's PersonaBot ownership but belongs to that parent work, never becoming an independent Assignment Session.

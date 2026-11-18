@@ -1,5 +1,6 @@
 import { mountWorkspaceChrome, updateWorkspaceChrome } from './workspace-chrome.js';
 import { AppearancePanelHeader } from './appearance-panel-header.js';
+import { SessionHeaderSlot } from './session-header-slot.js';
 import { AppearanceContext } from './appearance-context.js';
 import { PanelAppearanceSettings } from './appearance-panel-settings.js';
 import { panelTargetId } from './appearance-panels.js';
@@ -102,6 +103,7 @@ import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
 const styles = stylex.create({
+  sessionChips: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
   storageWarning: {
     position: 'absolute',
     bottom: space.x4,
@@ -418,6 +420,7 @@ function workspaceState(dock: DockContextValue, id: string): SubpanelState | und
 
 function ChannelBodyPanel(): ReactElement {
   const dock = useDock();
+  const [sessionSlot, setSessionSlot] = useState<HTMLElement | null>(null);
   if (dock.column) return <>{dock.conversation(<SimpleMessageContent column={dock.column} />)}</>;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
@@ -433,6 +436,16 @@ function ChannelBodyPanel(): ReactElement {
         content: <ChannelEntryContent entryId={id} />,
       };
   }
+  if (dock.channel !== undefined && dock.session !== undefined)
+    panels[SESSION_DETAIL] = {
+      label: dock.session.title,
+      header: <SessionDockHeader dock={dock} session={dock.session} slot={setSessionSlot} />,
+      content: (
+        <SessionHeaderSlot.Provider value={sessionSlot}>
+          {dock.session.content}
+        </SessionHeaderSlot.Provider>
+      ),
+    };
   return (
     <>
       {dock.conversation(
@@ -452,14 +465,12 @@ function ChannelMessageContent(): ReactElement {
   const members = dock.members;
   const filesOpen = dock.channel !== undefined && dock.files?.open === true;
   const inboxOpen = dock.channel?.type === 'dm' && dock.inbox?.open === true;
-  const session = dock.channel === undefined ? undefined : dock.session;
   const detailEntryId = inboxOpen ? 'bot-inbox' : 'members';
-  const detailLabel =
-    session?.title ??
-    dock.t(filesOpen ? 'generatedFiles.title' : inboxOpen ? 'entry.botInbox' : 'entry.members');
+  const detailLabel = dock.t(
+    filesOpen ? 'generatedFiles.title' : inboxOpen ? 'entry.botInbox' : 'entry.members',
+  );
   const closeDetail = () => {
-    if (session !== undefined) session.close();
-    else if (filesOpen) dock.files?.setOpen(false);
+    if (filesOpen) dock.files?.setOpen(false);
     else if (inboxOpen) dock.inbox?.setOpen(false);
     else members?.setOpen(false);
   };
@@ -471,102 +482,87 @@ function ChannelMessageContent(): ReactElement {
       <div className="bh-message-content">
         <DockBodySlot />
       </div>
-      {members &&
-        (session !== undefined ||
-          filesOpen ||
-          inboxOpen ||
-          (dock.channel?.type === 'group' && members.open)) && (
-          <>
-            <div
-              className="bh-message-member-divider"
-              role="separator"
-              tabIndex={0}
-              aria-label={detailLabel}
-              aria-orientation="vertical"
-              aria-valuemin={20}
-              aria-valuemax={60}
-              aria-valuenow={Math.round(members.ratio * 100)}
-              onKeyDown={(event) => {
-                if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-                event.preventDefault();
-                members.setRatio(members.ratio + (event.key === 'ArrowLeft' ? 0.02 : -0.02));
-              }}
-              onPointerDown={(event) => {
-                if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId);
-              }}
-              onPointerMove={(event) => {
-                if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-                const box = event.currentTarget.parentElement!.getBoundingClientRect();
-                members.setRatio((box.right - event.clientX) / box.width);
-              }}
-              onPointerUp={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId))
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-              }}
-            />
-            <aside
-              className="bh-message-members"
-              aria-label={detailLabel}
-              style={{ width: `${members.ratio * 100}%` }}
+      {members && (filesOpen || inboxOpen || (dock.channel?.type === 'group' && members.open)) && (
+        <>
+          <div
+            className="bh-message-member-divider"
+            role="separator"
+            tabIndex={0}
+            aria-label={detailLabel}
+            aria-orientation="vertical"
+            aria-valuemin={20}
+            aria-valuemax={60}
+            aria-valuenow={Math.round(members.ratio * 100)}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+              event.preventDefault();
+              members.setRatio(members.ratio + (event.key === 'ArrowLeft' ? 0.02 : -0.02));
+            }}
+            onPointerDown={(event) => {
+              if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const box = event.currentTarget.parentElement!.getBoundingClientRect();
+              members.setRatio((box.right - event.clientX) / box.width);
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          />
+          <aside
+            className="bh-message-members"
+            aria-label={detailLabel}
+            style={{ width: `${members.ratio * 100}%` }}
+          >
+            <AppearancePanelHeader
+              id={filesOpen ? 'generated-files' : detailEntryId}
+              label={detailLabel}
+              t={dock.t}
             >
-              <AppearancePanelHeader
-                id={filesOpen ? 'generated-files' : detailEntryId}
+              <PanelHeader
                 label={detailLabel}
-                t={dock.t}
-              >
-                <PanelHeader
-                  label={detailLabel}
-                  onHide={closeDetail}
-                  hideLabel={dock.t('dock.close', { label: detailLabel })}
-                  hideHint={dock.t('dock.headHintHide')}
-                  badge={
-                    !filesOpen && DetailBadge && detailProps ? (
-                      <DetailBadge key={entryScopeKey(detailProps)} {...detailProps} />
-                    ) : undefined
-                  }
-                  action={
-                    <>
-                      {session === undefined && !filesOpen && DetailActions && detailProps && (
-                        <DetailActions key={entryScopeKey(detailProps)} {...detailProps} />
-                      )}
-                      <Tooltip label={dock.t('dock.close', { label: detailLabel })} side="bottom">
-                        <IconButton
-                          aria-label={dock.t('dock.close', { label: detailLabel })}
-                          onClick={closeDetail}
-                        >
-                          <ChannelSidebarIcon name="x" />
-                        </IconButton>
-                      </Tooltip>
-                    </>
-                  }
-                />
-              </AppearancePanelHeader>
-              <div
-                className="bh-channel-subpanel-body"
-                data-appearance-body={
-                  session !== undefined
-                    ? 'session-detail'
-                    : filesOpen
-                      ? 'generated-files'
-                      : detailEntryId
+                onHide={closeDetail}
+                hideLabel={dock.t('dock.close', { label: detailLabel })}
+                hideHint={dock.t('dock.headHintHide')}
+                badge={
+                  !filesOpen && DetailBadge && detailProps ? (
+                    <DetailBadge key={entryScopeKey(detailProps)} {...detailProps} />
+                  ) : undefined
                 }
-              >
-                {session !== undefined ? (
-                  session.content
-                ) : filesOpen ? (
-                  <DockFilesSlot />
-                ) : (
-                  <ChannelEntryContent entryId={detailEntryId} />
-                )}
-              </div>
-            </aside>
-          </>
-        )}
+                action={
+                  <>
+                    {!filesOpen && DetailActions && detailProps && (
+                      <DetailActions key={entryScopeKey(detailProps)} {...detailProps} />
+                    )}
+                    <Tooltip label={dock.t('dock.close', { label: detailLabel })} side="bottom">
+                      <IconButton
+                        aria-label={dock.t('dock.close', { label: detailLabel })}
+                        onClick={closeDetail}
+                      >
+                        <ChannelSidebarIcon name="x" />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                }
+              />
+            </AppearancePanelHeader>
+            <div
+              className="bh-channel-subpanel-body"
+              data-appearance-body={filesOpen ? 'generated-files' : detailEntryId}
+            >
+              {filesOpen ? <DockFilesSlot /> : <ChannelEntryContent entryId={detailEntryId} />}
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   );
 }
 
 const GENERATED_FILES = 'generated-files';
+const SESSION_DETAIL = 'session-detail';
 
 interface ColumnEntry {
   id: string;
@@ -624,6 +620,92 @@ interface SubpanelReorderApi {
   nudge(id: string, delta: -1 | 1): void;
 }
 
+function SessionDetailHeader({
+  dock,
+  session,
+  slot,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
+}): ReactElement {
+  const label = dock.t('dock.close', { label: session.title });
+  return (
+    <PanelHeader
+      label={session.title}
+      onHide={session.close}
+      hideLabel={label}
+      hideHint={dock.t('dock.headHintHide')}
+      badge={
+        <span ref={slot} data-session-header-chips="" {...stylex.props(styles.sessionChips)} />
+      }
+      action={
+        <Tooltip label={label} side="bottom">
+          <IconButton aria-label={label} onClick={session.close}>
+            <ChannelSidebarIcon name="x" />
+          </IconButton>
+        </Tooltip>
+      }
+    />
+  );
+}
+
+function SessionDockHeader({
+  dock,
+  session,
+  slot,
+}: {
+  dock: DockContextValue;
+  session: ChannelSessionView;
+  slot(node: HTMLElement | null): void;
+}): ReactElement {
+  const appearance = useContext(AppearanceContext);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const menu = usePanelMenu({
+    items: [
+      ...(appearance
+        ? [
+            { id: 'appearance', label: dock.t('appearance.panelMenu') },
+            { type: 'separator' as const, id: 'appearance-separator' },
+          ]
+        : []),
+      ...(['left', 'right', 'above', 'below'] as const).map((direction) => ({
+        id: direction,
+        label: dock.t(`workspace.session.${direction}`),
+      })),
+    ],
+    onSelect: (id) => {
+      if (id === 'appearance') setAppearanceOpen(true);
+      else
+        dock.childLayout.setTree(
+          moveChannelSplit(
+            dock.childLayout.tree,
+            SESSION_DETAIL,
+            MESSAGE_LEAF,
+            id as DockPosition['direction'],
+          ),
+        );
+    },
+  });
+  return (
+    <>
+      {appearanceOpen && appearance && (
+        <PanelAppearanceSettings
+          owner={appearance}
+          id={panelTargetId(SESSION_DETAIL)}
+          label={session.title}
+          t={dock.t}
+          onClose={() => setAppearanceOpen(false)}
+        />
+      )}
+      <div data-appearance-header={SESSION_DETAIL} {...menu.triggerProps}>
+        {menu.menu}
+        <SessionDetailHeader dock={dock} session={session} slot={slot} />
+      </div>
+    </>
+  );
+}
+
 function SessionDetailAside({
   dock,
   session,
@@ -633,7 +715,7 @@ function SessionDetailAside({
 }): ReactElement {
   const members = dock.members;
   const ratio = members?.ratio ?? 0.4;
-  const label = dock.t('dock.close', { label: session.title });
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <>
       <div
@@ -670,23 +752,11 @@ function SessionDetailAside({
         data-session-aside=""
         style={{ width: `${ratio * 100}%` }}
       >
-        <AppearancePanelHeader id="session-detail" label={session.title} t={dock.t}>
-          <PanelHeader
-            label={session.title}
-            onHide={session.close}
-            hideLabel={label}
-            hideHint={dock.t('dock.headHintHide')}
-            action={
-              <Tooltip label={label} side="bottom">
-                <IconButton aria-label={label} onClick={session.close}>
-                  <ChannelSidebarIcon name="x" />
-                </IconButton>
-              </Tooltip>
-            }
-          />
+        <AppearancePanelHeader id={SESSION_DETAIL} label={session.title} t={dock.t}>
+          <SessionDetailHeader dock={dock} session={session} slot={setSlot} />
         </AppearancePanelHeader>
-        <div className="bh-channel-subpanel-body" data-appearance-body="session-detail">
-          {session.content}
+        <div className="bh-channel-subpanel-body" data-appearance-body={SESSION_DETAIL}>
+          <SessionHeaderSlot.Provider value={slot}>{session.content}</SessionHeaderSlot.Provider>
         </div>
       </aside>
     </>
@@ -1712,7 +1782,7 @@ export function ChannelDock({
   let childTree =
     (channel && channelSplits[channel.id]) ||
     legacyChannelSplit({ ...botStates, sessions: sessionState });
-  for (const id of channelPanelIds) {
+  for (const id of session === undefined ? channelPanelIds : [...channelPanelIds, SESSION_DETAIL]) {
     if (!splitPanels(childTree).includes(id))
       childTree = { axis: 'horizontal', ratio: 0.7, first: childTree, second: { panel: id } };
   }

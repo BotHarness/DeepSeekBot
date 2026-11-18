@@ -433,15 +433,48 @@ function combobox(label: string): HTMLInputElement {
   return found;
 }
 
-async function choose(label: string, query: string, option: string): Promise<void> {
-  const input = combobox(label);
+function trigger(label: string): HTMLButtonElement | undefined {
+  return [...document.querySelectorAll<HTMLButtonElement>('button[data-picker-trigger]')].find(
+    (candidate) => {
+      const name = candidate.getAttribute('aria-label') ?? '';
+      return name === label || name.startsWith(`${label} · `);
+    },
+  );
+}
+
+function picked(label: string): string {
+  const found = trigger(label);
+  if (found === undefined) throw new Error(`No model picker ${label}`);
+  return found.title || (found.textContent ?? '');
+}
+
+async function openPicker(label: string): Promise<void> {
+  const found = trigger(label);
+  if (found === undefined) throw new Error(`No model picker ${label}`);
+  await act(async () => found.click());
+}
+
+async function search(input: HTMLInputElement, query: string): Promise<void> {
   await act(async () => input.focus());
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, query);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
+}
+
+async function choose(label: string, query: string, option: string): Promise<void> {
+  if (trigger(label) === undefined) {
+    await search(combobox(label), query);
+  } else {
+    await openPicker(label);
+    const field = document.querySelector<HTMLInputElement>(
+      '[data-filter-picker] input[role="combobox"]',
+    );
+    if (field === null) throw new Error(`No model search for ${label}`);
+    await search(field, query);
+  }
   const match = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(
-    (candidate) => candidate.textContent?.startsWith(option),
+    (candidate) => (candidate.title || candidate.textContent || '').startsWith(option),
   );
   if (match === undefined) throw new Error(`No option ${option} for ${query}`);
   await act(async () => match.click());
@@ -476,8 +509,8 @@ describe('Model entry', () => {
     );
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(document.querySelector('.bh-model-entry > .bh-card-list')).toBeNull();
-    expect(combobox('Main model').value).toBe('Flash');
-    expect(combobox('Task model').value).toBe('Inherit global');
+    expect(picked('Main model')).toBe('Flash');
+    expect(picked('Task model')).toBe('Inherit global');
     await choose('Task model', 'pro', 'Pro');
     await act(async () => button('Cancel').click());
     expect(onClose).toHaveBeenCalledOnce();
@@ -501,8 +534,8 @@ describe('Model entry', () => {
     expect(document.querySelector('input[aria-label="Main model"]')).toBeNull();
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Specific models').click());
-    expect(combobox('Main model').value).toBe('Flash');
-    expect(combobox('Task model').value).toBe('Pro');
+    expect(picked('Main model')).toBe('Flash');
+    expect(picked('Task model')).toBe('Pro');
     expect(button('Save').disabled).toBe(false);
   });
 
@@ -521,8 +554,8 @@ describe('Model entry', () => {
       } as unknown as BridgeActions,
       vi.fn(),
     );
-    expect(combobox('Main model').value).toBe('Flash');
-    expect(combobox('Task model').value).toBe('Inherit global');
+    expect(picked('Main model')).toBe('Flash');
+    expect(picked('Task model')).toBe('Inherit global');
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Save').click());
     expect(customizeModelPlan).not.toHaveBeenCalled();
@@ -551,7 +584,7 @@ describe('Model entry', () => {
       vi.fn(),
     );
     await choose('Main model', 'pro', 'Pro');
-    expect(combobox('Task model').value).toBe('Inherit global');
+    expect(picked('Task model')).toBe('Inherit global');
     await act(async () => button('Save').click());
     expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith('ada', orchestrator, 3);
     expect(setModelPlan).not.toHaveBeenCalled();
@@ -649,7 +682,7 @@ describe('Model entry', () => {
     await choose('Task model', 'pro', 'Pro');
     await act(async () => button('Save').click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('Revision conflict');
-    expect(combobox('Task model').value).toBe('Pro');
+    expect(picked('Task model')).toBe('Pro');
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -753,20 +786,16 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     await openEditor(document.body);
 
-    expect(combobox('Main model').value).toBe('Kimi K2');
-    expect(combobox('Task model').value).toBe('Inherit global');
-    await act(async () => combobox('Main model').focus());
-    await act(async () => {
-      const input = combobox('Main model');
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    expect(picked('Main model')).toBe('Kimi K2');
+    expect(picked('Task model')).toBe('Inherit global');
+    await openPicker('Main model');
     const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-    expect(options.map((option) => [option.textContent, option.disabled])).toEqual([
-      ['Kimi K2Moonshot', false],
-      ['FlashDeepSeek · needs an API key', true],
-      ['ProDeepSeek · needs an API key', true],
+    expect(options.map((option) => [option.getAttribute('aria-label'), option.disabled])).toEqual([
+      ['Kimi K2 · Moonshot', false],
+      ['Flash · DeepSeek · needs an API key', true],
+      ['Pro · DeepSeek · needs an API key', true],
     ]);
+    await openPicker('Main model');
 
     expect(button('Save').disabled).toBe(true);
     await choose('Task model', 'k2', 'Kimi K2');
@@ -830,8 +859,8 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('Daily');
 
     await openEditor(host);
-    expect(combobox('Main model').value).toBe('Flash');
-    expect(combobox('Task model').value).toBe('Pro');
+    expect(picked('Main model')).toBe('Flash');
+    expect(picked('Task model')).toBe('Pro');
     expect(document.querySelector('[data-model-preset-source]')).toBeNull();
     await act(async () => button('Choose preset').click());
     expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
@@ -964,7 +993,7 @@ describe('Model entry', () => {
         `[aria-label="Task model mode"] [role="tab"]:${name === 'Simple' ? 'first' : 'last'}-child`,
       )!;
     expect(mode('Simple').getAttribute('aria-selected')).toBe('true');
-    expect(combobox('Task model').value).toBe('Pro');
+    expect(picked('Task model')).toBe('Pro');
     await act(async () => mode('Advanced').click());
     expect(mode('Advanced').getAttribute('aria-selected')).toBe('true');
     expect(document.querySelector('input[role="combobox"][aria-label="Task model"]')).toBeNull();
@@ -1070,7 +1099,7 @@ describe('Model entry', () => {
     expect(document.querySelectorAll('li.bh-model-card')).toHaveLength(2);
     await act(async () => button('Simple').click());
     expect(document.querySelector('li.bh-model-card')).toBeNull();
-    expect(combobox('Task model').value).toBe('Flash');
+    expect(picked('Task model')).toBe('Flash');
     await act(async () => button('Save').click());
     expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
       'ada',
@@ -1161,6 +1190,50 @@ it('uses the shared model picker for onboarding and waits for an explicit model 
     false,
     7,
   );
+});
+
+it('offers Routing Groups in the onboarding picker and saves one without an effort (#4500)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const onConfirm = vi.fn(async () => {});
+  const actions = {
+    modelCatalog: vi.fn(async () => ({
+      models: catalog,
+      default: { provider: 'deepseek', model: 'flash' },
+      defaultGroupId: 'main',
+      groups: [
+        {
+          id: 'main',
+          name: 'Main',
+          revision: 1,
+          routes: [
+            { provider: 'kimi', model: 'k2' },
+            { provider: 'deepseek', model: 'flash' },
+          ],
+        },
+      ],
+    })),
+  } as unknown as BridgeActions;
+  await act(async () =>
+    root!.render(
+      createElement(OnboardingModelDialog, {
+        actions,
+        title: 'Default model',
+        globalOnly: true,
+        onClose: vi.fn(),
+        onConfirm,
+        t: translate,
+      }),
+    ),
+  );
+  expect(trigger('Model')?.textContent).toContain('Main');
+  expect(document.querySelector('[role="radiogroup"], [role="tablist"]')).toBeNull();
+  await choose('Model', 'Flash', 'Flash');
+  await choose('Model', 'Main', 'Main');
+  await act(async () => button('Save global default model').click());
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main' }, true, 0);
 });
 
 it('offers general, daily check-in and timed-test requests through the normal welcome send path', async () => {
@@ -1263,7 +1336,7 @@ it('keeps inherited Assignment settings when editing an Orchestrator-only plan',
   } as unknown as BridgeActions);
   expect(cards(host)).toContain(translate('onboarding.inherit'));
   await openEditor(host);
-  expect(combobox(translate('modelPreset.assignment')).value).toBe(translate('onboarding.inherit'));
+  expect(picked(translate('modelPreset.assignment'))).toBe(translate('onboarding.inherit'));
   expect(button(translate('modelPreset.saveAs')).disabled).toBe(true);
   await act(async () => button(translate('modelPreset.save')).click());
   expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(

@@ -5,12 +5,8 @@ import {
 } from '@botharness/host-client/shared/bot-mode-settings';
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
 import { QuoteIcon } from './quote-icon.js';
-import {
-  dismissSelectionQuote,
-  selectedMessageText,
-  useSelectionQuote,
-} from './selection-quote.js';
-import { SelectionToolbar, SelectionToolbarButton } from './ds/selection-toolbar.js';
+import { MessageSelectionToolbar } from './message-selection-toolbar.js';
+import { selectedMessageText } from './selection-quote.js';
 import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
@@ -140,7 +136,7 @@ import { liveSkills } from './skill-refs.js';
 import type { ComposerSkillOption } from './channel-composer.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { rebaseChannelRefs } from './channel-refs.js';
-import { channelHumanName, humanLabel } from './actor-names.js';
+import { humanAuthorName } from './actor-names.js';
 import { ChannelHeaderMenu, type ChannelMenuTrigger } from './human-channel-name.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ChannelHumanMember } from './store.js';
@@ -337,36 +333,6 @@ function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
 }
 
-function MessageSelectionToolbar({
-  enabled,
-  label,
-  quoteLabel,
-  canQuote,
-  onQuote,
-}: {
-  readonly enabled: boolean;
-  readonly label: string;
-  readonly quoteLabel: string;
-  readonly canQuote: (messageId: string) => boolean;
-  readonly onQuote: (messageId: string, text: string) => void;
-}): ReactElement | null {
-  const selection = useSelectionQuote(enabled, canQuote);
-  if (selection === undefined) return null;
-  return (
-    <SelectionToolbar x={selection.x} y={selection.y} below={selection.below} label={label}>
-      <SelectionToolbarButton
-        icon={<QuoteIcon />}
-        onPress={() => {
-          onQuote(selection.messageId, selection.text);
-          dismissSelectionQuote();
-        }}
-      >
-        {quoteLabel}
-      </SelectionToolbarButton>
-    </SelectionToolbar>
-  );
-}
-
 function quoteSource(message: ChannelMessage, text?: string): string {
   return (
     text ??
@@ -382,13 +348,12 @@ function authorLabel(
   message: ChannelMessage,
   bots: readonly BotSummary[],
   t: BotHarnessTranslate,
-  humanName = 'Human',
+  humans?: Pick<ChannelSummary, 'humanMembers'>,
   remoteBot?: ChannelSummary['remoteBot'],
 ): string {
   switch (message.author.kind) {
     case 'human':
-      if (message.author.deleted === true) return t('team.deletedMember');
-      return message.author.displayName ?? humanLabel(humanName, t);
+      return humanAuthorName(message.author, humans, t);
     case 'system':
       return t('main.author.system');
     case 'bot': {
@@ -479,7 +444,7 @@ interface MessageMenuRequest {
 }
 
 function QuoteList({
-  humanName,
+  humans,
   message,
   channelId,
   bots,
@@ -489,7 +454,7 @@ function QuoteList({
   message: ChannelMessage;
   channelId: string | undefined;
   bots: readonly BotSummary[];
-  humanName: string;
+  humans: Pick<ChannelSummary, 'humanMembers'>;
   onJump(messageId: string): void;
   t: BotHarnessTranslate;
 }): ReactElement | null {
@@ -522,7 +487,7 @@ function QuoteList({
             />
           );
         const quoted = preview.author;
-        const author = authorLabel({ ...message, author: quoted }, bots, t, humanName);
+        const author = authorLabel({ ...message, author: quoted }, bots, t, humans);
         const colorSource =
           mine || quoted.kind !== 'bot'
             ? undefined
@@ -801,7 +766,7 @@ const MessageGroupView = memo(function MessageGroupView({
   t: BotHarnessTranslate;
   nativeChatT?: NativeChatFailureText | undefined;
 }): ReactElement {
-  const humanName = channelHumanName({ humanMembers: [...humanMembers] });
+  const humans = useMemo(() => ({ humanMembers: [...humanMembers] }), [humanMembers]);
   const first = group.messages[0]!;
   const author = first.author;
   const self = useSelfHumanId();
@@ -848,7 +813,7 @@ const MessageGroupView = memo(function MessageGroupView({
         nativeTitle={false}
       />
     );
-  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName, remoteBot);
+  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humans, remoteBot);
   const authorCard =
     author.kind === 'remote-bot' &&
     remoteBot?.hostId === author.hostId &&
@@ -1038,7 +1003,7 @@ const MessageGroupView = memo(function MessageGroupView({
                   data-bubble-media={bubbleMedia(message)}
                 >
                   <QuoteList
-                    humanName={humanName}
+                    humans={humans}
                     message={message}
                     channelId={channelId}
                     bots={bots}
@@ -1806,7 +1771,7 @@ function ConversationView({
     if (target === undefined) return quote;
     return {
       ...quote,
-      author: authorLabel(target, state.bots, t, channelHumanName(channel)),
+      author: authorLabel(target, state.bots, t, channel),
       excerpt: Array.from(quoteSource(target, quote.text)).slice(0, 140).join(''),
     };
   });
@@ -1975,7 +1940,7 @@ function ConversationView({
     );
   };
   const selectionAuthor = (message: ChannelMessage): string =>
-    authorLabel(message, state.bots, t, channelHumanName(channel));
+    authorLabel(message, state.bots, t, channel);
   const copySelection = async (ids: readonly string[]): Promise<void> => {
     const text = conversationText(ids, messages, {
       title,
@@ -2425,7 +2390,16 @@ function ConversationView({
       ? undefined
       : {
           ...baseComposerContext,
-          shortcuts: [...baseComposerContext.shortcuts, ...conversationShortcuts],
+          shortcuts: [
+            ...(contextInHeader
+              ? baseComposerContext.shortcuts.map((shortcut) =>
+                  shortcut.id === 'footer'
+                    ? { ...shortcut, id: 'header' as const, label: t('composerHeader.settings') }
+                    : shortcut,
+                )
+              : baseComposerContext.shortcuts),
+            ...conversationShortcuts,
+          ],
           ...(contextInHeader ? { content: undefined } : {}),
         };
 
@@ -2522,7 +2496,7 @@ function ConversationView({
             author:
               target === undefined
                 ? t('message.replyUnavailable')
-                : authorLabel(target, state.bots, t, channelHumanName(channel)),
+                : authorLabel(target, state.bots, t, channel),
             excerpt,
           },
         ];
@@ -2537,7 +2511,7 @@ function ConversationView({
     const quote: ComposerQuote = {
       messageId: message.id,
       ...(text === undefined ? {} : { text: Array.from(text.trim()).slice(0, 1000).join('') }),
-      author: authorLabel(message, state.bots, t, channelHumanName(channel)),
+      author: authorLabel(message, state.bots, t, channel),
       excerpt: characters.slice(0, 140).join(''),
     };
     setQuoteTargets((current) =>
@@ -3739,12 +3713,7 @@ function ConversationView({
                           <BotDmActionLabel
                             messageKey="botCreate.action"
                             senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                            senderName={authorLabel(
-                              first,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            )}
+                            senderName={authorLabel(first, state.bots, t, channel)}
                             recipientSlug={first.botCreateAction.botSlug}
                             recipientName={
                               state.bots.find((bot) => bot.slug === first.botCreateAction!.botSlug)
@@ -3811,12 +3780,7 @@ function ConversationView({
                         >
                           <BotDmActionLabel
                             senderSlug={first.author.kind === 'bot' ? first.author.slug : undefined}
-                            senderName={authorLabel(
-                              first,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            )}
+                            senderName={authorLabel(first, state.bots, t, channel)}
                             recipientSlug={first.botDmAction.recipientBotSlug}
                             recipientName={memberName(
                               state.bots,
@@ -4070,12 +4034,7 @@ function ConversationView({
                         ? undefined
                         : {
                             id: replyTarget.id,
-                            author: authorLabel(
-                              replyTarget,
-                              state.bots,
-                              t,
-                              channelHumanName(channel),
-                            ),
+                            author: authorLabel(replyTarget, state.bots, t, channel),
                             body: replyTarget.body,
                           }
                     }
@@ -4421,6 +4380,9 @@ function ConversationView({
                             key={sessionDetail.sessionId}
                             actions={actions}
                             botSlug={sessionOwner}
+                            botName={
+                              state.bots.find((item) => item.slug === sessionOwner)?.displayName
+                            }
                             sessionId={sessionDetail.sessionId}
                             t={t}
                           />

@@ -164,6 +164,7 @@ describe('Account Profile screen', () => {
       <ProfileSetupView
         name="Mia"
         avatar={undefined}
+        hasAvatar={false}
         editor={editor}
         onDone={onDone}
         onLater={onLater}
@@ -183,11 +184,67 @@ describe('Account Profile screen', () => {
     expect(onLater).toHaveBeenCalled();
     await act(async () => (byTestId(view, 'profile-setup-photo') as HTMLButtonElement).click());
     expect(editor.choose).toHaveBeenCalledTimes(1);
-    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChange);
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChoose);
     await act(async () =>
       (byTestId(view, 'profile-setup-choose-photo') as HTMLButtonElement).click(),
     );
     expect(editor.choose).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the photo action only once it knows whether a photo is set', async () => {
+    const chatEditor = { busy: false, error: undefined, choose: vi.fn(), remove: vi.fn() };
+    const chat = { name: 'Mia', avatar: undefined, editor: chatEditor, onEditName: vi.fn() };
+    const loading = await render(
+      <AccountProfileView
+        state={{ status: 'signed-out' }}
+        avatar={editor}
+        chat={{ ...chat, hasAvatar: undefined }}
+        actions={actions()}
+      />,
+    );
+    const row = () => byTestId(loading, 'chat-avatar-choose')!.textContent;
+    expect(row()).toContain(t.avatarTitle);
+    expect(row()).not.toContain(t.avatarChoose);
+    const photo = () => byTestId(loading, 'chat-avatar-change')!.getAttribute('aria-label');
+    expect(photo()).toBe(t.avatarTitle);
+    await act(async () =>
+      root!.render(
+        <AccountProfileView
+          state={{ status: 'signed-out' }}
+          avatar={editor}
+          chat={{ ...chat, hasAvatar: true }}
+          actions={actions()}
+        />,
+      ),
+    );
+    expect(row()).toContain(t.avatarChange);
+    expect(byTestId(loading, 'chat-avatar-remove')).not.toBeNull();
+    expect(photo()).toBe(t.avatarChange);
+    await act(async () =>
+      root!.render(
+        <AccountProfileView
+          state={{ status: 'signed-out' }}
+          avatar={editor}
+          chat={{ ...chat, hasAvatar: false }}
+          actions={actions()}
+        />,
+      ),
+    );
+    expect(photo()).toBe(t.avatarChoose);
+  });
+
+  it('says Change photo in the setup prompt while a stored photo is still loading', async () => {
+    const view = await render(
+      <ProfileSetupView
+        name="Mia"
+        avatar={undefined}
+        hasAvatar
+        editor={editor}
+        onDone={vi.fn(async () => {})}
+        onLater={vi.fn(async () => {})}
+      />,
+    );
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChange);
   });
 
   it('leads Settings with the Host chat name and photo when signed out of Tobs', async () => {

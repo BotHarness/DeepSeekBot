@@ -18,7 +18,7 @@ Chat UI != Session
 Assignment 运行许可没有释放。Orchestrator 自己的原生审批／正式提问仍持有当前 Step，
 Admission 和 steering 接受不等于模型处理，原操作决定并返回后才开始处理无关输入。
 原 Session／call 归属及当前 Grant 检查保持权威，变更／撤销范围拒绝原调用。
-[ADR-0045](../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md#native-human-wait-qualification-2026-10-09)
+[ADR-0045](../decisions/sessions.md#adr-0045)
 记录此资格边界，不改变 ADR-0035 的单一 Orchestrator root 约束。
 [#1220](https://github.com/BotHarness/DeepSeekBot/issues/1220) 阻塞缺失的受支持机制；
 #1037／#1038 生产 continuation 仍保持 gate。

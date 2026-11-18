@@ -44,6 +44,7 @@ import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './se
 import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
 import { AssignmentWorkDialog } from './assignment-work.js';
 import { Menu } from './appearance-primitives.js';
+import { prefetchSessionDetail } from './session-detail-cache.js';
 import type { ModelCatalogEntryView, SessionProgress } from './bridge.js';
 import {
   currentTodo,
@@ -65,7 +66,6 @@ const STATUS_TONE = {
   running: 'success',
   stopping: 'warning',
   attention: 'danger',
-  stopped: 'quiet',
   idle: 'outline',
   unavailable: 'quiet',
 } as const;
@@ -232,7 +232,6 @@ function SessionsPanel({
     running: t('sessions.status.running'),
     stopping: t('sessions.status.stopping'),
     attention: t('sessions.status.attention'),
-    stopped: t('sessions.status.stopped'),
     idle: t('sessions.status.idle'),
     unavailable: t('sessions.status.unavailable'),
   } as const;
@@ -372,6 +371,16 @@ function SessionsPanel({
           onSessionSelect === undefined
             ? void actions.openSession(row.sessionId)
             : onSessionSelect(row.sessionId, row.title)
+        }
+        onIntent={
+          openable && botSlug !== undefined
+            ? () =>
+                prefetchSessionDetail(actions, {
+                  host: actions,
+                  botSlug,
+                  sessionId: row.sessionId,
+                })
+            : undefined
         }
         badge={
           row.triageOpenCount !== undefined ? (

@@ -184,6 +184,7 @@ export interface ChannelComposerProps {
 }
 
 const NO_QUOTES: readonly ComposerQuote[] = [];
+const NONE: readonly never[] = [];
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
 
@@ -460,18 +461,18 @@ export function ChannelComposer({
   sending,
   disabled = false,
   focusSignal = 0,
-  attachments = [],
+  attachments = NONE,
   onAddFiles,
   onRetryAttachment,
   onRemoveAttachment,
   allBotNotice,
   allBotPreview,
-  mentionCandidates = [],
-  mentions = [],
-  channelCandidates = [],
-  channelRefs = [],
-  skillOptions = [],
-  skills = [],
+  mentionCandidates = NONE,
+  mentions = NONE,
+  channelCandidates = NONE,
+  channelRefs = NONE,
+  skillOptions = NONE,
+  skills = NONE,
   readSkill,
   sessionOptions = [],
   onSessionMenu,

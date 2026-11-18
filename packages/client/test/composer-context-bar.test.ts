@@ -210,7 +210,12 @@ it('joins the items into one header chip that keeps their actions and drops the 
     chip.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!.click(),
   );
   expect(clicked).toHaveBeenCalledOnce();
-  await act(async () => handle.current!.open());
+  await act(async () =>
+    chip
+      .querySelector('[data-composer-chip="usage"]')!
+      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+  );
+  expect(dialog()?.getAttribute('aria-label')).toBe(t('composerHeader.settings'));
   expect(
     [...host.querySelectorAll('button')].some((b) => b.textContent === t('footer.layout')),
   ).toBe(false);

@@ -32,6 +32,13 @@ import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
+import { ModelBrandIcon } from './model-brand-icon';
+
+const MODEL_LABEL_CHARS = 12;
+
+function clipModel(short: string): string {
+  return short.length <= MODEL_LABEL_CHARS ? short : `${short.slice(0, MODEL_LABEL_CHARS - 1)}…`;
+}
 
 export function ConversationTopBar({
   title,
@@ -41,6 +48,8 @@ export function ConversationTopBar({
   avatar,
   initial,
   connectionLabel,
+  model,
+  modelMount,
   onBack,
   onProfile,
   onCall,
@@ -57,6 +66,8 @@ export function ConversationTopBar({
     Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
   );
   const status = connectionLabel ?? subtitle;
+  const shownModel = connectionLabel === undefined ? model : undefined;
+  const modelIcon = theme.type.meta.line;
   const action = (
     id: string,
     label: string,
@@ -80,6 +91,7 @@ export function ConversationTopBar({
   const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
   return (
     <View
+      ref={modelMount}
       testID="android-chat-header"
       pointerEvents="box-none"
       onLayout={(event) => {
@@ -172,7 +184,9 @@ export function ConversationTopBar({
                 weight(1),
                 ...islandLook,
                 testID('chat-identity'),
-                semantics({ contentDescription: [title, status].filter(Boolean).join(', ') }),
+                semantics({
+                  contentDescription: [title, shownModel?.name, status].filter(Boolean).join(', '),
+                }),
               ]}
             >
               <Row
@@ -219,6 +233,33 @@ export function ConversationTopBar({
                         >
                           <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
                         </RNHostView>
+                      )}
+                      {shownModel === undefined ? null : (
+                        <Row
+                          verticalAlignment="center"
+                          horizontalArrangement={{ spacedBy: space.x1 }}
+                          modifiers={[testID('chat-header-model')]}
+                        >
+                          <RNHostView modifiers={[size(modelIcon, modelIcon)]}>
+                            <View
+                              accessible={false}
+                              importantForAccessibility="no-hide-descendants"
+                            >
+                              <ModelBrandIcon
+                                brand={shownModel.brand}
+                                size={modelIcon}
+                                color={theme.color.muted}
+                              />
+                            </View>
+                          </RNHostView>
+                          <Text
+                            color={theme.color.muted}
+                            style={{ typography: 'bodySmall' }}
+                            maxLines={1}
+                          >
+                            {`${clipModel(shownModel.short)} ·`}
+                          </Text>
+                        </Row>
                       )}
                       <Text
                         modifiers={[weight(1)]}

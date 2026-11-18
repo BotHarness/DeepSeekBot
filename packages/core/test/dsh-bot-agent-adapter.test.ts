@@ -2380,6 +2380,30 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it('runs a Bot without a Model Plan on the fallback route its default group chose', async () => {
+    const fallback = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    let chosen: typeof fallback | undefined;
+    const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'deepseek-official', model: 'flash' }) },
+      orchestratorRoute: () => chosen,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runOrchestrator(reportRun);
+      expect(await host.selectedModel(reportRun.sessionId)).toMatchObject({
+        provider: 'deepseek-official',
+      });
+      chosen = fallback;
+      await adapter.runOrchestrator({ ...reportRun, resume: true });
+      expect(await host.selectedModel(reportRun.sessionId)).toMatchObject(fallback);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('lists bridge Tools and the external IM prompt only on turns where the Bot has IM', async () => {
     const listed: string[][] = [];
     const host = new FakeAgentHost(
@@ -2978,9 +3002,13 @@ describe('DSH Bot Agent adapter', () => {
     expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
     expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
-    expect(received).toHaveLength(2);
+    expect(received).toHaveLength(3);
     expect(received?.[0]).toEqual({ type: 'text', text: '请核对发布状态' });
     expect(received?.[1]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining('[Host context]'),
+    });
+    expect(received?.[2]).toMatchObject({
       type: 'text',
       text: expect.stringContaining('[Host reply transport reminder]'),
     });
@@ -4189,6 +4217,97 @@ describe('Assignment Routing Groups (#4420)', () => {
   });
 });
 
+describe('Effort range for Assignment Routing Groups (#4502)', () => {
+  it('lists the group effort range and starts the Assignment at the chosen or default effort', async () => {
+    const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
+    const until = '2026-11-18T00:00:00.000Z';
+    const plan = {
+      revision: 2,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: pro,
+      assignmentDefault: pro,
+      assignmentGroups: ['g'],
+      assignmentDefaultGroupId: 'g',
+      assignmentGroupOptions: [
+        { group: 'g', allowedEfforts: ['low', 'high'], defaultEffort: 'high', note: 'Cheap first' },
+      ],
+      appliedAt: BOT.createdAt,
+    };
+    const calls: Array<Promise<unknown>> = [];
+    const created: unknown[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => undefined,
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const run = async (name: string, args: Record<string, unknown>) =>
+            scope!.tools.find((tool) => tool.name === name)!.execute(args, {} as ToolRunContext);
+          const assignment = (title: string, extra: Record<string, unknown>) =>
+            run('create_assignment', {
+              title,
+              description: 'Runs on the group.',
+              grant_id: 'grant-1',
+              ...extra,
+            }).catch((error: Error) => JSON.stringify({ error: error.message }));
+          calls.push(
+            run('list_assignment_models', {}),
+            assignment('Default effort', {}),
+            assignment('Chosen effort', { group: 'g', reasoning_effort: 'low' }),
+            assignment('Outside the range', { group: 'g', reasoning_effort: 'max' }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      resolveModelPlan: () => plan,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async () => ({ kind: 'route', route: { ...pro, reasoningEffort: 'medium' } }),
+        describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
+        restingUntil: (route) =>
+          route.provider === spent.provider ? { ...spent, until, reason: 'quota' } : undefined,
+      },
+    });
+    await adapter.runOrchestrator({
+      ...reportRun,
+      bot: { ...BOT, modelPlan: plan },
+      assignments: {
+        ...reportRun.assignments,
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+      },
+    });
+    try {
+      const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
+      expect(parsed[0].assignmentGroups).toMatchObject([
+        {
+          group: 'g',
+          note: 'Cheap first',
+          front: pro,
+          efforts: ['low', 'high'],
+          defaultEffort: 'high',
+        },
+      ]);
+      expect(parsed[3].error).toContain('Routing Group g allows efforts low, high');
+      expect(created).toMatchObject([
+        { title: 'Default effort', model: { ...pro, reasoningEffort: 'high' }, modelGroupId: 'g' },
+        { title: 'Chosen effort', model: { ...pro, reasoningEffort: 'low' }, modelGroupId: 'g' },
+      ]);
+      expect(created).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
 describe('Assignment Directory Tools', () => {
   it('forward list filters and archive decisions to the Orchestrator run', async () => {
     const calls: Array<Promise<unknown>> = [];
@@ -4773,7 +4892,7 @@ describe('Assignment Directory Tools', () => {
           delivery: 'refused',
           code: 'request-not-delivered',
           message:
-            'Assignment Session stopped was unarchived, but the request was not delivered: Assignment Session stopped was stopped by the Human',
+            'Assignment Session stopped is active, but the request was not delivered: Assignment Session stopped was stopped by the Human',
         },
         {
           outcome: 'unarchived',
@@ -4786,7 +4905,7 @@ describe('Assignment Directory Tools', () => {
           limit: 4,
           retryable: true,
           message:
-            'Assignment Session full was unarchived, but the request was not delivered: At capacity',
+            'Assignment Session full is active, but the request was not delivered: At capacity',
         },
       ]);
       expect(values.slice(5)).toEqual([

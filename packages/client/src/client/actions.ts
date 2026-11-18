@@ -1,7 +1,9 @@
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
+import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
+import * as prompts from '@botharness/host-client/prompt-presets';
 import {
   createHumanAvatarCache,
   type HumanAvatarCache,
@@ -31,6 +33,7 @@ import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { modelFavoritesEpoch, rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -97,6 +100,7 @@ import {
   loadAllBotPreview,
   loadBotSkills,
   loadChannelSkillCatalog,
+  loadSessionSkillCatalog,
   loadSkillDetail,
   removeBotSkill,
   type BotSkillRow,
@@ -194,6 +198,7 @@ import {
   loadSessionLive,
   loadSessionToolDetail,
   sendSessionRequest,
+  sendOrchestratorMessage,
   type SessionProgress,
   type SessionTranscript,
   type SessionLiveSnapshot,
@@ -295,6 +300,7 @@ import {
   type UsageQueryResult,
   loadGroupProfileActivity,
   loadModelCatalog,
+  setModelFavorite,
   loadModelPresets,
   loadModelPlan,
   loadModelPlanState,
@@ -310,10 +316,12 @@ import {
   updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
+  chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
   setStandingLimits,
   type ModelCatalogView,
+  type ModelChoice,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -518,7 +526,7 @@ export interface BridgeActions extends BotModeActions {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRouteView,
+    choice: ModelRouteView | { groupId: string },
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
@@ -544,32 +552,17 @@ export interface BridgeActions extends BotModeActions {
   botSystemPrompt(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
-  promptParts?(): Promise<{
-    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
-    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
-  }>;
-  promptPresets?(): Promise<{
-    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
-    globalPresetId: string | null;
-  }>;
+  promptParts?(): Promise<import('@botharness/host-client/prompt-presets').PromptParts>;
+  promptPresets?(): Promise<import('@botharness/host-client/prompt-presets').PromptPresets>;
   promptPresetCreate?(
     name: string,
     parts: Record<string, string | null>,
     limits?: Record<string, number | null>,
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetUpdate?(
     id: string,
-    change: {
-      name?: string;
-      parts?: Record<string, string | null>;
-      limits?: Record<string, number | null>;
-      expectedRevision?: number;
-    },
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+    change: import('@botharness/host-client/prompt-presets').PromptPresetChange,
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
@@ -659,6 +652,7 @@ export interface BridgeActions extends BotModeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   routingGroups(): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }>;
   createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
@@ -689,6 +683,11 @@ export interface BridgeActions extends BotModeActions {
   customizeModelPlan(
     slug: string,
     orchestrator: ModelRouteView,
+    expectedRevision?: number,
+  ): Promise<ModelPlanView>;
+  chooseModelPlanGroup(
+    slug: string,
+    groupId: string,
     expectedRevision?: number,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
@@ -1086,6 +1085,7 @@ export interface BridgeActions extends BotModeActions {
     quotes?: readonly QuoteRef[],
   ): Promise<boolean>;
   skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
+  sessionSkillCatalog?(slug: string, sessionId: string): Promise<SkillCatalogEntry[]>;
   botSkills?(slug: string): Promise<BotSkillRow[]>;
   skillDetail?(name: string, owner: string): Promise<SkillDetailView>;
   botSkillRemove?(slug: string, name: string): Promise<void>;
@@ -1220,6 +1220,7 @@ export interface BridgeActions extends BotModeActions {
   ): Promise<SessionLiveSnapshot>;
   sessionToolDetail?(slug: string, sessionId: string, callId: string): Promise<SessionToolDetail>;
   sendSessionRequest?(slug: string, sessionId: string, text: string, steer: boolean): Promise<void>;
+  sendOrchestratorMessage?(slug: string, sessionId: string, text: string): Promise<void>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -1994,6 +1995,9 @@ export function createActions(
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return result.value as T;
   };
+  const host: prompts.PromptPresetClient = {
+    call: (method, args) => invoke(method, args ?? {}),
+  };
   const humanAvatars = createHumanAvatarCache(async (humanIds) => ({
     avatars: await loadHumanAvatars(call, humanIds),
   }));
@@ -2086,11 +2090,11 @@ export function createActions(
             : slug,
         action,
       }),
-    onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
+    onboardingModel: async (slug, expectedRevision, choice, globalDefault) => {
       const result = await invoke<{ revision: number }>('onboardingModel', {
         slug,
         expectedRevision,
-        route,
+        ...('groupId' in choice ? { groupId: choice.groupId } : { route: choice }),
         globalDefault,
       });
       if (globalDefault) invalidateInheritedModelPlans(actions);
@@ -2112,17 +2116,13 @@ export function createActions(
     async botSystemPrompt(botSlug) {
       return invoke('botSystemPrompt', { slug: botSlug });
     },
-    promptParts: () => invoke('promptParts', {}),
-    promptPresets: () => invoke('promptPresets', {}),
+    promptParts: () => prompts.loadPromptParts(host),
+    promptPresets: () => prompts.loadPromptPresets(host),
     promptPresetCreate: (name, parts, limits) =>
-      invoke('promptPresetCreate', {
-        name,
-        parts,
-        ...(limits === undefined ? {} : { limits }),
-      }),
-    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
-    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
-    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+      prompts.createPromptPreset(host, name, parts, limits),
+    promptPresetUpdate: (id, change) => prompts.updatePromptPreset(host, id, change),
+    promptPresetDelete: (id) => prompts.deletePromptPreset(host, id),
+    promptGlobalSet: (presetId) => prompts.setGlobalPromptPreset(host, presetId),
     botPrompt: (slug) => invoke('botPrompt', { slug }),
     botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
     async botTurnInput(botSlug, turns = 1) {
@@ -2132,16 +2132,7 @@ export function createActions(
       await invoke('botNewSession', { slug: botSlug });
     },
     async retryMessage(channelId, messageId, recovery) {
-      await invoke('channelRetry', {
-        channelId,
-        messageId,
-        ...(recovery
-          ? {
-              recovery: recovery.action,
-              failureMessageId: recovery.failureMessageId,
-            }
-          : {}),
-      });
+      await retryChannelMessage(host, { channelId, messageId, recovery });
       await actions.refreshChannelMessages(channelId);
     },
     async compactBot(botSlug) {
@@ -2167,7 +2158,19 @@ export function createActions(
       });
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
-    modelCatalog: () => loadModelCatalog(call),
+    modelCatalog: () => {
+      const seen = modelFavoritesEpoch();
+      return loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(
+          catalog.favorites,
+          call,
+          (choice, favorite) => setModelFavorite(call, choice, favorite),
+          seen,
+        );
+        return catalog;
+      });
+    },
+    setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
     createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
@@ -2187,6 +2190,10 @@ export function createActions(
     customizeModelPlan: (slug, orchestrator, expectedRevision) =>
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
+    chooseModelPlanGroup: (slug, groupId, expectedRevision) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'group' }),
       ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
@@ -3442,6 +3449,7 @@ export function createActions(
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
     subscribeSkillCatalog,
     skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
+    sessionSkillCatalog: (slug, sessionId) => loadSessionSkillCatalog(call, slug, sessionId),
     botSkills: (slug) => loadBotSkills(call, slug),
     skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
     botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
@@ -4039,6 +4047,9 @@ export function createActions(
     },
     sendSessionRequest(slug, sessionId, text, steer) {
       return sendSessionRequest(call, slug, sessionId, text, steer);
+    },
+    sendOrchestratorMessage(slug, sessionId, text) {
+      return sendOrchestratorMessage(call, slug, sessionId, text);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

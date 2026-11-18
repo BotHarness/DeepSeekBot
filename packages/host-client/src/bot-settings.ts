@@ -1,4 +1,13 @@
 import { MethodRefused, type HostClient } from './client';
+import {
+  modelChoice as favoriteChoice,
+  parseModelCatalog,
+  type ModelCatalogEntry,
+  type ModelCatalogGroup,
+  type ModelChoice,
+} from './model-catalog';
+
+export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
 
 export type Loadable<T> =
   | { status: 'loading' }
@@ -19,21 +28,12 @@ export interface AssignmentModelOption {
   note?: string;
 }
 
-export interface ModelCatalogEntry {
-  provider: string;
-  providerName: string;
-  model: string;
-  modelName: string;
-  efforts?: { id: string; name: string }[];
-  defaultEffort?: string;
-  credential?: 'missing' | 'invalid';
-}
-
 export interface ModelPlan {
   revision: number;
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
+  orchestratorGroupId?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
 }
@@ -53,6 +53,9 @@ export interface BotModel {
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
+  groups?: ModelCatalogGroup[];
+  defaultGroupId?: string;
+  favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
 }
@@ -150,6 +153,9 @@ function plan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
+    ...(text(row['orchestratorGroupId'])
+      ? { orchestratorGroupId: row['orchestratorGroupId'] }
+      : {}),
     ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
   };
@@ -159,36 +165,6 @@ function planResult(value: unknown, method: string): ModelPlan {
   const parsed = plan(record(value)?.['plan']);
   if (parsed === undefined) throw new HostAnswerInvalid(`${method} returned no Model Plan.`);
   return parsed;
-}
-
-function catalogEntry(value: unknown): ModelCatalogEntry | undefined {
-  const row = record(value);
-  if (
-    !text(row?.['provider']) ||
-    !text(row['model']) ||
-    !text(row['providerName']) ||
-    !text(row['modelName'])
-  )
-    return undefined;
-  const credential = row['credential'];
-  return {
-    provider: row['provider'],
-    providerName: row['providerName'],
-    model: row['model'],
-    modelName: row['modelName'],
-    ...(Array.isArray(row['efforts'])
-      ? {
-          efforts: some(row['efforts'], (value) => {
-            const effort = record(value);
-            return text(effort?.['id']) && text(effort['name'])
-              ? { id: effort['id'], name: effort['name'] }
-              : undefined;
-          }),
-        }
-      : {}),
-    ...(text(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
-    ...(credential === 'missing' || credential === 'invalid' ? { credential } : {}),
-  };
 }
 
 function preset(value: unknown): ModelPreset | undefined {
@@ -206,6 +182,12 @@ function preset(value: unknown): ModelPreset | undefined {
       ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
       : {}),
   };
+}
+
+function catalogAnswer(value: unknown) {
+  if (!Array.isArray(record(value)?.['models']))
+    throw new HostAnswerInvalid('modelCatalog returned no models.');
+  return parseModelCatalog(value);
 }
 
 function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
@@ -230,18 +212,19 @@ export async function loadBotModel(
       return { presets: [] };
     }),
   ]);
-  const models = record(catalog)?.['models'];
-  if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
+  const { models, default: fallback, favorites, groups, defaultGroupId } = catalogAnswer(catalog);
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
-  const fallback = route(record(catalog)?.['default']);
   return {
     revision:
       typeof current?.['revision'] === 'number' ? current['revision'] : (saved?.revision ?? 0),
     ...(saved === undefined ? {} : { plan: saved }),
     ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
-    models: some(models, catalogEntry),
+    models,
+    ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
   };
@@ -256,21 +239,35 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     client.call('modelCatalog', {}),
     client.call('modelPresets', {}),
   ]);
-  const models = record(catalog)?.['models'];
-  if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
-  const fallback = route(record(catalog)?.['default']);
-  const defaultRevision = record(catalog)?.['defaultRevision'];
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+  } = catalogAnswer(catalog);
   return {
     revision: 0,
-    ...(typeof defaultRevision === 'number' &&
-    Number.isSafeInteger(defaultRevision) &&
-    defaultRevision >= 0
-      ? { defaultRevision }
-      : {}),
-    models: some(models, catalogEntry),
+    ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    models,
+    ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(favorites === undefined ? {} : { favorites }),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
   };
+}
+
+export async function setModelFavorite(
+  client: ModelSettingsClient,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  const answer = record(await client.call('modelFavoriteSet', { choice, favorite }));
+  if (!Array.isArray(answer?.['favorites']))
+    throw new HostAnswerInvalid('modelFavoriteSet returned no favorites.');
+  return some(answer['favorites'], favoriteChoice);
 }
 
 export function sameModel(
@@ -280,7 +277,11 @@ export function sameModel(
   return b !== undefined && a.provider === b.provider && a.model === b.model;
 }
 
-export function currentModel(model: BotModel): { route?: ModelRoute; name?: string } {
+export function currentModel(model: BotModel): {
+  route?: ModelRoute;
+  name?: string;
+  group?: string;
+} {
   const usableFallback =
     model.fallback !== undefined &&
     model.models.some((entry) => sameModel(entry, model.fallback) && entry.credential === undefined)
@@ -288,9 +289,15 @@ export function currentModel(model: BotModel): { route?: ModelRoute; name?: stri
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
   if (current === undefined) return {};
+  const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
+  const group =
+    groupId === undefined
+      ? undefined
+      : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
+    ...(group === undefined ? {} : { group }),
   };
 }
 

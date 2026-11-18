@@ -231,6 +231,10 @@ export async function removeDevice(options: {
   }
 }
 
+export function pairingDeviceKey(carrier: HostCarrier): string {
+  return keyHex(secureRandom(carrier));
+}
+
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
 
 export async function pairHost(options: {
@@ -240,6 +244,7 @@ export async function pairHost(options: {
   deviceName: string;
   carrier: HostCarrier;
   save(host: SavedHost): Promise<void>;
+  deviceKey?: string;
   onPending?: (deviceFingerprint: string) => void;
   confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
   telemetry: Pick<import('./telemetry/mobile-telemetry').MobileTelemetry, 'pairing'>;
@@ -266,7 +271,7 @@ export async function pairHost(options: {
     }
     const existing = options.existing?.(parsed.payload.host.id);
     const updated =
-      !parsed.payload.member && existing?.encryption
+      !parsed.payload.member && existing?.member === undefined && existing?.encryption
         ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
         : undefined;
     const redeemed =
@@ -276,6 +281,7 @@ export async function pairHost(options: {
             payload: parsed.payload,
             deviceName: options.deviceName,
             carrier: options.carrier,
+            ...(options.deviceKey === undefined ? {} : { deviceKey: options.deviceKey }),
             ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
             ...(options.method === 'qr' ||
             (options.method === 'account' &&
@@ -460,7 +466,7 @@ async function redeemEncrypted(options: {
   let lanDenied = false;
   for (const route of routes) {
     if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
-    result = await redeemEncryptedRoute(options, encryption, route);
+    result = await resumeEncryptedRoute(options, encryption, route);
     if (result.ok) return result;
     if (result.detail !== undefined) details.push(result.detail);
     if (result.code === 'lan-permission-denied') lanDenied = true;
@@ -493,21 +499,52 @@ async function redeemEncrypted(options: {
   return detail === undefined ? { ok: false, code } : { ok: false, code, detail };
 }
 
+const PENDING_RESUME_MS = 2000;
+const PENDING_REPLY_MS = 8000;
+const PENDING_RESUME_LIMIT = 150;
+
+async function resumeEncryptedRoute(
+  options: Parameters<typeof redeemEncrypted>[0],
+  encryption: HostEncryption,
+  route: string,
+): Promise<Redemption> {
+  let waiting = false;
+  for (let attempt = 0; ; attempt++) {
+    const result = await redeemEncryptedRoute(options, encryption, route, () => {
+      waiting = true;
+    });
+    if (
+      result.ok ||
+      !waiting ||
+      result.code === 'offer-expired' ||
+      result.code === 'offer-invalid' ||
+      result.code === 'channel-authentication-failed' ||
+      attempt >= PENDING_RESUME_LIMIT ||
+      Date.parse(options.payload.expiresAt) <= Date.now() ||
+      !(await pause(PENDING_RESUME_MS, options.signal))
+    )
+      return result;
+  }
+}
+
 function redeemEncryptedRoute(
   options: Parameters<typeof redeemEncrypted>[0],
   encryption: HostEncryption,
   route: string,
+  waiting?: () => void,
 ): Promise<Redemption> {
   const { payload } = options;
   return new Promise<Redemption>((resolve) => {
     let authenticated = false;
     let done = false,
-      poll: ReturnType<typeof setTimeout> | undefined;
+      poll: ReturnType<typeof setTimeout> | undefined,
+      stall: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: Redemption) => {
       if (done) return;
       done = true;
       clearTimeout(deadline);
       clearTimeout(poll);
+      clearTimeout(stall);
       options.signal?.removeEventListener('abort', abort);
       socket.close();
       resolve(result);
@@ -562,9 +599,12 @@ function redeemEncryptedRoute(
       timeoutMs: isLanRoute(route) ? 2000 : 10_000,
       closed: fail,
       message: (value) => {
+        clearTimeout(stall);
         if (value['type'] === 'pair-pending') {
+          waiting?.();
           options.onPending?.(noiseFingerprint(noisePublicKey(keyBytes(encryption.deviceKey))));
-          poll = setTimeout(submit, 2000);
+          clearTimeout(poll);
+          poll = setTimeout(() => submit(true), 2000);
           return;
         }
         if (
@@ -609,8 +649,9 @@ function redeemEncryptedRoute(
           });
       },
     });
-    const submit = () => {
+    const submit = (resend = false) => {
       if (done) return;
+      if (resend) stall = setTimeout(() => fail('channel-stalled'), PENDING_REPLY_MS);
       try {
         socket.send({
           type: 'pair',

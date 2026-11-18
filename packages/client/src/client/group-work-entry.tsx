@@ -183,6 +183,7 @@ function GroupWorkPanel({
       role: 'assignment',
       createdAt: assignment.createdAt,
       assignmentActivity: assignment.activity,
+      ...(assignment.archivedAt === undefined ? {} : { assignmentArchived: true as const }),
       ...(assignment.latestReport ? { assignmentReportState: assignment.latestReport.state } : {}),
       assignmentTitle: assignment.title,
       assignmentDescription: assignment.description,

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadBotModel } from '@botharness/host-client/bot-settings';
+import { currentModel, loadBotModel, loadGlobalModel } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
 import {
   inheritModel,
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  setModelGroup,
   setModelRoute,
   toggleAssignmentModel,
   type ModelSettingsState,
@@ -232,5 +233,91 @@ describe('native Model Plans and Presets', () => {
     });
     await expect(a.refresh()).rejects.toThrow();
     expect(a.peek()?.plan).toEqual(plan);
+  });
+
+  it('reads favorites with the catalog and stars a model for every cached scope', async () => {
+    const { fake, client } = setup();
+    const starred = [{ kind: 'model', ...flash }];
+    fake.methods.set('modelCatalog', () => ({ models, default: flash, favorites: starred }));
+    fake.methods.set('modelFavoriteSet', (args) => ({
+      favorites: (args as { favorite: boolean }).favorite
+        ? [...starred, { kind: 'model', ...pro }]
+        : [],
+    }));
+    const bot = modelSettingsResource(client, { kind: 'bot', slug: 'qa' });
+    const global = modelSettingsResource(client, { kind: 'global' });
+    expect((await bot.refresh()).favorites).toEqual(starred);
+    await global.refresh();
+    const next = await global.favorite({ kind: 'model', ...pro }, true);
+    expect(fake.calls.at(-1)).toMatchObject({
+      method: 'modelFavoriteSet',
+      args: { choice: { kind: 'model', ...pro }, favorite: true },
+    });
+    expect(next).toEqual([...starred, { kind: 'model', ...pro }]);
+    expect(bot.peek()?.favorites).toEqual(next);
+    expect(global.peek()?.favorites).toEqual(next);
+    expect(await global.favorite({ kind: 'model', ...pro }, false)).toEqual([]);
+    fake.methods.set('modelFavoriteSet', () => ({}));
+    await expect(global.favorite({ kind: 'model', ...pro }, true)).rejects.toThrow();
+  });
+
+  it('reads Routing Groups and runs the Bot Orchestrator on one (#4421)', async () => {
+    const { fake, client } = setup();
+    const until = '2026-11-22T23:23:00.000Z';
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models: [{ ...models[0], restingUntil: until }, models[1]],
+      groups: [daily, { id: 'tired', name: 'Tired', routes: [flash], restingUntil: until }],
+    }));
+    fake.methods.set('modelPlan', () => ({
+      revision: 4,
+      plan: { ...plan, orchestratorGroupId: 'daily' },
+    }));
+    const loaded = await loadBotModel(client, 'qa');
+    expect(loaded.plan?.orchestratorGroupId).toBe('daily');
+    expect(loaded.models[0]?.restingUntil).toBe(until);
+    expect(loaded.groups?.map((group) => group.id)).toEqual(['daily', 'tired']);
+    fake.methods.set('modelPlanCustomize', () => ({ plan }));
+    await setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'daily');
+    expect(fake.calls.at(-1)?.args).toEqual({
+      slug: 'qa',
+      expectedRevision: 4,
+      orchestratorGroupId: 'daily',
+    });
+    await expect(
+      setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'tired'),
+    ).rejects.toThrow();
+    await expect(
+      setModelGroup(client, { kind: 'preset', id: 'p' }, loaded, 'daily'),
+    ).rejects.toThrow();
+  });
+
+  it('sets the global default to a Routing Group and shows it for Bots that follow it (#4500)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models,
+      default: flash,
+      defaultRevision: 3,
+      defaultGroupId: 'daily',
+      groups: [daily],
+    }));
+    fake.methods.set('modelPresets', () => ({ presets: [] }));
+    const global = await loadGlobalModel(client);
+    expect(global.defaultGroupId).toBe('daily');
+    expect(currentModel(global).group).toBe('Daily');
+    fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 2 }));
+    await setModelGroup(client, { kind: 'global' }, global, 'daily');
+    expect(fake.calls.at(-1)).toEqual({
+      method: 'onboardingModel',
+      args: {
+        expectedRevision: 0,
+        expectedDefaultRevision: 3,
+        groupId: 'daily',
+        globalDefault: true,
+      },
+    });
+    fake.methods.set('modelPlan', () => ({ revision: 0 }));
+    expect(currentModel(await loadBotModel(client, 'qa')).group).toBe('Daily');
   });
 });

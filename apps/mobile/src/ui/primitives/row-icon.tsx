@@ -12,6 +12,7 @@ const ROW_ICONS = {
   light: { ios: 'sun.max', android: 'light_mode' },
   dark: { ios: 'moon', android: 'dark_mode' },
   model: { ios: 'cpu', android: 'memory' },
+  prompts: { ios: 'text.quote', android: 'notes' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   notifications: { ios: 'bell', android: 'notifications' },
   storage: { ios: 'internaldrive', android: 'storage' },

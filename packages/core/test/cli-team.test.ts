@@ -4,6 +4,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -32,78 +33,80 @@ async function host(
   memberSuccess?: unknown,
 ) {
   const calls: Array<{ path: string; input: Record<string, unknown> }> = [];
-  const server = createServer(async (request, response) => {
-    if (request.method === 'GET') {
-      response
-        .writeHead(302, { 'set-cookie': 'authority=test-owner; HttpOnly', location: '/' })
-        .end();
-      return;
-    }
-    if (request.headers.cookie !== 'authority=test-owner') {
-      response.writeHead(401).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(chunk);
-    const input = JSON.parse(Buffer.concat(chunks).toString());
-    calls.push({ path: request.url ?? '', input });
-    const value =
-      input.method === 'botharness/channelGet'
-        ? {
-            policyRevision: 'a'.repeat(64),
-            policy: {
-              addMembers: 'everyone',
-              post: 'everyone',
-              mentionAll: 'everyone',
-              addBots: 'admins',
-              editDetails: 'admins',
-            },
-          }
-        : input.method === 'botharness/teamMode'
-          ? { isolation: 'trial', viewer: { humanId: 'owner-id' } }
-          : input.method === 'botharness/members'
-            ? [
-                { username: 'bob', humanId: 'bob-id' },
-                { username: 'owner', humanId: 'local-human' },
-              ]
-            : input.method === 'botharness/memberCreate'
-              ? {
-                  member: { username: 'bob', humanId: 'bob-id' },
-                  initialPassword: 'private-initial-password',
-                }
-              : input.method === 'botharness/memberPasswordReset'
-                ? { initialPassword: 'private-reset-password' }
-                : { done: true };
-    response.setHeader('content-type', 'application/json');
-    if (failure) {
-      const error = { ...failure, message: failure.code };
-      response.end(
-        JSON.stringify(
-          request.url === '/api/botharness/team-as'
-            ? { ok: false, error }
-            : { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error } },
-        ),
-      );
-    } else if (request.url === '/api/botharness/team-as')
-      response.end(
-        JSON.stringify({
-          ...(memberSuccess === undefined
-            ? { ok: false, error: memberFailure }
-            : { ok: true, value: memberSuccess }),
-        }),
-      );
-    else
-      response.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: input.rpcId,
-          result:
-            input.method === 'botharness/channelPolicySet' && policyFailure
-              ? { ok: false, error: policyFailure }
-              : { ok: true, value },
-        }),
-      );
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.method === 'GET') {
+        response
+          .writeHead(302, { 'set-cookie': 'authority=test-owner; HttpOnly', location: '/' })
+          .end();
+        return;
+      }
+      if (request.headers.cookie !== 'authority=test-owner') {
+        response.writeHead(401).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const input = JSON.parse(Buffer.concat(chunks).toString());
+      calls.push({ path: request.url ?? '', input });
+      const value =
+        input.method === 'botharness/channelGet'
+          ? {
+              policyRevision: 'a'.repeat(64),
+              policy: {
+                addMembers: 'everyone',
+                post: 'everyone',
+                mentionAll: 'everyone',
+                addBots: 'admins',
+                editDetails: 'admins',
+              },
+            }
+          : input.method === 'botharness/teamMode'
+            ? { isolation: 'trial', viewer: { humanId: 'owner-id' } }
+            : input.method === 'botharness/members'
+              ? [
+                  { username: 'bob', humanId: 'bob-id' },
+                  { username: 'owner', humanId: 'local-human' },
+                ]
+              : input.method === 'botharness/memberCreate'
+                ? {
+                    member: { username: 'bob', humanId: 'bob-id' },
+                    initialPassword: 'private-initial-password',
+                  }
+                : input.method === 'botharness/memberPasswordReset'
+                  ? { initialPassword: 'private-reset-password' }
+                  : { done: true };
+      response.setHeader('content-type', 'application/json');
+      if (failure) {
+        const error = { ...failure, message: failure.code };
+        response.end(
+          JSON.stringify(
+            request.url === '/api/botharness/team-as'
+              ? { ok: false, error }
+              : { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error } },
+          ),
+        );
+      } else if (request.url === '/api/botharness/team-as')
+        response.end(
+          JSON.stringify({
+            ...(memberSuccess === undefined
+              ? { ok: false, error: memberFailure }
+              : { ok: true, value: memberSuccess }),
+          }),
+        );
+      else
+        response.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId: input.rpcId,
+            result:
+              input.method === 'botharness/channelPolicySet' && policyFailure
+                ? { ok: false, error: policyFailure }
+                : { ok: true, value },
+          }),
+        );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

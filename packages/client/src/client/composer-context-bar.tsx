@@ -449,8 +449,8 @@ export function ComposerContextBar({
       {!settingsOpen || t === undefined ? null : (
         <PanelDialog
           size="small"
-          title={t('footer.settings')}
-          description={t('footer.restoreHint')}
+          title={t(pill === undefined ? 'footer.settings' : 'composerHeader.settings')}
+          description={t(pill === undefined ? 'footer.restoreHint' : 'composerHeader.restoreHint')}
           closeLabel={t('common.close')}
           onClose={closeSettings}
           secondary={

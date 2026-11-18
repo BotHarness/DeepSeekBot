@@ -27,8 +27,8 @@ import {
   saveListBots,
   syncChannelList,
   type ChannelListChanges,
-  type ChannelListCursor,
 } from './channel-list-store';
+import { loadChannelChangeCursor } from './channel-messages';
 import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
 import {
@@ -96,11 +96,18 @@ export interface RosterBot {
   previewAuthor?: WireAuthor;
 }
 
+export interface RosterHuman {
+  humanId: string;
+  displayName: string;
+  avatarVersion?: string;
+}
+
 export interface RosterChannel {
   id: string;
   name: string;
   memberCount: number;
   members: string[];
+  humanMembers?: RosterHuman[];
   avatar?: string;
   ownerBotSlug?: string;
   pendingInvites?: Array<{ id: string; botSlug: string }>;
@@ -323,6 +330,32 @@ function id(): string {
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+const HUMAN_AVATAR_VERSION = /^[a-f0-9]{16}$/u;
+
+function rosterHumans(value: unknown): { humanMembers?: RosterHuman[] } {
+  if (!Array.isArray(value)) return {};
+  return {
+    humanMembers: value.flatMap((raw: unknown) => {
+      if (typeof raw !== 'object' || raw === null) return [];
+      const member = raw as Record<string, unknown>;
+      const version = member['avatarVersion'];
+      return typeof member['humanId'] === 'string' &&
+        member['humanId'].length > 0 &&
+        typeof member['displayName'] === 'string'
+        ? [
+            {
+              humanId: member['humanId'],
+              displayName: member['displayName'],
+              ...(typeof version === 'string' && HUMAN_AVATAR_VERSION.test(version)
+                ? { avatarVersion: version }
+                : {}),
+            },
+          ]
+        : [];
+    }),
+  };
 }
 
 function previewOf(channel: ChannelListItem | undefined): {
@@ -558,12 +591,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
           members: channel.members,
           ...previewOf(channel),
         });
-      else if (channel.type === 'group')
+      else if (channel.type === 'group') {
+        const humans = rosterHumans(channel.humanMembers);
         groups.push({
           id: channel.id,
           name: channel.name,
-          memberCount: channel.members.length,
+          memberCount: channel.members.length + (humans.humanMembers?.length ?? 0),
           members: channel.members,
+          ...humans,
           ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])
@@ -580,6 +615,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
             })),
           ...previewOf(channel),
         });
+      }
     }
     groups.sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
     return {
@@ -938,7 +974,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       return await syncChannelList(store, {
         channels: fullChannelList,
-        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        cursor: () => unlessRefused(loadChannelChangeCursor({ call })),
         changes: (cursor) =>
           unlessRefused(
             call<ChannelListChanges>('channelListChanges', {

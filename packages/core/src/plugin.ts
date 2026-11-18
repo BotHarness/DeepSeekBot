@@ -240,8 +240,13 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import {
+  createFallbackOverrideStore,
+  type FallbackOverrideStore,
+} from './models/fallback-overrides.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
@@ -584,7 +589,9 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  modelFavorites: ModelFavoriteStore;
   routingGroups: RoutingGroupStore;
+  fallbackOverrides: FallbackOverrideStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -773,7 +780,9 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let modelFavorites: ModelFavoriteStore;
   let routingGroups: RoutingGroupStore;
+  let fallbackOverrides: FallbackOverrideStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -890,6 +899,8 @@ function initializeCore(
       warn: options.warn,
       onCommitted: () => live?.publishRosterCommitted(),
     });
+    startup.enter('model-favorites', 'initialize');
+    modelFavorites = createModelFavoriteStore({ database: operationalDatabase });
     startup.enter('model-presets', 'initialize');
     modelPresets = createModelPresetStore({
       rootDir: join(dshHome, 'botharness'),
@@ -900,13 +911,24 @@ function initializeCore(
         ),
     });
     startup.enter('routing-groups', 'initialize');
+    fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
     routingGroups = createRoutingGroupStore({
       database: operationalDatabase,
-      references: (groupId) =>
-        registry
-          .list()
-          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
-          .map((bot) => `Bot ${bot.displayName}`),
+      references: (groupId) => {
+        const uses = (source: { orchestratorGroupId?: string; assignmentGroups?: string[] }) =>
+          source.orchestratorGroupId === groupId ||
+          (source.assignmentGroups ?? []).includes(groupId);
+        return [
+          ...registry
+            .list()
+            .filter((bot) => bot.modelPlan !== undefined && uses(bot.modelPlan))
+            .map((bot) => `Bot ${bot.displayName}`),
+          ...modelPresets
+            .list()
+            .filter(uses)
+            .map((preset) => `Model Preset ${preset.name}`),
+        ];
+      },
     });
   } catch (error) {
     operationalDatabase.close();
@@ -1571,7 +1593,9 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    modelFavorites,
     routingGroups,
+    fallbackOverrides,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -1845,6 +1869,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }
       },
       restingUntil: (route) => routeRests.restingUntil(route),
+      inherited: () => core.routingGroups.defaultGroup().groupId,
     },
     openAssignmentRoutes,
     orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
@@ -2138,11 +2163,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const routeRests = createRouteRests();
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
+    inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
     routes: (groupId) => core.routingGroups.routes(groupId),
     rests: routeRests,
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
     validate: (route) => modelCatalog.validate(route),
+    overrides: {
+      get: (sessionId) => core.fallbackOverrides.get(sessionId),
+      set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),
+      delete: (sessionId) => core.fallbackOverrides.delete(sessionId),
+    },
   });
   const core = createCore({
     routeRests,
@@ -3500,6 +3531,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     defaultModel,
+    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean')
         developerModeTarget.gate?.set(patch.developerMode);
@@ -3744,6 +3776,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,
     routeRests,
     modelCatalog,

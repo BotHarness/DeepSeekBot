@@ -3481,8 +3481,13 @@ button.bh-profile-heat-cell:focus-visible {
   display: flex;
   flex-direction: column;
   margin-bottom: calc(-1 * var(--bh-composer-overlay, 0px));
-  padding: 74px ${space.x5} calc(${space.x6} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
+  --bh-chat-top-inset: 74px;
+  --bh-code-sticky-top: calc(var(--bh-chat-mask-top, ${space.x6}) - var(--bh-chat-top-inset));
+  padding: var(--bh-chat-top-inset) ${space.x5} calc(${space.x6} + var(--bh-companion-read-inset, 0px) + var(--bh-composer-overlay, 0px));
   overscroll-behavior: contain;
+}
+.md-code-block > :first-child {
+  top: var(--bh-code-sticky-top, 0px);
 }
 .bh-chat-empty {
   height: 100%;
@@ -4555,7 +4560,7 @@ a[href^="https://session.tobs.invalid/"]::before {
   padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
   border: ${border.hairline} solid transparent;
   border-radius: calc(${radius.panel} + ${space.x3});
-  background: var(--tobs-layer-elevated);
+  background: light-dark(var(--tobs-layer-raised), var(--tobs-layer-elevated));
   box-shadow: var(--tobs-elevation-1);
   transition:
     padding 180ms var(--bh-ease-out),

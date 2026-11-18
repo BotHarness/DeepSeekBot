@@ -2450,9 +2450,6 @@ describe('Assignment collaboration', () => {
     const stopped = await access.stop(sessionId);
     expect(stopped.activity).toBe('stopped');
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(
-      /stopped or stopping/,
-    );
     await expect(
       runningTurn.report({ state: 'completed', summary: '取消之后的迟到报告' }),
     ).rejects.toThrow('unavailable or stopping');
@@ -2479,7 +2476,35 @@ describe('Assignment collaboration', () => {
     await reopened.close();
   });
 
-  it('refuses new requests to a Human-stopped Assignment until unarchive revives it', async () => {
+  it('keeps a stopped Assignment stopped when its wake is refused at capacity', async () => {
+    const { runtime, agents, admit, close } = await setup({ assignmentConcurrencyLimit: 1 });
+    await admit('开始调研', 'stopped-capacity');
+    const access = agents.access;
+    if (access === undefined) throw new Error('Orchestrator never ran');
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '持续调研 A 方向',
+    });
+    if (created.outcome !== 'created') throw new Error('create failed');
+    const sessionId = created.assignment.sessionId;
+    await runtime.stopSession!('ada', sessionId);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    const busy = access.create({
+      title: 'Busy',
+      grantId: TEST_GRANT_ID,
+      description: '占住唯一的并发位',
+    });
+    expect(busy.outcome).toBe('created');
+    const refused = access.request({ sessionId, mode: 'next-turn', text: '继续' });
+    expect(refused.delivery).toBe('capacity');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    await close();
+  });
+
+  it('resumes a Human-stopped Assignment when the Orchestrator sends it a request', async () => {
     const { runtime, agents, admit, close } = await setup();
     await admit('开始调研', 'human-stop-3725');
     const access = agents.access;
@@ -2499,13 +2524,9 @@ describe('Assignment collaboration', () => {
     expect(stopped.stopped).toHaveLength(1);
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
 
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(/stopped/);
-    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-
-    const revived = await access.unarchive!(sessionId);
-    expect(revived).toMatchObject({ outcome: 'unarchived' });
     const resumed = access.request({ sessionId, mode: 'next-turn', text: '继续' });
     expect(resumed.delivery).toBe('followup');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).not.toBe('stopped');
     await close();
   });
 

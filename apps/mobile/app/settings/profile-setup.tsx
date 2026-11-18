@@ -42,6 +42,7 @@ export default function ProfileSetupScreen() {
         <ProfileSetupView
           name={human.identity.displayName}
           avatar={human.avatar}
+          hasAvatar={human.identity.avatarVersion !== undefined}
           editor={editor}
           onDone={(name) => finish(name)}
           onLater={() => finish()}

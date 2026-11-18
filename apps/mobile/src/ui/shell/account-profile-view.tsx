@@ -27,7 +27,7 @@ export interface AccountProfileActions {
 export interface ChatProfile {
   name: string | undefined;
   avatar: string | undefined;
-  hasAvatar: boolean;
+  hasAvatar: boolean | undefined;
   editor: ReturnType<typeof useAvatarEditor>;
   mount?: RefCallback<ViewInstance>;
   onEditName(): void;
@@ -37,6 +37,8 @@ function ChatProfileRows({ chat }: { chat: ChatProfile }) {
   const t = useStrings();
   const copy = t.accountProfile;
   const editor = chat.editor;
+  const photoAction =
+    chat.hasAvatar === undefined ? t.avatarTitle : chat.hasAvatar ? t.avatarChange : t.avatarChoose;
   return (
     <>
       <SettingsFormItem>
@@ -44,7 +46,12 @@ function ChatProfileRows({ chat }: { chat: ChatProfile }) {
           ref={chat.mount}
           style={{ alignItems: 'center', gap: space.x2, paddingVertical: space.x3 }}
         >
-          <EditableAvatar editor={editor} corner={radius.round} testID="chat-avatar-change">
+          <EditableAvatar
+            editor={editor}
+            corner={radius.round}
+            testID="chat-avatar-change"
+            label={photoAction}
+          >
             <AccountAvatar uri={chat.avatar} name={chat.name} size={profileShell.avatar} />
           </EditableAvatar>
           <Text variant="title">{chat.name ?? ' '}</Text>
@@ -66,11 +73,11 @@ function ChatProfileRows({ chat }: { chat: ChatProfile }) {
         <SettingsRow
           on={SHEET_GROUP}
           testID="chat-avatar-choose"
-          title={t.avatarChange}
+          title={photoAction}
           control={editor.busy ? { kind: 'busy' } : { kind: 'chevron' }}
           onPress={editor.busy ? undefined : () => void editor.choose()}
         />
-        {chat.hasAvatar ? (
+        {chat.hasAvatar === true ? (
           <SettingsRow
             on={SHEET_GROUP}
             testID="chat-avatar-remove"

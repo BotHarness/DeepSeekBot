@@ -2164,8 +2164,8 @@ window.__ModuleLoader__.load({
 				kXwgrk: "bhxdt5ytf",
 				kOIVth: "bhx103m73q",
 				k7Eaqz: "bhxeuugli",
-				kg3NbH: "bhxf5xh8h bhx1qyef7o",
-				k8WAf4: "bhxggp0jn bhxvz3fld",
+				kg3NbH: "bhxf5xh8h bhx1decy8s bhx1qyef7o",
+				k8WAf4: "bhxggp0jn bhxup6t74 bhxvz3fld",
 				kaIpWk: "bhxdylm0v bhxtm8dy7",
 				kVQacm: "bhx7giv3",
 				kWkggS: "bhx18mhnxz bhxu7tw00",
@@ -2267,7 +2267,7 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
 			const inGroup = (0, react.useContext)(SettingsGroupContext);
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -2350,6 +2350,10 @@ window.__ModuleLoader__.load({
 						"aria-expanded": expanded,
 						"aria-controls": controls,
 						onClick,
+						onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
+							if (event.pointerType !== "touch") onIntent();
+						},
+						onFocus: onIntent,
 						children: body
 					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: "bh-card-trailing",
@@ -4142,6 +4146,8 @@ window.__ModuleLoader__.load({
 .bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}
 .bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
 .bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
+.bhxup6t74:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}
+.bhx1decy8s:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}
 .bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}
 .bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}
 .bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}

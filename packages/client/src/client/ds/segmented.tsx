@@ -55,6 +55,7 @@ export interface SegmentedControlProps<Value extends string> {
   readonly label: string;
   readonly disabled?: boolean | undefined;
   readonly className?: string | undefined;
+  readonly controlsPanel?: boolean | undefined;
 }
 
 const WALK = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
@@ -84,6 +85,7 @@ export function SegmentedControl<Value extends string>({
   label,
   disabled = false,
   className,
+  controlsPanel = false,
 }: SegmentedControlProps<Value>): ReactElement {
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -111,7 +113,7 @@ export function SegmentedControl<Value extends string>({
             type="button"
             role="tab"
             aria-selected={active}
-            aria-controls={`${id}-${option.value}-panel`}
+            aria-controls={controlsPanel && active ? `${id}-${option.value}-panel` : undefined}
             tabIndex={active ? 0 : -1}
             disabled={disabled || option.disabled === true}
             title={option.title}

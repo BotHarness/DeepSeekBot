@@ -1,5 +1,6 @@
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPreset, ModelRoute } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
@@ -13,11 +14,20 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'home-model-set',
     description:
-      'set the Host default model (--provider, --model, --orchestrator-effort, --expected-revision)',
+      'set the Host default model (--provider, --model, --orchestrator-effort, or --group <routing-group-id>; --expected-revision)',
   },
   {
     command: 'model-catalog',
     description: 'list the models the Host can run, with the default',
+  },
+  {
+    command: 'model-favorite-add',
+    description:
+      'star a model (<provider>/<model>) or a Model Route Group (group:<id>) for you on every device',
+  },
+  {
+    command: 'model-favorite-remove',
+    description: 'unstar a model (<provider>/<model>) or a Model Route Group (group:<id>)',
   },
   {
     command: 'model-plan-set',
@@ -106,6 +116,9 @@ export interface ModelsUsageValues {
   'assignment-models'?: string;
   'members-stdin'?: boolean;
   'orchestrator-group'?: string;
+  group?: string;
+  'assignment-groups'?: string;
+  'assignment-default-group'?: string;
   period?: string;
   after?: string;
   start?: string;
@@ -131,6 +144,19 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/u;
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
+}
+
+function favoriteChoice(target: string): ModelFavorite {
+  if (target.startsWith('group:')) {
+    const id = target.slice('group:'.length).trim();
+    if (!id) usage('group:<id> needs a nonempty Model Route Group id.');
+    return { kind: 'group', id };
+  }
+  const slash = target.indexOf('/');
+  const provider = slash < 0 ? '' : target.slice(0, slash).trim();
+  const model = slash < 0 ? '' : target.slice(slash + 1).trim();
+  if (!provider || !model) usage('Name a model as <provider>/<model>, or a group as group:<id>.');
+  return { kind: 'model', provider, model };
 }
 
 function revision(value: string | undefined): number | undefined {
@@ -196,6 +222,32 @@ async function planInput(
   return plan;
 }
 
+export function presetGroupFlags(values: {
+  'orchestrator-group'?: string | undefined;
+  'assignment-groups'?: string | undefined;
+  'assignment-default-group'?: string | undefined;
+}): {
+  orchestratorGroupId?: string | null;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string | null;
+} {
+  const orchestrator = values['orchestrator-group'];
+  const list = values['assignment-groups'];
+  const defaultId = values['assignment-default-group'];
+  return {
+    ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() || null }),
+    ...(list === undefined
+      ? {}
+      : {
+          assignmentGroups: list
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0),
+        }),
+    ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId.trim() || null }),
+  };
+}
+
 export function assignmentModelsMode(value: string | undefined): {
   openAssignmentModels?: boolean;
 } {
@@ -248,7 +300,17 @@ export async function runModelsUsage(
   const expected = revision(values['expected-revision']);
 
   if (command === 'home-model-set') {
-    if (!values.provider || !values.model) usage('home-model-set requires --provider and --model.');
+    const group = values.group?.trim();
+    if (values.group !== undefined && !group) usage('--group must not be empty.');
+    if (
+      group &&
+      (values.provider !== undefined ||
+        values.model !== undefined ||
+        values['orchestrator-effort'] !== undefined)
+    )
+      usage('Use either --group or --provider/--model.');
+    if (!group && (!values.provider || !values.model))
+      usage('home-model-set requires --provider and --model, or --group.');
     const rpc = await connect();
     const expectedDefaultRevision =
       expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
@@ -260,17 +322,26 @@ export async function runModelsUsage(
     return rpc('onboardingModel', {
       expectedRevision: 0,
       expectedDefaultRevision,
-      route: {
-        provider: values.provider,
-        model: values.model,
-        ...(values['orchestrator-effort']
-          ? { reasoningEffort: values['orchestrator-effort'] }
-          : {}),
-      },
+      ...(group
+        ? { groupId: group }
+        : {
+            route: {
+              provider: values.provider,
+              model: values.model,
+              ...(values['orchestrator-effort']
+                ? { reasoningEffort: values['orchestrator-effort'] }
+                : {}),
+            },
+          }),
       globalDefault: true,
     });
   }
   if (command === 'model-catalog') return (await connect())('modelCatalog', {});
+  if (command === 'model-favorite-add' || command === 'model-favorite-remove')
+    return (await connect())('modelFavoriteSet', {
+      choice: favoriteChoice(target),
+      favorite: command === 'model-favorite-add',
+    });
   if (command === 'activity-overview') return (await connect())('activityOverview', {});
   if (command === 'channel-activity-today') return (await connect())('channelActivityToday', {});
   if (command === 'overview-memory') {
@@ -390,7 +461,9 @@ export async function runModelsUsage(
     const plan = await planInput(
       io,
       values,
-      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      full
+        ? required
+        : [...required, 'assignmentGroups', 'assignmentDefaultGroupId', 'assignmentGroupOptions'],
       required,
     );
     const mode = assignmentModelsMode(values['assignment-models']);
@@ -414,7 +487,7 @@ export async function runModelsUsage(
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
-      ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
+      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions'], [])
       : {};
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
@@ -425,12 +498,36 @@ export async function runModelsUsage(
         'unknown-preset',
         'The specified Model Preset does not exist on this Host.',
       );
+    const flags = presetGroupFlags(values);
+    const routeGiven = ['provider', 'model', 'effort'].some(
+      (part) => values[`orchestrator-${part}` as 'orchestrator-provider'] !== undefined,
+    );
+    if (routeGiven && flags.orchestratorGroupId)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    const orchestratorGroupId =
+      'orchestratorGroupId' in flags
+        ? flags.orchestratorGroupId
+        : routeGiven
+          ? null
+          : (current.orchestratorGroupId ?? null);
+    const assignmentGroups = flags.assignmentGroups ?? current.assignmentGroups ?? [];
+    const assignmentDefaultGroupId =
+      'assignmentDefaultGroupId' in flags
+        ? flags.assignmentDefaultGroupId
+        : (current.assignmentDefaultGroupId ?? null);
+    if (assignmentDefaultGroupId && !assignmentGroups.includes(assignmentDefaultGroupId))
+      usage('--assignment-default-group must be one of the Assignment Routing Groups.');
     return rpc('modelPresetUpdate', {
       id: target,
       expectedRevision: expected ?? current.revision,
       name: name ?? current.name,
-      orchestrator: routeOverride(values, 'orchestrator', current.orchestrator),
+      ...(orchestratorGroupId
+        ? {}
+        : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
       ...plan,
       ...mode,
     });

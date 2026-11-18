@@ -5,6 +5,7 @@ import {
   type GenuiDocumentState,
 } from '../../../core/src/channels/genui-document';
 import { PrivateViewController } from '../shared/genui-view';
+import { loadPrivateView, savePrivateView, type PrivateView } from '../channel-messages';
 
 export interface GenuiViewClient {
   call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
@@ -23,6 +24,32 @@ export function parseGenuiDocumentView(
   return { version, state: validateGenuiDocumentState(document, record['state']) };
 }
 
+export function loadGenuiDocumentView(
+  client: GenuiViewClient,
+  channelId: string,
+  messageId: string,
+  document: GenuiDocument,
+): Promise<PrivateView<GenuiDocumentState>> {
+  return loadPrivateView(client, channelId, messageId, (state) =>
+    validateGenuiDocumentState(document, state),
+  );
+}
+
+export function saveGenuiDocumentView(
+  client: GenuiViewClient,
+  channelId: string,
+  messageId: string,
+  document: GenuiDocument,
+  expectedVersion: number,
+  state: GenuiDocumentState,
+): Promise<PrivateView<GenuiDocumentState>> {
+  return savePrivateView(
+    client,
+    { channelId, messageId, snapshotId: document.snapshotId, expectedVersion, state },
+    (value) => validateGenuiDocumentState(document, value),
+  );
+}
+
 export class GenuiDocumentViewModel extends PrivateViewController<GenuiDocumentState> {
   constructor(
     readonly document: GenuiDocument,
@@ -36,21 +63,13 @@ export class GenuiDocumentViewModel extends PrivateViewController<GenuiDocumentS
       messageId,
       document.stateContract && client
         ? {
-            genuiView: async (channel, message) =>
-              parseGenuiDocumentView(
-                await client.call('channelGenuiView', { channelId: channel, messageId: message }),
-                document,
-              ),
-            saveGenuiView: async (channel, message, snapshotId, expectedVersion, state) =>
-              parseGenuiDocumentView(
-                await client.call('channelGenuiViewSave', {
-                  channelId: channel,
-                  messageId: message,
-                  snapshotId,
-                  expectedVersion,
-                  state: validateGenuiDocumentState(document, state),
-                }),
-                document,
+            genuiView: (channel, message) =>
+              loadGenuiDocumentView(client, channel, message, document),
+            saveGenuiView: (channel, message, snapshotId, expectedVersion, state) =>
+              savePrivateView(
+                client,
+                { channelId: channel, messageId: message, snapshotId, expectedVersion, state },
+                (value) => validateGenuiDocumentState(document, value),
               ),
           }
         : undefined,

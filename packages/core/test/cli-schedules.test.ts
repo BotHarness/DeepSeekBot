@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -17,25 +18,27 @@ afterEach(async () => {
 
 async function host(handler: (method: string, args: Record<string, unknown>) => unknown) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const input = JSON.parse(Buffer.concat(chunks).toString());
-    const method = input.method.replace('botharness/', '');
-    expect(req.url).toBe(`/api/${input.method}`);
-    calls.push({ method, args: input.payload.args });
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        result: handler(method, input.payload.args),
-      }),
-    );
-  });
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const input = JSON.parse(Buffer.concat(chunks).toString());
+      const method = input.method.replace('botharness/', '');
+      expect(req.url).toBe(`/api/${input.method}`);
+      calls.push({ method, args: input.payload.args });
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          result: handler(method, input.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

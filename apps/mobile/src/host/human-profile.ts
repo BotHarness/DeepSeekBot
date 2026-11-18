@@ -7,11 +7,12 @@ import {
   type HumanAvatarCache,
   type HumanIdentity,
 } from '@botharness/host-client/human-profile';
-import { useSyncExternalStore } from 'react';
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { ViewInstance } from 'react-native';
 
 import { useMounted } from '../ui/mounted';
 import { followConnection } from './follow-connection';
+import { createReadSequence } from './identity-reads';
 
 const caches = new WeakMap<HostClient, HumanAvatarCache>();
 
@@ -34,10 +35,20 @@ export function useHumanAvatar(
   version: string | undefined,
 ): string | undefined {
   const cache = client === undefined ? idle : humanAvatarCache(client);
-  useSyncExternalStore(cache.subscribe, cache.getSnapshot);
-  if (humanId === undefined) return undefined;
+  useSyncExternalStore(cache.subscribe, cache.getSnapshot, cache.getSnapshot);
+  if (client === undefined || humanId === undefined) return undefined;
   cache.want(humanId, version);
   return cache.get(humanId, version);
+}
+
+export const HumanAvatarClientContext = createContext<HostClient | undefined>(undefined);
+
+export function useMemberAvatar(
+  humanId: string | undefined,
+  version: string | undefined,
+): string | undefined {
+  const client = useContext(HumanAvatarClientContext);
+  return useHumanAvatar(client, version === undefined ? undefined : humanId, version);
 }
 
 const identities = new WeakMap<HostClient, HumanIdentity>();
@@ -53,10 +64,10 @@ const identitySource = {
   getSnapshot: () => identityRevision,
 };
 
-const writes = new WeakMap<HostClient, number>();
+const sequence = createReadSequence<HostClient>();
 
 function remember(client: HostClient, identity: HumanIdentity, write = false): HumanIdentity {
-  if (write) writes.set(client, (writes.get(client) ?? 0) + 1);
+  if (write) sequence.wrote(client);
   identities.set(client, identity);
   identityRevision += 1;
   for (const listener of identityListeners) listener();
@@ -64,12 +75,10 @@ function remember(client: HostClient, identity: HumanIdentity, write = false): H
 }
 
 export async function loadHumanIdentity(client: HostClient): Promise<HumanIdentity> {
-  const issued = writes.get(client) ?? 0;
+  const commit = sequence.begin(client);
   const identity = parseHumanIdentity(await client.call<unknown>('humanIdentity'));
   const newer = identities.get(client);
-  return (writes.get(client) ?? 0) !== issued && newer !== undefined
-    ? newer
-    : remember(client, identity);
+  return !commit() && newer !== undefined ? newer : remember(client, identity);
 }
 
 export function followHumanIdentity(client: HostClient): () => void {

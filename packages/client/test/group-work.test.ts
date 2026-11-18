@@ -113,7 +113,8 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
     assignment('s-run', 'ada', 'Run the build', 'working', 'progress'),
     assignment('s-idle', 'bob', 'Draft notes', 'idle'),
     assignment('s-done', 'ada', 'Ship docs', 'idle', 'completed'),
-    assignment('s-stop', 'bob', 'Old task', 'stopped'),
+    assignment('s-stop', 'bob', 'Stopped task', 'stopped'),
+    { ...assignment('s-old', 'ada', 'Old task', 'idle', 'completed'), archivedAt: AT },
   ];
   await render();
   expect(actions.channelAssignments).toHaveBeenCalledWith(GROUP.id);
@@ -126,7 +127,13 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
   ]);
   const titles = () =>
     [...host.querySelectorAll('.bh-card-title')].map((title) => title.textContent);
-  expect(titles()).toEqual(['Pick a branch', 'Run the build', 'Draft notes', 'Ship docs']);
+  expect(titles()).toEqual([
+    'Pick a branch',
+    'Run the build',
+    'Draft notes',
+    'Ship docs',
+    'Stopped task',
+  ]);
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Pick a branch report');
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Bob');
 
@@ -139,6 +146,7 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
     'Run the build',
     'Draft notes',
     'Ship docs',
+    'Stopped task',
     'Old task',
   ]);
 

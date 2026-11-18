@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
-import { useHumanIdentity } from '../../../src/host/human-profile';
+import { loadHumanIdentity, useHumanIdentity } from '../../../src/host/human-profile';
 import { loadUsage } from '@botharness/host-client/usage';
 import { appBuildLabel } from '../../../src/ui/app-build';
 import { copyMessage } from '../../../src/ui/chat/message-menu';
@@ -14,6 +14,7 @@ import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings
 import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
 import { SendJumpSetting } from '../../../src/ui/shell/send-jump-setting';
+import { HeaderModelSetting } from '../../../src/ui/shell/header-model-setting';
 import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
 import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
@@ -29,7 +30,8 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
-    }, []),
+      if (client !== undefined) void loadHumanIdentity(client).catch(() => undefined);
+    }, [client]),
   );
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
@@ -47,6 +49,7 @@ export default function SettingsScreen() {
         statistics={<StatisticsSettings />}
         messageDisplay={<MessageDisplaySetting />}
         sendJump={<SendJumpSetting />}
+        headerModel={<HeaderModelSetting />}
         activityCount={<ActivityCountLink />}
         hapticFeedback={<HapticFeedbackSetting />}
         deliveryReceipts={<DeliveryReceiptSetting />}
@@ -68,6 +71,7 @@ export default function SettingsScreen() {
           onNotifications: () => router.push('/settings/notifications'),
           onStorage: () => router.push('/settings/storage'),
           onModels: () => router.push('/settings/models'),
+          onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,
         }}
       />

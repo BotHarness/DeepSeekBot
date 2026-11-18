@@ -540,6 +540,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -549,6 +553,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
@@ -643,6 +651,7 @@ describe('bridge typert service', () => {
       'route',
       'globalDefault',
       'expectedDefaultRevision',
+      'groupId',
     ]);
     expect(parameterNames(service.modelPresetApply)).toEqual([
       'slug',
@@ -656,6 +665,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -665,6 +678,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [
@@ -840,8 +857,10 @@ describe('bridge typert service', () => {
       'botTurnInput',
       'channelBotStop',
       'sessionStop',
+      'sessionMessageSend',
       'botStop',
       'modelCatalog',
+      'modelFavoriteSet',
       'modelPresets',
       'modelPresetCreate',
       'modelPresetUpdate',
@@ -921,6 +940,7 @@ describe('bridge typert service', () => {
       'channelAllBotPreview',
       'tobCli',
       'channelSkillCatalog',
+      'sessionSkillCatalog',
       'botSkills',
       'skillShow',
       'botSkillRemove',
