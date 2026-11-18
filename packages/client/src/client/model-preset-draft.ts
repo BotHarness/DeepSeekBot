@@ -1,11 +1,13 @@
 import type {
   AssignmentGroupOptionView,
   AssignmentModelOptionView,
+  ModelCatalogEntryView,
   ModelCatalogGroupView,
   ModelPlanGroupsView,
   ModelPlanView,
   ModelRouteView,
 } from './bridge.js';
+import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
 import { groupMenuId, groupMenuKey } from './model-menu.js';
 
 export function routeLabel(route: ModelRouteView, defaultLabel: string): string {
@@ -164,9 +166,12 @@ export function groupOptionOf(
 export function frontRoute(
   groups: readonly ModelCatalogGroupView[],
   id: string,
+  catalog: readonly ModelCatalogEntryView[] = [],
 ): ModelRouteView | undefined {
-  const route = groups.find((group) => group.id === id)?.routes[0];
-  return route === undefined ? undefined : { provider: route.provider, model: route.model };
+  const group = groups.find((item) => item.id === id);
+  if (group === undefined || group.routes.length === 0) return undefined;
+  const route = modelCatalogGroupFront(group, [...catalog]);
+  return { provider: route.provider, model: route.model };
 }
 
 export interface PlanParts {
@@ -179,12 +184,13 @@ export interface PlanParts {
 export function planParts(
   draft: ModelDraft,
   catalogGroups: readonly ModelCatalogGroupView[],
+  catalog: readonly ModelCatalogEntryView[] = [],
 ): PlanParts | undefined {
   const orchestratorGroupId = groupMenuId(draft.orchestrator.key);
   const orchestrator =
     orchestratorGroupId === undefined
       ? routeOfKey(draft.orchestrator.key, draft.orchestrator.effort)
-      : frontRoute(catalogGroups, orchestratorGroupId);
+      : frontRoute(catalogGroups, orchestratorGroupId, catalog);
   if (orchestrator === undefined) return undefined;
   const defaultGroupId = groupMenuId(draft.assignment.key);
   let assignmentDefault: ModelRouteView;
@@ -200,7 +206,7 @@ export function planParts(
         ? undefined
         : listed.find((option) => modelKey(option) === modelKey(fallback));
     const first = kept ?? listed[0];
-    const front = frontRoute(catalogGroups, defaultGroupId);
+    const front = frontRoute(catalogGroups, defaultGroupId, catalog);
     if (first !== undefined) {
       const effort =
         kept !== undefined && first.allowedEfforts.includes(fallback?.reasoningEffort ?? '')

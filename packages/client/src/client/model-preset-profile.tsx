@@ -235,7 +235,8 @@ export function ModelPresetProfile({
     setError(undefined);
     try {
       const orchestratorGroup = groupMenuId(draft.orchestrator.key);
-      const parts = draft.assignment.key === '' ? undefined : planParts(draft, catalogGroups);
+      const parts =
+        draft.assignment.key === '' ? undefined : planParts(draft, catalogGroups, catalog);
       const applied =
         draft.presetId !== '' && presets.some((preset) => preset.id === draft.presetId)
           ? await actions.applyModelPreset(slug, draft.presetId)
@@ -273,7 +274,7 @@ export function ModelPresetProfile({
   const saveAsPreset = async (): Promise<void> => {
     const name = presetName?.trim() ?? '';
     if (!canSave || draft === undefined || draft.assignment.key === '' || name === '') return;
-    const parts = planParts(draft, catalogGroups);
+    const parts = planParts(draft, catalogGroups, catalog);
     if (parts === undefined) {
       setError(t('modelPreset.routeUnavailable'));
       return;

@@ -1618,4 +1618,29 @@ describe('planParts under an Assignment Routing Group', () => {
     expect(draft.advanced).toBe(true);
     expect(planParts(draft, [draftDaily])?.assignmentDefault).toEqual(draftB);
   });
+
+  it('starts an Assignment group with no listed models on a route that has a key', () => {
+    const draft = {
+      ...draftOf(
+        {
+          orchestrator: draftA,
+          assignmentDefault: draftA,
+          assignmentModels: [],
+          assignmentGroups: ['daily'],
+          assignmentDefaultGroupId: 'daily',
+        },
+        '',
+      ),
+      allowed: [],
+    };
+    const catalog = [
+      { ...draftA, providerName: 'P', modelName: 'A', efforts: [], credential: 'missing' as const },
+      { ...draftB, providerName: 'P', modelName: 'B', efforts: [] },
+    ];
+    const parts = planParts(draft, [draftDaily], catalog);
+    expect(parts?.assignmentDefault).toEqual(draftB);
+    expect(parts?.assignmentModels).toEqual([
+      { ...draftB, allowedEfforts: [''], defaultEffort: '' },
+    ]);
+  });
 });
