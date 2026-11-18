@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
+import { queryMenuItem } from './primitive-mocks.js';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   relativeTime: (at: number, now: number) => ({
     unit: 'days',
     n: Math.floor((now - at) / 86_400_000),
@@ -35,32 +37,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronDownOutlineRegular: () => null,
   IconChevronLeftOutlineRegular: () => null,
   IconChevronRightOutlineRegular: () => null,
-  Menu: (props: {
-    open: boolean;
-    items: readonly { id: string; label: ReactNode }[];
-    selectedId?: string;
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'span',
-      { role: 'menu' },
-      props.open
-        ? props.items.map((item) =>
-            createElement(
-              'button',
-              {
-                key: item.id,
-                role: 'menuitemradio',
-                'aria-checked': item.id === props.selectedId,
-                onClick: () => props.onSelect(item.id),
-              },
-              item.label,
-            ),
-          )
-        : null,
-    ),
+
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
-  Tooltip: (props: { children?: ReactNode }) => props.children,
+
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
   SegmentedControl: (props: {
     value: string;
@@ -84,14 +63,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
           option.label,
         ),
       ),
-    ),
-  Modal: (props: { title: string; children?: ReactNode; footer?: ReactNode }) =>
-    createElement(
-      'section',
-      { 'data-dialog': props.title },
-      createElement('h1', null, props.title),
-      props.children,
-      props.footer,
     ),
 }));
 
@@ -242,7 +213,7 @@ async function withPanel(
 }
 
 function button(host: HTMLElement, label: string): HTMLButtonElement {
-  const found = [...host.querySelectorAll('button')].find(
+  const found = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
     (item) => item.textContent === label || item.getAttribute('aria-label') === label,
   );
   if (found === undefined) throw new Error(`missing button ${label}`);
@@ -250,7 +221,7 @@ function button(host: HTMLElement, label: string): HTMLButtonElement {
 }
 
 async function click(host: HTMLElement, label: string) {
-  await act(async () => button(host, label).click());
+  await act(async () => (queryMenuItem(label) ?? button(host, label)).click());
 }
 
 afterEach(() => {
@@ -281,7 +252,7 @@ describe('Market panel', () => {
       async () => ({ bots: [] }),
       async ({ host, actions }) => {
         expect(digests).toHaveBeenCalledWith('zh');
-        const row = host.querySelector<HTMLElement>('[data-market-daily-picks]')!;
+        const row = document.body.querySelector<HTMLElement>('[data-market-daily-picks]')!;
         expect(row.hidden).toBe(false);
         const cards = [...row.querySelectorAll('[data-market-digest-day]')];
         expect(cards).toHaveLength(7);
@@ -296,7 +267,9 @@ describe('Market panel', () => {
         expect(
           row.lastElementChild!.lastElementChild!.querySelector('[data-market-past-picks]'),
         ).not.toBeNull();
-        const order = [...host.querySelectorAll('[data-market-daily-picks], .bh-market-sections')];
+        const order = [
+          ...document.body.querySelectorAll('[data-market-daily-picks], .bh-market-sections'),
+        ];
         expect(order[0]).toBe(row);
         expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:digest_view');
       },
@@ -325,12 +298,12 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, actions }) => {
-        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        const home = document.body.querySelector<HTMLElement>('.bh-market-page')!;
         await click(host, '阅读每日精选：今天值得一试的 Bot');
         expect(digest).toHaveBeenCalledWith('2026-10-28', 'zh');
         expect(home.hidden).toBe(true);
-        expect(host.querySelector('[role="dialog"]')).toBeNull();
-        const article = host.querySelector('[data-market-digest="2026-10-28"]')!;
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+        const article = document.body.querySelector('[data-market-digest="2026-10-28"]')!;
         expect(article.textContent).toContain('它帮你整理想法。');
         expect(
           article.querySelector('[data-digest-cover]')!.getAttribute('data-digest-cover'),
@@ -344,7 +317,7 @@ describe('Market panel', () => {
         await act(async () =>
           article.querySelector<HTMLButtonElement>('[data-market-past-picks]')!.click(),
         );
-        const archive = host.querySelector('[data-market-digest="archive"]')!;
+        const archive = document.body.querySelector('[data-market-digest="archive"]')!;
         const days = [...archive.querySelectorAll<HTMLButtonElement>('[data-market-digest-day]')];
         expect(days.map((node) => node.getAttribute('data-market-digest-day'))).toEqual([
           '2026-10-28',
@@ -353,7 +326,7 @@ describe('Market panel', () => {
         await act(async () => days[1]!.click());
         expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
         const visible = () =>
-          [...host.querySelectorAll<HTMLElement>('[data-market-page]')]
+          [...document.body.querySelectorAll<HTMLElement>('[data-market-page]')]
             .filter((page) => !page.hasAttribute('aria-hidden'))
             .map((page) => page.getAttribute('data-market-page'));
         expect(visible()).toEqual(['digest:2026-10-27']);
@@ -400,8 +373,8 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [entry('translator')] }),
       async ({ host }) => {
-        expect(host.querySelector('[data-market-daily-picks]')).not.toBeNull();
-        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        expect(document.body.querySelector('[data-market-daily-picks]')).not.toBeNull();
+        const search = document.body.querySelector<HTMLInputElement>('input[type="search"]')!;
         await act(async () => {
           Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
             search,
@@ -414,7 +387,7 @@ describe('Market panel', () => {
             new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
           );
         });
-        expect(host.querySelector('[data-market-daily-picks]')).toBeNull();
+        expect(document.body.querySelector('[data-market-daily-picks]')).toBeNull();
       },
       { marketplaceDigests: digests },
     );
@@ -430,7 +403,7 @@ describe('Market panel', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host, actions }) => {
         expect(sections).toHaveBeenCalledWith('zh');
-        const rows = [...host.querySelectorAll('[data-market-section]')];
+        const rows = [...document.body.querySelectorAll('[data-market-section]')];
         expect(rows.map((row) => row.getAttribute('data-market-section'))).toEqual([
           'hot',
           'rising',
@@ -442,7 +415,10 @@ describe('Market panel', () => {
         expect(rows[0]!.querySelector('[data-market-bot]')?.getAttribute('data-market-bot')).toBe(
           'alice/popular',
         );
-        expect([...rows[0]!.querySelectorAll('button')].at(-1)?.textContent).toBe('导入');
+        expect(
+          [...rows[0]!.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].at(-1)
+            ?.textContent,
+        ).toBe('导入');
         expect(actions['telemetryEvent']!.mock.calls).toEqual([['marketplace:section_view']]);
       },
       { marketplaceSections: sections },
@@ -488,7 +464,8 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host }) => {
-        const row = (name: string) => host.querySelector(`[data-market-section="${name}"]`)!;
+        const row = (name: string) =>
+          document.body.querySelector(`[data-market-section="${name}"]`)!;
         const cards = (name: string) =>
           [...row(name).querySelectorAll('[data-market-card]')].map((card) =>
             card.getAttribute('data-market-card'),
@@ -523,7 +500,9 @@ describe('Market panel', () => {
           'alice/climber',
         );
         expect(
-          [...host.querySelectorAll('[data-market-see-all]')].map((link) => link.textContent),
+          [...document.body.querySelectorAll('[data-market-see-all]')].map(
+            (link) => link.textContent,
+          ),
         ).toEqual(['查看全部', '查看全部', '查看全部']);
       },
       { marketplaceSections: sections },
@@ -543,13 +522,13 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [entry('helper')] }),
       async ({ host, actions }) => {
-        expect(host.querySelector('[data-market-section="hot"]')).toBeNull();
-        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
-        const rising = host.querySelector('[data-market-section="rising"]')!;
+        expect(document.body.querySelector('[data-market-section="hot"]')).toBeNull();
+        const home = document.body.querySelector<HTMLElement>('.bh-market-page')!;
+        const rising = document.body.querySelector('[data-market-section="rising"]')!;
         await act(async () =>
           rising.querySelector<HTMLButtonElement>('[data-market-see-all="rising"]')!.click(),
         );
-        const page = host.querySelector<HTMLElement>('[data-market-page="ranking"]')!;
+        const page = document.body.querySelector<HTMLElement>('[data-market-page="ranking"]')!;
         expect(page.getAttribute('aria-label')).toBe('上升最快');
         expect(home.hidden).toBe(true);
         const grid = page.querySelector('.bh-market-grid[data-market-ranking="rising"]')!;
@@ -564,7 +543,7 @@ describe('Market panel', () => {
           entry: 'rising',
           step: 'detail',
         });
-        const botPage = host.querySelector<HTMLElement>('[data-market-page="bot"]')!;
+        const botPage = document.body.querySelector<HTMLElement>('[data-market-page="bot"]')!;
         const github = botPage.querySelector<HTMLAnchorElement>('a[aria-label="在 GitHub 查看"]')!;
         expect(github.getAttribute('href')).toBe('https://github.com/alice/sprinter');
         expect(github.textContent).toBe('');
@@ -572,12 +551,15 @@ describe('Market panel', () => {
         expect(botPage.querySelector('.bh-market-hero-name')?.textContent).toContain('sprinter');
         expect(page.getAttribute('aria-hidden')).toBe('true');
         await act(async () =>
-          button(host.querySelector<HTMLElement>('[data-market-page="bot"]')!, '返回').click(),
+          button(
+            document.body.querySelector<HTMLElement>('[data-market-page="bot"]')!,
+            '返回',
+          ).click(),
         );
-        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
-        expect(host.querySelector('[data-market-page="ranking"]')).toBe(page);
+        expect(document.body.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(document.body.querySelector('[data-market-page="ranking"]')).toBe(page);
 
-        const imports = [...grid.querySelectorAll('button')].filter(
+        const imports = [...grid.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].filter(
           (item) => item.textContent === '导入',
         );
         await act(async () => imports[2]!.click());
@@ -585,13 +567,15 @@ describe('Market panel', () => {
           entry: 'rising',
           step: 'install',
         });
-        expect(host.querySelector('h1')?.textContent).toBe('安装 jumper');
-        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
+        expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe('安装 jumper');
+        await act(async () =>
+          button(document.body.querySelector('[data-dialog]')!, '返回').click(),
+        );
 
         await act(async () => button(page, '返回').click());
-        expect(host.querySelector('[data-market-page="ranking"]')).toBeNull();
+        expect(document.body.querySelector('[data-market-page="ranking"]')).toBeNull();
         expect(home.hidden).toBe(false);
-        expect(host.querySelector('.bh-market-page')).toBe(home);
+        expect(document.body.querySelector('.bh-market-page')).toBe(home);
         expect(home.querySelector('[data-market-section="rising"]')).toBe(rising);
       },
       {
@@ -616,20 +600,22 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, actions }) => {
-        const hot = host.querySelector<HTMLElement>('[data-market-section="hot"]')!;
+        const hot = document.body.querySelector<HTMLElement>('[data-market-section="hot"]')!;
         await act(async () => button(hot, '导入').click());
         expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
           entry: 'hot',
           step: 'install',
         });
-        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
-        const fresh = host.querySelector<HTMLElement>('[data-market-section="new"]')!;
+        await act(async () =>
+          button(document.body.querySelector('[data-dialog]')!, '返回').click(),
+        );
+        const fresh = document.body.querySelector<HTMLElement>('[data-market-section="new"]')!;
         await act(async () => button(fresh, '查看 alice/fresh 详情').click());
         expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
           entry: 'new',
           step: 'detail',
         });
-        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-page="bot"]')).not.toBeNull();
       },
       {
         marketplaceSections: sections,
@@ -685,12 +671,12 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, list }) => {
-        const menu = host.querySelector<HTMLButtonElement>(
+        const menu = document.body.querySelector<HTMLButtonElement>(
           '.bh-market-sort-menu > button[aria-label="排序"]',
         )!;
         expect(menu.textContent).toBe('最多 Star');
         await act(async () => menu.click());
-        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
         expect(items.map((item) => item.textContent)).toEqual([
           '最新创建',
           '最近更新',
@@ -760,7 +746,9 @@ describe('Market panel', () => {
         ],
       }),
       async ({ host }) => {
-        const banners = host.querySelectorAll('.bh-market-tile-open .bh-market-tile-banner');
+        const banners = document.body.querySelectorAll(
+          '.bh-market-tile-open .bh-market-tile-banner',
+        );
         expect(banners).toHaveLength(3);
         expect(banners[0]?.querySelector('canvas')).not.toBeNull();
         expect(banners[1]?.querySelector('img')?.src).toContain('/.botharness/banner.png');
@@ -780,7 +768,7 @@ describe('Market panel', () => {
         ],
       }),
       async ({ host }) => {
-        const avatars = [...host.querySelectorAll('.bh-market-tile [data-market-avatar]')];
+        const avatars = [...document.body.querySelectorAll('.bh-market-tile [data-market-avatar]')];
         expect(avatars.map((avatar) => avatar.getAttribute('data-market-avatar'))).toEqual([
           'image',
           'recipe',
@@ -816,8 +804,8 @@ describe('Market panel', () => {
             ? { bots: [entry('newest'), entry('older')] }
             : { bots: [entry('fresh')] },
       async ({ host, list }) => {
-        expect(host.querySelectorAll('.bh-market-grid [role="listitem"]')).toHaveLength(1);
-        expect(host.textContent).toContain('更新于 3 天前');
+        expect(document.body.querySelectorAll('.bh-market-grid [role="listitem"]')).toHaveLength(1);
+        expect(document.body.textContent).toContain('更新于 3 天前');
 
         await click(host, '最新创建');
 
@@ -827,13 +815,13 @@ describe('Market panel', () => {
           includeUploads: true,
         });
         expect(
-          [...host.querySelectorAll('[data-market-bot]')].map((tile) =>
+          [...document.body.querySelectorAll('[data-market-bot]')].map((tile) =>
             tile.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/newest', 'alice/older']);
-        expect(host.textContent).toContain('创建于 213 天前');
+        expect(document.body.textContent).toContain('创建于 213 天前');
 
-        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        const search = document.body.querySelector<HTMLInputElement>('input[type="search"]')!;
         await act(async () => {
           Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
             search,
@@ -855,7 +843,7 @@ describe('Market panel', () => {
           includeUploads: true,
           q: 'translator',
         });
-        expect(host.textContent).toContain('translator description');
+        expect(document.body.textContent).toContain('translator description');
       },
     );
   });
@@ -884,10 +872,10 @@ describe('Market panel', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host, actions, registry }) => {
         await click(host, '导入');
-        expect(host.querySelector('h1')?.textContent).toBe('安装 helper');
+        expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe('安装 helper');
         expect(review).toHaveBeenCalledWith('R_helper', 'zh');
-        expect(host.textContent).toContain('Tob 发现 2 处需要留意');
-        const findings = [...host.querySelectorAll('[data-market-finding]')];
+        expect(document.body.textContent).toContain('Tob 发现 2 处需要留意');
+        const findings = [...document.body.querySelectorAll('[data-market-finding]')];
         expect(findings.map((item) => item.getAttribute('data-market-finding'))).toEqual([
           'exfiltration',
           'script',
@@ -905,8 +893,8 @@ describe('Market panel', () => {
         });
         expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
-        expect(host.querySelector('h1')).toBeNull();
-        expect(host.querySelector('[data-market-panel]')).not.toBeNull();
+        expect(document.body.querySelector('[role="dialog"] h2')).toBeNull();
+        expect(document.body.querySelector('[data-market-panel]')).not.toBeNull();
       },
       { marketplaceInstallReview: review, marketplaceInstall: install },
     );
@@ -920,7 +908,7 @@ describe('Market panel', () => {
         await click(host, '导入');
         await click(host, '返回');
         expect(install).not.toHaveBeenCalled();
-        expect(host.querySelector('[data-market-panel]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-panel]')).not.toBeNull();
       },
       {
         marketplaceInstallReview: vi.fn(async () => ({
@@ -945,10 +933,10 @@ describe('Market panel', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host }) => {
         await click(host, '导入');
-        expect(host.querySelector('[data-market-review]')?.getAttribute('data-market-review')).toBe(
-          'unavailable',
-        );
-        expect(host.textContent).toContain('Tob 没能检查这个 Bot');
+        expect(
+          document.body.querySelector('[data-market-review]')?.getAttribute('data-market-review'),
+        ).toBe('unavailable');
+        expect(document.body.textContent).toContain('Tob 没能检查这个 Bot');
         await click(host, '不检查直接安装');
         expect(install).toHaveBeenCalledWith('R_helper', 'review-3', undefined, 'list');
       },
@@ -980,11 +968,11 @@ describe('Market panel', () => {
         await click(host, '上传 Bot');
         await click(host, '分享 Bot');
         const choices = [
-          ...host.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
+          ...document.body.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
         ];
         expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual(['Writer']);
         await click(host, 'Writer');
-        expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe(
+        expect(document.body.querySelector('[data-market-draft-meta]')?.textContent).toBe(
           'Tob 会逐个文件问你，原文件不会改动。',
         );
         await click(host, '让 Tob 检查');
@@ -995,7 +983,7 @@ describe('Market panel', () => {
           expect.stringMatching(/^human-/u),
         );
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
-        expect(host.querySelector('[data-market-upload]')).toBeNull();
+        expect(document.body.querySelector('[data-market-upload]')).toBeNull();
       },
       {
         shareDraftGet: vi.fn(async () => undefined),
@@ -1044,13 +1032,13 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, '上传 Bot');
         await click(host, '分享 Bot');
         await click(host, 'Writer');
-        expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe(
+        expect(document.body.querySelector('[data-market-draft-meta]')?.textContent).toBe(
           '保留 2 · 改写 1 · 删除 1',
         );
         await click(host, '下一步');
-        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('3去向');
+        expect(document.body.querySelector('[aria-current="step"]')?.textContent).toBe('3去向');
         await click(host, 'Tobs 市场');
-        const nameInput = host.querySelector<HTMLInputElement>(
+        const nameInput = document.body.querySelector<HTMLInputElement>(
           '[data-market-direct="account"] input',
         )!;
         await act(async () => {
@@ -1060,19 +1048,19 @@ describe('Uploaded Bots in the Market panel', () => {
         });
         expect(button(host, '继续').disabled).toBe(true);
         await act(async () =>
-          host
+          document.body
             .querySelector<HTMLElement>('[data-market-direct="account"] input[type="checkbox"]')!
             .click(),
         );
         await click(host, '继续');
         expect(save).toHaveBeenCalledWith('爱丽丝', true);
-        const form = host.querySelector('[data-market-direct="details"]')!;
+        const form = document.body.querySelector('[data-market-direct="details"]')!;
         const values = [
           ...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
         ].map((field) => field.value);
         expect(values).toEqual(['Writer', 'Writes', 'writing']);
         await click(host, '下一步');
-        const review = host.querySelector('[data-market-direct="review"]')!;
+        const review = document.body.querySelector('[data-market-direct="review"]')!;
         expect(review.textContent).toContain('爱丽丝 #k3x9q2 · 1 个文件，10 B');
         expect(review.textContent).toContain('不会上传：tool.exe');
         await click(host, '上传');
@@ -1081,10 +1069,10 @@ describe('Uploaded Bots in the Market panel', () => {
           bio: 'Writes',
           tags: ['writing'],
         });
-        expect(host.querySelector('[data-market-upload]')).toBeNull();
-        expect(host.querySelector('[data-market-bot="Alice/Helper"]')?.textContent).toContain(
-          'Alice #k3x9q2',
-        );
+        expect(document.body.querySelector('[data-market-upload]')).toBeNull();
+        expect(
+          document.body.querySelector('[data-market-bot="Alice/Helper"]')?.textContent,
+        ).toContain('Alice #k3x9q2');
       },
       {
         shareDraftGet: vi.fn(async () => draftView('ready')),
@@ -1120,15 +1108,17 @@ describe('Uploaded Bots in the Market panel', () => {
           }),
         ),
       );
-      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
-        'draft',
-      );
-      expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('2检查');
+      expect(
+        document.body.querySelector('[data-market-direct]')?.getAttribute('data-market-direct'),
+      ).toBe('draft');
+      expect(document.body.querySelector('[aria-current="step"]')?.textContent).toBe('2检查');
       expect(get).toHaveBeenCalledWith('writer');
-      expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe('已检查 3/4');
+      expect(document.body.querySelector('[data-market-draft-meta]')?.textContent).toBe(
+        '已检查 3/4',
+      );
       expect(button(host, '回到 Tob')).toBeDefined();
       await click(host, '返回');
-      expect(host.querySelector('[data-market-direct]')).toBeNull();
+      expect(document.body.querySelector('[data-market-direct]')).toBeNull();
       expect(button(host, '分享 Bot')).toBeDefined();
     } finally {
       await act(async () => root.unmount());
@@ -1155,7 +1145,7 @@ describe('Uploaded Bots in the Market panel', () => {
       async () => ({ bots: [uploaded, other] }),
       async ({ host }) => {
         await click(host, '我上传的');
-        const rows = [...host.querySelectorAll('[data-market-mine-bot]')];
+        const rows = [...document.body.querySelectorAll('[data-market-mine-bot]')];
         expect(rows.map((row) => row.getAttribute('data-market-mine-bot'))).toEqual([
           'U_helper',
           'U_notes',
@@ -1165,23 +1155,23 @@ describe('Uploaded Bots in the Market panel', () => {
 
         await click(host, '更新 Helper');
         expect(document.body.textContent).toContain('更新 Helper');
-        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('1选择 Bot');
-        expect(host.querySelectorAll('[aria-label="上传步骤"] li')).toHaveLength(5);
-        expect(host.querySelector('[data-market-replace-hint="missing"]')?.textContent).toContain(
-          '这台电脑上没有当初上传「Helper」的 Bot',
-        );
+        expect(document.body.querySelector('[aria-current="step"]')?.textContent).toBe('1选择 Bot');
+        expect(document.body.querySelectorAll('[aria-label="上传步骤"] li')).toHaveLength(5);
+        expect(
+          document.body.querySelector('[data-market-replace-hint="missing"]')?.textContent,
+        ).toContain('这台电脑上没有当初上传「Helper」的 Bot');
         await click(host, 'Writer');
-        expect(host.querySelector('[data-market-direct="draft"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-direct="draft"]')).not.toBeNull();
         await click(host, '下一步');
         expect(plan).toHaveBeenCalledWith('writer');
         const values = [
-          ...host
+          ...document.body
             .querySelector('[data-market-direct="details"]')!
             .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
         ].map((field) => field.value);
         expect(values).toEqual(['Helper', 'helper description', '']);
         await click(host, '下一步');
-        const review = host.querySelector('[data-market-direct="review"]')!;
+        const review = document.body.querySelector('[data-market-direct="review"]')!;
         expect(review.textContent).toContain('1 个文件，10 B');
         expect(review.querySelector('[data-market-replace-summary]')?.textContent).toContain(
           '用「Writer」替换市场上的「Helper」',
@@ -1196,15 +1186,15 @@ describe('Uploaded Bots in the Market panel', () => {
           tags: [],
           replaces: 'U_helper',
         });
-        expect(host.querySelector('[data-market-upload]')).toBeNull();
-        expect(host.querySelector('[data-market-mine="list"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-upload]')).toBeNull();
+        expect(document.body.querySelector('[data-market-mine="list"]')).not.toBeNull();
 
         await click(host, '删除 Notes');
-        expect(host.textContent).toContain('已安装的副本不受影响');
-        await act(async () => host.querySelector('form')!.requestSubmit());
+        expect(document.body.textContent).toContain('已安装的副本不受影响');
+        await act(async () => document.body.querySelector('form')!.requestSubmit());
         expect(remove).toHaveBeenCalledWith('U_notes');
-        expect(host.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
-        expect(host.querySelector('[data-market-bot="Alice/Notes"]')).toBeNull();
+        expect(document.body.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
+        expect(document.body.querySelector('[data-market-bot="Alice/Notes"]')).toBeNull();
       },
       {
         marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
@@ -1235,12 +1225,12 @@ describe('Uploaded Bots in the Market panel', () => {
       async ({ host }) => {
         await click(host, '我上传的');
         await click(host, '更新 Helper');
-        expect(host.querySelector('[data-market-direct="draft"]')?.textContent).toContain(
+        expect(document.body.querySelector('[data-market-direct="draft"]')?.textContent).toContain(
           'Helper Local',
         );
         await click(host, '下一步');
         await click(host, '下一步');
-        let review = host.querySelector('[data-market-direct="review"]')!;
+        let review = document.body.querySelector('[data-market-direct="review"]')!;
         expect(review.querySelector('[data-market-replace-summary]')?.textContent).toContain(
           '用「Helper Local」替换市场上的「Helper」',
         );
@@ -1249,9 +1239,9 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, '返回');
         await click(host, '返回');
         await click(host, '返回');
-        expect(host.querySelector('[data-market-replace-hint="found"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-replace-hint="found"]')).not.toBeNull();
         const choices = [
-          ...host.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
+          ...document.body.querySelectorAll('[data-market-direct="bot"] [role="listitem"] button'),
         ];
         expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual([
           'Helper Local',
@@ -1261,7 +1251,7 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, 'Writer');
         await click(host, '下一步');
         await click(host, '下一步');
-        review = host.querySelector('[data-market-direct="review"]')!;
+        review = document.body.querySelector('[data-market-direct="review"]')!;
         expect(review.querySelector('[data-market-replace-warning]')?.textContent).toContain(
           '「Writer」不是当初上传的「Helper Local」',
         );
@@ -1284,7 +1274,7 @@ describe('Uploaded Bots in the Market panel', () => {
       async () => ({ bots: [uploaded, other] }),
       async ({ host, actions }) => {
         const tiles = () =>
-          [...host.querySelectorAll('[data-market-bot]')].map((tile) => tile.textContent);
+          [...document.body.querySelectorAll('[data-market-bot]')].map((tile) => tile.textContent);
         expect(tiles().some((text) => text?.includes('Notes'))).toBe(true);
         const settings = document.createElement('div');
         document.body.append(settings);
@@ -1301,14 +1291,14 @@ describe('Uploaded Bots in the Market panel', () => {
           expect(settings.textContent).toContain('我上传的 Bot');
           await click(settings, '管理');
           expect(
-            [...settings.querySelectorAll('[data-market-mine-bot]')].map((row) =>
+            [...document.body.querySelectorAll('[data-market-mine-bot]')].map((row) =>
               row.getAttribute('data-market-mine-bot'),
             ),
           ).toEqual(['U_helper', 'U_notes']);
           await click(settings, '删除 Notes');
-          await act(async () => settings.querySelector('form')!.requestSubmit());
+          await act(async () => document.body.querySelector('form')!.requestSubmit());
           expect(remove).toHaveBeenCalledWith('U_notes');
-          expect(settings.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
+          expect(document.body.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
           expect(tiles().some((text) => text?.includes('Notes'))).toBe(false);
           expect(tiles().some((text) => text?.includes('Helper'))).toBe(true);
         } finally {
@@ -1332,7 +1322,7 @@ describe('Uploaded Bots in the Market panel', () => {
         bots: [{ ...uploaded, installed: { bots: ['helper-copy'], authorUpdated: true } }],
       }),
       async ({ host }) => {
-        const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
+        const tile = document.body.querySelector('[data-market-bot="Alice/Helper"]')!;
         expect(tile.querySelector('[data-market-author-updated]')?.textContent).toBe('作者已更新');
       },
     );
@@ -1364,9 +1354,9 @@ describe('Uploaded Bots in the Market panel', () => {
       );
       await click(host, '下一步');
       await click(host, 'Tobs 市场');
-      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
-        'account',
-      );
+      expect(
+        document.body.querySelector('[data-market-direct]')?.getAttribute('data-market-direct'),
+      ).toBe('account');
     } finally {
       await act(async () => root.unmount());
       host.remove();
@@ -1403,10 +1393,10 @@ describe('Uploaded Bots in the Market panel', () => {
       );
       await click(host, '下一步');
       await click(host, 'Tobs 市场');
-      expect(host.textContent).toContain(zhTranslate('market.error.signInRejected'));
+      expect(document.body.textContent).toContain(zhTranslate('market.error.signInRejected'));
       await click(host, zhTranslate('market.retry'));
       expect(account).toHaveBeenCalledTimes(2);
-      expect(host.textContent).toContain(zhTranslate('market.direct.signInHint'));
+      expect(document.body.textContent).toContain(zhTranslate('market.direct.signInHint'));
     } finally {
       await act(async () => root.unmount());
       host.remove();
@@ -1425,7 +1415,7 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, 'Writer');
         await click(host, '下一步');
         await click(host, '我的 GitHub');
-        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('4GitHub');
+        expect(document.body.querySelector('[aria-current="step"]')?.textContent).toBe('4GitHub');
         await click(host, '让 Tob 推送');
         expect(exported).toHaveBeenCalledWith('writer');
         expect(sendHome).toHaveBeenCalledWith(
@@ -1433,7 +1423,7 @@ describe('Uploaded Bots in the Market panel', () => {
           expect.stringContaining('/tob/share-exports/writer'),
           expect.stringMatching(/^human-/u),
         );
-        expect(host.querySelector('[data-market-upload]')).toBeNull();
+        expect(document.body.querySelector('[data-market-upload]')).toBeNull();
       },
       {
         shareDraftGet: vi.fn(async () => draftView('ready')),
@@ -1449,24 +1439,26 @@ describe('Uploaded Bots in the Market panel', () => {
     await withPanel(
       async () => ({ bots: [uploaded] }),
       async ({ host, actions, registry }) => {
-        const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
+        const tile = document.body.querySelector('[data-market-bot="Alice/Helper"]')!;
         expect(tile.textContent).toContain('Alice #k3x9q2');
         expect(tile.querySelector('[data-market-author-avatar]')?.getAttribute('src')).toBe(
           'https://market.botharness.ai/v1/authors/k3x9q2/avatar/a.webp',
         );
         expect(tile.textContent).not.toContain('★');
         await click(host, '查看 Alice/Helper 详情');
-        const files = host.querySelector('[data-market-files]')!;
+        const files = document.body.querySelector('[data-market-files]')!;
         expect(files.getAttribute('data-market-files')).toBe('3');
         expect(files.querySelector('[data-market-folder="tools"]')?.textContent).toContain(
           'run.sh',
         );
         expect(files.textContent).toContain('脚本');
-        expect(host.querySelector('.bh-market-github')).toBeNull();
+        expect(document.body.querySelector('.bh-market-github')).toBeNull();
         await click(host, '安装');
-        expect(host.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
-        expect(host.querySelector('[data-market-author] img')).not.toBeNull();
-        expect(host.textContent).toContain('Tob 没发现风险');
+        expect(document.body.querySelector('[data-market-author]')?.textContent).toBe(
+          'Alice #k3x9q2',
+        );
+        expect(document.body.querySelector('[data-market-author] img')).not.toBeNull();
+        expect(document.body.textContent).toContain('Tob 没发现风险');
         await click(host, '确认安装');
         expect(install).toHaveBeenCalledWith('U_helper', 'review-2', undefined, 'list');
         expect(actions['createBot']).not.toHaveBeenCalled();
@@ -1498,28 +1490,28 @@ describe('Uploaded Bots in the Market panel', () => {
     await withPanel(
       async () => ({ bots: [uploaded] }),
       async ({ host, actions }) => {
-        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        const home = document.body.querySelector<HTMLElement>('.bh-market-page')!;
         await click(host, '查看 Alice/Helper 详情');
         expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:bot_open', {
           entry: 'list',
           step: 'detail',
         });
-        const page = host.querySelector('[data-market-page="bot"]')!;
+        const page = document.body.querySelector('[data-market-page="bot"]')!;
         expect(page.getAttribute('aria-label')).toBe('Helper');
         expect(home.hidden).toBe(true);
-        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
         await click(host, '安装');
-        expect(host.querySelector('[data-market-install]')).not.toBeNull();
-        const backs = [...host.querySelectorAll('button')].filter(
-          (item) => item.textContent === '返回',
-        );
+        expect(document.body.querySelector('[data-market-install]')).not.toBeNull();
+        const backs = [
+          ...document.body.querySelectorAll<HTMLElement>('button, [role="menuitem"]'),
+        ].filter((item) => item.textContent === '返回');
         await act(async () => backs.at(-1)!.click());
-        expect(host.querySelector('[data-market-install]')).toBeNull();
-        expect(host.querySelector('[data-market-page="bot"]')).toBe(page);
+        expect(document.body.querySelector('[data-market-install]')).toBeNull();
+        expect(document.body.querySelector('[data-market-page="bot"]')).toBe(page);
         await click(host, '返回');
-        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(document.body.querySelector('[data-market-page="bot"]')).toBeNull();
         expect(home.hidden).toBe(false);
-        expect(host.querySelector('.bh-market-page')).toBe(home);
+        expect(document.body.querySelector('.bh-market-page')).toBe(home);
       },
       {
         marketplaceInstallReview: vi.fn(async () => ({
@@ -1554,27 +1546,29 @@ describe('Uploaded Bots in the Market panel', () => {
       async () => ({ bots: [uploaded] }),
       async ({ host }) => {
         await click(host, '查看 Alice/Helper 详情');
-        const breakdown = host.querySelector('[data-market-breakdown]')!;
+        const breakdown = document.body.querySelector('[data-market-breakdown]')!;
         expect(
           [...breakdown.querySelectorAll('[data-market-type]')].map((item) => item.textContent),
         ).toEqual(['图片12.0 KB', 'Markdown120 B', '脚本18 B']);
         expect(
-          host.querySelector('[data-market-scripts]')?.getAttribute('data-market-scripts'),
+          document.body.querySelector('[data-market-scripts]')?.getAttribute('data-market-scripts'),
         ).toBe('1');
-        expect(host.querySelector('[aria-label="查看 .botharness/avatar.png"]')).toBeNull();
+        expect(
+          document.body.querySelector('[aria-label="查看 .botharness/avatar.png"]'),
+        ).toBeNull();
 
         await click(host, '查看 tools/run.sh');
         await act(async () => {});
         expect(file).toHaveBeenCalledWith('U_helper', 'tools/run.sh');
-        const script = host.querySelector('[data-market-reader-body="script"]')!;
+        const script = document.body.querySelector('[data-market-reader-body="script"]')!;
         expect(script.tagName).toBe('PRE');
         expect(script.textContent).toBe('# echo\n**not bold**');
-        expect(host.querySelector('[data-market-files]')).toBeNull();
+        expect(document.body.querySelector('[data-market-files]')).toBeNull();
 
         await click(host, '返回文件列表');
         await click(host, '查看 SOUL.md');
         await act(async () => {});
-        const markdown = host.querySelector('[data-market-reader-body="markdown"]')!;
+        const markdown = document.body.querySelector('[data-market-reader-body="markdown"]')!;
         expect(markdown.tagName).toBe('DIV');
         expect(markdown.querySelector('.bh-memory-markdown h1')?.textContent).toBe('Soul');
         expect(markdown.querySelector('.bh-memory-markdown p')?.textContent).toBe('I help.');
@@ -1624,7 +1618,7 @@ describe('Uploaded Bots in the Market panel', () => {
       async ({ host }) => {
         await click(host, '查看 Alice/Helper 详情');
         await act(async () => {});
-        const block = host.querySelector('[data-market-skills]')!;
+        const block = document.body.querySelector('[data-market-skills]')!;
         expect(block.getAttribute('data-market-skills')).toBe('2');
         expect(
           [...block.querySelectorAll('[data-skill-row]')].map((row) => row.textContent),
@@ -1634,17 +1628,19 @@ describe('Uploaded Bots in the Market panel', () => {
         });
         await act(async () => {});
         expect(file).toHaveBeenCalledWith('U_helper', '.dsh/skills/review/SKILL.md');
-        expect(host.querySelector('[data-market-reader]')?.getAttribute('data-market-reader')).toBe(
-          '.dsh/skills/review/SKILL.md',
-        );
-        const body = host.querySelector('[data-market-reader-body="markdown"]')!.textContent;
+        expect(
+          document.body.querySelector('[data-market-reader]')?.getAttribute('data-market-reader'),
+        ).toBe('.dsh/skills/review/SKILL.md');
+        const body = document.body.querySelector(
+          '[data-market-reader-body="markdown"]',
+        )!.textContent;
         expect(body).toContain('Check tests.');
         expect(body).not.toContain('description:');
 
         await click(host, '返回文件列表');
         await act(async () => {});
         expect(
-          [...host.querySelectorAll('[data-market-skills] [data-skill-row]')].map(
+          [...document.body.querySelectorAll('[data-market-skills] [data-skill-row]')].map(
             (row) => row.textContent,
           ),
         ).toEqual(['/notesKeep notes', '/reviewReview a pull request']);

@@ -12,7 +12,8 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     children,
     icon: _icon,
@@ -25,18 +26,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconAgentPresetOutlineRegular: () => null,
   IconCodeOutlineRegular: () => null,
   IconBranchOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   IconPaperclipOutlineRegular: () => null,
   IconSendOutlineRegular: () => null,
   IconSkillOutlineRegular: () => null,
   IconStopFillRegular: () => null,
   ImageLightbox: () => null,
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  MenuSurface: forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-    function MenuSurface(props, ref) {
-      return createElement('div', { ...props, ref });
-    },
-  ),
+
   fileSizeText: (size: number) => `${size} B`,
 }));
 

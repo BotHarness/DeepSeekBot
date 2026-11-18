@@ -1402,7 +1402,7 @@
       "behaviors": ["desktop.browser.lifecycle"],
       "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "8369dae71f49e9229fd4915c1dc58efee02a933a9c49ef9cdb03b81cd2659824"
+      "sha256": "9c60c4e2e646a1a55fb35f3beb9fd3250675eff1a7c1a9cb58e8b34ebf7eaf08"
     },
     {
       "path": "scripts/e2e-browser-interaction.mjs",
@@ -1434,7 +1434,7 @@
       "behaviors": ["desktop.browser.lifecycle"],
       "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "8b296c8392bf24e0456af3068b785c92c1df024d8421fb0af94094931526b061"
+      "sha256": "ac0cac3694451d9ca991ccd7d23576bf851c512b418c032001f6693a192097ef"
     },
     {
       "path": "scripts/e2e-browser-navigation.mjs",
@@ -1450,7 +1450,7 @@
       "behaviors": ["desktop.browser.tools"],
       "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "e31b999a4f3fdbd89dd342eb147b25c361bafda38461b05c3a978ced3694a772"
+      "sha256": "c7519f907ab5c04c06562ed7fd4c548ca2f57a15622ce8e2f369f0ed9f2f3f4f"
     },
     {
       "path": "scripts/e2e-browser-profile-names.mjs",
@@ -1474,7 +1474,7 @@
       "behaviors": ["desktop.browser.lifecycle"],
       "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "14af2c1c9960a67b1f1ae2266a9a7686f0e75a034997bc8e2f303429183706d0"
+      "sha256": "f978f7d0e45d8828133d8ae81d1c769d7a44da9b225e5c0539ad65db4872e398"
     },
     {
       "path": "scripts/e2e-browser-refusal-audit.mjs",
@@ -1498,7 +1498,7 @@
       "behaviors": ["desktop.browser.tools"],
       "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "ea646184d43a096d2e86920b4aad31adc0f0237313a79881b2cf88d072ad69a6"
+      "sha256": "406934eebb732bf0dad402c441826100b1f8a1f39ee12fa0b85e03f8ee95e88b"
     },
     {
       "path": "scripts/e2e-browser-scroll.mjs",
@@ -1514,7 +1514,7 @@
       "behaviors": ["desktop.browser.tools"],
       "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "10728c3f340aa009c66fd323b5a62772dbd7a93712f759d251c1c3f4f8701717"
+      "sha256": "1ef80fe13cdac3206c3f947d506502d18a03cb8a6dbc8eba47753b9932323f66"
     },
     {
       "path": "scripts/e2e-browser-upload.mjs",
@@ -1522,7 +1522,7 @@
       "behaviors": ["desktop.browser.tools"],
       "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "d4062ac4b3840c3cf2862fd56ed328e6522183055bccec4d7395358ae9595a13"
+      "sha256": "9dd7ad0a4ee50db8618bd9b9313c346163385dc4d6dda177da28cbdd6b3e16b1"
     },
     {
       "path": "scripts/e2e-channel-activity.mjs",
@@ -2048,9 +2048,9 @@
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. #4583 re-audit: pairing confirms the Host fingerprint and approves the phone key through the shared helper, then saves the computer look. Native gestures and scheduler/model execution are separate.",
       "task": 2028,
-      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
+      "sha256": "066753962603c38a7919027d1b757ace51e82f27908a169cd1b78de1ef34d1a6"
     },
     {
       "path": "scripts/e2e-mobile-android-interactions.mjs",
@@ -2697,7 +2697,7 @@
       "behaviors": ["desktop.bot-call"],
       "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question, long-task, camera and screen scenarios, cough discarded, reply heard, the caller's microphone level behind the call bar ripple (raised while talking, 0 when muted), second window refused, fake camera keyframes reach a sentence grid, a fake screen recording gives one keyframe per window, a system-stopped share falls back to voice, and the Host's sampled media performance (packets/s, kbps, CPU) in the call view.",
       "task": 3496,
-      "sha256": "c22005c2dbfab41b82d8a8990e4ccfbcb84ad59773fa4ef5570dfbdd58d32d19"
+      "sha256": "05849debef0fdf87ed53cf13c047eb3caf875b9ed1214aa87ee953784a725552"
     },
     {
       "path": "scripts/e2e-settings-loading.mjs",
@@ -2713,7 +2713,7 @@
       "behaviors": ["bot.context-overflow-recovery"],
       "reason": "Same gateway rejection on base and fixed Tobs builds with the native isolated compaction service.",
       "task": 4253,
-      "sha256": "72ee8205df3a84eef1c6ccfc4edfe323d22b02ff418e7b491bc8ecef072c1e62"
+      "sha256": "cdf2ab2af5744da4e704605307630ba65b2ded709760fa789dc9fe5798476a9c"
     },
     {
       "path": "scripts/e2e-token-telemetry.mjs",

@@ -465,7 +465,7 @@ function SnapshotReportCard({
             {(view.status === 'load-error' ||
               view.status === 'conflict' ||
               view.status === 'conflict-ready') && (
-              <ActionButton icon="refresh" onClick={view.reload}>
+              <ActionButton icon="refresh" onClick={() => void view.reload()}>
                 {t('genui.reload')}
               </ActionButton>
             )}

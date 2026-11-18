@@ -5,8 +5,8 @@ import {
   IconEllipsisOutlineRegular,
   IconSearchOutlineRegular,
   IconCloseFillRegular,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import type { BridgeActions } from './actions.js';
 import { sameBotNames, useClientStore } from './use-client-store.js';
 import type { ClientState } from './store.js';

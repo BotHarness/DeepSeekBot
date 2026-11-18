@@ -7,7 +7,8 @@ import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import type { ChannelSummary } from '../src/client/store.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
   Input: 'input',
   Switch: 'input',

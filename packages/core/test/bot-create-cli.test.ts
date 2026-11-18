@@ -130,6 +130,17 @@ describe('deepseekbot create', () => {
     expect(out.join('\n')).not.toContain('deepseekbot create');
   });
 
+  it('prints help for engine without an action', async () => {
+    const out: string[] = [];
+    const code = await runBotCreateCli(['engine', '--help'], {
+      env: baseEnv(),
+      stdout: (text) => out.push(text),
+      stderr: () => {},
+    });
+    expect(code).toBe(0);
+    expect(out.join('\n')).toContain('engine');
+  });
+
   it('creates a blank bot against a fresh home with zero clicks', async () => {
     const home = createTempRoot('botharness-create-blank-');
     const result = await invoke(['create', '--name', 'Ada'], home);

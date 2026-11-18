@@ -3,10 +3,11 @@ import { act, createElement, type InputHTMLAttributes, type PropsWithChildren } 
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: ({
@@ -34,7 +35,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
         },
         children,
       ),
-    HoverCard: stub,
+
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -65,53 +66,17 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
       createElement('input', props),
     MarkdownText: stub,
-    Menu: ({
-      open,
-      anchor,
-      items = [],
-      onSelect,
-    }: {
-      open: boolean;
-      anchor?: unknown;
-      items?: readonly { id: string; type?: string }[];
-      onSelect?: (id: string) => void;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor as never,
-        open
-          ? items
-              .filter((item) => item.type === undefined)
-              .map((item) =>
-                createElement('button', {
-                  key: item.id,
-                  type: 'button',
-                  'data-menu-id': item.id,
-                  onClick: () => onSelect?.(item.id),
-                }),
-              )
-          : null,
-      ),
-    MenuItemButton: stub,
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: PropsWithChildren<{ open: boolean; title: string; footer?: unknown }>) =>
-      open
-        ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer as never)
-        : null,
+
     SegmentedControl: stub,
     StateDot: stub,
     Switch: stub,
     Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
+import { menuItem } from './primitive-mocks.js';
 import type { UsageFilter } from '../src/client/bridge.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotMain } from '../src/client/bot-main.js';
@@ -150,7 +115,7 @@ function setNativeValue(input: HTMLInputElement | HTMLTextAreaElement, value: st
 }
 
 function click(container: HTMLElement, selector: string): void {
-  const element = container.querySelector<HTMLElement>(selector);
+  const element = document.body.querySelector<HTMLElement>(selector);
   expect(element, selector).not.toBeNull();
   element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
@@ -283,7 +248,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('查看资料').click());
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail']).toBe(
@@ -350,7 +315,7 @@ describe('PersonaBot Profile surface', () => {
           (button) => button.textContent === label,
         )!;
       await act(async () => headerButton('编辑资料').click());
-      const editor = container.querySelector('[role="dialog"][aria-label="编辑资料"]')!;
+      const editor = document.body.querySelector('[role="dialog"][aria-label="编辑资料"]')!;
       const input = fieldNamed('名称', editor);
       expect(input.value).toBe('Ada');
       const saveButton = () =>
@@ -376,7 +341,7 @@ describe('PersonaBot Profile surface', () => {
         roles: ['研究员'],
         description: '帮你找资料',
       });
-      expect(container.querySelector('[role="dialog"][aria-label="编辑资料"]')).toBeNull();
+      expect(document.body.querySelector('[role="dialog"][aria-label="编辑资料"]')).toBeNull();
 
       const heatCell = container.querySelector<HTMLElement>(
         '.bh-profile-heat-cell:not([data-level="future"])',
@@ -399,7 +364,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-profile-heat-tip')).toBeNull();
 
       await act(async () => click(container, '.bh-profile-avatar-button'));
-      const avatarDialog = container.querySelector('[role="dialog"][aria-label="头像"]');
+      const avatarDialog = document.body.querySelector('[role="dialog"][aria-label="头像"]');
       const avatarMethods = avatarDialog?.querySelectorAll(
         '.bh-avatar-methods > .bh-avatar-method',
       );
@@ -425,6 +390,11 @@ describe('PersonaBot Profile surface', () => {
         dialog.remove();
       }
 
+      await act(async () =>
+        document.body
+          .querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="关闭"]')!
+          .click(),
+      );
       await act(async () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       });
@@ -435,7 +405,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('查看资料').click());
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       await act(async () => {
@@ -492,7 +462,7 @@ describe('PersonaBot Profile surface', () => {
       expect(island?.getAttribute('aria-label')).toBe('设计组 · 聊天菜单');
       expect(island?.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => click(container, '[data-group-channel-name]'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('群聊 Profile').click());
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
     } finally {

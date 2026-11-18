@@ -2,10 +2,11 @@ import { createElement, type PropsWithChildren } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
@@ -24,13 +25,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: stub,
-    Menu: stub,
+
     MarkdownText: stub,
-    Modal: stub,
+
     SegmentedControl: stub,
     StateDot: stub,
     Tag,
-    Tooltip: Tag,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });

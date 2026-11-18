@@ -61,6 +61,7 @@ import {
   type ChannelMessageVoice,
   type ChannelReaction,
   type ChannelRecord,
+  type ChannelSessionLink,
   type GroupInvitation,
   type GroupJoinRequest,
   type GroupWakePolicyActor,
@@ -100,6 +101,7 @@ export interface ChannelStoreOptions {
   onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
   onVoiceChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   onAttachmentsChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
+  onSessionLinksChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   warn?: (message: string) => void;
   isBotActive?: (botSlug: string) => boolean;
   botDisplayName?: (botSlug: string) => string | undefined;
@@ -649,6 +651,11 @@ export interface ChannelStore {
     messageId: string,
     voice: ChannelMessageVoice,
     attachment?: ChannelAttachmentRef,
+  ): ChannelMessage | undefined;
+  addMessageSessionLinks?(
+    channelId: string,
+    messageId: string,
+    links: readonly ChannelSessionLink[],
   ): ChannelMessage | undefined;
 
   latestBotActivity?(human: HumanContext): ReadonlyMap<string, number>;

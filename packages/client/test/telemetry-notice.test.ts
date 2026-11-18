@@ -3,29 +3,13 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: { children?: ReactNode; onClick?: () => void }) =>
     createElement('button', { onClick: props.onClick }, props.children),
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
-  Modal: (props: {
-    open: boolean;
-    title: string;
-    description?: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    props.open
-      ? createElement(
-          'section',
-          { role: 'dialog', 'data-title': props.title },
-          createElement('h1', null, props.title),
-          createElement('p', null, props.description),
-          props.children,
-          props.footer,
-        )
-      : null,
 }));
 
 import type { ReleaseNote } from '../../core/src/release/notes.js';
@@ -129,8 +113,8 @@ describe('TelemetryNotice', () => {
       ]),
     );
     const dialogs = () =>
-      [...view.host.querySelectorAll('[role="dialog"]')].map((node) =>
-        node.getAttribute('data-title'),
+      [...document.body.querySelectorAll('[role="dialog"]')].map((node) =>
+        node.getAttribute('aria-label'),
       );
     expect(dialogs()).toEqual(['Tobs 1.0.2 更新内容']);
 
@@ -138,12 +122,12 @@ describe('TelemetryNotice', () => {
       releaseNotes.dismiss();
     });
     expect(dialogs()).toEqual(['关于匿名使用统计']);
-    const notice = view.host.querySelector('[data-telemetry-notice]');
+    const notice = document.body.querySelector('[data-telemetry-notice]');
     expect(notice?.textContent).toContain('BOTHARNESS_TELEMETRY=0');
     expect(notice?.textContent).toContain('DO_NOT_TRACK=1');
     expect(notice?.textContent).toContain('telemetry: false');
 
-    const buttons = [...view.host.querySelectorAll('button')];
+    const buttons = [...document.body.querySelectorAll('button')];
     buttons.find((button) => button.textContent === '隐私说明')?.click();
     buttons.find((button) => button.textContent === '查看源码')?.click();
     expect(opened.mock.calls.map(([url]) => url)).toEqual([
@@ -165,16 +149,16 @@ describe('TelemetryNotice', () => {
     const openSettings = vi.fn();
     const controller = new TelemetryNoticeController(bridge(true), storage, openSettings);
     const view = await render(createElement(TelemetryNotice, { controller, t }));
-    const optOut = view.host.querySelector('[data-telemetry-row="opt-out"] dd');
+    const optOut = document.body.querySelector('[data-telemetry-row="opt-out"] dd');
     expect(optOut?.textContent?.startsWith('在「Bot 设置 → 匿名使用统计」中随时关闭')).toBe(true);
     expect(optOut?.textContent).toContain('telemetry: false');
     await act(async () => {
-      [...view.host.querySelectorAll('button')]
+      [...document.body.querySelectorAll('button')]
         .find((button) => button.textContent === '打开 Bot 设置')
         ?.click();
     });
     expect(openSettings).toHaveBeenCalledOnce();
-    expect(view.host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(storage.values.get(TELEMETRY_NOTICE_SEEN_KEY)).toBe('1');
     view.unmount();
   });

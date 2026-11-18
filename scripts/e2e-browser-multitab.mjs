@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 assert.ok(
@@ -27,67 +28,69 @@ if (mode === '--serve') {
   const serial = [];
   const barrier = new Map();
   const parallel = [];
-  createServer(async (req, res) => {
-    const url = new URL(req.url, fixture);
-    if (url.pathname === '/state') {
-      res.setHeader('content-type', 'application/json');
-      return res.end(JSON.stringify({ receipts, serial, parallel }));
-    }
-    if (url.pathname === '/confirm' && req.method === 'POST') {
-      let body = '';
-      for await (const chunk of req) body += chunk;
-      const value = JSON.parse(body);
-      assert.ok(['a', 'b'].includes(value.bot));
-      assert.ok(['BOT-A', 'BOT-B', 'RECOVERED-A'].includes(value.token));
-      receipts.push({ bot: value.bot, token: value.token });
-      return res.end(
-        JSON.stringify({ completed: receipts.filter((r) => r.bot === value.bot).length }),
-      );
-    }
-    const [, bot, page] = url.pathname.split('/');
-    if (!['a', 'b'].includes(bot)) {
-      res.statusCode = 404;
-      return res.end();
-    }
-    if (page === 'barrier') {
-      parallel.push({ bot, start: Date.now() });
-      barrier.set(bot, res);
-      if (barrier.size === 2) {
-        for (const [key, response] of barrier)
-          response.end(
-            `<!doctype html><title>Parallel ${key}</title><h1>Both Bot requests arrived concurrently</h1>`,
-          );
-        barrier.clear();
-      } else {
-        const timer = setTimeout(() => {
-          if (barrier.get(bot) === res) {
-            barrier.delete(bot);
-            res.statusCode = 503;
-            res.end('Second Bot did not arrive concurrently');
-          }
-        }, 5000);
-        res.on('close', () => clearTimeout(timer));
+  createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url, fixture);
+      if (url.pathname === '/state') {
+        res.setHeader('content-type', 'application/json');
+        return res.end(JSON.stringify({ receipts, serial, parallel }));
       }
-      return;
-    }
-    if (page?.startsWith('serial-')) {
-      const entry = { page, start: Date.now() };
-      serial.push(entry);
-      if (page === 'serial-first') await new Promise((resolve) => setTimeout(resolve, 400));
-      entry.end = Date.now();
-      return res.end(`<!doctype html><title>${page}</title><h1>Serialized action ${page}</h1>`);
-    }
-    const title =
-      page === 'home'
-        ? `Human workbench ${bot.toUpperCase()}`
-        : page === 'spare'
-          ? `Disposable spare ${bot.toUpperCase()}`
-          : `Background Bot ${bot.toUpperCase()} work`;
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(
-      `<!doctype html><title>${title}</title><body style="font:24px sans-serif;background:white;color:#111;padding:32px"><h1>${title}</h1><p>Separate owned tabs on the shared Bot Browser</p>${page === 'home' ? '<label>Human note <input aria-label="Human note" style="font:24px sans-serif"></label><p id="note">Human may keep typing here while Bots work in other tabs.</p><script>document.querySelector("input").oninput=e=>document.querySelector("#note").textContent="Human note: "+e.target.value;</script>' : page === 'spare' ? '<p>Disposable tab for close and ownership QA.</p>' : `<label>Task token <input aria-label="Task token" style="font:24px sans-serif"></label><p><button style="font:24px sans-serif">Complete task</button></p><p id="receipt">Loading receipt</p><script>async function refresh(){const s=await(await fetch('/state')).json();const r=s.receipts.filter(r=>r.bot==='${bot}');document.querySelector('#receipt').textContent='Completed: '+r.length+'; Last token: '+(r.at(-1)?.token||'none')}document.querySelector('button').onclick=async()=>{await fetch('/confirm',{method:'POST',body:JSON.stringify({bot:'${bot}',token:document.querySelector('input').value})});await refresh()};refresh();</script>`}</body>`,
-    );
-  }).listen(port, '127.0.0.1');
+      if (url.pathname === '/confirm' && req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const value = JSON.parse(body);
+        assert.ok(['a', 'b'].includes(value.bot));
+        assert.ok(['BOT-A', 'BOT-B', 'RECOVERED-A'].includes(value.token));
+        receipts.push({ bot: value.bot, token: value.token });
+        return res.end(
+          JSON.stringify({ completed: receipts.filter((r) => r.bot === value.bot).length }),
+        );
+      }
+      const [, bot, page] = url.pathname.split('/');
+      if (!['a', 'b'].includes(bot)) {
+        res.statusCode = 404;
+        return res.end();
+      }
+      if (page === 'barrier') {
+        parallel.push({ bot, start: Date.now() });
+        barrier.set(bot, res);
+        if (barrier.size === 2) {
+          for (const [key, response] of barrier)
+            response.end(
+              `<!doctype html><title>Parallel ${key}</title><h1>Both Bot requests arrived concurrently</h1>`,
+            );
+          barrier.clear();
+        } else {
+          const timer = setTimeout(() => {
+            if (barrier.get(bot) === res) {
+              barrier.delete(bot);
+              res.statusCode = 503;
+              res.end('Second Bot did not arrive concurrently');
+            }
+          }, 5000);
+          res.on('close', () => clearTimeout(timer));
+        }
+        return;
+      }
+      if (page?.startsWith('serial-')) {
+        const entry = { page, start: Date.now() };
+        serial.push(entry);
+        if (page === 'serial-first') await new Promise((resolve) => setTimeout(resolve, 400));
+        entry.end = Date.now();
+        return res.end(`<!doctype html><title>${page}</title><h1>Serialized action ${page}</h1>`);
+      }
+      const title =
+        page === 'home'
+          ? `Human workbench ${bot.toUpperCase()}`
+          : page === 'spare'
+            ? `Disposable spare ${bot.toUpperCase()}`
+            : `Background Bot ${bot.toUpperCase()} work`;
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(
+        `<!doctype html><title>${title}</title><body style="font:24px sans-serif;background:white;color:#111;padding:32px"><h1>${title}</h1><p>Separate owned tabs on the shared Bot Browser</p>${page === 'home' ? '<label>Human note <input aria-label="Human note" style="font:24px sans-serif"></label><p id="note">Human may keep typing here while Bots work in other tabs.</p><script>document.querySelector("input").oninput=e=>document.querySelector("#note").textContent="Human note: "+e.target.value;</script>' : page === 'spare' ? '<p>Disposable tab for close and ownership QA.</p>' : `<label>Task token <input aria-label="Task token" style="font:24px sans-serif"></label><p><button style="font:24px sans-serif">Complete task</button></p><p id="receipt">Loading receipt</p><script>async function refresh(){const s=await(await fetch('/state')).json();const r=s.receipts.filter(r=>r.bot==='${bot}');document.querySelector('#receipt').textContent='Completed: '+r.length+'; Last token: '+(r.at(-1)?.token||'none')}document.querySelector('button').onclick=async()=>{await fetch('/confirm',{method:'POST',body:JSON.stringify({bot:'${bot}',token:document.querySelector('input').value})});await refresh()};refresh();</script>`}</body>`,
+      );
+    }),
+  ).listen(port, '127.0.0.1');
 } else {
   const home = process.env.BH_E2E_HOME,
     origin = process.env.BH_E2E_ORIGIN,

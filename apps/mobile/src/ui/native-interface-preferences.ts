@@ -1,7 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
-import { AppState, Appearance } from 'react-native';
+import { AppState, Appearance, Platform } from 'react-native';
 
 import { interfacePreferences } from './interface-preferences';
 import { alertBanners } from '../host/alert-banners';
@@ -31,7 +31,10 @@ void interfacePreferences.restore({
 
 function subscribeNative(notify: () => void) {
   let appearance = interfacePreferences.getSnapshot().appearance;
-  const apply = () => Appearance.setColorScheme(appearance === 'system' ? 'auto' : appearance);
+  const apply = () => {
+    if (Platform.OS !== 'web')
+      Appearance.setColorScheme(appearance === 'system' ? 'auto' : appearance);
+  };
   apply();
   const off = interfacePreferences.subscribe(() => {
     const next = interfacePreferences.getSnapshot().appearance;

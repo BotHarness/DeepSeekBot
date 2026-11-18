@@ -89,3 +89,7 @@ The Team invitation, pairing and Noise formats belong to the pure `packages/host
 The Team Host refuses `device-sign-in` and `device-password` requests that carry a browser `Origin`. A desktop or Web Client therefore asks its own Host, through the owner-only remote custody endpoint (`action: "team"`), to post those two requests to the HTTPS or Tailscale route. The Host accepts only a bare HTTPS origin that is not loopback, and only those two paths. Tobs Connect routes keep their encrypted sign-in.
 
 A public Bot keeps one shared memory for every member. Skills are prompts, so a Skill a member has the Bot install carries no more risk than the same text sent as a message; the difference is that it persists into other members' chats. Team settings say so instead of partitioning memory per member.
+
+## DSH modes for member Bots — 2026-11-18
+
+The Human decided that a member's Bot follows the same DSH mode rules as the Owner's Bot ([Session decisions, section 15](../decisions/sessions.md#bot-modes)). This replaces the Approvals clause "member Bots never run with a DSH mode that suppresses those asks". Any installed mode that the Bot's mode template allows can run for a member Bot and for the Assignments it creates. The Profile default and the Orchestrator's mode choice also apply to member Bots. The dangerous Assignment preset (`danger-full-access`) stays Owner-only, and opaque-tool approval still needs the opaque-tool permission whenever a mode asks.

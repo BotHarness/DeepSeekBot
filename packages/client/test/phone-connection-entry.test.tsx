@@ -7,11 +7,12 @@ import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import type { ClientRelationship } from '../../core/src/devices/relationship-contract.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
   Input: 'input',
   Switch: 'input',
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({

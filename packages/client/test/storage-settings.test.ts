@@ -7,6 +7,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconChevronDownOutlineRegular: () => null,
     IconRefreshOutlineRegular: () => null,
@@ -56,8 +57,9 @@ vi.mock('../src/client/ds/select.js', async () => {
 import type { BridgeCall } from '../src/client/bridge.js';
 import { StorageSettings, type StorageSettingsSource } from '../src/client/storage-settings.js';
 import { MethodRefused } from '@botharness/host-client/client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import { zhTranslate } from '../src/client/locale.js';
-import { buttonNamed } from './primitive-mocks.js';
+import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const usage = {
   measuredAt: '2026-10-20T00:00:00.000Z',
@@ -130,13 +132,13 @@ async function render(call: BridgeCall | StorageSettingsSource) {
     });
   };
   const checkbox = (label: string) =>
-    Array.from(host.querySelectorAll('label')).find((node) => node.textContent === label)!
+    Array.from(document.body.querySelectorAll('label')).find((node) => node.textContent === label)!
       .firstElementChild as HTMLInputElement;
   return {
     host,
     press,
     checkbox,
-    open: () => press(buttonNamed('管理…', host)),
+    open: () => press(buttonNamed('管理…', document.body)),
     replace: async (source: StorageSettingsSource) => {
       await act(async () =>
         root.render(
@@ -176,9 +178,9 @@ describe('StorageSettings', () => {
       const view = await render(source);
       try {
         await view.open();
-        await view.press(buttonNamed('关闭', view.host));
-        expect(view.host.textContent).toContain('8.0 MB');
-        expect(view.host.querySelector('[role="dialog"]')).toBeNull();
+        await view.press(buttonNamed('关闭', document.body));
+        expect(document.body.textContent).toContain('8.0 MB');
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
         expect(load).toHaveBeenCalledTimes(initialPending ? 3 : 2);
         expect(source.confirmMedia).not.toHaveBeenCalled();
         expect(source.confirmMessages).not.toHaveBeenCalled();
@@ -187,6 +189,67 @@ describe('StorageSettings', () => {
       }
     },
   );
+  it('drops the old total and shows the error when a refresh fails', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: vi.fn(),
+      confirmMedia: vi.fn(),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
+      await view.open();
+      await view.press(buttonNamed('关闭', dialog()));
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('shows the read-back error after a cleanup instead of the old total', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: async (scope) => preview({ ...scope }) as never,
+      confirmMedia: vi.fn(async () => ({ messages: 2, files: 3, freedBytes: 4 * 1024 * 1024 })),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(dialog().querySelector('[data-storage-result]')?.textContent).toBe(
+        '已清理 3 个文件，释放 4.0 MB。',
+      );
+      expect(load).toHaveBeenCalledTimes(3);
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
+        '读取失败，重新加载后再试。',
+      );
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      await view.press(buttonNamed('关闭', dialog()));
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
   it('cannot publish an old Host cleanup result into a newly selected source', async () => {
     let finish:
       | ((value: Awaited<ReturnType<StorageSettingsSource['confirmMedia']>>) => void)
@@ -229,14 +292,14 @@ describe('StorageSettings', () => {
     const view = await render(source);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
       await view.replace(next);
       await act(async () => finish?.({ files: 1, messages: 1, freedBytes: 12 }));
-      expect(view.host.querySelector('[data-storage-result]')).toBeNull();
+      expect(document.body.querySelector('[data-storage-result]')).toBeNull();
       expect(
-        view.host.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
+        document.body.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
       ).toBe('99');
       expect(next.confirmMedia).not.toHaveBeenCalled();
     } finally {
@@ -261,13 +324,13 @@ describe('StorageSettings', () => {
       };
       const view = await render(source);
       try {
-        expect(view.host.textContent).toContain('更新此 Host 后即可管理存储');
+        expect(document.body.textContent).toContain('更新此 Host 后即可管理存储');
         await view.open();
-        expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-          true,
-        );
+        expect(
+          document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+        ).toBe(true);
         expect(source.previewMedia).not.toHaveBeenCalled();
-        expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+        expect(document.body.querySelector('[data-storage-total]')).toBeNull();
       } finally {
         view.dispose();
       }
@@ -303,22 +366,22 @@ describe('StorageSettings', () => {
     const view = await render(source);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       usageRead.mockRejectedValueOnce(new Error('offline'));
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(view.host.querySelector('[data-storage-confirm]')).toBeNull();
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-        true,
-      );
-      const reload = Array.from(view.host.querySelectorAll('button')).find(
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
+      const reload = Array.from(document.body.querySelectorAll('button')).find(
         (button) => button.textContent === '重新加载',
       );
       expect(reload).toBeDefined();
       await view.press(reload!);
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-        false,
-      );
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(false);
       expect(source.confirmMedia).toHaveBeenCalledTimes(1);
     } finally {
       view.dispose();
@@ -358,9 +421,9 @@ describe('StorageSettings', () => {
     const view = await render(source);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await view.replace(next);
-      expect(view.host.querySelector('[data-storage-preview]')).toBeNull();
+      expect(document.body.querySelector('[data-storage-preview]')).toBeNull();
       await act(async () =>
         finish?.({
           token: 'old-host',
@@ -372,9 +435,9 @@ describe('StorageSettings', () => {
           kept: [],
         }),
       );
-      expect(view.host.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
       expect(
-        view.host.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
+        document.body.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
       ).toBe('99');
       expect(source.confirmMedia).not.toHaveBeenCalled();
     } finally {
@@ -414,7 +477,7 @@ describe('StorageSettings', () => {
     const view = await render(source);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       usageRead.mockImplementationOnce(
         () =>
@@ -422,19 +485,19 @@ describe('StorageSettings', () => {
             finishRead = resolve;
           }),
       );
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(view.host.querySelector('[data-storage-confirm]')).toBeNull();
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-        true,
-      );
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
       expect(source.confirmMedia).toHaveBeenCalledTimes(1);
       await act(async () => finishRead?.({ ...current, totalBytes: 0, chats: [] }));
-      expect(view.host.textContent).toContain('已重新读取此 Host');
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled).toBe(
-        true,
-      );
+      expect(document.body.textContent).toContain('已重新读取此 Host');
       expect(
-        view.host
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
+      expect(
+        document.body
           .querySelector('[data-storage-usage] [data-storage-total]')
           ?.getAttribute('data-storage-total'),
       ).toBe('0');
@@ -494,7 +557,7 @@ describe('StorageSettings', () => {
       try {
         await view.open();
         if (target === 'messages') {
-          const choice = view.host.querySelector<HTMLSelectElement>(
+          const choice = document.body.querySelector<HTMLSelectElement>(
             'select[aria-label="清理内容"]',
           )!;
           await act(async () => {
@@ -502,13 +565,13 @@ describe('StorageSettings', () => {
             choice.dispatchEvent(new Event('change', { bubbles: true }));
           });
         }
-        expect(view.host.textContent).toContain('Studio T8 · 存储空间');
-        expect(view.host.textContent).toContain('Remote only');
-        await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-        expect(view.host.textContent).toContain('Studio T8 · 存储空间');
-        expect(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.disabled).toBe(
-          true,
-        );
+        expect(document.body.textContent).toContain('Studio T8 · 存储空间');
+        expect(document.body.textContent).toContain('Remote only');
+        await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+        expect(document.body.textContent).toContain('Studio T8 · 存储空间');
+        expect(
+          document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.disabled,
+        ).toBe(true);
         expect(confirmCleanup).not.toHaveBeenCalled();
         await act(async () =>
           view
@@ -517,16 +580,16 @@ describe('StorageSettings', () => {
             )
             .click(),
         );
-        await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+        await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
         expect(confirmCleanup).toHaveBeenCalledTimes(1);
         expect(confirmCleanup).toHaveBeenCalledWith(
           expect.objectContaining({ token: 'remote-preview' }),
         );
-        expect(view.host.textContent).toContain('内容有变化，请重新预览。');
-        expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+        expect(document.body.textContent).toContain('内容有变化，请重新预览。');
+        expect(document.body.querySelector('[data-storage-usage]')).not.toBeNull();
         expect(source.usage).toHaveBeenCalledTimes(2);
-        expect(view.host.querySelector('[data-storage-confirm]')).toBeNull();
-        expect(view.host.textContent).not.toContain('已重新读取此 Host');
+        expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+        expect(document.body.textContent).not.toContain('已重新读取此 Host');
       } finally {
         view.dispose();
       }
@@ -545,22 +608,22 @@ describe('StorageSettings', () => {
     try {
       await view.open();
       expect(
-        view.host.querySelector('[data-storage-usage] [data-storage-total]')?.textContent,
+        document.body.querySelector('[data-storage-usage] [data-storage-total]')?.textContent,
       ).toBe('共占用 8.0 MB');
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-usage] [data-storage-part]')).map(
+        Array.from(document.body.querySelectorAll('[data-storage-usage] [data-storage-part]')).map(
           (node) => node.textContent,
         ),
       ).toEqual(['图片和文件 6.0 MB', '聊天记录 1.0 MB', '记忆 512.0 KB', '其他 512.0 KB']);
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-chat]')).map((node) =>
+        Array.from(document.body.querySelectorAll('[data-storage-chat]')).map((node) =>
           node.getAttribute('data-storage-chat'),
         ),
       ).toEqual(['dm-ada', 'group-team']);
 
       await act(async () => view.checkbox('Team').click());
       await act(async () => view.checkbox('文件').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada'], kinds: ['image', 'video', 'audio'] });
@@ -568,10 +631,10 @@ describe('StorageSettings', () => {
         Date.now() - 89 * 24 * 60 * 60 * 1000,
       );
 
-      expect(view.host.textContent).toContain('会从 2 条消息里删除 3 个文件，释放约 4.0 MB。');
-      expect(view.host.textContent).toContain('1 个文件 Bot 还在处理，这次先保留。');
-      expect(view.host.textContent).toContain('部分文件在别处仍在使用');
-      const confirm = view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!;
+      expect(document.body.textContent).toContain('会从 2 条消息里删除 3 个文件，释放约 4.0 MB。');
+      expect(document.body.textContent).toContain('1 个文件 Bot 还在处理，这次先保留。');
+      expect(document.body.textContent).toContain('部分文件在别处仍在使用');
+      const confirm = document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!;
       expect(confirm.disabled).toBe(true);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       await view.press(confirm);
@@ -585,7 +648,7 @@ describe('StorageSettings', () => {
         },
         undefined,
       ]);
-      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-storage-result]')?.textContent).toBe(
         '已清理 3 个文件，释放 4.0 MB。',
       );
       expect(call.mock.calls.filter(([endpoint]) => endpoint === 'storageUsage')).toHaveLength(3);
@@ -608,12 +671,12 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       expect(cleanupCalls(call)[0]![1]).not.toHaveProperty('channelIds');
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(view.host.textContent).toContain('内容有变化，请重新预览。');
-      expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.textContent).toContain('内容有变化，请重新预览。');
+      expect(document.body.querySelector('[data-storage-usage]')).not.toBeNull();
     } finally {
       view.dispose();
     }
@@ -643,34 +706,36 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      const target = view.host.querySelector<HTMLSelectElement>('select[aria-label="清理内容"]')!;
+      const target = document.body.querySelector<HTMLSelectElement>(
+        'select[aria-label="清理内容"]',
+      )!;
       await act(async () => {
         target.value = 'messages';
         target.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      expect(view.host.querySelector('[data-storage-target-note]')?.textContent).toContain(
+      expect(document.body.querySelector('[data-storage-target-note]')?.textContent).toContain(
         '删除整条消息',
       );
-      expect(view.host.textContent).not.toContain('视频');
+      expect(document.body.textContent).not.toContain('视频');
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-chat]')).map((node) =>
+        Array.from(document.body.querySelectorAll('[data-storage-chat]')).map((node) =>
           node.getAttribute('data-storage-chat'),
         ),
       ).toEqual(['dm-ada', 'group-team', 'dm-text']);
       await act(async () => view.checkbox('Team').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageMessagesCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada', 'dm-text'] });
       expect(scope).not.toHaveProperty('kinds');
 
-      expect(view.host.textContent).toContain('会删除 1 个聊天里的 12 条消息，约 4.0 KB。');
-      expect(view.host.textContent).toContain('其中的 2 个文件也会一起删除。');
-      expect(view.host.textContent).toContain('有 3 处 Bot 记忆提到了这些消息');
-      expect(view.host.textContent).toContain('1 条消息 Bot 还在处理，这次先保留。');
-      expect(view.host.textContent).toContain('还有更多旧消息');
+      expect(document.body.textContent).toContain('会删除 1 个聊天里的 12 条消息，约 4.0 KB。');
+      expect(document.body.textContent).toContain('其中的 2 个文件也会一起删除。');
+      expect(document.body.textContent).toContain('有 3 处 Bot 记忆提到了这些消息');
+      expect(document.body.textContent).toContain('1 条消息 Bot 还在处理，这次先保留。');
+      expect(document.body.textContent).toContain('还有更多旧消息');
       await act(async () => view.checkbox('我了解这些消息会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
       expect(cleanupCalls(call)[1]).toEqual([
         'storageMessagesCleanupConfirm',
         {
@@ -680,7 +745,7 @@ describe('StorageSettings', () => {
         },
         undefined,
       ]);
-      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-storage-result]')?.textContent).toBe(
         '已删除 12 条消息，释放 8.0 KB。',
       );
     } finally {

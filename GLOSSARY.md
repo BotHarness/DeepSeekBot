@@ -140,7 +140,7 @@ What a Human or an Orchestrator picks wherever a model is chosen: either one pro
 _Avoid_: model (bare, when a Routing Group is possible), template
 
 **Routing Group**:
-A named, Host-wide, ordered set of model routes and other Routing Groups that is chosen as one Model Choice. A Session on it uses the first member that is not a Resting Route and moves along the order only through Model Fallback.
+A named, Host-wide, ordered set of model routes and other Routing Groups that is chosen as one Model Choice. A new Session on it starts on the first member that is not a Resting Route, and moves to another member only through Model Fallback; it stays there until that member fails too.
 _Avoid_: model pool, fallback chain, template, Model Preset, group (bare)
 
 **Model Fallback**:
@@ -258,7 +258,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)).
+A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/decisions/approvals.md#adr-0342)).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:

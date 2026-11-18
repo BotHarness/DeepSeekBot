@@ -3,19 +3,9 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: () => null,
-  MenuItemButton: ({
-    children,
-    icon,
-    onSelect,
-    disabled,
-  }: {
-    children: ReactNode;
-    icon: ReactNode;
-    onSelect: () => void;
-    disabled?: boolean;
-  }) => createElement('button', { type: 'button', disabled, onClick: onSelect }, icon, children),
 }));
 const dshTour = vi.hoisted(() =>
   vi.fn((..._args: unknown[]) => () => {}),

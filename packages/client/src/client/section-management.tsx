@@ -4,9 +4,8 @@ import {
   IconCheckOutlineRegular,
   IconEditOutlineRegular,
   IconTrashOutlineRegular,
-  type MenuEntry,
-  type MenuItem,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry, type MenuItem } from './ds/menu.js';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import { BridgeCallError, errorMessage } from './bridge.js';

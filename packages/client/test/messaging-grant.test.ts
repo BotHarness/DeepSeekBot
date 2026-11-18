@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { openTooltip } from './primitive-mocks.js';
 import {
   act,
   createElement,
@@ -12,6 +13,7 @@ import type { MessagingGrant, MessagingSnapshot } from '../../core/src/messaging
 import type { BridgeActions } from '../src/client/actions.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
@@ -42,8 +44,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     ),
   IconChevronRightOutlineRegular: () => null,
   IconInfoOutlineRegular: () => null,
-  Tooltip: ({ children, label }: PropsWithChildren<{ label: string }>) =>
-    createElement('span', { title: label }, children),
+
   Switch: () => null,
   Checkbox: ({
     checked,
@@ -64,21 +65,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
       }),
       label,
     ),
-  Modal: ({
-    open,
-    children,
-    footer,
-    onClose,
-  }: PropsWithChildren<{ open: boolean; footer?: ReactNode; onClose(): void }>) =>
-    open
-      ? createElement(
-          'div',
-          { role: 'dialog' },
-          children,
-          footer,
-          createElement('button', { onClick: onClose }, 'Close'),
-        )
-      : null,
 }));
 
 import { MessagingGrantRow } from '../src/client/messaging-grant.js';
@@ -179,20 +165,22 @@ it('WeChat Profile exposes only qualified proactive sending and separates client
   const root = createRoot(host);
   try {
     await renderGrant(root, actions);
-    expect(host.querySelector('textarea')).toBeNull();
+    expect(document.body.querySelector('textarea')).toBeNull();
     qualified = true;
     await act(async () =>
-      [...host.querySelectorAll('button')]
+      [...document.body.querySelectorAll('button')]
         .find((b) => b.textContent === zhTranslate('im.refresh'))!
         .click(),
     );
-    expect(host.querySelector('textarea')).not.toBeNull();
-    expect(host.textContent).toContain(zhTranslate('im.weixinProactive'));
+    expect(document.body.querySelector('textarea')).not.toBeNull();
+    expect(document.body.textContent).toContain(zhTranslate('im.weixinProactive'));
     expect(actions.messagingSend).not.toHaveBeenCalled();
     await act(async () =>
-      [...host.querySelectorAll('button')].find((b) => b.textContent === intent.text)!.click(),
+      [...document.body.querySelectorAll('button')]
+        .find((b) => b.textContent === intent.text)!
+        .click(),
     );
-    const dialog = host.querySelector('[role="dialog"]')!;
+    const dialog = document.body.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain(
       `${zhTranslate('im.clientAcknowledgement')}: dsh-weixin-client`,
     );
@@ -291,7 +279,7 @@ it('requires explicit target authorization and an explicit send; unknown outcome
   document.body.append(container);
   const root = createRoot(container);
   const button = (label: string) => {
-    const node = [...container.querySelectorAll('button')].find(
+    const node = [...document.body.querySelectorAll('button')].find(
       (item) => item.textContent === label,
     );
     if (!node) throw new Error(`missing button ${label}`);
@@ -316,7 +304,7 @@ it('requires explicit target authorization and an explicit send; unknown outcome
       targetDigest: target.digest,
     });
     expect(messagingSend).not.toHaveBeenCalled();
-    const textarea = container.querySelector('textarea');
+    const textarea = document.body.querySelector('textarea');
     if (!textarea) throw new Error('missing message');
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
@@ -327,8 +315,8 @@ it('requires explicit target authorization and an explicit send; unknown outcome
     });
     await act(async () => button(zhTranslate('im.send')).click());
     expect(messagingSend).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain(zhTranslate('im.unknown'));
-    expect(container.textContent).toContain(zhTranslate('im.noRetry'));
+    expect(document.body.textContent).toContain(zhTranslate('im.unknown'));
+    expect(document.body.textContent).toContain(zhTranslate('im.noRetry'));
     await act(async () => button(zhTranslate('im.refresh')).click());
     expect(messagingSend).toHaveBeenCalledTimes(1);
     snapshot = {
@@ -336,7 +324,7 @@ it('requires explicit target authorization and an explicit send; unknown outcome
       grants: [{ ...grant, availability: 'rebind-required', reception: 'off' }],
     };
     await act(async () => button(zhTranslate('im.refresh')).click());
-    expect(container.textContent).toContain(zhTranslate('im.rebind'));
+    expect(document.body.textContent).toContain(zhTranslate('im.rebind'));
     expect(button(zhTranslate('im.send')).disabled).toBe(true);
   } finally {
     await act(async () => root.unmount());
@@ -422,7 +410,7 @@ it('changes group intake only after the Human toggles it and can stop it when th
   document.body.append(container);
   const root = createRoot(container);
   const button = (key: 'im.refresh' | 'im.receiveEnable' | 'im.receiveDisable') => {
-    const element = [...container.querySelectorAll('button')].find(
+    const element = [...document.body.querySelectorAll('button')].find(
       (item) => item.textContent === zhTranslate(key),
     );
     if (!element) throw new Error('button unavailable');
@@ -439,11 +427,10 @@ it('changes group intake only after the Human toggles it and can stop it when th
     expect(document.querySelectorAll('[role="option"]').length).toBe(2);
     await act(async () => comboboxOption('shared-work')!.click());
     expect(messagingChannelTarget.mock.calls).toEqual([['ada', grant.id, 'shared-work']]);
-    expect(
-      container.querySelector(
-        `button[aria-label="${zhTranslate('im.infoFor', { title: zhTranslate('im.localTarget') })}"]`,
-      )?.parentElement?.title,
-    ).toBe(zhTranslate('im.channelTargetHint'));
+    const help = document.body.querySelector<HTMLElement>(
+      `button[aria-label="${zhTranslate('im.infoFor', { title: zhTranslate('im.localTarget') })}"]`,
+    )!;
+    expect((await openTooltip(help)).textContent).toBe(zhTranslate('im.channelTargetHint'));
     expect(messagingReceive).not.toHaveBeenCalled();
     expect(messagingSend).not.toHaveBeenCalled();
     await chooseOption(zhTranslate('im.localTarget'), '');
@@ -534,7 +521,7 @@ it.each(['test', 'slack'])(
     document.body.append(container);
     const root = createRoot(container);
     const button = (key: 'im.refresh' | 'im.policySave') =>
-      [...container.querySelectorAll('button')].find(
+      [...document.body.querySelectorAll('button')].find(
         (item) => item.textContent === zhTranslate(key),
       )!;
     try {
@@ -542,7 +529,7 @@ it.each(['test', 'slack'])(
       await act(async () => button('im.refresh').click());
       await openCombobox(zhTranslate('im.collection'));
       expect(comboboxOption('all')?.disabled).toBe(true);
-      expect(container.textContent).toContain(zhTranslate('im.ordinaryUnverified'));
+      expect(document.body.textContent).toContain(zhTranslate('im.ordinaryUnverified'));
       verified = true;
       await act(async () => button('im.refresh').click());
       await openCombobox(zhTranslate('im.collection'));
@@ -631,15 +618,15 @@ it('keeps native Thread management available after a grant migrates to Channel B
   const root = createRoot(container);
   try {
     await renderGrant(root, actions);
-    expect(container.textContent).toContain(zhTranslate('bridge.managed'));
-    expect(container.querySelector('table')?.textContent).toContain('Native Slack topic');
-    const manage = [...container.querySelectorAll('button')].find(
+    expect(document.body.textContent).toContain(zhTranslate('bridge.managed'));
+    expect(document.body.querySelector('table')?.textContent).toContain('Native Slack topic');
+    const manage = [...document.body.querySelectorAll('button')].find(
       (button) => button.textContent === zhTranslate('im.threadManage'),
     );
     if (!manage) throw new Error('missing Thread management');
     await act(async () => manage.click());
     await chooseOption(zhTranslate('im.threadParticipation'), 'exclude');
-    const submit = [...container.querySelectorAll('button')].find(
+    const submit = [...document.body.querySelectorAll('button')].find(
       (button) => button.textContent === zhTranslate('im.threadSave'),
     );
     if (!submit) throw new Error('missing Thread save');
@@ -688,20 +675,20 @@ it('shows per-Thread state, refuses unverified follow and saves the exact Human 
       }),
     );
   const manage = () =>
-    [...container.querySelectorAll('button')].find(
+    [...document.body.querySelectorAll('button')].find(
       (button) => button.textContent === zhTranslate('im.threadManage'),
     )!;
   const submit = () =>
-    [...container.querySelectorAll('button')].find(
+    [...document.body.querySelectorAll('button')].find(
       (button) => button.textContent === zhTranslate('im.threadSave'),
     )!;
   try {
     await act(async () => render());
-    expect(container.querySelector('table')?.textContent).toContain('Test Thread message');
+    expect(document.body.querySelector('table')?.textContent).toContain('Test Thread message');
     await act(async () => manage().click());
     await chooseOption(zhTranslate('im.threadParticipation'), 'follow');
     expect(submit().disabled).toBe(true);
-    expect(container.textContent).toContain(zhTranslate('im.threadUnverified'));
+    expect(document.body.textContent).toContain(zhTranslate('im.threadUnverified'));
     verified = true;
     await act(async () => render());
     await act(async () => manage().click());
@@ -719,7 +706,7 @@ it('shows per-Thread state, refuses unverified follow and saves the exact Human 
       expectedRevision: 7,
       wake: null,
     });
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -793,14 +780,14 @@ it.each(['report', 'reply'] as const)(
     const root = createRoot(container);
     try {
       await renderGrant(root, actions);
-      expect(container.textContent).not.toContain(zhTranslate('im.externalOnly'));
-      const inspect = container.querySelector<HTMLButtonElement>(
+      expect(document.body.textContent).not.toContain(zhTranslate('im.externalOnly'));
+      const inspect = document.body.querySelector<HTMLButtonElement>(
         `button[aria-label="${zhTranslate(kind === 'reply' ? 'im.inspectReply' : 'im.inspectReport', { name: 'QA group' })}"]`,
       );
       if (!inspect) throw new Error('report inspection unavailable');
       expect(inspect.textContent).not.toBe(text);
       await act(async () => inspect.click());
-      const dialog = container.querySelector('[role="dialog"]');
+      const dialog = document.body.querySelector('[role="dialog"]');
       expect(dialog?.textContent).toContain(text);
       expect(dialog?.textContent).toContain('Own Bot identity');
       expect(dialog?.textContent).toContain(zhTranslate('im.externalOnly'));
@@ -810,19 +797,19 @@ it.each(['report', 'reply'] as const)(
         expect(dialog?.textContent).toContain('canonical-shared-source');
         expect(dialog?.textContent).toContain('source-topic');
       }
-      const close = [...container.querySelectorAll('button')].find(
-        (node) => node.textContent === 'Close',
+      const close = [...document.body.querySelectorAll('button')].find(
+        (node) => node.getAttribute('aria-label') === zhTranslate('common.close'),
       );
       await act(async () => close?.click());
-      expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain(
+      expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain(
         zhTranslate('im.externalOnly'),
       );
       await act(async () =>
-        [...container.querySelectorAll('button')]
-          .find((node) => node.textContent === 'Close')
+        [...document.body.querySelectorAll('button')]
+          .find((node) => node.getAttribute('aria-label') === zhTranslate('common.close'))
           ?.click(),
       );
-      expect(container.querySelector('[role="dialog"]')).toBeNull();
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
       expect(messagingSend).not.toHaveBeenCalled();
     } finally {
       await act(async () => root.unmount());
@@ -890,11 +877,11 @@ it('shows a rejected pairing review beside its controls and clears it after a su
       ),
     );
     await act(async () =>
-      [...host.querySelectorAll<HTMLButtonElement>('.bh-card-main')]
+      [...document.body.querySelectorAll<HTMLButtonElement>('.bh-card-main')]
         .find((item) => item.textContent?.includes(zhTranslate('pairing.title')))!
         .click(),
     );
-    const pairing = host.querySelector('.bh-im-pairing')!;
+    const pairing = document.body.querySelector('.bh-im-pairing')!;
     const button = (key: 'pairing.approve' | 'pairing.refresh') =>
       [...pairing.querySelectorAll('button')].find(
         (item) => item.textContent === zhTranslate(key),

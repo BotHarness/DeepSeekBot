@@ -605,7 +605,7 @@ it('keeps an explicitly selected Group source as causation when newer input exis
   }
 }, 60000);
 
-it('links the Assignments this turn created or sent to, and checks inline mentions', async () => {
+it('links Sessions to a sent DM message after sending, adds later ones, and checks inline mentions', async () => {
   const f = await fixture();
   try {
     await f.send('Fix the export', async (run) => {
@@ -614,16 +614,10 @@ it('links the Assignments this turn created or sent to, and checks inline mentio
         assignments: {
           ...run.assignments,
           inspect: (sessionId: string) =>
-            sessionId === 'asg-new' || sessionId === 'asg-old'
-              ? ({ sessionId, title: sessionId === 'asg-new' ? 'Fix export' : 'Old work' } as never)
-              : undefined,
+            sessionId === 'asg-old' ? ({ sessionId, title: 'Old work' } as never) : undefined,
         },
       } as OrchestratorAgentRun;
-      const tool = createBotMessageTool(
-        () => scoped,
-        undefined,
-        () => new Map([['asg-new', 'created' as const]]),
-      );
+      const tool = createBotMessageTool(() => scoped);
       const context = (id: string) =>
         ({
           callId: ToolCallId(id),
@@ -633,33 +627,52 @@ it('links the Assignments this turn created or sent to, and checks inline mentio
       const source = run.triage!.current()[0];
       await expect(
         tool.execute(
-          { source_event_id: source, body: 'Started.', session_ids: ['asg-old'] },
-          context('stale'),
-        ),
-      ).rejects.toThrow('was not created or sent a request in this turn');
-      await expect(
-        tool.execute(
           { source_event_id: source, body: 'See [x](session:asg-missing).' },
           context('missing'),
         ),
       ).rejects.toThrow('Unknown Assignment Session');
       const result = receipt(
         await tool.execute(
-          {
-            source_event_id: source,
-            body: 'Started it; see also [Old work](session:asg-old).',
-            session_ids: ['asg-new'],
-          },
-          context('linked'),
+          { source_event_id: source, body: 'Starting; see also [Old work](session:asg-old).' },
+          context('receipt'),
         ),
       );
-      const message = f.core.channels
+      const sent = f.core.channels
         .readMessages(f.dm.id)
-        .find((entry) => entry.id === result.messageId);
-      expect(message?.sessionLinks).toEqual([
+        .find((entry) => entry.id === result.messageId)!;
+      expect(sent.sessionLinks).toBeUndefined();
+      expect(sent.body).toContain('[Old work](session:asg-old)');
+      const later = new Date(Date.parse(sent.at) + 1000).toISOString();
+      const earlier = new Date(Date.parse(sent.at) - 60_000).toISOString();
+      run.channels.linkSessions!({
+        messageId: result.messageId,
+        links: [
+          { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+          { sessionId: 'asg-old', kind: 'sent', title: 'Old work', createdAt: earlier },
+        ],
+      });
+      const linked = run.channels.linkSessions!({
+        messageId: result.messageId,
+        links: [
+          { sessionId: 'asg-new', kind: 'sent', title: 'Fix export' },
+          { sessionId: 'asg-next', kind: 'sent', title: 'Next turn', createdAt: later },
+        ],
+      });
+      expect(linked.sessionLinks).toEqual([
         { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+        { sessionId: 'asg-old', kind: 'sent', title: 'Old work' },
+        { sessionId: 'asg-next', kind: 'created', title: 'Next turn' },
       ]);
-      expect(message?.body).toContain('[Old work](session:asg-old)');
+      expect(
+        f.core.channels.readMessages(f.dm.id).find((entry) => entry.id === result.messageId)
+          ?.sessionLinks,
+      ).toEqual(linked.sessionLinks);
+      expect(() =>
+        run.channels.linkSessions!({
+          messageId: 'not-a-message',
+          links: [{ sessionId: 'asg-new', kind: 'created', title: 'Fix export' }],
+        }),
+      ).toThrow('is not one of your messages in a Human DM');
     });
   } finally {
     await f.close();

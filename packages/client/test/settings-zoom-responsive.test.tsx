@@ -11,11 +11,10 @@ vi.mock('../src/client/ds/dialog.js', () => ({
     </div>
   ),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
-  Modal: () => null,
-  Menu: ({ anchor }: { anchor: ReactNode }) => anchor,
 }));
 let host: HTMLDivElement;
 let root: Root;
@@ -27,10 +26,10 @@ beforeEach(() => {
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      constructor(callback: () => void) {
-        resize = callback;
+      constructor(private callback: () => void) {}
+      observe(node: Element) {
+        if (node === document.body) resize = this.callback;
       }
-      observe = vi.fn();
       disconnect = disconnect;
     },
   );
@@ -65,43 +64,45 @@ function render() {
 }
 it('uses local layout width after zoom and retains the mounted editor while changing navigation', () => {
   render();
-  const input = host.querySelector('input')!;
+  const input = document.body.querySelector('input')!;
   input.value = 'unsaved';
   input.focus();
-  expect(host.querySelector('nav')).not.toBeNull();
+  expect(document.body.querySelector('nav')).not.toBeNull();
   act(() => {
     width = 293;
     resize();
   });
-  expect(host.querySelector('nav')).toBeNull();
-  expect(host.querySelector('[aria-label="Choose General"]')).not.toBeNull();
-  expect(host.querySelector('input')).toBe(input);
+  expect(document.body.querySelector('nav')).toBeNull();
+  expect(document.body.querySelector('[aria-label="Choose General"]')).not.toBeNull();
+  expect(document.body.querySelector('input')).toBe(input);
   expect(input.value).toBe('unsaved');
   expect(document.activeElement).toBe(input);
-  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Choose General"]')!.click());
-  expect(host.querySelector('[data-pointer-menu]')).not.toBeNull();
+  act(() =>
+    document.body.querySelector<HTMLButtonElement>('[aria-label="Choose General"]')!.click(),
+  );
+  expect(document.body.querySelector('[data-pointer-menu]')).not.toBeNull();
   act(() => {
     width = 1261;
     resize();
   });
-  expect(host.querySelector('nav')).not.toBeNull();
-  expect(host.querySelector('input')).toBe(input);
-  expect(host.querySelector('[data-pointer-menu]')).toBeNull();
+  expect(document.body.querySelector('nav')).not.toBeNull();
+  expect(document.body.querySelector('input')).toBe(input);
+  expect(document.body.querySelector('[data-pointer-menu]')).toBeNull();
   act(() => {
     width = 293;
     resize();
   });
-  expect(host.querySelector('[data-pointer-menu]')).toBeNull();
+  expect(document.body.querySelector('[data-pointer-menu]')).toBeNull();
 });
 it('includes the exact compact boundary and disposes its layout observer', () => {
   width = 648;
   render();
-  expect(host.querySelector('nav')).toBeNull();
+  expect(document.body.querySelector('nav')).toBeNull();
   act(() => {
     width = 649;
     resize();
   });
-  expect(host.querySelector('nav')).not.toBeNull();
+  expect(document.body.querySelector('nav')).not.toBeNull();
   act(() => root.render(null));
   expect(disconnect).toHaveBeenCalledTimes(1);
 });

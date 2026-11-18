@@ -12,11 +12,12 @@ import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { BotBannerArt, bannerOf } from './bot-banner.js';
 import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
-import type { ModelCatalogEntryView, ModelRouteView } from './bridge.js';
+import type { ModelCatalogEntryView, ModelCatalogGroupView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { ModelPicker } from './model-picker.js';
 import { ModelBrandIcon } from './model-brand.js';
-import { catalogMenuItems } from './model-menu.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { catalogMenuItems, groupMenuId, groupMenuKey } from './model-menu.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
@@ -53,14 +54,20 @@ export function OnboardingModelDialog({
   slug?: string;
   title: string;
   onClose(): void;
-  onConfirm(route: ModelRouteView, globalDefault: boolean, revision: number): Promise<void>;
+  onConfirm(
+    choice: ModelRouteView | { groupId: string },
+    globalDefault: boolean,
+    revision: number,
+  ): Promise<void>;
   t: BotHarnessTranslate;
   globalOnly?: boolean;
   onProviderSettings?: () => void;
   request?: string | undefined;
 }): ReactElement {
   const [models, setModels] = useState<ModelCatalogEntryView[]>([]);
+  const [groups, setGroups] = useState<ModelCatalogGroupView[]>([]);
   const [route, setRoute] = useState<ModelRouteView>();
+  const [groupId, setGroupId] = useState<string | null>();
   const [revision, setRevision] = useState(0);
   const [globalDefault, setGlobalDefault] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -74,7 +81,15 @@ export function OnboardingModelDialog({
         slug ? actions.modelPlanState(slug) : Promise.resolve(undefined),
       ]);
       setModels(catalog.models);
+      setGroups(catalog.groups ?? []);
       setRevision(state?.revision ?? state?.plan?.revision ?? 0);
+      setGroupId((previous) =>
+        previous !== undefined
+          ? previous
+          : state?.plan === undefined
+            ? (catalog.defaultGroupId ?? null)
+            : (state.plan.orchestratorGroupId ?? null),
+      );
       const selected = state?.plan?.orchestrator ?? catalog.default;
       setRoute(
         (previous) =>
@@ -98,12 +113,27 @@ export function OnboardingModelDialog({
   const selected = models.find(
     (model) => model.provider === route?.provider && model.model === route.model,
   );
+  const group =
+    typeof groupId === 'string'
+      ? catalogMenuItems(models, t, groups).find((item) => item.group === groupId)
+      : undefined;
+  const ready =
+    group !== undefined
+      ? group.disabled !== true
+      : typeof groupId !== 'string' &&
+        route !== undefined &&
+        selected !== undefined &&
+        selected.credential === undefined;
   const confirm = async (): Promise<void> => {
-    if (!route || busy || !selected || selected.credential !== undefined) return;
+    if (!ready || busy) return;
     setBusy(true);
     setError(undefined);
     try {
-      await onConfirm(route, globalDefault, revision);
+      await onConfirm(
+        group !== undefined ? { groupId: group.group! } : route!,
+        globalDefault,
+        revision,
+      );
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -117,11 +147,7 @@ export function OnboardingModelDialog({
       closeLabel={t('common.close')}
       onClose={onClose}
       footer={
-        <Button
-          variant="primary"
-          disabled={busy || !selected || selected.credential !== undefined}
-          onClick={() => void confirm()}
-        >
+        <Button variant="primary" disabled={busy || !ready} onClick={() => void confirm()}>
           {t(globalOnly ? 'onboarding.saveDefault' : 'onboarding.saveModel')}
         </Button>
       }
@@ -137,16 +163,28 @@ export function OnboardingModelDialog({
           title={t('onboarding.model')}
           hint={t(globalOnly ? 'onboarding.defaultDescription' : 'onboarding.modelHint')}
           choice={{
-            key: route ? JSON.stringify([route.provider, route.model]) : '',
-            effort: route?.reasoningEffort ?? '',
+            key:
+              group !== undefined
+                ? group.value
+                : route
+                  ? JSON.stringify([route.provider, route.model])
+                  : '',
+            effort: group !== undefined ? '' : (route?.reasoningEffort ?? ''),
           }}
           catalog={models}
+          groups={groups}
           options={models.map((model) => ({
             value: JSON.stringify([model.provider, model.model]),
             label: model.modelName,
             hint: model.providerName + (model.credential ? ' · ' + t('onboarding.needsKey') : ''),
           }))}
           onChange={({ key, effort }) => {
+            const picked = groupMenuId(key);
+            if (picked !== undefined) {
+              setGroupId(picked);
+              return;
+            }
+            setGroupId(null);
             const [provider, model] = JSON.parse(key) as [string, string];
             setRoute({
               provider,
@@ -756,18 +794,23 @@ export function DefaultModelSettings({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const [groups, setGroups] = useState<readonly ModelCatalogGroupView[]>([]);
   const [current, setCurrent] = useState<string>();
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const load = (): void => {
     void actions.modelCatalog().then((catalog) => {
       setModels(catalog.models);
+      setGroups(catalog.groups ?? []);
       setCurrent(
-        catalog.default === undefined
-          ? ''
-          : JSON.stringify([catalog.default.provider, catalog.default.model]),
+        catalog.defaultGroupId !== undefined
+          ? groupMenuKey(catalog.defaultGroupId)
+          : catalog.default === undefined
+            ? ''
+            : JSON.stringify([catalog.default.provider, catalog.default.model]),
       );
     });
-  }, [actions]);
-  const item = catalogMenuItems(models, t).find((entry) => entry.value === current);
+  };
+  const mount = useMountedResource<HTMLDivElement>(load, [actions]);
+  const item = catalogMenuItems(models, t, groups).find((entry) => entry.value === current);
   return (
     <SettingsRow
       rootRef={mount}
@@ -786,12 +829,15 @@ export function DefaultModelSettings({
           onClick={() => setOpen(true)}
         >
           {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
+          {item?.group === undefined ? null : <ChannelSidebarIcon name="git-branch" size={16} />}
           {item?.label ??
             (current === ''
               ? t('modelPreset.noPlan')
               : current === undefined
                 ? t('onboarding.model')
-                : (JSON.parse(current) as string[]).join(' / '))}
+                : groupMenuId(current) !== undefined
+                  ? t('modelPreset.routeUnavailable')
+                  : (JSON.parse(current) as string[]).join(' / '))}
         </Button>
       }
     >
@@ -802,10 +848,10 @@ export function DefaultModelSettings({
           t={t}
           globalOnly
           onClose={() => setOpen(false)}
-          onConfirm={async (route) => {
-            await actions.onboardingModel(undefined, 0, route, true);
-            setCurrent(JSON.stringify([route.provider, route.model]));
+          onConfirm={async (choice) => {
+            await actions.onboardingModel(undefined, 0, choice, true);
             setOpen(false);
+            load();
           }}
         />
       ) : null}

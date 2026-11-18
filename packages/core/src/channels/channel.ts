@@ -41,6 +41,7 @@ import {
   type TakeoverRequestCard,
   type TakeoverResolution,
 } from '../takeover/contracts.js';
+import { PRIVATE_REFERENCE } from '../credentials/references.js';
 
 export type ChannelType = 'dm' | 'group';
 
@@ -1547,8 +1548,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       Array.isArray(resolution.references) ||
       (resolution.state !== 'configured' && Object.keys(resolution.references).length > 0) ||
       !Object.values(resolution.references).every(
-        (ref) =>
-          typeof ref === 'string' && /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(ref),
+        (ref) => typeof ref === 'string' && PRIVATE_REFERENCE.test(ref),
       )
     )
       return false;

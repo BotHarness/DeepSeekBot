@@ -145,6 +145,11 @@ import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { createEngineGateway } from './engines/engine-gateway.js';
+import { EngineHost } from './engines/engine-host.js';
+import type { EngineSessionPersistence, EngineSessionStore } from './engines/engine-dsh-session.js';
+import { readEnginePersona, subscriptionEnginesAllowed } from './engines/engine-plugin.js';
+import { ENGINES_PATH, engineRouteFetch } from './engines/engine-route.js';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
@@ -240,6 +245,10 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import {
+  createFallbackOverrideStore,
+  type FallbackOverrideStore,
+} from './models/fallback-overrides.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
@@ -264,6 +273,8 @@ import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-
 import {
   degradeHostCapability,
   hostAgentPresets,
+  hostSessionPersistence,
+  hostSessionStore,
   hostSkillRegistry,
   installHostSkillInvalidation,
   onHostSkillsChange,
@@ -358,6 +369,12 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
+import {
+  createBotModeSettings,
+  isBotModeId,
+  resolveBotMode,
+  type BotModeOption,
+} from './runtime/bot-mode-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
@@ -506,6 +523,7 @@ export interface BotHarnessConfig {
   activityDetailConsumers?: string[];
   marketplaceUrl?: string;
   telemetry?: boolean;
+  subscriptionEngines?: boolean;
 }
 
 export const DEFAULT_AGENT_PRESET = 'standard';
@@ -553,6 +571,11 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   marketplaceUrl: Schema.string()
     .default(DEFAULT_MARKETPLACE_URL)
     .description('Bot Marketplace 服务地址'),
+  subscriptionEngines: Schema.boolean()
+    .default(true)
+    .description(
+      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex). Cloud and VPS Hosts set false.',
+    ),
   telemetry: Schema.boolean()
     .default(true)
     .description(
@@ -581,6 +604,7 @@ export interface BotHarnessCore {
   modelPresets: ModelPresetStore;
   modelFavorites: ModelFavoriteStore;
   routingGroups: RoutingGroupStore;
+  fallbackOverrides: FallbackOverrideStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -771,6 +795,7 @@ function initializeCore(
   let modelPresets: ModelPresetStore;
   let modelFavorites: ModelFavoriteStore;
   let routingGroups: RoutingGroupStore;
+  let fallbackOverrides: FallbackOverrideStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -899,6 +924,7 @@ function initializeCore(
         ),
     });
     startup.enter('routing-groups', 'initialize');
+    fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
     routingGroups = createRoutingGroupStore({
       database: operationalDatabase,
       references: (groupId) => {
@@ -1081,6 +1107,8 @@ function initializeCore(
       live?.publishVoice(channelId, messageId, message),
     onAttachmentsChanged: (channelId, messageId, message) =>
       live?.publishAttachments(channelId, messageId, message),
+    onSessionLinksChanged: (channelId, messageId, message) =>
+      live?.publishSessionLinks(channelId, messageId, message),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   changedFiles = (fileId) => channels.recordAttachmentChange?.(fileId);
@@ -1582,6 +1610,7 @@ function initializeCore(
     modelPresets,
     modelFavorites,
     routingGroups,
+    fallbackOverrides,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -1650,6 +1679,41 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (message) => ctx.logger.info(message),
   });
   mountClientDiagnostics(ctx, dshHome);
+  const botModeSettings = createBotModeSettings(join(dshHome, 'botharness'));
+  const productBotMode = config.agentPreset ?? DEFAULT_AGENT_PRESET;
+  let reconcileBotModeSkills: (() => void) | undefined;
+  let installedBotModeIds: ReadonlySet<string> | undefined;
+  const globalBotMode = (): string => {
+    const saved = botModeSettings.defaultMode();
+    return saved !== undefined &&
+      (installedBotModeIds === undefined || installedBotModeIds.has(saved))
+      ? saved
+      : productBotMode;
+  };
+  const botModeOf = (slug: string | undefined): string =>
+    slug === undefined
+      ? globalBotMode()
+      : resolveBotMode({
+          own: core.registry.get(slug)?.preset,
+          inherited: globalBotMode(),
+          allowed: botModeSettings.allowedModes(slug),
+          installed: installedBotModeIds,
+        });
+  const installedBotModes = async (): Promise<BotModeOption[]> => {
+    const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
+    if (presets === undefined) return [];
+    const listed = (await presets.list()).filter((preset) => isBotModeId(preset.id));
+    installedBotModeIds = new Set(
+      listed.filter((preset) => preset.broken === undefined).map((preset) => preset.id),
+    );
+    return listed.map((preset) => ({
+      id: preset.id,
+      ...(preset.name === undefined ? {} : { name: preset.name }),
+      ...(preset.description === undefined ? {} : { description: preset.description }),
+      ...(preset.order === undefined ? {} : { order: preset.order }),
+      ...(preset.broken === undefined ? {} : { broken: preset.broken }),
+    }));
+  };
   const hostDiagnosticEnvironment = () => {
     const dshVersion = installedDshVersion();
     return {
@@ -1791,7 +1855,31 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const tobCliInvocation = new ModelFreeTobCliInvocation();
   const sessionLive = new SessionLiveStreams();
+  const engineGateway = createEngineGateway();
+  const engineHost = new EngineHost({
+    root: join(dshHome, 'botharness', 'engines'),
+    local: subscriptionEnginesAllowed(config, process.env),
+    gateway: engineGateway,
+    sessions: () => hostSessionStore<EngineSessionStore>(ctx),
+    persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
+    observe: (slug, sessionId, state) => {
+      if (state !== 'idle')
+        core.states.setSessionState(slug, sessionId, 'thinking', undefined, 'orchestrator');
+      else if (core.states.snapshot(slug).sessions[sessionId] === 'thinking')
+        core.states.setSessionState(slug, sessionId, 'done', undefined, 'orchestrator');
+    },
+  });
+  ctx.effect(
+    () => async () => {
+      await engineHost.close();
+      await engineGateway.close();
+    },
+    'botharness: Subscription Engine Sessions',
+  );
   const agentAdapter = createDshBotAgentAdapter({
+    engines: engineHost,
+    enginePersona: (bot) =>
+      readEnginePersona(core.registry.memoryDirFor(bot.slug), bot.standingLimits),
     tobCliInvocation,
     ...(config.genuiPreviewBrowserPath === undefined
       ? {}
@@ -1886,7 +1974,37 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         'orchestrator',
       );
     },
-    defaultAgentPreset: config.agentPreset ?? DEFAULT_AGENT_PRESET,
+    defaultAgentPreset: globalBotMode,
+    botModeOf,
+    recordSessionMode: (sessionId, mode) => {
+      try {
+        core.ownership.recordAgentPreset(sessionId, mode);
+      } catch (error) {
+        ctx.logger.warn(`Could not record the mode of Session ${sessionId}: ${String(error)}`);
+      }
+    },
+    ensureBotModes: async () => {
+      await installedBotModes().catch(() => {
+        installedBotModeIds ??= new Set();
+      });
+    },
+    assignmentModes: async (slug) => {
+      const installed = await installedBotModes();
+      const allowed =
+        botModeSettings.readError() === undefined ? botModeSettings.allowedModes(slug) : [];
+      return {
+        default: botModeOf(slug),
+        restricted: allowed !== undefined,
+        allowed: installed
+          .filter((mode) => mode.broken === undefined)
+          .filter((mode) => allowed === undefined || allowed.includes(mode.id))
+          .map((mode) => ({
+            id: mode.id,
+            ...(mode.name === undefined ? {} : { name: mode.name }),
+            ...(mode.description === undefined ? {} : { description: mode.description }),
+          })),
+      };
+    },
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => core.runBotAgentSetups(agentCtx, agent, info),
@@ -2090,6 +2208,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
     validate: (route) => modelCatalog.validate(route),
+    overrides: {
+      get: (sessionId) => core.fallbackOverrides.get(sessionId),
+      set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),
+      delete: (sessionId) => core.fallbackOverrides.delete(sessionId),
+    },
   });
   const core = createCore({
     routeRests,
@@ -2259,8 +2382,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   const team = core.team;
+  ctx.effect(
+    () =>
+      core.operationalDatabase.subscribe(({ topics }) => {
+        if (topics.includes('paired-devices')) core.live.publishResourceChanged('devices');
+        if (topics.includes('host-relationships'))
+          core.live.publishResourceChanged('relationships');
+      }),
+    'botharness: live resource changes',
+  );
   mountDevicePairing(ctx, {
     team,
+    onDevicesChanged: () => core.live.publishResourceChanged('devices'),
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -3447,6 +3580,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     defaultModel,
+    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean')
         developerModeTarget.gate?.set(patch.developerMode);
@@ -3495,8 +3629,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
       agentFor: skillAgentFor,
-      presetFor: (slug) =>
-        core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
+      presetFor: botModeOf,
       agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
     }),
   });
@@ -3515,7 +3648,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   slug: bot.slug,
                   memoryDir,
                   agent: skillAgentFor(bot.slug),
-                  ...(bot.preset === undefined ? {} : { preset: bot.preset }),
+                  preset: botModeOf(bot.slug),
                 },
               ];
         }),
@@ -3543,9 +3676,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )
         refresh.reconcile();
     });
-    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
     const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
+    reconcileBotModeSkills = () => refresh.reconcile();
     return () => {
+      reconcileBotModeSkills = undefined;
       offAgents();
       offHost();
       offRegistry();
@@ -3648,6 +3783,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     cloudConnections,
     cloudWork,
     approvalReviewer,
+    botModes: {
+      settings: botModeSettings,
+      productDefault: productBotMode,
+      roster: installedBotModes,
+      changed: () => reconcileBotModeSkills?.(),
+    },
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
@@ -3696,13 +3837,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
-    onboardingNews: (slug) =>
-      onboardingNewsAvailable(
-        ctx,
-        (slug === undefined ? undefined : core.registry.get(slug)?.preset) ??
-          config.agentPreset ??
-          DEFAULT_AGENT_PRESET,
-      ),
+    onboardingNews: (slug) => onboardingNewsAvailable(ctx, botModeOf(slug)),
     defaultModel: defaultModel as DshDefaultModelHost & {
       saveSelection(route: import('./models/presets.js').ModelRoute): Promise<void>;
     },
@@ -3728,6 +3863,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         result as Parameters<NonNullable<typeof definition.presentResult>>[1],
       );
     },
+    describeEngineSession: (sessionId) => engineHost.describe(sessionId),
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);
       if (call === undefined) return undefined;
@@ -4200,6 +4336,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: ENGINES_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: (request) =>
+            engineRouteFetch(request, {
+              host: engineHost,
+              botExists: (slug) => core.registry.get(slug) !== undefined,
+            }),
+        }),
+      'botharness: Subscription Engine route',
+    );
     connectionCtx.effect(
       () =>
         connection.fetch.register({

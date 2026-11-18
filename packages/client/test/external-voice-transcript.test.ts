@@ -6,7 +6,8 @@ import type { ExternalSource } from '../../core/src/messaging/inbound.js';
 import { ExternalSourceContent } from '../src/client/external-source-content.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 }));
 const enTranslate: BotHarnessTranslate = (key, params) => {

@@ -41,7 +41,7 @@ const release = (portId: number, slot: Slot) => {
   slot.session?.dispose();
 };
 
-globalThis.addEventListener('message', async (event: MessageEvent<unknown>) => {
+globalThis.addEventListener('message', (event: MessageEvent<unknown>) => {
   const envelope = envelopeSchema.safeParse(event.data);
   if (!envelope.success) {
     globalThis.close();
@@ -74,7 +74,7 @@ globalThis.addEventListener('message', async (event: MessageEvent<unknown>) => {
     if (!slot.closed) globalThis.postMessage({ portId, reply }, {});
   };
   const { instanceId, generation, theme } = boot.data;
-  try {
+  const start = async () => {
     const document = parseGenuiDocument(boot.data.document);
     const state = validateGenuiDocumentState(document, boot.data.state);
     if (!factory) {
@@ -96,7 +96,8 @@ globalThis.addEventListener('message', async (event: MessageEvent<unknown>) => {
     });
     if (slot.closed) started.dispose();
     else slot.session = started;
-  } catch (error) {
+  };
+  start().catch((error: unknown) => {
     send({
       protocol: GENUI_EXECUTION_PROTOCOL,
       instanceId,
@@ -108,5 +109,5 @@ globalThis.addEventListener('message', async (event: MessageEvent<unknown>) => {
       wasmBytes: 0,
     });
     release(portId, slot);
-  }
+  });
 });

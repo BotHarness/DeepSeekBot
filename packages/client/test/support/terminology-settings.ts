@@ -1,5 +1,5 @@
 import { createElement, useSyncExternalStore, type ReactElement } from 'react';
-import { MenuItemButton } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuItemButton } from '../../src/client/ds/menu.js';
 import type { ChannelSidebarSettingsProps } from '../../src/client/channel-sidebar.js';
 import { SettingsSubmenu } from '../../src/client/channel-sidebar-settings.js';
 import { channelSidebarPrefs } from '../../src/client/channel-sidebar-prefs.js';

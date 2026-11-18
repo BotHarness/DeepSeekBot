@@ -309,6 +309,26 @@
       ]
     },
     {
+      "id": "bot-modes",
+      "description": "The DSH mode (Agent Preset) every Bot without its own uses, each Bot's own mode, and the mode templates that limit which modes a Bot and its Orchestrator can use.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.default.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.template.bot.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{template.name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{modeText(mode, t).name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{missingText(id)}"
+      ],
+      "commands": [
+        "bot-modes",
+        "bot-mode-default-set",
+        "bot-mode-set",
+        "bot-mode-template-save",
+        "bot-mode-template-delete",
+        "bot-mode-template-set"
+      ]
+    },
+    {
       "id": "voice",
       "description": "TTS and ASR Providers (add, test, remove), the Host-wide default for each, the speech threshold with its microphone test (the live level meter itself is browser-only; voice-dictate covers the capture path), and each Bot's voice and speech recognition override and preview.",
       "scope": "Host",
@@ -1041,6 +1061,13 @@
       "scope": "Host / push delivery",
       "surfaces": ["route:packages/core/src/plugin.ts:PRESENCE_PATH"],
       "commands": ["presence-status", "presence-report"]
+    },
+    {
+      "id": "subscription-engines",
+      "description": "The Host lists Subscription Engines, starts the Bot's own Codex sign-in and runs a Bot's Orchestrator on an engine instead of a DSH model.",
+      "scope": "Host / PersonaBot Orchestrator",
+      "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
+      "commands": ["engine-list", "engine-status", "engine-login", "engine-use"]
     },
     {
       "id": "desktop-window-zoom-setup",

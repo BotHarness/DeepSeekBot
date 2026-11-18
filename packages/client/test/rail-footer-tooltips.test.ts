@@ -3,17 +3,13 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: { children?: ReactNode }) => createElement('button', null, props.children),
   IconCloseOutlineRegular: () => null,
-  Tooltip: (props: { label: string; portal?: boolean; children?: ReactNode }) =>
-    createElement(
-      'span',
-      { 'data-tooltip': props.label, 'data-portal': props.portal ? 'true' : 'false' },
-      props.children,
-    ),
 }));
 
+import { openTooltip } from './primitive-mocks.js';
 import { BugReportEntry } from '../src/client/bug-report-entry.js';
 import { MobileAppsEntry } from '../src/client/mobile-apps.js';
 import { en, zhTranslate } from '../src/client/locale.js';
@@ -40,9 +36,11 @@ afterEach(() => {
 it.each([
   ['Mobile app', () => createElement(MobileAppsEntry, { t }), en['mobileApps.open']],
   ['Report a problem', () => createElement(BugReportEntry, { t }), en['bugReport.open']],
-])('portals the %s rail tooltip out of the clipped rail', (_name, render, label) => {
+])('portals the %s rail tooltip out of the clipped rail', async (_name, render, label) => {
   act(() => root.render(render()));
-  const tip = host.querySelector(`[data-tooltip="${label}"]`)!;
-  expect(tip).not.toBeNull();
-  expect(tip.getAttribute('data-portal')).toBe('true');
+  const anchor = host.querySelector<HTMLElement>('button')!;
+  const tip = await openTooltip(anchor);
+  expect(tip.textContent).toBe(label);
+  expect(anchor.getAttribute('aria-describedby')).toBe(tip.id);
+  expect(host.contains(tip)).toBe(false);
 });

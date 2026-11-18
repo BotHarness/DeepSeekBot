@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { dialog } from './primitive-mocks.js';
 import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -7,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement, forwardRef } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Button: ({
       children,
       onClick,
@@ -71,42 +73,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
       createElement('span', null, createElement('input', props)),
     IconChevronDownOutlineRegular: () => null,
-    MenuSurface: forwardRef<
-      HTMLDivElement,
-      import('react').HTMLAttributes<HTMLDivElement> & { compact?: boolean }
-    >(({ compact: _compact, ...props }, ref) => createElement('div', { ...props, ref })),
+
     useAnchoredPosition: () => ({ top: 0, left: 0 }),
     useDismissOnOutsidePointer: () => undefined,
-    Menu: ({
-      items,
-      onSelect,
-    }: {
-      items: { id: string; label: ReactNode }[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        items.map((item) =>
-          createElement(
-            'button',
-            { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-            item.label,
-          ),
-        ),
-      ),
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: {
-      open: boolean;
-      title: string;
-      children?: ReactNode;
-      footer?: ReactNode;
-    }) =>
-      open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
   };
 });
 
@@ -114,6 +83,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import type { ModelPlanView, ModelPresetView } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
+import { draftOf, planParts } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
@@ -408,17 +378,17 @@ async function render(actions: BridgeActions, onClose?: () => void): Promise<HTM
 }
 
 const cards = (host: HTMLElement): string =>
-  host.querySelector('.bh-model-entry .bh-card-list')?.textContent ?? '';
+  document.body.querySelector('.bh-model-entry .bh-card-list')?.textContent ?? '';
 
 async function openEditor(host: HTMLElement): Promise<void> {
   await act(async () => {
-    host.querySelector<HTMLButtonElement>('.bh-model-entry button.bh-card-main')?.click();
+    document.body.querySelector<HTMLButtonElement>('.bh-model-entry button.bh-card-main')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
 function button(text: string): HTMLButtonElement {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const found = [...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]')].find(
     (candidate) => candidate.textContent === text,
   );
   if (found === undefined) throw new Error(`No button ${text}`);
@@ -698,7 +668,7 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(cards(host)).toContain('Select an available model');
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
       'shared-model matches multiple providers',
     );
   });
@@ -758,7 +728,7 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('flash · high');
     expect(cards(host)).toContain('Task model');
     expect(cards(host)).toContain('k2 · Default');
-    expect(host.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
+    expect(document.body.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
   });
 
   it('preselects the DSH default model and offers keyless providers as unpickable', async () => {
@@ -904,6 +874,202 @@ describe('Model entry', () => {
     expect(cards(host)).not.toContain('Deep');
   });
 
+  it('puts Routing Groups in every slot and saves them in a new preset (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 3,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      appliedAt: '',
+    };
+    const groups = [
+      {
+        id: 'main',
+        name: 'Main',
+        revision: 1,
+        routes: [
+          { provider: 'deepseek', model: 'flash' },
+          { provider: 'kimi', model: 'k2' },
+        ],
+      },
+      { id: 'side', name: 'Side', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
+    ];
+    const createModelPreset = vi.fn(async () => ({ id: 'mine' }) as ModelPresetView);
+    const applyModelPreset = vi.fn(async () => plan);
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+      createModelPreset,
+      applyModelPreset,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    await choose(translate('modelPreset.orchestrator'), 'Main', 'Main');
+    await act(async () => button('Advanced').click());
+    await choose('Add an allowed model', 'Side', 'Side');
+    const card = document.querySelector<HTMLElement>('li[data-model-group]')!;
+    expect(card.textContent).toContain('Side');
+    expect(card.textContent).toContain('1 models');
+    expect(card.textContent).toContain('Now: Flash · DeepSeek');
+    const high = [...card.querySelectorAll('label')].find((item) => item.textContent === 'High')!;
+    await act(async () => high.querySelector('input')!.click());
+    const input = card.querySelector<HTMLInputElement>('input[aria-label="When to use Side"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        ' Quick checks ',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      [...card.querySelectorAll('button')]
+        .find((item) => item.textContent === 'Make default')!
+        .click(),
+    );
+    await act(async () => button('Save as preset').click());
+    const name = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        name,
+        'Grouped',
+      );
+      name.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => button('Save preset').click());
+    expect(createModelPreset).toHaveBeenCalledExactlyOnceWith(
+      'Grouped',
+      { provider: 'deepseek', model: 'flash' },
+      route,
+      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      undefined,
+      {
+        orchestratorGroupId: 'main',
+        assignmentGroups: ['side'],
+        assignmentDefaultGroupId: 'side',
+        assignmentGroupOptions: [
+          { group: 'side', allowedEfforts: ['high'], defaultEffort: 'high', note: 'Quick checks' },
+        ],
+      },
+    );
+    expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
+  });
+
+  it('opens a grouped plan and saves it back with its groups (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 5,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: { provider: 'deepseek', model: 'flash' },
+      orchestratorGroupId: 'main',
+      assignmentDefault: route,
+      assignmentModels: [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      assignmentGroups: ['side', 'main'],
+      assignmentDefaultGroupId: 'side',
+      assignmentGroupOptions: [{ group: 'main', note: 'Long work' }],
+      appliedAt: '',
+    };
+    const groups = [
+      { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'kimi', model: 'k2' }] },
+      { id: 'side', name: 'Side', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
+    ];
+    const setModelPlan = vi.fn(async () => ({ ...plan, revision: 6 }));
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+      setModelPlan,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    expect(picked(translate('modelPreset.orchestrator'))).toContain('Main');
+    expect(
+      [...document.querySelectorAll('li[data-model-group] strong')].map((item) => item.textContent),
+    ).toEqual(['Side', 'Main']);
+    await choose(translate('modelPreset.orchestrator'), 'Flash', 'Flash');
+    await act(async () => button(translate('modelPreset.save')).click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      5,
+      { provider: 'deepseek', model: 'flash' },
+      route,
+      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      undefined,
+      {
+        assignmentGroups: ['side', 'main'],
+        assignmentDefaultGroupId: 'side',
+        assignmentGroupOptions: [{ group: 'main', note: 'Long work' }],
+      },
+    );
+  });
+
+  it('clears a group effort limit its members no longer share (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 5,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels: [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      assignmentGroups: ['main'],
+      assignmentGroupOptions: [{ group: 'main', allowedEfforts: ['high'], defaultEffort: 'high' }],
+      appliedAt: '',
+    };
+    const groups = [
+      { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'kimi', model: 'k2' }] },
+    ];
+    const setModelPlan = vi.fn(async () => ({ ...plan, revision: 6 }));
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+      setModelPlan,
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    expect(dialog().textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    await act(async () => button(translate('modelPreset.groupEffortsClear')).click());
+    await act(async () => button(translate('modelPreset.save')).click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      5,
+      route,
+      route,
+      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      undefined,
+      { assignmentGroups: ['main'], assignmentGroupOptions: [] },
+    );
+  });
+
+  it('flags a group effort its members dropped while keeping the shared ones (#4501)', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 5,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels: [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      assignmentGroups: ['main'],
+      assignmentGroupOptions: [
+        { group: 'main', allowedEfforts: ['high', 'max'], defaultEffort: 'high' },
+      ],
+      appliedAt: '',
+    };
+    const groups = [
+      { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
+    ];
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    expect(dialog().textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    expect(dialog().textContent).toContain(translate('modelPreset.allowedEfforts'));
+  });
+
   it('saves the current settings as a new preset and links the Bot to it', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     let plan: ModelPlanView = {
@@ -1022,10 +1188,12 @@ describe('Model entry', () => {
     await type('When to use Pro', '  Hard debugging  ');
     await type('When to use Kimi K2', 'Quick lookups');
     await type('When to use Flash', '   ');
-    const high = [...card('Flash').querySelectorAll('label')].find(
-      (label) => label.textContent === 'High',
+    const effortBoxes = [...card('Flash').querySelectorAll<HTMLInputElement>('label input')];
+    expect(effortBoxes.map((input) => input.checked)).toEqual([true, true, true]);
+    const low = [...card('Flash').querySelectorAll('label')].find(
+      (label) => label.textContent === 'Low',
     )!;
-    await act(async () => high.querySelector('input')!.click());
+    await act(async () => low.querySelector('input')!.click());
     await act(async () =>
       card('Flash')
         .querySelector<HTMLButtonElement>(
@@ -1192,6 +1360,104 @@ it('uses the shared model picker for onboarding and waits for an explicit model 
   );
 });
 
+it('offers Routing Groups in the onboarding picker and saves one without an effort (#4500)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const onConfirm = vi.fn(async () => {});
+  const actions = {
+    modelCatalog: vi.fn(async () => ({
+      models: catalog,
+      default: { provider: 'deepseek', model: 'flash' },
+      defaultGroupId: 'main',
+      groups: [
+        {
+          id: 'main',
+          name: 'Main',
+          revision: 1,
+          routes: [
+            { provider: 'kimi', model: 'k2' },
+            { provider: 'deepseek', model: 'flash' },
+          ],
+        },
+      ],
+    })),
+  } as unknown as BridgeActions;
+  await act(async () =>
+    root!.render(
+      createElement(OnboardingModelDialog, {
+        actions,
+        title: 'Default model',
+        globalOnly: true,
+        onClose: vi.fn(),
+        onConfirm,
+        t: translate,
+      }),
+    ),
+  );
+  expect(trigger('Model')?.textContent).toContain('Main');
+  expect(document.querySelector('[role="radiogroup"], [role="tablist"]')).toBeNull();
+  await choose('Model', 'Flash', 'Flash');
+  await choose('Model', 'Main', 'Main');
+  await act(async () => button('Save global default model').click());
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main' }, true, 0);
+});
+
+it('keeps a chosen model over the default Routing Group on refresh, and blocks Save for a missing group', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const onConfirm = vi.fn(async () => {});
+  const main = {
+    id: 'main',
+    name: 'Main',
+    revision: 1,
+    routes: [
+      { provider: 'kimi', model: 'k2' },
+      { provider: 'deepseek', model: 'flash' },
+    ],
+  };
+  let groups = [main];
+  const actions = {
+    modelCatalog: vi.fn(async () => ({
+      models: catalog,
+      default: { provider: 'deepseek', model: 'flash' },
+      defaultGroupId: 'main',
+      groups,
+    })),
+  } as unknown as BridgeActions;
+  const render = async () =>
+    act(async () =>
+      root!.render(
+        createElement(OnboardingModelDialog, {
+          actions,
+          title: 'Default model',
+          globalOnly: true,
+          onClose: vi.fn(),
+          onConfirm,
+          t: translate,
+        }),
+      ),
+    );
+  await render();
+  await choose('Model', 'Flash', 'Flash');
+  await act(async () => button(en['onboarding.refreshModels']).click());
+  expect(trigger('Model')?.textContent).toContain('Flash');
+  await act(async () => button('Save global default model').click());
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ provider: 'deepseek', model: 'flash' }),
+    true,
+    0,
+  );
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  groups = [];
+  await render();
+  expect(button('Save global default model').disabled).toBe(true);
+});
+
 it('offers general, daily check-in and timed-test requests through the normal welcome send path', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
@@ -1215,9 +1481,9 @@ it('offers general, daily check-in and timed-test requests through the normal we
     [en['onboarding.dailyRequest'], 'daily'],
     [en['onboarding.testRequest'], 'reminder'],
   ] as const) {
-    const option = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-      (candidate) => candidate.querySelector('.bh-card-title')?.textContent === title,
-    );
+    const option = [
+      ...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+    ].find((candidate) => candidate.querySelector('.bh-card-title')?.textContent === title);
     if (option === undefined) throw new Error('Missing scheduling card');
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     expect(option.textContent).toContain(
@@ -1301,4 +1567,79 @@ it('keeps inherited Assignment settings when editing an Orchestrator-only plan',
     7,
   );
   expect(setModelPlan).not.toHaveBeenCalled();
+});
+
+const draftA = { provider: 'p', model: 'a' };
+const draftB = { provider: 'p', model: 'b' };
+const draftDaily = { id: 'daily', name: 'Daily', revision: 1, routes: [draftA, draftB] };
+
+describe('planParts under an Assignment Routing Group', () => {
+  it('keeps the stored Assignment default and allowed models under a Routing Group', () => {
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: { ...draftB, reasoningEffort: 'high' },
+        assignmentModels: [draftB].map((route) => ({
+          ...route,
+          allowedEfforts: ['high'],
+          defaultEffort: 'high',
+        })),
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(false);
+    const parts = planParts(draft, [draftDaily]);
+    expect(parts?.assignmentDefault).toEqual({ ...draftB, reasoningEffort: 'high' });
+    expect(parts?.assignmentModels).toEqual([
+      { ...draftB, allowedEfforts: ['high'], defaultEffort: 'high' },
+    ]);
+    expect(parts?.groups?.assignmentDefaultGroupId).toBe('daily');
+  });
+
+  it('keeps a later stored default in advanced mode', () => {
+    const options = [draftA, draftB].map((route) => ({
+      ...route,
+      allowedEfforts: [''],
+      defaultEffort: '',
+    }));
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: draftB,
+        assignmentModels: options,
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(true);
+    expect(planParts(draft, [draftDaily])?.assignmentDefault).toEqual(draftB);
+  });
+
+  it('starts an Assignment group with no listed models on a route that has a key', () => {
+    const draft = {
+      ...draftOf(
+        {
+          orchestrator: draftA,
+          assignmentDefault: draftA,
+          assignmentModels: [],
+          assignmentGroups: ['daily'],
+          assignmentDefaultGroupId: 'daily',
+        },
+        '',
+      ),
+      allowed: [],
+    };
+    const catalog = [
+      { ...draftA, providerName: 'P', modelName: 'A', efforts: [], credential: 'missing' as const },
+      { ...draftB, providerName: 'P', modelName: 'B', efforts: [] },
+    ];
+    const parts = planParts(draft, [draftDaily], catalog);
+    expect(parts?.assignmentDefault).toEqual(draftB);
+    expect(parts?.assignmentModels).toEqual([
+      { ...draftB, allowedEfforts: [''], defaultEffort: '' },
+    ]);
+  });
 });

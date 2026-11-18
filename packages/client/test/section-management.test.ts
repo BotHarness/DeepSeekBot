@@ -8,6 +8,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconCheckOutlineRegular: () => element('span', { 'data-icon': 'IconCheckOutlineRegular' }),
     IconEditOutlineRegular: () => null,

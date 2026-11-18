@@ -470,7 +470,7 @@ export class OnboardingController {
     this.update({ sendOpen: false });
   }
   async saveModel(
-    route: ModelRouteView,
+    choice: ModelRouteView | { groupId: string },
     globalDefault: boolean,
     expectedRevision: number,
   ): Promise<void> {
@@ -478,7 +478,9 @@ export class OnboardingController {
     if (!target || this.state.busy) return;
     this.update({ busy: true, error: undefined });
     try {
-      await this.actions.onboardingModel(target.slug, expectedRevision, route, globalDefault);
+      if ('groupId' in choice && !globalDefault)
+        await this.actions.chooseModelPlanGroup(target.slug, choice.groupId, expectedRevision);
+      else await this.actions.onboardingModel(target.slug, expectedRevision, choice, globalDefault);
       invalidateModelPlan(target.slug, this.actions);
       this.update({
         modelOpen: false,

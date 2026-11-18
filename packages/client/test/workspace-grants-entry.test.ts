@@ -16,7 +16,8 @@ vi.mock('../src/client/ds/input.js', async () => ({
 vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   Switch: ({
@@ -40,9 +41,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
         onChange(event.currentTarget.checked),
     }),
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  Modal: () => null,
+
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   IconChevronDownOutlineRegular: ({ size }: { size?: number }) =>
     createElement('svg', { 'data-icon': 'sidebar-chevron', width: size, height: size }),
   IconCloseOutlineRegular: () => null,

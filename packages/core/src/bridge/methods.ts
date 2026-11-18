@@ -23,6 +23,11 @@ import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
 import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import {
+  createBotModeBridgeMethods,
+  type BotModeBridgeMethods,
+  type BotModesDeps,
+} from './bot-modes.js';
 import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
@@ -743,6 +748,8 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
+  engine?: { engine: string; account?: string };
+  agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;
@@ -1229,6 +1236,12 @@ export interface BridgeMethods extends TeamBridgeMethods {
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
   voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  botModes: BotModeBridgeMethods['botModes'];
+  botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
+  botModeSet: BotModeBridgeMethods['botModeSet'];
+  botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
+  botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
+  botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
   voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
   voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
@@ -1412,6 +1425,7 @@ export interface BridgeMethodsDeps {
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
   approvalReviewer?: ApprovalReviewerSettings;
+  botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -1456,6 +1470,9 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  describeEngineSession?(
+    sessionId: string,
+  ): { engine: string; account?: string; state: 'starting' | 'running' | 'idle' } | undefined;
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   roster: RosterStore;
@@ -2518,7 +2535,12 @@ function buildBridgeMethods(
   };
   const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
     let failure: Error | undefined;
-    for (const route of routes) {
+    const rests = catalogRests();
+    const ordered = [
+      ...routes.filter((route) => !rests.has(routeKey(route))),
+      ...routes.filter((route) => rests.has(routeKey(route))),
+    ];
+    for (const route of ordered) {
       try {
         await deps.modelCatalog!.validate(route);
         return { ...route };
@@ -3084,6 +3106,11 @@ function buildBridgeMethods(
       providers: deps.voiceProviders,
       registry: deps.registry,
       log: deps.voiceLog,
+    }),
+    ...createBotModeBridgeMethods({
+      modes: deps.botModes,
+      registry: deps.registry,
+      everyone: globalRegistry,
     }),
     channelBridges(payload) {
       const input = z
@@ -3796,13 +3823,20 @@ function buildBridgeMethods(
       const groupId = source['groupId'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
+      const defaultGroupRevision = source['expectedDefaultGroupRevision'];
+      if (
+        defaultGroupRevision !== undefined &&
+        (!Number.isSafeInteger(defaultGroupRevision) ||
+          Number(defaultGroupRevision) < 0 ||
+          source['globalDefault'] !== true)
+      )
+        return invalidInput('A default Routing Group revision needs global scope');
       if (
         groupId !== undefined &&
         (typeof groupId !== 'string' ||
           !groupId.trim() ||
           source['route'] !== undefined ||
           source['globalDefault'] !== true ||
-          slug !== undefined ||
           deps.routingGroups === undefined)
       )
         return invalidInput('A default Routing Group replaces the route and needs global scope');
@@ -3842,14 +3876,27 @@ function buildBridgeMethods(
         await deps.modelCatalog.validate(route);
         if (source['globalDefault']) {
           let savedDefaultRevision = 0;
-          if (defaultRevision === undefined) await deps.defaultModel.saveSelection(route);
-          else {
-            const settings = deps.defaultModelSettings?.();
-            if (!settings) return unavailable();
+          const groups = deps.routingGroups;
+          const previous = groups?.defaultGroup();
+          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          if (
+            previous !== undefined &&
+            defaultGroupRevision !== undefined &&
+            previous.revision !== defaultGroupRevision
+          )
+            return routingGroupFailure(
+              new RoutingGroupError(
+                'stale-revision',
+                `The default model changed (revision ${previous.revision}); read it again before saving`,
+              ),
+            );
+          const settings =
+            defaultRevision === undefined ? undefined : deps.defaultModelSettings?.();
+          if (defaultRevision !== undefined) {
             const current = settings
-              .describe({ redactSecrets: true })
+              ?.describe({ redactSecrets: true })
               .find((entry) => entry.ns === 'agent-default-model');
-            if (!current) return unavailable();
+            if (!settings || !current) return unavailable();
             if (current.revision !== defaultRevision)
               return {
                 ok: false,
@@ -3858,17 +3905,39 @@ function buildBridgeMethods(
                   message: 'Host default model changed; read it again before saving',
                 },
               };
-            await settings.replace(
-              'agent-default-model',
-              {
-                provider: route.provider,
-                model: route.model,
-                ...(route.reasoningEffort === undefined
-                  ? {}
-                  : { reasoningEffort: route.reasoningEffort }),
-              },
-              Number(defaultRevision),
-            );
+          }
+          const reserved =
+            groups === undefined ||
+            previous === undefined ||
+            nextGroup === undefined ||
+            previous.groupId === nextGroup
+              ? undefined
+              : groups.setDefaultGroup(nextGroup, previous.revision);
+          const restore = (): void => {
+            if (reserved === undefined || previous === undefined) return;
+            try {
+              groups?.setDefaultGroup(previous.groupId, reserved.revision);
+            } catch {}
+          };
+          try {
+            if (settings === undefined) await deps.defaultModel.saveSelection(route);
+            else
+              await settings.replace(
+                'agent-default-model',
+                {
+                  provider: route.provider,
+                  model: route.model,
+                  ...(route.reasoningEffort === undefined
+                    ? {}
+                    : { reasoningEffort: route.reasoningEffort }),
+                },
+                Number(defaultRevision),
+              );
+          } catch (error) {
+            restore();
+            throw error;
+          }
+          if (settings !== undefined) {
             const saved = settings
               .describe({ redactSecrets: true })
               .find((entry) => entry.ns === 'agent-default-model');
@@ -3888,19 +3957,19 @@ function buildBridgeMethods(
             saved.provider !== route.provider ||
             saved.model !== route.model ||
             saved.reasoningEffort !== route.reasoningEffort
-          )
+          ) {
+            restore();
             return invalidInput('Profile default model was not saved; open native model settings');
-          const groups = deps.routingGroups;
-          const previous = groups?.defaultGroup();
-          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          }
           const groupRevision =
-            groups === undefined || previous === undefined
+            reserved?.revision ??
+            (groups === undefined || previous === undefined
               ? undefined
-              : previous.groupId === nextGroup
-                ? nextGroup === undefined
+              : nextGroup !== undefined
+                ? previous.revision
+                : previous.groupId === undefined
                   ? undefined
-                  : previous.revision
-                : groups.setDefaultGroup(nextGroup, previous.revision).revision;
+                  : groups.setDefaultGroup(undefined, previous.revision).revision);
           if (slug === undefined)
             return {
               ok: true,
@@ -3942,6 +4011,7 @@ function buildBridgeMethods(
               message: 'Host default model changed; read it again before saving',
             },
           };
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return invalidInput(error instanceof Error ? error.message : 'Model unavailable');
       }
     },
@@ -4235,6 +4305,7 @@ function buildBridgeMethods(
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
+            ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),
           },
@@ -4251,7 +4322,7 @@ function buildBridgeMethods(
       const favorite = modelFavorite(input['choice']);
       if (favorite === undefined || typeof input['favorite'] !== 'boolean')
         return invalidInput(
-          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id}, favorite: boolean}",
+          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id} | {kind: 'preset', id}, favorite: boolean}",
         );
       try {
         return {
@@ -4306,6 +4377,7 @@ function buildBridgeMethods(
             },
           ],
         );
+        if (groups !== undefined) presetGroupRoutes(groups);
         const preset = deps.modelPresets.create({
           name,
           orchestrator,
@@ -4380,6 +4452,7 @@ function buildBridgeMethods(
               },
             ],
         );
+        if (groups !== undefined) presetGroupRoutes(groups);
         const preset = deps.modelPresets.update(id, {
           expectedRevision,
           name,
@@ -4825,10 +4898,15 @@ function buildBridgeMethods(
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const groupInput = presetGroupsInput(source);
+      if ('invalid' in groupInput) return invalidInput('Model Plan Routing Groups are invalid');
+      const groups = groupInput.given ? groupInput.groups : undefined;
       if (
         typeof slug !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(orchestrator) ||
+        (groups?.orchestratorGroupId === undefined
+          ? !isModelRoute(orchestrator)
+          : orchestrator !== undefined) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4841,18 +4919,28 @@ function buildBridgeMethods(
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
       try {
-        requireRoutes(slug, [orchestrator]);
-        await deps.modelCatalog.validate(orchestrator);
+        const grouped = groups === undefined ? [] : presetGroupRoutes(groups);
+        requireRoutes(slug, grouped);
+        await validateGroupOptions(groups?.assignmentGroupOptions);
+        const route = (await presetOrchestrator(orchestrator, groups))!;
+        requireRoutes(slug, [route]);
+        await deps.modelCatalog.validate(route);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
+        requireRoutes(slug, [
+          route,
+          assignmentDefault,
+          ...assignmentModels,
+          ...(groups === undefined ? grouped : presetGroupRoutes(groups)),
+        ]);
         const result = deps.registry.setModelPlan(
           slug,
           {
-            orchestrator,
+            orchestrator: route,
             assignmentDefault,
             assignmentModels,
             ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+            ...(groups === undefined ? {} : { groups }),
           },
           expectedRevision,
         );
@@ -4863,6 +4951,7 @@ function buildBridgeMethods(
         if (result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -5846,6 +5935,29 @@ function buildBridgeMethods(
         ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
         ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
       };
+      const presetSettingsError =
+        preset.value !== undefined && preset.value.trim().length > 0
+          ? deps.botModes?.settings.readError()
+          : undefined;
+      if (presetSettingsError !== undefined)
+        return {
+          ok: false,
+          error: { code: 'settings-unreadable', message: presetSettingsError },
+        };
+      const allowedModes = deps.botModes?.settings.allowedModes(slug);
+      if (
+        preset.value !== undefined &&
+        preset.value.trim().length > 0 &&
+        allowedModes !== undefined &&
+        !allowedModes.includes(preset.value.trim())
+      )
+        return {
+          ok: false,
+          error: {
+            code: 'mode-not-allowed',
+            message: `Mode ${preset.value.trim()} is not in this Bot's mode template; choose one of ${allowedModes.join(', ')} or change the template.`,
+          },
+        };
       const expectedProfile = asObject(payload)['expectedProfile'];
       if (expectedProfile !== undefined) {
         if (typeof expectedProfile !== 'string' || !/^[a-f0-9]{64}$/u.test(expectedProfile))
@@ -9611,11 +9723,13 @@ function buildBridgeMethods(
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
+      const engine = deps.describeEngineSession?.(sessionId);
       return {
         ok: true,
         value: {
           sessionId,
           role: owner.rootRole,
+          ...(engine === undefined ? {} : { engine }),
           ...summarizeSessionTranscript({
             sessionId,
             events: log?.events ?? [],
@@ -10546,12 +10660,15 @@ function buildBridgeMethods(
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
+        const engine = deps.describeEngineSession?.(root.sessionId);
         const modelRoute =
-          deps.usage?.latestRoute(root.sessionId) ??
-          (root.rootRole === 'assignment'
-            ? (assignment?.modelRoute ?? plan?.assignmentDefault)
-            : plan?.orchestrator) ??
-          fallbackRoute;
+          engine !== undefined
+            ? undefined
+            : (deps.usage?.latestRoute(root.sessionId) ??
+              (root.rootRole === 'assignment'
+                ? (assignment?.modelRoute ?? plan?.assignmentDefault)
+                : plan?.orchestrator) ??
+              fallbackRoute);
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
@@ -10584,6 +10701,15 @@ function buildBridgeMethods(
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
           ...(modelRoute === undefined ? {} : { modelRoute }),
+          ...(engine === undefined
+            ? {}
+            : {
+                engine: {
+                  engine: engine.engine,
+                  ...(engine.account === undefined ? {} : { account: engine.account }),
+                },
+              }),
+          ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });

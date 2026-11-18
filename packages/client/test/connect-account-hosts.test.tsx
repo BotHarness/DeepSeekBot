@@ -6,7 +6,10 @@ import { ConnectAccountHosts } from '../src/client/connect-account-hosts.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import type { ConnectedHost } from '../../core/src/devices/connect-account.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+  Button: 'button',
+}));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
   PanelDialog: ({
     title,

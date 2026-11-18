@@ -3,19 +3,12 @@ import { act, createElement, forwardRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
   IconPlusOutlineRegular: () => null,
   Input: (props: Record<string, unknown>) => createElement('input', props),
-  MenuSurface: forwardRef<HTMLDivElement, { children?: ReactNode; className?: string }>(
-    function MockMenuSurface(props, ref) {
-      return createElement(
-        'div',
-        { ref, role: 'listbox', className: 'bh-combobox-list mock-surface' },
-        props.children,
-      );
-    },
-  ),
+
   useDismissOnOutsidePointer: () => {},
 }));
 

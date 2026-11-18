@@ -10,7 +10,8 @@ import {
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     children,
     variant: _variant,
@@ -27,15 +28,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   MarkdownText: () => null,
   StateDot: () => null,
   Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-  Modal: () => null,
+
   Switch: () => null,
   IconChevronDownOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
   IconRefreshOutlineRegular: () => null,
   IconInfoOutlineRegular: () => null,
   IconCheckOutlineRegular: () => null,
-  Tooltip: ({ children, label }: { children: ReactNode; label: string }) =>
-    createElement('span', { 'data-help-text': label }, children),
+
   IconFolderOpenOutlineRegular: () => null,
 }));
 
@@ -265,7 +265,10 @@ describe('private input card', () => {
     const help = container.querySelector<HTMLButtonElement>('button[aria-label="私密信息的说明"]');
     expect(help).not.toBeNull();
     expect(help?.getAttribute('type')).toBe('button');
-    const details = help?.closest('[data-help-text]')?.getAttribute('data-help-text');
+    await act(async () => help?.focus());
+    const details = document.getElementById(
+      help?.getAttribute('aria-describedby') ?? '',
+    )?.textContent;
     expect(details).toContain('仅 Host 保存原值');
     expect(details).toContain('旧值不会被取回');
     expect(details).toContain('有效期至');

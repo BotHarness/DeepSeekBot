@@ -1453,6 +1453,24 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'assignment-agent-preset',
+  module: 'assignments',
+  description: 'Snapshot the DSH mode an Orchestrator chose for a new Assignment Session',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
+const SESSION_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'session-agent-preset',
+  module: 'session-ownership',
+  description: 'Record the DSH mode each owned root Session was composed from',
+  migrate(database) {
+    database.exec(`ALTER TABLE session_ownership ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
 const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
   id: 'routing-group-storage',
   module: 'routing-groups',
@@ -1474,6 +1492,23 @@ const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         group_id TEXT,
         revision INTEGER NOT NULL CHECK (revision >= 0)
+      );
+    `);
+  },
+};
+
+const GROUP_FALLBACK_OVERRIDES_MIGRATION: SchemaMigration = {
+  id: 'group-fallback-overrides',
+  module: 'routing-groups',
+  description: 'Keep the Routing Group member an Orchestrator Session fell back to across restarts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_fallback_overrides (
+        session_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        route_json TEXT NOT NULL CHECK (json_valid(route_json)),
+        updated_at TEXT NOT NULL
       );
     `);
   },
@@ -4113,4 +4148,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_PROFILE_SETUP_MIGRATION,
   HUMAN_MODEL_FAVORITES_MIGRATION,
   ROUTING_GROUP_DEFAULT_MIGRATION,
+  GROUP_FALLBACK_OVERRIDES_MIGRATION,
+  ASSIGNMENT_AGENT_PRESET_MIGRATION,
+  SESSION_AGENT_PRESET_MIGRATION,
 ]);

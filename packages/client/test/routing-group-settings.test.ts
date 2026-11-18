@@ -8,6 +8,7 @@ import { RoutingGroupSettings } from '../src/client/routing-group-settings.js';
 import { buttonNamed, chooseOption, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
 }));

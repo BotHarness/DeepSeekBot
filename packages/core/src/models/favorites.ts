@@ -13,7 +13,12 @@ export interface ModelFavoriteGroup {
   id: string;
 }
 
-export type ModelFavorite = ModelFavoriteModel | ModelFavoriteGroup;
+export interface ModelFavoritePreset {
+  kind: 'preset';
+  id: string;
+}
+
+export type ModelFavorite = ModelFavoriteModel | ModelFavoriteGroup | ModelFavoritePreset;
 
 export interface ModelFavoriteStore {
   list(humanId: string): ModelFavorite[];
@@ -27,15 +32,15 @@ function filled(value: unknown): value is string {
 export function modelFavorite(value: unknown): ModelFavorite | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   const row = value as Record<string, unknown>;
-  if (row['kind'] === 'group')
-    return filled(row['id']) ? { kind: 'group', id: row['id'].trim() } : undefined;
+  if (row['kind'] === 'group' || row['kind'] === 'preset')
+    return filled(row['id']) ? { kind: row['kind'], id: row['id'].trim() } : undefined;
   if (row['kind'] !== 'model' || !filled(row['provider']) || !filled(row['model']))
     return undefined;
   return { kind: 'model', provider: row['provider'].trim(), model: row['model'].trim() };
 }
 
 export function modelFavoriteKey(favorite: ModelFavorite): string {
-  return favorite.kind === 'group'
+  return favorite.kind !== 'model'
     ? JSON.stringify([favorite.kind, favorite.id])
     : JSON.stringify([favorite.kind, favorite.provider, favorite.model]);
 }

@@ -71,6 +71,7 @@ import {
   type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
+  type ModelPresetGroups,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -195,6 +196,7 @@ export interface PersonaBotRegistry {
       assignmentDefault: ModelRoute;
       assignmentModels: AssignmentModelOption[];
       openAssignmentModels?: boolean;
+      groups?: ModelPresetGroups;
     },
     expectedRevision: number,
   ): UpdatePersonaBotResult;
@@ -1270,6 +1272,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           allowedEfforts: [...option.allowedEfforts],
         })),
         ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...(routes.groups === undefined ? {} : presetGroups(routes.groups)),
         appliedAt: now().toISOString(),
       };
       delete record.model;

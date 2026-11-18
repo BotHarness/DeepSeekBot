@@ -18,6 +18,7 @@ import { createTestRosterStore } from './roster-fixture.js';
 
 const GO = { kind: 'model' as const, provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const DEEPSEEK = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4.1-flash' };
+const PRO = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4-pro' };
 const ROUTE = { provider: 'deepseek', model: 'deepseek-v4.1-flash' };
 const roots: string[] = [];
 const owners: OperationalDatabaseOwner[] = [];
@@ -27,7 +28,10 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function setup() {
+function setup(
+  rests: { provider: string; model: string; until: string }[] = [],
+  onValidate: () => void = () => undefined,
+) {
   const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
   roots.push(root);
   const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -42,7 +46,7 @@ function setup() {
     routingGroups,
     modelCatalog: {
       list: async () =>
-        [GO, DEEPSEEK].map(({ provider, model }) => ({
+        [GO, DEEPSEEK, PRO].map(({ provider, model }) => ({
           provider,
           providerName: provider,
           model,
@@ -50,9 +54,11 @@ function setup() {
           efforts: [],
         })),
       validate: async (route) => {
+        onValidate();
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
       },
     },
+    routeRests: { list: () => rests },
     states: createBotStateTracker(),
     channels: createChannelStore({ rootDir: join(root, 'channels'), attachments }),
     attachments,
@@ -60,7 +66,7 @@ function setup() {
     roster: createTestRosterStore(),
   });
   registry.create({ slug: 'ada', displayName: 'Ada' });
-  return { root, database, registry, methods };
+  return { root, database, registry, routingGroups, methods };
 }
 
 async function group(methods: ReturnType<typeof setup>['methods'], name: string) {
@@ -161,6 +167,118 @@ describe('Model Presets with Routing Groups', () => {
         assignmentDefault: ROUTE,
       }),
     ).toMatchObject({ ok: true, value: { preset: { revision: 3 } } });
+  });
+
+  it('refuses a plan or Preset whose Routing Group is deleted while it is saved', async () => {
+    let target: string | undefined;
+    const { methods, routingGroups } = setup([], () => {
+      const group = target === undefined ? undefined : routingGroups.get(target);
+      if (group !== undefined) routingGroups.delete(group.id, group.revision);
+    });
+    const assignmentModels = [{ ...ROUTE, allowedEfforts: [''], defaultEffort: '' }];
+    for (const save of [
+      (id: string) =>
+        methods.modelPlanSet({
+          slug: 'ada',
+          expectedRevision: 0,
+          orchestrator: ROUTE,
+          assignmentDefault: ROUTE,
+          assignmentModels,
+          assignmentGroups: [id],
+        }),
+      (id: string) =>
+        methods.modelPresetCreate({
+          name: 'Grouped',
+          orchestrator: ROUTE,
+          assignmentDefault: ROUTE,
+          assignmentModels,
+          assignmentGroups: [id],
+        }),
+    ]) {
+      target = await group(methods, 'Side');
+      expect(await save(target)).toMatchObject({
+        ok: false,
+        error: { code: 'routing-group-not-found' },
+      });
+    }
+  });
+
+  it('saves a grouped Orchestrator on a member that is not resting (#4501)', async () => {
+    const { methods } = setup([{ ...ROUTE, until: '2999-01-01T00:00:00.000Z' }]);
+    const created = await methods.modelGroupCreate({ name: 'Main', members: [DEEPSEEK, PRO] });
+    if (!created.ok) throw new Error(created.error.message);
+    const saved = await methods.modelPlanSet({
+      slug: 'ada',
+      expectedRevision: 0,
+      orchestratorGroupId: created.value.group.id,
+      assignmentDefault: ROUTE,
+      assignmentModels: [{ ...ROUTE, allowedEfforts: [''], defaultEffort: '' }],
+    });
+    expect(saved).toMatchObject({
+      ok: true,
+      value: { plan: { orchestrator: { provider: 'deepseek', model: 'deepseek-v4-pro' } } },
+    });
+  });
+
+  it('sets a whole Bot plan with groups in every slot and clears them on a plain save (#4501)', async () => {
+    const { registry, methods } = setup();
+    const main = await group(methods, 'Main');
+    const side = await group(methods, 'Side');
+    const assignmentModels = [{ ...ROUTE, allowedEfforts: [''], defaultEffort: '' }];
+    const grouped = await methods.modelPlanSet({
+      slug: 'ada',
+      expectedRevision: 0,
+      orchestratorGroupId: main,
+      assignmentDefault: ROUTE,
+      assignmentModels,
+      assignmentGroups: [side],
+      assignmentDefaultGroupId: side,
+      assignmentGroupOptions: [{ group: side, note: 'Quick checks' }],
+    });
+    expect(grouped).toMatchObject({
+      ok: true,
+      value: {
+        plan: {
+          orchestrator: ROUTE,
+          orchestratorGroupId: main,
+          assignmentGroups: [side],
+          assignmentDefaultGroupId: side,
+          assignmentGroupOptions: [{ group: side, note: 'Quick checks' }],
+        },
+      },
+    });
+    expect(
+      await methods.modelPlanSet({
+        slug: 'ada',
+        expectedRevision: 1,
+        orchestrator: ROUTE,
+        orchestratorGroupId: main,
+        assignmentDefault: ROUTE,
+        assignmentModels,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await methods.modelPlanSet({
+        slug: 'ada',
+        expectedRevision: 1,
+        orchestratorGroupId: 'missing',
+        assignmentDefault: ROUTE,
+        assignmentModels,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'routing-group-not-found' } });
+    expect(
+      await methods.modelPlanSet({
+        slug: 'ada',
+        expectedRevision: 1,
+        orchestrator: ROUTE,
+        assignmentDefault: ROUTE,
+        assignmentModels,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('orchestratorGroupId');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentGroups');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentDefaultGroupId');
+    expect(registry.get('ada')?.modelPlan).not.toHaveProperty('assignmentGroupOptions');
   });
 
   it('refuses unknown groups, a default outside the list, and a route beside a group', async () => {

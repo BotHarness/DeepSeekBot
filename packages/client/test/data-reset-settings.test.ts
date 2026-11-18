@@ -7,6 +7,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     Checkbox: (props: {
       checked: boolean;
@@ -59,7 +60,7 @@ async function render(call: BridgeCall) {
     root.render(createElement(DataResetSettings, { call, t: zhTranslate } as never));
   });
   const click = async (name: string) => {
-    const button = buttonNamed(name, host);
+    const button = buttonNamed(name, document.body);
     await act(async () => {
       button.click();
       await Promise.resolve();
@@ -68,8 +69,8 @@ async function render(call: BridgeCall) {
   return {
     host,
     click,
-    checkbox: () => host.querySelector<HTMLInputElement>('input[type="checkbox"]')!,
-    submit: () => host.querySelector<HTMLButtonElement>('[data-data-reset-confirm]')!,
+    checkbox: () => document.body.querySelector<HTMLInputElement>('input[type="checkbox"]')!,
+    submit: () => document.body.querySelector<HTMLButtonElement>('[data-data-reset-confirm]')!,
     dispose: () => {
       act(() => root.unmount());
       host.remove();
@@ -86,18 +87,18 @@ describe('DataResetSettings', () => {
     );
     const view = await render(call);
     try {
-      expect(view.host.textContent).toContain('清除全部 BotHarness 数据');
+      expect(document.body.textContent).toContain('清除全部 BotHarness 数据');
       await view.click('清除…');
       expect(dialog().getAttribute('aria-label')).toBe('清除全部 BotHarness 数据');
-      expect(view.host.textContent).toContain('会删除这台 Host 上的 3 个 Bot');
-      const removed = view.host.querySelector('section[aria-label="会删除"]')!;
+      expect(document.body.textContent).toContain('会删除这台 Host 上的 3 个 Bot');
+      const removed = document.body.querySelector('section[aria-label="会删除"]')!;
       expect(
         Array.from(removed.querySelectorAll('strong')).map((node) => node.textContent),
       ).toEqual(['BotHarness 数据', 'IM 连接设置', '下载的工具']);
       expect(removed.textContent).toContain('/home/a/.dsh/botharness');
       expect(removed.textContent).toContain('2.0 MB · 12 个文件');
       expect(removed.textContent).toContain('至少 4.0 KB · 2 个文件');
-      const kept = view.host.querySelector('section[aria-label="会保留"]')!;
+      const kept = document.body.querySelector('section[aria-label="会保留"]')!;
       expect(kept.textContent).toContain('/home/a/.dsh/.credentials.yaml');
       expect(kept.textContent).toContain('/work/ada-memory');
       expect(view.submit().disabled).toBe(true);
@@ -113,7 +114,7 @@ describe('DataResetSettings', () => {
         ['dataResetPreview', {}],
         ['dataResetConfirm', { token: 'reviewed' }],
       ]);
-      expect(view.host.querySelector('[data-data-reset-result]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-data-reset-result]')?.textContent).toBe(
         '正在清除数据并重启 Host，页面稍后会重新连接。',
       );
     } finally {
@@ -137,14 +138,14 @@ describe('DataResetSettings', () => {
     const view = await render(call);
     try {
       await view.click('清除…');
-      expect(view.host.textContent).toContain('这台 Host 不能自动重启');
+      expect(document.body.textContent).toContain('这台 Host 不能自动重启');
       expect(view.submit().textContent).toBe('清除');
       await act(async () => view.checkbox().click());
       await act(async () => {
         view.submit().click();
         await Promise.resolve();
       });
-      expect(view.host.textContent).toContain('清除失败，请重试。');
+      expect(document.body.textContent).toContain('清除失败，请重试。');
       expect(view.checkbox().checked).toBe(false);
       expect(view.submit().disabled).toBe(true);
     } finally {

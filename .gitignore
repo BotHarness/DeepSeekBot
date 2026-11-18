@@ -114,3 +114,6 @@ packages/deepseekbot/desktop-theme-0.2.2-rc.1/
 apps/mobile/modules/**/android/build/
 
 packages/deepseekbot/desktop-theme-0.2.2-rc.2/
+
+# TLC trace specs
+verification/**/*_TTrace_*

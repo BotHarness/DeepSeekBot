@@ -7,12 +7,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { BotModesDeps } from '../src/bridge/bot-modes.js';
+import { createBotModeSettings } from '../src/runtime/bot-mode-settings.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 
 import { createChannelStore, type ChannelStore } from '../src/channels/store.js';
 import type { MemoryService } from '../src/memory/service.js';
@@ -148,6 +150,8 @@ function setup(
   usage?: UsageProjection,
   modelCatalog?: ModelCatalog,
   readUsageSessionLog?: DshUsageSessionLogReader,
+  describeEngineSession?: BridgeMethodsDeps['describeEngineSession'],
+  botModes?: BotModesDeps,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -199,8 +203,10 @@ function setup(
       ...(memory === undefined ? {} : { memory }),
       ...(usage === undefined ? {} : { usage }),
       ...(readUsageSessionLog === undefined ? {} : { readUsageSessionLog }),
+      ...(describeEngineSession === undefined ? {} : { describeEngineSession }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
+      ...(botModes === undefined ? {} : { botModes }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
     }),
   };
@@ -2626,6 +2632,34 @@ describe('bridge methods', () => {
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
   });
 
+  it('keeps a profile update inside the Bot mode template', () => {
+    const modeHome = mkdtempSync(join(tmpdir(), 'botharness-modes-'));
+    roots.push(modeHome);
+    const settings = createBotModeSettings(modeHome);
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { settings, productDefault: 'deepseekbot', roster: async () => [] },
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    settings.setTemplateOf('ada', settings.saveTemplate({ name: 'Coding', modes: ['ptc'] }).id);
+    expect(methods.update({ slug: 'ada', patch: { preset: 'acp' } })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(methods.update({ slug: 'ada', patch: { preset: 'ptc' } })).toMatchObject({ ok: true });
+    expect(methods.update({ slug: 'ada', patch: { preset: '' } })).toMatchObject({ ok: true });
+  });
+
   it('rejects unknown or malformed updates', () => {
     const { methods } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
@@ -3297,13 +3331,19 @@ describe('bridge methods', () => {
       workspaces: ['/srv/ada/'],
     });
 
+    ownership.recordAgentPreset('session-2', 'minimal');
     const result = methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toEqual([
       expect.objectContaining({ sessionId: 'session-1', role: 'orchestrator' }),
-      expect.objectContaining({ sessionId: 'session-2', role: 'assignment' }),
+      expect.objectContaining({
+        sessionId: 'session-2',
+        role: 'assignment',
+        agentPreset: 'minimal',
+      }),
     ]);
+    expect(result.value.sessions[0]).not.toHaveProperty('agentPreset');
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
@@ -3351,6 +3391,46 @@ describe('bridge methods', () => {
     ).toEqual({
       orc: orchestrator,
       work: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    });
+  });
+
+  it('names the engine instead of a model for a Session that runs on a subscription engine', () => {
+    const ownership = createTestOwnership({
+      engine: { botSlug: 'ada', rootRole: 'orchestrator' },
+      native: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const usage = {
+      latestRoute: () => ({ provider: 'deepseek', model: 'deepseek-v4.1-flash' }),
+    } as unknown as UsageProjection;
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+      undefined,
+      undefined,
+      (sessionId) =>
+        sessionId === 'engine'
+          ? { engine: 'codex', account: 'ChatGPT pro', state: 'idle' }
+          : undefined,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    const byId = Object.fromEntries(
+      result.value.sessions.map((session) => [session.sessionId, session]),
+    );
+    expect(byId['engine']?.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro' });
+    expect(byId['engine']?.modelRoute).toBeUndefined();
+    expect(byId['native']?.engine).toBeUndefined();
+    expect(byId['native']?.modelRoute).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash',
     });
   });
 

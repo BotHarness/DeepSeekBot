@@ -1,30 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement } = await import('react');
   return {
-    Menu: (p: {
-      anchor: ReactNode;
-      open: boolean;
-      items: { id: string; label: string }[];
-      onSelect(id: string): void;
-    }) =>
-      createElement(
-        'div',
-        null,
-        p.anchor,
-        p.open
-          ? p.items.map((item) =>
-              createElement(
-                'button',
-                { key: item.id, onClick: () => p.onSelect(item.id) },
-                item.label,
-              ),
-            )
-          : null,
-      ),
+    ...(await import('../../client/test/primitive-mocks.js')).shellPrimitives(),
     IconChevronDownOutlineRegular: () => null,
   };
 });
@@ -78,7 +58,7 @@ describe('Browser Target native settings seam', () => {
       );
       expect(host.textContent).toContain('settings.local');
       await act(async () => host.querySelector('button')!.click());
-      const choice = [...document.querySelectorAll('button')].find(
+      const choice = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
         (b) => b.textContent === 'settings.container',
       );
       expect(choice).toBeDefined();
@@ -86,7 +66,7 @@ describe('Browser Target native settings seam', () => {
       expect(scope.getSnapshot().value.target).toBe('container');
       for (const target of ['extension', 'daily-control', 'profile-control'] as const) {
         await act(async () => host.querySelector('button')!.click());
-        const next = [...document.querySelectorAll('button')].find(
+        const next = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
           (button) => button.textContent === `settings.${target}`,
         );
         expect(next).toBeDefined();
@@ -139,7 +119,7 @@ describe('Browser Target native settings seam', () => {
         (button) => button.textContent === 'settings.driver.current',
       )!;
       await act(async () => driver.click());
-      const candidate = [...document.querySelectorAll('button')].find(
+      const candidate = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
         (button) => button.textContent === 'settings.driver.agent-browser',
       )!;
       await act(async () => candidate.click());
@@ -175,7 +155,7 @@ describe('Browser Target native settings seam', () => {
       expect(picker.textContent).toBe('settings.local');
       expect(picker.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => picker.click());
-      const choice = [...document.querySelectorAll('button')].find(
+      const choice = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
         (button) => button.textContent === 'settings.extension',
       )!;
       await act(async () => choice.click());

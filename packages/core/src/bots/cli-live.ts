@@ -17,6 +17,7 @@ import { runPhoneNotifications } from './cli-phone-notifications.js';
 import { WINDOW_ZOOM_COMMANDS, runWindowZoomCommand } from './cli-window-zoom.js';
 import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
 import { PRESENCE_COMMANDS, runPresenceCommand } from './cli-presence.js';
+import { ENGINE_COMMANDS, runEngineCommand } from './cli-engine.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
 import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
@@ -143,12 +144,14 @@ import {
   isIdleCompactionCommand,
   runIdleCompactionCommand,
 } from './cli-idle-compaction.js';
+import { BOT_MODE_COMMANDS, isBotModeCommand, runBotModeCommand } from './cli-bot-modes.js';
 import { CONNECT_COMMANDS, isConnectCommand, runConnectCommand } from './cli-connect.js';
 import {
   isShareDraftCommand,
   runShareDraftCommand,
   SHARE_DRAFT_COMMANDS,
 } from './cli-share-draft.js';
+import { PRIVATE_FIELD_ID } from '../credentials/references.js';
 export { CliLiveError } from './cli-live-error.js';
 
 const DEVICE_COMMANDS = [
@@ -215,6 +218,7 @@ export const LIVE_COMMANDS = [
   ...WINDOW_ZOOM_COMMANDS,
   ...DESKTOP_WINDOW_COMMANDS,
   ...PRESENCE_COMMANDS,
+  ...ENGINE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
   ...RELATIONSHIP_COMMANDS,
@@ -249,6 +253,7 @@ export const LIVE_COMMANDS = [
   ...CALL_COMMANDS,
   ...CALL_TIMELINE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
+  ...BOT_MODE_COMMANDS,
   ...STORAGE_COMMANDS,
   ...SKILL_COMMANDS,
   {
@@ -514,6 +519,7 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues,
     VoiceValues {
+  id?: string;
   skill?: string[];
   as?: string;
   username?: string;
@@ -1039,6 +1045,10 @@ export async function runLiveCli(
     return runWindowZoomCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (ENGINE_COMMANDS.some((entry) => entry.command === command))
+    return runEngineCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
     return runPresenceCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -1158,6 +1168,16 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isBotModeCommand(command))
+    return runBotModeCommand(
+      command,
+      rest,
+      async () => {
+        const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+        return (await connectLiveHost(values, io, signal)).rpc;
+      },
+      values.id === undefined ? {} : { id: values.id },
+    );
   if (isPromptPresetCommand(command))
     return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -1292,9 +1312,7 @@ export async function runLiveCli(
         entries.length > 8 ||
         entries.some(
           ([key, value]) =>
-            !/^[a-z][a-z0-9_]{0,47}$/.test(key) ||
-            typeof value !== 'string' ||
-            value.length > 16_384,
+            !PRIVATE_FIELD_ID.test(key) || typeof value !== 'string' || value.length > 16_384,
         )
       )
         throw new Error('Invalid private fields');

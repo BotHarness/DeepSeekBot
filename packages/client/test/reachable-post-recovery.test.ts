@@ -11,10 +11,9 @@ import { expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
 import type { OutboxIntent } from '../../core/src/messaging/outbound.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Modal: ({ open, children, footer }: PropsWithChildren<{ open: boolean; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog' }, children, footer) : null,
 }));
 import { ReachablePostDialog } from '../src/client/reachable-post.js';
 import { ReachablePostRequests } from '../src/client/reachable-post-requests.js';
@@ -92,7 +91,7 @@ async function fixture(
     );
   const text = async (value: string) =>
     act(async () => {
-      const input = host.querySelector('textarea')!;
+      const input = document.body.querySelector('textarea')!;
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
         input,
         value,
@@ -100,13 +99,17 @@ async function fixture(
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
   const send = () =>
-    [...host.querySelectorAll('button')].find((button) => button.textContent === '主动发送')!;
+    [...document.body.querySelectorAll('button')].find(
+      (button) => button.textContent === '主动发送',
+    )!;
   const close = () =>
     act(async () =>
-      [...host.querySelectorAll('button')].find((button) => button.textContent === '关闭')!.click(),
+      [...document.body.querySelectorAll('button')]
+        .find((button) => button.textContent === '关闭')!
+        .click(),
     );
   await render();
-  await chooseOption('选择群聊', 'oc_new', host);
+  await chooseOption('选择群聊', 'oc_new', document.body);
   await text('One report');
   return {
     host,
@@ -128,9 +131,9 @@ it('keeps an unknown result across close/reopen and returning to the same messag
     await act(async () => view.send().click());
     await view.close();
     await view.render();
-    expect(view.host.querySelector('textarea')?.value).toBe('One report');
+    expect(document.body.querySelector('textarea')?.value).toBe('One report');
     expect(view.send().disabled).toBe(true);
-    expect(view.host.textContent).toContain(zhTranslate('proactive.unknown'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.unknown'));
     await view.text('Different report');
     expect(view.send().disabled).toBe(false);
     await view.text(' One report ');
@@ -182,7 +185,7 @@ it('records a receipt even when the dialog was closed during the send', async ()
     await view.render();
     expect(view.send().disabled).toBe(true);
     await act(async () => resolve!(intent()));
-    expect(view.host.textContent).toContain(zhTranslate('proactive.accepted'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.accepted'));
     expect(view.send().disabled).toBe(false);
     expect(post).toHaveBeenCalledTimes(1);
   } finally {
@@ -199,9 +202,9 @@ it('preserves acceptance when refreshing the conversation list fails', async () 
   );
   try {
     await act(async () => view.send().click());
-    expect(view.host.textContent).toContain(zhTranslate('proactive.accepted'));
-    expect(view.host.textContent).toContain(zhTranslate('proactive.refreshError'));
-    expect(view.host.textContent).not.toContain(zhTranslate('proactive.sendError'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.accepted'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.refreshError'));
+    expect(document.body.textContent).not.toContain(zhTranslate('proactive.sendError'));
   } finally {
     await view.dispose();
   }
@@ -219,7 +222,7 @@ it('reconciles the original Outbox result on reopen through a read-only query, w
     await view.close();
     await view.render();
     expect(read.mock.calls.at(-1)?.[3]).toBe(requestId);
-    expect(view.host.textContent).toContain(zhTranslate('proactive.accepted'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.accepted'));
     expect(view.send().disabled).toBe(false);
     expect(post).toHaveBeenCalledTimes(1);
   } finally {
@@ -242,7 +245,7 @@ it('reads an in-flight result until settled without retrying the native effect',
     expect(view.send().disabled).toBe(true);
     state = 'provider-accepted';
     await act(async () => vi.advanceTimersByTimeAsync(2_000));
-    expect(view.host.textContent).toContain(zhTranslate('proactive.accepted'));
+    expect(document.body.textContent).toContain(zhTranslate('proactive.accepted'));
     expect(view.send().disabled).toBe(false);
     expect(post).toHaveBeenCalledTimes(1);
   } finally {

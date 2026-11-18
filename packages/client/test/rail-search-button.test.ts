@@ -3,15 +3,11 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tooltip: (props: { label: string; shortcutKeys?: readonly string[]; children?: ReactNode }) =>
-    createElement(
-      'span',
-      { 'data-tooltip': props.label, 'data-keys': props.shortcutKeys?.join('+') ?? '' },
-      props.children,
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
+import { openTooltip } from './primitive-mocks.js';
 import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launcher.js';
 import { RailSearchButton } from '../src/client/rail-search-button.js';
 import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
@@ -34,7 +30,7 @@ afterEach(() => {
   host.remove();
 });
 
-it('opens the quick switcher from the rail and teaches the current shortcut', () => {
+it('opens the quick switcher from the rail and teaches the current shortcut', async () => {
   const launcher = createQuickSwitcherLauncher();
   const opened = vi.fn();
   launcher.subscribe(opened);
@@ -45,7 +41,7 @@ it('opens the quick switcher from the rail and teaches the current shortcut', ()
     `button[aria-label="${en['quickSwitcher.title']}"]`,
   )!;
   expect(button).not.toBeNull();
-  expect(button.closest('[data-tooltip]')!.getAttribute('data-keys')).toBe('Alt+K');
+  expect((await openTooltip(button)).textContent).toContain('AltK');
 
   act(() => button.click());
   expect(opened).toHaveBeenCalledExactlyOnceWith('rail');
@@ -53,7 +49,10 @@ it('opens the quick switcher from the rail and teaches the current shortcut', ()
   act(() => {
     bindings.set('quick-switcher', { code: 'KeyP', mod: true, alt: false, shift: true });
   });
-  expect(button.closest('[data-tooltip]')!.getAttribute('data-keys')).toBe('Mod+Shift+P');
+  await act(async () => {
+    button.blur();
+  });
+  expect((await openTooltip(button)).textContent).toContain('Ctrl⇧P');
 });
 
 it('still opens search when no shortcut bindings are available', () => {

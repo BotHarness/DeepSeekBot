@@ -15,6 +15,7 @@ export interface SessionOwnershipRecord {
   parentSessionId: string | undefined;
 
   cwdReference: string | undefined;
+  agentPreset?: string;
   createdAt: string;
 }
 
@@ -81,6 +82,7 @@ export interface SessionOwnership {
   personaSnapshot(sessionId: string): SessionPersonaSnapshot | undefined;
 
   recordPersonaSnapshot(sessionId: string, body: string, at: string): SessionPersonaSnapshot;
+  recordAgentPreset(sessionId: string, agentPreset: string): void;
 
   refreshPersonaSnapshot(sessionId: string, body: string, at: string): SessionPersonaSnapshot;
 
@@ -98,6 +100,7 @@ interface OwnershipRow {
   provenance: string;
   parent_session_id: string | null;
   cwd_reference: string | null;
+  agent_preset: string | null;
   created_at: string;
 }
 
@@ -109,12 +112,13 @@ function toRecord(row: OwnershipRow): SessionOwnershipRecord {
     provenance: row.provenance as SessionOwnershipProvenance,
     parentSessionId: row.parent_session_id ?? undefined,
     cwdReference: row.cwd_reference ?? undefined,
+    ...(row.agent_preset === null ? {} : { agentPreset: row.agent_preset }),
     createdAt: row.created_at,
   };
 }
 
 const COLUMNS =
-  'session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, created_at';
+  'session_id, bot_slug, root_role, provenance, parent_session_id, cwd_reference, agent_preset, created_at';
 
 function readRow(connection: DatabaseSync, sessionId: string): OwnershipRow | undefined {
   return connection
@@ -405,6 +409,18 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
       } catch (error) {
         return rethrowDomainError(error);
       }
+    },
+    recordAgentPreset(sessionId, agentPreset) {
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              `UPDATE session_ownership SET agent_preset = ?
+                WHERE session_id = ? AND agent_preset IS NOT ?`,
+            )
+            .run(agentPreset, sessionId, agentPreset),
+        ['session-ownership'],
+      );
     },
     refreshPersonaSnapshot(sessionId, body, at) {
       try {

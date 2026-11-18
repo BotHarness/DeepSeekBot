@@ -33,6 +33,7 @@ import {
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { PromptPresetSettings } from './prompt-preset-settings.js';
+import { BotModeDefaultSetting, BotModeTemplateSettings } from './bot-mode-settings.js';
 import { buildLabel, clientBuild } from './build-id.js';
 import { DataResetSettings } from './data-reset-settings.js';
 import { StorageSettings } from './storage-settings.js';
@@ -166,6 +167,10 @@ export function ModelsSection(
         <DefaultModelSettings actions={props.actions} t={props.t} />
       </SettingsSection>
       <RoutingGroupSettings actions={props.actions} t={props.t} />
+      <SettingsSection title={props.t('models.section.mode')}>
+        <BotModeDefaultSetting actions={props.actions} t={props.t} />
+      </SettingsSection>
+      <BotModeTemplateSettings actions={props.actions} t={props.t} />
       <SettingsSection title={props.t('models.section.context')}>
         <IdleCompactionSetting call={props.call} t={props.t} />
         <CompactionThresholdSetting call={props.call} t={props.t} />

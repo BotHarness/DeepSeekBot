@@ -42,9 +42,6 @@
     "inlineStyle": 2,
     "lineBorder": 3
   },
-  "packages/client/src/client/appearance-primitives.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/appearance-scope.ts": {
     "dshToken": 8,
     "legacyCss": 8
@@ -200,7 +197,6 @@
     "lineBorder": 2
   },
   "packages/client/src/client/channel-dock.tsx": {
-    "dshImport": 1,
     "rawControl": 1
   },
   "packages/client/src/client/channel-history.tsx": {
@@ -224,7 +220,6 @@
     "rawControl": 2
   },
   "packages/client/src/client/channel-sidebar-tabs.tsx": {
-    "dshImport": 1,
     "rawControl": 2,
     "literalColor": 1,
     "lineBorder": 1
@@ -300,9 +295,6 @@
   "packages/client/src/client/dm-call.tsx": {
     "rawControl": 3
   },
-  "packages/client/src/client/dm-composer-context.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/dm-composer-usage.tsx": {
     "dshImport": 1,
     "rawControl": 1
@@ -322,9 +314,6 @@
   "packages/client/src/client/ds/settings-dialog.tsx": {
     "dshImport": 1,
     "legacyCss": 2
-  },
-  "packages/client/src/client/ds/tooltip.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/dsh-bot-settings-item.tsx": {
     "dshImport": 1
@@ -520,7 +509,6 @@
     "rawControl": 1
   },
   "packages/client/src/client/message-reactions.tsx": {
-    "dshImport": 1,
     "rawControl": 2,
     "literalColor": 2,
     "inlineStyle": 1,
@@ -594,7 +582,6 @@
     "rawControl": 2
   },
   "packages/client/src/client/panel-menu.tsx": {
-    "dshImport": 1,
     "lineBorder": 1
   },
   "packages/client/src/client/permission-group-settings.tsx": {
@@ -687,7 +674,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/session-return-action.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/session-subagents.tsx": {
     "dshImport": 1
@@ -701,9 +688,6 @@
   },
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
-  },
-  "packages/client/src/client/sidebar-view-menu.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/standing-limits.tsx": {
     "dshImport": 1

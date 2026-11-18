@@ -9,7 +9,8 @@ vi.mock('../src/client/ds/button.js', async () => ({
 vi.mock('../src/client/ds/input.js', async () => ({
   Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
   Button: ({ children }: { children: string }) => createElement('button', null, children),
   Input: ({

@@ -98,9 +98,12 @@ describe('bridge transport', () => {
     }
   });
   it('proves Bot existence from a complete identity list and rejects malformed results', async () => {
-    expect(await botExists(bridgeCall({ list: () => ({ bots: [{ slug: 'ada' }] }) }), 'ada')).toBe(
-      true,
-    );
+    expect(
+      await botExists(
+        bridgeCall({ list: () => ({ bots: [{ slug: 'ada', displayName: 'Ada' }] }) }),
+        'ada',
+      ),
+    ).toBe(true);
     expect(await botExists(bridgeCall({ list: () => ({ bots: [] }) }), 'ada')).toBe(false);
     for (const value of [{}, { bots: [{}] }, { bots: [{ slug: 'grace' }, null] }])
       await expect(botExists(bridgeCall({ list: () => value }), 'ada')).rejects.toThrow();
@@ -1949,7 +1952,7 @@ describe('bridge actions', () => {
   it('hands a confirmed onboarding draft to its original message when the accepted response is lost', async () => {
     const accepted: Array<{ id: string; at: string; author: { kind: 'human' }; body: string }> = [];
     const { clientStore, actions } = setup({
-      onboardingModel: () => ({}),
+      onboardingModel: () => ({ revision: 1 }),
       channelSend: (payload) => {
         accepted.push({
           id: String(payload['messageId']),
@@ -2798,7 +2801,7 @@ describe('Workspace native action bridge', () => {
       },
     }));
     await expect(createActions(call, createStore()).listHostFolders()).rejects.toThrow(
-      'Invalid Host folder entry',
+      'folderBrowse returned an unreadable folder.',
     );
   });
   it('resolves the owner before discovery/open and makes no Grant or Session mutations', async () => {

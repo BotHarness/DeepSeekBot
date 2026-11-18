@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+import { createRoot } from 'react-dom/client';
 import {
   act,
   createElement,
@@ -6,17 +8,23 @@ import {
   type InputHTMLAttributes,
 } from 'react';
 
+export function shellPrimitives() {
+  return {
+    useModalLayer: () => undefined,
+    closeTopModal: () => undefined,
+  };
+}
+
 export function comboboxPrimitives() {
   return {
+    ...shellPrimitives(),
     Input: (props: InputHTMLAttributes<HTMLInputElement>) =>
       createElement('span', null, createElement('input', props)),
     IconChevronDownOutlineRegular: () => null,
     IconPlusOutlineRegular: () => null,
     IconRefreshOutlineRegular: () => null,
     IconRightUpOutlineRegular: () => null,
-    MenuSurface: forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & { compact?: boolean }>(
-      ({ compact: _compact, ...props }, ref) => createElement('div', { ...props, ref }),
-    ),
+
     useAnchoredPosition: () => ({ top: 0, left: 0 }),
     useDismissOnOutsidePointer: () => undefined,
   };
@@ -38,7 +46,11 @@ export function comboboxOption(value: string): HTMLButtonElement | undefined {
 
 export async function openCombobox(label: string, root: ParentNode = document): Promise<void> {
   const input = combobox(label, root);
-  await act(async () => input.click());
+  await flushOverlayFrames();
+  await act(async () => {
+    input.focus();
+    input.click();
+  });
 }
 
 export async function chooseOption(
@@ -54,6 +66,7 @@ export async function chooseOption(
 
 export function dialogPrimitives() {
   return {
+    ...shellPrimitives(),
     Button: forwardRef<
       HTMLButtonElement,
       HTMLAttributes<HTMLButtonElement> & {
@@ -71,36 +84,6 @@ export function dialogPrimitives() {
       ({ className, ...props }, ref) =>
         createElement('span', { className }, createElement('input', { ...props, ref })),
     ),
-    Modal: ({
-      open,
-      title,
-      description,
-      closeLabel,
-      onClose,
-      children,
-      footer,
-      className,
-    }: {
-      open: boolean;
-      title: string;
-      description?: string;
-      closeLabel?: string;
-      onClose(): void;
-      children?: unknown;
-      footer?: unknown;
-      className?: string;
-    }) =>
-      open
-        ? createElement(
-            'div',
-            { role: 'dialog', 'aria-label': title, className },
-            createElement('h2', null, title),
-            description === undefined ? null : createElement('p', null, description),
-            createElement('button', { type: 'button', 'aria-label': closeLabel, onClick: onClose }),
-            children as never,
-            footer as never,
-          )
-        : null,
   };
 }
 
@@ -132,5 +115,87 @@ export async function typeInto(input: HTMLInputElement, value: string): Promise<
   await act(async () => {
     setter?.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+export function queryMenuItem(name: string | RegExp): HTMLElement | null {
+  return (
+    [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => {
+      const copy = item.cloneNode(true);
+      if (!(copy instanceof HTMLElement)) return false;
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+      const label = item.getAttribute('aria-label') ?? copy.textContent?.trim() ?? '';
+      return typeof name === 'string' ? label === name : name.test(label);
+    }) ?? null
+  );
+}
+
+export function menuItem(name: string | RegExp): HTMLElement {
+  const item = queryMenuItem(name);
+  if (item === null) throw new Error(`No menu item named ${name}`);
+  return item;
+}
+
+export async function openTooltip(element: HTMLElement): Promise<HTMLElement> {
+  await flushOverlayFrames();
+  await act(async () => {
+    element.ownerDocument.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }),
+    );
+    element.focus();
+  });
+  const popup = element.ownerDocument.querySelector<HTMLElement>('[role="tooltip"]');
+  if (popup === null) throw new Error('No tooltip after keyboard focus');
+  return popup;
+}
+
+export async function openSubmenu(element: HTMLElement): Promise<void> {
+  await act(async () => {
+    element.focus();
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  });
+}
+
+export async function hoverTooltip(
+  element: HTMLElement,
+  advance: (ms: number) => Promise<unknown>,
+  delayMs = 0,
+): Promise<void> {
+  await act(async () => {
+    element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    element.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    await advance(delayMs);
+  });
+}
+
+export function renderOverlayMarkup(element: import('react').ReactNode): string {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  try {
+    act(() => root.render(element));
+    return document.body.innerHTML;
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+}
+
+export async function flushOverlayFrames(): Promise<void> {
+  await act(async () => {
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(16);
+    else
+      await new Promise<void>((resolve) => {
+        let frame: number | undefined;
+        const timeout = window.setTimeout(() => {
+          if (frame !== undefined) window.cancelAnimationFrame(frame);
+          resolve();
+        }, 32);
+        frame = window.requestAnimationFrame(() => {
+          window.clearTimeout(timeout);
+          resolve();
+        });
+      });
   });
 }

@@ -27,8 +27,71 @@ import {
 } from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import type { HostClient } from '@botharness/host-client/client';
-import { setModelFavorite as setHostModelFavorite } from '@botharness/host-client/bot-settings';
-import { parseModelCatalog, type ModelChoice } from '@botharness/host-client/model-catalog';
+import {
+  browseHostFolders,
+  loadWorkspaceOptions as loadHostWorkspaceOptions,
+  setModelFavorite as setHostModelFavorite,
+} from '@botharness/host-client/bot-settings';
+import type { ModelChoice } from '@botharness/host-client/model-catalog';
+import { listBots, updateBot } from '@botharness/host-client/bots';
+import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
+import {
+  loadMemoryFile as loadHostMemoryFile,
+  loadMemoryGitCommitDiff as loadHostMemoryGitCommitDiff,
+  loadMemoryGitGraph as loadHostMemoryGitGraph,
+  loadMemorySnapshot as loadHostMemorySnapshot,
+  parseMemoryCommit,
+  parseVersionNames,
+  saveMemoryFile as saveHostMemoryFile,
+  type MemoryAcceptedCommit,
+  type MemoryFile,
+  type MemoryGitCommitDiff,
+  type MemoryGitGraph,
+  type MemoryImageComparison,
+  type MemoryMarkdownComparison,
+  type MemorySnapshot,
+  type MemoryVersionName,
+} from '@botharness/host-client/memory';
+export type {
+  MemoryAcceptedCommit,
+  MemoryFile,
+  MemoryGitCommit,
+  MemoryGitCommitDiff,
+  MemoryGitGraph,
+  MemoryImage,
+  MemoryImageComparison,
+  MemoryMarkdown,
+  MemoryMarkdownComparison,
+  MemorySnapshot,
+  MemoryStandingUsage,
+  MemoryVersionName,
+} from '@botharness/host-client/memory';
+import {
+  applyModelPreset as applyHostModelPreset,
+  createModelPreset as createHostModelPreset,
+  customizeModelPlan as customizeHostModelPlan,
+  loadModelCatalog as loadHostModelCatalog,
+  loadModelPlanState as loadHostModelPlanState,
+  loadModelPresets as loadHostModelPresets,
+  setModelPlan as setHostModelPlan,
+  updateModelPreset as updateHostModelPreset,
+  type AssignmentGroupOption,
+  type AssignmentModelOption,
+  type ModelPlan,
+  type ModelPlanGroups,
+  type ModelPlanState,
+  type ModelPreset,
+  type ModelRoute,
+} from '@botharness/host-client/model-plans';
+import {
+  createSchedule,
+  deleteSchedule,
+  loadScheduleHistory,
+  loadSchedules,
+  previewSchedule,
+  runScheduleNow,
+  updateSchedule,
+} from '@botharness/host-client/schedules';
 import * as channelHost from '@botharness/host-client/channel-messages';
 import {
   loadGenuiDocumentView as loadGenuiDocumentViewFrom,
@@ -122,13 +185,10 @@ import type {
 } from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
-import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
+import type { OverviewUsage } from '@botharness/host-client/usage';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
-import {
-  usageOverviewPeriodDays,
-  type UsageOverviewPeriod,
-} from '../../../core/src/usage/overview.js';
+import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
@@ -224,19 +284,8 @@ export type BridgeCall = (
   signal?: AbortSignal,
 ) => Promise<ConnectionRpcResult<unknown>>;
 
-export interface ModelRouteView {
-  provider: string;
-  model: string;
-  reasoningEffort?: string;
-}
-
-export interface AssignmentModelOptionView {
-  provider: string;
-  model: string;
-  allowedEfforts: string[];
-  defaultEffort: string;
-  note?: string;
-}
+export type ModelRouteView = ModelRoute;
+export type AssignmentModelOptionView = AssignmentModelOption;
 
 export interface ModelCatalogEntryView {
   provider: string;
@@ -260,6 +309,7 @@ export interface ModelCatalogGroupView {
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
   default?: ModelRouteView;
+  defaultGroupId?: string;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroupView[];
 }
@@ -274,28 +324,28 @@ export async function setModelFavorite(
   return setHostModelFavorite(bridgeHost(call), choice, favorite);
 }
 
-export interface ModelPresetView {
-  id: string;
-  name: string;
-  revision: number;
-  orchestrator: ModelRouteView;
-  assignmentDefault: ModelRouteView;
-  assignmentModels?: AssignmentModelOptionView[];
-  openAssignmentModels?: true;
-  createdAt: string;
+export type AssignmentGroupOptionView = AssignmentGroupOption;
+export type ModelPlanGroupsView = Omit<ModelPlanGroups, 'openAssignmentModels'>;
+
+function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView | undefined) {
+  if (groups === undefined) return { orchestrator };
+  const ids = groups.assignmentGroups ?? [];
+  return {
+    ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
+    orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    assignmentGroups: ids,
+    assignmentDefaultGroupId:
+      groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
+        ? groups.assignmentDefaultGroupId
+        : null,
+    assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
+      ids.includes(option.group),
+    ),
+  };
 }
 
-export interface ModelPlanView {
-  revision: number;
-  sourcePresetId: string;
-  sourcePresetName: string;
-  orchestrator: ModelRouteView;
-  orchestratorGroupId?: string;
-  assignmentDefault?: ModelRouteView;
-  assignmentModels?: AssignmentModelOptionView[];
-  openAssignmentModels?: true;
-  appliedAt: string;
-}
+export type ModelPresetView = ModelPreset;
+export type ModelPlanView = ModelPlan;
 
 export async function loadActivitySnapshot(
   call: BridgeCall,
@@ -305,21 +355,23 @@ export async function loadActivitySnapshot(
 }
 
 export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogView> {
-  const catalog = parseModelCatalog(await unwrap(call, 'modelCatalog', {}));
+  const catalog = await loadHostModelCatalog(bridgeHost(call));
   return {
-    models: catalog.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] })),
+    models: catalog.models.map((entry) => ({
+      ...entry,
+      efforts: entry.efforts ?? [],
+    })),
     ...(catalog.default === undefined
       ? {}
       : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
+    ...(catalog.defaultGroupId === undefined ? {} : { defaultGroupId: catalog.defaultGroupId }),
     ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
     ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
   };
 }
 
 export async function loadModelPresets(call: BridgeCall): Promise<ModelPresetView[]> {
-  const value = asRecord(await unwrap(call, 'modelPresets', {}));
-  if (!Array.isArray(value?.['presets'])) throw new Error('Invalid Model Presets');
-  return value['presets'] as ModelPresetView[];
+  return loadHostModelPresets(bridgeHost(call));
 }
 
 export async function loadModelPlan(
@@ -329,22 +381,13 @@ export async function loadModelPlan(
   return (await loadModelPlanState(call, slug)).plan;
 }
 
-export interface ModelPlanStateView {
-  revision?: number;
-  plan?: ModelPlanView;
-  repair?: {
-    code: 'legacy-ambiguous' | 'legacy-missing' | 'route-unavailable';
-    message: string;
-    legacyModel?: string;
-  };
-}
+export type ModelPlanStateView = ModelPlanState;
 
 export async function loadModelPlanState(
   call: BridgeCall,
   slug: string,
 ): Promise<ModelPlanStateView> {
-  const value = asRecord(await unwrap(call, 'modelPlan', { slug }));
-  return value === undefined ? {} : (value as ModelPlanStateView);
+  return loadHostModelPlanState(bridgeHost(call), slug);
 }
 
 export type RoutingGroupMemberView =
@@ -401,7 +444,12 @@ export async function updateRoutingGroup(
   members: RoutingGroupMemberView[],
 ): Promise<RoutingGroupView> {
   return routingGroupOf(
-    await unwrap(call, 'modelGroupUpdate', { id, expectedRevision, name, members }),
+    await unwrap(call, 'modelGroupUpdate', {
+      id,
+      expectedRevision,
+      name,
+      members,
+    }),
   );
 }
 
@@ -420,18 +468,15 @@ export async function createModelPreset(
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPresetView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPresetCreate', {
-      name,
-      orchestrator,
-      assignmentDefault,
-      ...(assignmentModels === undefined ? {} : { assignmentModels }),
-      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-    }),
-  );
-  if (asRecord(value?.['preset']) === undefined) throw new Error('Invalid Model Preset result');
-  return value!['preset'] as ModelPresetView;
+  return createHostModelPreset(bridgeHost(call), {
+    name,
+    ...groupPayload(orchestrator, groups),
+    assignmentDefault,
+    ...(assignmentModels === undefined ? {} : { assignmentModels }),
+    ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+  });
 }
 
 export async function updateModelPreset(
@@ -442,17 +487,11 @@ export async function updateModelPreset(
   orchestrator: ModelRouteView,
   assignmentDefault: ModelRouteView,
 ): Promise<ModelPresetView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPresetUpdate', {
-      id,
-      expectedRevision,
-      name,
-      orchestrator,
-      assignmentDefault,
-    }),
-  );
-  if (asRecord(value?.['preset']) === undefined) throw new Error('Invalid Model Preset result');
-  return value!['preset'] as ModelPresetView;
+  return updateHostModelPreset(bridgeHost(call), id, expectedRevision, {
+    name,
+    orchestrator,
+    assignmentDefault,
+  });
 }
 
 export async function applyModelPreset(
@@ -460,9 +499,7 @@ export async function applyModelPreset(
   slug: string,
   presetId: string,
 ): Promise<ModelPlanView> {
-  const value = asRecord(await unwrap(call, 'modelPresetApply', { slug, presetId }));
-  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
-  return value!['plan'] as ModelPlanView;
+  return applyHostModelPreset(bridgeHost(call), slug, presetId);
 }
 
 export async function customizeModelPlan(
@@ -471,11 +508,7 @@ export async function customizeModelPlan(
   orchestrator: ModelRouteView,
   expectedRevision?: number,
 ): Promise<ModelPlanView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPlanCustomize', { slug, orchestrator, expectedRevision }),
-  );
-  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
-  return value!['plan'] as ModelPlanView;
+  return customizeHostModelPlan(bridgeHost(call), slug, { orchestrator }, expectedRevision);
 }
 
 export async function chooseModelPlanGroup(
@@ -484,15 +517,12 @@ export async function chooseModelPlanGroup(
   groupId: string,
   expectedRevision?: number,
 ): Promise<ModelPlanView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPlanCustomize', {
-      slug,
-      orchestratorGroupId: groupId,
-      expectedRevision,
-    }),
+  return customizeHostModelPlan(
+    bridgeHost(call),
+    slug,
+    { orchestratorGroupId: groupId },
+    expectedRevision,
   );
-  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
-  return value!['plan'] as ModelPlanView;
 }
 
 export async function setModelPlanAssignments(
@@ -616,57 +646,8 @@ export type {
   BotScheduleTrigger,
 } from '../../../core/src/schedules/bot-schedules.js';
 
-function isScheduleTrigger(value: unknown): boolean {
-  const trigger = asRecord(value);
-  if (trigger?.['kind'] === 'every') return Number.isSafeInteger(trigger['everySeconds']);
-  if (typeof trigger?.['timeZone'] !== 'string') return false;
-  if (trigger['kind'] === 'cron') return typeof trigger['expression'] === 'string';
-  if (typeof trigger['time'] !== 'string') return false;
-  if (trigger['kind'] === 'daily') return true;
-  if (trigger['kind'] === 'weekly')
-    return (
-      Array.isArray(trigger['weekdays']) &&
-      trigger['weekdays'].every((day) => Number.isSafeInteger(day))
-    );
-  return trigger['kind'] === 'once' && typeof trigger['date'] === 'string';
-}
-
-function parseScheduleFiring(value: unknown): BotScheduleFiring {
-  const firing = asRecord(value);
-  if (
-    typeof firing?.['id'] !== 'string' ||
-    typeof firing['scheduleId'] !== 'string' ||
-    !['planned', 'manual'].includes(String(firing['trigger'])) ||
-    typeof firing['occurrenceAt'] !== 'string' ||
-    typeof firing['firedAt'] !== 'string' ||
-    !['pending', 'observed', 'handled', 'coalesced', 'skipped'].includes(String(firing['state']))
-  )
-    throw new Error('invalid Bot Schedule firing');
-  return firing as unknown as BotScheduleFiring;
-}
-
-function parseSchedule(value: unknown): BotSchedule {
-  const schedule = asRecord(value);
-  if (
-    typeof schedule?.['id'] !== 'string' ||
-    typeof schedule['botSlug'] !== 'string' ||
-    typeof schedule['title'] !== 'string' ||
-    typeof schedule['prompt'] !== 'string' ||
-    !isScheduleTrigger(schedule['trigger']) ||
-    typeof schedule['enabled'] !== 'boolean' ||
-    !['human', 'personabot'].includes(String(schedule['creator'])) ||
-    typeof schedule['locked'] !== 'boolean' ||
-    (schedule['nextRunAt'] !== undefined && typeof schedule['nextRunAt'] !== 'string')
-  )
-    throw new Error('invalid Bot Schedule');
-  if (schedule['lastFiring'] !== undefined) parseScheduleFiring(schedule['lastFiring']);
-  return schedule as unknown as BotSchedule;
-}
-
 export async function loadBotSchedules(call: BridgeCall, slug: string): Promise<BotSchedule[]> {
-  const raw = asRecord(await unwrap(call, 'scheduleList', { slug }))?.['schedules'];
-  if (!Array.isArray(raw)) throw new Error('invalid Bot Schedules');
-  return raw.map(parseSchedule);
+  return loadSchedules(bridgeHost(call), slug);
 }
 
 export async function createBotSchedule(
@@ -674,9 +655,7 @@ export async function createBotSchedule(
   slug: string,
   input: BotScheduleInput,
 ): Promise<BotSchedule> {
-  return parseSchedule(
-    asRecord(await unwrap(call, 'scheduleCreate', { slug, input }))?.['schedule'],
-  );
+  return createSchedule(bridgeHost(call), slug, input);
 }
 
 export async function updateBotSchedule(
@@ -685,13 +664,11 @@ export async function updateBotSchedule(
   id: string,
   change: BotScheduleChange,
 ): Promise<BotSchedule> {
-  return parseSchedule(
-    asRecord(await unwrap(call, 'scheduleUpdate', { slug, id, change }))?.['schedule'],
-  );
+  return updateSchedule(bridgeHost(call), slug, id, change);
 }
 
 export async function deleteBotSchedule(call: BridgeCall, slug: string, id: string): Promise<void> {
-  await unwrap(call, 'scheduleDelete', { slug, id });
+  await deleteSchedule(bridgeHost(call), slug, id);
 }
 
 export async function loadBotScheduleHistory(
@@ -699,9 +676,7 @@ export async function loadBotScheduleHistory(
   slug: string,
   id: string,
 ): Promise<BotScheduleFiring[]> {
-  const raw = asRecord(await unwrap(call, 'scheduleHistory', { slug, id }))?.['firings'];
-  if (!Array.isArray(raw)) throw new Error('invalid Bot Schedule history');
-  return raw.map(parseScheduleFiring);
+  return loadScheduleHistory(bridgeHost(call), slug, id);
 }
 
 export async function runBotScheduleNow(
@@ -709,19 +684,14 @@ export async function runBotScheduleNow(
   slug: string,
   id: string,
 ): Promise<BotScheduleFiring> {
-  return parseScheduleFiring(
-    asRecord(await unwrap(call, 'scheduleRunNow', { slug, id }))?.['firing'],
-  );
+  return runScheduleNow(bridgeHost(call), slug, id);
 }
 
 export async function previewBotSchedule(
   call: BridgeCall,
   trigger: BotScheduleTrigger,
 ): Promise<string[]> {
-  const raw = asRecord(await unwrap(call, 'schedulePreview', { trigger }))?.['occurrences'];
-  if (!Array.isArray(raw) || !raw.every((value) => typeof value === 'string'))
-    throw new Error('invalid Bot Schedule preview');
-  return raw as string[];
+  return previewSchedule(bridgeHost(call), trigger);
 }
 
 export async function setBotSourcePolicy(
@@ -765,7 +735,11 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
     if (rpc === undefined) {
       return {
         ok: false,
-        error: { code: 'unavailable', message: 'Connection RPC is not available', details: {} },
+        error: {
+          code: 'unavailable',
+          message: 'Connection RPC is not available',
+          details: {},
+        },
       };
     }
     const run = () =>
@@ -833,7 +807,12 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
     displayName,
     ...(typeof asRecord(record['tob'])?.['defaultName'] === 'boolean' &&
     typeof asRecord(record['tob'])?.['defaultAvatar'] === 'boolean'
-      ? { tob: record['tob'] as { defaultName: boolean; defaultAvatar: boolean } }
+      ? {
+          tob: record['tob'] as {
+            defaultName: boolean;
+            defaultAvatar: boolean;
+          },
+        }
       : {}),
     ...(typeof record['lastActivityAt'] === 'number' && Number.isFinite(record['lastActivityAt'])
       ? { lastActivityAt: record['lastActivityAt'] }
@@ -921,7 +900,11 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     /^[a-zA-Z0-9_-]{1,128}$/u.test(remote['hostId']) &&
     typeof remote['botSlug'] === 'string' &&
     typeof remote['displayName'] === 'string'
-      ? { hostId: remote['hostId'], botSlug: remote['botSlug'], displayName: remote['displayName'] }
+      ? {
+          hostId: remote['hostId'],
+          botSlug: remote['botSlug'],
+          displayName: remote['displayName'],
+        }
       : undefined;
   if (
     record['remoteBot'] !== undefined &&
@@ -1305,7 +1288,11 @@ function parseSkillOwner(owner: Record<string, unknown> | undefined): SkillOwner
     owner['workspaceId'] !== '' &&
     typeof owner['name'] === 'string'
   )
-    return { kind: 'workspace', workspaceId: owner['workspaceId'], name: owner['name'] };
+    return {
+      kind: 'workspace',
+      workspaceId: owner['workspaceId'],
+      name: owner['name'],
+    };
   return undefined;
 }
 
@@ -1382,7 +1369,14 @@ export async function loadBotSkills(call: BridgeCall, slug: string): Promise<Bot
     const path = item?.['path'];
     if (typeof name !== 'string' || typeof description !== 'string' || typeof path !== 'string')
       return [];
-    return [{ name, description, path, userInvocable: item?.['userInvocable'] !== false }];
+    return [
+      {
+        name,
+        description,
+        path,
+        userInvocable: item?.['userInvocable'] !== false,
+      },
+    ];
   });
 }
 
@@ -1452,6 +1446,26 @@ function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
   });
 }
 
+export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const link = asRecord(entry);
+    return link !== undefined &&
+      typeof link['sessionId'] === 'string' &&
+      link['sessionId'] !== '' &&
+      typeof link['title'] === 'string' &&
+      (link['kind'] === 'created' || link['kind'] === 'sent')
+      ? [
+          {
+            sessionId: link['sessionId'],
+            kind: link['kind'] as 'created' | 'sent',
+            title: link['title'],
+          },
+        ]
+      : [];
+  });
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1493,25 +1507,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (grantRequest !== undefined && (grantRequest !== true || author.kind !== 'bot'))
     return undefined;
   let grantRequestResolution: ChannelMessage['grantRequestResolution'];
-  const sessionLinks =
-    author.kind === 'bot' && Array.isArray(record['sessionLinks'])
-      ? record['sessionLinks'].flatMap((entry) => {
-          const link = asRecord(entry);
-          return link !== undefined &&
-            typeof link['sessionId'] === 'string' &&
-            link['sessionId'] !== '' &&
-            typeof link['title'] === 'string' &&
-            (link['kind'] === 'created' || link['kind'] === 'sent')
-            ? [
-                {
-                  sessionId: link['sessionId'],
-                  kind: link['kind'] as 'created' | 'sent',
-                  title: link['title'],
-                },
-              ]
-            : [];
-        })
-      : [];
+  const sessionLinks = author.kind === 'bot' ? parseSessionLinks(record['sessionLinks']) : [];
   let assignmentReply: ChannelMessage['assignmentReply'];
   if (record['assignmentReply'] !== undefined) {
     const target = asRecord(record['assignmentReply']);
@@ -1524,7 +1520,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       target['sourceEventId'].length === 0
     )
       return undefined;
-    assignmentReply = { sessionId: target['sessionId'], sourceEventId: target['sourceEventId'] };
+    assignmentReply = {
+      sessionId: target['sessionId'],
+      sourceEventId: target['sourceEventId'],
+    };
   }
   if (record['grantRequestResolution'] !== undefined) {
     const resolution = asRecord(record['grantRequestResolution']);
@@ -1583,7 +1582,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       | import('../../../core/src/workspaces/tool-approval.js').ToolApprovalReview
       | undefined;
     if (review?.['kind'] === 'template-unavailable' && typeof review['reason'] === 'string')
-      approvalReview = { kind: 'template-unavailable', reason: review['reason'] };
+      approvalReview = {
+        kind: 'template-unavailable',
+        reason: review['reason'],
+      };
     else if (
       review?.['kind'] === 'review' &&
       typeof review['reason'] === 'string' &&
@@ -1889,7 +1891,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof action['displayName'] !== 'string'
     )
       return undefined;
-    botCreateAction = { botSlug: action['botSlug'], displayName: action['displayName'] };
+    botCreateAction = {
+      botSlug: action['botSlug'],
+      displayName: action['displayName'],
+    };
   }
   let botChannelPost: ChannelMessage['botChannelPost'];
   if (record['botChannelPost'] !== undefined) {
@@ -1901,7 +1906,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof post['messageId'] !== 'string'
     )
       return undefined;
-    botChannelPost = { channelId: post['channelId'], messageId: post['messageId'] };
+    botChannelPost = {
+      channelId: post['channelId'],
+      messageId: post['messageId'],
+    };
   }
   const botChannelPostPreview =
     typeof record['botChannelPostPreview'] === 'string' || record['botChannelPostPreview'] === null
@@ -2262,17 +2270,25 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : { mentions: mentions as NonNullable<ChannelMessage['mentions']> }),
     ...(humanMentions === undefined
       ? {}
-      : { humanMentions: humanMentions as NonNullable<ChannelMessage['humanMentions']> }),
+      : {
+          humanMentions: humanMentions as NonNullable<ChannelMessage['humanMentions']>,
+        }),
     ...(channelRefs === undefined
       ? {}
-      : { channelRefs: channelRefs as NonNullable<ChannelMessage['channelRefs']> }),
+      : {
+          channelRefs: channelRefs as NonNullable<ChannelMessage['channelRefs']>,
+        }),
     ...(skillInvocations.length === 0 || author.kind !== 'human' ? {} : { skillInvocations }),
     ...(deliveries === undefined
       ? {}
-      : { deliveries: deliveries as NonNullable<ChannelMessage['deliveries']> }),
+      : {
+          deliveries: deliveries as NonNullable<ChannelMessage['deliveries']>,
+        }),
     ...(humanReceipts === undefined
       ? {}
-      : { humanReceipts: humanReceipts as NonNullable<ChannelMessage['humanReceipts']> }),
+      : {
+          humanReceipts: humanReceipts as NonNullable<ChannelMessage['humanReceipts']>,
+        }),
     ...(channelRevision === undefined ? {} : { channelRevision }),
     ...(reactions === undefined || reactions.length === 0 ? {} : { reactions }),
     ...(grantRequest === true ? { grantRequest: true as const } : {}),
@@ -2305,7 +2321,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(record['privateInputRequest'] === undefined ||
     isMaskedRequest(record['privateInputRequest'])
       ? {}
-      : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
+      : {
+          privateInputRequest: parsePrivateInputCard(record['privateInputRequest']),
+        }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
     ...(isTakeoverRequestCard(record['takeoverRequest']) && author.kind === 'bot'
@@ -2440,7 +2458,11 @@ function parsePrivateInputCard(value: unknown): NonNullable<ChannelMessage['priv
       typeof field['required'] !== 'boolean'
     )
       throw new Error('Invalid private input field');
-    return { id: field['id'], label: field['label'], required: field['required'] };
+    return {
+      id: field['id'],
+      label: field['label'],
+      required: field['required'],
+    };
   });
   if (new Set(fields.map((field) => field.id)).size !== fields.length)
     throw new Error('Invalid private input fields');
@@ -2512,6 +2534,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
     const currentOrchestrator = record['currentOrchestrator'];
     const reportState = record['assignmentReportState'];
     const executionWait = record['assignmentExecutionWait'];
+    const engine = parseSessionEngine(record['engine']);
     return [
       {
         sessionId,
@@ -2554,10 +2577,16 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
           ? { assignmentDescription: record['assignmentDescription'] }
           : {}),
         ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
-          ? { assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])! }
+          ? {
+              assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])!,
+            }
           : {}),
         ...(parseSessionModelRoute(record['modelRoute'])
           ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
+          : {}),
+        ...(engine === undefined ? {} : { engine }),
+        ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
+          ? { agentPreset: record['agentPreset'] }
           : {}),
         ...(typeof record['subagentCount'] === 'number' &&
         Number.isSafeInteger(record['subagentCount']) &&
@@ -2570,17 +2599,11 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
 }
 
 export async function loadBots(call: BridgeCall, signal?: AbortSignal): Promise<BotSummary[]> {
-  return parseBotSummaries(await unwrap(call, 'list', {}, signal));
+  return parseBotSummaries({ bots: await listBots(bridgeHost(call, signal)) });
 }
 
 export async function botExists(call: BridgeCall, slug: string): Promise<boolean> {
-  const bots = asRecord(await unwrap(call, 'list', {}))?.['bots'];
-  if (!Array.isArray(bots))
-    throw new BridgeCallError('invalid-response', 'Invalid Bot identity list');
-  const identities = bots.map((entry) => asRecord(entry)?.['slug']);
-  if (!identities.every((identity) => typeof identity === 'string' && identity.length > 0))
-    throw new BridgeCallError('invalid-response', 'Invalid Bot identity list');
-  return identities.includes(slug);
+  return (await listBots(bridgeHost(call))).some((bot) => bot.slug === slug);
 }
 
 export type SshFailureReason =
@@ -2770,7 +2793,9 @@ export async function loadMarketplaceFile(
 }
 
 export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {
-  const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
+  const topics = parseMarketplaceTopics({
+    topics: await unwrap(call, 'marketplaceTopics', {}),
+  });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
 }
@@ -2922,7 +2947,12 @@ export async function loadMyMarketplaceUploads(
 export async function uploadMarketplaceBot(
   call: BridgeCall,
   slug: string,
-  presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+  presentation: {
+    displayName: string;
+    bio?: string;
+    tags?: string[];
+    replaces?: string;
+  },
 ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
   const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
   const parsed = parseMarketplaceSubmission(value);
@@ -3036,7 +3066,11 @@ export async function createGroupChannel(
   const value = await unwrap(
     call,
     'channelCreate',
-    { name, members: [], ...(operationKey === undefined ? {} : { operationKey }) },
+    {
+      name,
+      members: [],
+      ...(operationKey === undefined ? {} : { operationKey }),
+    },
     signal,
   );
   const channel = parseChannelRecord(asRecord(value)?.['channel']);
@@ -3159,7 +3193,12 @@ export function parseGitAvailability(value: unknown): GitAvailability {
   }
   const reason = GIT_UNAVAILABLE_REASONS.find((candidate) => candidate === item?.['reason']);
   if (item?.['available'] !== false || reason === undefined) throw new Error('invalid Git status');
-  return { available: false, reason, ...(version === undefined ? {} : { version }), ...extra };
+  return {
+    available: false,
+    reason,
+    ...(version === undefined ? {} : { version }),
+    ...extra,
+  };
 }
 
 export async function loadGitAvailability(
@@ -3470,8 +3509,7 @@ export async function updateBotProfile(
   slug: string,
   patch: { roles?: string[]; description?: string },
 ): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'update', { slug, patch }));
-  const bot = parseBotSummary(value?.['bot']);
+  const bot = parseBotSummary(await updateBot(bridgeHost(call), slug, patch));
   if (bot === undefined) throw new Error('invalid update response');
   return bot;
 }
@@ -3526,7 +3564,11 @@ export async function exportLibraryParts(
 export async function importLibraryParts(
   call: BridgeCall,
   data: string,
-): Promise<{ added: PartLibraryEntry[]; refused: number; image?: PartImageInfo }> {
+): Promise<{
+  added: PartLibraryEntry[];
+  refused: number;
+  image?: PartImageInfo;
+}> {
   const value = asRecord(await unwrap(call, 'partLibraryImport', { data }));
   const added = value?.['added'];
   const refused = value?.['refused'];
@@ -3582,7 +3624,11 @@ export async function addLibraryPart(
   parent?: string,
 ): Promise<PartLibraryEntry> {
   const entry = asRecord(
-    await unwrap(call, 'partLibraryAdd', { part, name, ...(parent ? { parent } : {}) }),
+    await unwrap(call, 'partLibraryAdd', {
+      part,
+      name,
+      ...(parent ? { parent } : {}),
+    }),
   )?.['entry'];
   if (!isPartLibraryEntry(entry)) throw new Error('invalid partLibraryAdd response');
   return entry;
@@ -3619,7 +3665,11 @@ export async function decideGroupJoin(
   accept: boolean,
 ): Promise<ChannelSummary> {
   const value = asRecord(
-    await unwrap(call, 'channelGroupJoinDecide', { channelId, requestId, accept }),
+    await unwrap(call, 'channelGroupJoinDecide', {
+      channelId,
+      requestId,
+      accept,
+    }),
   );
   const channel = parseChannelRecord(value?.['channel']);
   if (channel === undefined) throw new Error('invalid channelGroupJoinDecide response');
@@ -3690,7 +3740,11 @@ export function parseSessionModelRoute(value: unknown): SessionModelRoute | unde
   const effort = record?.['reasoningEffort'];
   if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
     return undefined;
-  return { provider, model, ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}) };
+  return {
+    provider,
+    model,
+    ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}),
+  };
 }
 
 export async function loadSessionSubagents(
@@ -3865,7 +3919,13 @@ export type SessionTranscriptItem =
       trigger?: SessionTranscriptTrigger;
     }
   | { kind: 'reply'; text: string; at: string; live?: true }
-  | { kind: 'reasoning'; text: string; at: string; durationMs?: number; live?: true }
+  | {
+      kind: 'reasoning';
+      text: string;
+      at: string;
+      durationMs?: number;
+      live?: true;
+    }
   | ({
       kind: 'tool';
       id: string;
@@ -3907,12 +3967,30 @@ const SESSION_TOOL_KINDS: readonly string[] = [
   'fetch',
 ];
 
+export interface SessionEngine {
+  engine: string;
+  account?: string;
+  state: 'starting' | 'running' | 'idle';
+}
+
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
   seq: number;
+  engine?: SessionEngine;
+}
+
+function parseSessionEngine(value: unknown): SessionEngine | undefined {
+  const engine = asRecord(value);
+  if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
+  const state = engine['state'];
+  return {
+    engine: engine['engine'],
+    ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
+    state: state === 'starting' || state === 'running' ? state : 'idle',
+  };
 }
 
 export interface SessionLiveSnapshot {
@@ -3923,7 +4001,10 @@ export interface SessionLiveSnapshot {
 
 export type SessionToolDetail =
   | { card: 'terminal'; command?: string; output: string; exitCode?: number }
-  | { card: 'diff'; files: { path: string; oldText: string | null; newText: string }[] }
+  | {
+      card: 'diff';
+      files: { path: string; oldText: string | null; newText: string }[];
+    }
   | {
       card: 'read';
       path: string;
@@ -3935,7 +4016,10 @@ export type SessionToolDetail =
       card: 'search';
       total: number;
       truncated: boolean;
-      files: { path: string; matches: { lineNumber: number; line: string }[] }[];
+      files: {
+        path: string;
+        matches: { lineNumber: number; line: string }[];
+      }[];
       paths: string[];
     }
   | {
@@ -3997,7 +4081,12 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
     case 'reasoning': {
       const durationMs = finite(item['durationMs']);
       return typeof text === 'string'
-        ? { kind: 'reasoning', text, at, ...(durationMs === undefined ? {} : { durationMs }) }
+        ? {
+            kind: 'reasoning',
+            text,
+            at,
+            ...(durationMs === undefined ? {} : { durationMs }),
+          }
         : undefined;
     }
     case 'tool': {
@@ -4204,12 +4293,14 @@ export async function loadSessionTranscript(
   const items = value?.['items'];
   if (value === undefined || !Array.isArray(items))
     throw new Error('invalid sessionTranscript response');
+  const engine = parseSessionEngine(value['engine']);
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
     items: parseItems(items),
     omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
     running: value['running'] === true,
     seq: finite(value['seq']) ?? 0,
+    ...(engine === undefined ? {} : { engine }),
   };
 }
 
@@ -4224,7 +4315,11 @@ export async function sendSessionRequest(
     await unwrap(call, 'botToolRun', {
       slug,
       tool: 'unarchive_assignment',
-      args: { session_id: sessionId, message: text, mode: steer ? 'next-step' : 'next-turn' },
+      args: {
+        session_id: sessionId,
+        message: text,
+        mode: steer ? 'next-step' : 'next-turn',
+      },
     }),
   );
   let result: unknown = value?.['result'];
@@ -4721,7 +4816,10 @@ export function parseAllBotPreview(raw: unknown): AllBotPreview | undefined {
     revision: value['revision'],
     recipients: value['recipients'].map((item) => {
       const row = asRecord(item)!;
-      return { botSlug: row['botSlug'] as string, label: row['label'] as string };
+      return {
+        botSlug: row['botSlug'] as string,
+        label: row['label'] as string,
+      };
     }),
   };
 }
@@ -4984,14 +5082,20 @@ export function createApprovalTemplate(
   name: string,
   source: { text: string } | { from: string },
 ): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateCreate', { name, ...source });
+  return writtenApprovalTemplate(call, 'approvalTemplateCreate', {
+    name,
+    ...source,
+  });
 }
 export function updateApprovalTemplate(
   call: BridgeCall,
   name: string,
   text: string,
 ): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', { name, text });
+  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', {
+    name,
+    text,
+  });
 }
 export async function previewApprovalTemplateDeletion(
   call: BridgeCall,
@@ -5190,14 +5294,21 @@ export async function submitPrivateInput(
   messageId: string,
   values: Record<string, string>,
 ): Promise<void> {
-  const result = await call('privateInputSubmit', { channelId, messageId, values });
+  const result = await call('privateInputSubmit', {
+    channelId,
+    messageId,
+    values,
+  });
   if (!result.ok)
     throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
   privateInputAccepted(result.value);
 }
 
 export function privateInputAccepted(value: unknown): void {
-  const { accepted, reason } = (value ?? {}) as { accepted?: unknown; reason?: unknown };
+  const { accepted, reason } = (value ?? {}) as {
+    accepted?: unknown;
+    reason?: unknown;
+  };
   if (accepted === true) return;
   throw new BridgeCallError(
     'private-input-not-accepted',
@@ -5261,7 +5372,11 @@ export async function answerUserQuestion(
   answers: UserQuestionAnswerItem[],
 ): Promise<void> {
   const response = asRecord(
-    await unwrap(call, 'userQuestionAnswer', { channelId, messageId, answer: { answers } }),
+    await unwrap(call, 'userQuestionAnswer', {
+      channelId,
+      messageId,
+      answer: { answers },
+    }),
   );
   if (response?.['accepted'] !== true) throw new Error('Question answer was not accepted');
 }
@@ -5281,18 +5396,6 @@ export interface WorkspaceGrantView extends WorkspaceOption {
   revokedAt?: string;
   orchestratorWrite?: boolean;
   writeRevision?: number;
-}
-
-function parseWorkspaceOption(value: unknown): WorkspaceOption | undefined {
-  const row = asRecord(value);
-  if (
-    row === undefined ||
-    typeof row['id'] !== 'string' ||
-    typeof row['path'] !== 'string' ||
-    typeof row['title'] !== 'string'
-  )
-    return undefined;
-  return { id: row['id'], path: row['path'], title: row['title'] };
 }
 
 function parseWorkspaceGrant(value: unknown): WorkspaceGrantView | undefined {
@@ -5328,55 +5431,11 @@ export async function loadHostFolders(
   signal?: AbortSignal,
   offset?: number,
 ): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
-  const value = asRecord(
-    await unwrap(
-      call,
-      'folderBrowse',
-      {
-        ...(path === undefined ? {} : { path }),
-        ...(offset === undefined || offset === 0 ? {} : { offset }),
-      },
-      signal,
-    ),
-  );
-  const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
-    if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
-    return items.map((item) => {
-      const row = asRecord(item);
-      if (
-        typeof row?.['name'] !== 'string' ||
-        typeof row['path'] !== 'string' ||
-        typeof row['hidden'] !== 'boolean'
-      )
-        throw new Error('Invalid Host folder entry');
-      return { name: row['name'], path: row['path'], hidden: row['hidden'] };
-    });
-  };
-  if (
-    typeof value?.['path'] !== 'string' ||
-    typeof value['home'] !== 'string' ||
-    typeof value['truncated'] !== 'boolean'
-  )
-    throw new Error('Invalid Host folder listing');
-  return {
-    path: value['path'],
-    home: value['home'],
-    truncated: value['truncated'],
-    crumbs: folders(value['crumbs']),
-    entries: folders(value['entries']),
-    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
-    roots: folders(value['roots']),
-    ...(value['nativePicker'] === true ? { nativePicker: true } : {}),
-  };
+  return browseHostFolders(bridgeHost(call, signal), path, offset);
 }
 
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
-  const rows = asRecord(await unwrap(call, 'workspaceOptions', {}))?.['workspaces'];
-  if (!Array.isArray(rows)) throw new Error('invalid workspaceOptions response');
-  return rows.flatMap((row) => {
-    const parsed = parseWorkspaceOption(row);
-    return parsed === undefined ? [] : [parsed];
-  });
+  return loadHostWorkspaceOptions(bridgeHost(call));
 }
 
 export async function loadWorkspaceGrants(
@@ -5410,7 +5469,11 @@ export async function createGroupWorkspaceGrant(
   path: string,
 ): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
   const result = asRecord(
-    await unwrap(call, 'grantCreate', { slug, workspaceId, scope: { channelId, path } }),
+    await unwrap(call, 'grantCreate', {
+      slug,
+      workspaceId,
+      scope: { channelId, path },
+    }),
   );
   const grant = parseWorkspaceGrant(result?.['grant']);
   if (grant === undefined || typeof result?.['created'] !== 'boolean')
@@ -5701,7 +5764,10 @@ export async function loadHumanAttention(
   category: ActivityListCategory,
   limit = 50,
   cursor?: string,
-  filters: ActivityListFilters & { search?: string; mentionsFirst?: boolean } = {
+  filters: ActivityListFilters & {
+    search?: string;
+    mentionsFirst?: boolean;
+  } = {
     botSlug: undefined,
     channelId: undefined,
     sort: 'newest',
@@ -5750,7 +5816,10 @@ export async function loadHumanAttentionStatus(call: BridgeCall): Promise<{
     unreadCount: row['unreadCount'] as number,
     hasAction: row['hasAction'],
     messageCounts: counts
-      ? { replies: counts['replies'] as number, other: counts['other'] as number }
+      ? {
+          replies: counts['replies'] as number,
+          other: counts['other'] as number,
+        }
       : undefined,
   };
 }
@@ -5923,7 +5992,10 @@ export async function stopBot(
   channelId?: string,
 ): Promise<SessionStopResult> {
   return parseSessionStopResult(
-    await unwrap(call, 'botStop', { botSlug, ...(channelId === undefined ? {} : { channelId }) }),
+    await unwrap(call, 'botStop', {
+      botSlug,
+      ...(channelId === undefined ? {} : { channelId }),
+    }),
   );
 }
 
@@ -6040,33 +6112,6 @@ export async function setChannelMute(
   await unwrap(call, 'channelMuteSet', { channelId, muted }, signal);
 }
 
-export interface MemoryAcceptedCommit {
-  botSlug: string;
-  sha: string;
-  parentSha: string | null;
-  actorKind: 'agent' | 'human' | 'system';
-  actorId: string;
-  causeKind: 'source-event' | 'human-edit' | 'repository-init';
-  causeId: string;
-  validationResult: string;
-  acceptedAt: string;
-}
-
-export interface MemoryGitCommit {
-  sha: string;
-  parents: string[];
-  subject: string;
-  authoredAt: string;
-  branches: string[];
-  versions?: MemoryVersionName[];
-  status: 'accepted' | 'pending' | 'needs-repair';
-}
-
-export interface MemoryVersionName {
-  tag: string;
-  name: string;
-}
-
 export interface MemoryVersion extends MemoryVersionName {
   sha: string;
   subject: string;
@@ -6098,61 +6143,6 @@ export async function loadMemoryVersions(
         ]
       : [];
   });
-}
-
-function parseVersionNames(value: unknown): MemoryVersionName[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const version = asRecord(item);
-    return typeof version?.['tag'] === 'string' && typeof version['name'] === 'string'
-      ? [{ tag: version['tag'], name: version['name'] }]
-      : [];
-  });
-}
-
-export interface MemoryGitGraph {
-  head: string;
-  currentBranch: string | null;
-  branches: string[];
-  dirty: boolean;
-  commits: MemoryGitCommit[];
-  hasMore: boolean;
-}
-
-export interface MemoryImage {
-  mime?: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/svg+xml';
-  source: string;
-  status: 'ready' | 'missing' | 'unsupported' | 'too-large' | 'stale';
-  revision?: string;
-  size?: number;
-  width?: number;
-  height?: number;
-}
-export interface MemoryImageComparison {
-  before?: MemoryImage;
-  after?: MemoryImage;
-}
-
-export interface MemoryMarkdown {
-  source: string;
-  status: 'ready' | 'missing' | 'unsupported' | 'too-large' | 'stale';
-  revision?: string;
-  body: string;
-}
-export interface MemoryMarkdownComparison {
-  before?: MemoryMarkdown;
-  after?: MemoryMarkdown;
-}
-export interface MemoryGitCommitDiff {
-  sha: string;
-  subject?: string;
-  files: {
-    path: string;
-    status: string;
-    images?: MemoryImageComparison;
-    markdown?: MemoryMarkdownComparison;
-  }[];
-  diff: string;
 }
 
 export type MemoryWorkingKind = 'staged' | 'unstaged' | 'untracked' | 'current';
@@ -6256,74 +6246,11 @@ export interface GroupProfileActivity {
   authors: GroupProfileAuthorActivity[];
 }
 
-export interface MemoryStandingUsage {
-  path: string;
-  role: 'soul' | 'coreMemory';
-  chars: number;
-  limit: number;
-}
-
-export interface MemorySnapshot {
-  head: string | null;
-  files: string[];
-  provisional: boolean;
-  standing: MemoryStandingUsage[];
-}
-
-function parseStandingUsage(value: unknown): MemoryStandingUsage[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry): MemoryStandingUsage[] => {
-    const row = asRecord(entry);
-    if (
-      row === undefined ||
-      typeof row['path'] !== 'string' ||
-      (row['role'] !== 'soul' && row['role'] !== 'coreMemory') ||
-      typeof row['chars'] !== 'number' ||
-      typeof row['limit'] !== 'number'
-    )
-      return [];
-    return [{ path: row['path'], role: row['role'], chars: row['chars'], limit: row['limit'] }];
-  });
-}
-
-function parseMemoryCommit(value: unknown): MemoryAcceptedCommit {
-  const row = asRecord(value);
-  if (
-    row === undefined ||
-    typeof row['botSlug'] !== 'string' ||
-    typeof row['sha'] !== 'string' ||
-    !(row['parentSha'] === null || typeof row['parentSha'] === 'string') ||
-    !['agent', 'human', 'system'].includes(String(row['actorKind'])) ||
-    typeof row['actorId'] !== 'string' ||
-    !['source-event', 'human-edit', 'repository-init'].includes(String(row['causeKind'])) ||
-    typeof row['causeId'] !== 'string' ||
-    typeof row['validationResult'] !== 'string' ||
-    typeof row['acceptedAt'] !== 'string'
-  )
-    throw new Error('invalid accepted Memory Commit');
-  return row as unknown as MemoryAcceptedCommit;
-}
-
 export async function loadMemorySnapshot(
   call: BridgeCall,
   channelId: string,
 ): Promise<MemorySnapshot> {
-  const response = asRecord(await unwrap(call, 'memorySnapshot', { channelId }));
-  const snapshot = asRecord(response?.['snapshot']);
-  if (
-    snapshot === undefined ||
-    !(snapshot['head'] === null || typeof snapshot['head'] === 'string') ||
-    !Array.isArray(snapshot['files']) ||
-    !snapshot['files'].every((path) => typeof path === 'string') ||
-    typeof snapshot['provisional'] !== 'boolean'
-  )
-    throw new Error('invalid Memory snapshot');
-  return {
-    head: snapshot['head'],
-    files: snapshot['files'] as string[],
-    provisional: snapshot['provisional'],
-    standing: parseStandingUsage(snapshot['standing']),
-  };
+  return loadHostMemorySnapshot(bridgeHost(call), channelId);
 }
 
 export async function loadWorkspaceFileTarget(
@@ -6362,36 +6289,8 @@ export async function loadMemoryFile(
   call: BridgeCall,
   channelId: string,
   path: string,
-): Promise<
-  | {
-      path: string;
-      body: string;
-      head: string;
-      binary?: boolean;
-      image?: MemoryImage;
-      markdown?: MemoryMarkdown;
-    }
-  | undefined
-> {
-  const response = asRecord(await unwrap(call, 'memoryFile', { channelId, path }));
-  if (response?.['file'] === undefined) return undefined;
-  const file = asRecord(response?.['file']);
-  if (
-    typeof file?.['path'] !== 'string' ||
-    typeof file['body'] !== 'string' ||
-    typeof file['head'] !== 'string'
-  )
-    throw new Error('invalid Memory file');
-  if (file['binary'] !== undefined && typeof file['binary'] !== 'boolean')
-    throw new Error('invalid Memory file');
-  return file as {
-    path: string;
-    body: string;
-    head: string;
-    binary?: boolean;
-    image?: MemoryImage;
-    markdown?: MemoryMarkdown;
-  };
+): Promise<MemoryFile | undefined> {
+  return loadHostMemoryFile(bridgeHost(call), channelId, path);
 }
 
 export async function loadMemoryHistory(
@@ -6421,39 +6320,7 @@ export async function loadMemoryGitGraph(
   channelId: string,
   offset: number,
 ): Promise<MemoryGitGraph> {
-  const response = asRecord(await unwrap(call, 'memoryGitGraph', { channelId, offset }));
-  if (
-    typeof response?.['head'] !== 'string' ||
-    !(response['currentBranch'] === null || typeof response['currentBranch'] === 'string') ||
-    !Array.isArray(response['branches']) ||
-    !response['branches'].every((value) => typeof value === 'string') ||
-    typeof response['dirty'] !== 'boolean' ||
-    typeof response['hasMore'] !== 'boolean' ||
-    !Array.isArray(response['commits']) ||
-    !response['commits'].every((value) => {
-      const commit = asRecord(value);
-      return (
-        commit !== undefined &&
-        typeof commit['sha'] === 'string' &&
-        Array.isArray(commit['parents']) &&
-        commit['parents'].every((item) => typeof item === 'string') &&
-        typeof commit['subject'] === 'string' &&
-        typeof commit['authoredAt'] === 'string' &&
-        Array.isArray(commit['branches']) &&
-        commit['branches'].every((item) => typeof item === 'string') &&
-        ['accepted', 'pending', 'needs-repair'].includes(String(commit['status']))
-      );
-    })
-  )
-    throw new Error('invalid Memory Git graph');
-  const graph = response as unknown as MemoryGitGraph;
-  return {
-    ...graph,
-    commits: graph.commits.map((commit) => ({
-      ...commit,
-      versions: parseVersionNames((commit as unknown as Record<string, unknown>)['versions']),
-    })),
-  };
+  return loadHostMemoryGitGraph(bridgeHost(call), channelId, offset);
 }
 
 export async function loadMemoryGitCommitDiff(
@@ -6461,18 +6328,7 @@ export async function loadMemoryGitCommitDiff(
   channelId: string,
   sha: string,
 ): Promise<MemoryGitCommitDiff> {
-  const response = asRecord(await unwrap(call, 'memoryGitCommitDiff', { channelId, sha }));
-  if (
-    response?.['sha'] !== sha ||
-    typeof response['diff'] !== 'string' ||
-    !Array.isArray(response['files']) ||
-    !response['files'].every((value) => {
-      const file = asRecord(value);
-      return typeof file?.['path'] === 'string' && typeof file['status'] === 'string';
-    })
-  )
-    throw new Error('invalid Memory Git commit diff');
-  return response as unknown as MemoryGitCommitDiff;
+  return loadHostMemoryGitCommitDiff(bridgeHost(call), channelId, sha);
 }
 
 function isActivityDays(value: unknown): value is ProfileActivityDay[] {
@@ -6767,7 +6623,13 @@ export async function restoreMemoryCheckpoint(
 
 export async function restoreMemoryCommit(
   call: BridgeCall,
-  input: { channelId: string; sha: string; expectedHead: string; restoreId: string; name?: string },
+  input: {
+    channelId: string;
+    sha: string;
+    expectedHead: string;
+    restoreId: string;
+    name?: string;
+  },
 ): Promise<{
   head: string;
   backup: string | null;
@@ -6810,10 +6672,15 @@ export async function removeMemoryVersionName(
 
 export async function saveMemoryFile(
   call: BridgeCall,
-  input: { channelId: string; path: string; body: string; expectedHead: string; editId: string },
+  input: {
+    channelId: string;
+    path: string;
+    body: string;
+    expectedHead: string;
+    editId: string;
+  },
 ): Promise<MemoryAcceptedCommit> {
-  const response = asRecord(await unwrap(call, 'memorySave', input));
-  return parseMemoryCommit(response?.['commit']);
+  return saveHostMemoryFile(bridgeHost(call), input);
 }
 
 export async function repairMemory(
@@ -6906,7 +6773,10 @@ export async function loadChannelBridges(
   mode?: MessagingReadMode,
 ): Promise<ChannelBridgeSnapshot> {
   const value = asRecord(
-    await unwrap(call, 'channelBridges', { channelId, ...(mode ? { mode } : {}) }),
+    await unwrap(call, 'channelBridges', {
+      channelId,
+      ...(mode ? { mode } : {}),
+    }),
   );
   const source = (item: unknown) => {
     const row = asRecord(item);
@@ -7080,9 +6950,10 @@ export async function changeExternalSenderAccess(
 }
 export type { MessagingApp } from '../../../core/src/messaging/outbound.js';
 
-export async function loadMessagingApps(
-  call: BridgeCall,
-): Promise<{ apps: MessagingApp[]; setups: NonNullable<MessagingSnapshot['appSetups']> }> {
+export async function loadMessagingApps(call: BridgeCall): Promise<{
+  apps: MessagingApp[];
+  setups: NonNullable<MessagingSnapshot['appSetups']>;
+}> {
   const record = asRecord(await unwrap(call, 'messagingApps', {}));
   const apps = record?.['apps'];
   const setups = record?.['setups'];
@@ -7115,7 +6986,10 @@ export async function loadMessagingSnapshot(
   slug: string,
   mode?: MessagingReadMode,
 ): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', { slug, ...(mode ? { mode } : {}) });
+  const value = await unwrap(call, 'messagingSnapshot', {
+    slug,
+    ...(mode ? { mode } : {}),
+  });
   const record = asRecord(value);
   if (
     !record ||
@@ -7219,7 +7093,11 @@ export async function loadMessagingReachable(
   cursor?: string,
 ): Promise<import('../../../core/src/messaging/provider.js').MessagingReachablePage> {
   const page = asRecord(
-    await unwrap(call, 'messagingReachable', { slug, bindingId, ...(cursor ? { cursor } : {}) }),
+    await unwrap(call, 'messagingReachable', {
+      slug,
+      bindingId,
+      ...(cursor ? { cursor } : {}),
+    }),
   );
   if (
     !page ||
@@ -7280,7 +7158,12 @@ export async function setMessagingPostLimit(
   expectedRevision: number,
   limit: number | null,
 ): Promise<void> {
-  await unwrap(call, 'messagingPostLimit', { slug, bindingId, expectedRevision, limit });
+  await unwrap(call, 'messagingPostLimit', {
+    slug,
+    bindingId,
+    expectedRevision,
+    limit,
+  });
 }
 export async function sendMessaging(
   call: BridgeCall,
@@ -7302,7 +7185,11 @@ export async function loadChannelMediaTarget(
   attachmentId: string,
 ): Promise<HostFileTarget> {
   const response = asRecord(
-    await unwrap(call, 'channelMediaTarget', { channelId, sourceEventId, attachmentId }),
+    await unwrap(call, 'channelMediaTarget', {
+      channelId,
+      sourceEventId,
+      attachmentId,
+    }),
   );
   const target = asRecord(response?.['target']);
   if (
@@ -7311,7 +7198,11 @@ export async function loadChannelMediaTarget(
     target['kind'] !== 'file'
   )
     throw new Error('Invalid Channel media target');
-  return { path: target['path'], relativePath: target['relativePath'], kind: 'file' };
+  return {
+    path: target['path'],
+    relativePath: target['relativePath'],
+    kind: 'file',
+  };
 }
 
 export async function loadMessageAttachmentTarget(
@@ -7321,7 +7212,11 @@ export async function loadMessageAttachmentTarget(
   fileId: string,
 ): Promise<HostFileTarget> {
   const response = asRecord(
-    await unwrap(call, 'messageAttachmentTarget', { channelId, messageId, fileId }),
+    await unwrap(call, 'messageAttachmentTarget', {
+      channelId,
+      messageId,
+      fileId,
+    }),
   );
   const target = asRecord(response?.['target']);
   if (
@@ -7330,7 +7225,11 @@ export async function loadMessageAttachmentTarget(
     target['kind'] !== 'file'
   )
     throw new Error('Invalid message attachment target');
-  return { path: target['path'], relativePath: target['relativePath'], kind: 'file' };
+  return {
+    path: target['path'],
+    relativePath: target['relativePath'],
+    kind: 'file',
+  };
 }
 
 export async function setMessagingChannelTarget(
@@ -7590,117 +7489,14 @@ export async function loadOverviewUsage(
   period: UsageOverviewPeriod,
   after?: string,
 ): Promise<OverviewUsage> {
-  const value = asRecord(
-    await unwrap(call, 'overviewUsage', { period, ...(after === undefined ? {} : { after }) }),
-  );
-  const validDay = (input: unknown): input is string =>
-    typeof input === 'string' &&
-    /^\d{4}-\d{2}-\d{2}$/u.test(input) &&
-    Number.isFinite(Date.parse(input)) &&
-    new Date(input).toISOString().slice(0, 10) === input;
-  const buckets = (input: unknown): boolean => {
-    const row = asRecord(input);
-    return (
-      row !== undefined &&
-      ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'totalTokens'].every(
-        (key) => row[key] === null || (Number.isSafeInteger(row[key]) && Number(row[key]) >= 0),
-      ) &&
-      (row['partial'] === undefined || typeof row['partial'] === 'boolean')
-    );
-  };
-  if (
-    !value ||
-    value['period'] !== period ||
-    !['start', 'end', 'timezone', 'readAt', 'nextRefreshAt'].every(
-      (key) => typeof value[key] === 'string',
-    ) ||
-    !Number.isFinite(Date.parse(String(value['readAt']))) ||
-    !Number.isFinite(Date.parse(String(value['nextRefreshAt']))) ||
-    !validDay(value['start']) ||
-    !validDay(value['end']) ||
-    Date.parse(value['end']) - Date.parse(value['start']) !==
-      (usageOverviewPeriodDays[period] - 1) * 86400000 ||
-    !buckets(value['totals']) ||
-    !Array.isArray(value['days']) ||
-    value['days'].length !== usageOverviewPeriodDays[period] ||
-    !value['days'].every((row) => buckets(row) && typeof asRecord(row)?.['day'] === 'string') ||
-    !Array.isArray(value['bots']) ||
-    value['bots'].length > 20 ||
-    !value['bots'].every(
-      (row) =>
-        buckets(row) &&
-        typeof asRecord(row)?.['slug'] === 'string' &&
-        typeof asRecord(row)?.['displayName'] === 'string' &&
-        typeof asRecord(row)?.['current'] === 'boolean',
-    ) ||
-    (value['nextCursor'] !== undefined &&
-      (typeof value['nextCursor'] !== 'string' || value['nextCursor'].length === 0)) ||
-    !['ready', 'reconciling', 'degraded'].includes(String(value['freshness'])) ||
-    typeof value['legacyBaseline'] !== 'boolean' ||
-    (value['reconciledAt'] !== null && !Number.isFinite(Date.parse(String(value['reconciledAt']))))
-  )
-    throw new Error('invalid Overview usage');
-  return value as unknown as OverviewUsage;
+  return loadUsage(bridgeHost(call), period, after);
 }
 
 export async function loadOverviewMemory(
   call: BridgeCall,
   after?: string,
 ): Promise<OverviewMemory> {
-  const value = asRecord(
-    await unwrap(call, 'overviewMemory', after === undefined ? {} : { after }),
-  );
-  const day = (input: unknown): input is string =>
-    typeof input === 'string' &&
-    /^\d{4}-\d{2}-\d{2}$/u.test(input) &&
-    Number.isFinite(Date.parse(input)) &&
-    new Date(input).toISOString().slice(0, 10) === input;
-  const count = (input: unknown): input is number =>
-    Number.isSafeInteger(input) && Number(input) >= 0;
-  if (
-    !value ||
-    !day(value['start']) ||
-    !day(value['end']) ||
-    !Array.isArray(value['days']) ||
-    value['days'].length !== 7 ||
-    !value['days'].every(
-      (item, index) =>
-        day(item) && Date.parse(item) === Date.parse(String(value['start'])) + index * 86400000,
-    ) ||
-    value['days'][6] !== value['end'] ||
-    typeof value['timezone'] !== 'string' ||
-    !Number.isFinite(Date.parse(String(value['readAt']))) ||
-    !Number.isFinite(Date.parse(String(value['nextRefreshAt']))) ||
-    !Array.isArray(value['bots']) ||
-    value['bots'].length > 10 ||
-    !value['bots'].every((item) => {
-      const row = asRecord(item);
-      if (
-        !row ||
-        typeof row['slug'] !== 'string' ||
-        row['slug'].length === 0 ||
-        typeof row['displayName'] !== 'string'
-      )
-        return false;
-      if (row['state'] === 'unavailable')
-        return (
-          row['total'] === undefined && row['counts'] === undefined && row['dirty'] === undefined
-        );
-      return (
-        row['state'] === 'ready' &&
-        count(row['total']) &&
-        typeof row['dirty'] === 'boolean' &&
-        Array.isArray(row['counts']) &&
-        row['counts'].length === 7 &&
-        row['counts'].every(count) &&
-        row['counts'].reduce((sum, part) => sum + part, 0) === row['total']
-      );
-    }) ||
-    (value['nextCursor'] !== undefined &&
-      (typeof value['nextCursor'] !== 'string' || value['nextCursor'].length === 0))
-  )
-    throw new Error('invalid Overview Memory');
-  return value as unknown as OverviewMemory;
+  return loadMemoryActivity(bridgeHost(call), after);
 }
 
 export async function setModelPlan(
@@ -7711,19 +7507,14 @@ export async function setModelPlan(
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPlanView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPlanSet', {
-      slug,
-      expectedRevision,
-      orchestrator,
-      assignmentDefault,
-      assignmentModels,
-      ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-    }),
-  );
-  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
-  return value!['plan'] as ModelPlanView;
+  return setHostModelPlan(bridgeHost(call), slug, expectedRevision, {
+    ...groupPayload(orchestrator, groups),
+    assignmentDefault,
+    assignmentModels,
+    ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+  });
 }
 
 function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
