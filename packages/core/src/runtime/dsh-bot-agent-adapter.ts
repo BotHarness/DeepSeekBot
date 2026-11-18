@@ -43,7 +43,7 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools';
 import type { InboxOpenFilter } from './inbox-triage.js';
-import { withLocalRefs, type LocalRefs } from './local-refs.js';
+import { LOCAL_REFS_PROMPT, withLocalRefs, type LocalRefs } from './local-refs.js';
 
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
@@ -1430,6 +1430,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         text: () => orchestratorPromptSections(this.#promptText(run.sessionId)).replyDelivery,
       });
       if (borrowed) borrowedDisposers.push(disposeReplyPrompt);
+      if (localRefs !== undefined) {
+        const disposeLocalRefsPrompt = agentCtx.systemPrompt.section({
+          name: 'botharness:local-refs',
+          order: 10_449,
+          text: LOCAL_REFS_PROMPT,
+        });
+        if (borrowed) borrowedDisposers.push(disposeLocalRefsPrompt);
+      }
       const disposeGenuiPrompt = agentCtx.systemPrompt.section({
         name: 'botharness:genui-authoring',
         order: 10_451,

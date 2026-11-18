@@ -6,7 +6,7 @@ import {
   replyReminderText,
 } from '../../src/runtime/dsh-bot-agent-adapter.js';
 import { renderInbox } from '../../src/runtime/inbox-render.js';
-import { LocalRefs } from '../../src/runtime/local-refs.js';
+import { LOCAL_REFS_PROMPT, LocalRefs } from '../../src/runtime/local-refs.js';
 import type { Scenario, ToolCall } from './scenarios.js';
 import type { EvalReport, ScenarioRun } from './score.js';
 
@@ -268,7 +268,10 @@ export async function runScenario(
   const ids = new IdCodec(idMode);
   const inbox = ids.toModel(renderInbox([...scenario.units], DEFAULT_PROMPT_TEXT));
   const messages: Message[] = [
-    ids.message({ role: 'system', content: system }),
+    ids.message({
+      role: 'system',
+      content: idMode === 'short' ? `${system}\n\n${LOCAL_REFS_PROMPT}` : system,
+    }),
     ...history().map((message) => ids.message(message)),
     { role: 'user', content: `${inbox}\n\n${replyReminderText(DEFAULT_PROMPT_TEXT)}` },
   ];

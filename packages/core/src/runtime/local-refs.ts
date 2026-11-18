@@ -13,6 +13,9 @@ const ID_PATTERN = new RegExp(
 const ALIAS_PATTERN = /(?<![\w-])(dm|[egmacr])([1-9]\d{0,8})(?![\w-])/g;
 const WHOLE_ALIAS = /^(dm|[egmacr])([1-9]\d{0,8})$/;
 
+export const LOCAL_REFS_PROMPT =
+  "Short ids such as e12 (Source Event), m3 (Message), dm1 or g2 (Channel) and a4 (Assignment) are this Host's references: pass them to tools exactly as shown. A platform id such as om_… or ou_… is not a Source Event id.";
+
 export type LocalRefPrefix = 'e' | 'm' | 'dm' | 'g' | 'c' | 'a' | 'r';
 
 export function localRefPrefix(prefix: string): LocalRefPrefix | undefined {
