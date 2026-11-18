@@ -10741,20 +10741,8 @@ class BotRuntimeImplementation implements BotRuntime {
         message: `Assignment Session ${input.sessionId} is archived (resolved); nothing was delivered. Create a new Assignment for new work, or call unarchive_assignment first to continue this one.`,
       };
     }
-    if (row.stop_state === 'stopped') {
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
-                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
-            )
-            .run(this.#now().toISOString(), bot.slug, input.sessionId);
-        },
-        ['assignments'],
-      );
-      row = this.#assignmentRow(bot.slug, input.sessionId)!;
-    }
+    const stopped = row.stop_state === 'stopped' ? row : undefined;
+    if (stopped !== undefined) row = { ...row, stop_state: 'running', activity: 'idle' };
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
     }
@@ -10808,6 +10796,8 @@ class BotRuntimeImplementation implements BotRuntime {
           delivery: 'capacity',
         };
       }
+      if (stopped !== undefined)
+        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running');
       this.#setActivity(input.sessionId, 'working');
     }
     const interrupted = this.#interruptedTools.get(input.sessionId);
@@ -10870,6 +10860,8 @@ class BotRuntimeImplementation implements BotRuntime {
       if (error instanceof AssignmentInboxAcceptanceUncertainError)
         this.#setActivity(input.sessionId, 'error');
       else if (waking) this.#setActivity(input.sessionId, settledActivity);
+      if (stopped !== undefined)
+        this.#setStopState(bot.slug, input.sessionId, 'running', 'stopped', stopped.activity);
       this.#publishAssignmentRefusal(row, error);
       throw error;
     }
@@ -12304,6 +12296,26 @@ class BotRuntimeImplementation implements BotRuntime {
              ON CONFLICT (request_source_event_id, session_id) DO UPDATE SET linked_at = excluded.linked_at`,
           )
           .run(sessionId, this.#now().toISOString(), sourceEventId);
+      },
+      ['assignments'],
+    );
+  }
+
+  #setStopState(
+    botSlug: string,
+    sessionId: string,
+    from: 'running' | 'stopped',
+    to: 'running' | 'stopped',
+    activity: AssignmentRow['activity'] = 'idle',
+  ): void {
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `UPDATE assignments SET stop_state = ?, activity = ?, updated_at = ?
+              WHERE bot_slug = ? AND session_id = ? AND stop_state = ?`,
+          )
+          .run(to, activity, this.#now().toISOString(), botSlug, sessionId, from);
       },
       ['assignments'],
     );

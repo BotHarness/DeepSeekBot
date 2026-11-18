@@ -2476,6 +2476,34 @@ describe('Assignment collaboration', () => {
     await reopened.close();
   });
 
+  it('keeps a stopped Assignment stopped when its wake is refused at capacity', async () => {
+    const { runtime, agents, admit, close } = await setup({ assignmentConcurrencyLimit: 1 });
+    await admit('开始调研', 'stopped-capacity');
+    const access = agents.access;
+    if (access === undefined) throw new Error('Orchestrator never ran');
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '持续调研 A 方向',
+    });
+    if (created.outcome !== 'created') throw new Error('create failed');
+    const sessionId = created.assignment.sessionId;
+    await runtime.stopSession!('ada', sessionId);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    const busy = access.create({
+      title: 'Busy',
+      grantId: TEST_GRANT_ID,
+      description: '占住唯一的并发位',
+    });
+    expect(busy.outcome).toBe('created');
+    const refused = access.request({ sessionId, mode: 'next-turn', text: '继续' });
+    expect(refused.delivery).toBe('capacity');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    await close();
+  });
+
   it('resumes a Human-stopped Assignment when the Orchestrator sends it a request', async () => {
     const { runtime, agents, admit, close } = await setup();
     await admit('开始调研', 'human-stop-3725');
