@@ -114,7 +114,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import type { ModelPlanView, ModelPresetView } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
-import { draftOf, planParts } from '../src/client/model-preset-draft.js';
+import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
@@ -1672,5 +1672,64 @@ describe('planParts under an Assignment Routing Group', () => {
     expect(parts?.assignmentModels).toEqual([
       { ...draftB, allowedEfforts: [''], defaultEffort: '' },
     ]);
+  });
+});
+
+describe('one reasoning effort for a Routing Group (#4497)', () => {
+  it('reads and saves the group effort in both slots without opening advanced mode', () => {
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        orchestratorGroupId: 'daily',
+        orchestratorGroupEffort: 'high',
+        assignmentDefault: draftB,
+        assignmentModels: [{ ...draftB, allowedEfforts: [''], defaultEffort: '' }],
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+        assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['max'], defaultEffort: 'max' }],
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(false);
+    expect(draft.orchestrator.effort).toBe('high');
+    expect(draft.assignment.effort).toBe('max');
+    expect(planParts(draft, [draftDaily])?.groups).toEqual({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+      assignmentGroups: ['daily'],
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['max'], defaultEffort: 'max' }],
+    });
+    const plain = {
+      ...draft,
+      orchestrator: { ...draft.orchestrator, effort: '' },
+      assignment: { ...draft.assignment, effort: '' },
+    };
+    expect(planParts(plain, [draftDaily])?.groups).toEqual({
+      orchestratorGroupId: 'daily',
+      assignmentGroups: ['daily'],
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [],
+    });
+  });
+
+  it('carries the group effort into advanced mode and back', () => {
+    const simple = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: draftB,
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    const advanced = withAdvanced(
+      { ...simple, assignment: { ...simple.assignment, effort: 'high' } },
+      true,
+    );
+    expect(advanced.groups).toEqual([
+      { group: 'daily', allowedEfforts: ['high'], defaultEffort: 'high' },
+    ]);
+    expect(withAdvanced(advanced, false).assignment.effort).toBe('high');
   });
 });

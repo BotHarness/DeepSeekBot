@@ -3,7 +3,8 @@ import { useId, type ReactElement, type ReactNode } from 'react';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
 import { ModelTrigger } from './model-trigger.js';
-import { catalogMenuItems, modelMenuItems } from './model-menu.js';
+import { catalogMenuItems, groupMenuId, modelMenuItems } from './model-menu.js';
+import { modelCatalogGroupEfforts } from '@botharness/host-client/model-catalog';
 import type { BotHarnessTranslate } from './locale.js';
 
 interface ModelChoice {
@@ -18,6 +19,7 @@ export function ModelPicker({
   catalog,
   options,
   groups = [],
+  groupEffort = false,
   onChange,
   disabled,
   action,
@@ -29,6 +31,7 @@ export function ModelPicker({
   catalog: readonly ModelCatalogEntryView[];
   options: readonly ComboboxOption[];
   groups?: readonly ModelCatalogGroupView[];
+  groupEffort?: boolean;
   onChange: (choice: ModelChoice) => void;
   disabled: boolean;
   action?: ReactNode;
@@ -36,6 +39,17 @@ export function ModelPicker({
 }): ReactElement {
   const id = useId();
   const entry = catalog.find((item) => JSON.stringify([item.provider, item.model]) === choice.key);
+  const effortsOf = (key: string) => {
+    const groupId = groupMenuId(key);
+    const group = groups.find((item) => item.id === groupId);
+    if (groupId !== undefined)
+      return group === undefined || !groupEffort
+        ? []
+        : modelCatalogGroupEfforts(group, [...catalog]);
+    return (
+      catalog.find((item) => JSON.stringify([item.provider, item.model]) === key)?.efforts ?? []
+    ).filter((effort) => effort.id !== '');
+  };
   const items = [
     ...catalogMenuItems(catalog, t, groups).filter((item) => item.group !== undefined),
     ...modelMenuItems(options, catalog),
@@ -43,7 +57,7 @@ export function ModelPicker({
   const known = items.some((item) => item.value === choice.key);
   const efforts = [
     { value: '', label: t('modelPreset.providerDefault') },
-    ...(entry?.efforts ?? []).map((effort) => ({
+    ...effortsOf(choice.key).map((effort) => ({
       value: effort.id,
       label: effort.name,
     })),
@@ -75,10 +89,16 @@ export function ModelPicker({
         }
         invalid={entry === undefined && !known}
         disabled={disabled}
-        onSelect={(key) => onChange({ key, effort: '' })}
+        onSelect={(key) => {
+          const kept = effortsOf(key).some((effort) => effort.id === choice.effort);
+          const fallback = catalog.find(
+            (item) => JSON.stringify([item.provider, item.model]) === key,
+          )?.defaultEffort;
+          onChange({ key, effort: kept ? choice.effort : (fallback ?? '') });
+        }}
         t={t}
       />
-      {entry !== undefined && efforts.length > 1 && (
+      {(entry !== undefined || groupMenuId(choice.key) !== undefined) && efforts.length > 1 && (
         <div className="bh-model-picker-effort">
           <span>{t('modelPreset.effort')}</span>
           <SegmentedControl

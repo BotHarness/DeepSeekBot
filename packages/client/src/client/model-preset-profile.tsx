@@ -252,6 +252,7 @@ export function ModelPresetProfile({
                   slug,
                   orchestratorGroup,
                   plan?.revision ?? revision,
+                  draft.orchestrator.effort,
                 )
             : parts === undefined
               ? undefined
@@ -684,6 +685,7 @@ export function ModelPresetProfile({
             choice={draft.assignment}
             catalog={catalog}
             groups={catalogGroups}
+            groupEffort
             options={
               plan?.assignmentDefault === undefined
                 ? [{ value: '', label: t('onboarding.inherit') }, ...modelOptions]
@@ -944,6 +946,7 @@ export function ModelPresetProfile({
                     choice={draft.orchestrator}
                     catalog={catalog}
                     groups={catalogGroups}
+                    groupEffort
                     options={modelOptions}
                     onChange={(orchestrator) => edit({ orchestrator })}
                     disabled={busy}

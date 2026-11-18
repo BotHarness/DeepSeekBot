@@ -333,6 +333,9 @@ function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView 
   return {
     ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
     orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    ...(groups.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupEffort: groups.orchestratorGroupEffort ?? null }),
     assignmentGroups: ids,
     assignmentDefaultGroupId:
       groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
@@ -516,11 +519,12 @@ export async function chooseModelPlanGroup(
   slug: string,
   groupId: string,
   expectedRevision?: number,
+  effort = '',
 ): Promise<ModelPlanView> {
   return customizeHostModelPlan(
     bridgeHost(call),
     slug,
-    { orchestratorGroupId: groupId },
+    { orchestratorGroupId: groupId, ...(effort === '' ? {} : { orchestratorGroupEffort: effort }) },
     expectedRevision,
   );
 }

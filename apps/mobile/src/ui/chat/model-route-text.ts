@@ -1,8 +1,11 @@
 import { sameModel, type ModelPreset, type ModelRoute } from '@botharness/host-client/bot-settings';
 import {
+  modelCatalogGroupEfforts,
   modelCatalogGroupFront,
   type ModelCatalogEntry,
+  type ModelCatalogGroup,
 } from '@botharness/host-client/model-catalog';
+import type { ModelPlanGroups } from '@botharness/host-client/model-plans';
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import { t } from '../strings';
 import { modelEntryLabel } from './composer-labels';
@@ -35,6 +38,43 @@ export function effortChoices(entry: ModelCatalogEntry | undefined) {
         { value: '', label: t.modelSettings.effortDefault },
         ...efforts.map((item) => ({ value: item.id, label: item.name })),
       ];
+}
+
+export function groupEffortChoices(value: ModelSettingsState, group: ModelCatalogGroup) {
+  const efforts = modelCatalogGroupEfforts(group, value.models);
+  return efforts.length === 0
+    ? []
+    : [
+        { value: '', label: t.modelSettings.effortDefault },
+        ...efforts.map((item) => ({ value: item.id, label: item.name })),
+      ];
+}
+
+export function groupEffortLabel(
+  value: ModelSettingsState,
+  group: ModelCatalogGroup,
+  effort: string,
+): string {
+  return groupEffortChoices(value, group).find((item) => item.value === effort)?.label ?? effort;
+}
+
+export function groupEffortOf(groups: ModelPlanGroups, assignment: boolean): string {
+  return assignment
+    ? (groups.assignmentGroupOptions?.find(
+        (option) => option.group === groups.assignmentDefaultGroupId,
+      )?.defaultEffort ?? '')
+    : (groups.orchestratorGroupEffort ?? '');
+}
+
+export function keptGroupEffort(
+  value: ModelSettingsState,
+  group: ModelCatalogGroup,
+  previous: string,
+): string {
+  return previous !== '' &&
+    modelCatalogGroupEfforts(group, value.models).some((item) => item.id === previous)
+    ? previous
+    : '';
 }
 
 export function keptEffort(entry: ModelCatalogEntry, previous: ModelRoute | undefined) {
