@@ -4,6 +4,8 @@ import {
   isBotModeSortMode,
   type BotModeSortMode,
 } from './shared/bot-mode-settings';
+import { describeHostSettings, type HostSettingsNamespace } from './host-settings';
+import type { HostCall } from './host-answer';
 
 export interface RosterSorting {
   sortMode: BotModeSortMode;
@@ -15,30 +17,9 @@ export const DEFAULT_ROSTER_SORTING: RosterSorting = {
   sortModes: {},
 };
 
-export function rosterSortingOf(value: unknown): RosterSorting {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    !('namespaces' in value) ||
-    !Array.isArray(value.namespaces)
-  )
-    throw new Error('Invalid Host settings response');
-  const namespace: unknown = value.namespaces.find(
-    (entry: unknown) =>
-      typeof entry === 'object' &&
-      entry !== null &&
-      'ns' in entry &&
-      entry.ns === BOT_MODE_NAMESPACE,
-  );
+export function rosterSortingOf(namespaces: readonly HostSettingsNamespace[]): RosterSorting {
+  const namespace = namespaces.find((entry) => entry.ns === BOT_MODE_NAMESPACE);
   if (namespace === undefined) return DEFAULT_ROSTER_SORTING;
-  if (
-    typeof namespace !== 'object' ||
-    namespace === null ||
-    !('value' in namespace) ||
-    typeof namespace.value !== 'object' ||
-    namespace.value === null
-  )
-    throw new Error('Invalid Host sorting settings');
   const settings = namespace.value;
   const mode = 'sortMode' in settings ? settings.sortMode : DEFAULT_BOT_MODE_SORT;
   const modes = 'sortModes' in settings ? settings.sortModes : {};
@@ -55,4 +36,8 @@ export function rosterSortingOf(value: unknown): RosterSorting {
     sortModes[id] = override;
   }
   return { sortMode: mode, sortModes };
+}
+
+export async function readRosterSorting(host: HostCall): Promise<RosterSorting> {
+  return rosterSortingOf(await describeHostSettings(host));
 }

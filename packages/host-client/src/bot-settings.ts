@@ -1,51 +1,30 @@
 import { MethodRefused, type HostClient } from './client';
+import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import {
   modelChoice as favoriteChoice,
-  parseModelCatalog,
   type ModelCatalogEntry,
   type ModelCatalogGroup,
   type ModelChoice,
 } from './model-catalog';
+import {
+  applyModelPreset,
+  customizeModelPlan,
+  loadModelCatalog,
+  loadModelPlanState,
+  loadModelPresets,
+  type ModelPlan,
+  type ModelPreset,
+  type ModelRoute,
+} from './model-plans';
 
 export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
+export type { AssignmentModelOption, ModelPlan, ModelPreset, ModelRoute } from './model-plans';
+export { applyModelPreset, HostAnswerInvalid };
 
 export type Loadable<T> =
   | { status: 'loading' }
   | { status: 'ready'; value: T }
   | { status: 'failed'; error: string };
-
-export interface ModelRoute {
-  provider: string;
-  model: string;
-  reasoningEffort?: string;
-}
-
-export interface AssignmentModelOption {
-  provider: string;
-  model: string;
-  allowedEfforts: string[];
-  defaultEffort: string;
-  note?: string;
-}
-
-export interface ModelPlan {
-  revision: number;
-  sourcePresetId: string;
-  sourcePresetName: string;
-  orchestrator: ModelRoute;
-  orchestratorGroupId?: string;
-  assignmentDefault?: ModelRoute;
-  assignmentModels?: AssignmentModelOption[];
-}
-
-export interface ModelPreset {
-  id: string;
-  name: string;
-  revision?: number;
-  orchestrator: ModelRoute;
-  assignmentDefault?: ModelRoute;
-  assignmentModels?: AssignmentModelOption[];
-}
 
 export interface BotModel {
   revision: number;
@@ -111,140 +90,47 @@ export interface ApprovalTemplates {
   globalDefault?: string | null;
 }
 
-export class HostAnswerInvalid extends Error {}
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function text(value: unknown): value is string {
-  return typeof value === 'string';
-}
-
-function route(value: unknown): ModelRoute | undefined {
-  const row = record(value);
-  if (!text(row?.['provider']) || !text(row['model'])) return undefined;
-  return {
-    provider: row['provider'],
-    model: row['model'],
-    ...(text(row['reasoningEffort']) ? { reasoningEffort: row['reasoningEffort'] } : {}),
-  };
-}
-
-function plan(value: unknown): ModelPlan | undefined {
-  const row = record(value);
-  const orchestrator = route(row?.['orchestrator']);
-  const assignmentDefault = route(row?.['assignmentDefault']);
-  if (
-    row === undefined ||
-    orchestrator === undefined ||
-    (row['assignmentDefault'] !== undefined && assignmentDefault === undefined)
-  )
-    return undefined;
-  if (typeof row['revision'] !== 'number') return undefined;
-  const assignmentModels = Array.isArray(row['assignmentModels'])
-    ? (row['assignmentModels'] as AssignmentModelOption[])
-    : undefined;
-  return {
-    revision: row['revision'],
-    sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
-    sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
-    orchestrator,
-    ...(text(row['orchestratorGroupId'])
-      ? { orchestratorGroupId: row['orchestratorGroupId'] }
-      : {}),
-    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
-    ...(assignmentModels === undefined ? {} : { assignmentModels }),
-  };
-}
-
-function planResult(value: unknown, method: string): ModelPlan {
-  const parsed = plan(record(value)?.['plan']);
-  if (parsed === undefined) throw new HostAnswerInvalid(`${method} returned no Model Plan.`);
-  return parsed;
-}
-
-function preset(value: unknown): ModelPreset | undefined {
-  const row = record(value);
-  const orchestrator = route(row?.['orchestrator']);
-  if (!text(row?.['id']) || !text(row['name']) || orchestrator === undefined) return undefined;
-  const assignmentDefault = route(row['assignmentDefault']);
-  return {
-    id: row['id'],
-    name: row['name'],
-    orchestrator,
-    ...(typeof row['revision'] === 'number' ? { revision: row['revision'] } : {}),
-    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
-    ...(Array.isArray(row['assignmentModels'])
-      ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
-      : {}),
-  };
-}
-
-function catalogAnswer(value: unknown) {
-  if (!Array.isArray(record(value)?.['models']))
-    throw new HostAnswerInvalid('modelCatalog returned no models.');
-  return parseModelCatalog(value);
-}
-
-function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
-  return Array.isArray(rows)
-    ? rows.flatMap((row) => {
-        const parsed = parse(row);
-        return parsed === undefined ? [] : [parsed];
-      })
-    : [];
-}
-
 export async function loadBotModel(
   client: ModelSettingsClient,
   slug: string,
   requirePresets = false,
 ): Promise<BotModel> {
   const [state, catalog, presets] = await Promise.all([
-    client.call('modelPlan', { slug }),
-    client.call('modelCatalog', {}),
-    client.call('modelPresets', {}).catch((cause: unknown) => {
+    loadModelPlanState(client, slug),
+    loadModelCatalog(client),
+    loadModelPresets(client).catch((cause: unknown) => {
       if (requirePresets) throw cause;
-      return { presets: [] };
+      return [];
     }),
   ]);
-  const { models, default: fallback, favorites, groups } = catalogAnswer(catalog);
-  const current = record(state);
-  const saved = plan(current?.['plan']);
-  const repair = record(current?.['repair']);
+  const { models, default: fallback, favorites, groups } = catalog;
   return {
-    revision:
-      typeof current?.['revision'] === 'number' ? current['revision'] : (saved?.revision ?? 0),
-    ...(saved === undefined ? {} : { plan: saved }),
-    ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
+    revision: state.revision ?? state.plan?.revision ?? 0,
+    ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.repair === undefined ? {} : { repair: state.repair.code }),
     models,
     ...(groups === undefined ? {} : { groups }),
     ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
-    presets: some(record(presets)?.['presets'], preset),
+    presets,
   };
 }
 
-export interface ModelSettingsClient {
-  call(method: string, args?: Record<string, unknown>): Promise<unknown>;
-}
+export type ModelSettingsClient = HostCall;
 
 export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotModel> {
   const [catalog, presets] = await Promise.all([
-    client.call('modelCatalog', {}),
-    client.call('modelPresets', {}),
+    loadModelCatalog(client),
+    loadModelPresets(client),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups } = catalogAnswer(catalog);
+  const { models, default: fallback, defaultRevision, favorites, groups } = catalog;
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
     ...(favorites === undefined ? {} : { favorites }),
-    presets: some(record(presets)?.['presets'], preset),
+    presets,
     ...(fallback === undefined ? {} : { fallback }),
   };
 }
@@ -312,26 +198,13 @@ export function modelChoice(
 }
 
 export async function chooseModel(
-  client: HostClient,
+  client: HostCall,
   slug: string,
   model: BotModel,
   entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
 ): Promise<ModelPlan> {
-  return planResult(
-    await client.call<unknown>('modelPlanCustomize', { slug, ...modelChoice(model, entry) }),
-    'modelPlanCustomize',
-  );
-}
-
-export async function applyModelPreset(
-  client: HostClient,
-  slug: string,
-  presetId: string,
-): Promise<ModelPlan> {
-  return planResult(
-    await client.call<unknown>('modelPresetApply', { slug, presetId }),
-    'modelPresetApply',
-  );
+  const { orchestrator, expectedRevision } = modelChoice(model, entry);
+  return customizeModelPlan(client, slug, { orchestrator }, expectedRevision);
 }
 
 function grant(value: unknown): WorkspaceGrant | undefined {
@@ -379,7 +252,11 @@ export async function revokeWorkspaceGrant(
 function folder(value: unknown): HostFolder | undefined {
   const row = record(value);
   if (!text(row?.['name']) || !text(row['path'])) return undefined;
-  return { name: row['name'], path: row['path'], hidden: row['hidden'] === true };
+  return {
+    name: row['name'],
+    path: row['path'],
+    hidden: row['hidden'] === true,
+  };
 }
 
 function listing(value: unknown): HostFolderListing {
@@ -391,6 +268,47 @@ function listing(value: unknown): HostFolderListing {
     entries: some(row['entries'], folder),
     truncated: row['truncated'] === true,
     roots: some(row['roots'], folder),
+  };
+}
+
+export interface HostFolderBrowse extends HostFolderListing {
+  home: string;
+  nextOffset?: number;
+  nativePicker?: true;
+}
+
+function browsedFolders(items: unknown): HostFolder[] {
+  if (!Array.isArray(items)) throw new HostAnswerInvalid('folderBrowse returned no folder list.');
+  return items.map((item) => {
+    const row = record(item);
+    if (!text(row?.['name']) || !text(row['path']) || typeof row['hidden'] !== 'boolean')
+      throw new HostAnswerInvalid('folderBrowse returned an unreadable folder.');
+    return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+  });
+}
+
+export async function browseHostFolders(
+  client: HostCall,
+  path?: string,
+  offset?: number,
+): Promise<HostFolderBrowse> {
+  const value = record(
+    await client.call('folderBrowse', {
+      ...(path === undefined ? {} : { path }),
+      ...(offset === undefined || offset === 0 ? {} : { offset }),
+    }),
+  );
+  if (!text(value?.['path']) || !text(value['home']) || typeof value['truncated'] !== 'boolean')
+    throw new HostAnswerInvalid('folderBrowse returned no folder listing.');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: browsedFolders(value['crumbs']),
+    entries: browsedFolders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
+    roots: browsedFolders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true as const } : {}),
   };
 }
 
@@ -407,7 +325,7 @@ export async function listHostFolders(
     } catch (error) {
       if (!folderBrowsingUnavailable(error)) throw error;
       try {
-        const value = listing(await client.call<unknown>('folderBrowse', args));
+        const value = await browseHostFolders(client, path);
         systemPickerHosts.add(client);
         return value;
       } catch (fallback) {
@@ -417,7 +335,7 @@ export async function listHostFolders(
       }
     }
   }
-  return listing(await client.call<unknown>('folderBrowse', args));
+  return browseHostFolders(client, path);
 }
 
 function option(value: unknown): WorkspaceOption | undefined {
@@ -426,8 +344,8 @@ function option(value: unknown): WorkspaceOption | undefined {
   return { id: row['id'], path: row['path'], title: row['title'] };
 }
 
-export async function loadWorkspaceOptions(client: HostClient): Promise<WorkspaceOption[]> {
-  const rows = record(await client.call<unknown>('workspaceOptions', {}))?.['workspaces'];
+export async function loadWorkspaceOptions(client: HostCall): Promise<WorkspaceOption[]> {
+  const rows = record(await client.call('workspaceOptions', {}))?.['workspaces'];
   if (!Array.isArray(rows)) throw new HostAnswerInvalid('workspaceOptions returned no list.');
   return some(rows, option);
 }
@@ -556,7 +474,11 @@ export async function loadApprovalTemplates(
     templates: some(value['templates'], (item) => {
       const row = record(item);
       return text(row?.['name']) && text(row['title']) && text(row['description'])
-        ? { name: row['name'], title: row['title'], description: row['description'] }
+        ? {
+            name: row['name'],
+            title: row['title'],
+            description: row['description'],
+          }
         : undefined;
     }),
     selected,

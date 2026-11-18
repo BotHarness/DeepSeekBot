@@ -1,4 +1,4 @@
-import type { HostClient } from './client';
+import { HostAnswerInvalid, record, type HostCall } from './host-answer';
 import type {
   OverviewMemory,
   OverviewUsage,
@@ -30,19 +30,142 @@ export const USAGE_SPLIT: readonly UsageSplitKey[] = [
   'cacheWriteTokens',
 ];
 
-export function loadUsage(
-  client: HostClient,
+const PERIOD_DAYS: Record<UsagePeriod, number> = {
+  today: 1,
+  week: 7,
+  month: 28,
+  quarter: 84,
+};
+const DAY = 86_400_000;
+
+function validDay(input: unknown): input is string {
+  return (
+    typeof input === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/u.test(input) &&
+    Number.isFinite(Date.parse(input)) &&
+    new Date(input).toISOString().slice(0, 10) === input
+  );
+}
+
+function instant(input: unknown): boolean {
+  return typeof input === 'string' && Number.isFinite(Date.parse(input));
+}
+
+function count(input: unknown): input is number {
+  return Number.isSafeInteger(input) && Number(input) >= 0;
+}
+
+function buckets(input: unknown): boolean {
+  const row = record(input);
+  return (
+    row !== undefined &&
+    ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'totalTokens'].every(
+      (key) => row[key] === null || count(row[key]),
+    ) &&
+    (row['partial'] === undefined || typeof row['partial'] === 'boolean')
+  );
+}
+
+function cursor(input: unknown): boolean {
+  return input === undefined || (typeof input === 'string' && input.length > 0);
+}
+
+export function parseOverviewUsage(input: unknown, period: UsagePeriod): OverviewUsage {
+  const value = record(input);
+  if (
+    value === undefined ||
+    value['period'] !== period ||
+    typeof value['timezone'] !== 'string' ||
+    !instant(value['readAt']) ||
+    !instant(value['nextRefreshAt']) ||
+    !validDay(value['start']) ||
+    !validDay(value['end']) ||
+    Date.parse(value['end']) - Date.parse(value['start']) !== (PERIOD_DAYS[period] - 1) * DAY ||
+    !buckets(value['totals']) ||
+    !Array.isArray(value['days']) ||
+    value['days'].length !== PERIOD_DAYS[period] ||
+    !value['days'].every((row) => buckets(row) && typeof record(row)?.['day'] === 'string') ||
+    !Array.isArray(value['bots']) ||
+    value['bots'].length > 20 ||
+    !value['bots'].every(
+      (row) =>
+        buckets(row) &&
+        typeof record(row)?.['slug'] === 'string' &&
+        typeof record(row)?.['displayName'] === 'string' &&
+        typeof record(row)?.['current'] === 'boolean',
+    ) ||
+    !cursor(value['nextCursor']) ||
+    !['ready', 'reconciling', 'degraded'].includes(String(value['freshness'])) ||
+    typeof value['legacyBaseline'] !== 'boolean' ||
+    (value['reconciledAt'] !== null && !instant(value['reconciledAt']))
+  )
+    throw new HostAnswerInvalid('overviewUsage returned an unreadable usage overview.');
+  return value as unknown as OverviewUsage;
+}
+
+function memoryBot(input: unknown): boolean {
+  const row = record(input);
+  if (
+    row === undefined ||
+    typeof row['slug'] !== 'string' ||
+    row['slug'].length === 0 ||
+    typeof row['displayName'] !== 'string'
+  )
+    return false;
+  if (row['state'] === 'unavailable')
+    return row['total'] === undefined && row['counts'] === undefined && row['dirty'] === undefined;
+  return (
+    row['state'] === 'ready' &&
+    count(row['total']) &&
+    typeof row['dirty'] === 'boolean' &&
+    Array.isArray(row['counts']) &&
+    row['counts'].length === 7 &&
+    row['counts'].every(count) &&
+    row['counts'].reduce((sum: number, part: number) => sum + part, 0) === row['total']
+  );
+}
+
+export function parseOverviewMemory(input: unknown): OverviewMemory {
+  const value = record(input);
+  if (
+    value === undefined ||
+    !validDay(value['start']) ||
+    !validDay(value['end']) ||
+    !Array.isArray(value['days']) ||
+    value['days'].length !== 7 ||
+    !value['days'].every(
+      (item, index) =>
+        validDay(item) && Date.parse(item) === Date.parse(String(value['start'])) + index * DAY,
+    ) ||
+    value['days'][6] !== value['end'] ||
+    typeof value['timezone'] !== 'string' ||
+    !instant(value['readAt']) ||
+    !instant(value['nextRefreshAt']) ||
+    !Array.isArray(value['bots']) ||
+    value['bots'].length > 10 ||
+    !value['bots'].every(memoryBot) ||
+    !cursor(value['nextCursor'])
+  )
+    throw new HostAnswerInvalid('overviewMemory returned an unreadable Memory overview.');
+  return value as unknown as OverviewMemory;
+}
+
+export async function loadUsage(
+  client: HostCall,
   period: UsagePeriod,
   after?: string,
 ): Promise<OverviewUsage> {
-  return client.call<OverviewUsage>('overviewUsage', {
+  return parseOverviewUsage(
+    await client.call('overviewUsage', {
+      period,
+      ...(after === undefined ? {} : { after }),
+    }),
     period,
-    ...(after === undefined ? {} : { after }),
-  });
+  );
 }
 
 export async function loadMoreUsage(
-  client: HostClient,
+  client: HostCall,
   current: OverviewUsage,
 ): Promise<OverviewUsage> {
   if (current.nextCursor === undefined) return current;
@@ -52,12 +175,17 @@ export async function loadMoreUsage(
   return { ...page, bots: appendBySlug(current.bots, page.bots) };
 }
 
-export function loadMemoryActivity(client: HostClient, after?: string): Promise<OverviewMemory> {
-  return client.call<OverviewMemory>('overviewMemory', after === undefined ? {} : { after });
+export async function loadMemoryActivity(
+  client: HostCall,
+  after?: string,
+): Promise<OverviewMemory> {
+  return parseOverviewMemory(
+    await client.call('overviewMemory', after === undefined ? {} : { after }),
+  );
 }
 
 export async function loadMoreMemoryActivity(
-  client: HostClient,
+  client: HostCall,
   current: OverviewMemory,
 ): Promise<OverviewMemory> {
   if (current.nextCursor === undefined) return current;
