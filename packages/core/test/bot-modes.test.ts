@@ -35,6 +35,7 @@ const ROSTER: BotModeOption[] = [
 
 function registry(bots: Record<string, Partial<PersonaBotRecord>>): PersonaBotRegistry {
   return {
+    list: () => Object.keys(bots).map((slug) => ({ slug, ...bots[slug] }) as PersonaBotRecord),
     get: (slug: string) =>
       bots[slug] === undefined ? undefined : ({ slug, ...bots[slug] } as PersonaBotRecord),
     update: (slug: string, patch: { preset?: string }) => {
@@ -61,6 +62,30 @@ describe('Bot mode settings', () => {
     });
     settings.setDefaultMode(undefined);
     expect(createBotModeSettings(home).defaultMode()).toBeUndefined();
+  });
+
+  it('keeps mode templates and the template each Bot uses', () => {
+    const home = dir();
+    const settings = createBotModeSettings(home);
+    settings.setDefaultMode('ptc');
+    const coding = settings.saveTemplate({ name: ' Coding ', modes: ['ptc', 'acp', 'ptc'] });
+    expect(coding).toMatchObject({ name: 'Coding', modes: ['ptc', 'acp'] });
+    settings.setTemplateOf('ada', coding.id);
+    const reread = createBotModeSettings(home);
+    expect(reread.defaultMode()).toBe('ptc');
+    expect(reread.templateOf('ada')).toBe(coding.id);
+    expect(reread.allowedModes('ada')).toEqual(['ptc', 'acp']);
+    expect(reread.allowedModes('bob')).toBeUndefined();
+    reread.saveTemplate({ id: coding.id, name: 'Coding', modes: ['acp'] });
+    expect(createBotModeSettings(home).allowedModes('ada')).toEqual(['acp']);
+    reread.deleteTemplate(coding.id);
+    expect(createBotModeSettings(home).templateOf('ada')).toBeUndefined();
+    expect(JSON.parse(readFileSync(join(home, BOT_MODE_SETTINGS_FILE), 'utf8'))).toEqual({
+      defaultMode: 'ptc',
+    });
+    expect(() => reread.saveTemplate({ name: '', modes: ['ptc'] })).toThrow(/name/);
+    expect(() => reread.saveTemplate({ name: 'Empty', modes: [] })).toThrow(/between 1/);
+    expect(() => reread.setTemplateOf('ada', 'missing')).toThrow(/unknown mode template/);
   });
 
   it('falls back to the product default when the file cannot be read', () => {
@@ -93,7 +118,8 @@ describe('Bot mode bridge methods', () => {
         productDefault: 'deepseekbot',
         globalDefault: null,
         effectiveDefault: 'deepseekbot',
-        bot: { slug: 'bob', mode: 'ptc', effective: 'ptc' },
+        templates: [],
+        bot: { slug: 'bob', mode: 'ptc', effective: 'ptc', template: null, allowed: null },
       },
     });
   });
@@ -148,6 +174,64 @@ describe('Bot mode bridge methods', () => {
     });
   });
 
+  it('limits a Bot to the modes of its template', async () => {
+    const { bots, methods } = setup();
+    const saved = await methods.botModeTemplateSave({ name: 'Coding', modes: ['ptc', 'acp'] });
+    expect(saved).toMatchObject({ ok: true, value: { templates: [{ name: 'Coding' }] } });
+    const id = saved.ok ? saved.value.templates[0]!.id : '';
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: id })).toMatchObject({
+      ok: true,
+      value: { bot: { slug: 'ada', template: id, allowed: ['ptc', 'acp'] } },
+    });
+    expect(await methods.botModeSet({ slug: 'ada', mode: 'standard' })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(await methods.botModeSet({ slug: 'ada', mode: 'acp' })).toMatchObject({ ok: true });
+    expect(bots['ada']?.preset).toBe('acp');
+    expect(await methods.botModeTemplateSave({ id, name: 'Coding', modes: ['ptc'] })).toMatchObject(
+      { ok: false, error: { code: 'mode-not-allowed' } },
+    );
+    expect(await methods.botModeTemplateDelete({ id })).toMatchObject({
+      ok: false,
+      error: { code: 'template-in-use' },
+    });
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: null })).toMatchObject({
+      ok: true,
+      value: { bot: { template: null, allowed: null } },
+    });
+    expect(await methods.botModeTemplateDelete({ id })).toMatchObject({
+      ok: true,
+      value: { templates: [] },
+    });
+  });
+
+  it('refuses a template the Bot’s own mode falls outside of, and bad template input', async () => {
+    const { methods } = setup();
+    const saved = await methods.botModeTemplateSave({ name: 'Plain', modes: ['standard'] });
+    const id = saved.ok ? saved.value.templates[0]!.id : '';
+    expect(await methods.botModeTemplateSet({ slug: 'bob', template: id })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(await methods.botModeTemplateSave({ name: 'X', modes: ['creator'] })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-found' },
+    });
+    expect(await methods.botModeTemplateSave({ name: 'X', modes: ['broken'] })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-broken' },
+    });
+    expect(await methods.botModeTemplateSave({ name: '', modes: ['ptc'] })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: 'nope' })).toMatchObject({
+      ok: false,
+      error: { code: 'not-found' },
+    });
+  });
+
   it('reports the methods unavailable without the DSH mode service', async () => {
     const methods = createBotModeBridgeMethods({ modes: undefined, registry: registry({}) });
     expect(await methods.botModes({})).toMatchObject({
@@ -182,12 +266,31 @@ describe('bot-modes CLI', () => {
     expect(await run('bot-mode-set', ['ada', '@global'])).toEqual([
       ['botModeSet', { slug: 'ada', mode: null }],
     ]);
+    expect(await run('bot-mode-template-save', ['Coding', 'ptc', 'acp'])).toEqual([
+      ['botModeTemplateSave', { name: 'Coding', modes: ['ptc', 'acp'] }],
+    ]);
+    expect(await run('bot-mode-template-save', ['--id', 't1', 'Coding', 'ptc'])).toEqual([
+      ['botModeTemplateSave', { id: 't1', name: 'Coding', modes: ['ptc'] }],
+    ]);
+    expect(await run('bot-mode-template-delete', ['t1'])).toEqual([
+      ['botModeTemplateDelete', { id: 't1' }],
+    ]);
+    expect(await run('bot-mode-template-set', ['ada', 't1'])).toEqual([
+      ['botModeTemplateSet', { slug: 'ada', template: 't1' }],
+    ]);
+    expect(await run('bot-mode-template-set', ['ada', '@all'])).toEqual([
+      ['botModeTemplateSet', { slug: 'ada', template: null }],
+    ]);
   });
 
   it.each([
     ['bot-modes', ['a', 'b']],
     ['bot-mode-default-set', []],
     ['bot-mode-set', ['ada']],
+    ['bot-mode-template-save', ['Coding']],
+    ['bot-mode-template-save', ['--id']],
+    ['bot-mode-template-delete', []],
+    ['bot-mode-template-set', ['ada']],
   ])('refuses %s %j with a usage error', async (command, rest) => {
     await expect(run(command, rest)).rejects.toMatchObject({ code: 'usage' });
   });

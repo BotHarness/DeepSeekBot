@@ -4346,6 +4346,169 @@ describe('Assignment Directory Tools', () => {
     }
   });
 
+  it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
+    const calls: Array<Promise<unknown>> = [];
+    const created: unknown[] = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const tool = (name: string) => {
+            const found = scope?.tools.find((candidate) => candidate.name === name);
+            if (found === undefined) throw new Error(`${name} not registered`);
+            return found;
+          };
+          const create = (mode: string) =>
+            tool('create_assignment').execute(
+              {
+                title: 'Port the parser',
+                description: 'Port the parser to the new API.',
+                grant_id: 'grant-1',
+                mode,
+              },
+              {} as ToolRunContext,
+            );
+          calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
+          calls.push(create('ptc'));
+          calls.push(create('acp').then(String, (error: Error) => error.message));
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentModes: async () => ({
+        default: 'deepseekbot',
+        restricted: true,
+        allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+      }),
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: BOT,
+      message: 'Port the parser',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: (input) => {
+          created.push(input);
+          return {
+            outcome: 'created',
+            assignment: {
+              ...ASSIGNMENT,
+              ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
+            },
+          };
+        },
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ASSIGNMENT,
+        request: () => {
+          throw new Error('unexpected Assignment request');
+        },
+      },
+    });
+    try {
+      const [models, accepted, refused] = await Promise.all(calls);
+      expect(JSON.parse(String(models))).toMatchObject({
+        assignmentModes: {
+          default: 'deepseekbot',
+          allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        },
+      });
+      expect(JSON.parse(String(accepted))).toMatchObject({
+        outcome: 'created',
+        mode: 'ptc',
+      });
+      expect(refused).toContain('mode acp is not allowed');
+      expect(created).toContainEqual({
+        title: 'Port the parser',
+        description: 'Port the parser to the new API.',
+        grantId: 'grant-1',
+        mode: 'ptc',
+      });
+      expect(created).not.toContainEqual(expect.objectContaining({ mode: 'acp' }));
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('starts an Assignment in its chosen mode and resumes it in the mode its log records', async () => {
+    const host = new FakeAgentHost();
+    const mounted: Array<string | undefined> = [];
+    let recorded: string | null = null;
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      defaultAgentPreset: () => 'deepseekbot',
+      resolveAgentPresets: () => ({
+        mount: async (_agentCtx, id) => {
+          mounted.push(id);
+          return undefined;
+        },
+        presetForSession: () => recorded,
+      }),
+    });
+    const run = (sessionId: string) =>
+      adapter.runAssignment({
+        sessionId,
+        bot: BOT,
+        text: 'Port the parser',
+        agentPreset: 'ptc',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+    try {
+      await run('assignment-ptc');
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({
+        agentPreset: 'ptc',
+      });
+      recorded = 'minimal';
+      await run('assignment-minimal');
+      expect(mounted).toEqual(['ptc', 'minimal']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('unarchives and sends an optional message through the Assignment Request path', async () => {
     const calls: Array<Promise<unknown>> = [];
     const unarchived: string[] = [];

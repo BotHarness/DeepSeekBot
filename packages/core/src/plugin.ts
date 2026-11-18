@@ -1639,6 +1639,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     botModeSettings.defaultMode() ?? config.agentPreset ?? DEFAULT_AGENT_PRESET;
   const botModeOf = (slug: string | undefined): string =>
     (slug === undefined ? undefined : core.registry.get(slug)?.preset) ?? globalBotMode();
+  const installedBotModes = async (): Promise<BotModeOption[]> => {
+    const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
+    if (presets === undefined) return [];
+    return (await presets.list()).map((preset) => ({
+      id: preset.id,
+      ...(preset.name === undefined ? {} : { name: preset.name }),
+      ...(preset.description === undefined ? {} : { description: preset.description }),
+      ...(preset.order === undefined ? {} : { order: preset.order }),
+      ...(preset.broken === undefined ? {} : { broken: preset.broken }),
+    }));
+  };
   const hostDiagnosticEnvironment = () => {
     const dshVersion = installedDshVersion();
     return {
@@ -1875,6 +1886,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       );
     },
     defaultAgentPreset: globalBotMode,
+    assignmentModes: async (slug) => {
+      const allowed = botModeSettings.allowedModes(slug);
+      return {
+        default: botModeOf(slug),
+        restricted: allowed !== undefined,
+        allowed: (await installedBotModes())
+          .filter((mode) => mode.broken === undefined)
+          .filter((mode) => allowed === undefined || allowed.includes(mode.id))
+          .map((mode) => ({
+            id: mode.id,
+            ...(mode.name === undefined ? {} : { name: mode.name }),
+            ...(mode.description === undefined ? {} : { description: mode.description }),
+          })),
+      };
+    },
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => core.runBotAgentSetups(agentCtx, agent, info),
@@ -3637,17 +3663,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     botModes: {
       settings: botModeSettings,
       productDefault: config.agentPreset ?? DEFAULT_AGENT_PRESET,
-      roster: async () => {
-        const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
-        if (presets === undefined) return [];
-        return (await presets.list()).map((preset) => ({
-          id: preset.id,
-          ...(preset.name === undefined ? {} : { name: preset.name }),
-          ...(preset.description === undefined ? {} : { description: preset.description }),
-          ...(preset.order === undefined ? {} : { order: preset.order }),
-          ...(preset.broken === undefined ? {} : { broken: preset.broken }),
-        }));
-      },
+      roster: installedBotModes,
     },
     idleCompaction: {
       settings: idleCompactionSettings,

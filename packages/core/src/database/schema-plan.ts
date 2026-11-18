@@ -1453,6 +1453,15 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'assignment-agent-preset',
+  module: 'assignments',
+  description: 'Snapshot the DSH mode an Orchestrator chose for a new Assignment Session',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
 const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
   id: 'routing-group-storage',
   module: 'routing-groups',
@@ -4026,4 +4035,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ROUTING_GROUP_STORAGE_MIGRATION,
   MODEL_SWITCH_NOTICE_MIGRATION,
   ASSIGNMENT_MODEL_GROUP_MIGRATION,
+  ASSIGNMENT_AGENT_PRESET_MIGRATION,
 ]);

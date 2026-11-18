@@ -237,6 +237,7 @@ export interface AssignmentSummary {
   openAsk?: AssignmentOpenAsk;
   permission?: AssignmentPermissionSnapshot;
   modelRoute?: ModelRoute;
+  agentPreset?: string;
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -356,6 +357,7 @@ export interface OrchestratorAssignmentAccess {
     grantId: string;
     model?: ModelRoute;
     modelGroupId?: string;
+    mode?: string;
   }): AssignmentCreateOutcome;
   refreshRoute?(sessionId: string): Promise<unknown>;
   grants(): WorkspaceGrant[];
@@ -528,6 +530,7 @@ export interface AssignmentAgentRun {
   resume?: boolean;
   permission: AssignmentPermissionSnapshot;
   modelRoute?: ModelRoute;
+  agentPreset?: string;
   report(input: AssignmentReportInput, execution?: { turn: number }): Promise<AssignmentReport>;
   completedTurn?(execution: { turn: number; endSeq: number }): void;
   cancelledTurn?(execution: { turn: number; endSeq: number }): void;
@@ -1123,6 +1126,7 @@ interface AssignmentRow {
   preset_revision: number | null;
   model_route_json: string | null;
   model_group_id?: string | null;
+  agent_preset?: string | null;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -1347,6 +1351,7 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     ...(openAsk === undefined ? {} : { openAsk }),
     ...(permissionFromRow(row) === undefined ? {} : { permission: permissionFromRow(row)! }),
     ...(modelRouteFromRow(row) === undefined ? {} : { modelRoute: modelRouteFromRow(row)! }),
+    ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
     ...(isArchivedRow(row) ? { archivedAt: row.archived_at } : {}),
   };
 }
@@ -5686,7 +5691,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ?
             ORDER BY updated_at DESC, session_id ASC`,
@@ -5855,7 +5860,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ? AND session_id = ?`,
         )
@@ -6027,6 +6032,7 @@ class BotRuntimeImplementation implements BotRuntime {
         };
         const abort = () => finish(false);
         cancellation.addEventListener('abort', abort, { once: true });
+        const agentPreset = row.agent_preset ?? undefined;
         this.#trackAssignmentRun(sessionId, async () => {
           const modelRoute = await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
             modelRouteFromRow(row),
@@ -6039,6 +6045,7 @@ class BotRuntimeImplementation implements BotRuntime {
               resume: true,
               permission,
               ...(modelRoute === undefined ? {} : { modelRoute }),
+              ...(agentPreset === undefined ? {} : { agentPreset }),
               requireContent: () => {
                 this.#requireTurnAccess(bot.slug, row.source_event_id ? [row.source_event_id] : []);
                 this.#database.read((db) =>
@@ -10370,6 +10377,7 @@ class BotRuntimeImplementation implements BotRuntime {
       grantId: string;
       model?: ModelRoute;
       modelGroupId?: string;
+      mode?: string;
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentCreateOutcome {
@@ -10443,6 +10451,10 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error(
             'An existing keyed Assignment keeps its model; use a new key for a new model choice',
           );
+        if (input.mode !== undefined)
+          throw new Error(
+            'An existing keyed Assignment keeps its mode; use a new key for a new mode choice',
+          );
         const request = this.#requestAssignment(
           bot,
           { sessionId: holder.session_id, mode: 'next-turn', text },
@@ -10505,8 +10517,8 @@ class BotRuntimeImplementation implements BotRuntime {
             `INSERT INTO assignments (
                session_id, source_event_id, bot_slug, title, description, activity,
                continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
-               approval_policy, preset_revision, model_route_json, model_group_id, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               approval_policy, preset_revision, model_route_json, model_group_id, agent_preset, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             sessionId,
@@ -10523,6 +10535,7 @@ class BotRuntimeImplementation implements BotRuntime {
             permission.presetRevision,
             modelRoute === undefined ? null : JSON.stringify(modelRoute),
             modelGroupId ?? null,
+            input.mode ?? null,
             createdAt,
             createdAt,
           );
@@ -10544,6 +10557,7 @@ class BotRuntimeImplementation implements BotRuntime {
         text,
         permission,
         ...(modelRoute === undefined ? {} : { modelRoute }),
+        ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
         report: async (report, execution) =>
           this.#recordReport(bot.slug, sessionId, report, execution),
         completedTurn: (execution) =>

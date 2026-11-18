@@ -309,12 +309,22 @@
     },
     {
       "id": "bot-modes",
-      "description": "The DSH mode (Agent Preset) every Bot without its own uses, and each Bot's own mode.",
+      "description": "The DSH mode (Agent Preset) every Bot without its own uses, each Bot's own mode, and the mode templates that limit which modes a Bot and its Orchestrator can use.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.default.title')}"
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.default.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.template.bot.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{template.name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{modeText(mode, t).name}"
       ],
-      "commands": ["bot-modes", "bot-mode-default-set", "bot-mode-set"]
+      "commands": [
+        "bot-modes",
+        "bot-mode-default-set",
+        "bot-mode-set",
+        "bot-mode-template-save",
+        "bot-mode-template-delete",
+        "bot-mode-template-set"
+      ]
     },
     {
       "id": "voice",

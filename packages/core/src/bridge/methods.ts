@@ -1202,6 +1202,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
   botModeSet: BotModeBridgeMethods['botModeSet'];
+  botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
+  botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
+  botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
   voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
   voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;

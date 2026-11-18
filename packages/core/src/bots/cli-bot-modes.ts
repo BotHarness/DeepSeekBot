@@ -5,6 +5,8 @@ type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown
 
 export const PRODUCT_BOT_MODE = '@product';
 
+export const ALL_BOT_MODES = '@all';
+
 export const BOT_MODE_COMMANDS = [
   {
     command: 'bot-modes',
@@ -18,6 +20,19 @@ export const BOT_MODE_COMMANDS = [
   {
     command: 'bot-mode-set',
     description: `set one Bot's own mode (<slug> <mode>), or \`${INHERIT_BOT_MODE}\` to follow the global default; applies from its next new Session`,
+  },
+  {
+    command: 'bot-mode-template-save',
+    description:
+      'create a mode template (<name> <mode>...) that limits which modes a Bot can use, or replace one with --id <template-id>',
+  },
+  {
+    command: 'bot-mode-template-delete',
+    description: 'delete a mode template (<template-id>) that no Bot uses',
+  },
+  {
+    command: 'bot-mode-template-set',
+    description: `limit one Bot to a mode template (<slug> <template-id>), or \`${ALL_BOT_MODES}\` to allow every installed mode`,
   },
 ] as const;
 
@@ -46,6 +61,31 @@ export async function runBotModeCommand(
       usage(`bot-mode-default-set needs exactly one <mode>, or ${PRODUCT_BOT_MODE}.`);
     const mode = args[0] === PRODUCT_BOT_MODE ? null : args[0];
     return (await connect())('botModeDefaultSet', { mode });
+  }
+  if (command === 'bot-mode-template-save') {
+    const values = [...args];
+    const at = values.indexOf('--id');
+    const id = at === -1 ? undefined : values.splice(at, 2)[1];
+    if (at !== -1 && !id) usage('--id needs a <template-id>.');
+    const [name, ...modes] = values;
+    if (!name || modes.length === 0 || modes.some((mode) => mode === ''))
+      usage('bot-mode-template-save needs <name> and at least one <mode>.');
+    return (await connect())('botModeTemplateSave', {
+      ...(id === undefined ? {} : { id }),
+      name,
+      modes,
+    });
+  }
+  if (command === 'bot-mode-template-delete') {
+    if (args.length !== 1 || !args[0])
+      usage('bot-mode-template-delete needs exactly one <template-id>.');
+    return (await connect())('botModeTemplateDelete', { id: args[0] });
+  }
+  if (command === 'bot-mode-template-set') {
+    if (args.length !== 2 || !args[0] || !args[1])
+      usage(`bot-mode-template-set needs <slug> and <template-id>, or <slug> ${ALL_BOT_MODES}.`);
+    const template = args[1] === ALL_BOT_MODES ? null : args[1];
+    return (await connect())('botModeTemplateSet', { slug: args[0], template });
   }
   if (args.length !== 2 || !args[0] || !args[1])
     usage(`bot-mode-set needs <slug> and <mode>, or <slug> ${INHERIT_BOT_MODE}.`);

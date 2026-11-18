@@ -1888,6 +1888,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.botModeSet({ slug, mode }));
   }
 
+  botModeTemplateSave(input: {
+    id?: string;
+    name: string;
+    modes: string[];
+  }): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateSave(input));
+  }
+
+  botModeTemplateDelete(id: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateDelete({ id }));
+  }
+
+  botModeTemplateSet(slug: string, template: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateSet({ slug, template }));
+  }
+
   voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
     return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
   }
@@ -3689,6 +3705,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botModes',
   'botModeDefaultSet',
   'botModeSet',
+  'botModeTemplateSave',
+  'botModeTemplateDelete',
+  'botModeTemplateSet',
   'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',

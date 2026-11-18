@@ -380,8 +380,15 @@ export interface DshAgentHost {
   get?(id: ReturnType<typeof SessionId>): Agent | undefined;
 }
 
+export interface AssignmentModeChoices {
+  default: string;
+  allowed: Array<{ id: string; name?: string; description?: string }>;
+  restricted: boolean;
+}
+
 export interface DshAgentPresetHost {
   mount(agentCtx: Context, id?: string): Promise<unknown>;
+  presetForSession?(session: Agent['session']): string | null | undefined;
   serviceFor?(agent: Agent, name: string): unknown;
 }
 
@@ -407,6 +414,7 @@ export interface DshBotAgentAdapterOptions {
   resolveAgentPresets?: () => DshAgentPresetHost | undefined;
 
   defaultAgentPreset?: string | (() => string | undefined);
+  assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
   ensureWorkspace?: (path: string) => void;
@@ -489,7 +497,8 @@ function createMeta(
   defaultAgentPreset: string | undefined,
 ) {
   ensureWorkspace?.(cwd);
-  const agentPreset = run.bot.preset ?? defaultAgentPreset;
+  const agentPreset =
+    ('agentPreset' in run ? run.agentPreset : undefined) ?? run.bot.preset ?? defaultAgentPreset;
   return {
     cwd,
     ...(agentPreset === undefined ? {} : { agentPreset }),
@@ -633,6 +642,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     | undefined;
   readonly #admitSession: DshBotAgentAdapterOptions['admitSession'];
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
+  readonly #assignmentModes: ((botSlug: string) => Promise<AssignmentModeChoices>) | undefined;
   readonly #onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
   readonly #onAgentSetup:
     | ((agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void)
@@ -690,6 +700,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
     this.#resolveAgentPresets = options.resolveAgentPresets;
+    this.#assignmentModes = options.assignmentModes;
     this.#ensureWorkspace =
       options.ensureWorkspace ?? ((path) => void mkdirSync(path, { recursive: true }));
     this.#drafts = new ChannelDraftTracker(options.publishDraft ?? (() => undefined));
@@ -1329,7 +1340,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         rootRole: 'orchestrator',
       });
       if (!borrowed) {
-        await this.#composePreset(agentCtx, run.bot);
+        await this.#composePreset(agentCtx, agent, run);
       }
       const disposeFiles = await this.#onOrchestratorFileSetup?.(agentCtx, agent);
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
@@ -1658,7 +1669,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. assignmentModes lists the DSH modes a new Assignment may run in. Call before selecting a non-default route or mode, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1669,10 +1680,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const modes = await this.#assignmentModes?.(run.bot.slug);
+          const modeChoices =
+            modes === undefined
+              ? {}
+              : { assignmentModes: { default: modes.default, allowed: modes.allowed } };
           if (plan?.assignmentDefault === undefined)
             return JSON.stringify({
               configured: false,
               message: 'Ask the Human to apply a Model Preset first',
+              ...modeChoices,
             });
           const open = plan.openAssignmentModels === true;
           const groups = this.#assignmentGroups;
@@ -1713,6 +1730,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                   ),
                 }
               : {}),
+            ...modeChoices,
           });
         },
       }),
@@ -1721,7 +1739,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'create_assignment',
         description:
-          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort or mode; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
         parameters: {
           title: {
             type: 'string',
@@ -1771,6 +1789,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             description:
               'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
           },
+          mode: {
+            type: 'string',
+            description:
+              'Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode. The mode is fixed once the Assignment starts.',
+          },
         },
         output: {
           schema: { type: 'string' },
@@ -1813,12 +1836,22 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               model: args.model!,
               ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
             });
+          if (args.mode !== undefined) {
+            const modes = await this.#assignmentModes?.(run.bot.slug);
+            if (modes === undefined)
+              throw new Error('create_assignment: DSH modes are unavailable on this Host');
+            if (!modes.allowed.some((mode) => mode.id === args.mode))
+              throw new Error(
+                `create_assignment: mode ${args.mode} is not allowed; choose one of ${modes.allowed.map((mode) => mode.id).join(', ')}`,
+              );
+          }
           const outcome = active.run.assignments.create({
             title: args.title,
             description: args.description,
             ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
             grantId: args.grant_id,
             ...(args.key === undefined ? {} : { key: args.key }),
+            ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
               ? { model: picked, modelGroupId: groupId }
               : args.provider === undefined
@@ -1848,6 +1881,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               ...(outcome.assignment.modelRoute === undefined
                 ? {}
                 : { modelRoute: outcome.assignment.modelRoute }),
+              ...(outcome.assignment.agentPreset === undefined
+                ? {}
+                : { mode: outcome.assignment.agentPreset }),
             });
           }
           if (outcome.outcome === 'capacity') return JSON.stringify(outcome);
@@ -4458,10 +4494,26 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return tools;
   }
 
-  async #composePreset(agentCtx: Context, bot: PersonaBotRecord): Promise<void> {
+  async #composePreset(
+    agentCtx: Context,
+    agent: Agent,
+    run: OrchestratorAgentRun | AssignmentAgentRun,
+  ): Promise<void> {
     const presets = this.#resolveAgentPresets?.();
     if (presets === undefined) return;
-    await presets.mount(agentCtx, bot.preset ?? this.#defaultAgentPresetOf());
+    let recorded: string | undefined;
+    try {
+      recorded = presets.presetForSession?.(agent.session) ?? undefined;
+    } catch {
+      recorded = undefined;
+    }
+    await presets.mount(
+      agentCtx,
+      recorded ??
+        ('agentPreset' in run ? run.agentPreset : undefined) ??
+        run.bot.preset ??
+        this.#defaultAgentPresetOf(),
+    );
   }
 
   #resolveOrchestratorCwd(bot: PersonaBotRecord): string {
@@ -4513,7 +4565,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           rootRole: 'assignment',
         });
         if (!borrowed) {
-          await this.#composePreset(agentCtx, run.bot);
+          await this.#composePreset(agentCtx, agent, run);
         }
         const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
         if (borrowed) borrowedDisposers.push(disposeSelection);

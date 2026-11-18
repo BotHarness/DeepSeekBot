@@ -77,3 +77,9 @@ Users install other DSH modes (agent presets), for example `dsh-ntr`'s ACP mode,
 - The mode is resolved when an Orchestrator or Assignment Session is created. DSH refuses `agent-preset/locked` once a Session has started, so a change applies from the next new Session and never switches a running one.
 
 Outside Tobs a pending question card holds the Bot again, and the Settings note says so. The Bot's own tools (`create_assignment`, `bot_send_message`, the Orchestrator Subagent guard) are installed by the application on every mode. A mode whose model gets no harness tools, such as `dsh-ntr`'s ACP mode, cannot reply in a Channel or report an Assignment; that is the mode's contract, not a refusal by the application.
+
+Mode templates and Assignment modes follow the same rules:
+
+- A mode template (`templates` in `bot-modes.json`) names the modes a Bot may use, and `botTemplates` maps a Bot to one. A Bot without a template may use every installed mode. The template bounds the Bot's own mode and the modes its Orchestrator may give an Assignment.
+- `create_assignment` takes an optional `mode` from that set. The chosen mode is stored with the Assignment (`assignments.agent_preset`) so a restart before the Session exists still starts it in that mode; without a choice the Assignment uses the Bot's mode.
+- When an existing Session is set up again, the application mounts the mode the Session log records (the DSH `agentPreset` projection), not the Bot's current mode, so a later mode change never mounts a different composition into a Session that started under another one.

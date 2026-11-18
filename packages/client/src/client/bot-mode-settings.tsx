@@ -3,10 +3,14 @@ import * as stylex from '@stylexjs/stylex';
 
 import { errorMessage, unwrap, type BridgeCall } from './bridge.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
+import { Button } from './ds/button.js';
+import { FieldStack, TextField } from './ds/field.js';
+import { DangerTextButton, FormDialog } from './ds/form-dialog.js';
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow } from './ds/settings-row.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
+import { Switch } from './ds/switch.js';
 import { color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -20,18 +24,38 @@ export interface BotModeOptionView {
   broken?: string;
 }
 
+export interface BotModeTemplateView {
+  id: string;
+  name: string;
+  modes: string[];
+}
+
 export interface BotModesView {
   modes: BotModeOptionView[];
   productDefault: string;
   globalDefault: string | null;
   effectiveDefault: string;
-  bot?: { slug: string; mode: string | null; effective: string };
+  templates: BotModeTemplateView[];
+  bot?: {
+    slug: string;
+    mode: string | null;
+    effective: string;
+    template: string | null;
+    allowed: string[] | null;
+  };
 }
 
 export interface BotModeActions {
   botModes?(slug?: string): Promise<BotModesView>;
   setBotModeDefault?(mode: string | null): Promise<BotModesView>;
   setBotMode?(slug: string, mode: string | null): Promise<BotModesView>;
+  saveBotModeTemplate?(input: {
+    id?: string;
+    name: string;
+    modes: string[];
+  }): Promise<BotModesView>;
+  deleteBotModeTemplate?(id: string): Promise<BotModesView>;
+  setBotModeTemplate?(slug: string, template: string | null): Promise<BotModesView>;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -42,6 +66,25 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function strings(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+    ? [...(value as string[])]
+    : undefined;
+}
+
+function parseTemplates(value: unknown): BotModeTemplateView[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const template = record(entry);
+    const id = template?.['id'];
+    const name = template?.['name'];
+    const modes = strings(template?.['modes']);
+    return typeof id === 'string' && typeof name === 'string' && modes !== undefined
+      ? [{ id, name, modes }]
+      : [];
+  });
 }
 
 export function parseBotModesView(value: unknown, method: string): BotModesView {
@@ -78,11 +121,20 @@ export function parseBotModesView(value: unknown, method: string): BotModesView 
     productDefault,
     globalDefault,
     effectiveDefault,
+    templates: parseTemplates(view?.['templates']),
     ...(bot !== undefined &&
     typeof bot['slug'] === 'string' &&
     typeof bot['effective'] === 'string' &&
     (bot['mode'] === null || typeof bot['mode'] === 'string')
-      ? { bot: { slug: bot['slug'], mode: bot['mode'], effective: bot['effective'] } }
+      ? {
+          bot: {
+            slug: bot['slug'],
+            mode: bot['mode'],
+            effective: bot['effective'],
+            template: typeof bot['template'] === 'string' ? bot['template'] : null,
+            allowed: strings(bot['allowed']) ?? null,
+          },
+        }
       : {}),
   };
 }
@@ -98,6 +150,18 @@ export function botModeActions(call: BridgeCall): Required<BotModeActions> {
       parseBotModesView(await unwrap(call, 'botModeDefaultSet', { mode }), 'botModeDefaultSet'),
     setBotMode: async (slug, mode) =>
       parseBotModesView(await unwrap(call, 'botModeSet', { slug, mode }), 'botModeSet'),
+    saveBotModeTemplate: async (input) =>
+      parseBotModesView(await unwrap(call, 'botModeTemplateSave', input), 'botModeTemplateSave'),
+    deleteBotModeTemplate: async (id) =>
+      parseBotModesView(
+        await unwrap(call, 'botModeTemplateDelete', { id }),
+        'botModeTemplateDelete',
+      ),
+    setBotModeTemplate: async (slug, template) =>
+      parseBotModesView(
+        await unwrap(call, 'botModeTemplateSet', { slug, template }),
+        'botModeTemplateSet',
+      ),
   };
 }
 
@@ -132,6 +196,11 @@ function modeName(view: BotModesView, id: string, t: BotHarnessTranslate): strin
 
 const PRODUCT = '@product';
 const FOLLOW = '@global';
+const ALL = '@all';
+
+function templateModes(view: BotModesView, template: BotModeTemplateView, t: BotHarnessTranslate) {
+  return template.modes.map((id) => modeName(view, id, t)).join('、');
+}
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
@@ -271,6 +340,18 @@ export function BotModeSettingsEntry({
     );
   const own = view.bot?.mode ?? null;
   const selected = own ?? FOLLOW;
+  const allowed = view.bot?.allowed ?? null;
+  const template = view.bot?.template ?? ALL;
+  const setTemplate = modeActions.setBotModeTemplate;
+  const chooseTemplate = (next: string): void => {
+    if (busy || next === template || setTemplate === undefined) return;
+    setBusy(true);
+    setError(undefined);
+    void setTemplate(botSlug, next === ALL ? null : next)
+      .then(setView)
+      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .finally(() => setBusy(false));
+  };
   const cards = [
     {
       id: FOLLOW,
@@ -281,12 +362,14 @@ export function BotModeSettingsEntry({
     ...(own !== null && !view.modes.some((mode) => mode.id === own)
       ? [{ id: own, title: t('botMode.missing', { id: own }), meta: undefined, disabled: true }]
       : []),
-    ...view.modes.map((mode) => ({
-      id: mode.id,
-      title: modeText(mode, t).name,
-      meta: mode.broken === undefined ? modeText(mode, t).description : t('botMode.broken'),
-      disabled: mode.broken !== undefined,
-    })),
+    ...view.modes
+      .filter((mode) => allowed === null || allowed.includes(mode.id) || mode.id === own)
+      .map((mode) => ({
+        id: mode.id,
+        title: modeText(mode, t).name,
+        meta: mode.broken === undefined ? modeText(mode, t).description : t('botMode.broken'),
+        disabled: mode.broken !== undefined,
+      })),
   ];
   const choose = (id: string): void => {
     if (busy) return;
@@ -301,6 +384,29 @@ export function BotModeSettingsEntry({
   return page(
     <>
       <Note>{t('botMode.nextSession')}</Note>
+      {setTemplate === undefined ? null : (
+        <SettingsRows>
+          <SettingsRow
+            data={{ 'data-bot-mode-template': '' }}
+            title={t('botMode.template.bot.title')}
+            description={
+              template === ALL ? t('botMode.template.bot.all') : t('botMode.template.bot.limited')
+            }
+            control={
+              <Select
+                label={t('botMode.template.bot.title')}
+                value={template}
+                disabled={busy}
+                options={[
+                  { value: ALL, label: t('botMode.template.all') },
+                  ...view.templates.map((entry) => ({ value: entry.id, label: entry.name })),
+                ]}
+                onChange={chooseTemplate}
+              />
+            }
+          />
+        </SettingsRows>
+      )}
       <section aria-label={t('entry.mode')}>
         <SidebarCardList label={t('entry.mode')}>
           {cards.map((card) => {
@@ -329,5 +435,168 @@ export function BotModeSettingsEntry({
       {effective === view.productDefault ? null : <Note>{t('botMode.notTobs')}</Note>}
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
     </>,
+  );
+}
+
+interface TemplateDraft {
+  id?: string;
+  name: string;
+  modes: string[];
+}
+
+export function BotModeTemplateSettings({
+  actions,
+  t,
+}: {
+  actions: BotModeActions;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  const [view, setView, loadError, mount] = useBotModes(actions.botModes, undefined);
+  const [draft, setDraft] = useState<TemplateDraft>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const save = actions.saveBotModeTemplate;
+  const remove = actions.deleteBotModeTemplate;
+  if (actions.botModes === undefined || save === undefined || remove === undefined) return null;
+  const run = (work: () => Promise<BotModesView>): void => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    void work()
+      .then((next) => {
+        setView(next);
+        setDraft(undefined);
+      })
+      .catch((cause: unknown) => setError(errorMessage(cause)))
+      .finally(() => setBusy(false));
+  };
+  const open = (next: TemplateDraft): void => {
+    setError(undefined);
+    setDraft(next);
+  };
+  const installed = view?.modes.filter((mode) => mode.broken === undefined) ?? [];
+  const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const toggle = (current: TemplateDraft, id: string, on: boolean): TemplateDraft => ({
+    ...current,
+    modes: on
+      ? [...current.modes.filter((mode) => mode !== id), id]
+      : current.modes.filter((mode) => mode !== id),
+  });
+  return (
+    <SettingsSection
+      rootRef={mount}
+      data={{ 'data-bot-mode-templates': '' }}
+      title={t('botMode.templates.title')}
+      description={t('botMode.templates.description')}
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={view === undefined}
+          data-bot-mode-template-new=""
+          onClick={() => open({ name: '', modes: [] })}
+        >
+          {t('botMode.templates.new')}
+        </Button>
+      }
+    >
+      {view === undefined ? (
+        <Note inset tone={loadError === undefined ? 'muted' : 'danger'}>
+          {loadError ?? '…'}
+        </Note>
+      ) : view.templates.length === 0 ? (
+        <Note inset>{t('botMode.templates.empty')}</Note>
+      ) : (
+        view.templates.map((template) => (
+          <SettingsRow
+            key={template.id}
+            data={{ 'data-bot-mode-template-row': template.id }}
+            title={template.name}
+            description={templateModes(view, template, t)}
+            control={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  open({
+                    id: template.id,
+                    name: template.name,
+                    modes: [...template.modes],
+                  })
+                }
+              >
+                {t('botMode.templates.edit')}
+              </Button>
+            }
+          />
+        ))
+      )}
+      {draft === undefined || view === undefined ? null : (
+        <FormDialog
+          title={
+            draft.id === undefined
+              ? t('botMode.templates.createTitle')
+              : t('botMode.templates.editTitle')
+          }
+          size="medium"
+          scroll
+          labels={labels}
+          submitLabel={t('botMode.templates.save')}
+          submitData={{ 'data-bot-mode-template-submit': '' }}
+          submitDisabled={draft.name.trim() === '' || draft.modes.length === 0}
+          busy={busy}
+          error={error}
+          onCancel={() => setDraft(undefined)}
+          onSubmit={() =>
+            run(() =>
+              save({
+                ...(draft.id === undefined ? {} : { id: draft.id }),
+                name: draft.name.trim(),
+                modes: installed
+                  .map((mode) => mode.id)
+                  .filter((id) => draft.modes.includes(id))
+                  .concat(draft.modes.filter((id) => !installed.some((mode) => mode.id === id))),
+              }),
+            )
+          }
+          secondary={
+            draft.id === undefined ? undefined : (
+              <DangerTextButton disabled={busy} onClick={() => run(() => remove(draft.id!))}>
+                {t('botMode.templates.delete')}
+              </DangerTextButton>
+            )
+          }
+        >
+          <FieldStack>
+            <TextField
+              label={t('botMode.templates.name')}
+              value={draft.name}
+              initialFocus
+              maxLength={60}
+              autoComplete="off"
+              onChange={(name) => setDraft({ ...draft, name })}
+            />
+            <Note>{t('botMode.templates.pick')}</Note>
+            <SettingsRows>
+              {installed.map((mode) => (
+                <SettingsRow
+                  key={mode.id}
+                  title={modeText(mode, t).name}
+                  description={modeText(mode, t).description}
+                  control={
+                    <Switch
+                      label={modeText(mode, t).name}
+                      checked={draft.modes.includes(mode.id)}
+                      disabled={busy}
+                      onChange={(on) => setDraft(toggle(draft, mode.id, on))}
+                    />
+                  }
+                />
+              ))}
+            </SettingsRows>
+          </FieldStack>
+        </FormDialog>
+      )}
+    </SettingsSection>
   );
 }

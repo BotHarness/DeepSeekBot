@@ -997,9 +997,16 @@ A Bot's Sessions run in a DSH mode (an Agent Preset). Every Bot without its own 
 deepseekbot bot-modes [<bot-id>]
 deepseekbot bot-mode-default-set <mode>|@product
 deepseekbot bot-mode-set <bot-id> <mode>|@global
+deepseekbot bot-mode-template-save [--id <template-id>] <name> <mode>...
+deepseekbot bot-mode-template-delete <template-id>
+deepseekbot bot-mode-template-set <bot-id> <template-id>|@all
 ```
 
-Each command returns `{modes, productDefault, globalDefault, effectiveDefault}`; with a Bot it also returns `bot: {slug, mode, effective}`. `modes` is the DSH roster (`id`, `name`, `description`, `order`, and `broken` when the mode failed to load). `productDefault` is Tobs (`deepseekbot`), `globalDefault` is the Human's choice or `null`, and a Bot's `mode` is its own choice or `null` when it follows the default. `@product` returns the default to Tobs and `@global` makes a Bot follow the default again. Only Tobs answers a question card after 45 seconds and keeps handling other messages; in other modes a pending question card holds the Bot. Refusals carry a code: `usage`, `invalid-input`, `not-found` (unknown Bot), `mode-not-found` (not installed), `mode-broken` and `modes-unavailable` (no DSH mode service).
+Each command returns `{modes, productDefault, globalDefault, effectiveDefault, templates}`; with a Bot it also returns `bot: {slug, mode, effective, template, allowed}`. `modes` is the DSH roster (`id`, `name`, `description`, `order`, and `broken` when the mode failed to load). `productDefault` is Tobs (`deepseekbot`), `globalDefault` is the Human's choice or `null`, and a Bot's `mode` is its own choice or `null` when it follows the default. `@product` returns the default to Tobs and `@global` makes a Bot follow the default again. Only Tobs answers a question card after 45 seconds and keeps handling other messages; in other modes a pending question card holds the Bot. Refusals carry a code: `usage`, `invalid-input`, `not-found` (unknown Bot), `mode-not-found` (not installed), `mode-broken` and `modes-unavailable` (no DSH mode service).
+
+A mode template (`{id, name, modes}`) limits which modes a Bot can use. A Bot without one (`template: null`, `allowed: null`) can use every installed mode; `@all` returns a Bot to that. With a template, `bot-mode-set` refuses a mode outside it with `mode-not-allowed`, and so do `bot-mode-template-set` and a template edit that would leave out a Bot's own mode; change the Bot's mode first. `bot-mode-template-delete` refuses a template a Bot still uses with `template-in-use`.
+
+An Orchestrator can start an Assignment in another mode: `list_assignment_models` returns `assignmentModes: {default, allowed}`, and `create_assignment` takes an optional `mode` from `allowed` (the Bot's template, or every installed mode). Without `mode` the Assignment uses the Bot's mode. The choice is stored with the Assignment and DSH fixes it once the Session starts; a keyed Assignment that is reused keeps its mode. The same works through `bot-tool <bot-id> create_assignment --args-stdin` with `{"title":"…","description":"…","grant_id":"<grant-id>","mode":"ptc"}`.
 
 ### Idle Compaction
 

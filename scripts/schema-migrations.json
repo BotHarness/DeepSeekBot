@@ -646,5 +646,9 @@
   {
     "id": "assignment-model-group",
     "sha256": "13a736b040c4019d21fc4942a5f27a8f1b0924b632af6f1dff0380a018cc7a76"
+  },
+  {
+    "id": "assignment-agent-preset",
+    "sha256": "144837582ece0ca36c27feae9b720c07d660e8aa97e57f01bae83a2a8792eacd"
   }
 ]
