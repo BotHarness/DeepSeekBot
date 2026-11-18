@@ -18,6 +18,7 @@ vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 import type { AccountProfileState } from '../src/account/account-profile';
 import { AccountNameEditor } from '../src/ui/shell/account-name-editor';
+import { ProfileSetupView } from '../src/ui/shell/profile-setup-view';
 import { AccountProfileView } from '../src/ui/shell/account-profile-view';
 import { UploadedBotsView } from '../src/ui/shell/uploaded-bots-view';
 import type { MarketplaceAuthoredBot } from '../../../packages/core/src/marketplace/client';
@@ -149,6 +150,34 @@ describe('Account Profile screen', () => {
     await act(async () => save.click());
     expect(onSave).toHaveBeenCalledWith('爱丽丝');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('asks a new Team member for a name and photo, saving a changed name or skipping', async () => {
+    const onDone = vi.fn(async () => {});
+    const onLater = vi.fn(async () => {});
+    const view = await render(
+      <ProfileSetupView
+        name="Mia"
+        avatar={undefined}
+        editor={editor}
+        onDone={onDone}
+        onLater={onLater}
+      />,
+    );
+    expect(view.textContent).toContain(t.accountProfile.setupTitle);
+    const field = view.querySelector('textarea')!;
+    expect(field.value).toBe('Mia');
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(field, ' Mia Chen ');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => (byTestId(view, 'profile-setup-done') as HTMLButtonElement).click());
+    expect(onDone).toHaveBeenCalledWith('Mia Chen');
+    await act(async () => (byTestId(view, 'profile-setup-later') as HTMLButtonElement).click());
+    expect(onLater).toHaveBeenCalled();
+    await act(async () => (byTestId(view, 'profile-setup-photo') as HTMLButtonElement).click());
+    expect(editor.choose).toHaveBeenCalled();
   });
 
   it('lists uploaded Bots with size, date and a taken-down mark', async () => {

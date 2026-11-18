@@ -32,6 +32,15 @@ describe('Human profile parsers', () => {
     ).toThrow();
   });
 
+  it('reads a pending first sign-in profile prompt and ignores other values', () => {
+    const base = { humanId: 'mia', defaultDisplayName: null, displayName: 'Mia' };
+    expect(parseHumanIdentity({ ...base, profileSetup: 'pending' })).toEqual({
+      ...base,
+      profileSetup: 'pending',
+    });
+    expect(parseHumanIdentity({ ...base, profileSetup: 'done' })).toEqual(base);
+  });
+
   it('drops avatars that are not bounded image data URLs', () => {
     expect(
       parseHumanAvatars({

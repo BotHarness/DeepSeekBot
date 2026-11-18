@@ -24,7 +24,8 @@ A Human could set a chat name on the Host (ADR-0103) but their picture came only
 
 - The desktop app shows each Human's picture in messages, member lists and the profile entry, with or without a Tobs sign-in. The phone shows it on the profile entry and in Settings; phone message and member rows keep the initial-letter placeholder until #4446. Settings → Profile edits the chat name and picture on the Host first and shows the Tobs account below it.
 - Team members can set their name and picture right after their first sign-in and at any time later; an admin creating a member sets the display name, and the member chooses the picture.
-- New CLI: `human-avatar-set (--file | --clear)` and `human-avatars <human-id>...`.
+- First sign-in prompt (amended 2026-11-18 at the Human's request): while a non-Owner member has no picture and has neither finished nor skipped it, `humanIdentity` carries `profileSetup: 'pending'`. The desktop/browser Client and the phone then ask once for a name and picture, prefilled with the admin-set name. Done or Later calls `humanProfileSetupFinish`, recorded per Human in `human_profile_setup`, so no other device asks again. The Owner is never asked. A member who already has a picture is not asked.
+- New CLI: `human-avatar-set (--file | --clear)`, `human-avatars <human-id>...` and `human-profile-setup-finish`.
 
 ## References
 

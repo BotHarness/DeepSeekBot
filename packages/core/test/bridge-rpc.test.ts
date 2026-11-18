@@ -876,6 +876,7 @@ describe('bridge typert service', () => {
       'humanNameSet',
       'humanAvatarSet',
       'humanAvatars',
+      'humanProfileSetupFinish',
       'channelHumanNameSet',
       'channelDm',
       'channelGet',

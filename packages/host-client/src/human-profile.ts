@@ -3,6 +3,7 @@ export interface HumanIdentity {
   defaultDisplayName: string | null;
   displayName: string;
   avatarVersion?: string;
+  profileSetup?: 'pending';
 }
 
 export interface HumanAvatarImage {
@@ -42,6 +43,7 @@ export function parseHumanIdentity(value: unknown): HumanIdentity {
     defaultDisplayName: name,
     displayName: item['displayName'],
     ...(typeof version === 'string' ? { avatarVersion: version } : {}),
+    ...(item['profileSetup'] === 'pending' ? { profileSetup: 'pending' as const } : {}),
   };
 }
 

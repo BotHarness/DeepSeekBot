@@ -369,6 +369,7 @@ Usage:
   tobs roster | human-identity | part-library
   tobs human-avatar-set (--file <image> | --clear)
   tobs human-avatars <human-id>...
+  tobs human-profile-setup-finish
   tobs roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
   tobs roster-pins-set|roster-hidden-set [<channel>...]
   tobs roster-section-create <name>

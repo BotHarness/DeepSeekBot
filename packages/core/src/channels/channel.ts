@@ -338,6 +338,7 @@ export interface LocalHumanIdentity {
   defaultDisplayName: string | null;
   displayName: string;
   avatarVersion?: string;
+  profileSetup?: 'pending';
 }
 
 export interface HumanAvatar {

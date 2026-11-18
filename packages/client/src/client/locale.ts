@@ -1679,6 +1679,15 @@ export const zh = {
   'humanAvatar.error': '未能保存头像，请重试。',
   'humanAvatar.loadError': '未能读取你的头像。',
   'humanAvatar.retry': '重试',
+  'profileSetup.title': '设置你的名字和头像',
+  'profileSetup.description':
+    '同一个 Host 上的成员会在消息和成员列表里看到它们。之后可以在 设置 → 个人资料 里修改。',
+  'profileSetup.name': '名字',
+  'profileSetup.nameHint': '管理员创建账号时填写的名字，可以直接改',
+  'profileSetup.choosePhoto': '选择头像',
+  'profileSetup.later': '稍后',
+  'profileSetup.done': '完成',
+  'profileSetup.error': '未能保存，请重试。',
   'assignmentLimit.title': 'Assignment 并发上限',
   'assignmentLimit.description':
     '所有 Bot 共用，限制同时执行的任务数量（1–32），不限制历史会话。降低上限不会中止正在执行的任务。',
@@ -7879,6 +7888,15 @@ export const en = {
   'humanAvatar.error': 'Could not save your photo. Try again.',
   'humanAvatar.loadError': 'Could not load your photo.',
   'humanAvatar.retry': 'Retry',
+  'profileSetup.title': 'Choose your name and photo',
+  'profileSetup.description':
+    'Members of this Host see them in messages and member lists. You can change them later in Settings → Profile.',
+  'profileSetup.name': 'Name',
+  'profileSetup.nameHint': 'The name your admin entered. You can change it.',
+  'profileSetup.choosePhoto': 'Choose photo',
+  'profileSetup.later': 'Later',
+  'profileSetup.done': 'Done',
+  'profileSetup.error': 'Could not save. Try again.',
   'assignmentLimit.title': 'Assignment concurrency limit',
   'assignmentLimit.description':
     'Shared by all Bots. Limits concurrently executing tasks (1–32), not Session history. Lowering it does not stop running work.',

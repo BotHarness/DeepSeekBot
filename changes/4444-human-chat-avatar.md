@@ -4,8 +4,8 @@ section: Added
 
 ## en
 
-- Set your own chat photo and name in Settings → Profile on the computer and the phone without signing in to Tobs. Your photo shows next to your messages and in member lists, including for every member of a Team Host, and on the phone you can set your nickname for each group under the group's settings. The Tobs account photo stays the one shown on Bots you share. The CLI adds `human-avatar-set` and `human-avatars` ([#4444](https://github.com/BotHarness/DeepSeekBot/pull/4444)).
+- Set your own chat photo and name in Settings → Profile on the computer and the phone without signing in to Tobs. Your photo shows next to your messages and in member lists, including for every member of a Team Host, and on the phone you can set your nickname for each group under the group's settings. The Tobs account photo stays the one shown on Bots you share. A new Team member is asked once, after their first sign-in, to choose a name and photo; Later skips it on every device. The CLI adds `human-avatar-set`, `human-avatars` and `human-profile-setup-finish` ([#4444](https://github.com/BotHarness/DeepSeekBot/pull/4444)).
 
 ## zh
 
-- 电脑和手机的「设置 → 个人资料」都可以直接设置聊天头像和名字，不用登录 Tobs。头像会显示在你的消息旁和成员列表里，Team Host 的每个成员都一样；手机上还能在群设置里设置你在这个群的昵称。Tobs 账号的头像仍只用在你分享的 Bot 上。CLI 新增 `human-avatar-set` 和 `human-avatars`（[#4444](https://github.com/BotHarness/DeepSeekBot/pull/4444)）。
+- 电脑和手机的「设置 → 个人资料」都可以直接设置聊天头像和名字，不用登录 Tobs。头像会显示在你的消息旁和成员列表里，Team Host 的每个成员都一样；手机上还能在群设置里设置你在这个群的昵称。Tobs 账号的头像仍只用在你分享的 Bot 上。Team 新成员第一次登录后会被请求填写一次名字和头像，选「稍后」后所有设备都不再询问。CLI 新增 `human-avatar-set`、`human-avatars` 和 `human-profile-setup-finish`（[#4444](https://github.com/BotHarness/DeepSeekBot/pull/4444)）。

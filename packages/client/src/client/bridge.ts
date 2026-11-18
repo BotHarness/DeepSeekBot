@@ -3565,6 +3565,10 @@ export async function setHumanAvatar(
   return parseHumanIdentity(await unwrap(call, 'humanAvatarSet', { avatar }));
 }
 
+export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanProfileSetupFinish', {}));
+}
+
 export async function loadHumanAvatars(
   call: BridgeCall,
   humanIds: string[],

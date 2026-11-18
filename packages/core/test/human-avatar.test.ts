@@ -83,7 +83,6 @@ describe('Human chat avatars', () => {
       });
 
       expect(owner.humanAvatarSet({ avatar: null })).toMatchObject({ ok: true });
-      expect(owner.humanIdentity({})).toMatchObject({ ok: true });
       expect(
         (owner.humanIdentity({}) as { value: { avatarVersion?: string } }).value.avatarVersion,
       ).toBeUndefined();
@@ -114,6 +113,50 @@ describe('Human chat avatars', () => {
       expect(
         owner.humanAvatars({ humanIds: Array.from({ length: 65 }, (_, i) => `h${i}`) }),
       ).toMatchObject({ ok: false });
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
+  it('asks a Team member without a photo once for a chat name and photo, never the Owner', async () => {
+    const home = createTempRoot('botharness-human-profile-setup-');
+    const core = createCore({ dshHome: home });
+    const database = attachOperationalModule(core.operationalDatabase, 'team');
+    database.transaction(
+      (db) => {
+        for (const id of ['mia', 'leo', 'kai'])
+          db.prepare(`INSERT INTO humans VALUES (?, ?, 'active', ?)`).run(
+            id,
+            id,
+            new Date().toISOString(),
+          );
+      },
+      ['team'],
+    );
+    try {
+      const owner = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
+      const mia = createBridgeMethods(humanContext('mia'), core);
+      const leo = createBridgeMethods(humanContext('leo'), core);
+      const kai = createBridgeMethods(humanContext('kai'), core);
+      const identity = (methods: typeof owner) => {
+        const result = methods.humanIdentity({});
+        if (!result.ok) throw new Error(result.error.message);
+        return result.value;
+      };
+      expect(identity(owner)).not.toHaveProperty('profileSetup');
+      for (const member of [mia, leo, kai])
+        expect(member.humanIdentity({})).toMatchObject({ value: { profileSetup: 'pending' } });
+
+      expect(mia.humanProfileSetupFinish({ extra: 1 })).toMatchObject({ ok: false });
+      const skipped = mia.humanProfileSetupFinish({});
+      expect(skipped.ok && skipped.value).not.toHaveProperty('profileSetup');
+      expect(identity(mia)).not.toHaveProperty('profileSetup');
+
+      expect(leo.humanNameSet({ displayName: 'Leo' }).ok).toBe(true);
+      expect(identity(leo)).toMatchObject({ displayName: 'Leo', profileSetup: 'pending' });
+      expect(kai.humanAvatarSet({ avatar: webp(3) }).ok).toBe(true);
+      expect(identity(kai)).not.toHaveProperty('profileSetup');
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

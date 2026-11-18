@@ -900,6 +900,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
   humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
@@ -6118,6 +6119,11 @@ function buildBridgeMethods(
       if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
         return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
       return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
+    },
+    humanProfileSetupFinish(payload) {
+      if (!z.object({}).strict().safeParse(payload).success)
+        return invalidInput('humanProfileSetupFinish takes no arguments');
+      return { ok: true, value: deps.channels.finishHumanProfileSetup(human) };
     },
     humanAvatars(payload) {
       const input = z

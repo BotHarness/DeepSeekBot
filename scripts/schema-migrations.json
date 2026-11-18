@@ -642,5 +642,9 @@
   {
     "id": "human-avatar-channel-changes",
     "sha256": "f6056f3b8ef9b6a7c8e946bae4b134e83af454b4ec9259aabbf45f0b8a3bc9f8"
+  },
+  {
+    "id": "human-profile-setup",
+    "sha256": "b0262ea93b28bc5b54d04c57a7782f2f4f8bc39c025bbf63c02180932cd06f42"
   }
 ]

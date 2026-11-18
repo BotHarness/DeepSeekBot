@@ -3849,6 +3849,21 @@ const HUMAN_AVATAR_CHANGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_PROFILE_SETUP_MIGRATION: SchemaMigration = {
+  id: 'human-profile-setup',
+  module: 'human-identity',
+  description:
+    'Remember which Team members finished or skipped the first chat name and photo prompt',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE human_profile_setup (
+        human_id TEXT PRIMARY KEY,
+        finished_at TEXT NOT NULL
+      ) STRICT;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4011,4 +4026,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   REMOTE_HOST_CUSTODY_MIGRATION,
   HUMAN_AVATAR_MIGRATION,
   HUMAN_AVATAR_CHANGE_MIGRATION,
+  HUMAN_PROFILE_SETUP_MIGRATION,
 ]);

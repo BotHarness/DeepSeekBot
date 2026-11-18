@@ -997,6 +997,7 @@ describe('plugin entry', () => {
       'humanNameSet',
       'humanAvatarSet',
       'humanAvatars',
+      'humanProfileSetupFinish',
       'channelHumanNameSet',
       'channelDm',
       'channelGet',

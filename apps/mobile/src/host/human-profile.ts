@@ -101,6 +101,14 @@ export async function saveHumanAvatar(
   return remember(client, identity, true);
 }
 
+export async function finishHumanProfileSetup(client: HostClient): Promise<HumanIdentity> {
+  return remember(
+    client,
+    parseHumanIdentity(await client.call<unknown>('humanProfileSetupFinish', {})),
+    true,
+  );
+}
+
 export function useHumanIdentity(client: HostClient | undefined) {
   useSyncExternalStore(identitySource.subscribe, identitySource.getSnapshot);
   const identity = client === undefined ? undefined : identities.get(client);

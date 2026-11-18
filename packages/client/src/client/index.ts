@@ -129,6 +129,7 @@ import {
   mountDesktopNotifications,
 } from './desktop-notifications.js';
 import { openHumanAttentionSource } from './human-attention-source.js';
+import { HumanProfileSetup } from './human-profile-setup.js';
 import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
@@ -383,6 +384,17 @@ export function apply(ctx: ClientContext): void {
         }),
       },
       BotSessionFolders,
+    ),
+  );
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      {
+        name: 'shell.overlay',
+        id: 'botharness-human-profile-setup',
+        locale: LOCALE_NS,
+        inject: () => ({ call, actions }),
+      },
+      HumanProfileSetup,
     ),
   );
   const botSettings = new BotSettings();

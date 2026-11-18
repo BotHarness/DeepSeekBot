@@ -360,6 +360,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'human_avatars'")
           .get() !== undefined,
     ));
+  let profileSetupTableCache: boolean | undefined;
+  const profileSetupTable = () =>
+    (profileSetupTableCache ??= database.read(
+      (db) =>
+        db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'human_profile_setup'",
+          )
+          .get() !== undefined,
+    ));
   const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
   const insertSourceAdmission = (
     db: DatabaseSync,
@@ -639,11 +649,24 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
     const avatarVersion = row?.avatar_version ?? undefined;
+    const pending =
+      avatarVersion === undefined &&
+      profileSetupTable() &&
+      database.read(
+        (db) =>
+          db
+            .prepare(`SELECT 1 FROM humans h
+               WHERE h.human_id = ?
+                 AND h.human_id IS NOT COALESCE((SELECT owner_human_id FROM team_settings), 'local-human')
+                 AND NOT EXISTS (SELECT 1 FROM human_profile_setup s WHERE s.human_id = h.human_id)`)
+            .get(human.humanId) !== undefined,
+      );
     return {
       humanId: human.humanId,
       defaultDisplayName,
       displayName: defaultDisplayName ?? row?.display_name ?? 'Human',
       ...(avatarVersion === undefined ? {} : { avatarVersion }),
+      ...(pending ? { profileSetup: 'pending' as const } : {}),
     };
   };
 
@@ -1948,6 +1971,19 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         ['human-identity'],
       );
       options.onRecordChanged?.();
+      return humanIdentity(human);
+    },
+    finishHumanProfileSetup(human: HumanContext) {
+      if (profileSetupTable())
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                'INSERT INTO human_profile_setup (human_id, finished_at) VALUES (?, ?) ON CONFLICT(human_id) DO NOTHING',
+              )
+              .run(human.humanId, now().toISOString()),
+          ['human-identity'],
+        );
       return humanIdentity(human);
     },
     humanAvatars(human: HumanContext, humanIds) {

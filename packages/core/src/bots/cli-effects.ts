@@ -262,6 +262,7 @@ export const CLI_EFFECTS = {
   'human-identity': { effects: read, brokerRead: true },
   'human-avatar-set': { effects: write, brokerRead: false },
   'human-avatars': { effects: read, brokerRead: true },
+  'human-profile-setup-finish': { effects: write, brokerRead: false },
   'human-name-set': { effects: write, brokerRead: false },
   'idle-compaction': { effects: read, brokerRead: true },
   'idle-compaction-cache-set': { effects: write, brokerRead: false },

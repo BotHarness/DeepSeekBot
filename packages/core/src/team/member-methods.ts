@@ -91,6 +91,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'humanNameSet',
   'humanAvatarSet',
   'humanAvatars',
+  'humanProfileSetupFinish',
   'composerIdentity',
   'ping',
   'tobHome',

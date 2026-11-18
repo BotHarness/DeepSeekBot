@@ -60,6 +60,10 @@ export const PROFILE_COMMANDS = [
     command: 'human-avatars',
     description: 'read the chat avatars of Humans you share a Channel with, by Human ID',
   },
+  {
+    command: 'human-profile-setup-finish',
+    description: 'stop asking a new Team member for a chat name and photo at sign-in',
+  },
   { command: 'part-library', description: 'list the Custom Part Library' },
   { command: 'part-library-add', description: 'save a Custom Part JSON from stdin to the library' },
   {
@@ -349,6 +353,9 @@ export async function profileCall(
         { avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
       ];
     }
+    case 'human-profile-setup-finish':
+      noArguments(command, rest);
+      return ['humanProfileSetupFinish', {}];
     case 'human-avatars': {
       const humanIds = rest.map((id) => id.trim()).filter((id) => id.length > 0);
       if (humanIds.length === 0 || humanIds.length > 64)

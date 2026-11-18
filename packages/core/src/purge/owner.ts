@@ -215,6 +215,7 @@ export function mountContentPurge(options: {
           'local_human_names',
           'channel_human_nicknames',
           'human_avatars',
+          'human_profile_setup',
           'channel_human_members',
           'channel_read_positions',
           'human_attention_decisions',

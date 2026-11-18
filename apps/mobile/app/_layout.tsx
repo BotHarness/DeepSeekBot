@@ -87,6 +87,7 @@ function RootNavigator() {
     ['profile', t.accountProfile.title],
     ['profile-name', undefined],
     ['chat-name', undefined],
+    ['profile-setup', undefined],
     ['uploaded-bots', t.accountProfile.uploads],
     ['usage', t.usage],
     ['models', t.modelSettings.title],
@@ -193,7 +194,9 @@ function RootNavigator() {
                       name={`settings/${name}`}
                       options={{
                         ...(title === undefined ? {} : { title }),
-                        ...(name === 'profile-name' || name === 'chat-name'
+                        ...(name === 'profile-name' ||
+                        name === 'chat-name' ||
+                        name === 'profile-setup'
                           ? { headerShown: false }
                           : {}),
                         headerStyle: { backgroundColor: design.overlay.fill },
