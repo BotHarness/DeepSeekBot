@@ -43,6 +43,13 @@ describe('phone model rows', () => {
     expect(
       shortModelName({ provider: 'opencode-go', model: 'minimax-m3', modelName: 'MiniMax-M3' }),
     ).toBe('MiniMax-M3');
+    expect(
+      shortModelName({
+        provider: 'opencode-go',
+        model: 'qwen3.8-flash',
+        modelName: 'Qwen3.8 Flash',
+      }),
+    ).toBe('Qwen3.8 Flash');
   });
 
   it('describe a Preset with short labels and Routing Group names', () => {

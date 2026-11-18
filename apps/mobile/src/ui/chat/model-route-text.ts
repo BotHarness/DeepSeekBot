@@ -86,7 +86,7 @@ export function keptEffort(entry: ModelCatalogEntry, previous: ModelRoute | unde
 
 export function shortModelName(entry: { provider: string; model: string; modelName: string }) {
   const { short } = modelEntryLabel(entry);
-  return short.length > 3 && /\p{L}/u.test(short) ? short : entry.modelName;
+  return short.length > 3 && /^\p{L}/u.test(short) ? short : entry.modelName;
 }
 
 function presetSide(

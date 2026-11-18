@@ -229,6 +229,15 @@ describe('Model commands', () => {
       method: 'modelPlanSet',
       args: { slug: 'ada', expectedRevision: 5, ...grouped },
     });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestratorGroupEffort: 'max' }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped, orchestratorGroupEffort: 'max' },
+    });
   });
 
   it('opens or keeps listed Assignment models with --assignment-models', async () => {
