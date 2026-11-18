@@ -2,6 +2,7 @@ import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode } from 'react';
 import { fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { Tooltip } from './ds/tooltip.js';
 import { channelAttachmentUrl } from './bridge.js';
 import {
@@ -68,7 +69,7 @@ export function ClearedMessageAttachment({
     <div className="bh-message-file bh-message-file-cleared" data-cleared-attachment="">
       <span className="bh-message-file-main">
         <span className="bh-message-file-icon" aria-hidden="true">
-          <Icon name="file" size={28} />
+          <FileTypeIcon path={item.name} size={28} />
         </span>
         <span className="bh-message-file-copy">
           <span className="bh-message-file-name" title={item.name}>
@@ -92,7 +93,7 @@ function FileTile({ name }: { name: string }): ReactElement {
       data-file-tone={tile.tone}
       aria-hidden="true"
     >
-      {tile.label === '' ? <Icon name="file" size={20} /> : tile.label}
+      {tile.label === '' ? <FileTypeIcon path={name} size={20} /> : tile.label}
     </span>
   );
 }
@@ -319,7 +320,7 @@ function CompactAttachment({
   const contents = (
     <>
       <span className="bh-message-file-icon" aria-hidden="true">
-        <Icon name="file" size={16} />
+        <FileTypeIcon path={ref.name} size={16} />
       </span>
       <span className="bh-message-file-copy">
         <span className="bh-message-file-name" title={ref.name}>

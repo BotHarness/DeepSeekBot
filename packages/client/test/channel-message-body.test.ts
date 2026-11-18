@@ -51,6 +51,8 @@ const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMount
 });
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  FileTypeIcon: ({ path }: { path: string }) =>
+    createElement('span', { 'data-file-type-icon': path }),
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   fileSizeText: (bytes: number) =>
     bytes >= 1048576

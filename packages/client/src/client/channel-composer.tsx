@@ -23,6 +23,7 @@ import {
 } from 'react';
 
 import { ImageLightbox, fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -347,7 +348,7 @@ function ComposerFileAttachment({
       aria-busy={item.status === 'uploading'}
     >
       <span className="bh-composer-file-icon" aria-hidden="true">
-        <Icon name="file" size={24} />
+        <FileTypeIcon path={item.file.name} size={24} />
       </span>
       <ComposerAttachmentCopy item={item} t={t} onRetry={onRetry} />
       <button
@@ -1659,7 +1660,11 @@ export function ChannelComposer({
           ),
         )}
         {attachmentMounts.map((mount, index) =>
-          createPortal(<Icon name="file" size={16} />, mount.target, `attachment-${index}`),
+          createPortal(
+            <FileTypeIcon path={mount.name} size={16} />,
+            mount.target,
+            `attachment-${index}`,
+          ),
         )}
         <input
           ref={fileInputRef}

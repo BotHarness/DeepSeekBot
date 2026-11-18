@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  FileTypeIcon: ({ path }: { path: string }) =>
+    createElement('span', { 'data-file-type-icon': path }),
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 
   ImageLightbox: () => null,
@@ -144,7 +146,9 @@ describe('Channel composer', () => {
     expect(markup).toContain('class="bh-composer-image-preview"');
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('class="bh-composer-attachment-card bh-composer-file-attachment"');
-    expect(markup).toContain('data-icon="file"');
+    expect(markup).toContain(
+      'data-file-type-icon="a-very-long-report-name-that-needs-truncation.docx"',
+    );
     expect(markup).toContain('class="bh-composer-attachment-name"');
     expect(markup).toContain('上传中');
   });

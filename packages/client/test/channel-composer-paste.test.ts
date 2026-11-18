@@ -6,6 +6,8 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  FileTypeIcon: ({ path }: { path: string }) =>
+    createElement('span', { 'data-file-type-icon': path }),
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 
   fileSizeText: (size: number) => `${size} B`,
@@ -309,7 +311,7 @@ describe('Channel composer clipboard attachments', () => {
     expect(createObjectURL).toHaveBeenCalledWith(image);
     expect(container.querySelector('.bh-composer-image-attachment')).not.toBeNull();
     expect(container.querySelector('.bh-composer-file-attachment')).not.toBeNull();
-    expect(container.querySelector('[data-icon="file"]')).not.toBeNull();
+    expect(container.querySelector('[data-file-type-icon$=".docx"]')).not.toBeNull();
     expect(container.querySelector('.bh-composer-image-reference')?.textContent).toBe('1');
     expect(container.querySelector('.bh-composer-file-reference')?.textContent).toBe('2');
     expect(container.querySelectorAll('.bh-composer-attachment-card')).toHaveLength(2);

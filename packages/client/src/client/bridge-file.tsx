@@ -1,3 +1,4 @@
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { Icon } from './ds/icon.js';
 import { useMessageHost } from './message-host.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
@@ -76,7 +77,7 @@ export function BridgeFile({
           }}
         >
           <span className="bh-message-file-icon" aria-hidden="true">
-            <Icon name="file" size={28} />
+            <FileTypeIcon path={name} size={28} />
           </span>
           <span className="bh-message-file-copy">
             <span className="bh-message-file-name" title={name}>

@@ -1,3 +1,4 @@
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { useState, type KeyboardEvent, type ReactElement } from 'react';
@@ -247,7 +248,7 @@ export function MemoryFileTree({
               onClick={() => onSelect?.(node.path)}
             >
               <span aria-hidden="true" {...stylex.props(styles.chevron)} />
-              <Icon name="file" size={16} />
+              <FileTypeIcon path={node.path} size={16} />
               <span {...stylex.props(styles.name, usageByPath.has(node.path) && styles.fixedName)}>
                 {node.name}
               </span>

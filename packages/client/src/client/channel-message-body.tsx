@@ -35,6 +35,7 @@ import {
   useMarkdownDelegate,
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 
 import { errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -982,7 +983,7 @@ export function ChannelMessageBody({
           }}
         >
           <span className="bh-attachment-ordinal">{attachedFiles.indexOf(item) + 1}</span>
-          <Icon name="file" size={16} />
+          <FileTypeIcon path={item.file.name} size={16} />
           <span className="bh-composer-inline-attachment-name">{item.file.name}</span>
           <span className="bh-composer-inline-attachment-size">{fileSizeText(item.file.size)}</span>
         </button>
