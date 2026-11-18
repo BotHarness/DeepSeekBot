@@ -98,7 +98,7 @@ import {
   parseGenuiDocumentView as parseHostGenuiDocumentView,
   saveGenuiDocumentView as saveGenuiDocumentViewTo,
 } from '@botharness/host-client/genui/view';
-import { clientLog } from './diagnostic-log.js';
+import { clientLog, reportFailure } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
@@ -4008,7 +4008,7 @@ const SESSION_TOOL_KINDS: readonly string[] = [
 export interface SessionEngine {
   engine: string;
   account?: string;
-  state: 'starting' | 'running' | 'idle';
+  state: 'starting' | 'running' | 'waiting-approval' | 'idle';
 }
 
 export interface SessionTranscript {
@@ -4027,7 +4027,8 @@ function parseSessionEngine(value: unknown): SessionEngine | undefined {
   return {
     engine: engine['engine'],
     ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
-    state: state === 'starting' || state === 'running' ? state : 'idle',
+    state:
+      state === 'starting' || state === 'running' || state === 'waiting-approval' ? state : 'idle',
   };
 }
 
@@ -4653,7 +4654,11 @@ export function parseStoredChannelMessage(value: unknown): ChannelMessage | unde
   )
     return undefined;
   const revision = record?.['channelRevision'];
-  console.warn('botharness: showing an unreadable Channel message as plain text', id);
+  reportFailure(
+    'showing-an-unreadable-channel-message-as-plain-text',
+    'showing an unreadable Channel message as plain text',
+    id,
+  );
   return {
     id,
     at,

@@ -10,6 +10,7 @@ vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: ({
     size: _size,
@@ -18,8 +19,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
     createElement('button', props),
   Checkbox: () => null,
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
+
   Switch: ({
     label,
     checked,

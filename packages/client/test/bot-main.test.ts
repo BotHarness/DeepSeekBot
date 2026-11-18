@@ -4,14 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-const menus = vi.hoisted(
-  () =>
-    [] as Array<{
-      items?: Array<{ id: string; label?: string }>;
-      onSelect?(id: string): void;
-    }>,
-);
-
 vi.mock('../src/client/ds/button.js', async () => ({
   Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
 }));
@@ -21,16 +13,17 @@ vi.mock('../src/client/ds/input.js', async () => ({
 vi.mock('../src/client/ds/segmented.js', async () => ({
   SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
     IconStopFillRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
-    Toast: stub,
+
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -59,29 +52,22 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPinOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
-    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
-      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
+
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
     Input: stub,
-    Menu: (props: { anchor?: unknown; items?: Array<{ id: string }> }) => {
-      menus.push(props);
-      return props.anchor ?? null;
-    },
-    MenuItemButton: stub,
-    MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
-      createElement('div', { ...props, ref }),
-    ),
+
     MarkdownText: stub,
-    Modal: stub,
+
     SegmentedControl: stub,
     StateDot: stub,
     Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
+import { menuItem } from './primitive-mocks.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
@@ -856,7 +842,6 @@ describe('Bot main Sessions pane', () => {
           }),
         ),
       );
-      menus.length = 0;
       await act(async () =>
         container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
           new MouseEvent('contextmenu', {
@@ -867,12 +852,11 @@ describe('Bot main Sessions pane', () => {
           }),
         ),
       );
-      const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'copy'));
-      const ids = menu?.items?.map((item) => item.id);
-      expect(ids?.slice(0, 2)).toEqual(['time', 'copy']);
-      expect(ids).not.toContain('reply');
-      expect(ids).not.toContain('react');
-      expect(ids).not.toContain('feedback');
+      const popup = document.querySelector('[role="menu"]')!;
+      expect(popup.querySelector('[role=presentation]')?.textContent).toMatch(/\S/);
+      expect(
+        [...popup.querySelectorAll('[role=menuitem]')].map((item) => item.textContent),
+      ).toEqual([zhTranslate('message.copy'), zhTranslate('message.select')]);
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -1199,7 +1183,13 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-group-position="last"');
     expect(markup.match(/class="bh-message-group-avatar"/g)).toHaveLength(1);
     expect(markup.match(/class="bh-message-group-avatar-link"/g)).toHaveLength(1);
-    expect(markup.match(/data-hover-card="author"/g)).toHaveLength(2);
+    const parsed = document.createElement('div');
+    parsed.innerHTML = markup;
+    const anchors = parsed.querySelectorAll('.bh-message-group-avatar-link, .bh-bubble-author');
+    expect(anchors).toHaveLength(2);
+    expect([...anchors].every((anchor) => anchor.parentElement?.id.startsWith('base-ui-'))).toBe(
+      true,
+    );
     const start = markup.indexOf('class="bh-message-group"');
     const group = markup.slice(start, markup.indexOf('class="bh-bubble-wrap', start));
     expect(group).toContain('class="bh-persona-avatar"');
@@ -1495,7 +1485,6 @@ describe('Bot main Sessions pane', () => {
     await act(async () => thumbs!.click());
     expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '👍', true);
     expect(document.body.querySelector('[data-reaction-picker]')).toBeNull();
-    menus.length = 0;
     await act(async () =>
       container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
         new MouseEvent('contextmenu', {
@@ -1506,18 +1495,14 @@ describe('Bot main Sessions pane', () => {
         }),
       ),
     );
-    const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'react'));
-    expect(menu?.items?.[0]).toMatchObject({
-      type: 'label',
-      text: expect.stringMatching(/\S/),
-    });
-    expect(menu?.items?.map((item) => item.id)).toEqual([
-      'time',
-      'quote',
-      'react',
-      'copy',
-      'select',
-      'feedback',
+    const popup = document.querySelector('[role="menu"]')!;
+    expect(popup.querySelector('[role=presentation]')?.textContent).toMatch(/\S/);
+    expect([...popup.querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
+      zhTranslate('message.quote'),
+      zhTranslate('message.react'),
+      zhTranslate('message.copy'),
+      zhTranslate('message.select'),
+      zhTranslate('feedback.title'),
     ]);
     const identity = store.getSnapshot().composerIdentity;
     await act(async () =>
@@ -1534,7 +1519,6 @@ describe('Bot main Sessions pane', () => {
     range.setEnd(bodyText, 2);
     window.getSelection()!.removeAllRanges();
     window.getSelection()!.addRange(range);
-    menus.length = 0;
     await act(async () =>
       container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
         new MouseEvent('contextmenu', {
@@ -1545,15 +1529,9 @@ describe('Bot main Sessions pane', () => {
         }),
       ),
     );
-    const selectionMenu = menus.findLast((props) =>
-      props.items?.some((item) => item.id === 'react'),
-    );
-    expect(
-      selectionMenu?.items
-        ?.filter((item) => item.id === 'quote' || item.id === 'copy')
-        .map((item) => item.label),
-    ).toEqual([zhTranslate('message.quoteSelection'), zhTranslate('message.copySelection')]);
-    await act(async () => selectionMenu!.onSelect!('quote'));
+    expect(menuItem(zhTranslate('message.quoteSelection'))).not.toBeNull();
+    expect(menuItem(zhTranslate('message.copySelection'))).not.toBeNull();
+    await act(async () => menuItem(zhTranslate('message.quoteSelection')).click());
     const quoteChip = container.querySelector('[data-quote-chip]');
     expect(quoteChip?.hasAttribute('data-quote-part')).toBe(true);
     expect(quoteChip?.textContent).toContain((bodyText.textContent ?? '').slice(0, 2));
@@ -1611,7 +1589,12 @@ describe('Bot main Sessions pane', () => {
     window.getSelection()!.removeAllRanges();
     await act(async () => store.setComposerIdentity(identity));
     localStorage.clear();
-    await act(async () => menu!.onSelect!('react'));
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => menuItem(zhTranslate('message.react')).click());
     const pressed = document.body.querySelector('[data-reaction-picker]');
     expect(pressed).not.toBeNull();
     await act(async () =>

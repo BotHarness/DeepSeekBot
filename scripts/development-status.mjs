@@ -314,7 +314,7 @@ export async function githubProjectDevelopmentStatus({ syncedAt, queryProjectPag
       response = await queryProjectPage({ cursor });
     } catch (error) {
       if (error instanceof ProjectSchemaError) throw error;
-      throw new Error(AUTHORITY_ERROR);
+      throw new Error(AUTHORITY_ERROR, { cause: error });
     }
     const page = normalizeProjectPage(response);
     if (fields.length === 0) fields.push(...page.fields);

@@ -205,7 +205,7 @@ it('qualifies the same manual relationship through pinned Noise proof before acc
         .catch((error) => {
           clearTimeout(timer);
           channel.close();
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
         });
     });
   try {

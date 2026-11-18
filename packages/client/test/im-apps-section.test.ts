@@ -3,12 +3,13 @@ import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren }
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
-  Modal: () => null,
+
   closeTopModal: () => undefined,
-  Menu: () => null,
+
   IconCloseOutlineRegular: () => null,
   IconChevronDownOutlineRegular: () => null,
 }));

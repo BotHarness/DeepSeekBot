@@ -37,7 +37,7 @@ const styles = stylex.create({
     zIndex: 1,
     display: 'flex',
     flexDirection: 'column',
-    width: 'min(380px, 100%)',
+    maxWidth: '100%',
     maxHeight: '100%',
     overflow: 'hidden',
     borderRadius: style.radiusDialog,
@@ -47,14 +47,16 @@ const styles = stylex.create({
     animationName: fadeIn,
     animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
+  sized: { width: 'min(380px, 100%)' },
 });
 
 export interface DialogProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  className?: string;
+  className?: string | undefined;
   xstyle?: stylex.StyleXStyles;
+  unsized?: boolean;
   children?: ReactNode;
 }
 
@@ -64,6 +66,7 @@ export function Dialog({
   title,
   className,
   xstyle,
+  unsized = false,
   children,
 }: DialogProps): ReactNode {
   const popup = useRef<HTMLDivElement | null>(null);
@@ -73,7 +76,11 @@ export function Dialog({
     setMounted(node !== null);
   }, []);
   useShellLayer(popup, open && mounted, onClose);
-  const popupClass = [APPEARANCE_CLASS, stylex.props(styles.popup, xstyle).className, className]
+  const popupClass = [
+    APPEARANCE_CLASS,
+    stylex.props(styles.popup, !unsized && styles.sized, xstyle).className,
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
   return (

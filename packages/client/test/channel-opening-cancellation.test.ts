@@ -45,7 +45,16 @@ it.each(['read', 'latest', 'around'] as const)(
         pendingSignal = signal;
         await new Promise<void>((resolve, reject) => {
           release = resolve;
-          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+          signal?.addEventListener(
+            'abort',
+            () =>
+              reject(
+                signal.reason instanceof Error
+                  ? signal.reason
+                  : new Error('aborted', { cause: signal.reason }),
+              ),
+            { once: true },
+          );
         });
       }
       return {
@@ -134,7 +143,16 @@ it('cancels on direct deselection and releases its subscription without a newer 
     captured = signal;
     await new Promise<void>((resolve, reject) => {
       release = resolve;
-      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      signal?.addEventListener(
+        'abort',
+        () =>
+          reject(
+            signal.reason instanceof Error
+              ? signal.reason
+              : new Error('aborted', { cause: signal.reason }),
+          ),
+        { once: true },
+      );
     });
     return { ok: true, value: {} };
   };

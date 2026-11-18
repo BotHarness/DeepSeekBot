@@ -3,40 +3,9 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
-  Menu: ({
-    open,
-    anchor,
-    items,
-    selectedId,
-    onSelect,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    items: readonly { id: string; label: ReactNode }[];
-    selectedId?: string;
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'span',
-      null,
-      anchor,
-      open
-        ? items.map((item) =>
-            createElement(
-              'button',
-              {
-                key: item.id,
-                role: 'menuitemradio',
-                'aria-checked': item.id === selectedId,
-                onClick: () => onSelect(item.id),
-              },
-              item.label,
-            ),
-          )
-        : null,
-    ),
 }));
 
 import { EmptyState } from '../src/client/ds/empty-state.js';
@@ -130,12 +99,12 @@ describe('Select', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     act(() => trigger.click());
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const options = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
-    expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    const options = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', null]);
     act(() => options[0]!.click());
     expect(onChange).not.toHaveBeenCalled();
     act(() => trigger.click());
-    act(() => document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[1]!.click());
+    act(() => document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[1]!.click());
     expect(onChange).toHaveBeenCalledWith('manual');
   });
 
@@ -151,7 +120,7 @@ describe('Select', () => {
     );
     const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="Locked"]')!;
     expect(trigger.disabled).toBe(true);
-    expect(host.querySelector('[role="menuitemradio"]')).toBeNull();
+    expect(host.querySelector('[role="menuitem"]')).toBeNull();
   });
 });
 

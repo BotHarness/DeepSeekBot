@@ -276,16 +276,7 @@ function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<vo
       reject(new Error('request-cancelled'));
     };
     signal.addEventListener('abort', abort, { once: true });
-    void ready.then(
-      () => {
-        signal.removeEventListener('abort', abort);
-        resolve();
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', abort);
-        reject(error);
-      },
-    );
+    void ready.finally(() => signal.removeEventListener('abort', abort)).then(resolve, reject);
     if (signal.aborted) abort();
   });
 }
@@ -579,7 +570,7 @@ export function encryptedCarrier(options: {
       } catch (error) {
         cleanup();
         current.requests.delete(id);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       }
     });
   };

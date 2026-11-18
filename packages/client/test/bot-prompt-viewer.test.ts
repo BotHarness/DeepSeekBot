@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconInfoOutlineRegular: () => null,
     Tag: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
-    Tooltip: ({ children }: { children?: ReactNode }) => children,
   };
 });
 

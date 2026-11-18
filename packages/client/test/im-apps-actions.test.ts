@@ -4,10 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Menu: () => null,
+
   closeTopModal: () => undefined,
   IconCloseOutlineRegular: () => null,
 }));
@@ -183,7 +184,7 @@ it('binds an unbound App to a chosen PersonaBot and reloads the list', async () 
   });
   expect(bind).toHaveBeenCalledWith(expect.objectContaining({ ref: 'a' }), 'bo');
   expect(document.querySelector('[role="dialog"]')).toBeNull();
-  expect(host.querySelector('[data-im-app]')?.textContent).toContain('Bo');
+  expect(document.body.querySelector('[data-im-app]')?.textContent).toContain('Bo');
 });
 
 it('does not offer binding for a bound or disconnected App, and unbinds after confirmation', async () => {
@@ -229,8 +230,8 @@ it('keeps the dialog open with a readable error when an action fails', async () 
   await act(async () => {
     button('解绑', dialog).click();
   });
-  expect(document.querySelector('[role="alert"]')?.textContent).toBe('操作没有完成，请重试。');
-  expect(host.querySelector('[data-im-app]')?.textContent).toContain('Ada');
+  expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('操作没有完成，请重试。');
+  expect(document.body.querySelector('[data-im-app]')?.textContent).toContain('Ada');
 });
 
 it('submits the bind dialog with Enter and closes it with Cancel without binding', async () => {

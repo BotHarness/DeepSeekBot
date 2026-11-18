@@ -20,7 +20,14 @@ export type EngineEvent =
   | { kind: 'text'; text: string }
   | { kind: 'tool-call'; callId: string; name: string; arguments: string }
   | { kind: 'tool-result'; callId: string; text: string; isError: boolean }
-  | { kind: 'approval'; approvalId: string; tool: string; summary: string }
+  | {
+      kind: 'approval';
+      approvalId: string;
+      callId?: string;
+      tool: string;
+      summary: string;
+      input: Record<string, unknown>;
+    }
   | { kind: 'rate-limit'; usedPercent?: number; resetsAt?: number; limited: boolean };
 
 export type EngineTurnEnd =

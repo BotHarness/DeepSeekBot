@@ -9,34 +9,9 @@ import { CompanionPin } from '../src/client/window-companions-view.js';
 import { CompanionSound } from '../src/client/companion-sound.js';
 import { companionPosition } from './companion-position.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Menu: ({
-    anchor,
-    open,
-    items,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label?: string; disabled?: boolean }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      {},
-      anchor,
-      open
-        ? items
-            .filter((item) => item.label)
-            .map((item) =>
-              createElement(
-                'button',
-                { key: item.id, disabled: item.disabled, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            )
-        : null,
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   Input: (props: Record<string, unknown>) => createElement('input', props),
   Switch: ({
     checked,
@@ -72,7 +47,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconNewChatOutlineRegular: () => null,
   IconPinFillRegular: () => null,
   IconPinOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
 }));
 
 it('pins independently, exposes right-click controls and applies global bounded card capacity', async () => {
@@ -294,7 +268,7 @@ it('pins independently, exposes right-click controls and applies global bounded 
       ada.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
     );
     expect(ada.querySelector('[aria-expanded="true"]')).not.toBeNull();
-    const walking = [...ada.querySelectorAll<HTMLButtonElement>('button')].find(
+    const walking = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
       (button) => button.textContent === '暂停走动',
     )!;
     await act(() => walking.click());

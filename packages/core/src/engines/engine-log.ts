@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {} from '@deepseek-ai/dsh-session-title';
 import { inboundSessionTitle } from '../runtime/inbound-envelope.js';
 import { isSessionActivityName } from '../state/tool-activity.js';
@@ -10,6 +11,7 @@ import {
   ToolCallId,
 } from '@deepseek-ai/dsh-llm';
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
+import { type ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval';
 
 import type { EngineEvent, EngineId, EngineTurnEnd } from './engine-session.js';
 
@@ -37,6 +39,8 @@ export class EngineTurnLog {
   #stepHasResults = false;
   #pending: AssistantBlock[] = [];
   readonly #open = new Set<string>();
+  readonly #approvals = new Set<string>();
+  #ended = false;
 
   constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
     this.#target = target;
@@ -72,6 +76,7 @@ export class EngineTurnLog {
   }
 
   accept(event: EngineEvent): void {
+    if (this.#ended) return;
     switch (event.kind) {
       case 'reasoning':
       case 'text':
@@ -114,7 +119,27 @@ export class EngineTurnLog {
     }
   }
 
+  approvalAsked(request: { toolName: string; callId?: string; reason?: string }): string {
+    const id = ApprovalRequestId(randomUUID());
+    if (this.#ended) return id;
+    this.#approvals.add(id);
+    this.#target.session.append('approval/asked', {
+      id,
+      toolName: request.toolName,
+      ...(request.callId === undefined ? {} : { callId: ToolCallId(request.callId) }),
+      ...(request.reason === undefined ? {} : { reason: request.reason }),
+    });
+    return id;
+  }
+
+  approvalDecided(id: string, outcome: ApprovalOutcome): void {
+    if (this.#ended || !this.#approvals.delete(id)) return;
+    this.#target.session.append('approval/decided', { id: ApprovalRequestId(id), outcome });
+  }
+
   async end(end: EngineTurnEnd): Promise<void> {
+    for (const id of [...this.#approvals]) this.approvalDecided(id, 'cancelled');
+    this.#ended = true;
     if (this.#pending.length) this.#assistant(this.#pending);
     this.#pending = [];
     for (const callId of this.#open)

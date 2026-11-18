@@ -1,4 +1,7 @@
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Input: () => null }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+  Input: () => null,
+}));
 import { expect, it, vi } from 'vitest';
 import {
   PLUGIN_INDEX,

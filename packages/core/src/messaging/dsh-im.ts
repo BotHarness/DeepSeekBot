@@ -887,7 +887,12 @@ export function createDshImProvider(
             input.signal.throwIfAborted();
             let abort = () => {};
             const cancelled = new Promise<never>((_resolve, reject) => {
-              abort = () => reject(input.signal.reason);
+              abort = () =>
+                reject(
+                  input.signal.reason instanceof Error
+                    ? input.signal.reason
+                    : new Error('IM consume cancelled', { cause: input.signal.reason }),
+                );
               input.signal.addEventListener('abort', abort, { once: true });
             });
             let info: Awaited<ReturnType<DshImOutboundService['describeBot']>>;

@@ -13,6 +13,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { Menu } = await import('./activity-list-test-controls.js');
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
     IconStopFillRegular: () => null,
@@ -26,7 +27,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
       ...props
     }: PropsWithChildren<{ variant?: string; size?: string }>) =>
       createElement('button', props, children),
-    Toast: stub,
+
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -55,22 +56,17 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     IconPinOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     FileTypeIcon: stub,
-    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
-      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
+
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
     Input: stub,
-    Menu,
-    MenuItemButton: stub,
-    MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
-      createElement('div', { ...props, ref }),
-    ),
+
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-    Modal: stub,
+
     SegmentedControl: stub,
     StateDot: stub,
     Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -821,7 +817,7 @@ it.each(['switch', 'revoke', 'close'] as const)(
           .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 })),
       );
       const button = () =>
-        Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')).find(
+        Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(
           (node) => node.textContent === zhTranslate('fileAction.download'),
         );
       await act(async () => {

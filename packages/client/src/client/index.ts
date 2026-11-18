@@ -1,7 +1,7 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
-import { disposeClientLog, installClientLog } from './diagnostic-log.js';
+import { disposeClientLog, installClientLog, reportFailure } from './diagnostic-log.js';
 import { watchClientLogState } from './diagnostic-log-state.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
@@ -895,7 +895,7 @@ export function apply(ctx: ClientContext): void {
           };
         },
         (error: unknown) => {
-          console.warn('botharness: live Remote stream unavailable', error);
+          reportFailure('live-remote-stream-unavailable', 'live Remote stream unavailable', error);
         },
       );
     return () => {

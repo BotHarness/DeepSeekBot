@@ -39,7 +39,7 @@ async function command(args: string[]): Promise<unknown> {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-        throw new Error('tailnet-unavailable');
+        throw new Error('tailnet-unavailable', { cause: error });
     }
   }
   throw new Error('tailnet-unavailable');

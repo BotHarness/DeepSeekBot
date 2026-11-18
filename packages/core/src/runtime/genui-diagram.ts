@@ -114,7 +114,12 @@ export async function compileGenuiDiagram(
           ),
         );
       const exit = () => error();
-      const abort = () => reject(options.signal?.reason ?? new Error('Diagram cancelled.'));
+      const abort = () =>
+        reject(
+          options.signal?.reason instanceof Error
+            ? options.signal.reason
+            : new Error('Diagram cancelled.', { cause: options.signal?.reason }),
+        );
       const timer = setTimeout(
         () =>
           reject(

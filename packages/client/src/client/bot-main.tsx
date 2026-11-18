@@ -78,8 +78,8 @@ import {
   IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular,
   IconUserOutlineRegular,
-  Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Toast } from './ds/toast.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
@@ -297,6 +297,7 @@ import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
 import { turnStopText } from './turn-stop.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -1897,7 +1898,7 @@ function ConversationView({
           void actions
             .reactToMessage?.(channelId, message.id, emoji, active)
             .catch((error: unknown) => {
-              console.warn('botharness: reaction failed', error);
+              reportFailure('reaction-failed', 'reaction failed', error);
             });
   const selectedIds =
     selectedMessages !== undefined && selectedMessages.channelId === channelId
@@ -2043,7 +2044,7 @@ function ConversationView({
       const messageId = visible?.dataset['messageId'];
       if (messageId === undefined) return;
       void actions.markRead(channelId, messageId).catch((error: unknown) => {
-        console.warn('botharness: channel read position failed', error);
+        reportFailure('channel-read-position-failed', 'channel read position failed', error);
       });
     }, 250);
   };
@@ -2193,7 +2194,7 @@ function ConversationView({
             if (!cancelled) setGroupProfileActivity(activity);
           },
           (error: unknown) => {
-            console.warn('botharness: Group Profile activity failed', error);
+            reportFailure('group-profile-activity-failed', 'Group Profile activity failed', error);
           },
         );
       else refreshUsage();
@@ -2813,7 +2814,7 @@ function ConversationView({
     setUnseen(0);
     if (conversation.timeline.hasNewer && channelId !== undefined) {
       void actions.openLatest(channelId).catch((error: unknown) => {
-        console.warn('botharness: latest timeline reload failed', error);
+        reportFailure('latest-timeline-reload-failed', 'latest timeline reload failed', error);
       });
       return;
     }

@@ -3,7 +3,8 @@ import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronLeftOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
   IconCloseOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
   IconFlatListOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),

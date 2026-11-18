@@ -7,6 +7,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const icon = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconCheckCircleOutlineRegular: icon,
     IconClockOutlineRegular: icon,
@@ -71,8 +72,8 @@ describe('Diagnostic bundle dialog', () => {
       './api/botharness/diagnostic-bundle/preview',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(selection) }),
     );
-    expect(host.querySelector('[data-diagnostic-preview]')?.textContent).toContain('QA');
-    expect(host.textContent).toContain('包含聊天原文');
+    expect(document.body.querySelector('[data-diagnostic-preview]')?.textContent).toContain('QA');
+    expect(document.body.textContent).toContain('包含聊天原文');
     expect(buttonNamed('下载诊断包').disabled).toBe(false);
     await act(async () => buttonNamed('取消').click());
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -84,11 +85,13 @@ describe('Diagnostic bundle dialog', () => {
       .mockResolvedValueOnce(json({ error: { code: 'scope-empty' } }, false))
       .mockResolvedValueOnce(json(PREVIEW));
     const { host } = await render(fetch);
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('导出失败：scope-empty');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
+      '导出失败：scope-empty',
+    );
     expect(buttonNamed('下载诊断包').disabled).toBe(true);
     await act(async () => buttonNamed('重试').click());
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.querySelector('[role="alert"]')).toBeNull();
     expect(buttonNamed('下载诊断包').disabled).toBe(false);
   });
 });

@@ -4,8 +4,8 @@ import {
   IconCheckOutlineRegular,
   IconSettingsOutlineRegular,
   IconUserOutlineRegular,
-  type MenuItem,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuItem } from './ds/menu.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   DM_ACTION_KINDS,

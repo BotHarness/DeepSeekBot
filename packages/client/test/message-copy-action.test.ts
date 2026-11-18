@@ -3,13 +3,13 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconCheckOutlineRegular: () => createElement('span', { 'data-icon': 'check' }),
   IconCopyOutlineRegular: () => createElement('span', { 'data-icon': 'copy' }),
-  Tooltip: ({ children, label }: PropsWithChildren<{ label: string }>) =>
-    createElement('span', { 'data-tooltip': label }, children),
 }));
 
+import { openTooltip } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { MessageCopyAction } from '../src/client/message-copy-action.js';
 
@@ -72,7 +72,7 @@ describe('message Copy action', () => {
     await act(async () => resolveFirstWrite());
     expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('check');
     expect(buttons()[0]?.getAttribute('aria-label')).toBe('已复制');
-    expect(buttons()[0]?.parentElement?.getAttribute('data-tooltip')).toBe('已复制');
+    expect((await openTooltip(buttons()[0]!)).textContent).toBe('已复制');
     expect(buttons()[1]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
 
     await act(async () => vi.advanceTimersByTime(1_000));

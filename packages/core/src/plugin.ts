@@ -1865,6 +1865,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),
     sessions: () => hostSessionStore<EngineSessionStore>(ctx),
     persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
+    approve: async (request) =>
+      (await toolApproval?.askEngine({
+        session: request.session,
+        callId: request.callId,
+        toolName: request.toolName,
+        input: request.input,
+        signal: request.signal,
+      })) ?? 'unavailable',
     observe: (slug, sessionId, state) => {
       if (state !== 'idle')
         core.states.setSessionState(slug, sessionId, 'thinking', undefined, 'orchestrator');
@@ -4350,6 +4358,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             engineRouteFetch(request, {
               host: engineHost,
               botExists: (slug) => core.registry.get(slug) !== undefined,
+              approvals: () =>
+                core.registry
+                  .list()
+                  .flatMap((bot) => toolApproval?.requests(bot.slug) ?? [])
+                  .filter((notice) => engineHost.describe(notice.sessionId) !== undefined)
+                  .map((notice) => ({
+                    botSlug: notice.botSlug,
+                    sessionId: notice.sessionId,
+                    channelId: notice.channelId,
+                    messageId: notice.messageId,
+                    toolName: notice.toolName,
+                    input: notice.input,
+                    expiresAt: notice.expiresAt,
+                  })),
             }),
         }),
       'botharness: Subscription Engine route',

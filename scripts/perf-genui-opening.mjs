@@ -252,7 +252,7 @@ async function measure(target, parking) {
     }
     save();
   } catch (error) {
-    primaryFailure = error;
+    primaryFailure = error instanceof Error ? error : new Error(String(error), { cause: error });
     if (browserRecord) browserRecord.failure = redact(error.stack ?? error);
     if (page && !page.isClosed()) {
       try {
@@ -274,7 +274,8 @@ async function measure(target, parking) {
         browserRecord.closed = true;
       } catch (error) {
         manifest.cleanupFailures.push(redact(error));
-        primaryFailure ??= error;
+        primaryFailure ??=
+          error instanceof Error ? error : new Error(String(error), { cause: error });
       } finally {
         save();
       }

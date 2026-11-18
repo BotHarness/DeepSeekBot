@@ -13,9 +13,9 @@ vi.mock('../src/client/messaging-defaults-live.js', () => ({
     return () => {};
   },
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: ({ children }: { children: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   MarkdownText: () => null,
   FileTypeIcon: () => null,
   StateDot: () => null,
@@ -102,7 +102,7 @@ it('acquires only visible media, uses Channel/source selectors and cancels/relea
   expect(url).not.toContain('slug=');
   expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:checked-image');
   await act(async () => container.querySelector<HTMLButtonElement>('button')!.click());
-  expect(container.querySelector('[role=dialog] img')).not.toBeNull();
+  expect(document.body.querySelector('[role=dialog] img')).not.toBeNull();
   await act(async () => roots[0]!.root.unmount());
   expect(options.signal.aborted).toBe(true);
   expect(revokeUrl).toHaveBeenCalledWith('blob:checked-image');
@@ -177,9 +177,18 @@ it('limits concurrent requests and cancels obsolete queued images before provide
     (_url: string, options: { signal: AbortSignal }) =>
       new Promise<Response>((resolve, reject) => {
         pending.push(() => resolve(imageResponse()));
-        options.signal.addEventListener('abort', () => reject(options.signal.reason), {
-          once: true,
-        });
+        options.signal.addEventListener(
+          'abort',
+          () =>
+            reject(
+              options.signal.reason instanceof Error
+                ? options.signal.reason
+                : new Error('aborted', { cause: options.signal.reason }),
+            ),
+          {
+            once: true,
+          },
+        );
       }),
   );
   for (let i = 0; i < 5; i++) {

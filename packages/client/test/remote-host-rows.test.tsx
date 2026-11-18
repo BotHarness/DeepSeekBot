@@ -3,14 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: () => null,
-  Modal: () => null,
+
   Input: () => null,
   Textarea: () => null,
-  Tooltip: ({ children }: { children?: import('react').ReactNode }) => children,
+
   IconEllipsisOutlineRegular: () => null,
-  Menu: ({ anchor }: { anchor: import('react').ReactNode }) => anchor,
 }));
 
 const fixture = vi.hoisted(() => ({

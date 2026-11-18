@@ -46,7 +46,16 @@ import { FavoriteButton } from '../primitives/favorite-button';
 import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { GroupNotes } from './group-notes';
 import { PickerLink, RouteIcon } from './model-route-label';
-import { presetDetail, presetFront, routeLabel, shortModelName } from './model-route-text';
+import { EffortBar, GroupEfforts } from './model-effort';
+import {
+  effortChoices,
+  keptEffort,
+  presetDetail,
+  presetFront,
+  routeEffortLabel,
+  routeLabel,
+  shortModelName,
+} from './model-route-text';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -228,55 +237,50 @@ function ModelsView({
     const assignment = picker.startsWith('assignment');
     const current = assignment ? routes.assignmentDefault : routes.orchestrator;
     const currentEntry = value.models.find((entry) => sameModel(entry, current));
-    const choose = (route: ModelRoute) => {
+    const choose = (route: ModelRoute, stay = false) => {
       models.run(
         () =>
           setModelRoute(client, scope, value, assignment ? 'assignment' : 'orchestrator', route),
         () => {
+          if (stay) return;
           Keyboard.dismiss();
           router.back();
         },
       );
     };
-    if (picker.endsWith('-effort')) {
-      const efforts = [
-        { id: '', name: t.modelSettings.providerDefault },
-        ...(currentEntry?.efforts ?? []).filter((entry) => entry.id !== ''),
-      ];
+    const effortGroup = value.groups?.find(
+      (group) =>
+        group.id ===
+        (!assignment
+          ? scope.kind === 'global'
+            ? value.defaultGroupId
+            : routes.groups.orchestratorGroupId
+          : routes.groups.assignmentDefaultGroupId),
+    );
+    const chooseEffort = (effort: string) =>
+      current === undefined
+        ? undefined
+        : choose({
+            provider: current.provider,
+            model: current.model,
+            ...(effort === '' ? {} : { reasoningEffort: effort }),
+          });
+    if (picker.endsWith('-effort'))
       return frame(
-        <FlatList
-          data={efforts}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={banner ?? undefined}
-          renderItem={({ item, index }) => (
-            <SettingsGroupItem
-              first={index === 0}
-              last={index === efforts.length - 1}
-              on={SHEET_GROUP}
-            >
-              <SettingsRow
-                on={SHEET_GROUP}
-                title={item.name}
-                selected={(current?.reasoningEffort ?? '') === item.id}
-                control={
-                  (current?.reasoningEffort ?? '') === item.id ? { kind: 'check' } : undefined
-                }
-                onPress={
-                  models.busy || current === undefined
-                    ? undefined
-                    : () =>
-                        choose({
-                          provider: current.provider,
-                          model: current.model,
-                          ...(item.id === '' ? {} : { reasoningEffort: item.id }),
-                        })
-                }
-              />
-            </SettingsGroupItem>
-          )}
-        />,
+        effortGroup === undefined ? (
+          <View>
+            {banner}
+            <EffortBar
+              entry={currentEntry}
+              route={current}
+              busy={models.busy}
+              onChange={chooseEffort}
+            />
+          </View>
+        ) : (
+          <GroupEfforts value={value} group={effortGroup} header={banner} />
+        ),
       );
-    }
     const families = modelFamilies(
       value.models.map((entry) => ({
         provider: entry.provider,
@@ -730,16 +734,15 @@ function ModelsView({
                               if (picker === 'allowed')
                                 models.run(() => toggleAssignmentModel(client, scope, value, item));
                               else {
-                                const reasoningEffort = sameModel(item, current)
-                                  ? current?.reasoningEffort
-                                  : item.defaultEffort;
-                                choose({
-                                  provider: item.provider,
-                                  model: item.model,
-                                  ...(reasoningEffort === undefined || reasoningEffort === ''
-                                    ? {}
-                                    : { reasoningEffort }),
-                                });
+                                const reasoningEffort = keptEffort(item, current);
+                                choose(
+                                  {
+                                    provider: item.provider,
+                                    model: item.model,
+                                    ...(reasoningEffort === '' ? {} : { reasoningEffort }),
+                                  },
+                                  effortChoices(item).length > 0,
+                                );
                               }
                             }
                   }
@@ -748,6 +751,14 @@ function ModelsView({
             );
           }}
         />
+        {picker === 'allowed' || currentGroup !== undefined ? null : (
+          <EffortBar
+            entry={currentEntry}
+            route={current}
+            busy={models.busy}
+            onChange={chooseEffort}
+          />
+        )}
       </>,
     );
   }
@@ -790,19 +801,18 @@ function ModelsView({
             detail={
               orchestratorGroup !== undefined
                 ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
-                : routeLabel(value, routes.orchestrator)
+                : routeEffortLabel(value, routes.orchestrator)
             }
             leading={<RouteIcon value={value} route={routes.orchestrator} />}
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
-          {orchestratorGroup === undefined &&
-          value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (
+          {orchestratorGroup === undefined ? null : (
             <PickerLink
               label={t.modelSettings.effort}
-              detail={routes.orchestrator?.reasoningEffort ?? t.modelSettings.providerDefault}
+              detail={t.modelSettings.groupEffort}
               onPress={models.busy ? undefined : () => openPicker('orchestrator-effort')}
             />
-          ) : null}
+          )}
           {scope.kind === 'global' ? null : (
             <>
               <PickerLink
@@ -810,7 +820,7 @@ function ModelsView({
                 detail={
                   assignmentGroup !== undefined
                     ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
-                    : routeLabel(value, routes.assignmentDefault)
+                    : routeEffortLabel(value, routes.assignmentDefault)
                 }
                 leading={
                   <RouteIcon
@@ -822,17 +832,13 @@ function ModelsView({
                 }
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
-              {assignmentGroup === undefined &&
-              value.models.find((entry) => sameModel(entry, routes.assignmentDefault))?.efforts
-                ?.length ? (
+              {assignmentGroup === undefined ? null : (
                 <PickerLink
                   label={t.modelSettings.effort}
-                  detail={
-                    routes.assignmentDefault?.reasoningEffort ?? t.modelSettings.providerDefault
-                  }
+                  detail={t.modelSettings.groupEffort}
                   onPress={models.busy ? undefined : () => openPicker('assignment-effort')}
                 />
-              ) : null}
+              )}
               <PickerLink
                 label={t.modelSettings.allowed}
                 detail={

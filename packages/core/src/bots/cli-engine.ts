@@ -12,6 +12,11 @@ export const ENGINE_COMMANDS = [
       'show each engine with install and sign-in state and which Bots run on it (engine status)',
   },
   {
+    command: 'engine-approvals',
+    description:
+      'list the approval cards engine Sessions are waiting on; answer one with tool-approval-decide (engine approvals)',
+  },
+  {
     command: 'engine-login',
     description:
       'start the Bot engine sign-in on the Host computer and print its URL (engine login codex)',
@@ -80,6 +85,13 @@ export async function runEngineCommand(
         })),
       };
     return value;
+  }
+  if (command === 'engine-approvals') {
+    if (rest.length)
+      throw new CliLiveError('usage', 'engine approvals takes no positional arguments.');
+    const approvals = (await call(connect))['approvals'];
+    if (!Array.isArray(approvals) || !approvals.every(isObject)) throw protocolError();
+    return { approvals };
   }
   if (command === 'engine-login') {
     if (rest.length !== 1) throw new CliLiveError('usage', 'engine login needs one engine: codex.');

@@ -4,9 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   IconInfoOutlineRegular: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children,
+
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   Input: (props: Record<string, unknown>) => createElement('input', props),
   Checkbox: ({
@@ -32,7 +33,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
       }),
     ),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Modal: () => null,
 }));
 import { ExternalConversations } from '../src/client/external-conversations.js';
 import { zhTranslate } from '../src/client/locale.js';

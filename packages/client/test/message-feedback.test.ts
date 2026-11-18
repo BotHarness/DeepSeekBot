@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 import { MessageFeedbackDialog } from '../src/client/message-feedback.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -65,10 +65,10 @@ it('requires a rating, previews evidence and keeps a failed submission available
   expect(buttonNamed('提交反馈').disabled).toBe(true);
   await act(async () => buttonNamed('不好').click());
   expect(buttonNamed('提交反馈').disabled).toBe(false);
-  expect(container.textContent).toContain('41');
+  expect(document.body.textContent).toContain('41');
   await act(async () => buttonNamed('提交反馈').click());
-  expect(container.textContent).toContain('提交失败');
+  expect(document.body.textContent).toContain('提交失败');
   await act(async () => buttonNamed('提交反馈').click());
-  expect(container.textContent).toContain('accepted-report');
+  expect(document.body.textContent).toContain('accepted-report');
   expect(requests[1]).toBe(requests[2]);
 });

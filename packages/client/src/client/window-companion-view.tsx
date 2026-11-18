@@ -13,8 +13,8 @@ import {
   IconEllipsisOutlineRegular,
   IconCloseFillRegular,
   IconNewChatOutlineRegular,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { attentionCount } from './activity-attention.js';
 import { useMountedResource } from './mounted-resource.js';

@@ -9,7 +9,7 @@ Native mobile creation must survive a lost response without creating another Bot
 
 ## Decision
 
-Extend the application-defined creation capability and durable coordination established by [ADR-0225](0225-bot-creation-receipts-and-reviewed-profile-lifecycle.md). Blank creation and pinned Git import share its stable-key coordination in managed Memory storage. Each import source must obtain the same recovery guarantee before its native flow is qualified. Delivery and qualification are tracked independently in [#2634](https://github.com/BotHarness/DeepSeekBot/issues/2634).
+Extend the application-defined creation capability and durable coordination established by [ADR-0225](../decisions/tob.md#adr-0225). Blank creation and pinned Git import share its stable-key coordination in managed Memory storage. Each import source must obtain the same recovery guarantee before its native flow is qualified. Delivery and qualification are tracked independently in [#2634](https://github.com/BotHarness/DeepSeekBot/issues/2634).
 
 - A submitted operation binds one Host, accepted creation input and a stable operation identity. Source content accepted for an import remains bound to that operation during recovery. A retry must not silently pick a newer repository revision, another file or another Host.
 - The Host durably coordinates creation and readback through the existing Registry, Memory and Channel owners. Repeating the same operation reconciles its existing identity and result. Input changes under the same identity refuse. Recovering a partially completed operation uses its reserved or created Bot; it never guesses that a lost response means nothing happened.

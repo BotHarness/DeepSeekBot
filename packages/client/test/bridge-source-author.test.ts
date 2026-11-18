@@ -3,21 +3,8 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: ({
-    open,
-    title,
-    children,
-    onClose,
-  }: PropsWithChildren<{ open: boolean; title: string; onClose(): void }>) =>
-    open
-      ? createElement(
-          'div',
-          { role: 'dialog', 'aria-label': title },
-          children,
-          createElement('button', { onClick: onClose }, 'Close'),
-        )
-      : null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { BridgeSourceAuthor } from '../src/client/bridge-source-author.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -60,7 +47,7 @@ it('distinguishes two QQ applications in one Channel and exposes their receiving
     ]);
     expect(container.querySelector('img')).toBeNull();
     await act(async () => authors[1]!.click());
-    const values = [...container.querySelectorAll('[role=dialog] dd')].map(
+    const values = [...document.body.querySelectorAll('[role=dialog] dd')].map(
       (value) => value.textContent,
     );
     expect(values).toContain('QA 2');
@@ -97,9 +84,9 @@ it('opens only the selected source details, restores compact presentation on clo
     const button = container.querySelector('button')!;
     expect(button.textContent).toBe('sender · 【Lark/飞书 QA <group>】');
     expect(button.getAttribute('aria-haspopup')).toBe('dialog');
-    expect(container.querySelector('[role=dialog]')).toBeNull();
+    expect(document.body.querySelector('[role=dialog]')).toBeNull();
     await act(async () => button.click());
-    const dialog = container.querySelector('[role=dialog]')!;
+    const dialog = document.body.querySelector('[role=dialog]')!;
     expect(dialog.getAttribute('aria-label')).toBe('来源详情');
     expect([...dialog.querySelectorAll('dd')].map((e) => e.textContent)).toEqual([
       'Lark/飞书',
@@ -112,7 +99,7 @@ it('opens only the selected source details, restores compact presentation on clo
     ]);
     expect(dialog.querySelector('group')).toBeNull();
     await act(async () => dialog.querySelector('button')!.click());
-    expect(container.querySelector('[role=dialog]')).toBeNull();
+    expect(document.body.querySelector('[role=dialog]')).toBeNull();
     expect(container.textContent).toBe('sender · 【Lark/飞书 QA <group>】');
   } finally {
     await act(async () => root.unmount());
@@ -151,7 +138,7 @@ it.each(['discord', 'feishu'])(
       expect(author.getAttribute('aria-label')).toContain('DoodleBear <img>');
       expect(container.querySelector('img')).toBeNull();
       await act(async () => author.click());
-      const dialog = container.querySelector('[role=dialog]')!;
+      const dialog = document.body.querySelector('[role=dialog]')!;
       expect([...dialog.querySelectorAll('dd')].map((entry) => entry.textContent)).toEqual([
         platform === 'discord' ? 'Discord' : 'Lark/飞书',
         'QA',
@@ -163,7 +150,7 @@ it.each(['discord', 'feishu'])(
       ]);
       expect(dialog.querySelector('img')).toBeNull();
       await act(async () => dialog.querySelector('button')!.click());
-      expect(container.querySelector('[role=dialog]')).toBeNull();
+      expect(document.body.querySelector('[role=dialog]')).toBeNull();
     } finally {
       await act(async () => root.unmount());
       container.remove();

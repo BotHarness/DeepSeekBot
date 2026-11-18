@@ -22,7 +22,8 @@ const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRunti
 vi.mock('../src/client/genui-document-runtime.js', () => ({
   loadGenuiDocumentRuntime: runtime.load,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     children,
     size: _size,

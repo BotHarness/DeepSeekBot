@@ -13,7 +13,8 @@ import { zhTranslate } from '../src/client/locale.js';
 import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
 import { createStore, type BotSummary } from '../src/client/store.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
 }));
 

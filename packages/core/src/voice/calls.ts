@@ -2069,7 +2069,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const timer = setTimeout(cancel, VOICE_CALL_LIMITS.connectTimeoutMs);
     let rejectCancelled!: () => void;
     const cancelled = new Promise<never>((_resolve, reject) => {
-      rejectCancelled = () => reject(cancellation.signal.reason);
+      rejectCancelled = () =>
+        reject(
+          cancellation.signal.reason instanceof Error
+            ? cancellation.signal.reason
+            : new Error('Voice call cancelled', { cause: cancellation.signal.reason }),
+        );
       cancellation.signal.addEventListener('abort', rejectCancelled, { once: true });
       if (cancellation.signal.aborted) rejectCancelled();
     });

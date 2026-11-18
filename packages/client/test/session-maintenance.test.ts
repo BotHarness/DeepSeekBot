@@ -47,7 +47,7 @@ it.each(['compact', 'new-session'] as const)(
   'shows busy for a coded refusal of %s',
   async (action) => {
     const reject = async () => {
-      throw { code: 'bot-busy' };
+      throw Object.assign(new Error('bot-busy'), { code: 'bot-busy' });
     };
     const controller = createSessionMaintenance('dm-ada', 'ada', {
       compact: reject,
@@ -60,7 +60,7 @@ it.each(['compact', 'new-session'] as const)(
 it('points compaction of a never-saved Session to a new Session', async () => {
   const controller = createSessionMaintenance('dm-ada', 'ada', {
     compact: async () => {
-      throw { code: 'session-unsaved' };
+      throw Object.assign(new Error('session-unsaved'), { code: 'session-unsaved' });
     },
     newSession: async () => undefined,
   });

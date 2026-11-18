@@ -5,9 +5,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { BridgeFile } from '../src/client/bridge-file.js';
 import { createBridgeFileResource } from '../src/client/bridge-file-resource.js';
 import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     FileTypeIcon: stub,
     IconFolderOpenOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -18,27 +19,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconRefreshOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
     writeClipboard: vi.fn(),
-    Tooltip: ({ children }: { children: ReactNode }) => children,
-    Menu: ({
-      items,
-      onSelect,
-    }: {
-      items: { id: string; type?: string; label?: ReactNode; text?: ReactNode }[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        items.map((item) =>
-          item.type
-            ? createElement('span', { key: item.id }, item.text)
-            : createElement(
-                'button',
-                { key: item.id, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-        ),
-      ),
   };
 });
 let changed: () => void;
@@ -237,7 +217,7 @@ it.each([true, false])(
       expect(commands.target).toHaveBeenCalledWith('channel', 'file');
       expect(commands.open).not.toHaveBeenCalled();
       await act(async () =>
-        [...document.querySelectorAll<HTMLButtonElement>('[data-pointer-menu] button')]
+        [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]')]
           .find((button) => button.textContent?.includes('用 Editor 打开'))!
           .click(),
       );

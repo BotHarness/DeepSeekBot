@@ -114,6 +114,17 @@ it('drives engine list, status, login and use through the Host engine route', as
                 },
               ],
               selections: [],
+              approvals: [
+                {
+                  botSlug: 'ada',
+                  sessionId: 'orchestrator-ada',
+                  channelId: 'dm-ada',
+                  messageId: 'card-1',
+                  toolName: 'shell',
+                  input: '{"command":"touch ../x"}',
+                  expiresAt: '2026-11-19T08:00:00.000Z',
+                },
+              ],
             }
           : body['action'] === 'login'
             ? { engine: 'codex', started: true, url: 'https://auth.openai.com/x' }
@@ -127,6 +138,9 @@ it('drives engine list, status, login and use through the Host engine route', as
   });
   expect(await runEngineCommand('engine-status', [], {}, connect)).toMatchObject({
     selections: [],
+  });
+  expect(await runEngineCommand('engine-approvals', [], {}, connect)).toMatchObject({
+    approvals: [{ channelId: 'dm-ada', messageId: 'card-1', toolName: 'shell' }],
   });
   expect(await runEngineCommand('engine-login', ['codex'], {}, connect)).toMatchObject({
     started: true,
@@ -160,6 +174,9 @@ it('refuses a Host engine response that does not have the expected shape', async
     code: 'host-protocol-error',
   });
   await expect(runEngineCommand('engine-login', ['codex'], {}, connect)).rejects.toMatchObject({
+    code: 'host-protocol-error',
+  });
+  await expect(runEngineCommand('engine-approvals', [], {}, connect)).rejects.toMatchObject({
     code: 'host-protocol-error',
   });
 });

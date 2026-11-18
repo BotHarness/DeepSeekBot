@@ -12,9 +12,10 @@ import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 import type { MessagingIdentityView } from '../../core/src/messaging/identity.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   IconInfoOutlineRegular: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children,
+
   Button: ({
     variant: _variant,
     size: _size,
@@ -23,22 +24,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     createElement('button', props),
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   Switch: () => null,
-  Modal: ({
-    open,
-    children,
-    title,
-    footer,
-    onClose,
-  }: PropsWithChildren<{ open: boolean; title: string; footer?: ReactNode; onClose(): void }>) =>
-    open
-      ? createElement(
-          'div',
-          { role: 'dialog', 'aria-label': title },
-          children,
-          footer,
-          createElement('button', { onClick: onClose }, 'Close'),
-        )
-      : null,
 }));
 vi.mock('../src/client/bot-settings-open.js', () => ({ openExternalBindingSettings: vi.fn() }));
 import type { BridgeActions } from '../src/client/actions.js';
@@ -134,9 +119,9 @@ function fixture(completed = true) {
 function button(label: string): HTMLButtonElement {
   const result = [
     ...(
-      container.querySelector('[role="dialog"]') ?? container
+      document.body.querySelector('[role="dialog"]') ?? container
     ).querySelectorAll<HTMLButtonElement>('button'),
-  ].find((b) => b.textContent?.trim() === label);
+  ].find((b) => (b.getAttribute('aria-label') ?? b.textContent?.trim()) === label);
   if (!result) throw new Error(`Missing button ${label}`);
   return result;
 }
@@ -175,7 +160,7 @@ describe('optional onboarding Bind app', () => {
   it('requires completion and the current active Human–Bot DM', async () => {
     const incomplete = fixture(false);
     await incomplete.render();
-    expect(container.textContent).toBe('');
+    expect(document.body.textContent).toBe('');
     const ready = fixture();
     await ready.render();
     expect(button('绑定应用')).toBeDefined();
@@ -187,7 +172,7 @@ describe('optional onboarding Bind app', () => {
       noBot,
     ]) {
       await act(async () => store.setConversation({ channel: next }));
-      expect(container.textContent).toBe('');
+      expect(document.body.textContent).toBe('');
     }
     await act(async () => {
       store.setConversation({ channel });
@@ -206,25 +191,25 @@ describe('optional onboarding Bind app', () => {
         [channel],
       );
     });
-    expect(container.textContent).toBe('');
+    expect(document.body.textContent).toBe('');
     expect(ready.actions.messagingSnapshot).not.toHaveBeenCalled();
   });
 
   it('opens only deliberately and dismisses quietly without changing completion or binding', async () => {
     const f = fixture();
     await f.render();
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(f.actions.messagingSnapshot).not.toHaveBeenCalled();
     await click('绑定应用');
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     expect(f.actions.messagingSnapshot).toHaveBeenCalledWith(channel.botSlug);
     await click('暂时不绑定');
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     await click('绑定应用');
-    await click('Close');
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await click(zhTranslate('common.close'));
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     await f.render();
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(onboardingFor(f.bridge).getSnapshot().receipt?.completed).toBe(true);
     expect(f.actions.messagingIdentity).not.toHaveBeenCalled();
     expect(f.actions.send).not.toHaveBeenCalled();
@@ -235,15 +220,15 @@ describe('optional onboarding Bind app', () => {
     await f.render();
     await click('绑定应用');
     expect(button('绑定应用').disabled).toBe(true);
-    expect(container.querySelectorAll('a[target="_blank"]').length).toBeGreaterThan(0);
-    expect(container.textContent).not.toContain(zhTranslate('identity.ready', { app: 'test' }));
+    expect(document.body.querySelectorAll('a[target="_blank"]').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain(zhTranslate('identity.ready', { app: 'test' }));
     const cleanup = vi.fn();
     vi.mocked(openExternalBindingSettings).mockReturnValue(cleanup);
     await click(zhTranslate('identity.manageApps'));
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     const returned = vi.mocked(openExternalBindingSettings).mock.calls[0]![1];
     await act(async () => returned());
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     expect(f.actions.messagingIdentity).not.toHaveBeenCalled();
     expect(onboardingFor(f.bridge).getSnapshot().receipt?.completed).toBe(true);
     await click('暂时不绑定');
@@ -263,7 +248,7 @@ describe('optional onboarding Bind app', () => {
     await f.render();
     await click('绑定应用');
     expect(button('绑定应用').disabled).toBe(true);
-    await openCombobox(zhTranslate('identity.app'), container);
+    await openCombobox(zhTranslate('identity.app'), document.body);
     expect(comboboxOption('provider-qq:available')?.disabled).toBe(false);
     expect(comboboxOption('provider-feishu:lark')?.disabled).toBe(false);
     for (const ref of ['offline', 'used', 'unsupported'])
@@ -280,11 +265,11 @@ describe('optional onboarding Bind app', () => {
       accountRef: 'available',
       fingerprint: 'a'.repeat(64),
     });
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+    expect(document.body.querySelector('[role="status"]')?.textContent).toBe(
       zhTranslate('identity.readyQq', { app: 'qq available' }),
     );
     await click(zhTranslate('identity.done'));
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(f.actions.send).not.toHaveBeenCalled();
   });
 
@@ -296,12 +281,12 @@ describe('optional onboarding Bind app', () => {
       f.snapshot({ accounts, identities: [], grants: [], intents: [] });
       await f.render();
       await click('绑定应用');
-      await chooseOption(zhTranslate('identity.app'), 'provider-qq:available', container);
+      await chooseOption(zhTranslate('identity.app'), 'provider-qq:available', document.body);
       f.actions.messagingIdentity.mockImplementation(async () => {
         f.snapshot({ accounts, identities: [identity(reception)], grants: [], intents: [] });
       });
       await click('绑定应用');
-      expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      expect(document.body.querySelector('[role="status"]')?.textContent).toBe(
         zhTranslate(reception === 'connecting' ? 'identity.connecting' : 'identity.offline', {
           app: 'qq available',
         }),
@@ -317,12 +302,12 @@ describe('optional onboarding Bind app', () => {
     );
     await f.render();
     await click('绑定应用');
-    await chooseOption(zhTranslate('identity.app'), 'provider-qq:available', container);
+    await chooseOption(zhTranslate('identity.app'), 'provider-qq:available', document.body);
     await click('绑定应用');
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
       zhTranslate('identity.stale'),
     );
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     expect(button('绑定应用').disabled).toBe(false);
     expect(onboardingFor(f.bridge).getSnapshot().receipt?.completed).toBe(true);
   });
@@ -332,12 +317,12 @@ describe('optional onboarding Bind app', () => {
     f.actions.messagingSnapshot.mockRejectedValue(new Error('offline'));
     await f.render();
     await click('绑定应用');
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
       zhTranslate('identity.refreshFailed'),
     );
     expect(button('绑定应用').disabled).toBe(true);
     await click('暂时不绑定');
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(f.actions.messagingIdentity).not.toHaveBeenCalled();
   });
 });

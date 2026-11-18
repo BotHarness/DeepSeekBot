@@ -8,7 +8,8 @@ import {
 } from '../src/client/private-tunnel-settings.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
   Switch: 'input',
   Input: 'input',

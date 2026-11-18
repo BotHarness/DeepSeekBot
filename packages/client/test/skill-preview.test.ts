@@ -9,7 +9,8 @@ import {
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconAgentPresetOutlineRegular: () => null,
   IconCodeOutlineRegular: () => null,
   IconBranchOutlineRegular: () => null,
@@ -33,22 +34,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconSendOutlineRegular: () => null,
   IconSkillOutlineRegular: () => null,
   ImageLightbox: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   MarkdownText: () => null,
-  Modal: ({
-    open,
-    title,
-    description,
-    children,
-  }: {
-    open: boolean;
-    title: string;
-    description?: string;
-    children?: ReactNode;
-  }) =>
-    open
-      ? createElement('div', { role: 'dialog', 'aria-label': title }, description, children)
-      : null,
 }));
 
 vi.mock('../src/client/memory-markdown-view.js', () => ({
@@ -231,7 +218,7 @@ describe('Skill chip preview', () => {
     await act(async () => chip.click());
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain('notes-project · as sent');
-    expect(dialog.querySelectorAll('p')).toHaveLength(0);
+    expect(dialog.querySelectorAll('[data-skill-preview] p')).toHaveLength(0);
     expect(dialog.querySelector('[data-markdown]')?.textContent).toBe(
       'Keep notes short.\n\nSecond paragraph.',
     );

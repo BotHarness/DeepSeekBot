@@ -304,7 +304,8 @@ function actionClaim(queueRoot, options) {
   try {
     fd = openSync(leasePath, 'wx');
   } catch (error) {
-    if (error?.code === 'EEXIST') throw new Error('The active lease is already claimed.');
+    if (error?.code === 'EEXIST')
+      throw new Error('The active lease is already claimed.', { cause: error });
     throw error;
   }
   try {

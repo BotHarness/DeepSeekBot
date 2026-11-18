@@ -5,7 +5,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const captured = vi.hoisted(() => ({
-  menus: [] as Array<Record<string, unknown>>,
   switches: [] as Array<Record<string, unknown>>,
 }));
 
@@ -18,19 +17,16 @@ vi.mock('../src/client/ds/input.js', async () => ({
 vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconChevronDownOutlineRegular: stub,
     Input: stub,
     Button: stub,
     Switch: (props: Record<string, unknown>) => {
       captured.switches.push(props);
       return null;
-    },
-    Menu: (props: Record<string, unknown>) => {
-      captured.menus.push(props);
-      return props['anchor'];
     },
   };
 });
@@ -51,6 +47,7 @@ import {
   SendKeySetting,
   SortSetting,
 } from '../src/client/bot-mode-setting-rows.js';
+import { menuItem } from './primitive-mocks.js';
 import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
 import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
 
@@ -87,10 +84,6 @@ function renderAndOpenMenus(node: ReactNode): string {
   mounted.push({ root, container });
   act(() => root.render(node));
   const markup = container.innerHTML;
-  for (const button of container.querySelectorAll<HTMLButtonElement>('[aria-haspopup="menu"]')) {
-    act(() => button.click());
-    act(() => button.click());
-  }
   return markup;
 }
 
@@ -156,29 +149,17 @@ function renderSection(
   );
 }
 
-function lastMenu(): Record<string, unknown> {
-  const found = captured.menus.at(-1);
-  if (found === undefined) throw new Error('menu not rendered');
-  return found;
-}
-
-function menuWithItem(id: string): Record<string, unknown> {
-  const found = captured.menus.find((menu) =>
-    ((menu['items'] as readonly Record<string, unknown>[] | undefined) ?? []).some(
-      (item) => item['id'] === id,
-    ),
-  );
-  if (found === undefined) throw new Error(`menu with ${id} not rendered`);
-  return found;
-}
-
-function iconMenu(): Record<string, unknown> {
-  return menuWithItem('mascot');
+function openMenu(label: string): HTMLElement {
+  const trigger = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (trigger === null) throw new Error(`No menu trigger ${label}`);
+  act(() => trigger.click());
+  const menu = document.querySelector<HTMLElement>('[role="menu"]');
+  if (menu === null) throw new Error(`No menu ${label}`);
+  return menu;
 }
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  captured.menus.length = 0;
   captured.switches.length = 0;
 });
 
@@ -202,10 +183,12 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('设置 Bot 模式列表的默认排序方式');
     expect(markup).toContain('手动排序');
     expect(markup).toContain('aria-haspopup="menu"');
-    expect(lastMenu()['selectedId']).toBe('manual');
-    expect(
-      (lastMenu()['items'] as readonly Record<string, unknown>[]).map((item) => item['id']),
-    ).toEqual(['updated', 'manual']);
+    const menu = openMenu(t('sort.menu.label'));
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe(t('sort.manual'));
+    expect([...menu.querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
+      t('sort.updated'),
+      t('sort.manual'),
+    ]);
   });
 
   it('renders and writes the three-state motion preference with its effective preview', () => {
@@ -236,12 +219,13 @@ describe('Bot mode setting rows', () => {
     const setSortMode = vi.fn();
     renderSection(snapshot(), setSortMode);
 
-    const onSelect = lastMenu()['onSelect'] as (id: string) => void;
-    act(() => onSelect('manual'));
+    openMenu(t('sort.menu.label'));
+    act(() => menuItem(t('sort.manual')).click());
     expect(setSortMode).toHaveBeenCalledWith('manual');
 
     setSortMode.mockClear();
-    act(() => onSelect('unrelated'));
+    openMenu(t('sort.menu.label'));
+    act(() => menuItem(t('sort.updated')).click());
     expect(setSortMode).not.toHaveBeenCalled();
   });
 
@@ -296,14 +280,11 @@ describe('send key setting', () => {
         setSendKey: setSendKey as never,
       } as never),
     );
-    const items = (
-      menuWithItem('mod-enter')['items'] as readonly {
-        id: string;
-        label: unknown;
-      }[]
-    ).map((item) => ({
-      id: item.id,
-      markup: renderToStaticMarkup(createElement(Fragment, null, item.label as never)),
+    const menu = openMenu(t('sendKey.row.title'));
+    const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((item) => ({
+      id: item.querySelector<HTMLElement>('[data-send-key]')?.dataset.sendKey,
+      markup: item.innerHTML,
+      element: item,
     }));
     return { markup, items, setSendKey };
   }
@@ -323,8 +304,7 @@ describe('send key setting', () => {
     const { items, setSendKey } = renderSendKey(false, 'enter');
     expect(items[2]?.markup).toMatch(/>Ctrl<\/kbd>.*>↵<\/kbd>.*发送/u);
     expect(items[2]?.markup).not.toContain('⌘');
-    const onSelect = menuWithItem('mod-enter')['onSelect'] as (id: string) => void;
-    act(() => onSelect('mod-enter'));
+    act(() => items[2]!.element.click());
     expect(setSendKey).toHaveBeenCalledWith('mod-enter');
   });
 

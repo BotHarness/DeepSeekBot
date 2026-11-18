@@ -3,6 +3,9 @@ import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import type { Session } from '@deepseek-ai/dsh-session';
+import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
+
 import {
   type CodexProcessOptions,
   type CodexTransport,
@@ -21,6 +24,7 @@ import { EngineTurnLog } from './engine-log.js';
 import {
   ENGINE_DEFINITIONS,
   type EngineAccount,
+  type EngineEvent,
   type EngineId,
   type EngineSession,
   EngineRefusal,
@@ -55,7 +59,17 @@ export interface EngineTurnRequest {
   signal: AbortSignal;
 }
 
-export type EngineSessionState = 'starting' | 'running' | 'idle';
+export type EngineSessionState = 'starting' | 'running' | 'waiting-approval' | 'idle';
+
+export interface EngineApprovalRequest {
+  botSlug: string;
+  sessionId: string;
+  session: Session;
+  callId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  signal: AbortSignal;
+}
 
 export interface EngineSessionDescription {
   engine: EngineId;
@@ -84,6 +98,7 @@ export interface EngineHostOptions {
   sessionIdsForBot?(botSlug: string): readonly string[];
   changed?(): void;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState): void;
+  approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
   releaseGraceMs?: number;
   openCodex?(options: CodexProcessOptions): CodexTransport;
   detectCodex?(options: { command: string; home: string }): Promise<CodexStatus>;
@@ -104,6 +119,7 @@ interface LiveEngineSession {
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
+  approvals: number;
   recover: boolean;
   accountChecked: boolean;
   running: Promise<void>;
@@ -271,12 +287,14 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
+        const signal = AbortSignal.any([request.signal, stop.signal]);
         try {
           const end = await live.engine.send(request.input, {
-            signal: AbortSignal.any([request.signal, stop.signal]),
+            signal,
             onEvent: (event) => {
               log.accept(event);
-              if (event.kind === 'approval') live.engine.answer(event.approvalId, 'decline');
+              if (event.kind === 'approval')
+                void this.#approve(live, scope, log, event, request.sessionId, signal);
             },
           });
           try {
@@ -305,6 +323,54 @@ export class EngineHost {
       }
     }
     if (reopen) await this.runTurn(request);
+  }
+
+  async #approve(
+    live: LiveEngineSession,
+    scope: TurnScope,
+    log: EngineTurnLog,
+    event: Extract<EngineEvent, { kind: 'approval' }>,
+    sessionId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const engine = live.engine.engine;
+    const asked = log.approvalAsked({
+      toolName: event.tool,
+      ...(event.callId === undefined ? {} : { callId: event.callId }),
+      reason: event.summary,
+    });
+    live.approvals += 1;
+    this.#setState(
+      sessionId,
+      { engine, account: live.account, state: 'waiting-approval' },
+      live.botSlug,
+    );
+    let outcome: ApprovalOutcome = 'unavailable';
+    try {
+      const approve = this.#options.approve;
+      if (approve !== undefined && !signal.aborted)
+        outcome = await approve({
+          botSlug: live.botSlug,
+          sessionId,
+          session: live.dsh.session,
+          callId: event.approvalId,
+          toolName: event.tool,
+          input: event.input,
+          signal,
+        });
+    } catch {
+      outcome = 'unavailable';
+    } finally {
+      live.approvals -= 1;
+      log.approvalDecided(asked, outcome);
+      if (live.approvals === 0 && live.turn === scope && this.#live.get(sessionId) === live)
+        this.#setState(
+          sessionId,
+          { engine, account: live.account, state: 'running' },
+          live.botSlug,
+        );
+    }
+    live.engine.answer(event.approvalId, outcome === 'allowed-once' ? 'accept' : 'decline');
   }
 
   async release(sessionId: string): Promise<void> {
@@ -446,6 +512,7 @@ export class EngineHost {
         turn: undefined,
         stop: undefined,
         closing: false,
+        approvals: 0,
         recover: false,
         accountChecked: true,
         running: Promise.resolve(),
