@@ -82,3 +82,11 @@ Following CLI parity:
 - Each reviewed call costs one extra model call. Calls that DSH runs without asking, and calls that saved rules cover, cost nothing, so those remain the first choice for routine, side-effect-free tools.
 - The reviewer can be wrong, as Codex's documentation warns for its own auto-review. It is a convenience layer, not a security boundary. The Workspace Grant checks, the sandbox and secret masking still apply to every call it allows.
 - `ChannelToolApproval` gains a decider before the card, a per-Session breaker, and a record message type. The Human Inbox gains an auto-rejected item with an override action.
+
+## Amendment: request-scoped context for direct calls (2026-11-18)
+
+Authenticated direct private-tool calls and standalone effect calls can borrow a live Orchestrator Agent without belonging to its current or previous model turn. Their Approval Review Session receives the selected template and the pending call context described above, but no excerpt from the borrowed Session. Ordinary model-turn Reviews retain the bounded excerpt described in Context.
+
+Borrowing execution capability does not authorize disclosing earlier Human messages or tool calls to another Review. Passing that history would also let unrelated earlier instructions influence a request made by a different authenticated caller. The request-scoped alternative preserves caller isolation while retaining the existing Channel approval owner, scope checks and Human fallback. It does not fabricate a new parent Session or dispose the borrowed Agent.
+
+The trade-off is explicit: Human instructions found only in the borrowed Session do not guide a direct-call Review. Standing guidance for these calls belongs in the selected Approval Template; its natural-language instructions remain fallible. Caller authentication, private-input Source Event checks and deterministic authorization still apply independently. This exception does not change admission under #4337, template selection, or the ordinary model-turn context contract. [ADR-0342](0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) continues to govern the effective template and Reviewer outcomes.

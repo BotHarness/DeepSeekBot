@@ -752,15 +752,57 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {standalone && section === 'devices' && overview ? (
-        <StatusStack title={t('connections.manage.existing')}>
-          {snapshot ? (
-            <StatusBlock
-              icon="monitor"
-              tone="accent"
-              title={snapshot.host.name}
-              body={t('devices.connect.thisComputer')}
-            />
-          ) : null}
+        <>
+          <SettingsSection title={t('connections.manage.existing')}>
+            {snapshot ? (
+              <StatusBlock
+                icon="monitor"
+                tone="accent"
+                title={snapshot.host.name}
+                body={t('devices.connect.thisComputer')}
+              />
+            ) : null}
+            {tailscaleReady || routes?.managed?.enabled || routes?.managed?.owned ? (
+              <StatusBlock
+                icon="shield-check"
+                tone={tailscaleReady ? 'success' : 'neutral'}
+                title="Tailscale"
+                body={tailscaleBody(routes, t)}
+                action={
+                  <>
+                    {routes?.managed?.enabled || routes?.managed?.owned ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!freshSnapshot || busy !== undefined}
+                        onClick={() =>
+                          void publish('disable').then((failure) => setError(failure !== undefined))
+                        }
+                      >
+                        {t('devices.tailscale.disable')}
+                      </Button>
+                    ) : null}
+                    <Button variant="outline" size="sm" onClick={() => setSetup('tailscale')}>
+                      {t('privateTunnel.panel.manage')}
+                    </Button>
+                  </>
+                }
+              />
+            ) : null}
+            {snapshot?.privateRelay && snapshot.privateRelay.state !== 'off' ? (
+              <StatusBlock
+                icon="server"
+                tone="neutral"
+                title={t('privateRelay.title')}
+                body={snapshot.privateRelay.origin}
+                action={
+                  <Button variant="outline" size="sm" onClick={() => setSetup('privateRelay')}>
+                    {t('privateTunnel.panel.manage')}
+                  </Button>
+                }
+              />
+            ) : null}
+          </SettingsSection>
           <PrivateTunnelSettings
             t={t}
             routes={snapshot?.privateRoutes ?? []}
@@ -772,46 +814,6 @@ export function PairedDevicesSettings({
             pair={open}
             advanced={() => setSetup('privateRelay')}
           />
-          {tailscaleReady || routes?.managed?.enabled || routes?.managed?.owned ? (
-            <StatusBlock
-              icon="shield-check"
-              tone={tailscaleReady ? 'success' : 'neutral'}
-              title="Tailscale"
-              body={tailscaleBody(routes, t)}
-              action={
-                <>
-                  {routes?.managed?.enabled || routes?.managed?.owned ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!freshSnapshot || busy !== undefined}
-                      onClick={() =>
-                        void publish('disable').then((failure) => setError(failure !== undefined))
-                      }
-                    >
-                      {t('devices.tailscale.disable')}
-                    </Button>
-                  ) : null}
-                  <Button variant="outline" size="sm" onClick={() => setSetup('tailscale')}>
-                    {t('privateTunnel.panel.manage')}
-                  </Button>
-                </>
-              }
-            />
-          ) : null}
-          {snapshot?.privateRelay && snapshot.privateRelay.state !== 'off' ? (
-            <StatusBlock
-              icon="server"
-              tone="neutral"
-              title={t('privateRelay.title')}
-              body={snapshot.privateRelay.origin}
-              action={
-                <Button variant="outline" size="sm" onClick={() => setSetup('privateRelay')}>
-                  {t('privateTunnel.panel.manage')}
-                </Button>
-              }
-            />
-          ) : null}
           {signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
             <StatusStack title="Tobs Connect">
               <Note>{signIn.email}</Note>
@@ -843,7 +845,7 @@ export function PairedDevicesSettings({
             accountLinked={signIn?.state === 'signed-in' || signIn?.issue === 'host-limit'}
           />
           {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-        </StatusStack>
+        </>
       ) : null}
       {standalone && section === 'devices' && overview ? (
         <SettingsSection title={t('connections.manage.switches')}>
@@ -1469,11 +1471,17 @@ export function PairedDevicesSettings({
       {section === 'devices' && overview ? (
         <SettingsSection title={t('devices.list.title')}>
           {devices.length === 0 ? (
-            <Note>
-              {snapshot === undefined
-                ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
-                : t('devices.list.empty')}
-            </Note>
+            <SettingsRow
+              title={
+                snapshot === undefined
+                  ? t(
+                      readState === 'stale'
+                        ? 'devices.connection.unchecked'
+                        : 'devices.list.loading',
+                    )
+                  : t('devices.list.empty')
+              }
+            />
           ) : (
             devices.map((device) => (
               <SettingsRow

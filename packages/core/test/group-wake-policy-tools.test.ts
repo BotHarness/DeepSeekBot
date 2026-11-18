@@ -105,13 +105,13 @@ describe('Group wake policy authority and audit', () => {
       groupId = group.id;
       expect(core.channels.getGroupWakePolicy(group.id, 'ada')).toEqual({
         mode: 'digest',
-        count: 5,
+        count: 10,
         intervalSeconds: 30,
         revision: 0,
         lastActor: null,
         changedAt: null,
       });
-      const defaultValue = { mode: 'digest' as const, count: 5, intervalSeconds: 30 };
+      const defaultValue = { mode: 'digest' as const, count: 10, intervalSeconds: 30 };
       core.channels.setGroupWakePolicy(group.id, 'ada', defaultValue, {
         kind: 'bot',
         botSlug: 'ada',

@@ -53,7 +53,7 @@ describe('Group ordinary-message digest', () => {
       });
       core.channels.setGroupWakePolicy(group.id, 'bea', {
         mode: 'mentions',
-        count: 5,
+        count: 10,
         intervalSeconds: 30,
       });
       await ordinary(core, group.id, 'first');
@@ -80,7 +80,7 @@ describe('Group ordinary-message digest', () => {
       ).toEqual([
         {
           bot_slug: 'ada',
-          wake_count: 5,
+          wake_count: 10,
           wake_interval_ms: 30000,
           wake_policy_revision: 0,
           wake_mode: 'digest',

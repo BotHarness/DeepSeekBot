@@ -6,6 +6,25 @@ import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { attachmentReferenceRuns, type ComposerAttachmentReference } from './attachment-refs.js';
 import type { SelectedSkill } from './skill-refs.js';
 import { parseSkillOwnerKey, skillOwnerKey } from '../../../core/src/skills/entries.js';
+import { sessionReferenceRuns, type ComposerSessionOption } from './session-refs.js';
+import { ASSIGNMENT_SESSION_ICON, channelSidebarIconElement } from './channel-sidebar-icon.js';
+import * as stylex from '@stylexjs/stylex';
+import { ink } from './ds/tobs.stylex.js';
+
+const sessionChip = stylex.create({
+  chip: { maxWidth: 'min(100%, 320px)' },
+  icon: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
+  title: { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+});
+
+function stylexClass(item: stylex.StyleXStyles): string {
+  return stylex.props(item).className ?? '';
+}
+
+function atomicText(node: Node): string | undefined {
+  if (!(node instanceof HTMLElement)) return undefined;
+  return node.dataset.attachmentText ?? node.dataset.sessionText;
+}
 
 export type MentionAvatarMount =
   | {
@@ -62,8 +81,8 @@ function token(
 
 function rawLength(node: Node): number {
   if (node instanceof HTMLBRElement && node.dataset.richPlaceholder !== undefined) return 0;
-  if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
-    return node.dataset.attachmentText.length;
+  const atomic = atomicText(node);
+  if (atomic !== undefined) return atomic.length;
   const mention = token(node);
   if (mention !== undefined) return mention.label.length + 1;
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
@@ -112,6 +131,7 @@ export function renderRichMentionDraft(
   refs: readonly SelectedChannelRef[] = [],
   attachments: readonly ComposerAttachmentReference[] = [],
   skills: readonly SelectedSkill[] = [],
+  sessions: readonly ComposerSessionOption[] = [],
 ): MentionAvatarMount[] {
   const document = editor.ownerDocument;
   const nodes: Node[] = [];
@@ -162,7 +182,42 @@ export function renderRichMentionDraft(
     if (run.mention === undefined && run.channelRef === undefined) {
       for (const part of attachmentReferenceRuns(run.text, attachments)) {
         if (part.attachment === undefined) {
-          nodes.push(...richTextNodes(document, part.text));
+          for (const piece of sessionReferenceRuns(part.text)) {
+            if (piece.session === undefined) {
+              nodes.push(...richTextNodes(document, piece.text));
+              continue;
+            }
+            const { sessionId, title } = piece.session;
+            const option = sessions.find((candidate) => candidate.sessionId === sessionId);
+            const badge = document.createElement('span');
+            badge.className = `bh-inline-mention bh-inline-mention-sent bh-composer-inline-mention bh-inline-session ${stylexClass(sessionChip.chip)}`;
+            badge.contentEditable = 'false';
+            badge.dataset.sessionText = piece.text;
+            badge.dataset.sessionId = sessionId;
+            badge.title = title;
+            if (option !== undefined) {
+              const avatar = document.createElement('span');
+              avatar.className = 'bh-inline-mention-avatar';
+              avatar.setAttribute('aria-hidden', 'true');
+              badge.append(avatar);
+              mounts.push({
+                target: avatar,
+                botSlug: option.botSlug,
+                name: option.bot?.displayName ?? option.botSlug,
+                src: option.bot?.avatar,
+                appearance: option.bot?.appearance,
+                avatarSeed: option.bot?.avatarSeed,
+              });
+            }
+            const icon = document.createElement('span');
+            icon.className = stylexClass(sessionChip.icon);
+            icon.append(channelSidebarIconElement(document, ASSIGNMENT_SESSION_ICON, 14));
+            const label = document.createElement('span');
+            label.className = stylexClass(sessionChip.title);
+            label.textContent = option?.title ?? title;
+            badge.append(icon, label);
+            nodes.push(badge);
+          }
           continue;
         }
         const item = part.attachment;
@@ -249,8 +304,9 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
   const channelRefs: SelectedChannelRef[] = [];
   const skills: SelectedSkill[] = [];
   const append = (node: Node): void => {
-    if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined) {
-      value += node.dataset.attachmentText;
+    const atomic = atomicText(node);
+    if (atomic !== undefined) {
+      value += atomic;
       return;
     }
     const mention = token(node);
@@ -339,10 +395,7 @@ function offsetAt(editor: HTMLElement, target: Node, offset: number): number {
       return true;
     }
     const mention = token(node);
-    if (
-      mention !== undefined ||
-      (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
-    ) {
+    if (mention !== undefined || atomicText(node) !== undefined) {
       count += rawLength(node);
       return node.contains(target);
     }
@@ -385,7 +438,7 @@ function pointAt(editor: HTMLElement, desired: number): { node: Node; offset: nu
         return { node: child, offset: Math.min(remaining, length) };
       if (
         token(child) !== undefined ||
-        (child instanceof HTMLElement && child.dataset.attachmentText !== undefined) ||
+        atomicText(child) !== undefined ||
         child instanceof HTMLBRElement
       )
         return { node: parent, offset: index + (remaining > 0 ? 1 : 0) };

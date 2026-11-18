@@ -155,7 +155,7 @@ describe('attention Tool contracts through the owning Host', () => {
       for (const wake of ['immediate', 'digest', 'mentions', 'silent']) {
         expect(
           await call(tools, 'source_attention_set', { sourceClass: 'group-ordinary', wake }),
-        ).toMatchObject({ wake, digestCount: 5, digestIntervalSeconds: 30 });
+        ).toMatchObject({ wake, digestCount: 10, digestIntervalSeconds: 30 });
       }
       expect(
         await call(tools, 'source_attention_set', {
@@ -188,7 +188,7 @@ describe('attention Tool contracts through the owning Host', () => {
         await call(tools, 'source_attention_reset', { sourceClass: 'group-ordinary' }),
       ).toMatchObject({
         wake: 'digest',
-        digestCount: 5,
+        digestCount: 10,
         digestIntervalSeconds: 30,
         overrideActive: false,
       });

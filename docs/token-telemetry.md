@@ -46,6 +46,44 @@ PostHog exposes `day_timestamp` as a DateTime property. Use it as a timestamp in
 
 For an exact-total chart, include `properties.total_token_count` in that same tuple. Test for absence only **after** choosing the latest snapshot; otherwise an older exact count could survive a newer unknown value. Keep coverage counts next to totals. Restart may repeat a snapshot; reconciliation or Bot deletion may reduce one. Corrections older than seven days and reset-install identity cannot be repaired remotely. Historical PostHog message counts cannot reconstruct token usage from before this event existed.
 
+## Per-turn cost and Context Sources
+
+`chat:bot_turn_complete` is a separate per-turn event, sent once when a Bot-owned Orchestrator or Assignment turn ends. It carries what that one turn cost and where its context came from, so changes to the Bot Inbox, wake policy or prompts can be compared by turn instead of by day.
+
+| Property                                                                                       | Meaning                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `role`                                                                                         | `orchestrator`, `assignment` or `other` Session root role                                                                  |
+| `outcome`                                                                                      | `completed`, `failed`, `cancelled` or `other`                                                                              |
+| `trigger`                                                                                      | What opened the turn: `human` text, `inbox` content, `mixed` (both) or `other`                                             |
+| `step_count`, `tool_call_count`                                                                | Model requests and tool calls in the turn                                                                                  |
+| `input_token_count`, `cache_read_token_count`, `cache_write_token_count`, `output_token_count` | Reported usage summed over the turn's model requests; `input_token_count` is uncached input                                |
+| `is_partial`                                                                                   | At least one request in the turn did not report input, output or cache-read usage                                          |
+| `context_token_count`                                                                          | Estimated size of the context at the end of the turn (the composer's context meter)                                        |
+| `context_<source>_token_count`                                                                 | Estimated tokens of the whole context per Context Source                                                                   |
+| `added_<source>_token_count`                                                                   | Estimated tokens the turn itself appended per Context Source; the system prompt and tool schemas are never added by a turn |
+
+Context Sources are the rows of the composer's context breakdown: `system`, `tools`, `human`, `inbox_mention` (Group, DM, external and other Channel items), `inbox_schedule`, `inbox_memory`, `inbox_assignment`, `inbox_open` (the `[Open Inbox]` reminder of unresolved items), `host`, `skills`, `attachments`, `replies`, `thinking`, `tool_use`, `summary` and `other`. They are estimates from the native Token Meter split by message section; the usage counts are provider-reported. No text, names or IDs are sent.
+
+Each event is one turn, so sum and average these events directly. For example, the share of uncached input that inbox content adds to inbox-triggered Orchestrator turns:
+
+```sql
+SELECT
+  count() AS turns,
+  avg(toFloat(properties.input_token_count)) AS avg_uncached_input,
+  avg(toFloat(properties.cache_read_token_count)) AS avg_cache_read,
+  avg(toFloat(properties.added_inbox_mention_token_count)
+    + toFloat(properties.added_inbox_assignment_token_count)
+    + toFloat(properties.added_inbox_schedule_token_count)
+    + toFloat(properties.added_inbox_memory_token_count)
+    + toFloat(properties.added_inbox_open_token_count)) AS avg_added_inbox,
+  avg(toFloat(properties.step_count)) AS avg_steps
+FROM events
+WHERE event = 'chat:bot_turn_complete'
+  AND properties.role = 'orchestrator'
+  AND properties.trigger = 'inbox'
+  AND timestamp >= now() - INTERVAL 7 DAY
+```
+
 ## Verify without depending on a model for the reporter
 
 `pnpm exec vitest run packages/core/test/token-telemetry.test.ts` drives the real Usage Projection with deterministic SessionEvents, compares exact wire values, and exercises unknown buckets, replay, owned children, opt-out and restart behavior.

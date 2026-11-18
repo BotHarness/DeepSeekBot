@@ -12,6 +12,7 @@ import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
 import { useQuickActionRouting } from './quick-action-routing';
+import { useProfileSetupPrompt } from '../../host/profile-setup-prompt';
 import {
   creationTargets,
   type CreationAction,
@@ -72,8 +73,11 @@ function NavigationLayout() {
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
+  const profileSetup = useProfileSetupPrompt();
   return (
     <FloatingTabInset.Provider value={reserved}>
+      <View ref={profileSetup.load} collapsable={false} />
+      <View ref={profileSetup.prompt} collapsable={false} />
       <WorkspacePager>
         <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
           <Tabs

@@ -243,7 +243,9 @@ describe('client styles', () => {
     expect(source).toMatch(
       /\.bh-composer-add-file \{[^}]*width: 32px; height: 32px;[^}]*border-radius: 50%/,
     );
-    expect(source).toMatch(/\.bh-composer \{[^}]*background: var\(--tobs-layer-raised\)/);
+    expect(source).toMatch(
+      /\.bh-composer \{[^}]*background: var\(--tobs-layer-elevated\);[^}]*box-shadow: var\(--tobs-elevation-1\)/,
+    );
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
     expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);

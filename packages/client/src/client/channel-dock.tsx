@@ -15,7 +15,6 @@ import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { ChannelWorkspace } from './channel-workspace.js';
 import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { PanelVisibilityLabel } from './panel-menu.js';
-import { mountPanelScrollbars } from './ds/panel-scrollbars.js';
 import { usePanelMenu } from './panel-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { workspaceColumns, moveWorkspaceRail, isFullHeightRail } from './workspace-layout.js';
@@ -1008,6 +1007,7 @@ function SubpanelColumnEntry({
       <div
         className="bh-subpanel-entry-header"
         data-subpanel-entry-header=""
+        data-appearance-header={entry.id}
         {...contextMenu.triggerProps}
       >
         {contextMenu.menu}
@@ -2175,10 +2175,6 @@ export function ChannelDock({
     [api, workspaceMode],
   );
 
-  const scrollbarsMount = useMountedResource<HTMLSpanElement>((node) => {
-    if (node.parentElement) return mountPanelScrollbars(node.parentElement);
-  }, []);
-
   const registryMount = useMountedResource<HTMLDivElement>(() => {
     if (api === undefined) return;
     for (const panel of [...api.panels]) {
@@ -2766,7 +2762,6 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={layoutMount} hidden />
-          <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
           {dropX !== undefined && <span className="bh-workspace-drop" style={{ left: dropX }} />}
           <DockviewReact

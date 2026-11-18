@@ -64,7 +64,31 @@ vi.mock('@botharness/host-client/team-client', () => ({
   signInTeamDevice: signInTeamDevice,
   changeTeamDevicePassword: vi.fn(),
 }));
+const addressInvitation = vi.hoisted(() =>
+  vi.fn(async (_input: unknown) => ({
+    ok: true as const,
+    value: {
+      v: 1,
+      host: { id: 'other-host', name: 'Studio', fingerprint: 'b'.repeat(64) },
+      routes: ['https://studio.example'],
+      username: 'dana',
+      expiresAt: '2099-01-01T00:00:00Z',
+    },
+  })),
+);
+vi.mock('@botharness/host-client/team-sign-in', () => ({ addressInvitation }));
+const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
+vi.mock('../src/host/native-conversation-filter', () => ({
+  conversationFilter: { set: landing.filter },
+}));
+vi.mock('../src/ui/shell/workspace-paging', () => ({
+  closeWorkspacePageWhenShown: landing.closePage,
+}));
+const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
+vi.mock('expo-clipboard', () => clipboard);
 import TeamSignInScreen from '../app/pair/team';
+import { computerEnvironmentKey } from '../src/host/conversation-environments';
+import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 async function signIn(element: HTMLElement) {
@@ -134,6 +158,8 @@ it('signs the same member in again from a saved Host without an invitation or a 
     await signIn(element);
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
     expect(router.dismissTo).toHaveBeenCalledOnce();
+    expect(landing.filter).toHaveBeenCalledWith(computerEnvironmentKey('h'));
+    expect(landing.closePage).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     element.remove();
@@ -164,6 +190,61 @@ it('switches to another member account on a saved Host by username, behind the s
       }),
     );
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).not.toBeNull();
+  } finally {
+    act(() => root.unmount());
+    element.remove();
+    params.value = { i: 'invite' };
+  }
+});
+
+it('signs in with a Host address and username after the fingerprint is confirmed', async () => {
+  signInTeamDevice.mockClear();
+  params.value = {};
+  const element = document.createElement('div');
+  document.body.append(element);
+  const root = createRoot(element);
+  const type = async (id: string, value: string) => {
+    const input = element.querySelector<HTMLTextAreaElement>(`[data-testid="${id}"]`)!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => {
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  const press = (id: string) =>
+    act(async () => element.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+  try {
+    await act(async () => root.render(<TeamSignInScreen />));
+    await press('team-use-username');
+    await type('team-address', 'studio.example');
+    await type('team-username', 'Dana');
+    await press('team-address-continue');
+    expect(addressInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'https://studio.example', username: 'dana' }),
+    );
+    const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
+    expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
+      Array(4).fill('bbbb bbbb bbbb bbbb'),
+    );
+    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
+      t.fingerprintTapToCopy,
+    );
+    await press('team-fingerprint');
+    expect(clipboard.setStringAsync).toHaveBeenCalledWith(Array(16).fill('bbbb').join(' '));
+    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
+      t.fingerprintCopied,
+    );
+    expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
+    await press('team-fingerprint-matches');
+    await signIn(element);
+    expect(signInTeamDevice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invitation: expect.objectContaining({
+          username: 'dana',
+          routes: ['https://studio.example'],
+        }),
+      }),
+    );
   } finally {
     act(() => root.unmount());
     element.remove();

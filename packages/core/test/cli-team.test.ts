@@ -535,6 +535,25 @@ describe('Team CLI', () => {
       },
     ]);
   });
+  it.each([
+    {
+      args: ['human-name-set', '--name', 'Bob Chen'],
+      method: 'humanNameSet',
+      input: { displayName: 'Bob Chen' },
+    },
+    {
+      args: ['channel-human-name-set', 'group-1', '--nickname', 'Bobby'],
+      method: 'channelHumanNameSet',
+      input: { channelId: 'group-1', nickname: 'Bobby' },
+    },
+  ])('dispatches $method for the member named by --as', async ({ args, method, input }) => {
+    const f = await host();
+    await run(f.url, ['--as', 'bob', ...args]);
+    expect(f.calls[0]).toEqual({
+      path: '/api/botharness/team-as',
+      input: { username: 'bob', namespace: 'botharness', method, args: input },
+    });
+  });
   it('never prints malformed password stdin and dispatches direct member Channel operations', async () => {
     const f = await host();
     const secret = '{secret-password-should-stay-private';
