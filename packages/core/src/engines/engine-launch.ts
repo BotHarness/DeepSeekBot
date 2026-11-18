@@ -12,6 +12,7 @@ export interface EngineLaunchOptions {
   env?: Readonly<Record<string, string | undefined>>;
   exists?(path: string): boolean;
   executable?(path: string): boolean;
+  cwd?: string;
 }
 
 function isExecutableFile(path: string): boolean {
@@ -33,16 +34,19 @@ function resolveWindows(
   command: string,
   env: Readonly<Record<string, string | undefined>>,
   exists: (path: string) => boolean,
+  cwd: string | undefined,
 ): string | undefined {
+  const absolute = (found: string | undefined) =>
+    found === undefined || cwd === undefined ? found : win32.resolve(cwd, found);
   const extensions = (variable(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
   const candidates = (base: string) =>
     win32.extname(base) === '' ? extensions.map((extension) => `${base}${extension}`) : [base];
   if (win32.isAbsolute(command) || command.includes('\\') || command.includes('/'))
-    return candidates(command).find(exists);
+    return absolute(candidates(command).find(exists));
   for (const directory of (variable(env, 'PATH') ?? '').split(';')) {
     if (directory === '') continue;
     const found = candidates(win32.join(directory, command)).find(exists);
-    if (found !== undefined) return found;
+    if (found !== undefined) return absolute(found);
   }
   return undefined;
 }
@@ -55,13 +59,14 @@ export function resolveEngineCommand(
   const env = options.env ?? process.env;
   const exists = options.exists ?? existsSync;
   const executable = options.executable ?? isExecutableFile;
-  if (platform === 'win32') return resolveWindows(command, env, exists);
+  const cwd = options.cwd ?? process.cwd();
+  if (platform === 'win32') return resolveWindows(command, env, exists, cwd);
   if (command.includes('/'))
-    return exists(command) && executable(command) ? posix.resolve(command) : undefined;
+    return exists(command) && executable(command) ? posix.resolve(cwd, command) : undefined;
   for (const directory of (variable(env, 'PATH') ?? '').split(':')) {
     if (directory === '') continue;
     const candidate = posix.join(directory, command);
-    if (exists(candidate) && executable(candidate)) return posix.resolve(candidate);
+    if (exists(candidate) && executable(candidate)) return posix.resolve(cwd, candidate);
   }
   return undefined;
 }
@@ -80,7 +85,7 @@ export function engineLaunch(
   const platform = options.platform ?? process.platform;
   if (platform !== 'win32') return { file: command, args: [...args] };
   const env = options.env ?? process.env;
-  const resolved = resolveWindows(command, env, options.exists ?? existsSync);
+  const resolved = resolveWindows(command, env, options.exists ?? existsSync, options.cwd);
   if (resolved === undefined) return { file: command, args: [...args] };
   if (!/\.(cmd|bat)$/iu.test(resolved)) return { file: resolved, args: [...args] };
   const line = [resolved, ...args].map(quoteForCmd).join(' ');

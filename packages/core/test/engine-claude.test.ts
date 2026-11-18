@@ -515,8 +515,33 @@ describe('Claude Code engine boundaries', () => {
         env: { PATH: ':bin' },
         exists: (path: string) => path === 'bin/claude',
         executable: always,
+        cwd: '/host',
       }),
-    ).toBe(join(process.cwd(), 'bin', 'claude'));
+    ).toBe('/host/bin/claude');
+    expect(
+      resolveEngineCommand('tools/claude', {
+        platform: 'linux',
+        exists: always,
+        executable: always,
+        cwd: '/host',
+      }),
+    ).toBe('/host/tools/claude');
+    expect(
+      resolveEngineCommand('claude', {
+        platform: 'win32',
+        env: { Path: ';bin', PATHEXT: '.CMD' },
+        exists: (path: string) => path === 'bin\\claude.CMD',
+        cwd: 'C:\\host',
+      }),
+    ).toBe('C:\\host\\bin\\claude.CMD');
+    expect(
+      resolveEngineCommand('tools/claude.cmd', {
+        platform: 'win32',
+        env: {},
+        exists: always,
+        cwd: 'C:\\host',
+      }),
+    ).toBe('C:\\host\\tools\\claude.cmd');
     expect(
       resolveEngineCommand('claude', {
         platform: 'linux',
