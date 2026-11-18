@@ -100,7 +100,12 @@ const findTarget = async () => {
 
 const videoPath = resolve(out, 'source.webm'),
   imagePath = resolve(out, 'source.png');
-const run = (args) => new Promise((r, j) => execFile('ffmpeg', args, (e) => (e ? j(e) : r())));
+const run = (args) =>
+  new Promise((r, j) =>
+    execFile('ffmpeg', args, (e) =>
+      e ? j(e instanceof Error ? e : new Error(String(e), { cause: e })) : r(),
+    ),
+  );
 await run([
   '-y',
   '-f',

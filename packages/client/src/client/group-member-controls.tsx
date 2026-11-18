@@ -9,8 +9,8 @@ import {
   IconPlusOutlineRegular,
   IconTrashOutlineRegular,
   Tag,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';

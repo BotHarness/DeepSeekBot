@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { createElement, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderOverlayMarkup } from './primitive-mocks.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const captured = vi.hoisted(() => ({
@@ -13,7 +14,8 @@ vi.mock('../src/client/ds/button.js', async () => ({
 vi.mock('../src/client/ds/input.js', async () => ({
   Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: Record<string, unknown>) => {
     captured.buttons.push(props);
     return createElement('button', null, props['children'] as ReactNode);
@@ -26,15 +28,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       readOnly: true,
     });
   },
-  Modal: (props: Record<string, unknown>) =>
-    createElement(
-      'section',
-      null,
-      createElement('h1', null, props['title'] as ReactNode),
-      createElement('p', null, props['description'] as ReactNode),
-      props['children'] as ReactNode,
-      props['footer'] as ReactNode,
-    ),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -115,7 +108,7 @@ it('does not classify malformed persisted DMs as Bot DMs', () => {
     updatedAt: AT,
   }));
   expect(hiddenChannelSequence(malformed, [])).toEqual([]);
-  const markup = renderToStaticMarkup(
+  const markup = renderOverlayMarkup(
     createElement(HiddenChannelsModal, {
       t: t as never,
       onRestore: vi.fn(),
@@ -132,7 +125,7 @@ it('does not classify malformed persisted DMs as Bot DMs', () => {
 describe('hidden Channels modal', () => {
   it('lists hidden DM and group Channels and restores the selected id', () => {
     const onRestore = vi.fn();
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(HiddenChannelsModal, {
         t: t as never,
         onRestore,
@@ -186,7 +179,7 @@ describe('hidden Channels modal', () => {
   it('offers a read-only view action for a Bot-to-Bot DM', () => {
     const onOpen = vi.fn();
     const onRestore = vi.fn();
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(HiddenChannelsModal, {
         t: t as never,
         onRestore,
@@ -214,7 +207,7 @@ describe('hidden Channels modal', () => {
   });
 
   it('shows the most recently hidden Channel first', () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(HiddenChannelsModal, {
         t: t as never,
         onRestore: vi.fn(),
@@ -249,7 +242,7 @@ describe('hidden Channels modal', () => {
   });
 
   it('explains that there are no hidden Channels', () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(HiddenChannelsModal, {
         items: [],
         t: t as never,
@@ -295,7 +288,7 @@ it('lists a deleted Bot DM as read-only history instead of a restorable Channel'
   );
 
   const onOpen = vi.fn();
-  const markup = renderToStaticMarkup(
+  const markup = renderOverlayMarkup(
     createElement(HiddenChannelsModal, {
       t: t as never,
       onRestore: vi.fn(),

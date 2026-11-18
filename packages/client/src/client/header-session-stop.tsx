@@ -2,7 +2,8 @@ import { useAnchoredPanel } from './anchored-panel.js';
 import { useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import { IconStopFillRegular, MenuSurface, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 
 import { PersonaBotAvatar } from './avatar.js';
 import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';

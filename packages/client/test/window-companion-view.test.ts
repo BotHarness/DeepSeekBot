@@ -5,38 +5,14 @@ import { expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
 import { WindowCompanionView } from '../src/client/window-companion-view.js';
 import { WINDOW_COMPANION_CSS } from '../src/client/window-companion-styles.js';
+import { menuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { CompanionSound } from '../src/client/companion-sound.js';
 import { companionPosition } from './companion-position.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Menu: ({
-    anchor,
-    open,
-    items,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label?: string; disabled?: boolean }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      {},
-      anchor,
-      open
-        ? items
-            .filter((item) => item.label)
-            .map((item) =>
-              createElement(
-                'button',
-                { key: item.id, disabled: item.disabled, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            )
-        : null,
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   IconEllipsisOutlineRegular: () => null,
   IconCloseFillRegular: () => null,
   IconNewChatOutlineRegular: () => null,
@@ -604,10 +580,8 @@ it('enables Group playback from the native menu and explains why a Bot-only sour
           .querySelector('.bh-companion')!
           .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
       );
-      const button = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
-        (item) => item.textContent === label,
-      )!;
-      expect(button.disabled).toBe(false);
+      const button = menuItem(label);
+      expect(button.getAttribute('aria-disabled')).not.toBe('true');
       await act(() => button.click());
       await act(() => baseline());
       await act(() => vi.advanceTimersByTime(800));
@@ -691,6 +665,10 @@ it('enables Group playback from the native menu and explains why a Bot-only sour
     expect(node.querySelectorAll('.bh-companion-bubble')).toHaveLength(1);
     expect(node.querySelector('.bh-companion-queue')?.textContent).toBe('+1');
     await menu('播放私聊消息');
+    await act(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await act(() => vi.advanceTimersByTime(800));
     expect(companion.getSnapshot().cards.map((card) => card.messageId)).toEqual(['private-group']);
     const privateSource = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
       (item) => item.textContent === '群聊 · Bot workroom',
@@ -865,8 +843,12 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-    frames.set(++frameId, callback);
-    return frameId;
+    const id = ++frameId;
+    frames.set(id, (time) => {
+      frames.delete(id);
+      callback(time);
+    });
+    return id;
   });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
   let intersect: ((entries: { target: Element; isIntersecting: boolean }[]) => void) | undefined;
@@ -879,10 +861,12 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
           entries: { target: Element; isIntersecting: boolean }[],
         ) => void,
       ) {}
-      observe() {
-        intersect = this.callback;
+      observe(target: Element) {
+        if (target.matches('.bh-companion-stage')) intersect = this.callback;
       }
-      disconnect = disconnected;
+      disconnect() {
+        if (this.callback === intersect) disconnected();
+      }
     },
   );
   const measurement = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -956,7 +940,14 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     );
     expect(node.querySelector('[aria-expanded="true"]')).toBeNull();
     expect(document.activeElement).toBe(character);
+    await act(() => {
+      for (const callback of [...frames.values()]) callback(performance.now());
+    });
     await act(() => intersect!([{ target: stage, isIntersecting: false }]));
+    for (let tick = 0; tick < 2; tick++)
+      await act(() => {
+        for (const callback of [...frames.values()]) callback(performance.now());
+      });
     expect(frames.size).toBe(0);
     await act(() => intersect!([{ target: stage, isIntersecting: true }]));
     expect(frames.size).toBe(1);

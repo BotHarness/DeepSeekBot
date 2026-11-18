@@ -12,7 +12,8 @@ import type { RemoteHostViewerState } from '../src/client/remote-host-viewer.js'
 import { RemoteHostViewerPanel } from '../src/client/remote-host-viewer-panel.js';
 
 let snapshot: RemoteHostViewerState;
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     variant: _variant,
     size: _size,
@@ -20,7 +21,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
     createElement('button', props),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   StateDot: () => null,
 }));
 vi.mock('../src/client/remote-host-viewer.js', () => ({

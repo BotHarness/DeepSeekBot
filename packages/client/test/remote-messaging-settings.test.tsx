@@ -31,7 +31,8 @@ const call: BridgeCall = async (endpoint, payload) => {
   return { ok: false, error: { code: 'unsupported', message: endpoint, details: {} } };
 };
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: Record<string, unknown>) => <button {...props} />,
   Input: (props: Record<string, unknown>) => <input {...props} />,
   IconChevronDownOutlineRegular: () => null,

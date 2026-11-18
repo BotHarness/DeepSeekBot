@@ -7,7 +7,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import { Toast } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Toast } from './ds/toast.js';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogGroupView,

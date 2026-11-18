@@ -253,12 +253,12 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     this.mode = 'closed';
     this.#listeners.clear();
     const internal = requireInternal(this);
-    let failure: unknown;
+    let failure: Error | undefined;
     const attempt = (operation: () => void): void => {
       try {
         operation();
       } catch (error) {
-        failure ??= error;
+        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
       }
     };
 

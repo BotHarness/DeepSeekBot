@@ -12,6 +12,7 @@ import type { ApprovalMessagingSnapshot } from '../../core/src/messaging/approva
 import type { FailureAlertSnapshot } from '../../core/src/messaging/failure-alerts.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   Button: ({

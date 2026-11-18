@@ -5,8 +5,9 @@ import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Menu: ({ anchor }: { anchor: React.ReactNode }) => anchor,
+
     IconDownloadOutlineRegular: () => null,
     IconCopyOutlineRegular: () => null,
     IconInspectOutlineRegular: () => null,

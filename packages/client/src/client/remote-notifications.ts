@@ -101,7 +101,11 @@ export function createRemoteNotifications(options: {
     new Promise((resolve, reject) => {
       const abort = () => {
         signal.removeEventListener('abort', abort);
-        reject(signal.reason);
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error('notification-activation-cancelled', { cause: signal.reason }),
+        );
       };
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) abort();

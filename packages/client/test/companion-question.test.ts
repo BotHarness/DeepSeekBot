@@ -12,12 +12,13 @@ import { UserQuestionCard } from '../src/client/user-question-card.js';
 import { companionRequests } from '../src/client/companion-requests.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => null,
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Menu: () => null,
+
   IconEllipsisOutlineRegular: () => null,
   IconCloseFillRegular: () => null,
   IconNewChatOutlineRegular: () => null,

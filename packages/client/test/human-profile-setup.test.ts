@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 vi.mock('../src/client/group-avatar-crop.js', () => ({ GroupAvatarCropModal: () => null }));
 import type { BridgeCall } from '../src/client/bridge.js';

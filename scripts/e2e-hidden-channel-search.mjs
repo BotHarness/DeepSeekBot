@@ -131,7 +131,7 @@ try {
   assert((await names()).includes(betaName), 'reopened modal starts unfiltered');
   assert.deepEqual(errors, []);
 } catch (error) {
-  runError = error;
+  runError = error instanceof Error ? error : new Error(String(error), { cause: error });
 } finally {
   const cleanupErrors = [];
   try {

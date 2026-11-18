@@ -64,6 +64,26 @@ it('folds several sent Sessions, expands them and opens one', async () => {
   );
 });
 
+it('curves only beside the first row and keeps a straight line toward the message', async () => {
+  const host = await render(vi.fn());
+  const sent = host.querySelector('[data-session-links="sent"]')!;
+  const paths = () =>
+    [...sent.querySelectorAll(':scope > svg path')].map((path) => path.getAttribute('d'));
+  expect(paths()).toEqual(['M2 20 V10 Q2 6 6 6 H14']);
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-session-links-toggle]')!.click(),
+  );
+  expect(host.querySelector('[data-session-links-toggle]')?.getAttribute('aria-expanded')).toBe(
+    'true',
+  );
+  expect(paths()).toEqual(['M2 20 V10 Q2 6 6 6 H14', 'M2 0 V20', 'M2 0 V20']);
+  expect(
+    [...host.querySelectorAll('[data-session-links="created"] > svg path')].map((path) =>
+      path.getAttribute('d'),
+    ),
+  ).toEqual(['M2 0 V10 Q2 14 6 14 H14']);
+});
+
 it('hides the links when the Bot turns them off', async () => {
   updateSessionViewPreference('tobs', (current) => ({ ...current, links: false }));
   const host = await render(vi.fn());

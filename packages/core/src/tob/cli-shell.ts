@@ -167,7 +167,7 @@ process.exitCode = await runBotCreateCli(process.argv.slice(1), {
                 stdout = '',
                 stderr = '',
                 exceeded = false;
-              let failure: unknown;
+              let failure: Error | undefined;
               child.stdout.setEncoding('utf8');
               child.stderr.setEncoding('utf8');
               const append = (chunk: string, stream: 'stdout' | 'stderr') => {

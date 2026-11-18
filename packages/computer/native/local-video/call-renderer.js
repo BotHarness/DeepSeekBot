@@ -199,7 +199,8 @@ window.callStart = async () => {
         clearTimeout(settle);
         peer.removeEventListener('icegatheringstatechange', complete);
         peer.removeEventListener('icecandidate', candidate);
-        if (error) reject(error);
+        if (error)
+          reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
         else resolve();
       };
       const timer = setTimeout(() => finish(new Error('ICE timeout')), 7000);

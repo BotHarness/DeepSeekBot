@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 
 vi.mock('../src/client/group-avatar-crop.js', async () => {
@@ -95,13 +95,13 @@ it('signs a signed-out Human in from the profile and shows it once approved', as
     await render(actions, startSignIn);
 
     expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
-    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
     expect(startSignIn).toHaveBeenCalledTimes(1);
     expect(host.querySelector('[data-account-profile="signing-in"]')).not.toBeNull();
     expect(host.querySelector('[data-account-sign-in-code]')?.textContent).toBe('NXKC-GQXZ');
 
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    await act(async () => buttonNamed(t('devices.connect.openPage'), host).click());
+    await act(async () => buttonNamed(t('devices.connect.openPage'), document.body).click());
     expect(open).toHaveBeenCalledWith(CODE.verificationUri, '_blank', 'noopener');
 
     actions.marketplaceAccount.mockResolvedValue({
@@ -124,7 +124,7 @@ it('leaves the browser step with an explanation when the relay fails after appro
   try {
     const actions = actionsFor({ signedIn: false, author: null });
     await render(actions);
-    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
     expect(host.querySelector('[data-account-sign-in-code]')).not.toBeNull();
     actions.marketplaceAccount.mockResolvedValue({
       signedIn: false,
@@ -162,7 +162,7 @@ it('keeps the new code when a poll lands while sign-in is starting', async () =>
     );
     const actions = actionsFor({ signedIn: false, issue: 'relay-unavailable', author: null });
     await render(actions, startSignIn);
-    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
     actions.marketplaceAccount.mockResolvedValue({
       signedIn: true,
       email: 'vain@example.com',
@@ -190,7 +190,7 @@ it('explains when sign-in cannot start', async () => {
       throw new Error('relay-unavailable');
     }),
   );
-  await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+  await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
   expect(host.textContent).toContain(t('accountProfile.signInFailed'));
   expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
 });
@@ -204,8 +204,8 @@ it('says the Market refused a signed-in account instead of offering sign-in agai
 
   expect(host.querySelector('[data-account-profile="error"]')).not.toBeNull();
   expect(host.textContent).toContain(t('market.error.signInRejected'));
-  expect(() => buttonNamed(t('accountProfile.signIn'), host)).toThrow();
-  expect(buttonNamed(t('accountProfile.retry'), host)).toBeDefined();
+  expect(() => buttonNamed(t('accountProfile.signIn'), document.body)).toThrow();
+  expect(buttonNamed(t('accountProfile.retry'), document.body)).toBeDefined();
 });
 
 it('shows the profile and renames it once on Enter then blur', async () => {
@@ -244,7 +244,7 @@ it('creates the profile from the email before the first photo, then removes it',
     '/avatar/a.webp',
   );
 
-  await act(async () => buttonNamed(t('accountProfile.photoRemove'), host).click());
+  await act(async () => buttonNamed(t('accountProfile.photoRemove'), document.body).click());
   expect(actions.marketplaceAuthorAvatarSet).toHaveBeenLastCalledWith(null);
   expect(host.querySelector('[data-account-avatar] img')).toBeNull();
 });

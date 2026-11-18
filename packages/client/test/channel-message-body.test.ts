@@ -50,7 +50,8 @@ const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMount
   };
 });
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   FileTypeIcon: ({ path }: { path: string }) =>
     createElement('span', { 'data-file-type-icon': path }),
   fileSizeText: (bytes: number) =>
@@ -65,12 +66,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconRefreshOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   MarkdownText: vi.fn(() => null),
   MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
   useMarkdownDelegate: () => ({}),
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
+
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
   Button: ({ children, ...props }: { children: ReactNode }) =>

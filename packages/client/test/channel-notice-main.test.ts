@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { menuItem, openSubmenu } from './primitive-mocks.js';
 import {
   act,
   Fragment,
@@ -21,14 +22,15 @@ vi.mock('../src/client/ds/input.js', async () => ({
 vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const flatten = (items: TestMenuItem[]): TestMenuItem[] =>
     items.flatMap((item) => [item, ...flatten(item.submenu ?? [])]);
   return {
-    Toast: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconCodeOutlineRegular: () => null,
-    HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
+
     Button: ({
       children,
       variant: _variant,
@@ -75,57 +77,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: ({
-      anchor,
-      open,
-      items = [],
-      onSelect,
-      children,
-      selectedId,
-    }: {
-      anchor: ReactNode;
-      open: boolean;
-      items?: TestMenuItem[];
-      selectedId?: string;
-      onSelect?: (id: string) => void;
-      children?: ReactNode;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor,
-        open
-          ? createElement(
-              'div',
-              { role: 'menu' },
-              ...flatten(items).map((item) =>
-                createElement(
-                  'button',
-                  {
-                    key: item.id,
-                    role: 'menuitem',
-                    disabled: 'disabled' in item && item.disabled === true,
-                    'aria-current': selectedId === item.id ? 'true' : undefined,
-                    onClick: () => onSelect?.(item.id),
-                  },
-                  item.label,
-                ),
-              ),
-              children,
-            )
-          : null,
-      ),
-    MenuSurface: ({ children }: { children: ReactNode }) =>
-      createElement('div', { role: 'menu' }, children),
-    MenuItemButton: ({ children, onSelect }: { children: ReactNode; onSelect: () => void }) =>
-      createElement('button', { role: 'menuitem', onClick: onSelect }, children),
+
     MarkdownText: stub,
-    Modal: stub,
+
     Switch: ({ label, checked, onChange }: { label: string; checked: boolean; onChange(): void }) =>
       createElement('input', { type: 'checkbox', 'aria-label': label, checked, onChange }),
     StateDot: stub,
     Tag: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -469,9 +428,9 @@ describe('Channel Notices in a Group', () => {
     });
     await render();
     const click = async (text: string) => {
-      const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-        (item) => item.textContent === text || item.getAttribute('aria-label') === text,
-      );
+      const button = [
+        ...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+      ].find((item) => item.textContent === text || item.getAttribute('aria-label') === text);
       expect(button, `button ${text}`).toBeDefined();
       await act(async () => button!.click());
     };
@@ -480,14 +439,15 @@ describe('Channel Notices in a Group', () => {
       '详细',
     );
     await click('History options');
+    await openSubmenu(menuItem(zhTranslate('dmTrace.menu')));
     await click('记忆显示：简约');
     expect(container.textContent).toContain('在 #Launch crew 更新了记忆');
     expect(container.textContent).not.toContain('Remember the launch date');
     expect(container.textContent).not.toContain('launch.md');
     expect(container.textContent).not.toContain('aaaaaaa');
-    const compact = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
-      (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
-    );
+    const compact = [
+      ...container.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+    ].find((item) => item.textContent === 'Mira在 #Launch crew 更新了记忆');
     expect(compact?.title).not.toContain(commit.sha);
     await act(async () => compact!.click());
     expect(memoryGitCommitDiff).toHaveBeenCalledWith(channel.id, commit.sha);
@@ -504,7 +464,7 @@ describe('Channel Notices in a Group', () => {
       }),
     );
     expect(
-      [...container.querySelectorAll('button')].filter(
+      [...container.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].filter(
         (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
       ),
     ).toHaveLength(2);

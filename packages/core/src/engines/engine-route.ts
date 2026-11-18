@@ -6,9 +6,20 @@ export const ENGINES_PATH = '/api/botharness/engines';
 const refusal = (code: string, message: string, status = 400) =>
   Response.json({ error: { code, message } }, { status });
 
+export interface EngineApprovalCard {
+  botSlug: string;
+  sessionId: string;
+  channelId: string;
+  messageId: string;
+  toolName: string;
+  input: string;
+  expiresAt: string;
+}
+
 export interface EngineRouteDeps {
   host: EngineHost;
   botExists(slug: string): boolean;
+  approvals?(): EngineApprovalCard[];
 }
 
 export async function engineRouteFetch(request: Request, deps: EngineRouteDeps): Promise<Response> {
@@ -17,6 +28,7 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
     return Response.json({
       engines: await host.status(),
       selections: host.store.selections().filter((entry) => deps.botExists(entry.botSlug)),
+      approvals: deps.approvals?.() ?? [],
     });
   }
   let body: Record<string, unknown>;

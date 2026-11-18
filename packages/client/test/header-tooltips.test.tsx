@@ -1,37 +1,16 @@
 // @vitest-environment jsdom
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({
-    label,
-    delayMs,
-    focusDelayMs,
-    portal,
-    children,
-  }: {
-    label: string | (() => string);
-    delayMs?: number;
-    focusDelayMs?: number;
-    portal?: boolean;
-    children: ReactNode;
-  }) =>
-    createElement(
-      'span',
-      {
-        'data-tooltip': typeof label === 'function' ? label() : label,
-        'data-delay': String(delayMs ?? 0),
-        'data-focus-delay': String(focusDelayMs ?? 0),
-        'data-portal': String(portal === true),
-      },
-      children,
-    ),
 }));
 
+import { openTooltip, hoverTooltip } from './primitive-mocks.js';
 import { PanelHeader } from '../src/client/ds/panel-header.js';
 import { InstantTooltipScope, Tooltip } from '../src/client/ds/tooltip.js';
 
@@ -43,11 +22,13 @@ beforeEach(() => {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.useRealTimers();
 });
 
 const slowTooltip = (label: string) => (
@@ -56,23 +37,29 @@ const slowTooltip = (label: string) => (
   </Tooltip>
 );
 
-const tooltipOf = (label: string) =>
-  host.querySelector(`[data-tooltip="${label}"]`) as HTMLElement | null;
+const popup = () => document.querySelector<HTMLElement>('[role="tooltip"]');
+const trigger = (label: string) => host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
 
 describe('panel header action tooltips', () => {
-  it('show at once on hover and keyboard focus inside a panel header action slot', () => {
+  it('show at once on hover and keyboard focus inside a panel header action slot', async () => {
     act(() =>
       root.render(
         createElement(PanelHeader, { label: 'Messages', action: slowTooltip('Sessions') }),
       ),
     );
-    const tooltip = tooltipOf('Sessions');
-    expect(tooltip?.dataset.delay).toBe('0');
-    expect(tooltip?.dataset.focusDelay).toBe('0');
-    expect(tooltip?.dataset.portal).toBe('true');
+    await hoverTooltip(trigger('Sessions'), vi.advanceTimersByTimeAsync);
+    expect(popup()?.textContent).toBe('Sessions');
+    expect(host.contains(popup())).toBe(false);
+    await act(async () =>
+      trigger('Sessions').dispatchEvent(
+        new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }),
+      ),
+    );
+    await openTooltip(trigger('Sessions'));
+    expect(trigger('Sessions').getAttribute('aria-describedby')).toBe(popup()?.id);
   });
 
-  it('explain on the panel title that it drags and hides, instead of a native title', () => {
+  it('explain on the panel title that it drags and hides, instead of a native title', async () => {
     act(() =>
       root.render(
         <PanelHeader
@@ -83,21 +70,25 @@ describe('panel header action tooltips', () => {
         />,
       ),
     );
-    const tooltip = tooltipOf('Drag to move, click to hide the panel');
-    expect(tooltip?.querySelector('[data-panel-hide]')?.getAttribute('aria-label')).toBe(
-      'Close Messages',
-    );
+    const anchor = host.querySelector<HTMLElement>('[data-panel-hide]')!;
+    expect(anchor.getAttribute('aria-label')).toBe('Close Messages');
+    await openTooltip(anchor);
+    expect(popup()?.textContent).toBe('Drag to move, click to hide the panel');
     expect(host.querySelector('[data-panel-label]')?.hasAttribute('title')).toBe(false);
   });
 
-  it('keep the caller delay outside a header', () => {
+  it('keep the caller delay outside a header', async () => {
     act(() => root.render(slowTooltip('Download')));
-    expect(tooltipOf('Download')?.dataset.delay).toBe('500');
+    await hoverTooltip(trigger('Download'), vi.advanceTimersByTimeAsync, 499);
+    expect(popup()).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(popup()?.textContent).toBe('Download');
   });
 
-  it('applies to header content portaled out of the slot by an explicit scope', () => {
+  it('applies to header content portaled out of the slot by an explicit scope', async () => {
     act(() => root.render(createElement(InstantTooltipScope, null, slowTooltip('New'))));
-    expect(tooltipOf('New')?.dataset.delay).toBe('0');
+    await hoverTooltip(trigger('New'), vi.advanceTimersByTimeAsync);
+    expect(popup()?.textContent).toBe('New');
   });
 });
 
@@ -122,8 +113,6 @@ describe('tooltip source', () => {
         match[1]!.split(',').some((name) => name.trim().split(/\s+as\s+/)[0] === 'Tooltip'),
       );
     });
-    expect(direct.map((file) => relative(repo, file))).toEqual([
-      join('packages', 'client', 'src', 'client', 'ds', 'tooltip.tsx'),
-    ]);
+    expect(direct.map((file) => relative(repo, file))).toEqual([]);
   });
 });

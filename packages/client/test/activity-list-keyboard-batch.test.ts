@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
   Button: ({
     children,
@@ -206,7 +207,7 @@ it.each(['dismiss', 'snooze'])(
       else {
         await act(async () => view.button(0, '稍后提醒').click());
         await act(async () =>
-          view.element.querySelector<HTMLButtonElement>('[role="menu"] button')!.click(),
+          document.body.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]')!.click(),
         );
       }
       await act(async () =>
@@ -323,7 +324,7 @@ describe('Human Inbox snooze', () => {
       (b) => b.textContent === '稍后提醒',
     )!;
     await act(async () => button.click());
-    const choice = view.host.querySelector<HTMLButtonElement>('[role="menu"] button')!;
+    const choice = document.body.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]')!;
     expect(choice.textContent).toBe('1 小时后');
     await act(async () => choice.click());
     const [item, until] = view.actions.snoozeActivityList.mock.calls[0]!;

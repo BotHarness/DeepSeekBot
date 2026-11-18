@@ -23,7 +23,8 @@ import {
 } from '../src/client/genui-report.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({
     children,
     size: _size,

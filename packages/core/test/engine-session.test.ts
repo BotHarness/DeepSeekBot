@@ -143,7 +143,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
     expect(tools.map((item) => [item.tool, item.status])).toEqual([
       ['channel_read', 'done'],
       ['bot_send_message', 'done'],
-      ['shell', 'failed'],
+      ['shell', 'denied'],
     ]);
     expect(transcript.items.at(-1)).toMatchObject({ kind: 'turn-end', state: 'done' });
 
@@ -390,6 +390,7 @@ describe('Engine selection, status and route', () => {
         },
       ],
       selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
+      approvals: [],
     });
     await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: null });
     expect(host.engineFor('ada')).toBeUndefined();

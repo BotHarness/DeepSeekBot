@@ -4,34 +4,10 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => createElement('svg'),
   IconEllipsisOutlineRegular: () => createElement('svg'),
-  Menu: ({
-    open,
-    anchor,
-    items,
-    onSelect,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    items: { id: string; label: string }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'span',
-      null,
-      anchor,
-      open
-        ? items.map((item) =>
-            createElement(
-              'button',
-              { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-              item.label,
-            ),
-          )
-        : null,
-    ),
 }));
 
 import type { UsageFilter, UsageQueryResult, ProfileModelUsageRow } from '../src/client/bridge.js';
@@ -97,22 +73,26 @@ async function renderUsage(
 async function choose(container: HTMLElement, value: string) {
   await act(async () => {
     if (value === 'custom') {
-      container.querySelector<HTMLButtonElement>('button[aria-label="More time ranges"]')!.click();
+      document.body
+        .querySelector<HTMLButtonElement>('button[aria-label="More time ranges"]')!
+        .click();
     } else {
-      container.querySelector<HTMLButtonElement>(`[data-range="${value}"]`)!.click();
+      document.body.querySelector<HTMLButtonElement>(`[data-range="${value}"]`)!.click();
     }
   });
   if (value === 'custom')
-    await act(async () => container.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click(),
+    );
 }
 async function showView(container: HTMLElement, view: 'daily' | 'model') {
   await act(async () =>
-    container.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!.click(),
+    document.body.querySelector<HTMLButtonElement>(`[data-view="${view}"]`)!.click(),
   );
 }
 async function setDate(container: HTMLElement, index: number, value: string) {
   await act(async () => {
-    const input = container.querySelectorAll<HTMLInputElement>('input[type="date"]')[index]!;
+    const input = document.body.querySelectorAll<HTMLInputElement>('input[type="date"]')[index]!;
     Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(
       input,
       value,
@@ -130,37 +110,37 @@ describe('Token usage card', () => {
       { ...base, purpose: 'assignment', model: 'other-model', totalTokens: 20 },
     ]);
     try {
-      expect(container.querySelector('[data-range="7"]')?.getAttribute('aria-pressed')).toBe(
+      expect(document.body.querySelector('[data-range="7"]')?.getAttribute('aria-pressed')).toBe(
         'true',
       );
-      expect(container.querySelector('[data-view="daily"]')?.getAttribute('aria-pressed')).toBe(
+      expect(document.body.querySelector('[data-view="daily"]')?.getAttribute('aria-pressed')).toBe(
         'true',
       );
-      expect(container.querySelectorAll('.bh-profile-bar-chart')).toHaveLength(1);
-      expect(container.querySelector('.bh-usage-axis-labels')?.textContent).toBe(
+      expect(document.body.querySelectorAll('.bh-profile-bar-chart')).toHaveLength(1);
+      expect(document.body.querySelector('.bh-usage-axis-labels')?.textContent).toBe(
         '2026-09-242026-09-30',
       );
-      expect(container.textContent).toContain('Selected period: 525 tokens');
-      expect(container.querySelector('select')).toBeNull();
-      expect(container.querySelector('details')).toBeNull();
-      expect(container.textContent).not.toContain('Orchestrator');
-      expect(container.textContent).not.toContain('provider-a');
-      expect(container.querySelector('.bh-usage-cache')).toBeNull();
+      expect(document.body.textContent).toContain('Selected period: 525 tokens');
+      expect(document.body.querySelector('select')).toBeNull();
+      expect(document.body.querySelector('details')).toBeNull();
+      expect(document.body.textContent).not.toContain('Orchestrator');
+      expect(document.body.textContent).not.toContain('provider-a');
+      expect(document.body.querySelector('.bh-usage-cache')).toBeNull();
 
       await showView(container, 'model');
-      expect(container.textContent).toContain('Selected period: 525 tokens');
-      const labels = [...container.querySelectorAll('.bh-usage-model-label')].map(
+      expect(document.body.textContent).toContain('Selected period: 525 tokens');
+      const labels = [...document.body.querySelectorAll('.bh-usage-model-label')].map(
         (row) => row.textContent,
       );
       expect(labels).toEqual(['shared-name505 tokens', 'other-model20 tokens']);
 
       await choose(container, 'all');
-      expect(container.textContent).toContain('Selected period: 1,025 tokens');
+      expect(document.body.textContent).toContain('Selected period: 1,025 tokens');
       await choose(container, '30');
-      expect(container.textContent).toContain('Selected period: 1,025 tokens');
+      expect(document.body.textContent).toContain('Selected period: 1,025 tokens');
       await choose(container, '7');
       await showView(container, 'daily');
-      expect(container.textContent).toContain('Selected period: 525 tokens');
+      expect(document.body.textContent).toContain('Selected period: 525 tokens');
 
       await choose(container, 'custom');
       expect(
@@ -170,13 +150,13 @@ describe('Token usage card', () => {
       ).toBe('true');
       await setDate(container, 0, '2026-09-29');
       await setDate(container, 1, '2026-09-29');
-      expect(container.textContent).toContain('Selected period: 200 tokens');
+      expect(document.body.textContent).toContain('Selected period: 200 tokens');
       await setDate(container, 0, '2026-09-28');
       await setDate(container, 1, '2026-09-28');
-      expect(container.textContent).toContain('No model calls recorded in this period');
-      expect(container.querySelectorAll('.bh-profile-bar-chart')).toHaveLength(0);
+      expect(document.body.textContent).toContain('No model calls recorded in this period');
+      expect(document.body.querySelectorAll('.bh-profile-bar-chart')).toHaveLength(0);
       await setDate(container, 0, '2026-09-30');
-      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
         'Choose valid start and end dates',
       );
     } finally {
@@ -188,8 +168,8 @@ describe('Token usage card', () => {
       { ...base, inputTokens: null, cacheReadTokens: null },
     ]);
     try {
-      expect(container.textContent).toContain('Selected period: 155 tokens');
-      expect(container.querySelector('.bh-usage-legend')?.textContent).toContain(
+      expect(document.body.textContent).toContain('Selected period: 155 tokens');
+      expect(document.body.querySelector('.bh-usage-legend')?.textContent).toContain(
         'Total (breakdown unavailable)',
       );
     } finally {
@@ -206,10 +186,10 @@ describe('Token usage card', () => {
       },
     ]);
     try {
-      expect(missing.container.textContent).toContain('Selected period: Unknown tokens');
-      expect(missing.container.querySelector('.bh-profile-empty')).toBeNull();
+      expect(document.body.textContent).toContain('Selected period: Unknown tokens');
+      expect(document.body.querySelector('.bh-profile-empty')).toBeNull();
       await showView(missing.container, 'model');
-      expect(missing.container.querySelector('.bh-usage-model-labels')?.textContent).not.toContain(
+      expect(document.body.querySelector('.bh-usage-model-labels')?.textContent).not.toContain(
         '0 tokens',
       );
     } finally {
@@ -237,9 +217,11 @@ describe('Token usage card', () => {
   it('distinguishes unavailable usage from an empty ready range', async () => {
     const { container, cleanup } = await renderUsage([], 'unavailable');
     try {
-      expect(container.textContent).toContain('Model usage is temporarily unavailable');
-      expect(container.querySelector<HTMLButtonElement>('[data-range="7"]')?.disabled).toBe(true);
-      expect(container.querySelector('.bh-profile-card-total')).toBeNull();
+      expect(document.body.textContent).toContain('Model usage is temporarily unavailable');
+      expect(document.body.querySelector<HTMLButtonElement>('[data-range="7"]')?.disabled).toBe(
+        true,
+      );
+      expect(document.body.querySelector('.bh-profile-card-total')).toBeNull();
     } finally {
       await cleanup();
     }
@@ -278,13 +260,13 @@ describe('Profile usage public-query interaction', () => {
     const { container, cleanup } = await renderUsage([], 'unavailable', load);
     try {
       expect(load).toHaveBeenLastCalledWith({ start: '2026-09-24', end: '2026-09-30' });
-      expect(container.textContent).toContain('All time: 999 tokens');
-      expect(container.textContent).toContain('Selected period: 155 tokens');
+      expect(document.body.textContent).toContain('All time: 999 tokens');
+      expect(document.body.textContent).toContain('Selected period: 155 tokens');
       await choose(container, 'all');
       expect(load).toHaveBeenLastCalledWith({ start: '2026-04-02', end: '2026-09-30' });
       await choose(container, '90');
       expect(load.mock.calls.at(-1)?.[0]).toEqual({ start: '2026-07-03', end: '2026-09-30' });
-      expect(container.textContent).toContain('999 tokens');
+      expect(document.body.textContent).toContain('999 tokens');
     } finally {
       await cleanup();
     }
@@ -299,16 +281,16 @@ describe('Profile usage public-query interaction', () => {
     try {
       failing = true;
       await act(async () =>
-        [...container.querySelectorAll<HTMLButtonElement>('button')]
+        [...document.body.querySelectorAll<HTMLButtonElement>('button')]
           .find((button) => button.getAttribute('aria-label') === 'Refresh')!
           .click(),
       );
-      expect(container.textContent).toContain('Refresh failed; showing the last result');
-      expect(container.textContent).toContain('Selected period: 155 tokens');
+      expect(document.body.textContent).toContain('Refresh failed; showing the last result');
+      expect(document.body.textContent).toContain('Selected period: 155 tokens');
       await choose(container, '30');
-      expect(container.textContent).toContain('Usage query failed');
-      expect(container.textContent).not.toContain('155 tokens');
-      expect(container.textContent).not.toContain('999 tokens');
+      expect(document.body.textContent).toContain('Usage query failed');
+      expect(document.body.textContent).not.toContain('155 tokens');
+      expect(document.body.textContent).not.toContain('999 tokens');
     } finally {
       await cleanup();
     }
@@ -329,8 +311,8 @@ describe('Profile usage public-query interaction', () => {
       await act(async () =>
         resolveInitial({ ...packet(initial), periodTotal: 10000, allTimeTotal: 10000 }),
       );
-      expect(container.textContent).toContain('Selected period: 155 tokens');
-      expect(container.textContent).not.toContain('10,000');
+      expect(document.body.textContent).toContain('Selected period: 155 tokens');
+      expect(document.body.textContent).not.toContain('10,000');
     } finally {
       await cleanup();
     }
@@ -345,10 +327,10 @@ it('keeps a successful result until manual refresh or filter change, without pol
     expect(load).toHaveBeenCalledTimes(1);
     await act(async () => vi.advanceTimersByTimeAsync(10 * 60_000));
     expect(load).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain('Selected period: 155 tokens');
-    expect(container.textContent).not.toContain('Refresh failed');
+    expect(document.body.textContent).toContain('Selected period: 155 tokens');
+    expect(document.body.textContent).not.toContain('Refresh failed');
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('button[aria-label="Refresh"]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('button[aria-label="Refresh"]')!.click(),
     );
     expect(load).toHaveBeenCalledTimes(2);
     await choose(container, '30');

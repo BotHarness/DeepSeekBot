@@ -514,7 +514,9 @@ try {
   const shot = resolve(out, `${options.label}.failure.png`);
   await page.screenshot({ path: shot }).catch(() => {});
   console.error(`perf run failed; page screenshot: ${shot}`);
-  throw new Error(redact(error instanceof Error ? (error.stack ?? error.message) : error));
+  throw new Error(redact(error instanceof Error ? (error.stack ?? error.message) : error), {
+    cause: error,
+  });
 } finally {
   await browser.close();
 }

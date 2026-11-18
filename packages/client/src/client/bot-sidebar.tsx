@@ -68,12 +68,11 @@ import {
   IconSettingsOutlineRegular,
   IconShareOutlineRegular,
   IconTrashOutlineRegular,
-  HoverCard,
-  MenuItemButton,
   Tag,
-  Toast,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { HoverCard } from './ds/hover-card.js';
+import { Toast } from './ds/toast.js';
+import { MenuItemButton, type MenuEntry } from './ds/menu.js';
 import { InstantTooltipScope, Tooltip } from './ds/tooltip.js';
 
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';

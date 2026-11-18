@@ -16,7 +16,7 @@ export function hostBridgeCall(
     } catch (error) {
       signal?.throwIfAborted();
       if (error instanceof MethodRefused) {
-        if (!current()) throw new Error('remote-conversation-unavailable');
+        if (!current()) throw new Error('remote-conversation-unavailable', { cause: error });
         throw new BridgeCallError(error.code, error.message, error.details);
       }
       throw error;

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 
 import { COMBOBOX_CSS } from '../src/client/combobox.js';
 import { COMPOSER_CONTEXT_CSS } from '../src/client/composer-context-styles.js';

@@ -6,7 +6,8 @@ import { ConnectPanel } from '../src/client/connect-panel.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));

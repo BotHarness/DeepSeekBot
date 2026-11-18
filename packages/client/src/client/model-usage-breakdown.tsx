@@ -3,8 +3,8 @@ import { useRef, useState, type ReactElement } from 'react';
 import {
   IconEllipsisOutlineRegular,
   IconRefreshOutlineRegular,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 
 import { useMountedResource } from './mounted-resource.js';
 import type { UsageFilter, UsageQueryResult, ProfileModelUsageRow } from './bridge.js';

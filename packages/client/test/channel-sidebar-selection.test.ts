@@ -3,12 +3,10 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ anchor }: { anchor: ReactNode }) => anchor,
-  MenuItemButton: () => null,
-  MenuSurface: () => null,
+
   IconChevronRightOutlineRegular: () => null,
 }));
 

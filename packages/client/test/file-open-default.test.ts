@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   type Item = {
     type?: string;
@@ -14,6 +14,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     submenu?: Item[];
   };
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     writeClipboard: vi.fn(async () => true),
     IconEllipsisOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -23,38 +24,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconRefreshOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
     IconDownloadOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
-    Menu: ({
-      anchor,
-      items,
-      onSelect,
-    }: {
-      anchor: ReactNode;
-      items: Item[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        anchor,
-        items
-          .flatMap((item) => [item, ...(item.submenu ?? [])])
-          .map((item) =>
-            item.type
-              ? createElement('span', { key: item.id }, item.text)
-              : createElement(
-                  'button',
-                  {
-                    key: item.id,
-                    role: 'menuitem',
-                    'data-id': item.id,
-                    disabled: item.disabled,
-                    onClick: () => onSelect(item.id),
-                  },
-                  item.label,
-                ),
-          ),
-      ),
   };
 });
 import {
@@ -64,6 +33,7 @@ import {
 } from '../src/client/file-open-preferences.js';
 import type { HostFileApplication, HostFileTarget } from '../src/client/host-file-actions.js';
 import { HostFileOpenButton, type HostFileCommands } from '../src/client/host-file-menu.js';
+import { queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { MemoryCurrentFileOpenButton } from '../src/client/memory-file-actions.js';
@@ -201,7 +171,18 @@ const click = async (element: Element | null | undefined) => {
 };
 const main = () => container.querySelector<HTMLButtonElement>('.bh-file-open-main')!;
 const more = () => container.querySelector<HTMLButtonElement>('.bh-file-open-more')!;
-const item = (id: string) => document.querySelector<HTMLButtonElement>(`[data-id="${id}"]`);
+const item = (id: string) => {
+  if (id.startsWith('app:'))
+    return queryMenuItem(new RegExp(`^用 ${id.slice(4).toUpperCase()} 打开`));
+  if (id.startsWith('default:')) return queryMenuItem(new RegExp(`^${id.slice(8).toUpperCase()}`));
+  const labels: Record<string, string | RegExp> = {
+    restore: zhTranslate('fileAction.restoreDefault'),
+    'set-default': /^设置.*默认/,
+    back: zhTranslate('fileAction.back'),
+    copy: zhTranslate('fileAction.copy'),
+  };
+  return queryMenuItem(labels[id] ?? id);
+};
 
 async function mount(
   applications: HostFileApplication[],

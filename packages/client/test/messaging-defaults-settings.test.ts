@@ -19,38 +19,11 @@ vi.mock('../src/client/ds/button.js', async () => ({
 vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
   IconChevronDownOutlineRegular: () => null,
-  Menu: ({
-    open,
-    anchor,
-    items,
-    onSelect,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    items: readonly { id: string; label: ReactNode }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'span',
-      null,
-      anchor,
-      open
-        ? createElement(
-            'span',
-            { role: 'menu' },
-            items.map((item) =>
-              createElement(
-                'button',
-                { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            ),
-          )
-        : null,
-    ),
+
   Switch: ({
     checked,
     label,

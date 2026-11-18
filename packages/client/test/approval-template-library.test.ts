@@ -12,31 +12,10 @@ import { zhTranslate as t } from '../src/client/locale.js';
 import { createStore } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  Menu: ({
-    items,
-    onSelect,
-  }: {
-    items: { id: string; label: ReactNode }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'menu' },
-      items.map((item) =>
-        createElement(
-          'button',
-          {
-            key: item.id,
-            role: 'menuitem',
-            onClick: () => onSelect(item.id),
-          },
-          item.label,
-        ),
-      ),
-    ),
 }));
 vi.mock('../src/client/avatar.js', () => ({ PersonaBotAvatar: () => null }));
 vi.mock('../src/client/channel-sidebar-icon.js', () => ({ ChannelSidebarIcon: () => null }));
@@ -155,7 +134,7 @@ async function openDeletion(call: BridgeCall): Promise<void> {
   );
   if (!edit) throw new Error('Missing custom template');
   await act(async () => edit.click());
-  const remove = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const remove = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.library.delete'),
   );
   if (!remove) throw new Error('Missing delete action');
@@ -297,7 +276,7 @@ it('uses read-only recovery after an unconfirmed deletion result', async () => {
   expect(writes).toBe(1);
   expect(confirmDeletion().disabled).toBe(true);
   expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
-  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const reload = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.reload'),
   );
   if (!reload) throw new Error('Missing read-only recovery');
@@ -438,7 +417,7 @@ it('reads canonical deletion after the confirmation dialog closes during the wri
 });
 
 async function clickText(label: string): Promise<void> {
-  const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const button = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (item) => item.textContent === label,
   );
   if (!button) throw new Error('Missing button: ' + label);
@@ -995,7 +974,7 @@ it('retains an unreadable template deletion failure when the readable list omits
   expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
   expect(confirmDeletion().disabled).toBe(true);
   expect(previews).toBe(2);
-  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const reload = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.reload'),
   );
   if (!reload) throw new Error('Missing recovery');

@@ -5,7 +5,8 @@ import { expect, it, vi } from 'vitest';
 import { DeviceRequestsNotice } from '../src/client/device-requests-notice.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: 'button',
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));

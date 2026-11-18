@@ -13,6 +13,7 @@ vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: ({
     variant: _variant,
@@ -40,9 +41,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
       checked,
       onChange: () => onChange(!checked),
     }),
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Modal: () => null,
-  Menu: () => null,
+
   IconCheckOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
   IconRefreshOutlineRegular: () => null,

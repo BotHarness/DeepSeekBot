@@ -8,7 +8,9 @@ import { AppearancePanelHeader } from '../src/client/appearance-panel-header.js'
 import { panelMaterials, panelTargetId } from '../src/client/appearance-panels.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 vi.mock('../src/client/ds/pointer-menu.js', () => ({
   PointerMenu: ({
     items,

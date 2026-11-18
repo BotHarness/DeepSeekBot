@@ -194,7 +194,13 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
         init?.signal?.addEventListener('abort', () => aborted.push(url));
         if (url.startsWith('https://mirror.test/')) {
           return new Promise<Response>((_resolve, reject) =>
-            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+            init?.signal?.addEventListener('abort', () =>
+              reject(
+                init.signal?.reason instanceof Error
+                  ? init.signal.reason
+                  : new Error('aborted', { cause: init.signal?.reason }),
+              ),
+            ),
           );
         }
         return new Response(new Uint8Array(dist.bytes));

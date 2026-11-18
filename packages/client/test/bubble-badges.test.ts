@@ -3,9 +3,8 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  MenuSurface: ({ children }: { children: ReactNode }) => children,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import { BubbleBadges, keptReactions } from '../src/client/bubble-badges.js';

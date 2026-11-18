@@ -115,16 +115,7 @@ export function withWorkspaceActionDeadline<T>(
       () => reject(new Error(timeoutMessage)),
       WORKSPACE_ACTION_TIMEOUT_MS,
     );
-    void promise.then(
-      (value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      },
-      (cause: unknown) => {
-        window.clearTimeout(timer);
-        reject(cause);
-      },
-    );
+    void promise.finally(() => window.clearTimeout(timer)).then(resolve, reject);
   });
 }
 

@@ -1,9 +1,9 @@
 import type { ReactElement, ReactNode } from 'react';
 import {
-  HoverCard,
   IconNewChatOutlineRegular,
   IconUserOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { HoverCard } from './ds/hover-card.js';
 
 import {
   normalizePersonaBotActivity,

@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
-    MenuItemButton: stub,
+
     IconAgentPresetOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
     IconChevronRightOutlineRegular: stub,
@@ -22,12 +23,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSearchOutlineRegular: stub,
     IconSendOutlineRegular: stub,
     Input: stub,
-    Menu: stub,
+
     MarkdownText: stub,
-    Modal: stub,
+
     StateDot: stub,
     Tag: stub,
-    Tooltip: stub,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });

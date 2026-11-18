@@ -7,9 +7,10 @@ import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { createBridgeVideoResource } from '../src/client/bridge-video-resource.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
     Button: ({
       children,
@@ -19,7 +20,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       children: ReactNode;
       variant?: string;
     }) => createElement('button', props, children),
-    Modal: stub,
+
     FileTypeIcon: stub,
     MarkdownText: stub,
     StateDot: stub,
@@ -27,7 +28,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconFolderOpenOutlineRegular: stub,
     IconPlayOutlineRegular: stub,
     IconPauseOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     fileSizeText: (size: number) => `${size} B`,
   };
 });

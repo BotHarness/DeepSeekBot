@@ -3,11 +3,11 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   IconInfoOutlineRegular: () => createElement('span'),
-  Tooltip: ({ children, label }: PropsWithChildren<{ label: string }>) =>
-    createElement('span', { title: label }, children),
+
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   Switch: ({
     checked,
@@ -83,7 +83,7 @@ it('Bridge Switch failures refresh committed state and stale edits preserve the 
         }),
       ),
     );
-    const toggle = container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    const toggle = document.body.querySelector<HTMLButtonElement>('[role="switch"]')!;
     await act(async () => toggle.click());
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     expect(actions.channelBridges).toHaveBeenCalledTimes(2);
@@ -96,9 +96,11 @@ it('Bridge Switch failures refresh committed state and stale edits preserve the 
       enabled: false,
       collection: 'mentions',
     });
-    const edit = container.querySelector<HTMLButtonElement>('[title="编辑外部连接器：QA intake"]')!;
+    const edit = document.body.querySelector<HTMLButtonElement>(
+      '[title="编辑外部连接器：QA intake"]',
+    )!;
     await act(async () => edit.click());
-    const input = container.querySelector<HTMLInputElement>('input')!;
+    const input = document.body.querySelector<HTMLInputElement>('input')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
         input,
@@ -106,12 +108,12 @@ it('Bridge Switch failures refresh committed state and stale edits preserve the 
       );
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const save = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === zhTranslate('bridge.save'),
     )!;
     await act(async () => save.click());
     expect(input.value).toBe('Retained draft');
-    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
       '配置已',
     );
     await openCombobox(zhTranslate('bridge.condition'));
@@ -175,12 +177,14 @@ it('WeChat DM connector edits expose only supported paired-owner intake', async 
         }),
       ),
     );
-    expect(container.textContent).toContain('扫码绑定者私聊消息');
-    expect(container.textContent).not.toContain(zhTranslate('bridge.unverified'));
+    expect(document.body.textContent).toContain('扫码绑定者私聊消息');
+    expect(document.body.textContent).not.toContain(zhTranslate('bridge.unverified'));
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑外部连接器：Owner intake"]')!.click(),
+      document.body
+        .querySelector<HTMLButtonElement>('[title="编辑外部连接器：Owner intake"]')!
+        .click(),
     );
-    const dialog = container.querySelector('[role="dialog"]')!;
+    const dialog = document.body.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain(zhTranslate('bridge.wechatDMHint'));
     expect(
       dialog.querySelector(`input[aria-label="${zhTranslate('bridge.condition')}"]`),
@@ -257,7 +261,9 @@ it('deletes a connector from the edit dialog only after a separate confirmation'
   const root = createRoot(container);
   const edit = () =>
     act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑外部连接器：QA intake"]')!.click(),
+      document.body
+        .querySelector<HTMLButtonElement>('[title="编辑外部连接器：QA intake"]')!
+        .click(),
     );
   try {
     await act(async () =>
@@ -278,7 +284,7 @@ it('deletes a connector from the edit dialog only after a separate confirmation'
     expect(dialog().getAttribute('aria-label')).toBe(zhTranslate('bridge.delete'));
     expect(dialog().textContent).toContain(zhTranslate('bridge.deleteImpact'));
     await act(async () => buttonNamed(zhTranslate('common.cancel'), dialog()).click());
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(actions.channelBridge).not.toHaveBeenCalled();
     await edit();
     await act(async () => buttonNamed('删除外部连接器：QA intake', dialog()).click());
@@ -290,7 +296,7 @@ it('deletes a connector from the edit dialog only after a separate confirmation'
       routeId: 'route',
       expectedRevision: 3,
     });
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
