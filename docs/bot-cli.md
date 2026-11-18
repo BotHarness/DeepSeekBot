@@ -514,7 +514,7 @@ deepseekbot im-app-remove discord --app <app-id>
 
 `im-status` and `messaging-grants` include process-local `recovery` metadata: `retrying` with `reason`, `attempt`, `nextRetryAt`, or `action-required` with `reason`. Temporary provider readiness failures retry exponentially from 250 ms to a 30 s cap until recovery. Host restart reconstructs receivers from enabled bindings and grants. `im-reconnect` uses the existing Owner and current revision without changing conversation access. Failed mutations are reported, never automatically replayed.
 
-`im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](adr/0343-im-settings-project-saved-configuration-before-live-checks.md).
+`im-status`, `messaging-grants` and `channel-bridges` support `--read-mode saved|status`. `saved` returns local configuration promptly with `checks: pending`; capability/availability fields are not verified permissions. `status` checks only bound accounts and grants with `checks: complete`, sharing account inspections only within the current request. Omitting the flag retains full app/setup discovery. Mutations reject this flag and keep their fresh Owner checks. See [ADR-0343](decisions/im-providers.md#adr-0343).
 
 ### IM messaging, approvals and failure alerts from the CLI
 
@@ -1488,7 +1488,7 @@ The keyed result includes a `receipt` with `operationKey`, `kind`, `channelId`, 
 
 Authenticated Human online `group-create` and `group-invite` also support stable operation keys; the invitation command accepts `--expected-channel` for the observed state. These review/retry inputs are optional for Human commands and mandatory for scoped Tob. Existing unkeyed Human operations retain their owner behavior.
 
-The following slices add group rename/avatar, member wake settings, member removal, cancellation of pending invitations and decisions on pending join requests. Personal mute/pin/nickname/visibility, group deletion, attachments and external membership have no typed Tob operation; where a Human CLI command exists, Tob runs it through the generic path, after the Human approves the exact command. #2090 remains open for its remaining scope. See [ADR-0226](adr/0226-group-management-receipts-preserve-channel-authority.md) and the [coverage inventory](agents/cli-ui-coverage.md#2090-group-management-scope). Direct CLI, real Tob approval/readback, Web membership/history and macOS Desktop are separate verification gates.
+The following slices add group rename/avatar, member wake settings, member removal, cancellation of pending invitations and decisions on pending join requests. Personal mute/pin/nickname/visibility, group deletion, attachments and external membership have no typed Tob operation; where a Human CLI command exists, Tob runs it through the generic path, after the Human approves the exact command. #2090 remains open for its remaining scope. See [ADR-0226](decisions/messaging.md#adr-0226) and the [coverage inventory](agents/cli-ui-coverage.md#2090-group-management-scope). Direct CLI, real Tob approval/readback, Web membership/history and macOS Desktop are separate verification gates.
 
 ### Tob group settings and member removal
 

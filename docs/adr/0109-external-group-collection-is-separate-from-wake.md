@@ -27,4 +27,4 @@ These policies and records are BotHarness application contracts, not new DSH Age
 
 Operational schema generation 46 adds an immutable `messaging_group_policy_revisions` table without rewriting existing sources. Older binaries refuse the newer schema. Downgrade requires a pre-upgrade database backup; otherwise use forward recovery. Turning collection back to mentions affects future arrivals and preserves retained history.
 
-References: [#613](https://github.com/BotHarness/BotHarness/issues/613), [#629](https://github.com/BotHarness/BotHarness/issues/629), [ADR-0106](0106-exclusive-im-intake-commits-bot-inbox-before-acknowledgement.md), [ADR-0108](0108-shared-channel-bridge-places-canonical-external-sources.md).
+References: [#613](https://github.com/BotHarness/BotHarness/issues/613), [#629](https://github.com/BotHarness/BotHarness/issues/629), [ADR-0106](../decisions/im-providers.md#adr-0106), [ADR-0108](../decisions/im-providers.md#adr-0108).

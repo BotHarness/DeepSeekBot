@@ -94,3 +94,17 @@ export function createModelCatalog(
     },
   };
 }
+
+export function sharedEfforts(
+  routes: readonly Pick<ModelRoute, 'provider' | 'model'>[],
+  entries: readonly ModelCatalogEntry[],
+): string[] {
+  const lists = routes.map(
+    (route) =>
+      entries
+        .find((entry) => entry.provider === route.provider && entry.model === route.model)
+        ?.efforts.map((effort) => effort.id) ?? [],
+  );
+  const [first, ...rest] = lists;
+  return (first ?? []).filter((id) => rest.every((list) => list.includes(id)));
+}

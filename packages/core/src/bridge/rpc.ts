@@ -160,6 +160,7 @@ import type { ModelCatalogEntry } from '../models/catalog.js';
 import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type {
+  AssignmentGroupOption,
   AssignmentModelOption,
   ModelPreset,
   ModelRoute,
@@ -397,11 +398,13 @@ function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
   assignmentGroups: string[] | undefined,
   assignmentDefaultGroupId: string | null | undefined,
+  assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
 ): Record<string, unknown> {
   return {
     ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
     ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
     ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+    ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
   };
 }
 
@@ -1301,6 +1304,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupId?: string | null,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
@@ -1309,7 +1313,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(orchestratorGroupId, assignmentGroups, assignmentDefaultGroupId),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1325,6 +1334,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupId?: string | null,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1335,7 +1345,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(orchestratorGroupId, assignmentGroups, assignmentDefaultGroupId),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1409,6 +1424,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     openAssignmentModels?: boolean,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1419,6 +1435,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
         ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+        ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
       }),
     );
   }

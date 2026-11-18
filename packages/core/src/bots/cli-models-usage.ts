@@ -456,7 +456,9 @@ export async function runModelsUsage(
     const plan = await planInput(
       io,
       values,
-      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      full
+        ? required
+        : [...required, 'assignmentGroups', 'assignmentDefaultGroupId', 'assignmentGroupOptions'],
       required,
     );
     const mode = assignmentModelsMode(values['assignment-models']);
@@ -480,7 +482,7 @@ export async function runModelsUsage(
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
-      ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
+      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions'], [])
       : {};
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();

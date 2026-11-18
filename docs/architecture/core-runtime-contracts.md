@@ -9,7 +9,7 @@ This note keeps the implementation constraints that were formerly explained besi
 
 ## Channel and roster authority
 
-- A pending Group invitation identifies the invitee's Bot incarnation. Recreating a Bot with the same visible identity does not inherit an old invitation. Only the intended invitee can accept it; acceptance adds membership in the owning Channel store. The Human can cancel an invitation or remove a joined member. See [ADR-0073](../adr/0073-group-membership-is-invitation-first-with-auto-accept.md).
+- A pending Group invitation identifies the invitee's Bot incarnation. Recreating a Bot with the same visible identity does not inherit an old invitation. Only the intended invitee can accept it; acceptance adds membership in the owning Channel store. The Human can cancel an invitation or remove a joined member. See [ADR-0073](../decisions/messaging.md#adr-0073).
 - Roster sections use Host-generated IDs and one storage-domain order/pin authority. Writes that do not change placement must not create an extra durable revision. See the [roster implementation](../../packages/core/src/roster/) and [living architecture](botharness-architecture.md).
 
 ## Host integration and diagnostics
