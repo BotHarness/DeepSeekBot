@@ -8,7 +8,7 @@ import { createComputerPauseStore } from '../src/local-video-owner.js';
 import { COMPUTER_TOOLS } from '../src/tool/catalog.js';
 import { auditSummary } from '../src/tool/provider.js';
 
-const marker = fc.stringMatching(/^[A-Z]{6}[0-9]{4}$/u).map((value) => `SECRET${value}`);
+const marker = fc.stringMatching(/^[A-Z]{1,12}[0-9]{1,6}$/u).map((value) => `SECRET${value}`);
 const root = mkdtempSync(join(tmpdir(), 'computer-pause-'));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 let next = 0;
