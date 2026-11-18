@@ -628,3 +628,16 @@ it('keeps a prefetched transcript when progress arrives first', async () => {
   await act(async () => finish(value));
   expect(cachedSessionDetail(at)?.transcript).toBe(value);
 });
+
+it('drops a prefetch whose newer transcript was evicted while it ran', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const host = {};
+  const at = { host, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  rememberSessionDetail(at, { transcript: transcript('assignment') });
+  for (let index = 0; index < 24; index += 1)
+    rememberSessionDetail({ host, botSlug: 'tobs', sessionId: `other-${index}` }, {});
+  expect(cachedSessionDetail(at)).toBeUndefined();
+  await act(async () => finish({ ...transcript('assignment'), items: [] }));
+  expect(cachedSessionDetail(at)).toBeUndefined();
+});

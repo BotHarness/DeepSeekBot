@@ -48,7 +48,7 @@ export function rememberSessionDetail(at: SessionDetailKey, patch: SessionDetail
   while (entries.size > LIMIT) {
     const oldest = entries.keys().next().value!;
     entries.delete(oldest);
-    transcriptWrites.delete(oldest);
+    if (!pending.has(oldest)) transcriptWrites.delete(oldest);
   }
 }
 
@@ -72,7 +72,9 @@ export function prefetchSessionDetail(
       () => {},
     )
     .finally(() => {
-      if (pending.get(id) === token) pending.delete(id);
+      if (pending.get(id) !== token) return;
+      pending.delete(id);
+      if (!entries.has(id)) transcriptWrites.delete(id);
     });
 }
 
