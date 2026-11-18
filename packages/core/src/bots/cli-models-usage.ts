@@ -14,7 +14,7 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'home-model-set',
     description:
-      'set the Host default model (--provider, --model, --orchestrator-effort, --expected-revision)',
+      'set the Host default model (--provider, --model, --orchestrator-effort, or --group <routing-group-id>; --expected-revision)',
   },
   {
     command: 'model-catalog',
@@ -116,6 +116,7 @@ export interface ModelsUsageValues {
   'assignment-models'?: string;
   'members-stdin'?: boolean;
   'orchestrator-group'?: string;
+  group?: string;
   'assignment-groups'?: string;
   'assignment-default-group'?: string;
   period?: string;
@@ -299,7 +300,12 @@ export async function runModelsUsage(
   const expected = revision(values['expected-revision']);
 
   if (command === 'home-model-set') {
-    if (!values.provider || !values.model) usage('home-model-set requires --provider and --model.');
+    const group = values.group?.trim();
+    if (values.group !== undefined && !group) usage('--group must not be empty.');
+    if (group && (values.provider || values.model || values['orchestrator-effort']))
+      usage('Use either --group or --provider/--model.');
+    if (!group && (!values.provider || !values.model))
+      usage('home-model-set requires --provider and --model, or --group.');
     const rpc = await connect();
     const expectedDefaultRevision =
       expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
@@ -311,13 +317,17 @@ export async function runModelsUsage(
     return rpc('onboardingModel', {
       expectedRevision: 0,
       expectedDefaultRevision,
-      route: {
-        provider: values.provider,
-        model: values.model,
-        ...(values['orchestrator-effort']
-          ? { reasoningEffort: values['orchestrator-effort'] }
-          : {}),
-      },
+      ...(group
+        ? { groupId: group }
+        : {
+            route: {
+              provider: values.provider,
+              model: values.model,
+              ...(values['orchestrator-effort']
+                ? { reasoningEffort: values['orchestrator-effort'] }
+                : {}),
+            },
+          }),
       globalDefault: true,
     });
   }
@@ -446,7 +456,9 @@ export async function runModelsUsage(
     const plan = await planInput(
       io,
       values,
-      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      full
+        ? required
+        : [...required, 'assignmentGroups', 'assignmentDefaultGroupId', 'assignmentGroupOptions'],
       required,
     );
     const mode = assignmentModelsMode(values['assignment-models']);
@@ -470,7 +482,7 @@ export async function runModelsUsage(
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
-      ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
+      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions'], [])
       : {};
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();

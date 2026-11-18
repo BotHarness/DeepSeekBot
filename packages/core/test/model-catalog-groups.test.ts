@@ -35,6 +35,7 @@ function methods(
     },
     routingGroups: {
       list: () => groups,
+      defaultGroup: () => ({ revision: 0 }),
       routes: (id: string) => {
         const found = groups.find((candidate) => candidate.id === id);
         if (found === undefined) throw new Error('missing');

@@ -47,6 +47,7 @@ import type { InboxOpenFilter } from './inbox-triage.js';
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import {
+  assignmentGroupOptionOf,
   assignmentModelsOf,
   type ModelRoute,
   type PersonaBotModelPlan,
@@ -85,6 +86,7 @@ export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
+  inherited?(): string | undefined;
 }
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
@@ -527,8 +529,9 @@ function agentOptions(
   run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
   defaultSelection: ModelSelection,
   plan: PersonaBotModelPlan | undefined,
+  fallback?: ModelRoute,
 ): ModelSelection {
-  const route = 'inboundChannelId' in run ? plan?.orchestrator : run.modelRoute;
+  const route = 'inboundChannelId' in run ? (fallback ?? plan?.orchestrator) : run.modelRoute;
   if (route !== undefined) {
     return {
       provider: route.provider,
@@ -898,11 +901,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       const selection = this.#orchestratorSelections.get(run.sessionId);
       if (selection !== undefined) {
-        selection.current = agentOptions(
-          run,
-          this.#defaultModel.currentSelection(),
-          this.#orchestratorPlan(run),
-        );
+        selection.current = this.#orchestratorSelection(run);
       }
       selectNativeModel(handle.agent, selection?.current);
       const fromSeq = handle.agent.session.seq;
@@ -1192,6 +1191,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       { bot, inboundChannelId: '' },
       this.#defaultModel.currentSelection(),
       this.#resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
+      this.#orchestratorRoute?.(sessionId),
     );
     selectNativeModel(this.#handles.get(sessionId)?.agent, selection.current);
   }
@@ -1388,23 +1388,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     });
   }
 
-  #orchestratorPlan(run: OrchestratorAgentRun): PersonaBotModelPlan | undefined {
-    const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-    const fallback = this.#orchestratorRoute?.(run.sessionId);
-    return fallback === undefined || plan === undefined
-      ? plan
-      : { ...plan, orchestrator: fallback };
+  #orchestratorSelection(run: OrchestratorAgentRun): ModelSelection {
+    return agentOptions(
+      run,
+      this.#defaultModel.currentSelection(),
+      this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
+      this.#orchestratorRoute?.(run.sessionId),
+    );
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
     signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const resolvedAgentOptions = agentOptions(
-      run,
-      this.#defaultModel.currentSelection(),
-      this.#orchestratorPlan(run),
-    );
+    const resolvedAgentOptions = this.#orchestratorSelection(run);
     const selection = {
       current: resolvedAgentOptions,
       assembled: undefined as ModelSelection | undefined,
@@ -1746,7 +1743,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1757,36 +1754,58 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          if (plan?.assignmentDefault === undefined)
-            return JSON.stringify({
-              configured: false,
-              message: 'Ask the Human to apply a Model Preset first',
-            });
-          const open = plan.openAssignmentModels === true;
           const groups = this.#assignmentGroups;
           const resting = <T extends { provider: string; model: string }>(route: T) => {
             const rest = groups?.restingUntil(route);
             return rest === undefined ? route : { ...route, restingUntil: rest.until };
           };
-          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) => {
+          const describeGroup = (id: string, isDefault: boolean) => {
             const group = groups?.describe(id);
             if (group === undefined) return [];
             const members = group.routes.map(resting);
             const until = members.map((member) =>
               'restingUntil' in member ? member.restingUntil : undefined,
             );
+            const front = members.find((member) => !('restingUntil' in member));
+            const option = assignmentGroupOptionOf(plan, id);
             return [
               {
                 group: id,
                 name: group.name,
-                ...(id === plan.assignmentDefaultGroupId ? { default: true } : {}),
+                ...(isDefault ? { default: true } : {}),
+                ...(option?.note === undefined ? {} : { note: option.note }),
+                ...(front === undefined
+                  ? {}
+                  : { front: { provider: front.provider, model: front.model } }),
+                ...(option?.allowedEfforts === undefined
+                  ? {}
+                  : { efforts: option.allowedEfforts, defaultEffort: option.defaultEffort }),
                 members,
                 ...(until.length > 0 && until.every((value) => value !== undefined)
                   ? { restingUntil: until.sort()[0] }
                   : {}),
               },
             ];
-          });
+          };
+          if (plan?.assignmentDefault === undefined) {
+            const inherited = groups?.inherited?.();
+            const inheritedGroups = inherited === undefined ? [] : describeGroup(inherited, true);
+            return JSON.stringify(
+              inheritedGroups.length === 0
+                ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
+                : {
+                    configured: false,
+                    inherited: true,
+                    assignmentGroups: inheritedGroups,
+                    message:
+                      'Assignments follow the Profile default Routing Group; omit provider, model and group to use it',
+                  },
+            );
+          }
+          const open = plan.openAssignmentModels === true;
+          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
+            describeGroup(id, id === plan.assignmentDefaultGroupId),
+          );
           return JSON.stringify({
             configured: true,
             revision: plan.revision,
@@ -1851,7 +1870,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           reasoning_effort: {
             type: 'string',
             description:
-              'Optional allowed effort for the selected model; omitted uses that model’s Human-selected default. Pass an empty string to select the provider default when allowed.',
+              'Optional allowed effort for the selected model, or for the selected Routing Group when list_assignment_models gives it efforts; omitted uses the Human-selected default. Pass an empty string to select the provider default when allowed.',
           },
           group: {
             type: 'string',
@@ -1871,12 +1890,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (args.group !== undefined && args.provider !== undefined)
             throw new Error('create_assignment: pass either group or provider/model');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const inherited =
+            plan?.assignmentDefault === undefined
+              ? this.#assignmentGroups?.inherited?.()
+              : undefined;
           const groupId =
             args.group ??
-            (args.provider === undefined ? plan?.assignmentDefaultGroupId : undefined);
+            (args.provider === undefined
+              ? (plan?.assignmentDefaultGroupId ?? inherited)
+              : undefined);
           let picked: ModelRoute | undefined;
           if (groupId !== undefined) {
-            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
             const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
             if (pick?.kind !== 'route')
@@ -1892,8 +1917,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
-          if (args.reasoning_effort !== undefined && args.provider === undefined)
-            throw new Error('create_assignment: reasoning_effort requires provider and model');
+          if (args.reasoning_effort !== undefined && args.provider === undefined) {
+            if (groupId === undefined)
+              throw new Error('create_assignment: reasoning_effort requires provider and model');
+            const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
+            if (!allowed.includes(args.reasoning_effort))
+              throw new Error(
+                `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+              );
+          }
+          const groupEffort =
+            groupId === undefined
+              ? undefined
+              : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
+          if (picked !== undefined && groupEffort !== undefined)
+            picked = { ...picked, reasoningEffort: groupEffort };
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,

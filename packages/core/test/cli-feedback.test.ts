@@ -1,19 +1,22 @@
 import { createServer } from 'node:http';
 import { expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 it('previews feedback through the live authenticated Host and refuses submission without confirmation', async () => {
   const seen: string[] = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      res.writeHead(302, { location: '/', 'set-cookie': 'owner=test; HttpOnly' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('owner=test');
-    seen.push(req.url ?? '');
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ token: 'preview-reference', canSubmit: true }));
-  });
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        res.writeHead(302, { location: '/', 'set-cookie': 'owner=test; HttpOnly' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('owner=test');
+      seen.push(req.url ?? '');
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ token: 'preview-reference', canSubmit: true }));
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('no address');

@@ -1,3 +1,4 @@
+import { loadChannelChangeCursor } from '@botharness/host-client/channel-messages';
 import type { CatchUpHost } from './catch-up';
 
 export const CATCH_UP_TASK = 'botharness-catch-up';
@@ -36,7 +37,7 @@ async function reachable<Saved extends { hostId: string; routes: string[] }>(
   for (const route of saved.routes) {
     try {
       const call = options.call(saved, route);
-      await call('channelChangeCursor', {});
+      await loadChannelChangeCursor({ call });
       return call;
     } catch (error) {
       if (options.refused(error)) return undefined;

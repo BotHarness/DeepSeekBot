@@ -16,6 +16,7 @@ Model:
 - Merge risk: reversibility, blast radius and review focus / 回退方式、影响范围与评审重点。
 - Verification: list exact checks and results; distinguish automated tests, runtime, visual evidence and Human QA. State what was not run / 列真实验证及缺口。
 - Fix PRs: name the test that fails without the fix and passes with it (CI checks this), or write `No regression test: <why>` / 修 bug 的 PR 写明哪个测试在去掉修复后失败、加上后通过（CI 会验证），确实无法自动测试时写 `No regression test: <原因>`。
+- Design review: for UI PRs, answer the review gate in [UI design](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/ui-design.md#review-gate): are the object, state and next action recognizable, does every description add a needed fact, which themes and languages were checked; write `n/a` when nothing renders differently / UI PR 回答评审要点：对象、状态、下一步是否一眼可辨，每段说明是否必要，检查了哪些主题和语言；无可见变化写 `n/a`。
 - CI test plan: the mode the `plan tests` job chose (affected / full / none). If this PR adds a config file, a test directory or a test that reads repo files, name the `scripts/ci-plan.mjs` rule it updated / 写明 CI 选测模式；新增配置、测试目录或读仓库文件的测试时，写明改了哪条规则。
 
 ## Change outline

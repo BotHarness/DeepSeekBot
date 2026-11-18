@@ -33,7 +33,7 @@ function options(
     call: (_saved, route) => async (method) => {
       if (method === 'channelChangeCursor') probes.push(route);
       if (!reachable.has(route)) throw new Error('The Host could not be reached.');
-      return { route };
+      return { route, epoch: 'e', seq: 0 };
     },
     refused: (error) => error instanceof Error && error.message === 'refused',
     liveKeys: () => [],
@@ -154,7 +154,7 @@ describe('background catch-up', () => {
       ],
       call: (_saved, route) => async () => {
         if (route === 'https://stuck') return new Promise(() => {});
-        return { route };
+        return { route, epoch: 'e', seq: 0 };
       },
       deadlineMs: 25_000,
     });

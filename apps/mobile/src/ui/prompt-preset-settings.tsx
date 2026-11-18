@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View, type ViewInstance } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { AppState, View, type ViewInstance } from 'react-native';
 
 import {
   promptPresetChanges,
@@ -27,11 +27,26 @@ export function PromptPresetSettings({ port }: { port: PromptPresetSettingsPort 
   const [saving, setSaving] = useState<string>();
   const [failure, setFailure] = useState<string>();
 
+  const reads = useRef(0);
   const load = useCallback(() => {
+    const seq = ++reads.current;
     setLoadError(undefined);
-    return port.load().then(setLibrary, (reason: unknown) => setLoadError(errorText(reason)));
+    return port.load().then(
+      (next) => {
+        if (seq === reads.current) setLibrary(next);
+      },
+      (reason: unknown) => {
+        if (seq === reads.current) setLoadError(errorText(reason));
+      },
+    );
   }, [port]);
-  const mount = useMounted<ViewInstance>(() => void load(), [load]);
+  const mount = useMounted<ViewInstance>(() => {
+    void load();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   const choose = (value: string) => {
     if (library === undefined || saving !== undefined) return;

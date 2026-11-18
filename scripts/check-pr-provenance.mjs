@@ -66,7 +66,12 @@ export function plan({ body, labels, existing, external, commits = [] }) {
   const written = declared(body);
   const signed = trailers(commits);
   const named = Object.fromEntries(
-    KINDS.map((kind) => [kind, written[kind].length ? written[kind] : signed[kind]]),
+    KINDS.map((kind) => [
+      kind,
+      written[kind].some((value) => existing.includes(`${kind}:${value}`))
+        ? written[kind]
+        : [...new Set([...written[kind], ...signed[kind]])],
+    ]),
   );
   const wanted = KINDS.flatMap((kind) => named[kind].map((value) => `${kind}:${value}`));
   const add = wanted.filter((label) => existing.includes(label) && !labels.includes(label));

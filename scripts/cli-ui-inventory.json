@@ -278,7 +278,8 @@
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.global')}",
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.new')}",
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{preset.name}",
-        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}"
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{ <Note tone=\"danger\">{t('prompts.refreshFailed', { error: loadError })}</Note> }"
       ],
       "commands": [
         "prompt-parts",
