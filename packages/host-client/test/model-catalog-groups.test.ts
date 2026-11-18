@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { modelCatalogGroupFront, parseModelCatalog } from '../src/model-catalog.js';
+import {
+  modelCatalogGroupEfforts,
+  modelCatalogGroupFront,
+  parseModelCatalog,
+} from '../src/model-catalog.js';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
@@ -51,5 +55,32 @@ describe('parseModelCatalog reads Routing Groups and rest state (#4421)', () => 
         entry(pro, { credential: 'missing' }),
       ]),
     ).toEqual(flash);
+  });
+});
+
+describe('modelCatalogGroupEfforts offers the efforts every reasoning member shares (#4497)', () => {
+  const glm = { provider: 'opencode-go', model: 'glm-5' };
+  const entry = (route: typeof flash, efforts: string[]) => ({
+    ...route,
+    providerName: route.provider,
+    modelName: route.model,
+    efforts: efforts.map((id) => ({ id, name: id.toUpperCase() })),
+  });
+  const models = [
+    entry(flash, ['', 'low', 'high', 'max']),
+    entry(pro, ['high', 'max']),
+    entry(glm, []),
+  ];
+
+  it('intersects reasoning members and ignores members without efforts', () => {
+    const group = { routes: [flash, glm, pro, { provider: 'x', model: 'unknown' }] };
+    expect(modelCatalogGroupEfforts(group, models)).toEqual([
+      { id: 'high', name: 'HIGH' },
+      { id: 'max', name: 'MAX' },
+    ]);
+  });
+
+  it('offers nothing when no member supports reasoning', () => {
+    expect(modelCatalogGroupEfforts({ routes: [glm] }, models)).toEqual([]);
   });
 });

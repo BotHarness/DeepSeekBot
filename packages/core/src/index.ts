@@ -273,3 +273,5 @@ export type {
   ToolApprovalContext,
   ToolApprovalPath,
 } from './workspaces/tool-effects.js';
+
+export { parseInboundEnvelope, type InboundEnvelope } from './runtime/inbound-envelope.js';

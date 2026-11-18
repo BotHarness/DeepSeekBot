@@ -18,7 +18,12 @@ import {
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
-import { modelCatalogGroupFront, modelEffortChoices, serialWrites } from './model-catalog';
+import {
+  modelCatalogGroupEfforts,
+  modelCatalogGroupFront,
+  modelEffortChoices,
+  serialWrites,
+} from './model-catalog';
 import {
   createModelPreset,
   customizeModelPlan,
@@ -131,8 +136,13 @@ export function modelRoutes(state: ModelSettingsState) {
         ]);
   const orchestratorGroupId =
     source === undefined ? state.defaultGroupId : source.orchestratorGroupId;
+  const orchestratorGroupEffort =
+    source === undefined ? state.defaultGroupEffort : source.orchestratorGroupEffort;
   const groups: ModelPlanGroups = {
     ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+    ...(orchestratorGroupId === undefined || orchestratorGroupEffort === undefined
+      ? {}
+      : { orchestratorGroupEffort }),
     ...(source?.assignmentGroups === undefined
       ? {}
       : { assignmentGroups: [...source.assignmentGroups] }),
@@ -152,6 +162,9 @@ function groupFields(groups: ModelPlanGroups, orchestrator: ModelRoute) {
   return {
     ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
     orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    ...(groups.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupEffort: groups.orchestratorGroupEffort ?? null }),
     assignmentGroups: ids,
     assignmentDefaultGroupId:
       groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
@@ -302,9 +315,12 @@ export async function setModelGroup(
   state: ModelSettingsState,
   groupId: string,
   field: 'orchestrator' | 'assignment' = 'orchestrator',
+  effort = '',
 ): Promise<void> {
   const group = state.groups?.find((entry) => entry.id === groupId);
   if (group === undefined || group.restingUntil !== undefined)
+    throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  if (effort !== '' && !modelCatalogGroupEfforts(group, state.models).some((e) => e.id === effort))
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
   if (field === 'assignment' || scope.kind === 'preset') {
     if (scope.kind === 'global') throw new HostAnswerInvalid('GLOBAL_MODEL_REQUIRED');
@@ -328,11 +344,20 @@ export async function setModelGroup(
             ],
       groups:
         field === 'orchestrator'
-          ? { ...previous.groups, orchestratorGroupId: groupId }
+          ? {
+              ...withoutKey(previous.groups, 'orchestratorGroupEffort'),
+              orchestratorGroupId: groupId,
+              ...(effort === '' ? {} : { orchestratorGroupEffort: effort }),
+            }
           : {
               ...previous.groups,
               assignmentGroups: ids.includes(groupId) ? ids : [...ids, groupId],
               assignmentDefaultGroupId: groupId,
+              assignmentGroupOptions: groupDefaultEffort(
+                previous.groups.assignmentGroupOptions ?? [],
+                groupId,
+                effort,
+              ),
             },
     });
     recordFeature('model:plan_update', { via: 'group' });
@@ -348,6 +373,7 @@ export async function setModelGroup(
         ? {}
         : { expectedDefaultGroupRevision: state.defaultGroupRevision }),
       groupId,
+      ...(effort === '' ? {} : { groupEffort: effort }),
       globalDefault: true,
     });
     recordFeature('model:plan_update', { via: 'group' });
@@ -356,10 +382,30 @@ export async function setModelGroup(
   await customizeModelPlan(
     client,
     scope.slug,
-    { orchestratorGroupId: groupId },
+    { orchestratorGroupId: groupId, ...(effort === '' ? {} : { orchestratorGroupEffort: effort }) },
     state.plan?.revision ?? state.revision,
   );
   recordFeature('model:plan_update', { via: 'group' });
+}
+
+function groupDefaultEffort(
+  options: readonly AssignmentGroupOption[],
+  groupId: string,
+  effort: string,
+): AssignmentGroupOption[] {
+  const current = options.find((option) => option.group === groupId) ?? { group: groupId };
+  const { allowedEfforts, defaultEffort: _default, ...kept } = current;
+  const allowed = allowedEfforts ?? [];
+  const next: AssignmentGroupOption =
+    effort === ''
+      ? kept
+      : {
+          ...kept,
+          allowedEfforts: allowed.includes(effort) ? allowed : [...allowed, effort],
+          defaultEffort: effort,
+        };
+  const keep = next.allowedEfforts !== undefined || next.note !== undefined;
+  return [...options.filter((option) => option.group !== groupId), ...(keep ? [next] : [])];
 }
 
 export async function toggleAssignmentModel(

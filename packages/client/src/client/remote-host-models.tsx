@@ -298,6 +298,12 @@ function Models({
       : scope.kind === 'global'
         ? value?.defaultGroupId
         : routes?.groups.orchestratorGroupId;
+  const pickerGroupEffort = (field: 'orchestrator' | 'assignment') =>
+    (field === 'assignment'
+      ? routes?.groups.assignmentGroupOptions?.find(
+          (option) => option.group === routes.groups.assignmentDefaultGroupId,
+        )?.defaultEffort
+      : routes?.groups.orchestratorGroupEffort) ?? '';
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
       <ModelPicker
@@ -321,10 +327,11 @@ function Models({
                 key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
                 effort: route?.reasoningEffort ?? '',
               }
-            : { key: groupMenuKey(pickerGroup(field)!), effort: '' }
+            : { key: groupMenuKey(pickerGroup(field)!), effort: pickerGroupEffort(field) }
         }
         catalog={catalog}
         groups={catalogGroups}
+        groupEffort
         options={value.models.map((entry) => ({
           value: JSON.stringify([entry.provider, entry.model]),
           label: entry.modelName,
@@ -336,7 +343,7 @@ function Models({
         onChange={({ key, effort }) => {
           const group = groupMenuId(key);
           if (group !== undefined) {
-            void run(() => setModelGroup(client, scope, value, group, field));
+            void run(() => setModelGroup(client, scope, value, group, field, effort));
             return;
           }
           const entry = value.models.find(

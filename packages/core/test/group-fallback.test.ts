@@ -391,3 +391,67 @@ describe('A Session stays on its fallback member until that member fails', () =>
     expect(result.held).toBeUndefined();
   });
 });
+
+describe('Routing Group effort reaches the member that runs (#4497)', () => {
+  it('gives the group effort to members that support it and keeps a member override', async () => {
+    const plain = { provider: 'plain', model: 'chat' };
+    const fallback = createGroupFallback({
+      plan: () => ({ ...plan('g'), orchestratorGroupEffort: 'max' }),
+      routes: () => [plain, DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, effort) =>
+        route.reasoningEffort !== undefined || key(route) === key(plain)
+          ? route
+          : { ...route, reasoningEffort: effort! },
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual(plain);
+    const switched = await fallback.choose('ada', 's1', { ...plain, until: '', reason: 'quota' });
+    expect(switched).toMatchObject({ kind: 'switch', to: { ...DEEPSEEK, reasoningEffort: 'max' } });
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    expect(await fallback.pick('ada', 'g', 'high')).toEqual({ kind: 'route', route: plain });
+  });
+
+  it('drops a Session fallback whose effort the group no longer uses', async () => {
+    let effort: string | undefined = 'max';
+    const fallback = createGroupFallback({
+      plan: () => ({
+        ...plan('g'),
+        ...(effort === undefined ? {} : { orchestratorGroupEffort: effort }),
+      }),
+      routes: () => [DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, value) => ({ ...route, reasoningEffort: value! }),
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    effort = 'low';
+    expect(fallback.route('s1')).toBeUndefined();
+    effort = undefined;
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toEqual(DEEPSEEK);
+  });
+
+  it('drops a Session fallback once its member carries a different own effort', async () => {
+    let member: typeof DEEPSEEK & { reasoningEffort?: string } = DEEPSEEK;
+    const fallback = createGroupFallback({
+      plan: () => ({ ...plan('g'), orchestratorGroupEffort: 'max' }),
+      routes: () => [member],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, value) =>
+        route.reasoningEffort === undefined ? { ...route, reasoningEffort: value! } : route,
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    member = { ...DEEPSEEK, reasoningEffort: 'high' };
+    expect(fallback.route('s1')).toBeUndefined();
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toEqual(member);
+  });
+});

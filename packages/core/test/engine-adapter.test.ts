@@ -3,9 +3,14 @@ import { expect, it, vi } from 'vitest';
 import type { DshBotEngines } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import type { EngineTurnRequest } from '../src/engines/engine-host.js';
+import type { EngineToolContext, EngineTurnRequest } from '../src/engines/engine-host.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 import { runEngineCommand } from '../src/bots/cli-engine.js';
+
+const CONTEXT = {
+  session: { id: 'orchestrator-ada' },
+  ask: async () => 'allowed-once' as const,
+} as unknown as EngineToolContext;
 
 const run = {
   sessionId: 'orchestrator-ada',
@@ -29,7 +34,9 @@ it('runs an engine-backed Orchestrator turn without a DSH Agent and offers only 
     release: async () => undefined,
     runTurn: async (request) => {
       requests.push(request);
-      expect(await request.execute('channel_read', {}, request.signal)).toContain('Hi Ada');
+      expect(await request.execute('channel_read', {}, request.signal, CONTEXT)).toContain(
+        'Hi Ada',
+      );
     },
   };
   const adapter = createDshBotAgentAdapter({
@@ -54,6 +61,8 @@ it('runs an engine-backed Orchestrator turn without a DSH Agent and offers only 
     'bot_send_message',
     'channel_read',
     'inbox_resolve',
+    'tool_call',
+    'tool_search',
   ]);
   expect(request.channelId).toBe('dm-test');
   expect(request.input.startsWith('Hi Ada')).toBe(true);
@@ -71,7 +80,7 @@ it('gives each engine tool call its own delivery key', async () => {
     release: async () => undefined,
     runTurn: async (request) => {
       for (const body of ['first', 'second'])
-        await request.execute('bot_send_message', { bot_id: 'bob', body }, request.signal);
+        await request.execute('bot_send_message', { bot_id: 'bob', body }, request.signal, CONTEXT);
     },
   };
   const adapter = createDshBotAgentAdapter({
@@ -106,6 +115,7 @@ it('drives engine list, status, login and use through the Host engine route', as
               engines: [
                 {
                   engine: 'codex',
+                  displayName: 'Codex',
                   available: false,
                   reason: 'signed-out',
                   installed: true,
@@ -133,7 +143,7 @@ it('drives engine list, status, login and use through the Host engine route', as
   }));
   const connect = async () => ({ http });
   expect(await runEngineCommand('engine-list', [], {}, connect)).toEqual({
-    engines: [{ engine: 'codex', available: false, reason: 'signed-out' }],
+    engines: [{ engine: 'codex', displayName: 'Codex', available: false, reason: 'signed-out' }],
   });
   expect(await runEngineCommand('engine-status', [], {}, connect)).toMatchObject({
     selections: [],
@@ -160,6 +170,51 @@ it('drives engine list, status, login and use through the Host engine route', as
       code: 'usage',
     },
   );
+});
+
+it('lists and runs engine Bot tools through the Host engine route', async () => {
+  const http = vi.fn(async (_path: string, body?: Record<string, unknown>) => ({
+    bytes: new TextEncoder().encode(
+      JSON.stringify(
+        body?.['action'] === 'tools'
+          ? { tools: [{ name: 'memory_read', description: 'Read Memory' }] }
+          : { bot: 'ada', tool: body?.['tool'], result: 'Likes tea.' },
+      ),
+    ),
+  }));
+  const connect = async () => ({ http });
+  expect(await runEngineCommand('engine-tools', ['ada'], { query: 'memory' }, connect)).toEqual({
+    tools: [{ name: 'memory_read', description: 'Read Memory' }],
+  });
+  expect(http.mock.calls.at(-1)).toEqual([
+    '/api/botharness/engines',
+    { action: 'tools', bot: 'ada', query: 'memory' },
+  ]);
+  expect(
+    await runEngineCommand(
+      'engine-tool',
+      ['ada', 'memory_read'],
+      { 'args-stdin': true },
+      connect,
+      async () => '{"path":"MEMORY.md"}',
+    ),
+  ).toEqual({ bot: 'ada', tool: 'memory_read', result: 'Likes tea.' });
+  expect(http.mock.calls.at(-1)).toEqual([
+    '/api/botharness/engines',
+    { action: 'tool', bot: 'ada', tool: 'memory_read', args: { path: 'MEMORY.md' } },
+  ]);
+  await expect(
+    runEngineCommand(
+      'engine-tool',
+      ['ada', 'memory_read'],
+      { 'args-stdin': true },
+      connect,
+      async () => '[]',
+    ),
+  ).rejects.toMatchObject({ code: 'usage' });
+  await expect(runEngineCommand('engine-tools', [], {}, connect)).rejects.toMatchObject({
+    code: 'usage',
+  });
 });
 
 it('refuses a Host engine response that does not have the expected shape', async () => {

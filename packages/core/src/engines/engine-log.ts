@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import type {} from '@deepseek-ai/dsh-session-title';
+import { inboundSessionTitle } from '../runtime/inbound-envelope.js';
+import { isSessionActivityName } from '../state/tool-activity.js';
 
 import {
   type ContentBlock,
@@ -26,6 +29,8 @@ export function nextTurnNumber(events: readonly SessionEvent[]): number {
   return last + 1;
 }
 
+const ENVELOPE_TITLE = /^\[(?:Human DM|Group|Bot DM|Bot Inbox)/u;
+
 export class EngineTurnLog {
   readonly #target: EngineLogTarget;
   readonly #source: { provider: string; model: string };
@@ -40,15 +45,30 @@ export class EngineTurnLog {
   constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
     this.#target = target;
     this.#source = { provider: engine, model: account };
-    this.#turn = nextTurnNumber(target.session.snapshotEvents());
+    const events = target.session.snapshotEvents();
+    this.#turn = nextTurnNumber(events);
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
-    session.append(
+    const message = session.append(
       'user/message',
       createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
       { surfaceOp: 'append' },
     );
+    const current = events.findLast((event) => event.type === 'session/title');
+    if (
+      current === undefined ||
+      !isSessionActivityName(current.data.title) ||
+      (current.data.source?.kind === 'fallback' && ENVELOPE_TITLE.test(current.data.title))
+    ) {
+      const title = inboundSessionTitle(input);
+      if (isSessionActivityName(title))
+        session.append('session/title', {
+          title,
+          messageSeqs: [message.seq],
+          source: { kind: 'fallback' },
+        });
+    }
   }
 
   get turn(): number {

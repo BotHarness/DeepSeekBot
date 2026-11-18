@@ -33,6 +33,14 @@ interface BotHarnessCore {
   registry: { get(slug: string): unknown };
   hostTools: Set<string>;
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
+  contributeEngineTools?(
+    source: (info: { botSlug: string }) => readonly {
+      name: string;
+      description: string;
+      inputSchema: Record<string, unknown>;
+      run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+    }[],
+  ): () => void;
 }
 
 const json = (value: unknown, status = 200): Response =>
@@ -109,8 +117,26 @@ export function apply(ctx: Context): void {
       const tools: ToolDefinition[] = createTodoTools(toolsCtx.todos, info.botSlug);
       for (const tool of tools) registered.add(agentCtx.tools.register(tool));
     });
+    const removeEngineTools = core.contributeEngineTools?.(({ botSlug }) =>
+      createTodoTools(toolsCtx.todos, botSlug).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.parameters as Record<string, unknown>,
+        run: (args, signal) =>
+          tool.execute(args, {
+            callId: `engine-${tool.name}`,
+            rootCallId: `engine-${tool.name}`,
+            name: tool.name,
+            arguments: args,
+            signal,
+            deferContext: () => undefined,
+            concludeTurn: () => undefined,
+          } as unknown as ToolRunContext),
+      })),
+    );
     return () => {
       remove();
+      removeEngineTools?.();
       for (const unregister of registered) unregister();
       registered.clear();
       for (const tool of TODO_TOOL_NAMES) core.hostTools.delete(tool);

@@ -1,3 +1,4 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import type {
   PersonaBotAttention,
   PersonaBotSessionActivity,
@@ -26,6 +27,7 @@ export interface StandingLimitsView {
 export type BotBannerView = { recipe: PixelBannerRecipe } | { image: string };
 
 export interface BotSummary {
+  orchestratorRunner?: OrchestratorRunner;
   sharedBy?: string;
   lastActivityAt?: number;
   slug: string;
@@ -296,6 +298,8 @@ export interface ChannelMessage {
     cause?: 'human-stop' | 'failures' | 'quota';
     failures?: number;
     rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
+    engine?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopEngine;
+    botSlug?: string;
   };
   modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
@@ -359,7 +363,11 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
-  engine?: { engine: string; account?: string };
+  engine?: {
+    engine: string;
+    account?: string;
+    quota?: import('./bridge.js').SessionEngineQuota;
+  };
   agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;

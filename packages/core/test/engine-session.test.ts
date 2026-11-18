@@ -24,6 +24,7 @@ import type {
   EngineSessionStore,
 } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
+import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
@@ -75,6 +76,7 @@ function setup(recording = RECORDING, local = true) {
     },
     detectCodex: async () => ({ installed: true, version: '0.170.0', login: 'chatgpt' }),
     startCodexLogin: async () => ({ url: 'https://auth.openai.com/oauth/authorize?x=1' }),
+    detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'signed-out' }),
   });
   const execute = vi.fn(async (name: string, args: Record<string, unknown>) =>
     name === 'channel_read'
@@ -151,10 +153,22 @@ describe('Codex Subscription Engine Session (replay)', () => {
       nativeId: '019a7f10-0000-7000-8000-000000000001',
       account: 'ChatGPT pro',
     });
+    expect(host.orchestratorRunner('ada')).toEqual({
+      engine: 'codex',
+      displayName: 'Codex',
+      account: 'ChatGPT pro',
+      model: 'gpt-6-astra',
+    });
+    expect(host.orchestratorRunner('eve')).toBeUndefined();
+    expect(createEngineStore(engineStorePath(root)).account('ada', 'codex')).toBe('ChatGPT pro');
+    expect(
+      log.filter((event) => event.type === 'session/title').map((event) => event.data.title),
+    ).toEqual(['Hi Ada']);
     expect(host.describe('orchestrator-ada')).toEqual({
       engine: 'codex',
       account: 'ChatGPT pro',
       state: 'idle',
+      quota: expect.objectContaining({ usedPercent: 79 }),
     });
     await host.close();
     expect(replay.closed).toBe(true);
@@ -361,7 +375,7 @@ describe('Engine selection, status and route', () => {
       await (
         await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: 'codex' })
       ).json(),
-    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex' });
+    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex', fallback: false });
     expect(
       (await post({ action: 'use', bot: 'eve', role: 'orchestrator', engine: 'codex' })).status,
     ).toBe(404);
@@ -378,9 +392,25 @@ describe('Engine selection, status and route', () => {
     ).json();
     expect(listed).toEqual({
       engines: [
-        { engine: 'codex', available: true, installed: true, version: '0.170.0', login: 'chatgpt' },
+        {
+          engine: 'codex',
+          displayName: 'Codex',
+          available: true,
+          installed: true,
+          version: '0.170.0',
+          login: 'chatgpt',
+        },
+        {
+          engine: 'claude',
+          displayName: 'Claude Code',
+          available: false,
+          reason: 'signed-out',
+          installed: true,
+          version: '2.1.327',
+          login: 'signed-out',
+        },
       ],
-      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
+      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex', fallback: false }],
       approvals: [],
     });
     await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: null });

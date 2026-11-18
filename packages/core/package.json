@@ -39,6 +39,7 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.326",
     "@botharness/host-client": "workspace:*",
     "@botharness/host-protocol": "workspace:*",
     "@deepseek-ai/cordis": "4.1.0",
@@ -64,6 +65,7 @@
     "@deepseek-ai/dsh-session": "0.2.2-rc.1",
     "@deepseek-ai/dsh-session-persistence": "0.2.2-rc.1",
     "@deepseek-ai/dsh-session-projection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-title": "0.2.2-rc.1",
     "@deepseek-ai/dsh-settings": "0.2.2-rc.1",
     "@deepseek-ai/dsh-shell": "0.2.2-rc.1",
     "@deepseek-ai/dsh-storage-domain": "0.2.2-rc.1",

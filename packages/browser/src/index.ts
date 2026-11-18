@@ -516,15 +516,39 @@ export function apply(
             ) => void,
           ) => () => void;
           hostTools?: Set<string>;
+          registry?: { get(slug: string): { browserAccess?: boolean } | undefined };
+          contributeEngineTools?: (
+            source: (info: { botSlug: string }) => readonly {
+              name: string;
+              description: string;
+              inputSchema: Record<string, unknown>;
+              run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+            }[],
+          ) => () => void;
         };
       }
     ).botharness;
     const remove = core?.contributeBotAgentSetup?.((agentCtx, agent, info) => {
       provider.attachAgent(agentCtx, String(agent.id), info);
     });
+    const removeEngineTools = core?.contributeEngineTools?.(({ botSlug }) =>
+      core.registry?.get(botSlug)?.browserAccess === true
+        ? BROWSER_TOOLS.map((spec) => ({
+            name: browserToolName(spec.raw),
+            description: spec.description,
+            inputSchema: spec.inputSchema as Record<string, unknown>,
+            run: async (args: Record<string, unknown>, signal: AbortSignal) => {
+              runtimes.touch(botSlug);
+              await switching;
+              return provider.runDirect(botSlug, spec.raw, args, signal);
+            },
+          }))
+        : [],
+    );
     for (const name of browserToolNames()) core?.hostTools?.add(name);
     return () => {
       remove?.();
+      removeEngineTools?.();
       for (const name of browserToolNames()) core?.hostTools?.delete(name);
     };
   });

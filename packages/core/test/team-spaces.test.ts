@@ -400,7 +400,9 @@ describe('M6 spaces and current authority', () => {
     await f.bridge(alice).create({ displayName: 'Personal', operationKey: 'member-bot-default-1' });
     expect(f.core.grants.requireActive(slug, grants[0]!.id).orchestratorWrite).toBe(false);
     expect(nativeFileToolDenial(f.core, session, 'read', { file_path: file })).toBeUndefined();
-    expect(nativeFileToolDenial(f.core, session, 'write', { file_path: file })).toMatch(/outside/);
+    expect(nativeFileToolDenial(f.core, session, 'write', { file_path: file })).toMatch(
+      /read-only/,
+    );
     expect(await f.bridge(alice).grantRevoke({ slug, grantId: grants[0]!.id })).toMatchObject({
       ok: true,
     });

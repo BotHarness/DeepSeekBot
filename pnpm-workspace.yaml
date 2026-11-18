@@ -17,6 +17,9 @@ allowBuilds:
   agent-browser: false
   react-native-enriched-markdown: false
 
+ignoredOptionalDependencies:
+  - '@anthropic-ai/claude-agent-sdk-*'
+
 overrides:
   dockview: 8.4.1
   dockview-core: 8.4.1

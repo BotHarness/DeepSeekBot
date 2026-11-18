@@ -384,7 +384,10 @@ export const CLI_EFFECTS = {
   'engine-approvals': { effects: read, brokerRead: true },
   'engine-list': { effects: read, brokerRead: true },
   'engine-login': { effects: externalManagement, brokerRead: false },
+  'engine-models': { effects: read, brokerRead: true },
   'engine-status': { effects: read, brokerRead: true },
+  'engine-tool': { effects: opaque, brokerRead: false },
+  'engine-tools': { effects: read, brokerRead: true },
   'engine-use': { effects: management, brokerRead: false },
   'presence-report': { effects: write, brokerRead: false },
   'presence-status': { effects: read, brokerRead: false },
@@ -577,7 +580,8 @@ function familyEffects(
       }
     }
     case 'engine':
-      if (action === 'list' || action === 'status' || action === 'approvals') return read;
+      if (['list', 'status', 'approvals', 'tools'].includes(action ?? '')) return read;
+      if (action === 'tool') return opaque;
       return action === 'login' ? externalManagement : management;
     case 'bot-access':
       return botAccessEffects(action, values);

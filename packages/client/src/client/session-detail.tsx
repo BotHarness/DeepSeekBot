@@ -18,8 +18,8 @@ import type {
   SessionToolDetail,
   SessionTranscript,
   SessionTranscriptItem,
-  SessionTranscriptTrigger,
 } from './bridge.js';
+import { SessionEnvelopeLabel, TRIGGER_ICONS } from './session-input-meta.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { MessageMarkdown } from './channel-message-body.js';
@@ -88,19 +88,6 @@ const GROUP_ICONS: Record<ToolGroup, string> = {
   other: 'puzzle',
 };
 
-const TRIGGER_ICONS: Record<SessionTranscriptTrigger, string> = {
-  request: 'inbox',
-  goal: 'target',
-  agent: 'messages-square',
-  team: 'users',
-  subagent: 'bot',
-  github: 'git-branch',
-  webhook: 'globe',
-  schedule: 'alarm-clock',
-  job: 'list-checks',
-  plugin: 'plug',
-};
-
 const styles = stylex.create({
   root: {
     position: 'relative',
@@ -152,6 +139,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   center: { textAlign: 'center' },
+  afterEnvelope: { marginTop: space.x1 },
   input: {
     alignSelf: 'flex-end',
     maxWidth: '88%',
@@ -539,13 +527,18 @@ function InputBlock({
   const item = block.item;
   if (item.source === 'user')
     return (
-      <div
-        data-transcript="input"
-        data-quote-source={quoteSourceId(sessionId, block.key)}
-        {...stylex.props(styles.input)}
-      >
-        <MessageMarkdown text={item.text} t={t} />
-      </div>
+      <>
+        {item.envelope === undefined ? null : (
+          <SessionEnvelopeLabel kind={item.envelope.kind} t={t} />
+        )}
+        <div
+          data-transcript="input"
+          data-quote-source={quoteSourceId(sessionId, block.key)}
+          {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
+        >
+          <MessageMarkdown text={item.text} t={t} />
+        </div>
+      </>
     );
   const trigger = item.trigger ?? 'request';
   const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];

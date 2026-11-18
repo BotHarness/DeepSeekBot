@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 import { FlatList, View } from 'react-native';
 
-import { sameModel, type ModelRoute } from '@botharness/host-client/bot-settings';
-import type { ModelCatalogEntry, ModelCatalogGroup } from '@botharness/host-client/model-catalog';
+import { sameModel } from '@botharness/host-client/bot-settings';
+import type { ModelCatalogGroup } from '@botharness/host-client/model-catalog';
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -11,27 +11,28 @@ import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { modelEntryLabel } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
-import { effortChoices, effortLabel, routeLabel } from './model-route-text';
+import { effortLabel, groupEffortChoices, groupEffortLabel, routeLabel } from './model-route-text';
+import { PickerLink } from './model-route-label';
 import { SHEET_GROUP, SheetNote } from './sheet';
 
 export function EffortBar({
-  entry,
-  route,
+  options,
+  current,
+  note,
   busy,
   onChange,
 }: {
-  entry: ModelCatalogEntry | undefined;
-  route: ModelRoute | undefined;
+  options: { value: string; label: string }[];
+  current: string | undefined;
+  note?: string;
   busy: boolean;
   onChange(effort: string): void;
 }) {
   const t = useStrings();
-  const options = effortChoices(entry);
-  if (options.length === 0 || route === undefined) return null;
-  const current = route.reasoningEffort ?? '';
+  if (options.length === 0 || current === undefined) return null;
   return (
     <View testID="model-effort-bar" style={{ paddingVertical: space.x3 }}>
-      <SheetNote>{t.modelSettings.effort}</SheetNote>
+      <SheetNote>{note ?? t.modelSettings.effort}</SheetNote>
       <View style={{ paddingHorizontal: space.x5 }}>
         <Segmented
           compact
@@ -93,6 +94,57 @@ export function GroupEfforts({
           </SettingsGroupItem>
         );
       }}
+    />
+  );
+}
+
+export function GroupEffortBar({
+  value,
+  group,
+  effort,
+  busy,
+  onChange,
+}: {
+  value: ModelSettingsState;
+  group: ModelCatalogGroup;
+  effort: string;
+  busy: boolean;
+  onChange(effort: string): void;
+}) {
+  const t = useStrings();
+  return (
+    <EffortBar
+      options={groupEffortChoices(value, group)}
+      current={effort}
+      note={t.modelSettings.groupEffortShared}
+      busy={busy}
+      onChange={onChange}
+    />
+  );
+}
+
+export function GroupEffortLink({
+  value,
+  groupId,
+  effort,
+  onPress,
+}: {
+  value: ModelSettingsState;
+  groupId: string | undefined;
+  effort: string;
+  onPress: (() => void) | undefined;
+}) {
+  const t = useStrings();
+  const group = value.groups?.find((entry) => entry.id === groupId);
+  return (
+    <PickerLink
+      label={t.modelSettings.effort}
+      detail={
+        group === undefined || groupEffortChoices(value, group).length === 0
+          ? t.modelSettings.groupEffort
+          : groupEffortLabel(value, group, effort)
+      }
+      onPress={onPress}
     />
   );
 }

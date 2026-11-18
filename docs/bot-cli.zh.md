@@ -1065,20 +1065,33 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### 订阅引擎
 
-PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。第一个引擎是 Codex，运行用 ChatGPT 登录的 `codex app-server`。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录，不共用 Human 自己的 Codex 登录和配置。
+PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。目前有两个引擎：Codex 运行用 ChatGPT 登录的 `codex app-server`；Claude Code 通过 Claude Agent SDK 运行 Human 安装的 `claude`，用 Claude 订阅登录。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录和 Claude 配置目录，不共用 Human 自己的登录、CLAUDE.md、设置、MCP 服务器和 hooks。
 
 ```bash
 deepseekbot engine list
 deepseekbot engine status
 deepseekbot engine approvals
+deepseekbot engine tools <bot> [--query memory]
+echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine login codex
-deepseekbot engine use <bot> codex --role orchestrator
+deepseekbot engine login claude
+deepseekbot engine models codex|claude
+deepseekbot engine use <bot> codex --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
+deepseekbot engine use <bot> claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
-`engine list` 返回 `{engines: [{engine, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（`chatgpt`、`api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out` 或 `not-subscription`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，返回 `{engine, started, url?}`；在浏览器里用 ChatGPT 账号完成登录。`engine use` 返回 `{bot, role, engine}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受 ChatGPT 订阅（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。引擎通过本机 MCP 网关调用 `bot_send_message` 和 `channel_read`，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+`engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+
+`engine models codex|claude` 向已登录的引擎查询订阅可用的模型，返回 `{engine, models: [{id, name, description?, efforts: [{id, name}], defaultEffort?, isDefault?}]}`：Claude Code 来自 Agent SDK 的 `supportedModels()`（`default`、`sonnet`、`opus`、`haiku` 等别名，effort 从 `low` 到 `max`），Codex 来自 app-server 的 `model/list`（不含隐藏模型）。Host 为此启动引擎时不接 Bot 工具网关，和一轮对话一样拒绝非订阅登录，列表缓存五分钟。`engine use <bot> <engine> --model <id> [--effort <level>]` 让 Orchestrator 用该模型和 effort 运行：Claude Code 通过 query 的 `model` 和 `effort` 传入，Codex 通过 `thread/start` 的 `model` 以及 `turn/start` 的 `model` 和 `effort` 传入。Host 先用 `engine models` 核对（`unknown-model`、`unknown-effort`）；只给 `--effort` 时作用于引擎的默认模型。`engine use` 返回这两项，`selections` 也列出 `model` 和 `effort`；不给时 Bot 回到引擎自己的默认。如果正在运行的引擎 Session 用的是另一个引擎、模型或 effort，下一轮前会关闭它，并以新的选择恢复同一段引擎对话。
+
+订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
+
+`list` 的 Bot 摘要通过 `orchestratorRunner: {engine, displayName, account?, model?}` 返回选中的 Orchestrator 引擎；Host 提供名称和最近已知的账号标签和引擎最近报告的模型，使用 DSH 模型时省略此字段。
 
 Codex 要执行需要许可的命令或改文件时（Codex 在 Bot 自己的空文件夹里运行 Orchestrator，所以写到文件夹外面会请求许可），Host 会在这一轮来源的 Channel 里发出常规的工具审批卡片，并把 `approval/asked` 和 `approval/decided` 写进引擎的 Session。`engine approvals` 返回引擎 Session 正在等待的卡片 `{approvals: [{botSlug, sessionId, channelId, messageId, toolName, input, expiresAt}]}`；用 `tool-approval-decide <channelId> --message-id <messageId> --outcome allowed-once|allowed-always-tool|rejected` 回答。批准后 Codex 执行，拒绝会作为 decline 返回给 Codex。`allowed-always-tool` 以 Codex 自己的工具名（命令为 `shell`，改文件为 `apply_patch`）保存规则，`tool-approval-rules` 会列出；之后同一范围内该工具的请求不再弹卡片直接批准。卡片打开期间，`session-transcript` 的 `engine.state` 为 `waiting-approval`。
+
+网关只直接列出 `bot_send_message`、`channel_read`、`inbox_resolve`、`tool_search` 和 `tool_call`，让引擎的上下文保持精简。其余 Bot 层工具按需加载：`tool_search` 接受关键词或 `select:<name>,...`，返回匹配的工具及其 `input_schema`；`tool_call` 按 `name` 和 `arguments` 执行其中一个。目录包括 Orchestrator 的 Bot 工具（Channel 操作与历史、Inbox、Assignment、Group、定时任务、GenUI 卡片、记忆分支）、引擎专用的记忆工具 `memory_list`、`memory_read`、`memory_write`（与记忆命令相同的路径规则限定在 Bot 的记忆文件夹内：不能碰 `.git`，`memory_write` 只写 `.md` 文件）、Todo，以及在该 Bot 开启 Browser Access 或 Computer Access 时的 Bot 浏览器和电脑。DSH 通用工具（shell、文件、网页）既不会列出也搜不到，引擎用它自己的工具。每次调用都在引擎 Session 里运行现有工具，检查与 DSH Agent 相同：Session 必须仍属于该 Bot；需要 Human 审批的工具（例如 `bot_create`）以及每个 Session 第一次使用浏览器或电脑时，会发出常规审批卡片（“始终允许”与 DSH 一样生效）；网关拒绝当前 Channel 之外的 `channel_id`、`bot_id` 等目标，`tool_call` 的参数里也一样。`engine tools <bot>` 返回引擎搜索的同一个目录（`{tools: [{name, description}]}`，带 `--query` 时返回匹配项及其 `input_schema`）；`engine tool <bot> <name> --args-stdin` 不经模型直接运行引擎专用工具（`memory_*`、Todo、浏览器、电脑），返回 `{bot, tool, result}`。其他 Bot 工具用 `bot tool` 不经模型运行。凭据请求（`ask_secret` 和 `secret_*` 工具）暂不提供给引擎。
 
 ### 桌面在线状态
 

@@ -61,7 +61,13 @@ function setup(onSave: (route: ModelRoute) => void = () => undefined) {
           ...route,
           providerName: route.provider,
           modelName: route.model,
-          efforts: [],
+          efforts:
+            route === DEEPSEEK
+              ? [
+                  { id: 'high', name: 'High' },
+                  { id: 'max', name: 'Max' },
+                ]
+              : [],
         })),
       validate: async (route) => {
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
@@ -196,6 +202,62 @@ describe('The default model can be a Routing Group (#4500)', () => {
     expect(selection()).toEqual(DEEPSEEK);
   });
 
+  it('keeps one effort with the default group and runs a member at it only when the member reasons', async () => {
+    const { methods, routingGroups, selection } = setup();
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [
+        { kind: 'model', ...GO },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'low',
+      }),
+    ).toMatchObject({ ok: false, error: { message: expect.stringContaining('shared levels') } });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        route: DEEPSEEK,
+        groupEffort: 'high',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'high',
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    expect(selection()).toEqual({ ...DEEPSEEK, reasoningEffort: 'high' });
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id, defaultGroupEffort: 'high', defaultGroupRevision: 1 },
+    });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'max',
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 2 } });
+    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, effort: 'max', revision: 2 });
+    expect(
+      await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, groupId: id }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 3 } });
+    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, revision: 3 });
+    expect(selection()).toEqual(DEEPSEEK);
+  });
+
   it('sets the default group from a Bot that then follows it', async () => {
     const { methods, registry } = setup();
     registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -260,5 +322,27 @@ describe('Bots that inherit the default use its Routing Group', () => {
     });
     expect(fallback.route('s1')).toEqual(DEEPSEEK);
     expect(await fallback.choose('own', 's2', rests.restingUntil(GO)!)).toBeUndefined();
+  });
+
+  it('runs an inheriting Bot at the default group effort', async () => {
+    const rests = createRouteRests({ now: () => 1_000 });
+    const fallback = createGroupFallback({
+      plan: (slug) => (slug === 'own' ? plan : undefined),
+      inheritedGroup: () => 'default',
+      inheritedEffort: () => 'high',
+      routes: () => [GO, DEEPSEEK],
+      rests,
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, effort) =>
+        route === DEEPSEEK ? { ...route, reasoningEffort: effort! } : route,
+    });
+    rests.rest(GO, 10_000, 'quota');
+    expect(await fallback.choose('inherits', 's1', rests.restingUntil(GO)!)).toMatchObject({
+      kind: 'switch',
+      to: { ...DEEPSEEK, reasoningEffort: 'high' },
+    });
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'high' });
+    expect(fallback.inheritedEffort()).toBe('high');
   });
 });

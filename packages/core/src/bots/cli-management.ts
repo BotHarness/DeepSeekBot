@@ -159,6 +159,7 @@ export async function runOnlineManagement(
         assignmentModels?: AssignmentModelOption[];
         openAssignmentModels?: boolean;
         orchestratorGroupId?: string | null;
+        orchestratorGroupEffort?: string;
         assignmentGroups?: string[];
         assignmentDefaultGroupId?: string | null;
         assignmentGroupOptions?: AssignmentGroupOption[];
@@ -175,9 +176,13 @@ export async function runOnlineManagement(
       !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
     )
       usage('--assignment-default-group must be one of --assignment-groups.');
+    const groupEffort = values['orchestrator-effort']?.trim();
     presetInput = {
       name,
       ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
+      ...(groups.orchestratorGroupId && groupEffort
+        ? { orchestratorGroupEffort: groupEffort }
+        : {}),
       assignmentDefault: route(values, 'assignment'),
       ...assignmentModelsMode(values['assignment-models']),
       ...groups,

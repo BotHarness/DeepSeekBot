@@ -55,7 +55,7 @@ export function OnboardingModelDialog({
   title: string;
   onClose(): void;
   onConfirm(
-    choice: ModelRouteView | { groupId: string },
+    choice: ModelRouteView | { groupId: string; effort?: string },
     globalDefault: boolean,
     revision: number,
   ): Promise<void>;
@@ -68,6 +68,7 @@ export function OnboardingModelDialog({
   const [groups, setGroups] = useState<ModelCatalogGroupView[]>([]);
   const [route, setRoute] = useState<ModelRouteView>();
   const [groupId, setGroupId] = useState<string | null>();
+  const [groupEffort, setGroupEffort] = useState<string>();
   const [revision, setRevision] = useState(0);
   const [globalDefault, setGlobalDefault] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -89,6 +90,14 @@ export function OnboardingModelDialog({
           : state?.plan === undefined
             ? (catalog.defaultGroupId ?? null)
             : (state.plan.orchestratorGroupId ?? null),
+      );
+      setGroupEffort(
+        (previous) =>
+          previous ??
+          (state?.plan === undefined
+            ? catalog.defaultGroupEffort
+            : state.plan.orchestratorGroupEffort) ??
+          '',
       );
       const selected = state?.plan?.orchestrator ?? catalog.default;
       setRoute(
@@ -130,7 +139,9 @@ export function OnboardingModelDialog({
     setError(undefined);
     try {
       await onConfirm(
-        group !== undefined ? { groupId: group.group! } : route!,
+        group !== undefined
+          ? { groupId: group.group!, ...(groupEffort ? { effort: groupEffort } : {}) }
+          : route!,
         globalDefault,
         revision,
       );
@@ -169,10 +180,11 @@ export function OnboardingModelDialog({
                 : route
                   ? JSON.stringify([route.provider, route.model])
                   : '',
-            effort: group !== undefined ? '' : (route?.reasoningEffort ?? ''),
+            effort: group !== undefined ? (groupEffort ?? '') : (route?.reasoningEffort ?? ''),
           }}
           catalog={models}
           groups={groups}
+          groupEffort
           options={models.map((model) => ({
             value: JSON.stringify([model.provider, model.model]),
             label: model.modelName,
@@ -182,6 +194,7 @@ export function OnboardingModelDialog({
             const picked = groupMenuId(key);
             if (picked !== undefined) {
               setGroupId(picked);
+              setGroupEffort(effort);
               return;
             }
             setGroupId(null);
