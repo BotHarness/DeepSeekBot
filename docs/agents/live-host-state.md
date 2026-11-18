@@ -23,6 +23,6 @@ Use the existing helpers for each client.
 
 Some state has no event source, such as a QR scan in another app, an OS signal the client cannot subscribe to, or a DOM the page does not own. For repeated reconnect attempts, use backoff, for example starting at 1 s and doubling up to 60 s.
 
-For such a timer, add its file to `scripts/fast-poll-allowlist.json` with the number of fast timers in it and a `reason` that says why no event fits. Entries that mark debt name the issue that removes them. When a file loses a timer, lower its count with `node scripts/check-fast-polls.mjs --update`.
+For such a timer, add its file to `scripts/fast-poll-allowlist.json` with the number of fast timers in it and a `reason` that says why no event fits. Entries that mark debt name the issue that removes them. When a file loses a timer, lower its count with `node scripts/check-fast-polls.mjs --update`. An entry counts timers; it does not name them. A change that swaps a timer in an allowlisted file keeps the count and passes, so the reviewer rechecks that the entry's reason still fits.
 
 The check looks for `setInterval` below 10 s whose callback contains `await`, `void`, `.then()` or `fetch()`, and `setTimeout` below 10 s that schedules its enclosing function again. Use a numeric literal or a same-file numeric `const` for the delay so the check can resolve it.

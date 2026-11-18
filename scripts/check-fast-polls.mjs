@@ -34,19 +34,77 @@ const timerName = (callee) =>
       ? callee.property.name
       : undefined;
 
-function numeric(node, constants) {
-  if (node === undefined || node === null) return undefined;
+function numeric(node, parents, bindings, depth = 0) {
+  if (node === undefined || node === null || depth > 20) return undefined;
   if (node.type === 'NumericLiteral') return node.value;
-  if (node.type === 'Identifier') return constants.get(node.name);
+  if (node.type === 'Identifier') {
+    const binding = lookup(node.name, parents, bindings);
+    if (binding?.kind !== 'const') return undefined;
+    return numeric(binding.init, binding.parents, bindings, depth + 1);
+  }
   if (node.type === 'TSAsExpression' || node.type === 'ParenthesizedExpression')
-    return numeric(node.expression, constants);
+    return numeric(node.expression, parents, bindings, depth + 1);
   if (node.type === 'BinaryExpression' && ['*', '+'].includes(node.operator)) {
-    const left = numeric(node.left, constants);
-    const right = numeric(node.right, constants);
+    const left = numeric(node.left, parents, bindings, depth + 1);
+    const right = numeric(node.right, parents, bindings, depth + 1);
     if (left === undefined || right === undefined) return undefined;
     return node.operator === '*' ? left * right : left + right;
   }
   return undefined;
+}
+
+const isScope = (node) =>
+  ['Program', 'BlockStatement', 'StaticBlock'].includes(node.type) || isFunction(node);
+
+function lookup(name, parents, bindings) {
+  for (let index = parents.length - 1; index >= 0; index -= 1) {
+    const binding = bindings.get(parents[index])?.get(name);
+    if (binding !== undefined) return binding;
+  }
+  return undefined;
+}
+
+function declare(bindings, scope, name, binding) {
+  if (scope === undefined) return;
+  if (!bindings.has(scope)) bindings.set(scope, new Map());
+  bindings.get(scope).set(name, binding);
+}
+
+function collectBindings(program) {
+  const bindings = new Map();
+  walk(program, (node, parents) => {
+    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
+      const kind = parents.at(-1)?.kind;
+      const scope = parents.findLast((parent) =>
+        kind === 'var' ? isFunction(parent) || parent.type === 'Program' : isScope(parent),
+      );
+      declare(bindings, scope, node.id.name, {
+        kind,
+        init: node.init,
+        parents: [...parents, node],
+      });
+    }
+    if (node.type === 'FunctionDeclaration' && node.id)
+      declare(bindings, parents.findLast(isScope), node.id.name, {
+        kind: 'const',
+        init: node,
+        parents,
+      });
+    if (isFunction(node))
+      for (const param of node.params)
+        walk(param, (child) => {
+          if (child.type === 'Identifier') declare(bindings, node, child.name, { kind: 'param' });
+        });
+  });
+  return bindings;
+}
+
+function callbackBody(callback, parents, bindings) {
+  if (callback?.type !== 'Identifier') return callback;
+  const binding = lookup(callback.name, parents, bindings);
+  return binding?.kind === 'const' && binding.init && isFunction(binding.init)
+    ? binding.init
+    : callback;
 }
 
 function walk(node, enter, parents = []) {
@@ -96,22 +154,13 @@ export function fastPolls(source, path = 'source.ts') {
     plugins: /\.tsx$/u.test(path) ? ['typescript', 'jsx'] : ['typescript'],
     errorRecovery: true,
   }).program;
-  const constants = new Map();
-  walk(program, (node, parents) => {
-    if (
-      node.type === 'VariableDeclarator' &&
-      parents.at(-1)?.kind === 'const' &&
-      node.id.type === 'Identifier' &&
-      node.init?.type === 'NumericLiteral'
-    )
-      constants.set(node.id.name, node.init.value);
-  });
+  const bindings = collectBindings(program);
   const found = [];
   walk(program, (node, parents) => {
     if (node.type !== 'CallExpression') return;
     const name = timerName(node.callee);
     if (name !== 'setInterval' && name !== 'setTimeout') return;
-    const delay = numeric(node.arguments[1], constants);
+    const delay = numeric(node.arguments[1], parents, bindings);
     if (delay === undefined || delay >= FAST_MS) return;
     const enclosing = new Set();
     parents.forEach((parent, index) => {
@@ -120,7 +169,12 @@ export function fastPolls(source, path = 'source.ts') {
       if (named !== undefined) enclosing.add(named);
     });
     const callback = node.arguments[0];
-    if (name === 'setTimeout' ? !mentions(callback, enclosing) : !waitsOnWork(callback)) return;
+    if (
+      name === 'setTimeout'
+        ? !mentions(callback, enclosing)
+        : !waitsOnWork(callbackBody(callback, parents, bindings))
+    )
+      return;
     found.push({ line: node.loc.start.line, timer: name, delay });
   });
   return found;

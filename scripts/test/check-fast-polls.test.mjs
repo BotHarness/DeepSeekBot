@@ -40,6 +40,24 @@ describe('fast polls', () => {
     expect(fastPolls(source)).toEqual([]);
   });
 
+  it('resolves delays and named callbacks through the binding in scope', () => {
+    const source = `
+      const SECOND = 1000;
+      const MS = 2 * SECOND;
+      async function poll() { await readHost(); }
+      setInterval(poll, MS);
+      function fast() { const DELAY = 1000; setInterval(() => void readHost(), DELAY); }
+      function slow() { const DELAY = 30_000; setInterval(() => void readHost(), DELAY); }
+      function shadowed(SECOND) { setInterval(() => void readHost(), SECOND); }
+      const tick = () => setNow(Date.now());
+      setInterval(tick, SECOND);
+    `;
+    expect(fastPolls(source).map((poll) => [poll.line, poll.delay])).toEqual([
+      [5, 2000],
+      [6, 1000],
+    ]);
+  });
+
   it('only scans client sources', () => {
     const poll = 'setInterval(() => void load(), 1000);';
     expect(
