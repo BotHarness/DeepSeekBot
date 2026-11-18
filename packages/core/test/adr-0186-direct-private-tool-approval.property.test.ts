@@ -92,6 +92,7 @@ async function fixture(
     options.autoApproval,
     undefined,
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   closes.push(async () => {
     options.releaseTurn?.();
@@ -256,9 +257,14 @@ describe('ADR-0186 direct private-tool approval origin', () => {
             state.core.channels.readMessages(dm.id).filter((m) => m.toolApprovalRequest),
           ).toHaveLength(1);
       });
-      const cards = dms.map((dm) => {
+      const cards = dms.map((dm, index) => {
+        const human = humans[index];
+        if (human === undefined) throw new Error('Missing concurrent caller');
         const message = state.core.channels.readMessages(dm.id).find((m) => m.toolApprovalRequest);
         if (message?.toolApprovalRequest === undefined) throw new Error('Missing approval');
+        expect(JSON.parse(message.toolApprovalRequest.input)).toMatchObject({
+          account: `synthetic-${human.humanId}`,
+        });
         return { id: message.id, callId: message.toolApprovalRequest.callId };
       });
       for (const [index, card] of cards.entries())

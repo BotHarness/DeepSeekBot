@@ -1,8 +1,15 @@
-import { Context, Service } from '@deepseek-ai/cordis';
-import type { Agent, CreateAgentOptions } from '@deepseek-ai/dsh-agent';
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
-import { createScope } from '@deepseek-ai/dsh-scope';
-import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session';
+import { Context } from '@deepseek-ai/cordis';
+import { AgentRegistry } from '@deepseek-ai/dsh-agent';
+import { AgentLoop } from '@deepseek-ai/dsh-agent-loop';
+import {
+  createUserMessage,
+  LlmAdapter,
+  LlmRuntime,
+  ToolCallId,
+  type StreamChunk,
+  type ToolCallBlock,
+} from '@deepseek-ai/dsh-llm';
+import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
@@ -11,7 +18,6 @@ import { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { executeNativeTool } from '../src/runtime/native-agent-compat.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { apply, type BotHarnessCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
@@ -46,78 +52,79 @@ const protectedCli = {
   api_secret: 'synthetic-secret',
 };
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+class FixtureModel extends LlmAdapter {
+  #next: (() => Promise<ToolCallBlock | undefined>) | undefined;
+
+  override async resolveModel(provider: string, id: string) {
+    return { provider, id, name: id, context: { contextWindow: 200_000 } };
+  }
+
+  holdNextResponse() {
+    const response = deferred();
+    const started = deferred();
+    this.#next = async () => {
+      started.resolve();
+      await response.promise;
+      return undefined;
+    };
+    return { started: started.promise, release: response.resolve };
+  }
+
+  callTool(id: ToolCallId, name: string, args: unknown, onRequest?: () => void) {
+    this.#next = async () => {
+      onRequest?.();
+      return { type: 'tool-call', id, name, arguments: JSON.stringify(args) };
+    };
+  }
+
+  override async *stream(): AsyncGenerator<StreamChunk> {
+    const next = this.#next;
+    this.#next = undefined;
+    const call = await next?.();
+    const block = call ?? { type: 'text' as const, text: 'Done' };
+    yield { type: 'block-start', index: 0, blockType: block.type };
+    yield { type: 'block-end', index: 0, block };
+    yield { type: 'finish', reason: { kind: call ? 'tool-calls' : 'stop' } };
+  }
+}
+
 async function fixture() {
   vi.stubEnv('DSH_HOME', createTempRoot('native-direct-approval-'));
   const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
-  const live = new Map<SessionId, Agent>();
-  let hold: { matches(): boolean; wait: Promise<void> } | undefined;
   const created: SessionId[] = [];
-  const agents = {
-    get: (id: SessionId) => live.get(id),
-    list: () => [...live.values()],
-    async create(options: CreateAgentOptions) {
-      if (!options.sessionId) throw new Error('Expected a Bot-owned Session');
-      const id = options.sessionId;
-      const session = Session.create(id, [], {
-        version: SESSION_FORMAT_VERSION,
-        id,
-        createdAt: Date.now(),
-        isSeeded: false,
-        ...options.meta,
-      });
-      let turn = 0;
-      let pending = Promise.resolve();
-      created.push(id);
-      const actor = {
-        id,
-        session,
-        model: { current: () => selection, select: () => {} },
-        followup: () => {
-          session.append('turn/start', { turn: ++turn });
-          const wait = hold?.matches() ? hold.wait : undefined;
-          pending = Promise.resolve(wait).then(() => {
-            session.append('turn/end', { turn, reason: { kind: 'completed' } });
-          });
-        },
-        whenIdle: () => pending,
-      } as unknown as Agent;
-      const scope = createScope(ctx, actor);
-      try {
-        await scope.ctx
-          .inject(['tools', 'systemPrompt'], async (agentCtx) => {
-            Object.assign(actor, { ctx: agentCtx });
-            await options.setup?.(agentCtx, actor);
-          })
-          .await();
-        live.set(id, actor);
-        return {
-          agent: actor,
-          dispose: async () => {
-            live.delete(id);
-            await scope.dispose();
-          },
-        };
-      } catch (error) {
-        await scope.dispose();
-        throw error;
-      }
+  ctx.on(
+    'agent/created',
+    ({ agent }) => {
+      created.push(agent.session.id);
     },
-  };
-  ctx.provide('agents', agents as never);
+    { global: true },
+  );
+  const model = new FixtureModel();
+  await ctx.plugin(LlmRuntime).await();
+  ctx.get('llm')!.registerAdapter([selection.provider], model);
+  await ctx.plugin(SessionStore).await();
   ctx.provide('agentDefaultModel', { currentSelection: () => selection } as never);
-  ctx.provide('sessions', { list: () => [], get: () => undefined } as never);
-  ctx.provide('skills', { register: () => () => {} } as never);
   await ctx.plugin(SystemPrompt, {}).await();
   ctx.provide('fs', {} as never);
   ctx.provide('shell', {} as never);
   new SessionProjectionRegistry(ctx);
+  await ctx.plugin(AgentRegistry).await();
   await ctx
     .plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: process.env.DSH_HOME! })
     .await();
-  const native = new ApprovalService(ctx, { policy: 'ask' });
-  await native[Service.init]();
+  await ctx.plugin(ApprovalService, { policy: 'ask' }).await();
+  const native = ctx.get('approval')!;
   await ctx.plugin(ToolRuntime, {}).await();
+  await ctx.plugin(AgentLoop, {}).await();
   apply(ctx, { enabled: true });
   const core: BotHarnessCore | undefined = ctx.get('botharness');
   if (!core) throw new Error('Missing core');
@@ -151,7 +158,7 @@ async function fixture() {
   await admission.settled;
   await core.runtime.whenIdle();
   const id = core.runtime.currentOrchestratorSessionId?.('helper');
-  const agent = id && live.get(SessionId(id));
+  const agent = id && ctx.get('agents')!.get(SessionId(id));
   if (!agent) throw new Error('Missing initialized Orchestrator Agent');
   expect(core.runtime.directBotTools?.().map((tool) => tool.name)).toContain('secret_http');
   const tracked = vi.spyOn(ChannelToolApproval.prototype, 'track');
@@ -161,17 +168,12 @@ async function fixture() {
       throw new Error('Registered Tool did not enter approval tracking');
     return owner;
   };
-  const holdTurn = (channelId: string) => {
-    let release = () => {};
-    hold = {
-      matches: () => core.runtime.askChannel?.(agent.session.id) === channelId,
-      wait: new Promise<void>((resolve) => {
-        release = resolve;
-      }),
-    };
-    return release;
-  };
-  return { core, agent, native, ownerDm, caller, broker, holdTurn, created };
+  expect(agent.status).toBe('idle');
+  expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
+    type: 'turn/end',
+    data: { reason: { kind: 'completed' } },
+  });
+  return { core, agent, native, ownerDm, caller, broker, model, created };
 }
 
 async function rememberSecretCli({ core, caller, broker }: Awaited<ReturnType<typeof fixture>>) {
@@ -288,9 +290,9 @@ describe('Private tool approval through the registered native executor', () => {
     },
   );
   it('keeps direct refusal and cancellation out of an unrelated open Group audit', async () => {
-    const { core, agent, native, broker, holdTurn, caller } = await fixture();
+    const { core, agent, native, broker, model, caller } = await fixture();
     const group = core.channels.createGroup(caller, { name: 'Active Group', members: ['helper'] });
-    const release = holdTurn(group.id);
+    const { started, release } = model.holdNextResponse();
     const controller = new AbortController();
     const nativeRequest = vi.spyOn(native, 'request');
     let run: ReturnType<NonNullable<typeof core.runtime.runDirectBotTool>> | undefined;
@@ -303,10 +305,8 @@ describe('Private tool approval through the registered native executor', () => {
         mentions: [{ botSlug: 'helper', label: 'Helper', start: 0, end: 7 }],
       });
       core.runtime.admitGroupMessage(group.id, 'held-group-turn');
-      await vi.waitFor(() => expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id));
-      await vi.waitFor(() =>
-        expect(agent.session.snapshotEvents().at(-1)?.type).toBe('turn/start'),
-      );
+      await started;
+      expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id);
       await expect(
         core.runtime.runDirectBotTool!('helper', 'secret_http', http, new AbortController().signal),
       ).rejects.toThrow('Human approval was unavailable');
@@ -404,39 +404,52 @@ describe('Private tool approval through the registered native executor', () => {
     }
   });
 
-  it('honors a saved rule for an ordinary native call without an inbound Channel', async () => {
+  it('honors a saved rule when child settlement wakes the Orchestrator without an inbound Channel', async () => {
     const state = await fixture();
-    const { core, agent } = state;
+    const { core, agent, model } = state;
     const { dm, rule } = await rememberSecretCli(state);
-    const controller = new AbortController();
-    expect(
-      core.runtime.toolApprovalOrigin?.({
-        sessionId: agent.session.id,
-        callId: ToolCallId('resumed-native'),
-      }),
-    ).toBeUndefined();
-    agent.session.append('turn/start', { turn: 999 });
-    const run = executeNativeTool(agent.ctx, {
-      agent,
-      name: 'secret_cli',
-      arguments: secretCli,
-      callId: ToolCallId('resumed-native'),
-      signal: controller.signal,
+    const child = SessionId('settled-child');
+    core.ownership.claim({
+      sessionId: child,
+      botSlug: 'helper',
+      rootRole: 'orchestrator',
+      provenance: 'subagent',
+      parentSessionId: agent.session.id,
+      at: '2020-01-01T00:00:00.000Z',
     });
-    try {
-      await vi.waitFor(() =>
-        expect(
-          core.toolRules.list('helper').find((row) => row.id === rule.id)?.autoApprovedCount,
-        ).toBe(1),
-      );
-      expect(
-        core.channels.readMessages(dm.id).filter((message) => message.toolApprovalRequest),
-      ).toHaveLength(1);
-    } finally {
-      controller.abort();
-      await run;
-      agent.session.append('turn/end', { turn: 999, reason: { kind: 'completed' } });
-    }
+    const callId = ToolCallId('resumed-native');
+    const originAtRequest = vi.fn(() =>
+      core.runtime.toolApprovalOrigin?.({ sessionId: agent.session.id, callId }),
+    );
+    model.callTool(callId, 'secret_cli', secretCli, originAtRequest);
+    agent.followup(
+      createUserMessage({
+        content: [{ type: 'text', text: 'Child finished' }],
+        source: {
+          kind: 'subagent-settled',
+          form: 'notice',
+          summary: 'Child finished',
+          senderSessionId: child,
+        },
+      }),
+    );
+    await agent.whenIdle();
+    await core.runtime.whenIdle();
+    expect(originAtRequest).toHaveReturnedWith(undefined);
+    const result = agent.session
+      .snapshotEvents()
+      .find((event) => event.type === 'tool/result' && event.data.message.toolCallId === callId);
+    expect(result).toBeDefined();
+    expect(core.toolRules.list('helper').find((row) => row.id === rule.id)?.autoApprovedCount).toBe(
+      1,
+    );
+    expect(
+      core.channels.readMessages(dm.id).filter((message) => message.toolApprovalRequest),
+    ).toHaveLength(1);
+    expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
+      type: 'turn/end',
+      data: { reason: { kind: 'completed' } },
+    });
   });
 
   it('does not create a DM for an ungoverned direct read', async () => {
@@ -457,9 +470,9 @@ describe('Private tool approval through the registered native executor', () => {
   });
 
   it('keeps a registered direct request out of native Group audit during shutdown', async () => {
-    const { core, agent, native, caller, holdTurn } = await fixture();
+    const { core, agent, native, caller, model } = await fixture();
     const group = core.channels.createGroup(caller, { name: 'Closing Group', members: ['helper'] });
-    const release = holdTurn(group.id);
+    const { started, release } = model.holdNextResponse();
     const identify = core.runtime.hasDirectToolInvocation!.bind(core.runtime);
     let closing: Promise<void> | undefined;
     const nativeRequest = vi.spyOn(native, 'request');
@@ -472,10 +485,8 @@ describe('Private tool approval through the registered native executor', () => {
         mentions: [{ botSlug: 'helper', label: 'Helper', start: 0, end: 7 }],
       });
       core.runtime.admitGroupMessage(group.id, 'closing-group-turn');
-      await vi.waitFor(() => expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id));
-      await vi.waitFor(() =>
-        expect(agent.session.snapshotEvents().at(-1)?.type).toBe('turn/start'),
-      );
+      await started;
+      expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id);
       vi.spyOn(core.runtime, 'hasDirectToolInvocation').mockImplementation((query) => {
         closing ??= core.runtime.close();
         return identify(query);
@@ -505,12 +516,10 @@ describe('Private tool approval through the registered native executor', () => {
   });
 
   it('keeps an ordinary Group tool call and its native audit pair in the open Group turn', async () => {
-    const { core, agent, broker, holdTurn, ownerDm, caller } = await fixture();
+    const { core, agent, broker, model, ownerDm, caller } = await fixture();
     const group = core.channels.createGroup(caller, { name: 'Group', members: ['helper'] });
-    const release = holdTurn(group.id);
-    const controller = new AbortController();
     const callId = ToolCallId('ordinary-group');
-    let run: ReturnType<typeof executeNativeTool> | undefined;
+    model.callTool(callId, 'secret_http', http);
     try {
       await core.channels.appendMessage(caller, group.id, {
         id: 'group-turn',
@@ -520,18 +529,6 @@ describe('Private tool approval through the registered native executor', () => {
         mentions: [{ botSlug: 'helper', label: 'Helper', start: 0, end: 7 }],
       });
       core.runtime.admitGroupMessage(group.id, 'group-turn');
-      await vi.waitFor(() => expect(core.runtime.askChannel?.(agent.session.id)).toBe(group.id));
-      await vi.waitFor(
-        () => expect(agent.session.snapshotEvents().at(-1)?.type).toBe('turn/start'),
-        { timeout: 3000 },
-      );
-      run = executeNativeTool(agent.ctx, {
-        agent,
-        name: 'secret_http',
-        arguments: http,
-        callId,
-        signal: controller.signal,
-      });
       const card = await vi.waitFor(() => {
         const message = core.channels
           .readMessages(group.id)
@@ -544,20 +541,32 @@ describe('Private tool approval through the registered native executor', () => {
         channelId: group.id,
       });
       expect(core.channels.readMessages(ownerDm.id).some((m) => m.toolApprovalRequest)).toBe(false);
+      const { openTurnStartSeq } = agent.ctx.agents.turnBoundaryOf(agent.session);
+      if (openTurnStartSeq === null) throw new Error('Group approval was outside a native turn');
       expect(await broker().decide(caller, 'helper', card.id, 'rejected')).toBe(true);
-      expect(await run).toMatchObject({ isError: true });
-      const audit = agent.session
-        .snapshotEvents()
-        .filter((e) => e.type === 'approval/asked' || e.type === 'approval/decided');
-      expect(audit).toMatchObject([
+      await core.runtime.whenIdle();
+      const tail = agent.session.snapshotEvents().filter((event) => event.seq >= openTurnStartSeq);
+      const end = tail.findIndex((event) => event.type === 'turn/end');
+      const events = tail.slice(0, end + 1);
+      const audit = events.filter(
+        (event) => event.type === 'approval/asked' || event.type === 'approval/decided',
+      );
+      expect(
+        events.filter((event) =>
+          ['turn/start', 'approval/asked', 'approval/decided', 'tool/result', 'turn/end'].includes(
+            event.type,
+          ),
+        ),
+      ).toMatchObject([
+        { type: 'turn/start' },
         { type: 'approval/asked', data: { toolName: 'secret_http', callId } },
         { type: 'approval/decided', data: { outcome: 'rejected' } },
+        { type: 'tool/result', data: { message: { toolCallId: callId, isError: true } } },
+        { type: 'turn/end', data: { reason: { kind: 'completed' } } },
       ]);
       expect(audit[0]?.data.id).toBe(audit[1]?.data.id);
     } finally {
-      controller.abort();
-      release();
-      await run?.catch(() => undefined);
+      agent.cancel({ kind: 'user' });
       await core.runtime.whenIdle();
     }
   });
