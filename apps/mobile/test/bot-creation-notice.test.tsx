@@ -141,34 +141,46 @@ it.each(['git-clone-failed', 'git-clone-timeout', 'git-not-found'])(
   },
 );
 
-it('keeps no recovery timer while creation is healthy and retries only after a failure', async () => {
+it('keeps no recovery timer once creation finished and retries only while it is unfinished', async () => {
   vi.useFakeTimers();
+  const created = {
+    operationKey: 'operation-123',
+    botSlug: 'bot-new',
+    status: 'created' as const,
+    channelId: 'dm-new',
+  };
+  const notify = () => {
+    for (const listener of [...fixture.creationListeners]) listener();
+  };
   try {
+    fixture.state = { ...fixture.state, receipt: created };
     await act(async () => root.render(<BotCreationNotice />));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    const healthy = fixture.resume.mock.calls.length;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
-    expect(fixture.resume).toHaveBeenCalledTimes(healthy);
-    fixture.state = { ...fixture.state, error: 'unreachable' };
+    expect(fixture.resume).not.toHaveBeenCalled();
+    fixture.state = { ...fixture.state, receipt: undefined, error: 'unreachable' };
     await act(async () => {
-      for (const listener of [...fixture.creationListeners]) listener();
+      notify();
       await vi.advanceTimersByTimeAsync(9_000);
     });
-    expect(fixture.resume).toHaveBeenCalledTimes(healthy);
+    expect(fixture.resume).not.toHaveBeenCalled();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000);
     });
-    expect(fixture.resume).toHaveBeenCalledTimes(healthy + 1);
+    expect(fixture.resume).toHaveBeenCalledOnce();
     fixture.state = { ...fixture.state, error: undefined };
     await act(async () => {
-      for (const listener of [...fixture.creationListeners]) listener();
+      notify();
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(fixture.resume).toHaveBeenCalledTimes(2);
+    fixture.state = { ...fixture.state, receipt: created };
+    await act(async () => {
+      notify();
       await vi.advanceTimersByTimeAsync(60_000);
     });
-    expect(fixture.resume).toHaveBeenCalledTimes(healthy + 1);
+    expect(fixture.resume).toHaveBeenCalledTimes(2);
     await act(() => root.render(null));
     expect(fixture.creationListeners.size).toBe(0);
   } finally {

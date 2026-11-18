@@ -9,7 +9,7 @@ import { showAppDialog } from '../primitives/app-dialog';
 import { t } from '../strings';
 import { creationCopy as copy } from './bot-creation-copy';
 
-const RETRY_AFTER_FAILURE_MS = 10_000;
+const RETRY_UNFINISHED_MS = 10_000;
 
 export function BotCreationNotice() {
   const path = usePathname();
@@ -32,14 +32,17 @@ export function BotCreationNotice() {
       void botCreation.resume();
     };
     let retry: ReturnType<typeof setTimeout> | undefined;
-    const retryAfterFailure = () => {
+    const retryUnfinished = () => {
       const current = botCreation.getSnapshot();
-      const failed =
+      const unfinished =
+        current.loaded &&
         current.record.kind === 'submitted' &&
         current.receipt?.status !== 'created' &&
         !current.busy &&
-        (current.error === 'unreachable' || current.error === 'invalid-receipt');
-      if (!failed) {
+        (current.error === undefined ||
+          current.error === 'unreachable' ||
+          current.error === 'invalid-receipt');
+      if (!unfinished) {
         clearTimeout(retry);
         retry = undefined;
         return;
@@ -47,7 +50,7 @@ export function BotCreationNotice() {
       retry ??= setTimeout(() => {
         retry = undefined;
         recover();
-      }, RETRY_AFTER_FAILURE_MS);
+      }, RETRY_UNFINISHED_MS);
     };
     const notice = () => {
       if (botCreation.getSnapshot().notice !== 'avatar-failed') return;
@@ -55,8 +58,8 @@ export function BotCreationNotice() {
       showAppDialog(copy.avatarFailedTitle, copy.avatarFailed, [{ text: t.done }]);
     };
     const offNotice = botCreation.subscribe(notice);
-    const offRetry = botCreation.subscribe(retryAfterFailure);
-    retryAfterFailure();
+    const offRetry = botCreation.subscribe(retryUnfinished);
+    retryUnfinished();
     recover();
     let live = true;
     void botCreation.ready.then(() => {

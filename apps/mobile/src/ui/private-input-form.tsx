@@ -42,6 +42,7 @@ export function PrivateInputForm({
     let again = false;
     let pending: ReturnType<typeof setTimeout> | undefined;
     const read = async (): Promise<void> => {
+      if (cancelled || settled || terminal.current) return;
       if (reading) {
         again = true;
         return;
@@ -67,7 +68,7 @@ export function PrivateInputForm({
       }
     };
     const invalidate = (): void => {
-      if (cancelled || settled || pending !== undefined) return;
+      if (cancelled || settled || terminal.current || pending !== undefined) return;
       pending = setTimeout(() => {
         pending = undefined;
         void read();
