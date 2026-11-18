@@ -558,6 +558,43 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
     ]);
+    expect(parameterNames(service.modelPlanSet)).toEqual([
+      'slug',
+      'expectedRevision',
+      'orchestrator',
+      'assignmentDefault',
+      'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+    ]);
+    const planSet = vi
+      .spyOn(methods, 'modelPlanSet')
+      .mockResolvedValue({ ok: true, value: { plan: {} as never } });
+    await service.modelPlanSet(
+      'ada',
+      3,
+      undefined,
+      route,
+      assignmentModels,
+      undefined,
+      'g',
+      ['h'],
+      'h',
+      null,
+    );
+    expect(planSet).toHaveBeenCalledWith({
+      slug: 'ada',
+      expectedRevision: 3,
+      assignmentDefault: route,
+      assignmentModels,
+      orchestratorGroupId: 'g',
+      assignmentGroups: ['h'],
+      assignmentDefaultGroupId: 'h',
+      assignmentGroupOptions: null,
+    });
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
       name: 'Daily',

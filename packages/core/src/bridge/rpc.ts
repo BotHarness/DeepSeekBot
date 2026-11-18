@@ -1443,19 +1443,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanSet(
     slug: string,
     expectedRevision: number,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
         slug,
         expectedRevision,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         assignmentModels,
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
