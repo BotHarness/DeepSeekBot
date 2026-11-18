@@ -989,6 +989,18 @@ deepseekbot approval-reviewer-model-set bot
 
 Both commands return `{follows, model}`: `follows` is `bot` (each Bot's own model, `model` is `null`), `model` (the named model is used for every review) or `invalid` (the setting file cannot be read). For a named model they also return `available` and, when it is `false`, `unavailableReason`. A model that is not in the catalog, or whose provider has no working key, is still saved, but every review then posts the ordinary Human card and writes `fallback=model-unavailable` with the reason to `logs.db`; the reviewer never switches to another model on its own. Each review's `approval-review` line in `logs.db` names the `model` and the `reviewSession` it used. When a Bot runs `approval-reviewer-model-set` from its own Shell, the call requires a Human decision or an explicit management-scope saved rule; the model Approval Reviewer cannot answer it. Refusals carry a code: `usage` (no `<provider>/<model>`, or `--effort` with `bot`) and `invalid-input`.
 
+### Bot modes
+
+A Bot's Sessions run in a DSH mode (an Agent Preset). Every Bot without its own mode uses the Profile-wide default, which is Tobs unless the Human picks another installed mode, such as standard, PTC or a plugin's mode. A Bot can also set its own. DSH fixes a Session's mode when it starts, so a change applies from each Bot's next new Orchestrator or Assignment Session.
+
+```bash
+deepseekbot bot-modes [<bot-id>]
+deepseekbot bot-mode-default-set <mode>|@product
+deepseekbot bot-mode-set <bot-id> <mode>|@global
+```
+
+Each command returns `{modes, productDefault, globalDefault, effectiveDefault}`; with a Bot it also returns `bot: {slug, mode, effective}`. `modes` is the DSH roster (`id`, `name`, `description`, `order`, and `broken` when the mode failed to load). `productDefault` is Tobs (`deepseekbot`), `globalDefault` is the Human's choice or `null`, and a Bot's `mode` is its own choice or `null` when it follows the default. `@product` returns the default to Tobs and `@global` makes a Bot follow the default again. Only Tobs answers a question card after 45 seconds and keeps handling other messages; in other modes a pending question card holds the Bot. Refusals carry a code: `usage`, `invalid-input`, `not-found` (unknown Bot), `mode-not-found` (not installed), `mode-broken` and `modes-unavailable` (no DSH mode service).
+
 ### Idle Compaction
 
 When a Bot's Orchestrator Session has no running turn and no pending Bot Inbox Admission, the Host compacts it through DSH (the `/compact` path) at half its model route's prompt-cache lifetime, never before 15 minutes, so the long history is condensed while the provider can still read it at the cache-hit price. Only Sessions above half of DSH's default automatic compaction threshold for that route are compacted; Assignment and Approval Review Sessions never are. Nothing appears in the chat. The setting is Profile-wide and on by default.

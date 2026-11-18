@@ -2090,11 +2090,12 @@ describe('DSH Bot Agent adapter', () => {
   it('mounts the resolved agent preset inside every agent factory setup', async () => {
     const host = new FakeAgentHost();
     const mounted: Array<{ id: string | undefined; hasTools: boolean }> = [];
+    let globalMode = 'deepseekbot';
     const adapter = createDshBotAgentAdapter({
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => '/memory/ada',
-      defaultAgentPreset: 'standard',
+      defaultAgentPreset: () => globalMode,
       resolveAgentPresets: () => ({
         mount: async (agentCtx, id) => {
           mounted.push({ id, hasTools: agentCtx.tools !== undefined });
@@ -2103,6 +2104,7 @@ describe('DSH Bot Agent adapter', () => {
       }),
       ensureWorkspace: () => undefined,
     });
+    globalMode = 'standard';
 
     await adapter.runOrchestrator({
       sessionId: 'orchestrator-ada',

@@ -66,3 +66,14 @@ when the follow-up is answered without another Host restart.
 Recovery refusals record a stable phase and coded reason through the existing developer log
 surface, without exception messages, prompts, answers or filesystem paths. These process facts
 do not become a second question or Memory authority.
+
+## Amendment: Tobs is the default, not the only mode
+
+Users install other DSH modes (agent presets), for example `dsh-ntr`'s ACP mode, and expected a Bot to run in them. The core plugin's `agentPreset` (`deepseekbot`, shown as Tobs) stays the product default, but it is no longer the only choice:
+
+- A Profile-wide default mode lives in `$DSH_HOME/botharness/bot-modes.json`. Without it, Bots use the product default.
+- A Bot's existing `preset` field is its own mode. Without it, the Bot follows the Profile-wide default.
+- Both are set from Settings, the Bot's settings and `deepseekbot bot-mode-default-set` / `bot-mode-set`, and only to a mode in the native roster that loaded.
+- The mode is resolved when an Orchestrator or Assignment Session is created. DSH refuses `agent-preset/locked` once a Session has started, so a change applies from the next new Session and never switches a running one.
+
+Outside Tobs a pending question card holds the Bot again, and the Settings note says so. The Bot's own tools (`create_assignment`, `bot_send_message`, the Orchestrator Subagent guard) are installed by the application on every mode. A mode whose model gets no harness tools, such as `dsh-ntr`'s ACP mode, cannot reply in a Channel or report an Assignment; that is the mode's contract, not a refusal by the application.

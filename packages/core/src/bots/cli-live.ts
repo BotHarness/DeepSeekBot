@@ -143,6 +143,7 @@ import {
   isIdleCompactionCommand,
   runIdleCompactionCommand,
 } from './cli-idle-compaction.js';
+import { BOT_MODE_COMMANDS, isBotModeCommand, runBotModeCommand } from './cli-bot-modes.js';
 import { CONNECT_COMMANDS, isConnectCommand, runConnectCommand } from './cli-connect.js';
 import {
   isShareDraftCommand,
@@ -249,6 +250,7 @@ export const LIVE_COMMANDS = [
   ...CALL_COMMANDS,
   ...CALL_TIMELINE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
+  ...BOT_MODE_COMMANDS,
   ...STORAGE_COMMANDS,
   ...SKILL_COMMANDS,
   {
@@ -1155,6 +1157,11 @@ export async function runLiveCli(
     });
   if (isIdleCompactionCommand(command))
     return runIdleCompactionCommand(command, rest, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isBotModeCommand(command))
+    return runBotModeCommand(command, rest, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

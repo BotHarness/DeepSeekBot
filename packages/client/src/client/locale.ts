@@ -1702,6 +1702,32 @@ export const zh = {
   'models.section.default': '默认模型',
   'models.section.context': '上下文',
   'models.section.run': '运行',
+  'models.section.mode': '模式',
+  'botMode.default.title': '默认 Bot 模式',
+  'botMode.default.description': '没有单独设定模式的 Bot 都用这个模式，从下一次新会话开始生效。',
+  'botMode.productLabel': '{name}（推荐）',
+  'botMode.notTobs': '在非 Tobs 模式下，提问卡没被回答前 Bot 不会处理其他消息。',
+  'botMode.follow': '跟随默认',
+  'botMode.followHint': '当前为 {name}',
+  'botMode.nextSession': '改动从下一次新会话开始生效。',
+  'botMode.broken': '加载失败',
+  'botMode.missing': '{id}（未安装）',
+  'botMode.builtIn.standard.name': '标准模式',
+  'botMode.builtIn.standard.description':
+    '处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。',
+  'botMode.builtIn.ptc.name': 'PTC 模式',
+  'botMode.builtIn.ptc.description':
+    '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
+  'botMode.builtIn.minimal.name': '极简模式',
+  'botMode.builtIn.minimal.description':
+    'Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。',
+  'botMode.builtIn.cordis.name': '创造模式',
+  'botMode.builtIn.cordis.description':
+    '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
+  'botMode.builtIn.deepseekbot.name': 'Tobs',
+  'botMode.builtIn.deepseekbot.description':
+    '标准模式，但提问卡 45 秒没人回答时 Bot 会继续处理其他消息。',
+  'entry.mode': '模式',
   'botSettings.section.computerBrowser': '电脑与浏览器',
   'account.section.hostLook': '主机名称和图标',
   'botSettings.section.computer': '电脑',
@@ -7935,6 +7961,34 @@ export const en = {
   'models.section.default': 'Default model',
   'models.section.context': 'Context',
   'models.section.run': 'Running',
+  'models.section.mode': 'Mode',
+  'botMode.default.title': 'Default Bot mode',
+  'botMode.default.description':
+    'Bots without their own mode use this one, from their next new Session.',
+  'botMode.productLabel': '{name} (recommended)',
+  'botMode.notTobs':
+    'Outside Tobs mode, a Bot waits on an unanswered question card before it handles other messages.',
+  'botMode.follow': 'Follow default',
+  'botMode.followHint': 'Now {name}',
+  'botMode.nextSession': 'Changes apply from the next new Session.',
+  'botMode.broken': 'Failed to load',
+  'botMode.missing': '{id} (not installed)',
+  'botMode.builtIn.standard.name': 'Standard mode',
+  'botMode.builtIn.standard.description':
+    'Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed.',
+  'botMode.builtIn.ptc.name': 'PTC mode',
+  'botMode.builtIn.ptc.description':
+    'Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results.',
+  'botMode.builtIn.minimal.name': 'Minimal mode',
+  'botMode.builtIn.minimal.description':
+    'The agent uses a terminal and image reading, with context compaction. Useful for testing and comparing its basic performance.',
+  'botMode.builtIn.cordis.name': 'Creator mode',
+  'botMode.builtIn.cordis.description':
+    'Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode.',
+  'botMode.builtIn.deepseekbot.name': 'Tobs',
+  'botMode.builtIn.deepseekbot.description':
+    'Standard mode, except that a question card left unanswered for 45 seconds no longer holds the Bot.',
+  'entry.mode': 'Mode',
   'botSettings.section.computerBrowser': 'Computer and browser',
   'account.section.hostLook': 'Host name and icon',
   'botSettings.section.computer': 'Computer',

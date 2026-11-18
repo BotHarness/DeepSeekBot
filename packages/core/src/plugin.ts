@@ -356,6 +356,7 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
+import { createBotModeSettings, type BotModeOption } from './runtime/bot-mode-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
@@ -1633,6 +1634,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (message) => ctx.logger.info(message),
   });
   mountClientDiagnostics(ctx, dshHome);
+  const botModeSettings = createBotModeSettings(join(dshHome, 'botharness'));
+  const globalBotMode = (): string =>
+    botModeSettings.defaultMode() ?? config.agentPreset ?? DEFAULT_AGENT_PRESET;
+  const botModeOf = (slug: string | undefined): string =>
+    (slug === undefined ? undefined : core.registry.get(slug)?.preset) ?? globalBotMode();
   const hostDiagnosticEnvironment = () => {
     const dshVersion = installedDshVersion();
     return {
@@ -1868,7 +1874,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         'orchestrator',
       );
     },
-    defaultAgentPreset: config.agentPreset ?? DEFAULT_AGENT_PRESET,
+    defaultAgentPreset: globalBotMode,
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => core.runBotAgentSetups(agentCtx, agent, info),
@@ -3476,8 +3482,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     viewFor: createSkillViewPort({
       agentFor: skillAgentFor,
-      presetFor: (slug) =>
-        core.registry.get(slug)?.preset ?? config.agentPreset ?? DEFAULT_AGENT_PRESET,
+      presetFor: botModeOf,
       agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
     }),
   });
@@ -3496,7 +3501,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   slug: bot.slug,
                   memoryDir,
                   agent: skillAgentFor(bot.slug),
-                  ...(bot.preset === undefined ? {} : { preset: bot.preset }),
+                  preset: botModeOf(bot.slug),
                 },
               ];
         }),
@@ -3629,6 +3634,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     cloudConnections,
     cloudWork,
     approvalReviewer,
+    botModes: {
+      settings: botModeSettings,
+      productDefault: config.agentPreset ?? DEFAULT_AGENT_PRESET,
+      roster: async () => {
+        const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
+        if (presets === undefined) return [];
+        return (await presets.list()).map((preset) => ({
+          id: preset.id,
+          ...(preset.name === undefined ? {} : { name: preset.name }),
+          ...(preset.description === undefined ? {} : { description: preset.description }),
+          ...(preset.order === undefined ? {} : { order: preset.order }),
+          ...(preset.broken === undefined ? {} : { broken: preset.broken }),
+        }));
+      },
+    },
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
@@ -3676,13 +3696,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
-    onboardingNews: (slug) =>
-      onboardingNewsAvailable(
-        ctx,
-        (slug === undefined ? undefined : core.registry.get(slug)?.preset) ??
-          config.agentPreset ??
-          DEFAULT_AGENT_PRESET,
-      ),
+    onboardingNews: (slug) => onboardingNewsAvailable(ctx, botModeOf(slug)),
     defaultModel: defaultModel as DshDefaultModelHost & {
       saveSelection(route: import('./models/presets.js').ModelRoute): Promise<void>;
     },

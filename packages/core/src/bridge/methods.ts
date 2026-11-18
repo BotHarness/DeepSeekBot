@@ -23,6 +23,11 @@ import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
 import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import {
+  createBotModeBridgeMethods,
+  type BotModeBridgeMethods,
+  type BotModesDeps,
+} from './bot-modes.js';
 import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
@@ -1194,6 +1199,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
   voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  botModes: BotModeBridgeMethods['botModes'];
+  botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
+  botModeSet: BotModeBridgeMethods['botModeSet'];
   voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
   voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
@@ -1377,6 +1385,7 @@ export interface BridgeMethodsDeps {
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
   approvalReviewer?: ApprovalReviewerSettings;
+  botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -2909,6 +2918,7 @@ function buildBridgeMethods(
       registry: deps.registry,
       log: deps.voiceLog,
     }),
+    ...createBotModeBridgeMethods({ modes: deps.botModes, registry: deps.registry }),
     channelBridges(payload) {
       const input = z
         .object({
