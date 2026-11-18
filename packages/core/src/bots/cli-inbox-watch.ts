@@ -1,16 +1,32 @@
-import { parseLiveFrame } from '../channels/live-frames.js';
+import { parseLiveFrame, type LiveFrame } from '../channels/live-frames.js';
 import { CliLiveError } from './cli-live-error.js';
 
-export async function watchInbox(
+export function watchInbox(
   stream: (path: string) => Promise<Response>,
   read: () => Promise<unknown>,
   seconds: number,
+): Promise<unknown> {
+  return watchRoster(
+    stream,
+    read,
+    seconds,
+    (frame) => frame.event === 'human-attention/changed',
+    'inbox',
+  );
+}
+
+export async function watchRoster(
+  stream: (path: string) => Promise<Response>,
+  read: () => Promise<unknown>,
+  seconds: number,
+  matches: (frame: LiveFrame) => boolean,
+  subject: string,
 ): Promise<unknown> {
   const response = await stream('/api/botharness/stream?scope=roster');
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream'))
     throw new CliLiveError(
       'host-query-unsupported',
-      'The Host did not open the inbox event stream.',
+      `The Host did not open the ${subject} event stream.`,
     );
   const reader = response.body.getReader();
   let elapsed = false;
@@ -29,7 +45,7 @@ export async function watchInbox(
         if (!elapsed)
           throw new CliLiveError(
             'host-unreachable',
-            'The inbox event stream ended before the observation completed.',
+            `The ${subject} event stream ended before the observation completed.`,
           );
         return;
       }
@@ -38,12 +54,12 @@ export async function watchInbox(
       while ((end = buffer.indexOf('\n\n')) !== -1) {
         const frame = parseLiveFrame(buffer.slice(0, end));
         buffer = buffer.slice(end + 2);
-        if (frame?.event === 'human-attention/changed') invalidations++;
+        if (frame !== undefined && matches(frame)) invalidations++;
       }
       if (buffer.length > 1_048_576)
         throw new CliLiveError(
           'host-query-unsupported',
-          'The inbox event frame exceeds the supported size.',
+          `The ${subject} event frame exceeds the supported size.`,
         );
     }
   })().catch((error) => {

@@ -2272,8 +2272,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const presence = createPresence();
   ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
   const team = core.team;
+  ctx.effect(
+    () =>
+      core.operationalDatabase.subscribe(({ topics }) => {
+        if (topics.includes('paired-devices')) core.live.publishResourceChanged('devices');
+        if (topics.includes('host-relationships'))
+          core.live.publishResourceChanged('relationships');
+      }),
+    'botharness: live resource changes',
+  );
   mountDevicePairing(ctx, {
     team,
+    onDevicesChanged: () => core.live.publishResourceChanged('devices'),
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -3557,7 +3567,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )
         refresh.reconcile();
     });
-    const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
+    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
     const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
     return () => {
       offAgents();

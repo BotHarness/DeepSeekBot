@@ -150,7 +150,9 @@ import {
   loadSessionBotOwner,
   loadHumanAttention,
   botExists,
+  bridgeHost,
 } from './bridge.js';
+import { listBots } from '@botharness/host-client/bots';
 import {
   SessionOwnerLeading,
   SessionReturnAction,
@@ -290,15 +292,20 @@ export function apply(ctx: ClientContext): void {
     compatibility:
       typeof window === 'undefined'
         ? undefined
-        : (window as unknown as { __botharnessWindowZoomCompatibility?: ZoomCompatibility })
-            .__botharnessWindowZoomCompatibility,
+        : (
+            window as unknown as {
+              __botharnessWindowZoomCompatibility?: ZoomCompatibility;
+            }
+          ).__botharnessWindowZoomCompatibility,
     t,
   });
   ctx.effect(() => () => zoom.dispose(), 'botharness: device-local window zoom');
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
   const profileContext = async (): Promise<{ profileId: string }> => {
-    const response = await fetch('./api/botharness/companion', { credentials: 'same-origin' });
+    const response = await fetch('./api/botharness/companion', {
+      credentials: 'same-origin',
+    });
     if (!response.ok) throw new Error('Companion context unavailable');
     const value: unknown = await response.json();
     if (
@@ -312,7 +319,10 @@ export function apply(ctx: ClientContext): void {
   };
   const actions: BridgeActions = createActions(call, store, {
     ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
-    fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
+    fileOpenPreferences: createFileOpenPreferences({
+      storage,
+      context: profileContext,
+    }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
@@ -382,7 +392,11 @@ export function apply(ctx: ClientContext): void {
           storage,
           openSession: (id: string) => ctx.uiWorkspace.openSession(id as SessionId),
           roster: store,
-          hooks: { botFolderGroups, botFolderPrefs: prefs.source, botFolderHost },
+          hooks: {
+            botFolderGroups,
+            botFolderPrefs: prefs.source,
+            botFolderHost,
+          },
           setMounted: (node: HTMLElement | null) => botFolderMount?.setMounted(node),
         }),
       },
@@ -460,7 +474,9 @@ export function apply(ctx: ClientContext): void {
           environments: member ? undefined : remoteHosts(t),
           pins: member ? undefined : settingsPins,
         }),
-        children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
+        children: {
+          'botharness.settings.section': { kind: 'list', scope: 'root' },
+        },
       },
       BotSettingsView,
     ),
@@ -502,7 +518,10 @@ export function apply(ctx: ClientContext): void {
           subscribe(listener: () => void): () => void;
           getSnapshot(): WorkspaceListSnapshot | undefined;
         }
-      | undefined) ?? { subscribe: () => () => {}, getSnapshot: () => undefined };
+      | undefined) ?? {
+      subscribe: () => () => {},
+      getSnapshot: () => undefined,
+    };
     const controller = new AbortController();
     if (typeof document !== 'undefined')
       botFolderMount = mountBotFolderProjection({
@@ -559,8 +578,14 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() =>
     appearance.setTargetSource(() => [
       ...dockPanels.panels().map((panel) => ({ id: panelTargetId(panel.id), label: panel.title })),
-      { id: panelTargetId('memory-details'), label: t('appearance.memoryDetails') },
-      { id: panelTargetId('generated-files'), label: t('generatedFiles.title') },
+      {
+        id: panelTargetId('memory-details'),
+        label: t('appearance.memoryDetails'),
+      },
+      {
+        id: panelTargetId('generated-files'),
+        label: t('generatedFiles.title'),
+      },
     ]),
   );
   const channelSidebar = createChannelSidebarRegistry(dockPanels);
@@ -780,7 +805,10 @@ export function apply(ctx: ClientContext): void {
             ?.displayName ??
           (item.botSlug || item.channelName) ??
           '';
-        return t(`desktopNotify.${kind}`, { bot, channel: item.channelName ?? '' });
+        return t(`desktopNotify.${kind}`, {
+          bot,
+          channel: item.channelName ?? '',
+        });
       },
       open: (item) => {
         ctx.layout.selectPanel(PANEL_ID);
@@ -795,7 +823,11 @@ export function apply(ctx: ClientContext): void {
     const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
-    return mountPresenceReporter({ document, window, send: presenceSender(clientId) });
+    return mountPresenceReporter({
+      document,
+      window,
+      send: presenceSender(clientId),
+    });
   }, 'botharness: desktop presence');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
@@ -981,7 +1013,9 @@ export function apply(ctx: ClientContext): void {
           order: 5,
           label: () => t('botSettings.section.appearance'),
           locale: LOCALE_NS,
-          children: { 'botharness.settings.layout': { kind: 'list', scope: 'root' } },
+          children: {
+            'botharness.settings.layout': { kind: 'list', scope: 'root' },
+          },
           inject: () => ({
             ...botModePrefsFace(prefs),
             appearance,
@@ -1191,7 +1225,9 @@ export function apply(ctx: ClientContext): void {
           order: 25,
           label: () => t('settings.nav'),
           locale: LOCALE_NS,
-          inject: () => ({ openBotSettings: (sectionId?: string) => botSettings.open(sectionId) }),
+          inject: () => ({
+            openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+          }),
         },
         DshBotSettingsItem,
       ),
@@ -1228,7 +1264,11 @@ export function apply(ctx: ClientContext): void {
         () => actions.refreshActivityListStatus(),
         {
           launcher: (translate) =>
-            createElement(OnboardingLauncher, { actions, t: translate, placement: 'row' }),
+            createElement(OnboardingLauncher, {
+              actions,
+              t: translate,
+              placement: 'row',
+            }),
           enterHint: (translate) => createElement(OnboardingEnterHint, { t: translate }),
         },
       ),
@@ -1426,19 +1466,13 @@ export function apply(ctx: ClientContext): void {
     trigger: '@',
     name: 'personabot',
     candidates: async (_session, request) => {
-      const result = await call('list', { query: request.query }, request.signal);
-      if (!result.ok) return [];
-      const value = result.value as { bots?: readonly { slug?: unknown; displayName?: unknown }[] };
-      return (value.bots ?? []).flatMap((bot) =>
-        typeof bot.slug === 'string' && bot.slug.length > 0
-          ? [
-              {
-                name: bot.slug,
-                ...(typeof bot.displayName === 'string' ? { description: bot.displayName } : {}),
-              },
-            ]
-          : [],
-      );
+      const bots = await listBots(bridgeHost(call, request.signal), {
+        query: request.query,
+      }).catch(() => []);
+      return bots.map((bot) => ({
+        name: bot.slug,
+        description: bot.displayName,
+      }));
     },
     codec: {
       clipboardText: (ref) => `@${ref}`,

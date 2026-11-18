@@ -480,7 +480,8 @@ it('updates same-route admission on the next encrypted dial and never carries it
   const headers: (Record<string, string> | undefined)[] = [];
   const request = vi.fn(async () => ({
     status: 200,
-    text: async () => JSON.stringify({ type: 'server-response', result: { ok: true, value: {} } }),
+    text: async () =>
+      JSON.stringify({ type: 'server-response', result: { ok: true, value: { bots: [] } } }),
     bytes: async () => new Uint8Array(),
   }));
   const client = createHostClient({

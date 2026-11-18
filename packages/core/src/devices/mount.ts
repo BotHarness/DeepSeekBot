@@ -156,6 +156,7 @@ export function mountDevicePairing(
     credentials?: () => CredentialProvider | undefined;
     packageAnchors?: readonly string[];
     onAccount?: (account: ConnectAccount | undefined) => void;
+    onDevicesChanged?: () => void;
     telemetry?: Pick<TelemetryService, 'capture'>;
     calls?: () => VoiceCalls | undefined;
     botNetwork?: {
@@ -217,6 +218,7 @@ export function mountDevicePairing(
       : {}),
     ...(options.team ? { ownerHumanId: () => options.team!.ownerContext().humanId } : {}),
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
+    ...(options.onDevicesChanged ? { onChange: options.onDevicesChanged } : {}),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
       const activityStarted = Date.now();

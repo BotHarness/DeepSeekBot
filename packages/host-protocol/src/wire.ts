@@ -418,6 +418,7 @@ export interface WireGroupJoinRequest {
 export type RosterLiveFrame =
   | { type: 'skills'; change: { botSlugs: string[]; channelIds: string[] } }
   | { type: 'attention' }
+  | { type: 'resource'; change: { resource: string; revision: number } }
   | { type: 'baseline'; placements: unknown[] }
   | { type: 'changed' }
   | { type: 'latest'; channelId: string; message: WireMessage }

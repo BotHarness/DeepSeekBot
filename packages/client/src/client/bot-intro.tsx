@@ -52,6 +52,7 @@ import {
   type PersonaPrompt,
 } from './onboarding-personas.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { observeResource } from './messaging-defaults-live.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
@@ -435,8 +436,12 @@ export function BotIntro({
     if (!phoneDevice) return;
     const abort = new AbortController();
     let pending = false;
-    const refresh = async () => {
-      if (pending) return;
+    let again = false;
+    const refresh = async (): Promise<void> => {
+      if (pending) {
+        again = true;
+        return;
+      }
       pending = true;
       try {
         const response = await fetch('./api/botharness/devices', {
@@ -457,12 +462,16 @@ export function BotIntro({
       } finally {
         pending = false;
       }
+      if (again && !abort.signal.aborted) {
+        again = false;
+        await refresh();
+      }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
+    const stopObserving = observeResource('devices', () => void refresh(), 3000);
     return () => {
       abort.abort();
-      clearInterval(timer);
+      stopObserving();
     };
   }, [phoneDevice]);
   if (!intro) return null;
