@@ -174,6 +174,7 @@ function createDelegationTool(
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig,
   requireRoute?: (route: ModelRoute) => void | Promise<void>,
+  pickGroup?: (groupId: string) => Promise<ModelRoute>,
 ): ToolDefinition {
   const name = BOT_SUBAGENT_TOOL_NAMES[provider];
   const presetDescription =
@@ -205,6 +206,11 @@ function createDelegationTool(
       },
       model: { type: 'string', description: 'Optional allowed model id; specify with provider.' },
       reasoning_effort: { type: 'string', description: 'Optional allowed reasoning effort.' },
+      group: {
+        type: 'string',
+        description:
+          'Optional allowed Routing Group id instead of provider/model; the child starts on its first member that is not resting.',
+      },
       run_in_background: {
         type: 'boolean',
         description:
@@ -224,11 +230,18 @@ function createDelegationTool(
       const subagents = ctx.get('subagents');
       if (subagents === undefined) throw new Error('DSH Subagent service is unavailable');
       const agentPreset = selectedPreset(ctx, provider, config, args as { agent_preset?: unknown });
-      const decision = resolveSubagentRoute(
-        resolvePlan(),
-        parentAgentOptionsForDelegation(parent),
-        args,
-      );
+      const group = (args as { group?: unknown }).group;
+      if (group !== undefined && (typeof group !== 'string' || args.provider !== undefined))
+        throw new ToolArgsError(['group must be a Routing Group id and excludes provider/model']);
+      const decision =
+        typeof group === 'string'
+          ? {
+              route: await (
+                pickGroup ?? (() => Promise.reject(new Error('Routing Groups are unavailable')))
+              )(group),
+              notice: undefined,
+            }
+          : resolveSubagentRoute(resolvePlan(), parentAgentOptionsForDelegation(parent), args);
       await requireRoute?.(decision.route);
       const options = agentOptions(parentAgentOptionsForDelegation(parent), decision.route);
       const llm = ctx.get('llm');
@@ -312,10 +325,15 @@ export function createBotSubagentModelTools(
   config: BotSubagentPresetConfig = {},
   requireRoute?: (route: ModelRoute) => void | Promise<void>,
   openModels?: () => Promise<OpenAssignmentModel[]>,
+  groups?: {
+    pick(groupId: string): Promise<ModelRoute>;
+    list(): unknown[];
+  },
 ): ToolDefinition[] {
+  const pickGroup = groups === undefined ? undefined : (id: string) => groups.pick(id);
   return [
-    createDelegationTool(ctx, 'spawn', resolvePlan, config, requireRoute),
-    createDelegationTool(ctx, 'fork', resolvePlan, config, requireRoute),
+    createDelegationTool(ctx, 'spawn', resolvePlan, config, requireRoute, pickGroup),
+    createDelegationTool(ctx, 'fork', resolvePlan, config, requireRoute, pickGroup),
     defineTool({
       name: BOT_SUBAGENT_TOOL_NAMES.list,
       description:
@@ -332,6 +350,7 @@ export function createBotSubagentModelTools(
         return JSON.stringify({
           default: plan.assignmentDefault,
           allowed: assignmentModelsOf(plan),
+          ...((groups?.list().length ?? 0) > 0 ? { groups: groups!.list() } : {}),
           ...(plan.openAssignmentModels === true
             ? { open: true, openModels: (await openModels?.()) ?? [] }
             : {}),

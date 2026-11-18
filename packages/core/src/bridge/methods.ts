@@ -856,7 +856,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
+  modelGroups(payload: unknown): BridgeResult<{
+    groups: RoutingGroup[];
+    rests: import('../models/route-rest.js').RestingRoute[];
+  }>;
   modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
   modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
   modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
@@ -1390,6 +1393,7 @@ export interface BridgeMethodsDeps {
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   routingGroups?: RoutingGroupStore;
+  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -4187,7 +4191,10 @@ function buildBridgeMethods(
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
-      return { ok: true, value: { groups: deps.routingGroups.list() } };
+      return {
+        ok: true,
+        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+      };
     },
     modelGroup(payload) {
       if (deps.routingGroups === undefined) return unavailable();
@@ -4372,9 +4379,19 @@ function buildBridgeMethods(
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const assignmentGroups = source['assignmentGroups'];
+      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
       if (
         typeof slug !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
+        (assignmentGroups !== undefined &&
+          (!Array.isArray(assignmentGroups) ||
+            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
+            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
+        (assignmentDefaultGroupId !== undefined &&
+          (typeof assignmentDefaultGroupId !== 'string' ||
+            !Array.isArray(assignmentGroups) ||
+            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4389,12 +4406,25 @@ function buildBridgeMethods(
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
+        for (const id of (assignmentGroups ?? []) as string[]) {
+          if (deps.routingGroups?.get(id) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+          requireRoutes(slug, deps.routingGroups.routes(id));
+        }
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
           assignmentModels,
           expectedRevision,
-          ...(openAssignmentModels === undefined ? [] : [openAssignmentModels]),
+          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
+          assignmentGroups === undefined
+            ? undefined
+            : {
+                ids: assignmentGroups as string[],
+                ...(typeof assignmentDefaultGroupId === 'string'
+                  ? { defaultId: assignmentDefaultGroupId }
+                  : {}),
+              },
         );
         if (!result.ok)
           return result.reason === 'not-found'

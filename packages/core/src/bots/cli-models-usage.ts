@@ -387,7 +387,12 @@ export async function runModelsUsage(
     const required = full
       ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
       : ['assignmentDefault', 'assignmentModels'];
-    const plan = await planInput(io, values, required, required);
+    const plan = await planInput(
+      io,
+      values,
+      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      required,
+    );
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =

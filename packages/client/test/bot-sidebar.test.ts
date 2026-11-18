@@ -344,6 +344,10 @@ function stubActions(): BridgeActions {
     }),
     modelCatalog: vi.fn(async () => ({ models: [] })),
     modelPresets: vi.fn(async () => []),
+    routingGroups: vi.fn(async () => ({ groups: [], rests: [] })),
+    createRoutingGroup: vi.fn(),
+    updateRoutingGroup: vi.fn(),
+    deleteRoutingGroup: vi.fn(),
     modelPlan: vi.fn(async () => undefined),
     modelPlanState: vi.fn(async () => ({})),
     createModelPreset: vi.fn(async () => {
