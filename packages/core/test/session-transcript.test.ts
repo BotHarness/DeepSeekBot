@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { TRANSCRIPT_ITEMS, summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
-import { sessionDirectPrompt } from '../src/runtime/session-direct-message.js';
+import {
+  sessionDirectPrompt,
+  sessionDirectSpeaker,
+} from '../src/runtime/session-direct-message.js';
 import type { DshSessionEvent } from '../src/sessions/source.js';
 
 const at = (seq: number) => Date.UTC(2026, 10, 17, 0, 0, seq);
@@ -212,6 +215,38 @@ describe('Session transcript', () => {
       { text: body, origin: 'session-detail' },
       { text: 'Go on.', origin: 'session-detail' },
       { text: 'Check the file first.', origin: 'session-detail' },
+    ]);
+  });
+
+  it('finds a Session detail message under a speaker envelope or the Current Channel Human line', () => {
+    const speaker =
+      '[Ada · Owner]\n[Speaker policies: latest revision wins; Deny wins]\n[{"roleId":"r1","revision":2}]\n';
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: stopped.]\n\n${sessionDirectSpeaker(sessionDirectPrompt('Ship it.', 'evt-1'), speaker)}`,
+            },
+          ],
+        }),
+        event(2, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `Current Channel Human: {"humanId":"h1","displayName":"Ada"}\n${sessionDirectPrompt('Wait.', 'evt-2')}`,
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { text: 'Ship it.', origin: 'session-detail' },
+      { text: 'Wait.', origin: 'session-detail' },
     ]);
   });
 

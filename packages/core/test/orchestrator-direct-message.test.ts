@@ -6,6 +6,7 @@ import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import { sessionDirectBody } from '../src/runtime/session-direct-message.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import { inboxFixture } from './inbox-fixture.js';
@@ -35,6 +36,7 @@ describe('Human message sent straight into the Orchestrator Session', () => {
       );
       expect(run.message).not.toContain('Channel: ');
       expect(run.message).toContain(`Source Event ID: ${sent.value.sourceEventId}`);
+      expect(sessionDirectBody(run.message)).toBe('Skip the charts this week.');
       expect(f.core.channels.readMessages(f.dm.id)).toHaveLength(before);
       const attention = methods.botAttention({ slug: 'ada' });
       if (!attention.ok) throw new Error(attention.error.message);

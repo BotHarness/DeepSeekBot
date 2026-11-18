@@ -117,6 +117,21 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('sends text that starts with a dash after --', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-2' } }));
+    const result = await invoke(
+      ['session-send', 'ada', 'bot-1', '--', '-1 is the answer'],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '-1 is the answer' },
+      },
+    ]);
+  });
+
   it('searches and orders personal Activity through the same Host query', async () => {
     const live = await host(echo);
     const result = await invoke(

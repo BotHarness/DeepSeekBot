@@ -85,9 +85,17 @@ async function fixture(
     ? core.team.bots.dm(human, 'ada')!
     : core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   if (direct) {
+    core.ownership.claim({
+      sessionId: 'bot-direct',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: new Date().toISOString(),
+    });
+    const sessionId = core.runtime.currentOrchestratorSessionId?.('ada');
+    if (sessionId === undefined) throw new Error('Missing Orchestrator Session');
     const sent = core.runtime.sendOrchestratorMessage!(human, {
       botSlug: 'ada',
-      sessionId: core.runtime.currentOrchestratorSessionId!('ada')!,
+      sessionId,
       text: 'Hello',
     });
     if (!sent.delivered) throw new Error(sent.reason);

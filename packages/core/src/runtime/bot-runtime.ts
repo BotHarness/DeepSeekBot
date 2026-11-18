@@ -174,7 +174,11 @@ import {
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
 import { sessionMentionText } from './session-mentions.js';
-import { SESSION_DIRECT_MESSAGE_PREFIX, sessionDirectPrompt } from './session-direct-message.js';
+import {
+  SESSION_DIRECT_MESSAGE_PREFIX,
+  sessionDirectPrompt,
+  sessionDirectSpeaker,
+} from './session-direct-message.js';
 import { botMentionLabel, resolveBotMentionText } from '../channels/bot-mention-text.js';
 import {
   createBotSourcePolicyStore,
@@ -1700,7 +1704,8 @@ const SESSION_STOPPED_REFUSAL =
 
 function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
   const lines = calls.map((call) => {
-    const args = call.arguments.length > 300 ? `${call.arguments.slice(0, 300)}…` : call.arguments;
+    const line = call.arguments.replace(/\s*[\r\n]+\s*/gu, ' ');
+    const args = line.length > 300 ? `${line.slice(0, 300)}…` : line;
     return `- ${call.name} (call ${call.callId}): ${args}`;
   });
   return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
@@ -2777,8 +2782,6 @@ class BotRuntimeImplementation implements BotRuntime {
           (candidate.dmHumanId ?? principal) === human.humanId,
       );
     if (channel === undefined) return { delivered: false, reason: 'unknown-channel' };
-    this.#cancelAutoContinue(bot.slug);
-    this.#release(bot.slug);
     const messageId = SESSION_DIRECT_MESSAGE_PREFIX + randomUUID();
     const claim = this.#claimSourceEvent(
       human,
@@ -2788,6 +2791,8 @@ class BotRuntimeImplementation implements BotRuntime {
       input.text,
       this.#now().toISOString(),
     );
+    this.#cancelAutoContinue(bot.slug);
+    this.#release(bot.slug);
     const steered =
       claim.shouldRun &&
       this.#steerDmAdmission(
@@ -10294,6 +10299,11 @@ class BotRuntimeImplementation implements BotRuntime {
         pending,
       );
       envelopes.push(envelope);
+      const direct = sessionDirectSpeaker(text, envelope.text);
+      if (direct !== undefined) {
+        text = direct;
+        continue;
+      }
       const header = `Source Event ID: ${id}`;
       const anchor = text.includes(header) ? header : `[Source Event ${id}]`;
       if (text.includes(anchor))
