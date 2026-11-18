@@ -91,10 +91,11 @@ describe('Layout mode is a device-local choice (docs/decisions/onboarding.md)', 
       fc.property(panel, fc.constantFrom('simple', 'advanced'), (view, mode) => {
         const entries = new Map([[LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode, view })]]);
         const { sideColumn } = readLayoutMode(memory(entries));
-        expect(sideColumn).not.toBe(CHANNEL_BODY_PANEL);
-        expect(sideColumn).not.toBe(HOME_SLOT);
-        if (view !== '' && view !== CHANNEL_BODY_PANEL && view !== HOME_SLOT)
-          expect(sideColumn).toBe(view);
+        expect(sideColumn).toBe(
+          view === '' || view === CHANNEL_BODY_PANEL || view === HOME_SLOT
+            ? WORKSPACE_CHANNELS
+            : view,
+        );
       }),
     );
   });
