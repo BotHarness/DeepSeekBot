@@ -3,7 +3,7 @@ export type EngineId = 'codex';
 export const ENGINE_IDS: readonly EngineId[] = ['codex'];
 
 export function isEngineId(value: unknown): value is EngineId {
-  return typeof value === 'string' && (ENGINE_IDS as readonly string[]).includes(value);
+  return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
 }
 
 export type EngineAccount =

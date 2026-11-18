@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   CORE_MEMORY_FILE,
   DEFAULT_STANDING_LIMITS,
+  LEGACY_SOUL_FILE,
   SOUL_FILE,
   type StandingLimits,
 } from '../memory/soul.js';
@@ -19,7 +20,7 @@ export function subscriptionEnginesAllowed(
 
 function readLimited(path: string, limit: number): string | undefined {
   try {
-    return readFileSync(path, 'utf8').slice(0, limit);
+    return [...readFileSync(path, 'utf8')].slice(0, limit).join('');
   } catch {
     return undefined;
   }
@@ -30,7 +31,9 @@ export function readEnginePersona(
   limits: StandingLimits = DEFAULT_STANDING_LIMITS,
 ): { soul?: string; coreMemory?: string } {
   if (memoryDir === undefined) return {};
-  const soul = readLimited(join(memoryDir, SOUL_FILE), limits.soul);
+  const soul =
+    readLimited(join(memoryDir, SOUL_FILE), limits.soul) ??
+    readLimited(join(memoryDir, LEGACY_SOUL_FILE), limits.soul);
   const coreMemory = readLimited(join(memoryDir, CORE_MEMORY_FILE), limits.coreMemory);
   return {
     ...(soul === undefined ? {} : { soul }),

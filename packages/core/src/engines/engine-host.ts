@@ -99,6 +99,7 @@ interface LiveEngineSession {
   stop: AbortController | undefined;
   closing: boolean;
   recover: boolean;
+  accountChecked: boolean;
   running: Promise<void>;
 }
 
@@ -199,6 +200,7 @@ export class EngineHost {
         'engine-unavailable',
         'This Bot does not run on a Subscription Engine',
       );
+    if (request.signal.aborted) return;
     const live = await this.#open(request);
     const previous = live.running;
     let finish!: () => void;
@@ -212,7 +214,9 @@ export class EngineHost {
         reopen = live.recover && !this.#closed;
         if (!reopen)
           throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
-      } else {
+      } else if (!request.signal.aborted) {
+        if (live.accountChecked) live.accountChecked = false;
+        else live.account = requireSubscription(await live.engine.account());
         const stop = new AbortController();
         live.stop = stop;
         const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
@@ -396,6 +400,7 @@ export class EngineHost {
         stop: undefined,
         closing: false,
         recover: false,
+        accountChecked: true,
         running: Promise.resolve(),
       };
       holder.live = live;

@@ -980,17 +980,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     engines: DshBotEngines,
     abandoned: Promise<'abandoned'>,
   ): Promise<void> {
-    const native = this.#handles.get(run.sessionId);
-    if (native !== undefined) {
-      this.#forgetHandle(run.sessionId);
-      await native.dispose();
-    }
     const stop = new AbortController();
     this.#engineStops.set(run.sessionId, stop);
     if (run.inboundChannelId !== undefined)
       this.#engineChannels.set(run.sessionId, run.inboundChannelId);
     void abandoned.then(() => stop.abort());
     try {
+      const native = this.#handles.get(run.sessionId);
+      if (native !== undefined) {
+        this.#forgetHandle(run.sessionId);
+        await native.dispose();
+      }
+      if (stop.signal.aborted) return;
       run.setExecutionReady?.(true);
       run.requireContent?.();
       if (run.acceptNativeInput !== undefined && !run.acceptNativeInput()) return;

@@ -93,6 +93,10 @@ export class EngineTurnLog {
       case 'approval':
       case 'rate-limit':
         return;
+      default: {
+        const unhandled: never = event;
+        return unhandled;
+      }
     }
   }
 
@@ -122,7 +126,7 @@ export class EngineTurnLog {
   }
 
   #continueStep(): void {
-    if (!this.#stepHasResults) return;
+    if (!this.#stepHasResults || this.#open.size > 0) return;
     const session = this.#target.session;
     session.append('step/end', { turn: this.#turn, step: this.#step });
     this.#step += 1;

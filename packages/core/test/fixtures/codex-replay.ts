@@ -51,6 +51,7 @@ export function codexReplay(
   options: CodexProcessOptions,
 ): CodexReplay {
   const listeners: Array<(message: unknown) => void> = [];
+  const exits: Array<(detail: string) => void> = [];
   const lines = [...recording];
   let cursor = 0;
   const ids = new Map<unknown, unknown>();
@@ -81,10 +82,14 @@ export function codexReplay(
         }
         if (expected.msg['id'] !== undefined && method !== undefined)
           ids.set(expected.msg['id'], sent['id']);
-        pumping = pumping.then(pump);
+        pumping = pumping.then(pump).catch((error: unknown) => {
+          const detail = `replay gateway call failed: ${error instanceof Error ? error.message : String(error)}`;
+          replay.mismatches.push(detail);
+          for (const listener of exits.splice(0)) listener(detail);
+        });
       },
       onMessage: (listener) => void listeners.push(listener),
-      onExit: () => undefined,
+      onExit: (listener) => void exits.push(listener),
       close: async () => {
         replay.closed = true;
       },

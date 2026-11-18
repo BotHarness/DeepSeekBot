@@ -179,7 +179,8 @@ export function hostSessionStore<Store>(ctx: Context): Store | undefined {
     sessions !== null &&
     typeof Reflect.get(sessions, 'prepare') === 'function' &&
     typeof Reflect.get(sessions, 'enter') === 'function' &&
-    typeof Reflect.get(sessions, 'announce') === 'function'
+    typeof Reflect.get(sessions, 'announce') === 'function' &&
+    typeof Reflect.get(sessions, 'get') === 'function'
     ? (sessions as Store)
     : undefined;
 }
@@ -189,7 +190,8 @@ export function hostSessionPersistence<Persistence>(ctx: Context): Persistence |
   return typeof persistence === 'object' &&
     persistence !== null &&
     typeof Reflect.get(persistence, 'create') === 'function' &&
-    typeof Reflect.get(persistence, 'open') === 'function'
+    typeof Reflect.get(persistence, 'open') === 'function' &&
+    typeof Reflect.get(persistence, 'stat') === 'function'
     ? (persistence as Persistence)
     : undefined;
 }

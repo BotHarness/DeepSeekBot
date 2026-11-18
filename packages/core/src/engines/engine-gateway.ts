@@ -68,6 +68,22 @@ const rpcError = (id: JsonRpc['id'], code: number, message: string) => ({
   error: { code, message },
 });
 
+class BodyTooLarge extends Error {}
+
+const LOOPBACK_ORIGIN = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/u;
+
+function envelope(value: unknown): JsonRpc | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const message = value as Record<string, unknown>;
+  const id = message['id'];
+  const params = message['params'];
+  if (message['jsonrpc'] !== '2.0' || typeof message['method'] !== 'string') return undefined;
+  if (id !== undefined && id !== null && typeof id !== 'string' && typeof id !== 'number')
+    return undefined;
+  if (params !== undefined && (typeof params !== 'object' || params === null)) return undefined;
+  return message as JsonRpc;
+}
+
 function readBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -75,8 +91,10 @@ function readBody(request: IncomingMessage): Promise<string> {
     request.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > MAX_BODY) {
-        reject(new Error('body too large'));
-        request.destroy();
+        chunks.length = 0;
+        request.removeAllListeners('data');
+        request.resume();
+        reject(new BodyTooLarge());
         return;
       }
       chunks.push(chunk);
@@ -138,7 +156,10 @@ export function createEngineGateway(): EngineGateway {
     if (message.method !== 'tools/call')
       return rpcError(message.id, -32601, `Method ${String(message.method)} not found`);
     const name = params['name'];
-    const args = (params['arguments'] ?? {}) as Record<string, unknown>;
+    const rawArgs = params['arguments'] ?? {};
+    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs))
+      return rpcError(message.id, -32602, 'Tool arguments must be an object');
+    const args = rawArgs as Record<string, unknown>;
     if (typeof name !== 'string' || !grant.spec.tools.some((tool) => tool.name === name))
       return rpcError(message.id, -32602, `Unknown tool ${String(name)}`);
     const refusal = gatewayScopeRefusal(args, grant.spec.channelId());
@@ -161,6 +182,11 @@ export function createEngineGateway(): EngineGateway {
       send(response, 405);
       return;
     }
+    const origin = request.headers.origin;
+    if (origin !== undefined && !LOOPBACK_ORIGIN.test(origin)) {
+      send(response, 403, rpcError(null, -32001, 'Origin is not allowed'));
+      return;
+    }
     const grant = authorize(request);
     if (grant === undefined) {
       send(response, 401, rpcError(null, -32001, 'Engine gateway token is not valid here'));
@@ -169,15 +195,24 @@ export function createEngineGateway(): EngineGateway {
     let parsed: unknown;
     try {
       parsed = JSON.parse(await readBody(request));
-    } catch {
-      send(response, 400, rpcError(null, -32700, 'Parse error'));
+    } catch (error) {
+      if (error instanceof BodyTooLarge) {
+        response.setHeader('connection', 'close');
+        send(response, 413, rpcError(null, -32600, 'Request body is too large'));
+      } else send(response, 400, rpcError(null, -32700, 'Parse error'));
       return;
     }
     const controller = new AbortController();
     response.on('close', () => controller.abort());
-    const messages = (Array.isArray(parsed) ? parsed : [parsed]) as JsonRpc[];
+    const messages: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
     const replies: unknown[] = [];
-    for (const message of messages) {
+    for (const raw of messages) {
+      if (controller.signal.aborted) break;
+      const message = envelope(raw);
+      if (message === undefined) {
+        replies.push(rpcError(null, -32600, 'Invalid Request'));
+        continue;
+      }
       if (message.id === undefined || message.id === null) continue;
       replies.push(
         grants.get(grant.path) === grant

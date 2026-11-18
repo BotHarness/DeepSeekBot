@@ -302,6 +302,111 @@ describe('Engine Host recovery', () => {
     expect(host.describe('orchestrator-ada')).toBeUndefined();
   });
 
+  it('checks the subscription again before each later turn', async () => {
+    let reads = 0;
+    const { host, opened, request } = hostWith(() =>
+      fakeCodex({
+        'account/read': () => {
+          reads += 1;
+          const account = reads === 1 ? { type: 'chatgpt', planType: 'pro' } : { type: 'apiKey' };
+          return { result: { account } };
+        },
+      }),
+    );
+    await host.runTurn(request());
+    await expect(host.runTurn(request())).rejects.toMatchObject({
+      code: 'engine-not-subscription',
+    });
+    expect(opened[0]!.methods().filter((method) => method === 'turn/start')).toHaveLength(1);
+    expect(reads).toBe(2);
+    await host.close();
+  });
+
+  it('sends nothing for a turn cancelled while its Session opens', async () => {
+    const stop = new AbortController();
+    const { host, opened, request } = hostWith(() =>
+      fakeCodex({
+        'thread/start': () => {
+          stop.abort();
+          return { result: { thread: { id: 'thread-new' } } };
+        },
+      }),
+    );
+    await host.runTurn(request(stop.signal));
+    expect(opened[0]!.methods()).not.toContain('turn/start');
+    const cancelled = new AbortController();
+    cancelled.abort();
+    await host.runTurn(request(cancelled.signal));
+    expect(opened).toHaveLength(1);
+    await host.close();
+  });
+
+  it('keeps each tool result in the step that recorded its call', async () => {
+    const item = (id: string, done = false) => ({
+      id,
+      type: 'mcpToolCall',
+      server: 'other',
+      tool: 'lookup',
+      arguments: {},
+      ...(done ? { status: 'completed', result: { content: [{ text: id }] } } : {}),
+    });
+    const { host, request, dsh } = hostWith(() =>
+      fakeCodex({
+        'turn/start': (_params, codex) => {
+          setTimeout(() => {
+            codex.notify('item/started', { item: item('call-a') });
+            codex.notify('item/started', { item: item('call-b') });
+            codex.notify('item/completed', { item: item('call-a', true) });
+            codex.notify('item/completed', {
+              item: { id: 'm1', type: 'agentMessage', text: 'hm' },
+            });
+            codex.notify('item/completed', { item: item('call-b', true) });
+            codex.notify('turn/completed', { turn: { status: 'completed' } });
+          }, 5);
+          return { result: { turn: { id: 'turn-1' } } };
+        },
+      }),
+    );
+    await host.runTurn(request());
+    await host.close();
+    const events = dsh.stored.get('orchestrator-ada')!.events as unknown as Array<{
+      type: string;
+      data: { step?: number; callId?: string; message?: { toolCallId?: string } };
+    }>;
+    const stepOf = (type: string, callId: string) =>
+      events.find(
+        (event) =>
+          event.type === type && (event.data.callId ?? event.data.message?.toolCallId) === callId,
+      )?.data.step;
+    for (const callId of ['call-a', 'call-b'])
+      expect(stepOf('tool/result', callId)).toBe(stepOf('tool/call', callId));
+  });
+
+  it('refuses a cross-site Origin, an oversized body and a malformed envelope', async () => {
+    const gateway = createEngineGateway();
+    gateways.push(gateway);
+    await gateway.start();
+    const grant = gateway.grant({
+      botSlug: 'ada',
+      sessionId: 's1',
+      tools: [],
+      channelId: () => undefined,
+      call: async () => ({ text: 'ok', isError: false }),
+    });
+    const post = (body: string, headers: Record<string, string> = {}) =>
+      fetch(grant.url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${grant.token}`, ...headers },
+        body,
+      });
+    const ping = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' });
+    expect((await post(ping, { origin: 'https://evil.example' })).status).toBe(403);
+    expect((await post(ping, { origin: 'http://127.0.0.1:5173' })).status).toBe(200);
+    expect((await post('x'.repeat(1_100_000))).status).toBe(413);
+    const invalid = await post(JSON.stringify(null));
+    expect(await invalid.json()).toMatchObject({ error: { code: -32600 } });
+  });
+
   it('reports a login status it cannot read as unknown, not signed out', async () => {
     const host = new EngineHost({
       root: createTempRoot('engine-status-'),

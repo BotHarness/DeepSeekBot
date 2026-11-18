@@ -42,7 +42,7 @@ function run(
         ...(target.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
       },
       (error, stdout, stderr) => {
-        const code = (error as NodeJS.ErrnoException | null)?.code;
+        const code = error !== null && 'code' in error ? error.code : undefined;
         resolve({
           ok: error === null,
           output: `${stdout}\n${stderr}`,
@@ -55,20 +55,22 @@ function run(
 
 export function parseCodexLoginStatus(output: string): CodexLogin {
   if (/logged in using chatgpt/iu.test(output)) return 'chatgpt';
-  if (/logged in using an? api key/iu.test(output)) return 'api-key';
+  if (/logged in using an? api key|api key configured/iu.test(output)) return 'api-key';
   if (/not logged in/iu.test(output)) return 'signed-out';
   return 'unknown';
 }
 
 export async function detectCodex(options: CodexCommandOptions): Promise<CodexStatus> {
   const version = await run(options, ['--version']);
-  if (version.missing || !version.ok) return { installed: false, login: 'unknown' };
+  if (version.missing) return { installed: false, login: 'unknown' };
+  if (!version.ok) return { installed: true, login: 'unknown' };
   mkdirSync(options.home, { recursive: true });
   const status = await run(options, ['login', 'status']);
+  const login = parseCodexLoginStatus(status.output);
   return {
     installed: true,
     version: version.output.trim().split(/\s+/u).pop() ?? '',
-    login: parseCodexLoginStatus(status.output),
+    login: status.ok || login === 'signed-out' ? login : 'unknown',
   };
 }
 

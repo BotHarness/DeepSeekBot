@@ -30,18 +30,32 @@ function empty(): EngineFile {
   return { version: 1, bots: {}, sessions: {} };
 }
 
-function parse(text: string): EngineFile {
-  const value = JSON.parse(text) as Partial<EngineFile>;
+type Fields = Record<string, unknown>;
+
+const fields = (value: unknown): Fields | undefined =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Fields)
+    : undefined;
+
+function parse(text: string, path: string): EngineFile {
+  const value = fields(JSON.parse(text));
+  if (value?.['version'] !== 1)
+    throw new Error(
+      `${path} is not a version 1 engine selection file. Move it aside to reset the Subscription Engine choices.`,
+    );
   const file = empty();
-  for (const [slug, roles] of Object.entries(value.bots ?? {}))
-    if (isEngineId(roles?.orchestrator)) file.bots[slug] = { orchestrator: roles.orchestrator };
-  for (const [id, entry] of Object.entries(value.sessions ?? {}))
-    if (isEngineId(entry?.engine) && typeof entry.nativeId === 'string')
-      file.sessions[id] = {
-        engine: entry.engine,
-        nativeId: entry.nativeId,
-        ...(typeof entry.account === 'string' ? { account: entry.account } : {}),
-      };
+  for (const [slug, roles] of Object.entries(fields(value['bots']) ?? {})) {
+    const orchestrator = fields(roles)?.['orchestrator'];
+    if (isEngineId(orchestrator)) file.bots[slug] = { orchestrator };
+  }
+  for (const [id, raw] of Object.entries(fields(value['sessions']) ?? {})) {
+    const entry = fields(raw);
+    const engine = entry?.['engine'];
+    const nativeId = entry?.['nativeId'];
+    const account = entry?.['account'];
+    if (isEngineId(engine) && typeof nativeId === 'string')
+      file.sessions[id] = { engine, nativeId, ...(typeof account === 'string' ? { account } : {}) };
+  }
   return file;
 }
 
@@ -49,7 +63,7 @@ export function createEngineStore(path: string): EngineStore {
   let cache: EngineFile | undefined;
   const read = (): EngineFile => {
     if (cache !== undefined) return cache;
-    cache = existsSync(path) ? parse(readFileSync(path, 'utf8')) : empty();
+    cache = existsSync(path) ? parse(readFileSync(path, 'utf8'), path) : empty();
     return cache;
   };
   const write = (file: EngineFile) => {

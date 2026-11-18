@@ -337,6 +337,7 @@ describe('Engine selection, status and route', () => {
   it('reads Codex login status text', () => {
     expect(parseCodexLoginStatus('Logged in using ChatGPT')).toBe('chatgpt');
     expect(parseCodexLoginStatus('Logged in using an API key - sk-***')).toBe('api-key');
+    expect(parseCodexLoginStatus('API key configured - sk-***')).toBe('api-key');
     expect(parseCodexLoginStatus('Not logged in')).toBe('signed-out');
   });
 
