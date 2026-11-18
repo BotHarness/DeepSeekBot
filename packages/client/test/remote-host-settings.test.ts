@@ -39,7 +39,7 @@ describe('Remote Host settings ownership', () => {
     expect(local).toMatchObject({ preset: { name: 'a' } });
     expect(remote).toMatchObject({ preset: { name: 'b' } });
     b.host.methods.set('modelPresetUpdate', (args) => ({
-      preset: { ...remote.preset, ...args, revision: 4 },
+      preset: { assignmentDefault: b.route, ...args, revision: 4 },
     }));
     await saveModelPreset(b.client, remote, 'Renamed remote', true);
     expect(b.host.calls.at(-1)).toMatchObject({
