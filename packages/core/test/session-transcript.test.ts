@@ -179,6 +179,32 @@ describe('Session transcript', () => {
     ]);
   });
 
+  it('keeps Host-looking lines of a Session detail message and finds it after Host notes', () => {
+    const body = 'Keep this example\n[Host notes]\nDo not remove this line';
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'bot-1',
+      events: [
+        event(1, 'user/message', {
+          source: { kind: 'channel' },
+          content: [{ type: 'text', text: sessionDirectPrompt(body, 'evt-1') }],
+        }),
+        event(2, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: the Human stopped your last turn.]\n\n${sessionDirectPrompt('Go on.', 'evt-2')}`,
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items).toMatchObject([
+      { text: body, origin: 'session-detail' },
+      { text: 'Go on.', origin: 'session-detail' },
+    ]);
+  });
+
   it('counts changed lines, reasoning time and turn usage', () => {
     const transcript = summarizeSessionTranscript({
       sessionId: 'asg-1',

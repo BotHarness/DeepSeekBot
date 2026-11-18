@@ -2777,7 +2777,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     const steered =
       claim.shouldRun &&
-      this.#delivery(bot.slug, 'human-dm') === 'steer' &&
       this.#steerDmAdmission(
         bot.slug,
         channel.id,

@@ -185,7 +185,7 @@ it('sends a message straight into the Orchestrator Session, not as an Assignment
   );
   expect(sendOrchestratorMessage).toHaveBeenCalledWith(
     'tobs',
-    expect.any(String),
+    'asg-1',
     'Skip the charts this week.',
   );
   expect(sendSessionRequest).not.toHaveBeenCalled();

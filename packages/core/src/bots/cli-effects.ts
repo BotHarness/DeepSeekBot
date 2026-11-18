@@ -431,7 +431,7 @@ export const CLI_EFFECTS = {
   'session-live': { effects: read, brokerRead: true },
   'session-tool': { effects: read, brokerRead: true },
   'session-owner': { effects: read, brokerRead: true },
-  'session-send': { effects: write, brokerRead: false },
+  'session-send': { effects: destructive, brokerRead: false },
   'session-stop': { effects: destructive, brokerRead: false },
   'session-subagents': { effects: read, brokerRead: true },
   settings: { effects: read, brokerRead: true },

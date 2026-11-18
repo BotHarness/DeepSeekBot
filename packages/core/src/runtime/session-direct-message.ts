@@ -8,7 +8,8 @@ export function sessionDirectPrompt(body: string, sourceEventId: string): string
 }
 
 export function sessionDirectBody(prompt: string): string | undefined {
-  if (!prompt.startsWith(`${HEADER}\n`)) return undefined;
+  const at = `\n${prompt}`.indexOf(`\n${HEADER}\n`);
   const end = prompt.lastIndexOf(FOOTER);
-  return prompt.slice(HEADER.length + 1, end < 0 ? undefined : end);
+  if (at < 0 || end < at + HEADER.length) return undefined;
+  return prompt.slice(at + HEADER.length + 1, end);
 }

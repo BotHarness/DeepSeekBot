@@ -771,8 +771,8 @@ export function SessionDetail({
       transcript?.role === 'assignment'
         ? actions.sendSessionRequest
         : transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined
-          ? (slug: string, session: string, text: string) =>
-              actions.sendOrchestratorMessage!(slug, session, text)
+          ? (slug: string, session: string) =>
+              actions.sendOrchestratorMessage!(slug, session, draft)
           : undefined;
     if (message === '' || deliver === undefined) return;
     setSending(true);

@@ -101,13 +101,15 @@ function blocks(data: Record<string, unknown>): Record<string, unknown>[] {
   return Array.isArray(content) ? content.map(object) : [];
 }
 
+function rawJoined(parts: Record<string, unknown>[], type: string): string {
+  return parts
+    .filter((part) => part['type'] === type && typeof part['text'] === 'string')
+    .map((part) => part['text'] as string)
+    .join('\n\n');
+}
+
 function joined(parts: Record<string, unknown>[], type: string): string {
-  return clip(
-    parts
-      .filter((part) => part['type'] === type && typeof part['text'] === 'string')
-      .map((part) => part['text'] as string)
-      .join('\n\n'),
-  );
+  return clip(rawJoined(parts, type));
 }
 
 const HOST_BLOCK = /\n+\[Host [^\]\n]{1,80}\][\s\S]*$/u;
@@ -250,13 +252,14 @@ export function summarizeSessionTranscript(input: {
       const source = object(data['source']);
       const kind = source['kind'];
       if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) continue;
-      const text = joined(blocks(data), 'text').replace(HOST_BLOCK, '').trim();
-      const direct = sessionDirectBody(text);
+      const raw = rawJoined(blocks(data), 'text');
+      const direct = sessionDirectBody(raw);
+      const text = direct === undefined ? clip(raw).replace(HOST_BLOCK, '').trim() : clip(direct);
       const human = direct !== undefined || kind === undefined || kind === 'user';
       if (text !== '')
         items.push({
           kind: 'input',
-          text: direct ?? text,
+          text,
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',

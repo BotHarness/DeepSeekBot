@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 
@@ -20,23 +20,15 @@ describe('Human message sent straight into the Orchestrator Session', () => {
       const before = f.core.channels.readMessages(f.dm.id).length;
       const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       let replyId = '';
-      const prompts: string[] = [];
-      const turn = new Promise<void>((resolve) => {
-        f.runs.length = 0;
-        void (async () => {
-          while (f.runs.length === 0) await new Promise((r) => setTimeout(r, 5));
-          resolve();
-        })();
-      });
+      f.runs.length = 0;
       const sent = await methods.sessionMessageSend({
         botSlug: 'ada',
         sessionId,
         text: 'Skip the charts this week.',
       });
       if (!sent.ok) throw new Error(sent.error.message);
-      await turn;
+      await vi.waitFor(() => expect(f.runs).toHaveLength(1));
       const run = f.runs[0]!;
-      prompts.push(run.message);
       expect(run.sessionId).toBe(sessionId);
       expect(run.message).toContain(
         '[Human wrote this directly in your Session detail; no Channel shows it]\nSkip the charts this week.\n',

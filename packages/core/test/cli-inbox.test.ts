@@ -101,6 +101,22 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.text).toContain('host-query-unsupported');
   });
 
+  it('sends raw text straight into the Orchestrator Session with session-send', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
+    const result = await invoke(
+      ['session-send', ' ada ', 'bot-1', '    keep\n  this indent  '],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({ sourceEventId: 'evt-1' });
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '    keep\n  this indent  ' },
+      },
+    ]);
+  });
+
   it('searches and orders personal Activity through the same Host query', async () => {
     const live = await host(echo);
     const result = await invoke(

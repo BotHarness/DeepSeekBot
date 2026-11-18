@@ -548,7 +548,7 @@ function prepare(
       };
     }
     case 'session-send': {
-      const [botSlug, sessionId, text] = positionals(
+      const [botSlug, sessionId] = positionals(
         command,
         rest,
         3,
@@ -556,7 +556,7 @@ function prepare(
       );
       return {
         method: 'sessionMessageSend',
-        args: { botSlug, sessionId, text },
+        args: { botSlug, sessionId, text: rest[2] },
       };
     }
     case 'bot-stop': {
