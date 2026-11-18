@@ -4558,7 +4558,7 @@ a[href^="https://session.tobs.invalid/"]::before {
   overflow: hidden;
   --bh-composer-footer-padding: 10px 12px 48px;
   padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
-  border: ${border.hairline} solid light-dark(var(--tobs-line-divider), transparent);
+  border: ${border.hairline} solid transparent;
   border-radius: calc(${radius.panel} + ${space.x3});
   background: light-dark(var(--tobs-layer-raised), var(--tobs-layer-elevated));
   box-shadow: var(--tobs-elevation-1);
