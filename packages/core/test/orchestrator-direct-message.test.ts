@@ -36,6 +36,11 @@ describe('Human message sent straight into the Orchestrator Session', () => {
       expect(run.message).not.toContain('Channel: ');
       expect(run.message).toContain(`Source Event ID: ${sent.value.sourceEventId}`);
       expect(f.core.channels.readMessages(f.dm.id)).toHaveLength(before);
+      const attention = methods.botAttention({ slug: 'ada' });
+      if (!attention.ok) throw new Error(attention.error.message);
+      expect(
+        attention.value.items.find((item) => item.id === sent.value.sourceEventId),
+      ).toMatchObject({ authorKind: 'human', summary: 'Skip the charts this week.' });
       const receipt = await createBotMessageTool(() => run).execute(
         { source_event_id: sent.value.sourceEventId, body: 'Charts skipped.' },
         {
