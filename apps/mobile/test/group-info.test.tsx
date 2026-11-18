@@ -153,6 +153,7 @@ const info: GroupInfo = {
   ],
   invites: [{ id: 'inv-1', slug: 'cy', bot: cy }],
   joins: [{ id: 'join-1', slug: 'di', bot: di }],
+  people: [],
   candidates: [bot('fay', 'Fay')],
 };
 
@@ -304,6 +305,32 @@ describe('Group profile', () => {
     expect(button(view, t.groupInvite)).not.toBeNull();
   });
 
+  it('lists the people in the group by their group nickname, with their photo', async () => {
+    const people = [
+      { humanId: 'local-human', displayName: 'Professor' },
+      { humanId: 'mia', displayName: 'Mia Chen', avatarVersion: '0123456789abcdef' },
+    ];
+    const view = await render(
+      <GroupProfilePage
+        {...sheet({
+          info: {
+            ...info,
+            channel: { ...info.channel, memberCount: 4, humanMembers: people },
+            people,
+          },
+        })}
+      />,
+    );
+    expect(view.textContent).toContain(t.members(4));
+    const rows = [...view.querySelectorAll('[data-testid^="group-person-"]')].filter(
+      (node) => node.closest('[hidden]') === null,
+    );
+    expect(rows.map((node) => node.textContent)).toEqual([
+      expect.stringContaining('Professor'),
+      expect.stringContaining('Mia Chen'),
+    ]);
+  });
+
   it('opens a member profile, cancels an invitation and decides a join request', async () => {
     const props = sheet();
     const view = await render(<GroupProfilePage {...props} />);
@@ -380,6 +407,11 @@ describe('Group profile', () => {
     await act(async () => button(view, `${t.groupRename}, Launch`)!.click());
     const field = view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.groupName}"]`)!;
     expect(button(view, t.groupRenameSave)!.disabled).toBe(true);
+    const actionsRow = button(view, t.groupRenameSave)!.parentElement!;
+    expect([...actionsRow.children].map((node) => node.getAttribute('aria-label'))).toEqual([
+      t.cancel,
+      t.groupRenameSave,
+    ]);
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
       setter.call(field, 'Launch crew');

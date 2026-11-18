@@ -1218,6 +1218,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  sessionMessageSend(
+    botSlug: string,
+    sessionId: string,
+    text: string,
+  ): Promise<{ sourceEventId: string }> {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
+  }
   sessionStop(
     botSlug: string,
     sessionId?: string,
@@ -2174,6 +2181,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanNameSet({ displayName }));
   }
 
+  humanAvatarSet(avatar: string | null) {
+    return unwrap(this.methods.humanAvatarSet({ avatar }));
+  }
+
+  humanAvatars(humanIds: string[]) {
+    return unwrap(this.methods.humanAvatars({ humanIds }));
+  }
+
+  humanProfileSetupFinish() {
+    return unwrap(this.methods.humanProfileSetupFinish({}));
+  }
+
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
     return unwrap(this.methods.channelGroupDelete({ channelId }));
   }
@@ -2323,6 +2342,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
     return unwrap(await this.methods.channelSkillCatalog({ channelId }));
+  }
+
+  async sessionSkillCatalog(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.sessionSkillCatalog({ slug, sessionId }));
   }
   async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
     return unwrap(await this.methods.botSkills({ slug }));
@@ -3478,6 +3504,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botTurnInput',
   'channelBotStop',
   'sessionStop',
+  'sessionMessageSend',
   'botStop',
   'modelCatalog',
   'modelFavoriteSet',
@@ -3522,6 +3549,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'composerIdentity',
   'composerValidate',
   'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
+  'humanProfileSetupFinish',
   'channelHumanNameSet',
   'channelDm',
   'channelGet',
@@ -3557,6 +3587,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelAllBotPreview',
   'tobCli',
   'channelSkillCatalog',
+  'sessionSkillCatalog',
   'botSkills',
   'skillShow',
   'botSkillRemove',

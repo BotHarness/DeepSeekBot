@@ -234,6 +234,7 @@ it('does not match descriptions by pinyin initials', () => {
 it('every row and heading registered Bot settings sections render is searchable', () => {
   const notSettings = new Set([
     'accountProfile.loadFailed',
+    'accountProfile.loading',
     'accountProfile.signInHint',
     'devices.connection.unchecked',
     'devices.list.empty',

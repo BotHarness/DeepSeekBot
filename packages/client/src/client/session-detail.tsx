@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
 
+import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -20,19 +21,25 @@ import type {
   SessionTranscriptTrigger,
 } from './bridge.js';
 import { ChannelComposer } from './channel-composer.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
-import { font, status } from './ds/tobs.stylex.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
+import { SessionHeaderSlot } from './session-header-slot.js';
+import { SessionJump } from './session-jump.js';
+import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
+import { ChangedFiles } from './session-changed-files.js';
+import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
-import { todoCount, TodoRing } from './session-progress-view.js';
+import { SessionProgressChips } from './session-progress-view.js';
 import {
-  changedFiles,
   clockText,
   detailDefaults,
   durationText,
@@ -152,7 +159,6 @@ const styles = stylex.create({
     paddingInline: space.x4,
     borderRadius: radius.lg,
     backgroundColor: color.accentTint,
-    whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
   reply: { overflowWrap: 'anywhere', minWidth: 0, marginBlock: space.x2 },
@@ -200,30 +206,6 @@ const styles = stylex.create({
   },
   add: { color: color.success },
   remove: { color: color.danger },
-  files: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    paddingInlineStart: space.x6,
-    paddingBottom: space.x2,
-  },
-  file: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-    fontFamily: font.familyMono,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  filePath: {
-    flex: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    color: color.muted,
-  },
   stat: { display: 'inline-flex', gap: space.x2, flexShrink: 0 },
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
@@ -456,43 +438,6 @@ function ProcessGroup({
   );
 }
 
-function ChangedFiles({
-  block,
-  t,
-}: {
-  block: Extract<TranscriptBlock, { kind: 'turn' }>;
-  t: BotHarnessTranslate;
-}): ReactNode {
-  const [open, setOpen] = useState(false);
-  const files = changedFiles(block.segments);
-  if (block.live || files.length === 0) return null;
-  const added = files.reduce((sum, file) => sum + file.added, 0);
-  const removed = files.reduce((sum, file) => sum + file.removed, 0);
-  return (
-    <div data-transcript="changes">
-      <WorkRow
-        icon="files"
-        label={t('sessions.detail.changes', { count: files.length })}
-        trailing={<DiffStat added={added} removed={removed} />}
-        expanded={open}
-        onToggle={() => setOpen(!open)}
-      />
-      {open ? (
-        <div {...stylex.props(styles.files)}>
-          {files.map((file) => (
-            <div key={file.path} data-changed-file={file.path} {...stylex.props(styles.file)}>
-              <span title={file.path} {...stylex.props(styles.filePath)}>
-                {file.path}
-              </span>
-              <DiffStat added={file.added} removed={file.removed} />
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function TurnBlock({
   block,
   context,
@@ -548,7 +493,12 @@ function TurnBlock({
       )}
       {visible.map((segment) =>
         segment.kind === 'reply' ? (
-          <div key={segment.key} data-transcript="reply" {...stylex.props(styles.reply)}>
+          <div
+            key={segment.key}
+            data-transcript="reply"
+            data-quote-source={quoteSourceId(context.sessionId, segment.key)}
+            {...stylex.props(styles.reply)}
+          >
             <MessageMarkdown text={segment.item.text} t={t} />
           </div>
         ) : (
@@ -577,26 +527,37 @@ function TurnBlock({
 
 function InputBlock({
   block,
+  sessionId,
   t,
 }: {
   block: Extract<TranscriptBlock, { kind: 'input' }>;
+  sessionId: string;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
   if (item.source === 'user')
     return (
-      <div data-transcript="input" {...stylex.props(styles.input)}>
-        {item.text}
+      <div
+        data-transcript="input"
+        data-quote-source={quoteSourceId(sessionId, block.key)}
+        {...stylex.props(styles.input)}
+      >
+        <MessageMarkdown text={item.text} t={t} />
       </div>
     );
   const trigger = item.trigger ?? 'request';
+  const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
   return (
-    <div data-transcript="system" data-trigger={trigger}>
+    <div data-transcript="system" data-trigger={skill === undefined ? trigger : 'skill'}>
       <WorkRow
-        icon={TRIGGER_ICONS[trigger]}
-        label={t(`sessions.detail.trigger.${trigger}`)}
-        detail={open ? undefined : item.text.split('\n', 1)[0]}
+        icon={skill === undefined ? TRIGGER_ICONS[trigger] : 'slash'}
+        label={
+          skill === undefined
+            ? t(`sessions.detail.trigger.${trigger}`)
+            : t('sessions.detail.trigger.skill', { name: skill })
+        }
+        detail={open || skill !== undefined ? undefined : item.text.split('\n', 1)[0]}
         trailing={<span {...stylex.props(styles.meta)}>{clockText(item.at)}</span>}
         expanded={open}
         onToggle={() => setOpen((value) => !value)}
@@ -615,24 +576,33 @@ function liveOf(items: readonly SessionTranscriptItem[]): SessionTranscriptItem[
 export function SessionDetail({
   actions,
   botSlug,
+  botName,
   sessionId,
   t,
 }: {
   actions: BridgeActions;
   botSlug: string;
+  botName?: string | undefined;
   sessionId: string;
   t: BotHarnessTranslate;
 }): ReactElement {
   const prefs = useContext(SessionDetailPrefsContext);
-  const [transcript, setTranscript] = useState<SessionTranscript | undefined>();
+  const [cached] = useState(() => cachedSessionDetail({ host: actions, botSlug, sessionId }));
+  const openedCached = useRef(cached?.transcript !== undefined);
+  const [transcript, setTranscript] = useState<SessionTranscript | undefined>(cached?.transcript);
   const [live, setLive] = useState<SessionTranscriptItem[]>([]);
-  const [progress, setProgress] = useState<SessionProgress | undefined>();
+  const [progress, setProgress] = useState<SessionProgress | undefined>(cached?.progress);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<'goal' | 'todos' | undefined>();
   const [draft, setDraft] = useState('');
+  const [quotes, setQuotes] = useState<ComposerQuote[]>([]);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
+  const [away, setAway] = useState(false);
+  const chipSlot = useContext(SessionHeaderSlot);
+  const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
+  const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -647,6 +617,19 @@ export function SessionDetail({
       let lastLoad = 0;
       let gap: ReturnType<typeof setTimeout> | undefined;
       const pinned = (): boolean => node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+      const at = { host: actions, botSlug, sessionId };
+      let progressSeq = 0;
+      const measure = (): void =>
+        setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
+      if (openedCached.current) {
+        openedCached.current = false;
+        requestAnimationFrame(() => {
+          if (!abort.signal.aborted) node.scrollTop = node.scrollHeight;
+        });
+      }
+      const resize =
+        typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+      resize?.observe(node);
       const follow = (wasPinned: boolean): void => {
         if (wasPinned) requestAnimationFrame(() => (node.scrollTop = node.scrollHeight));
       };
@@ -670,6 +653,7 @@ export function SessionDetail({
               const wasPinned = pinned();
               durableSeq = next.seq;
               busy = next.running;
+              rememberSessionDetail(at, { transcript: next });
               setTranscript(next);
               setFailed(false);
               if (latest.seq <= durableSeq) setLive(liveOf(latest.items));
@@ -686,9 +670,13 @@ export function SessionDetail({
               load();
             }
           });
+        const progressAt = ++progressSeq;
         void actions.sessionProgress?.(botSlug, [sessionId]).then(
           (next) => {
-            if (!abort.signal.aborted) setProgress(next[sessionId]);
+            if (abort.signal.aborted || progressAt !== progressSeq) return;
+            const value = next[sessionId];
+            rememberSessionDetail(at, { progress: value });
+            setProgress(value);
           },
           () => {},
         );
@@ -734,46 +722,70 @@ export function SessionDetail({
         })();
       return () => {
         abort.abort();
+        resize?.disconnect();
         if (timer !== undefined) clearTimeout(timer);
         if (gap !== undefined) clearTimeout(gap);
       };
     },
     [actions, botSlug, sessionId, revision],
   );
-  const composerMount = useMountedResource<HTMLDivElement>((composer) => {
-    const root = composer.parentElement;
-    const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]') ?? null;
-    if (root == null || timeline === null || typeof ResizeObserver === 'undefined') return;
-    let applied: number | undefined;
-    const sync = (): void => {
-      const overlay = Math.max(
-        0,
-        Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
+  const composerMount = useMountedResource<HTMLDivElement>(
+    (composer) => {
+      let live = true;
+      void actions.sessionSkillCatalog?.(botSlug, sessionId).then(
+        (next) => {
+          if (live) setSkillOptions(next);
+        },
+        () => {},
       );
-      if (overlay === applied) return;
-      applied = overlay;
-      const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
-      timeline.style.setProperty('--session-composer-overlay', `${overlay}px`);
-      if (atLatest) timeline.scrollTop = timeline.scrollHeight;
-    };
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(composer);
-    observer.observe(root);
-    return () => {
-      observer.disconnect();
-      timeline.style.removeProperty('--session-composer-overlay');
-    };
-  }, []);
+      const stopSkills = (): void => {
+        live = false;
+      };
+      const root = composer.parentElement;
+      const timeline = root?.querySelector<HTMLElement>('[data-session-transcript]') ?? null;
+      if (root == null || timeline === null || typeof ResizeObserver === 'undefined')
+        return stopSkills;
+      let applied: number | undefined;
+      const sync = (): void => {
+        const overlay = Math.max(
+          0,
+          Math.round(root.getBoundingClientRect().bottom - composer.getBoundingClientRect().top),
+        );
+        if (overlay === applied) return;
+        applied = overlay;
+        const atLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight <= 2;
+        timeline.style.setProperty('--session-composer-overlay', `${overlay}px`);
+        if (atLatest) timeline.scrollTop = timeline.scrollHeight;
+      };
+      sync();
+      const observer = new ResizeObserver(sync);
+      observer.observe(composer);
+      observer.observe(root);
+      return () => {
+        stopSkills();
+        observer.disconnect();
+        timeline.style.removeProperty('--session-composer-overlay');
+      };
+    },
+    [actions, botSlug, sessionId],
+  );
   const send = async (): Promise<void> => {
-    const message = draft.trim();
-    const deliver = actions.sendSessionRequest;
+    const message = quotedRequest(quotes, draft.trim());
+    const deliver =
+      transcript?.role === 'assignment'
+        ? actions.sendSessionRequest
+        : transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined
+          ? (slug: string, session: string) =>
+              actions.sendOrchestratorMessage!(slug, session, quotedRequest(quotes, draft))
+          : undefined;
     if (message === '' || deliver === undefined) return;
     setSending(true);
     setSendError(undefined);
     try {
       await deliver(botSlug, sessionId, message, running);
       setDraft('');
+      setQuotes([]);
+      setSkills([]);
       setRevision((value) => value + 1);
     } catch (error) {
       setSendError(
@@ -810,34 +822,16 @@ export function SessionDetail({
     transcript === undefined ? [] : transcriptBlocks(mergeLive(transcript.items, live), running);
   const toggle = (key: 'goal' | 'todos') =>
     setOpen((current) => (current === key ? undefined : key));
+  const chips =
+    goal === undefined && todos === undefined ? null : (
+      <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
+    );
   return (
     <div data-session-detail={sessionId} {...stylex.props(styles.root)}>
-      {goal === undefined && todos === undefined ? null : (
-        <div {...stylex.props(styles.chips)}>
-          {goal === undefined ? null : (
-            <ChipButton
-              data-session-chip="goal"
-              aria-expanded={open === 'goal'}
-              title={t('sessions.progress.goal', {
-                objective: goal.objective,
-                phase: t(`sessions.goal.${goal.phase}`),
-              })}
-              icon={<ChannelSidebarIcon name="target" size={12} />}
-              label={goal.objective}
-              onClick={() => toggle('goal')}
-            />
-          )}
-          {todos === undefined ? null : (
-            <ChipButton
-              data-session-chip="todos"
-              aria-expanded={open === 'todos'}
-              title={t('sessions.progress.todos', todoCount(todos))}
-              icon={<TodoRing {...todoCount(todos)} />}
-              label={`${todoCount(todos).done}/${todoCount(todos).total}`}
-              onClick={() => toggle('todos')}
-            />
-          )}
-        </div>
+      {chips === null ? null : chipSlot === null ? (
+        <div {...stylex.props(styles.chips)}>{chips}</div>
+      ) : (
+        createPortal(chips, chipSlot)
       )}
       {open === 'goal' && goal !== undefined ? (
         <div data-session-panel="goal" {...stylex.props(styles.panel)}>
@@ -888,7 +882,21 @@ export function SessionDetail({
           ))}
         </div>
       ) : null}
-      <div ref={mount} data-session-transcript="" {...stylex.props(styles.transcript)}>
+      <div
+        ref={mount}
+        data-session-transcript=""
+        tabIndex={-1}
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
+        }}
+        {...stylex.props(styles.transcript)}
+      >
+        {transcript !== undefined && failed ? (
+          <div role="status" {...stylex.props(styles.quiet, styles.center)}>
+            {t('sessions.detail.refreshFailed')}
+          </div>
+        ) : null}
         {transcript === undefined ? (
           <div {...stylex.props(styles.quiet)}>
             {failed ? t('sessions.detail.loadFailed') : t('sessions.detail.loading')}
@@ -904,7 +912,7 @@ export function SessionDetail({
             )}
             {blocks.map((block) =>
               block.kind === 'input' ? (
-                <InputBlock key={block.key} block={block} t={t} />
+                <InputBlock key={block.key} block={block} sessionId={sessionId} t={t} />
               ) : (
                 <TurnBlock key={block.key} block={block} context={context} />
               ),
@@ -913,8 +921,10 @@ export function SessionDetail({
         )}
       </div>
       <TurnNav blocks={blocks} t={t} />
-      {transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined ? (
+      {(transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
+      (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined) ? (
         <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
+          {away ? <SessionJump floating={false} t={t} /> : null}
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>
               {sendError}
@@ -926,11 +936,50 @@ export function SessionDetail({
             label={t('sessions.detail.composer')}
             sending={sending}
             t={t}
-            onChange={(value) => setDraft(value)}
+            quotes={quotes}
+            onRemoveQuote={(quote) =>
+              setQuotes((current) => current.filter((item) => item !== quote))
+            }
+            onQuoteNote={(quote, note) =>
+              setQuotes((current) =>
+                current.map((item) => (item === quote ? { ...item, note } : item)),
+              )
+            }
+            skillOptions={skillOptions}
+            skills={skills}
+            readSkill={actions.skillDetail}
+            onChange={(value, _mentions, _channels, nextSkills) => {
+              setDraft(value);
+              if (nextSkills !== undefined) setSkills(nextSkills);
+            }}
             onSubmit={send}
             onStop={running ? stop : undefined}
           />
+          <SessionQuoteToolbar
+            sessionId={sessionId}
+            enabled={!sending}
+            t={t}
+            authorOf={(source) =>
+              blocks.some(
+                (block) => block.kind === 'input' && quoteSourceId(sessionId, block.key) === source,
+              )
+                ? t('main.author.human')
+                : (botName ?? botSlug)
+            }
+            onQuote={(quote) =>
+              setQuotes((current) =>
+                current.length >= MAX_DRAFT_QUOTES ||
+                current.some(
+                  (item) => item.messageId === quote.messageId && item.text === quote.text,
+                )
+                  ? current
+                  : [...current, quote],
+              )
+            }
+          />
         </div>
+      ) : away ? (
+        <SessionJump floating t={t} />
       ) : null}
     </div>
   );

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createHumanAvatarCache } from '@botharness/host-client/human-profile';
 import { act, createElement, Profiler, type ReactNode, type InputHTMLAttributes } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -204,6 +205,8 @@ function stubActions(): BridgeActions {
     saveGenuiView: vi.fn(),
     sendGenuiReply: vi.fn(),
     humanIdentity: vi.fn(),
+    humanAvatarSet: vi.fn(),
+    humanAvatars: createHumanAvatarCache(async () => ({ avatars: [] })),
     tobHome: vi.fn(),
     sendHome: vi.fn(),
     channelHistory: vi.fn(),

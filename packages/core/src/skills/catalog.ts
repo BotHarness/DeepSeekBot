@@ -424,3 +424,28 @@ export class SkillCatalog {
     return resolved;
   }
 }
+
+export function sessionSkills(
+  entries: readonly SkillCatalogEntry[],
+  botSlug: string,
+  workspaceIds: ReadonlySet<string>,
+): SkillCatalogEntry[] {
+  const rank = (owner: SkillOwner): number =>
+    owner.kind === 'workspace'
+      ? workspaceIds.has(owner.workspaceId)
+        ? 0
+        : -1
+      : owner.kind === 'bot'
+        ? owner.botSlug === botSlug
+          ? 1
+          : -1
+        : 2;
+  const winners = new Map<string, SkillCatalogEntry>();
+  for (const entry of entries) {
+    const level = rank(entry.owner);
+    if (level < 0) continue;
+    const current = winners.get(entry.name);
+    if (current === undefined || level < rank(current.owner)) winners.set(entry.name, entry);
+  }
+  return [...winners.values()];
+}

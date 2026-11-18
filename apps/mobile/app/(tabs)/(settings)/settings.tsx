@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
+import { loadHumanIdentity, useHumanIdentity } from '../../../src/host/human-profile';
 import { loadUsage } from '@botharness/host-client/usage';
 import { appBuildLabel } from '../../../src/ui/app-build';
 import { copyMessage } from '../../../src/ui/chat/message-menu';
@@ -25,10 +26,12 @@ export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
+  const human = useHumanIdentity(client);
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
-    }, []),
+      if (client !== undefined) void loadHumanIdentity(client).catch(() => undefined);
+    }, [client]),
   );
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
@@ -37,7 +40,12 @@ export default function SettingsScreen() {
   return (
     <SettingsTabPage>
       <SettingsView
-        profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
+        profile={
+          <AccountProfileRow
+            chat={{ name: human.identity?.displayName, avatar: human.avatar, mount: human.mount }}
+            onPress={() => router.push('/settings/profile')}
+          />
+        }
         statistics={<StatisticsSettings />}
         messageDisplay={<MessageDisplaySetting />}
         sendJump={<SendJumpSetting />}

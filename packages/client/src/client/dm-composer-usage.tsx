@@ -343,6 +343,7 @@ const SOURCE_LABELS = {
   'inbox-schedule': 'composerContext.source.inbox-schedule',
   'inbox-memory': 'composerContext.source.inbox-memory',
   'inbox-assignment': 'composerContext.source.inbox-assignment',
+  'inbox-open': 'composerContext.source.inbox-open',
   host: 'composerContext.source.host',
   skills: 'composerContext.source.skills',
   attachments: 'composerContext.source.attachments',

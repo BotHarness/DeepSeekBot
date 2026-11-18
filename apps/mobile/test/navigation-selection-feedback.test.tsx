@@ -20,7 +20,7 @@ vi.mock('react-native', async () => ({
   },
   Keyboard: { dismiss: vi.fn() },
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
+vi.mock('expo-router', () => ({ router: { push: vi.fn() }, useIsFocused: () => true }));
 vi.mock('../src/host/native-bot-creation', () => ({
   botCreation: {
     ready: Promise.resolve(),

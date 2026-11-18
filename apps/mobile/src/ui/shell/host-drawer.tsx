@@ -1180,6 +1180,7 @@ export function WorkspacePanel({
       }}
     >
       <HumanAvatarButton
+        client={client}
         testID="workspace-account"
         loadName={loadAccountName}
         onPress={() => {

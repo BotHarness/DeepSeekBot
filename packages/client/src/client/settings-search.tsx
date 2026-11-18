@@ -13,6 +13,10 @@ const SHORTCUT_INDEX: readonly BotHarnessKey[] = SHORTCUT_HELP_GROUPS.flatMap((g
 export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> = {
   account: [
     'accountProfile.title',
+    'profile.section.chat',
+    'humanAvatar.title',
+    'humanName.title',
+    'accountProfile.tobsTitle',
     'accountProfile.photo',
     'accountProfile.name',
     'accountProfile.id',
@@ -78,8 +82,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'routingGroups.new',
   ],
   messaging: [
-    'messaging.section.me',
-    'humanName.title',
     'messaging.section.input',
     'sendKey.row.title',
     'messaging.section.display',
@@ -248,6 +250,8 @@ export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
 };
 
 export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'profile.section.chat': 'profile.section.chatHint',
+  'accountProfile.tobsTitle': 'accountProfile.description',
   'routingGroups.new': 'routingGroups.empty',
   'relationships.prepareReturn': 'relationships.prepareReturnHint',
   'market.mine.title': 'market.mine.settingsHint',

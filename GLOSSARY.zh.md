@@ -144,6 +144,10 @@ _避免使用_：server、instance、node、worker
 一个 Session 内部的 DSH executor。绝不指 PersonaBot。
 _避免使用_：用这个词指代 PersonaBot
 
+**Subscription Engine**：
+Human 本机上未修改的官方 agent CLI（Claude Code 或 Codex），使用 Human 自己的订阅登录，由 Host 驱动，代替 DSH Agent 作为 Orchestrator Session 或 Assignment Session 的执行者。仅限本地 Host。
+_避免使用_：driver、provider（DSH Provider 调用模型 API）、ACP agent（ACP 只是引擎可能使用的一种协议）
+
 **Subagent**：
 由某个 Session 为有界工作启动的 DSH child agent 和 child Session；它继承父 Session 的 PersonaBot ownership，但属于该父级工作，绝不会成为独立 Assignment Session。
 _避免使用_：sub-bot、worker、helper

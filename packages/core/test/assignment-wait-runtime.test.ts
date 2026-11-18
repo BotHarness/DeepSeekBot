@@ -102,10 +102,13 @@ describe('owned Runtime Assignment wait', () => {
       const signal = new AbortController().signal;
       const pending = access.wait(run.sessionId, signal);
       await run.report({ state: 'progress', summary: 'Work committed' });
-      expect(await pending).toMatchObject({
+      const waited = await pending;
+      expect(waited).toMatchObject({
         outcome: 'report',
         assignment: { latestReport: { summary: 'Work committed' } },
       });
+      expect(waited.inboxIds).toHaveLength(1);
+      expect(waited.resolveHint).toContain('inbox_resolve');
       const cancelled = access.wait(run.sessionId, signal);
       const rejected = expect(cancelled).rejects.toThrow('Runtime closed');
       f.live.finish(run.sessionId);

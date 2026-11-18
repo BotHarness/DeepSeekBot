@@ -218,6 +218,7 @@ deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
 deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
 deepseekbot send <bot-id> --body "这两条还成立吗？" --quote <消息-id> --quote "<消息-id>::原文片段" --quote-note "" --quote-note "还是周五吗？"
 deepseekbot skills-list --bot <bot-id> [--query <文本>]
+deepseekbot skills-list --bot <bot-id> --session <session-id> [--query <文本>]
 deepseekbot skills-memory --bot <bot-id>
 deepseekbot skills-show <名称> --owner bot:<bot-id>
 deepseekbot skills-remove <名称> --bot <bot-id> --confirm
@@ -241,6 +242,8 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 输入框的 `/` 菜单也能引用 Assignment Session：未输入过滤词时只列出该对话中 Bot 进行中的会话，输入后会搜索全部会话（含已归档和已结束）。同样的列表可用 `assignments <bot-id> [--search <text>] [--include-archived]` 取得。选中后插入 `[<标题>](session:<session-id>)`，与 Bot 已使用的链接格式相同，所以用 `send --body` 发送这个链接得到的是同一条消息，气泡里显示为可打开会话详情的会话标签。
 
 `skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug、Workspace 名或 ID 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`），以及各 Bot 当前 Workspace Grant 根目录下这两个 Skill 目录中的 Project Skill（`owner.kind` 为 `workspace`，`workspaceId` 是稳定标识，`name` 是显示名）。同一 Workspace 在对话中只列一次，不读取上层仓库的 Skill；最后一个可用 Grant 撤销后即消失。只有发送者可读取的活跃 Bot 提供条目。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host`、`bot:<bot-id>` 或 `workspace:<workspace-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Workspace ID 取自 `skills-list`，文件夹显示名更改后身份不变。例如 `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` 保存所选 Skill 的快照，不隐式提及任何 Bot；提及仍须通过常规发送选项指定。没有该 Grant 的接收 Bot 可收到文本，但现有文件守卫会拦截其路径读取。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
+
+`skills-list --bot <bot-id> --session <session-id>` 返回该 Session 详情输入框中 `/` 菜单提供的 Skill。它列出该 Session 自己能发现的 Skill：Host Skill、该 Bot 的 Memory Repository Skill，以及工作目录所在 Workspace Grant 的 Project Skill。同名只列一项，优先级按 [ADR-0345](adr/0345-project-skills-travel-with-their-directory.md)：Workspace，然后 Memory，然后 Host。选中后插入纯文本 `/name`。请求以用户输入送达该 Session，由 DSH 自己的 Skill 手势在其中加载该 Skill，不另存快照。
 
 `skills-memory --bot <bot-id>` 列出该 PersonaBot 自己 Memory Repository 中的 Project Skill，与其资料页 **Skills** 卡片相同：根目录 `.dsh/skills` 优先于 `.agents/skills`，包含仅模型调用的 Skill（`userInvocable: false`），不含 Workspace Skill。`skills-show <名称> --owner <host|bot:<bot-id>|workspace:<workspace-id>>` 返回该 Skill 的全文。`skills-remove <名称> --bot <bot-id> --confirm` 从 Memory Repository 删除该 Skill 文件夹（或单个 `.md` 文件）并提交 `skills: remove <名称>`，可从 git 历史恢复（未提交的修改会先提交为 `skills: save <名称> before removal`；文件夹中含 git 忽略的文件时以 `skill-has-ignored-files` 拒绝，因为历史无法恢复它们）；打开中的 `/` 菜单通过实时目录事件同步更新。不带 `--confirm` 会拒绝执行。没有禁用开关。Skill 不存在时以 `skill-not-found` 拒绝。
 
@@ -457,6 +460,10 @@ deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
 deepseekbot roster-section-remove <section-id> --confirm
 deepseekbot human-identity
 deepseekbot human-name-set --name "Vain"
+deepseekbot human-avatar-set --file ./me.webp
+deepseekbot human-avatar-set --clear
+deepseekbot human-avatars <human-id> <human-id>
+deepseekbot human-profile-setup-finish
 deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
 deepseekbot part-library
 deepseekbot part-library-import --file ./parts.zip
@@ -466,7 +473,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
+图片从文件路径读取：头像可以是 PNG、JPEG 或 WebP；横幅是 3:1 的 PNG；`--clear` 把头像恢复默认、把横幅恢复为按名字生成的场景。`bot-appearance-set` 接受与头像编辑器相同的像素配方，并据此重绘头像。`--source-class` 取 `assignment-report`（`--wake conditional|immediate`）、`group-ordinary`（`--wake immediate|digest|mentions|silent`，配合 `--digest-count` 和以秒计的 `--digest-interval`），或 `human-dm`、`bot-dm`、`group-mention`（`--delivery steer|turn`）。侧边栏命令使用 Channel id（私聊为 `dm-<bot-id>`）；`roster-pins-set` 和 `roster-hidden-set` 整体替换列表，不传 id 即清空；`roster-batch move` 不带 `--section` 时移到顶层。`roster-section-remove` 必须带 `--confirm`，分组里的 Channel 会移到顶层。设置了 `--host` 或 `DEEPSEEKBOT_HOST` 时，`human-name-set` 和 `channel-human-name-set` 走 Host；带 `--home` 时仍走离线路径。`human-avatar-set` 设置调用者自己在该 Host 上的聊天头像（PNG、JPEG 或 WebP，不超过 96 KiB；App 会裁成 256×256 的 WebP），不需要 Tobs 账号；之后 `human-identity` 会显示 `avatarVersion`。Team 模式下作用于已登录的成员。`human-avatars` 返回自己和与你同在某个 Channel 的人的头像，每次最多 64 个，其余的不返回。还没设置聊天名字和头像的 Team 成员，`human-identity` 会显示 `profileSetup: "pending"`，App 在登录后会请他们填写一次；`human-profile-setup-finish` 结束这次询问，效果同选择“稍后”。`part-library-export` 把部件 PNG 或整个部件库的 zip 写入 `--out`，并输出文件名和大小；`--part-stdin` 导出以 JSON 给出的已穿戴部件。
 
 ### 用命令行管理 IM 应用
 
@@ -586,6 +593,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-send <bot-id> <orchestrator-session-id> [--] <text>
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
 deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
@@ -602,9 +610,11 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
 
+`session-send <bot-id> <orchestrator-session-id> <text>` 把 Human 的文字直接发进 Bot 当前的 Orchestrator Session，与该 Session 详情里的输入框相同。这是少用的主动 steer。任何 Channel 都不显示这段文字：Session 收到原文，前面只有一行说明这是 Human 在 Session 详情里写的；Bot Inbox 把它记为 Human 在其 DM 上的 Source Event，重启或 compaction 后仍在。无论 `human-dm` 投递设置如何，运行中的 turn 都在下一步收到它；Bot 正在准备或整理 Memory 时，它改为等到下一个 turn；空闲的 Orchestrator 会被唤醒。Bot 不必回复；带这个 `source_event_id` 的 `bot_send_message` 发到 Human 的 DM，不带引用。文字以 `-` 开头时，在它前面加 `--`；看起来像密钥参数的文字（如 `--token`、`--api-key=…`）仍以 `secret-in-argv` 拒绝，因为密钥从不经由参数传递。返回 `{ sourceEventId }`。Bot 能接收消息时，其他 Session 以 `invalid-input` 拒绝；Bot 此刻不能接收消息时（例如已暂停），以 `unavailable` 拒绝。
+
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
 
-停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；在它保持停止期间，新的 Assignment Request 会被拒绝。只有显式恢复能让它继续：在 Human 明确指示继续后，调用 `unarchive_assignment` 并把请求作为可选的 `message` 传入，一次调用即可恢复并继续（也可以先取消归档，再重新发送请求）。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 或 `followup` 表示已投递，`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`）表示 Assignment 已取消归档但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。不经过模型：
+停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment。停止就是暂停：该 Assignment 保留历史且不会被归档，下一条 Assignment Request（无论来自 Orchestrator 的 `send_assignment_request` 还是 Human）都会唤醒它并尝试投递请求，不管是谁停的（投递结果见下文的 `delivery`）。`unarchive_assignment` 也能恢复它，请求作为可选的 `message` 传入。不带 `message` 时，`unarchive_assignment` 只恢复它，不发送任何内容。带 `message`（以及可选的 `mode`，默认 `next-turn`，或 `next-step`）时，请求走与 `send_assignment_request` 相同的 Assignment Request 投递路径和拒绝规则；`delivery` 为 `steer` 表示已投递，`followup` 表示已排队（带 `acceptance: "pending"` 时，Assignment 接受前仍可能失败，重发前先查看该 Session），`code: "request-not-delivered"`（请求被带码拒绝时附带 `requestCode`，例如容量已满）表示 Assignment 已处于活动状态但没有收到请求。无效的 `mode`、空白的 `message`，或只给 `mode` 不给 `message`，会在取消归档之前被拒绝。在 Assignment 的 Session detail 里发送消息时，它以这段文字作为 `message` 调用 `unarchive_assignment`，所以已停止或已归档的 Assignment 会恢复，消息按同样的投递规则处理，Orchestrator 读到的静默直接请求通知与 `send_assignment_request` 相同。不经过模型：
 
 ```bash
 printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin

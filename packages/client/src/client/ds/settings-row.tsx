@@ -44,10 +44,12 @@ const styles = stylex.create({
     minWidth: 0,
     paddingInline: {
       default: style.listGroupPaddingInline,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
       ':has(> section)': 0,
     },
     paddingBlock: {
       default: style.listGroupPaddingBlock,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingBlock} + ${style.listItemPaddingBlock})`,
       ':has(> section)': 0,
     },
     borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },

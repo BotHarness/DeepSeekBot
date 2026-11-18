@@ -283,6 +283,9 @@ import {
   isGroupAvatar,
   isReactionEmoji,
   type LocalHumanIdentity,
+  type HumanAvatar,
+  HUMAN_AVATAR_BATCH,
+  isHumanAvatar,
   type ChannelMention,
   type ChannelMessage,
   type ChannelReaction,
@@ -369,6 +372,7 @@ import {
   type SkillCatalogEntry,
   type SkillOwner,
   type ResolvedSkill,
+  sessionSkills,
 } from '../skills/catalog.js';
 import {
   BotSkillIgnoredFilesError,
@@ -707,7 +711,7 @@ export interface ChannelListItem extends ChannelRecord {
   memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
-  humanMembers?: Array<{ humanId: string; displayName: string }>;
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   humanNickname?: string | null;
   latestMessage?: ChannelMessage;
 }
@@ -793,6 +797,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       stopped: { botSlug: string; sessionId: string; messageId: string };
     }>
   >;
+  sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
   sessionStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -941,6 +946,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
     quotes?: Array<ChannelMessage | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
@@ -993,6 +1001,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
+  sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
   botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
   skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
   botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
@@ -3962,6 +3971,34 @@ function buildBridgeMethods(
       }
       return stopBotSessions(source, botSlug, channelId);
     },
+    async sessionMessageSend(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const text = typeof source['text'] === 'string' ? source['text'] : undefined;
+      if (!botSlug || !sessionId || text === undefined || text.trim() === '')
+        return invalidInput('botSlug, sessionId and a non-blank text are required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      if (deps.runtime?.sendOrchestratorMessage === undefined) return unavailable();
+      const outcome = deps.runtime.sendOrchestratorMessage(human, {
+        botSlug,
+        sessionId,
+        text,
+      });
+      if (!outcome.delivered)
+        return {
+          ok: false,
+          error: {
+            code: outcome.reason === 'not-current-orchestrator' ? 'invalid-input' : 'unavailable',
+            message:
+              outcome.reason === 'not-current-orchestrator'
+                ? "Only the Bot's current Orchestrator Session accepts a direct message"
+                : `The message was not delivered: ${outcome.reason}`,
+          },
+        };
+      void outcome.settled.catch(() => undefined);
+      return { ok: true, value: { sourceEventId: outcome.sourceEventId } };
+    },
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
@@ -6431,6 +6468,32 @@ function buildBridgeMethods(
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
+    humanAvatarSet(payload) {
+      const input = z
+        .object({ avatar: z.string().max(131_072).nullable() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
+      return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
+    },
+    humanProfileSetupFinish(payload) {
+      if (!z.object({}).strict().safeParse(payload).success)
+        return invalidInput('humanProfileSetupFinish takes no arguments');
+      return { ok: true, value: deps.channels.finishHumanProfileSetup(human) };
+    },
+    humanAvatars(payload) {
+      const input = z
+        .object({ humanIds: z.array(z.string().min(1).max(128)).max(HUMAN_AVATAR_BATCH) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success)
+        return invalidInput(`humanIds must be up to ${HUMAN_AVATAR_BATCH} Human IDs`);
+      return {
+        ok: true,
+        value: { avatars: deps.channels.humanAvatars(human, input.data.humanIds) },
+      };
+    },
     channelHumanNameSet(payload) {
       const input = z
         .object({
@@ -7596,6 +7659,39 @@ function buildBridgeMethods(
       const bots = channelSkillBots(channel);
       try {
         return { ok: true, value: { skills: await deps.skills.list(bots) } };
+      } catch (error) {
+        return {
+          ok: false,
+          error: { code: 'skills-unavailable', message: (error as Error).message },
+        };
+      }
+    },
+    async sessionSkillCatalog(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
+      const cwd = owner.cwdReference;
+      const workspaceIds = new Set(
+        deps.skills
+          .workspaces([slug])
+          .filter((workspace) => cwd !== undefined && workspace.path === cwd)
+          .map((workspace) => workspace.workspaceId),
+      );
+      try {
+        return {
+          ok: true,
+          value: { skills: sessionSkills(await deps.skills.list([slug]), slug, workspaceIds) },
+        };
       } catch (error) {
         return {
           ok: false,

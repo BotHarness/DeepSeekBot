@@ -10,6 +10,7 @@ import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js'
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
 import { mountWallpaper } from './wallpaper-layer.js';
+import { mountPanelScrollbars, PLUGIN_SCROLLBAR_SCOPE } from './ds/panel-scrollbars.js';
 import { panelTargetId } from './appearance-panels.js';
 import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
@@ -129,6 +130,7 @@ import {
   mountDesktopNotifications,
 } from './desktop-notifications.js';
 import { openHumanAttentionSource } from './human-attention-source.js';
+import { HumanProfileSetup } from './human-profile-setup.js';
 import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
@@ -252,9 +254,11 @@ export function apply(ctx: ClientContext): void {
     const offColors = appearance.subscribe(refreshBotPrimaryColors);
     refreshBotPrimaryColors();
     const offWallpaper = mountWallpaper(wallpaper);
+    const offScrollbars = mountPanelScrollbars(document.documentElement, PLUGIN_SCROLLBAR_SCOPE);
     const offControl = member ? () => {} : mountAppearanceControl(appearance, wallpaper);
     return () => {
       offControl();
+      offScrollbars();
       offWallpaper();
       offColors();
       offStyle();
@@ -383,6 +387,17 @@ export function apply(ctx: ClientContext): void {
         }),
       },
       BotSessionFolders,
+    ),
+  );
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      {
+        name: 'shell.overlay',
+        id: 'botharness-human-profile-setup',
+        locale: LOCALE_NS,
+        inject: () => ({ call, actions }),
+      },
+      HumanProfileSetup,
     ),
   );
   const botSettings = new BotSettings();
@@ -927,6 +942,9 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({
             actions,
             startSignIn: startConnectSignIn,
+            call,
+            store,
+            onSaved: () => actions.refreshRoster(),
           }),
         },
         AccountSection,

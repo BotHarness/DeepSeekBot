@@ -4476,7 +4476,7 @@ describe('Assignment Directory Tools', () => {
           delivery: 'refused',
           code: 'request-not-delivered',
           message:
-            'Assignment Session stopped was unarchived, but the request was not delivered: Assignment Session stopped was stopped by the Human',
+            'Assignment Session stopped is active, but the request was not delivered: Assignment Session stopped was stopped by the Human',
         },
         {
           outcome: 'unarchived',
@@ -4489,7 +4489,7 @@ describe('Assignment Directory Tools', () => {
           limit: 4,
           retryable: true,
           message:
-            'Assignment Session full was unarchived, but the request was not delivered: At capacity',
+            'Assignment Session full is active, but the request was not delivered: At capacity',
         },
       ]);
       expect(values.slice(5)).toEqual([

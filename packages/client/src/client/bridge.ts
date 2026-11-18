@@ -9,6 +9,13 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import {
+  humanAvatarVersionOf,
+  parseHumanAvatars,
+  parseHumanIdentity,
+  type HumanAvatarImage,
+  type HumanIdentity,
+} from '@botharness/host-client/human-profile';
 import { memberPage } from './member-page.js';
 import {
   isTakeoverRequestCard,
@@ -1053,7 +1060,13 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
             const member = asRecord(raw);
             return typeof member?.['humanId'] === 'string' &&
               typeof member['displayName'] === 'string'
-              ? [{ humanId: member['humanId'], displayName: member['displayName'] }]
+              ? [
+                  {
+                    humanId: member['humanId'],
+                    displayName: member['displayName'],
+                    ...humanAvatarVersionOf(member['avatarVersion']),
+                  },
+                ]
               : [];
           }),
         }
@@ -1400,8 +1413,20 @@ export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  const value = asRecord(await unwrap(call, 'channelSkillCatalog', { channelId }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid channelSkillCatalog response');
+  return skillCatalogEntries(await unwrap(call, 'channelSkillCatalog', { channelId }));
+}
+
+export async function loadSessionSkillCatalog(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<SkillCatalogEntry[]> {
+  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
+}
+
+function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
+  const value = asRecord(response);
+  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
   return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
     const item = asRecord(entry);
     const owner = asRecord(item?.['owner']);
@@ -3079,28 +3104,7 @@ export async function renameChannel(
   return { channel, ...(bot === undefined ? {} : { bot }) };
 }
 
-export interface LocalHumanIdentity {
-  humanId: string;
-  defaultDisplayName: string | null;
-  displayName: string;
-}
-
-function parseHumanIdentity(value: unknown): LocalHumanIdentity {
-  const item = asRecord(value);
-  const name = item?.['defaultDisplayName'];
-  if (
-    item?.['humanId'] !== 'local-human' ||
-    (name !== null &&
-      (typeof name !== 'string' || name.trim().length === 0 || name.length > 128)) ||
-    item['displayName'] !== (name ?? 'Human')
-  )
-    throw new Error('invalid local Human identity');
-  return {
-    humanId: 'local-human',
-    defaultDisplayName: name,
-    displayName: item['displayName'] as string,
-  };
-}
+export type LocalHumanIdentity = HumanIdentity;
 
 export type TelemetryLock = 'config' | 'DO_NOT_TRACK' | 'BOTHARNESS_TELEMETRY';
 
@@ -3712,6 +3716,24 @@ export async function setHumanDefaultName(
   displayName: string | null,
 ): Promise<LocalHumanIdentity> {
   return parseHumanIdentity(await unwrap(call, 'humanNameSet', { displayName }));
+}
+
+export async function setHumanAvatar(
+  call: BridgeCall,
+  avatar: string | null,
+): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanAvatarSet', { avatar }));
+}
+
+export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanProfileSetupFinish', {}));
+}
+
+export async function loadHumanAvatars(
+  call: BridgeCall,
+  humanIds: string[],
+): Promise<HumanAvatarImage[]> {
+  return parseHumanAvatars(await unwrap(call, 'humanAvatars', { humanIds }));
 }
 
 export async function setChannelHumanName(
@@ -4517,8 +4539,8 @@ export async function sendSessionRequest(
   const value = asRecord(
     await unwrap(call, 'botToolRun', {
       slug,
-      tool: 'send_assignment_request',
-      args: { session_id: sessionId, text, mode: steer ? 'next-step' : 'next-turn' },
+      tool: 'unarchive_assignment',
+      args: { session_id: sessionId, message: text, mode: steer ? 'next-step' : 'next-turn' },
     }),
   );
   let result: unknown = value?.['result'];
@@ -4534,6 +4556,15 @@ export async function sendSessionRequest(
     throw new Error(
       typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
     );
+}
+
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }
 
 const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
