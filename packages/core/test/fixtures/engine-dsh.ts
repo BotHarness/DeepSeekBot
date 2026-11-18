@@ -43,7 +43,7 @@ export function memoryDsh(): {
     store: {
       prepare: (id, options) =>
         options.eventState === undefined
-          ? Session.create(id)
+          ? Session.create(id, undefined, { ...Session.create(id).header, ...options.meta })
           : Session.fromRestore(
               id,
               options.seed,

@@ -381,6 +381,7 @@ export const CLI_EFFECTS = {
   'plugin-install': { effects: external, brokerRead: false },
   'plugin-restart': { effects: destructive, brokerRead: false },
   engine: { effects: management, brokerRead: false },
+  'engine-approvals': { effects: read, brokerRead: true },
   'engine-list': { effects: read, brokerRead: true },
   'engine-login': { effects: externalManagement, brokerRead: false },
   'engine-status': { effects: read, brokerRead: true },
@@ -576,7 +577,7 @@ function familyEffects(
       }
     }
     case 'engine':
-      if (action === 'list' || action === 'status') return read;
+      if (action === 'list' || action === 'status' || action === 'approvals') return read;
       return action === 'login' ? externalManagement : management;
     case 'bot-access':
       return botAccessEffects(action, values);

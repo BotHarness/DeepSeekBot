@@ -1470,9 +1470,13 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
-  describeEngineSession?(
-    sessionId: string,
-  ): { engine: string; account?: string; state: 'starting' | 'running' | 'idle' } | undefined;
+  describeEngineSession?(sessionId: string):
+    | {
+        engine: string;
+        account?: string;
+        state: 'starting' | 'running' | 'waiting-approval' | 'idle';
+      }
+    | undefined;
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
   roster: RosterStore;

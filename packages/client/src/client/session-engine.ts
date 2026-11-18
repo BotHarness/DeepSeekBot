@@ -8,6 +8,8 @@ export function engineName(engine: string): string {
 export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate): string {
   if (engine.state === 'starting')
     return t('sessions.detail.engineStarting', { engine: engineName(engine.engine) });
+  if (engine.state === 'waiting-approval')
+    return t('sessions.detail.engineWaitingApproval', { engine: engineName(engine.engine) });
   if (engine.account === undefined) return engineName(engine.engine);
   return t('sessions.detail.engine', {
     engine: engineName(engine.engine),

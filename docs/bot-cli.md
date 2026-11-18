@@ -1103,12 +1103,15 @@ A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH mo
 ```bash
 deepseekbot engine list
 deepseekbot engine status
+deepseekbot engine approvals
 deepseekbot engine login codex
 deepseekbot engine use <bot> codex --role orchestrator
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
 `engine list` returns `{engines: [{engine, available, reason?}]}`; `engine status` adds `installed`, `version` and `login` (`chatgpt`, `api-key`, `signed-out` or `unknown`) and lists `selections` as `{botSlug, role, engine}`. `reason` is `not-installed`, `signed-out` or `not-subscription`. A Cloud or VPS Host (`subscriptionEngines: false`, or `DEEPSEEKBOT_HOST_KIND=cloud|vps`) lists no engines. `engine login codex` starts `codex login` for the Bot's Codex home on the Host computer and returns `{engine, started, url?}`; finish the sign-in in the browser with the ChatGPT account. `engine use` returns `{bot, role, engine}`; `none` returns the Bot to its DSH model. Before a turn the Host reads the engine's account and refuses anything but a ChatGPT subscription (`engine-not-subscription`, `engine-signed-out`). The engine reaches `bot_send_message` and `channel_read` through a loopback MCP gateway whose token is bound to the Bot, the Session and the current Channel; its own final text is not posted. Refusals: `unknown-bot`, `unknown-engine`, `engine-unavailable`, `invalid-input` and `usage`.
+
+When Codex asks to run a command or change files that need permission (Codex runs the Orchestrator in the Bot's own empty folder, so writing outside it asks), the Host posts the usual tool approval card in the Channel the turn came from and writes `approval/asked` and `approval/decided` into the engine's Session. `engine approvals` returns `{approvals: [{botSlug, sessionId, channelId, messageId, toolName, input, expiresAt}]}` for the cards engine Sessions are waiting on; answer one with `tool-approval-decide <channelId> --message-id <messageId> --outcome allowed-once|allowed-always-tool|rejected`. Approve lets Codex run it, a rejection is returned to Codex as a decline. `allowed-always-tool` saves a rule under Codex's own tool name (`shell` for commands, `apply_patch` for file changes), listed by `tool-approval-rules`, and later requests for that tool in the same scope are approved without a card. While a card is open, `session-transcript` reports `engine.state` `waiting-approval`.
 
 ### Desktop presence
 

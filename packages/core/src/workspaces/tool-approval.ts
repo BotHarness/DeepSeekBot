@@ -291,6 +291,40 @@ export class ChannelToolApproval {
     };
   }
 
+  async askEngine(request: {
+    session: Pick<Agent['session'], 'id' | 'header' | 'snapshotEvents'>;
+    callId: string;
+    toolName: string;
+    input: Record<string, unknown>;
+    signal: AbortSignal;
+  }): Promise<ApprovalOutcome> {
+    const agent = {
+      id: `engine:${request.session.id}`,
+      session: request.session,
+    } as unknown as Agent;
+    const execution = {
+      name: request.toolName,
+      callId: request.callId,
+      arguments: Object.freeze(structuredClone(request.input)),
+      agent,
+      signal: request.signal,
+    } as unknown as ToolExecution;
+    const untrack = this.track(execution);
+    if (untrack === undefined) return 'unavailable';
+    try {
+      return (
+        (await this.ask({
+          agent,
+          toolName: request.toolName,
+          callId: request.callId,
+          signal: request.signal,
+        })) ?? 'unavailable'
+      );
+    } finally {
+      untrack();
+    }
+  }
+
   async ask(request: {
     agent: Agent;
     toolName: string;
