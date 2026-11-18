@@ -16,7 +16,6 @@ const styles = stylex.create({
     gap: space.x2,
     maxWidth: '100%',
     marginBlock: space.x2,
-    marginInline: 'auto',
     paddingBlock: space.x2,
     paddingInline: space.x3,
     borderRadius: radius.sm,
