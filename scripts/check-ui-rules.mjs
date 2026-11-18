@@ -50,7 +50,10 @@ function literalTexts(node) {
     return [node.quasis.map((quasi) => quasi.value.cooked ?? '').join('{…}')];
   if (node.type === 'ConditionalExpression')
     return [...literalTexts(node.consequent), ...literalTexts(node.alternate)];
-  if (node.type === 'LogicalExpression') return literalTexts(node.right);
+  if (node.type === 'LogicalExpression')
+    return node.operator === '&&'
+      ? literalTexts(node.right)
+      : [...literalTexts(node.left), ...literalTexts(node.right)];
   return [];
 }
 
