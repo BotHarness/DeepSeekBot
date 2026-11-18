@@ -25,13 +25,15 @@ export interface ModelCatalogGroup {
 
 export type ModelChoice =
   | { kind: 'model'; provider: string; model: string }
-  | { kind: 'group'; id: string };
+  | { kind: 'group'; id: string }
+  | { kind: 'preset'; id: string };
 
 export interface ModelCatalogAnswer {
   models: ModelCatalogEntry[];
   default?: ModelCatalogRoute;
   defaultRevision?: number;
   defaultGroupId?: string;
+  defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroup[];
 }
@@ -39,17 +41,17 @@ export interface ModelCatalogAnswer {
 export function modelChoice(value: unknown): ModelChoice | undefined {
   const row = record(value);
   if (row === undefined) return undefined;
-  if (row['kind'] === 'group')
-    return filled(row['id']) ? { kind: 'group', id: row['id'] } : undefined;
+  if (row['kind'] === 'group' || row['kind'] === 'preset')
+    return filled(row['id']) ? { kind: row['kind'], id: row['id'] } : undefined;
   return row['kind'] === 'model' && filled(row['provider']) && filled(row['model'])
     ? { kind: 'model', provider: row['provider'], model: row['model'] }
     : undefined;
 }
 
 export function modelChoiceKey(choice: ModelChoice): string {
-  return choice.kind === 'group'
-    ? `group:${choice.id}`
-    : JSON.stringify([choice.provider, choice.model]);
+  return choice.kind === 'model'
+    ? JSON.stringify([choice.provider, choice.model])
+    : `${choice.kind}:${choice.id}`;
 }
 
 export interface ModelFavoriteChange {
@@ -173,6 +175,7 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
   if (!Array.isArray(rows)) throw new ModelCatalogInvalid('modelCatalog returned no models.');
   const fallback = catalogRoute(answer?.['default']);
   const defaultRevision = answer?.['defaultRevision'];
+  const defaultGroupRevision = answer?.['defaultGroupRevision'];
   return {
     models: rows.flatMap((row) => {
       const entry = modelCatalogEntry(row);
@@ -186,6 +189,11 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
       : {}),
     ...(typeof answer?.['defaultGroupId'] === 'string'
       ? { defaultGroupId: answer['defaultGroupId'] }
+      : {}),
+    ...(typeof defaultGroupRevision === 'number' &&
+    Number.isSafeInteger(defaultGroupRevision) &&
+    defaultGroupRevision >= 0
+      ? { defaultGroupRevision }
       : {}),
     ...(Array.isArray(answer?.['favorites'])
       ? {

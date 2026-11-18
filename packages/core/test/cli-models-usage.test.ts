@@ -115,13 +115,17 @@ describe('Model commands', () => {
     expect(live.calls).toEqual([{ method: 'modelCatalog', args: {} }]);
   });
 
-  it('stars and unstars a model or a Model Route Group for the signed-in Human', async () => {
+  it('stars and unstars a model, a Model Route Group or a Model Preset for the signed-in Human', async () => {
     const live = await host(() => ({ ok: true, value: { favorites: [] } }));
     expect((await invoke(['model-favorite-add', 'deepseek/v4-pro'], live.url)).json).toEqual({
       favorites: [],
     });
     await invoke(['model-favorite-remove', 'group:daily'], live.url);
+    await invoke(['model-favorite-add', 'preset:p1'], live.url);
     expect((await invoke(['model-favorite-add', 'v4-pro'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect((await invoke(['model-favorite-add', 'preset: '], live.url)).json.error.code).toBe(
       'usage',
     );
     expect(live.calls).toEqual([
@@ -132,6 +136,10 @@ describe('Model commands', () => {
       {
         method: 'modelFavoriteSet',
         args: { choice: { kind: 'group', id: 'daily' }, favorite: false },
+      },
+      {
+        method: 'modelFavoriteSet',
+        args: { choice: { kind: 'preset', id: 'p1' }, favorite: true },
       },
     ]);
   });
@@ -181,6 +189,45 @@ describe('Model commands', () => {
     ] as const)
       expect((await invoke([...argv], live.url, stdin)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(3);
+    const { orchestrator: _route, ...rest } = plan;
+    const grouped = { ...rest, orchestratorGroupId: 'main', assignmentGroups: ['side'] };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(grouped),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
+    expect(
+      (
+        await invoke(
+          ['model-plan-set', 'ada', '--plan-stdin'],
+          live.url,
+          JSON.stringify({ ...plan, orchestratorGroupId: 'main' }),
+        )
+      ).json.error.code,
+    ).toBe('usage');
+    const plain = { ...plan, orchestratorGroupId: null };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(plain),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...plan },
+    });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestrator: null }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
   });
 
   it('opens or keeps listed Assignment models with --assignment-models', async () => {
@@ -624,7 +671,8 @@ describe('Usage and activity commands', () => {
 it('configures the Home native default with its actual revision and reasoning effort', async () => {
   const live = await host((method) => ({
     ok: true,
-    value: method === 'modelCatalog' ? { defaultRevision: 7 } : { revision: 8 },
+    value:
+      method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : { revision: 8 },
   }));
   const result = await invoke(
     [
@@ -646,6 +694,7 @@ it('configures the Home native default with its actual revision and reasoning ef
       args: {
         expectedRevision: 0,
         expectedDefaultRevision: 7,
+        expectedDefaultGroupRevision: 2,
         route: { provider: 'deepseek', model: 'test-model', reasoningEffort: 'high' },
         globalDefault: true,
       },

@@ -15,19 +15,33 @@ export interface AssignmentModelOption {
   note?: string;
 }
 
-export interface ModelPlan {
+export interface AssignmentGroupOption {
+  group: string;
+  allowedEfforts?: string[];
+  defaultEffort?: string;
+  note?: string;
+}
+
+export interface ModelPlanGroups {
+  orchestratorGroupId?: string;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
+  openAssignmentModels?: true;
+}
+
+export interface ModelPlan extends ModelPlanGroups {
   revision: number;
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
-  orchestratorGroupId?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
   openAssignmentModels?: true;
   appliedAt?: string;
 }
 
-export interface ModelPreset {
+export interface ModelPreset extends ModelPlanGroups {
   id: string;
   name: string;
   revision: number;
@@ -78,6 +92,34 @@ function assignmentOption(value: unknown): AssignmentModelOption | undefined {
   };
 }
 
+function groupOption(value: unknown): AssignmentGroupOption | undefined {
+  const row = record(value);
+  if (!text(row?.['group'])) return undefined;
+  const efforts = row['allowedEfforts'];
+  return {
+    group: row['group'],
+    ...(Array.isArray(efforts) && efforts.every(text) ? { allowedEfforts: [...efforts] } : {}),
+    ...(text(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
+    ...(text(row['note']) ? { note: row['note'] } : {}),
+  };
+}
+
+function planGroups(row: Record<string, unknown>): ModelPlanGroups {
+  const ids = Array.isArray(row['assignmentGroups']) ? row['assignmentGroups'].filter(text) : [];
+  const options = some(row['assignmentGroupOptions'], groupOption);
+  return {
+    ...(text(row['orchestratorGroupId'])
+      ? { orchestratorGroupId: row['orchestratorGroupId'] }
+      : {}),
+    ...(ids.length === 0 ? {} : { assignmentGroups: ids }),
+    ...(text(row['assignmentDefaultGroupId']) && ids.includes(row['assignmentDefaultGroupId'])
+      ? { assignmentDefaultGroupId: row['assignmentDefaultGroupId'] }
+      : {}),
+    ...(options.length === 0 ? {} : { assignmentGroupOptions: options }),
+    ...(row['openAssignmentModels'] === true ? { openAssignmentModels: true as const } : {}),
+  };
+}
+
 function assignmentModels(value: unknown): {
   assignmentModels?: AssignmentModelOption[];
 } {
@@ -100,12 +142,9 @@ export function parseModelPlan(value: unknown): ModelPlan | undefined {
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
-    ...(text(row['orchestratorGroupId'])
-      ? { orchestratorGroupId: row['orchestratorGroupId'] }
-      : {}),
+    ...planGroups(row),
     ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
     ...assignmentModels(row['assignmentModels']),
-    ...(row['openAssignmentModels'] === true ? { openAssignmentModels: true as const } : {}),
     ...(text(row['appliedAt']) ? { appliedAt: row['appliedAt'] } : {}),
   };
 }
@@ -129,7 +168,7 @@ export function parseModelPreset(value: unknown): ModelPreset | undefined {
     orchestrator,
     assignmentDefault,
     ...assignmentModels(row['assignmentModels']),
-    ...(row['openAssignmentModels'] === true ? { openAssignmentModels: true as const } : {}),
+    ...planGroups(row),
     ...(text(row['createdAt']) ? { createdAt: row['createdAt'] } : {}),
   };
 }
@@ -219,9 +258,30 @@ export interface ModelRoutes {
   openAssignmentModels?: boolean;
 }
 
-function routes(input: Partial<ModelRoutes>): Record<string, unknown> {
+export interface ModelPlanGroupsInput {
+  orchestratorGroupId?: string | null;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string | null;
+  assignmentGroupOptions?: AssignmentGroupOption[];
+}
+
+export type ModelPlanInput = Omit<ModelRoutes, 'orchestrator'> & {
+  orchestrator?: ModelRoute;
+} & ModelPlanGroupsInput;
+
+function routes(input: Partial<ModelRoutes> & ModelPlanGroupsInput): Record<string, unknown> {
   return {
-    orchestrator: input.orchestrator,
+    ...(input.orchestrator === undefined ? {} : { orchestrator: input.orchestrator }),
+    ...(input.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupId: input.orchestratorGroupId }),
+    ...(input.assignmentGroups === undefined ? {} : { assignmentGroups: input.assignmentGroups }),
+    ...(input.assignmentDefaultGroupId === undefined
+      ? {}
+      : { assignmentDefaultGroupId: input.assignmentDefaultGroupId }),
+    ...(input.assignmentGroupOptions === undefined
+      ? {}
+      : { assignmentGroupOptions: input.assignmentGroupOptions }),
     assignmentDefault: input.assignmentDefault,
     ...(input.assignmentModels === undefined ? {} : { assignmentModels: input.assignmentModels }),
     ...(input.openAssignmentModels === undefined
@@ -234,7 +294,7 @@ export async function setModelPlan(
   host: HostCall,
   slug: string,
   expectedRevision: number,
-  input: ModelRoutes,
+  input: ModelPlanInput,
 ): Promise<ModelPlan> {
   return planAnswer(
     await host.call('modelPlanSet', {
@@ -246,8 +306,9 @@ export async function setModelPlan(
   );
 }
 
-export type ModelPresetInput = Pick<ModelRoutes, 'orchestrator' | 'assignmentDefault'> &
-  Partial<Pick<ModelRoutes, 'assignmentModels' | 'openAssignmentModels'>> & {
+export type ModelPresetInput = Pick<ModelRoutes, 'assignmentDefault'> &
+  Partial<Pick<ModelRoutes, 'orchestrator' | 'assignmentModels' | 'openAssignmentModels'>> &
+  ModelPlanGroupsInput & {
     name: string;
   };
 
@@ -298,6 +359,7 @@ export async function setOnboardingModel(
     slug?: string;
     expectedRevision: number;
     expectedDefaultRevision?: number;
+    expectedDefaultGroupRevision?: number;
     route?: ModelRoute;
     groupId?: string;
     globalDefault: boolean;

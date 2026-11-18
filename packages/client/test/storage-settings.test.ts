@@ -59,7 +59,7 @@ import { StorageSettings, type StorageSettingsSource } from '../src/client/stora
 import { MethodRefused } from '@botharness/host-client/client';
 import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import { zhTranslate } from '../src/client/locale.js';
-import { buttonNamed } from './primitive-mocks.js';
+import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const usage = {
   measuredAt: '2026-10-20T00:00:00.000Z',
@@ -205,7 +205,7 @@ describe('StorageSettings', () => {
     try {
       expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
       await view.open();
-      await view.press(buttonNamed('关闭', view.host));
+      await view.press(buttonNamed('关闭', dialog()));
       expect(load).toHaveBeenCalledTimes(2);
       expect(view.host.querySelector('[data-storage-total]')).toBeNull();
       expect(view.host.textContent).not.toContain('8.0 MB');
@@ -231,18 +231,18 @@ describe('StorageSettings', () => {
     const view = await render(source);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(dialog().querySelector('[data-storage-result]')?.textContent).toBe(
         '已清理 3 个文件，释放 4.0 MB。',
       );
       expect(load).toHaveBeenCalledTimes(3);
-      expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
         '读取失败，重新加载后再试。',
       );
       expect(view.host.querySelector('[data-storage-total]')).toBeNull();
-      await view.press(buttonNamed('关闭', view.host));
+      await view.press(buttonNamed('关闭', dialog()));
       expect(view.host.textContent).not.toContain('8.0 MB');
       expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
     } finally {

@@ -1,0 +1,121 @@
+export type EngineId = 'codex';
+
+export const ENGINE_IDS: readonly EngineId[] = ['codex'];
+
+export function isEngineId(value: unknown): value is EngineId {
+  return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
+}
+
+export type EngineAccount =
+  | { kind: 'subscription'; engine: EngineId; plan: string }
+  | { kind: 'metered'; engine: EngineId; detail: string }
+  | { kind: 'signed-out'; engine: EngineId };
+
+export type EngineEvent =
+  | { kind: 'reasoning'; text: string }
+  | { kind: 'text'; text: string }
+  | { kind: 'tool-call'; callId: string; name: string; arguments: string }
+  | { kind: 'tool-result'; callId: string; text: string; isError: boolean }
+  | { kind: 'approval'; approvalId: string; tool: string; summary: string }
+  | { kind: 'rate-limit'; usedPercent?: number; resetsAt?: number; limited: boolean };
+
+export type EngineTurnEnd =
+  | { status: 'completed' }
+  | { status: 'interrupted' }
+  | { status: 'failed'; message: string };
+
+export type EngineApprovalDecision = 'accept' | 'decline';
+
+export interface EngineGatewayEndpoint {
+  url: string;
+  token: string;
+}
+
+export interface EngineStartOptions {
+  cwd: string;
+  instructions: string;
+  gateway: EngineGatewayEndpoint;
+}
+
+export interface EngineSendOptions {
+  onEvent(event: EngineEvent): void;
+  signal?: AbortSignal;
+}
+
+export interface EngineSession {
+  readonly engine: EngineId;
+  readonly ended: boolean;
+  account(): Promise<EngineAccount>;
+  start(resume?: string): Promise<string>;
+  send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
+  answer(approvalId: string, decision: EngineApprovalDecision): void;
+  close(): Promise<void>;
+}
+
+export class EngineRefusal extends Error {
+  constructor(
+    readonly code:
+      | 'engine-unavailable'
+      | 'engine-not-installed'
+      | 'engine-signed-out'
+      | 'engine-not-subscription'
+      | 'engine-thread-gone'
+      | 'engine-failed',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'EngineRefusal';
+  }
+}
+
+const PASSED_VARIABLES = new Set([
+  'path',
+  'pathext',
+  'home',
+  'user',
+  'username',
+  'logname',
+  'shell',
+  'lang',
+  'language',
+  'term',
+  'tz',
+  'tmpdir',
+  'temp',
+  'tmp',
+  'systemroot',
+  'systemdrive',
+  'windir',
+  'comspec',
+  'userprofile',
+  'appdata',
+  'localappdata',
+  'programdata',
+  'programfiles',
+  'programfiles(x86)',
+  'homedrive',
+  'homepath',
+  'http_proxy',
+  'https_proxy',
+  'all_proxy',
+  'no_proxy',
+  'ssl_cert_file',
+  'ssl_cert_dir',
+  'node_extra_ca_certs',
+  '__cf_user_text_encoding',
+]);
+
+function passes(key: string): boolean {
+  const name = key.toLowerCase();
+  return PASSED_VARIABLES.has(name) || name.startsWith('lc_') || name.startsWith('xdg_');
+}
+
+export function engineEnvironment(
+  env: Readonly<Record<string, string | undefined>>,
+  extra: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env))
+    if (value !== undefined && passes(key)) out[key] = value;
+  return { ...out, ...extra };
+}

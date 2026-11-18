@@ -114,7 +114,7 @@ export function apply(ctx, config) {
   };
   let busy = false;
   let lastRequest;
-  const timer = setInterval(async () => {
+  const poll = async () => {
     const file = resolve(directory, 'command.json');
     if (busy || !existsSync(file)) return;
     const content = readFileSync(file, 'utf8');
@@ -134,6 +134,9 @@ export function apply(ctx, config) {
     } finally {
       busy = false;
     }
+  };
+  const timer = setInterval(() => {
+    poll().catch((error) => console.error(error));
   }, 100);
   ctx.effect(() => () => {
     clearInterval(timer);

@@ -106,7 +106,7 @@ the mutating send and status poll each happen once. No production guard or CLI b
 The corrected four-file focused run passed all 44 tests; the PR tracks the subsequent full CI.
 
 Use the [runnable MCP guide](../dev/guides/private-input-mcp.md) for a new Bot/private card and the
-controlled service. The [ADR](../adr/0170-private-mcp-consumption-uses-fixed-server-and-bounded-projection.md)
+controlled service. The [ADR](../decisions/secrets.md#adr-0170)
 states the trusted server/process boundary, output admission and rollback limits. Human review of
 this new consumer remains pending. No production deployment, external email or production IM
 receiver test was performed.

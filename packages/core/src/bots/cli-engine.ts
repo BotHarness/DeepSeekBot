@@ -1,0 +1,106 @@
+import { CliLiveError } from './cli-live-error.js';
+
+export const ENGINE_COMMANDS = [
+  {
+    command: 'engine-list',
+    description:
+      'list the Subscription Engines this Host offers (engine list); a Cloud or VPS Host lists none',
+  },
+  {
+    command: 'engine-status',
+    description:
+      'show each engine with install and sign-in state and which Bots run on it (engine status)',
+  },
+  {
+    command: 'engine-login',
+    description:
+      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex)',
+  },
+  {
+    command: 'engine-use',
+    description:
+      'run a Bot Orchestrator on an engine, or none for the DSH model (engine use <bot> codex --role orchestrator)',
+  },
+] as const;
+
+type Connect = () => Promise<{
+  http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
+}>;
+
+const PATH = '/api/botharness/engines';
+
+const protocolError = () =>
+  new CliLiveError('host-protocol-error', 'The Host returned an unexpected engine response');
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+async function call(
+  connect: Connect,
+  body?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const result = await (await connect()).http(PATH, body);
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(result.bytes));
+  } catch {
+    throw protocolError();
+  }
+  if (!isObject(value)) throw protocolError();
+  const error = value['error'];
+  if (error !== undefined) {
+    const detail = isObject(error) ? error : {};
+    throw new CliLiveError(
+      typeof detail['code'] === 'string' ? detail['code'] : 'engine-failed',
+      typeof detail['message'] === 'string' ? detail['message'] : 'The engine request failed',
+    );
+  }
+  return value;
+}
+
+export async function runEngineCommand(
+  command: string,
+  rest: string[],
+  values: { role?: string[] },
+  connect: Connect,
+): Promise<unknown> {
+  if (command === 'engine-list' || command === 'engine-status') {
+    if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
+    const value = await call(connect);
+    const engines = value['engines'];
+    if (!Array.isArray(engines) || !engines.every(isObject) || !Array.isArray(value['selections']))
+      throw protocolError();
+    if (command === 'engine-list')
+      return {
+        engines: engines.map((engine) => ({
+          engine: engine['engine'],
+          available: engine['available'],
+          ...(engine['reason'] === undefined ? {} : { reason: engine['reason'] }),
+        })),
+      };
+    return value;
+  }
+  if (command === 'engine-login') {
+    if (rest.length !== 1) throw new CliLiveError('usage', 'engine login needs one engine: codex.');
+    const value = await call(connect, { action: 'login', engine: rest[0] });
+    if (value['started'] !== true || typeof value['engine'] !== 'string') throw protocolError();
+    return value;
+  }
+  if (command === 'engine-use') {
+    if (rest.length !== 2)
+      throw new CliLiveError('usage', 'engine use needs <bot> and an engine (codex or none).');
+    const role = values.role ?? [];
+    if (role.length !== 1 || role[0] !== 'orchestrator')
+      throw new CliLiveError('usage', 'engine use needs --role orchestrator.');
+    const [bot, engine] = rest as [string, string];
+    const value = await call(connect, {
+      action: 'use',
+      bot,
+      role: 'orchestrator',
+      engine: engine === 'none' ? null : engine,
+    });
+    if (value['bot'] !== bot || value['role'] !== 'orchestrator') throw protocolError();
+    return value;
+  }
+  throw new CliLiveError('usage', 'Unknown engine command.');
+}

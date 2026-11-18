@@ -41,7 +41,7 @@ it('keeps favorites per Human in the order they were starred, setting the wanted
   expect(favorites.list('someone-else')).toEqual([]);
 });
 
-it('reads only well-formed model and group choices', () => {
+it('reads only well-formed model, group and preset choices', () => {
   expect(modelFavorite({ kind: 'model', provider: ' deepseek ', model: 'x' })).toEqual({
     kind: 'model',
     provider: 'deepseek',
@@ -50,6 +50,8 @@ it('reads only well-formed model and group choices', () => {
   expect(modelFavorite({ kind: 'group', id: 'g' })).toEqual({ kind: 'group', id: 'g' });
   expect(modelFavorite({ kind: 'model', provider: '', model: 'x' })).toBeUndefined();
   expect(modelFavorite({ kind: 'group', id: ' ' })).toBeUndefined();
+  expect(modelFavorite({ kind: 'preset', id: ' p1 ' })).toEqual({ kind: 'preset', id: 'p1' });
+  expect(modelFavorite({ kind: 'preset', id: '' })).toBeUndefined();
   expect(modelFavorite({ provider: 'deepseek', model: 'x' })).toBeUndefined();
 });
 

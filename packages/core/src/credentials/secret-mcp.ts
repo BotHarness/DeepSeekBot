@@ -11,6 +11,7 @@ import {
   secretCommandBaseEnv,
   secretCommandEnvName,
 } from './secret-command.js';
+import { SECRET_PLACEHOLDER } from './references.js';
 
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
 export const rememberedStarts = new Set<symbol>();
@@ -48,7 +49,6 @@ const SHELLS = new Set([
   'nohup',
   'osascript',
 ]);
-const PLACEHOLDER = /\{\{[a-z][a-z0-9_]{0,47}\}\}/;
 
 export interface SecretMcpInput {
   server_name: string;
@@ -74,12 +74,12 @@ export function secretMcpPlan(input: SecretMcpInput): {
     input.env.length === 0 ||
     input.env.length > 16 ||
     new Set(names).size !== names.length ||
-    !input.env.some((entry) => PLACEHOLDER.test(entry.value))
+    !input.env.some((entry) => SECRET_PLACEHOLDER.test(entry.value))
   )
     throw new SecretCommandRefusal(
       'env must hold 1–16 distinct variables and at least one {{field_id}} placeholder',
     );
-  if (command.some((part) => PLACEHOLDER.test(part)))
+  if (command.some((part) => SECRET_PLACEHOLDER.test(part)))
     throw new SecretCommandRefusal(
       'a secret placeholder is allowed only in env values, never in arguments',
     );

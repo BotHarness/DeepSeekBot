@@ -2,7 +2,7 @@
 
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -13,6 +13,9 @@ const entry = join(root, 'scripts/ui-visual/gallery.tsx');
 const require = createRequire(join(root, 'scripts/stylex-plugin.mjs'));
 const clientRequire = createRequire(join(root, 'packages/client/package.json'));
 const TOLERANCE = 0.5;
+export const BASELINES = join(root, 'scripts/ui-visual/baselines.json');
+const PIXEL_SHARE = 0.0002;
+const ADOPT = 'node scripts/ui-visual-baseline.mjs --run <verify run id>';
 const WIDE = { width: 1100, height: 900 };
 const COMPACT = { width: 599, height: 900 };
 
@@ -39,6 +42,43 @@ export function geometryProblems(cases) {
       problems.push(
         `${id}: group heading starts at x=${heading.labelX}, not on the label column x=${column}`,
       );
+  }
+  return problems;
+}
+
+export async function pixelProblems(cases, manifest, { fetcher = fetch, out } = {}) {
+  const { PNG } = require('pngjs');
+  const pixelmatch = (await import(pathToFileURL(require.resolve('pixelmatch')).href)).default;
+  const problems = [];
+  for (const { id, png } of cases) {
+    const url = manifest[id];
+    if (!url) {
+      problems.push(`${id}: no baseline screenshot; adopt the new ones with ${ADOPT}`);
+      continue;
+    }
+    const response = await fetcher(url);
+    if (!response.ok) {
+      problems.push(`${id}: baseline ${url} answered ${response.status}`);
+      continue;
+    }
+    const expected = PNG.sync.read(Buffer.from(await response.arrayBuffer()));
+    const actual = PNG.sync.read(png);
+    if (expected.width !== actual.width || expected.height !== actual.height) {
+      problems.push(
+        `${id}: size changed from ${expected.width}×${expected.height} to ${actual.width}×${actual.height}; review the ui-visual artifact, then ${ADOPT}`,
+      );
+      continue;
+    }
+    const diff = new PNG({ width: actual.width, height: actual.height });
+    const changed = pixelmatch(expected.data, actual.data, diff.data, actual.width, actual.height, {
+      threshold: 0.1,
+    });
+    if (changed > actual.width * actual.height * PIXEL_SHARE) {
+      problems.push(
+        `${id}: ${changed} pixels differ from the baseline; review diff-${id}.png in the ui-visual artifact, then ${ADOPT}`,
+      );
+      if (out) writeFileSync(join(out, `diff-${id}.png`), PNG.sync.write(diff));
+    }
   }
   return problems;
 }
@@ -249,6 +289,21 @@ export async function run({ screenshots } = {}) {
     await page.goto(origin, { waitUntil: 'networkidle0' });
     await page.waitForSelector('[data-gallery-case]');
     if (errors.length) problems.push(...errors.map((error) => `gallery: ${error}`));
+    await page.mouse.move(0, 0);
+    const cases = [];
+    for (const section of await page.$$('[data-gallery-case]'))
+      cases.push({
+        id: await section.evaluate((element) => element.dataset.galleryCase),
+        png: Buffer.from(await section.screenshot()),
+      });
+    if (screenshots) {
+      mkdirSync(screenshots, { recursive: true });
+      for (const { id, png } of cases) writeFileSync(join(screenshots, `case-${id}.png`), png);
+    }
+    const manifest = existsSync(BASELINES) ? JSON.parse(readFileSync(BASELINES, 'utf8')) : {};
+    if (Object.keys(manifest).length)
+      problems.push(...(await pixelProblems(cases, manifest, { out: screenshots })));
+    else console.log('UI visual checks: no pixel baselines recorded yet; screenshots only');
     problems.push(...geometryProblems(await measure(page)));
     await page.addScriptTag({ content: readFileSync(require.resolve('axe-core'), 'utf8') });
     const axe = await page.evaluate(async () => {
@@ -264,14 +319,8 @@ export async function run({ screenshots } = {}) {
     });
     problems.push(...axeProblems('axe', axe));
     problems.push(...(await keyboardWalk(page)));
-    if (screenshots) {
-      mkdirSync(screenshots, { recursive: true });
+    if (screenshots)
       await page.screenshot({ path: join(screenshots, 'gallery-wide.png'), fullPage: true });
-      for (const section of await page.$$('[data-gallery-case]')) {
-        const id = await section.evaluate((element) => element.dataset.galleryCase);
-        await section.screenshot({ path: join(screenshots, `case-${id}.png`) });
-      }
-    }
     for (const [label, viewport, zoom] of [
       ['compact', COMPACT, 1],
       ['200% zoom', WIDE, 2],

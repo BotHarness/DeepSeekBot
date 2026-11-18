@@ -95,6 +95,7 @@ export const FIRST_PARTY_TOOL_EFFECTS = {
   inbox_resolve: write,
   inbox_snooze: write,
   inspect_assignment: read,
+  link_message_sessions: write,
   list_assignment_models: read,
   list_assignments: read,
   list_bot_contacts: read,

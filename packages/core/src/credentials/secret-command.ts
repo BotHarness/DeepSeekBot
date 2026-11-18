@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { PrivateInputFailure } from './diagnostics.js';
+import { SECRET_PLACEHOLDER } from './references.js';
 
 export class SecretCommandRefusal extends Error {}
 
@@ -87,8 +88,6 @@ export function secretCommandEnvName(name: string): string {
   return name;
 }
 
-const PLACEHOLDER = /\{\{[a-z][a-z0-9_]{0,47}\}\}/;
-
 export function secretCommandPlan(input: {
   program: string;
   args: readonly string[];
@@ -100,12 +99,12 @@ export function secretCommandPlan(input: {
     input.env.length === 0 ||
     input.env.length > 16 ||
     new Set(names).size !== names.length ||
-    !input.env.some((entry) => PLACEHOLDER.test(entry.value))
+    !input.env.some((entry) => SECRET_PLACEHOLDER.test(entry.value))
   )
     throw new SecretCommandRefusal(
       'env must hold 1–16 distinct variables and at least one {{field_id}} placeholder',
     );
-  if (command.some((part) => PLACEHOLDER.test(part)))
+  if (command.some((part) => SECRET_PLACEHOLDER.test(part)))
     throw new SecretCommandRefusal(
       'a secret placeholder is allowed only in env values, never in arguments',
     );

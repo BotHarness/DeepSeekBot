@@ -10,7 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
 import { modelFamilies } from '@botharness/host-client/shared/model-brand';
 import type { ModelCatalogEntryView } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { ModelMenu, catalogMenuItems } from '../src/client/model-menu.js';
+import { ModelMenu, catalogMenuItems, presetMenuItems } from '../src/client/model-menu.js';
 import { rememberModelFavorites } from '../src/client/model-favorites.js';
 
 const catalog: ModelCatalogEntryView[] = [
@@ -337,4 +337,57 @@ it('lists Routing Groups in their own column with the member in front, and stars
     document.body.querySelector<HTMLButtonElement>("[data-picker-option='group:daily']")!.click(),
   );
   expect(onSelect).toHaveBeenCalledWith('group:daily');
+});
+
+it('lists Presets in their own column with main and side models, checks the source and stars them (#4503)', async () => {
+  const flash = { provider: catalog[0]!.provider, model: catalog[0]!.model };
+  const gpt = { provider: catalog[1]!.provider, model: catalog[1]!.model };
+  const groups = [{ id: 'daily', name: 'Daily', revision: 1, routes: [flash, gpt] }];
+  const presets = [
+    {
+      id: 'fast',
+      name: 'Fast',
+      revision: 1,
+      orchestrator: flash,
+      assignmentDefault: gpt,
+      createdAt: '2026-11-18T00:00:00.000Z',
+    },
+    {
+      id: 'team',
+      name: 'Team',
+      revision: 1,
+      orchestrator: flash,
+      orchestratorGroupId: 'daily',
+      assignmentDefault: flash,
+      createdAt: '2026-11-18T00:00:00.000Z',
+    },
+  ];
+  const write = vi.fn(async (choice: { kind: string }) => [
+    choice as { kind: 'preset'; id: string },
+  ]);
+  rememberModelFavorites([], 'host', write);
+  const { rows, onSelect } = await render({
+    items: [
+      ...presetMenuItems(presets, catalog, groups, 'team', zhTranslate),
+      ...catalogMenuItems(catalog, zhTranslate, groups),
+    ],
+  });
+  expect(rows().some((row) => row?.startsWith('Fast'))).toBe(false);
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-filter="presets"]')!.click(),
+  );
+  expect(rows()).toEqual([
+    `Fast${zhTranslate('modelMenu.presetRoutes', { main: 'DeepSeek V4.1 Flash', side: 'GPT-6.1' })}Ctrl+1`,
+    `Team${zhTranslate('modelMenu.presetRoutes', { main: 'Daily', side: 'DeepSeek V4.1 Flash' })}Ctrl+2`,
+  ]);
+  expect(zhTranslate('modelMenu.presetRoutes', { main: 'A', side: 'B' })).toBe('主：A · 副：B');
+  const option = (id: string) => document.body.querySelector(`[data-picker-option='preset:${id}']`);
+  expect(option('team')?.getAttribute('aria-selected')).toBe('true');
+  expect(option('fast')?.getAttribute('aria-selected')).toBe('false');
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>("[data-picker-favorite='preset:fast']")!.click(),
+  );
+  expect(write).toHaveBeenCalledWith({ kind: 'preset', id: 'fast' }, true);
+  await act(async () => (option('fast') as HTMLButtonElement).click());
+  expect(onSelect).toHaveBeenCalledWith('preset:fast');
 });

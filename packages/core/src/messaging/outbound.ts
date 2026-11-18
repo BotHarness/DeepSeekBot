@@ -117,6 +117,7 @@ import {
   type MessagingReceipt,
   type MessagingReplyRoute,
 } from './provider.js';
+import { PRIVATE_REFERENCE_IN_TEXT } from '../credentials/references.js';
 
 async function replyFileBytes(
   store: AttachmentStore,
@@ -1392,7 +1393,7 @@ export function createOutboundMessaging(options: {
     noticeId?: string,
     messageKey?: string,
   ): Promise<OutboxIntent> {
-    if (noticeId === undefined && /private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}/.test(text))
+    if (noticeId === undefined && PRIVATE_REFERENCE_IN_TEXT.test(text))
       throw new MessagingError('private-reference-not-deliverable');
     let source: ExternalSource;
     try {

@@ -18,7 +18,14 @@ import {
 } from './model-plans';
 
 export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
-export type { AssignmentModelOption, ModelPlan, ModelPreset, ModelRoute } from './model-plans';
+export type {
+  AssignmentGroupOption,
+  AssignmentModelOption,
+  ModelPlan,
+  ModelPlanGroups,
+  ModelPreset,
+  ModelRoute,
+} from './model-plans';
 export { applyModelPreset, HostAnswerInvalid };
 
 export type Loadable<T> =
@@ -34,6 +41,7 @@ export interface BotModel {
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
   defaultGroupId?: string;
+  defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -125,10 +133,19 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     loadModelCatalog(client),
     loadModelPresets(client),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups, defaultGroupId } = catalog;
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupRevision,
+  } = catalog;
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    ...(defaultGroupRevision === undefined ? {} : { defaultGroupRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
     ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
@@ -167,16 +184,17 @@ export function currentModel(model: BotModel): {
       ? model.fallback
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
-  if (current === undefined) return {};
   const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
   const group =
     groupId === undefined
       ? undefined
       : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
+  const named = group === undefined ? {} : { group };
+  if (current === undefined) return named;
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
-    ...(group === undefined ? {} : { group }),
+    ...named,
   };
 }
 

@@ -48,6 +48,7 @@ export interface InboxResolveInput {
   outcome: InboxResolution;
   note?: string;
   confirm?: string;
+  channelId?: string;
 }
 
 export type InboxResolveOutcome =
@@ -580,8 +581,40 @@ export function createInboxTriage(
             throw new Error('inbox_resolve: note must be at most 500 characters');
           if (input.ids !== undefined && input.filter !== undefined)
             throw new Error('inbox_resolve: pass ids or a filter, not both');
+          const scope = input.channelId;
+          if (
+            scope !== undefined &&
+            input.filter?.channelId !== undefined &&
+            input.filter.channelId !== scope
+          )
+            throw new Error('inbox_resolve: refused: channel-out-of-scope');
           if (input.ids !== undefined) {
             const { ids, byId } = seen(input.ids, 'inbox_resolve');
+            if (scope !== undefined) {
+              const channels = database.read(
+                (db) =>
+                  db
+                    .prepare(
+                      `SELECT e.source_event_id, ${CHANNEL_SQL} AS channel_id
+                         FROM source_events e
+                        WHERE e.source_event_id IN (${ids.map(() => '?').join(', ')})`,
+                    )
+                    .all(...ids) as unknown as Array<{
+                    source_event_id: string;
+                    channel_id: string | null;
+                  }>,
+              );
+              const inScope = new Set(
+                channels
+                  .filter((row) => row.channel_id === scope)
+                  .map((row) => row.source_event_id),
+              );
+              const outside = ids.filter((id) => !inScope.has(id));
+              if (outside.length > 0)
+                throw new Error(
+                  `inbox_resolve: refused: channel-out-of-scope: ${outside.sort().join(', ')}`,
+                );
+            }
             const alreadyResolved = ids.filter((id) => byId.get(id)!.resolved_at !== null).sort();
             const resolved = ids.filter((id) => byId.get(id)!.resolved_at === null).sort();
             write(resolved, input.outcome, note);
@@ -591,7 +624,13 @@ export function createInboxTriage(
             throw new Error(
               `inbox_resolve: pass ids or a filter${current().length === 0 ? '' : `; this turn's items are ${current().join(', ')}`}`,
             );
-          const rows = openRows(botSlug, input.filter, 'inbox_resolve', 'exclude', current());
+          const rows = openRows(
+            botSlug,
+            scope === undefined ? input.filter : { ...input.filter, channelId: scope },
+            'inbox_resolve',
+            'exclude',
+            current(),
+          );
           if (rows.length > MAX_FILTER_RESOLVE)
             throw new Error(
               `inbox_resolve: the filter matches ${rows.length} items; narrow it to at most ${MAX_FILTER_RESOLVE}`,

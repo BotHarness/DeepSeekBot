@@ -75,8 +75,10 @@ import {
   loadModelPresets as loadHostModelPresets,
   setModelPlan as setHostModelPlan,
   updateModelPreset as updateHostModelPreset,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPlan,
+  type ModelPlanGroups,
   type ModelPlanState,
   type ModelPreset,
   type ModelRoute,
@@ -322,6 +324,26 @@ export async function setModelFavorite(
   return setHostModelFavorite(bridgeHost(call), choice, favorite);
 }
 
+export type AssignmentGroupOptionView = AssignmentGroupOption;
+export type ModelPlanGroupsView = Omit<ModelPlanGroups, 'openAssignmentModels'>;
+
+function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView | undefined) {
+  if (groups === undefined) return { orchestrator };
+  const ids = groups.assignmentGroups ?? [];
+  return {
+    ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
+    orchestratorGroupId: groups.orchestratorGroupId ?? null,
+    assignmentGroups: ids,
+    assignmentDefaultGroupId:
+      groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
+        ? groups.assignmentDefaultGroupId
+        : null,
+    assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
+      ids.includes(option.group),
+    ),
+  };
+}
+
 export type ModelPresetView = ModelPreset;
 export type ModelPlanView = ModelPlan;
 
@@ -446,10 +468,11 @@ export async function createModelPreset(
   assignmentDefault: ModelRouteView,
   assignmentModels?: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPresetView> {
   return createHostModelPreset(bridgeHost(call), {
     name,
-    orchestrator,
+    ...groupPayload(orchestrator, groups),
     assignmentDefault,
     ...(assignmentModels === undefined ? {} : { assignmentModels }),
     ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
@@ -1423,6 +1446,26 @@ function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
   });
 }
 
+export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const link = asRecord(entry);
+    return link !== undefined &&
+      typeof link['sessionId'] === 'string' &&
+      link['sessionId'] !== '' &&
+      typeof link['title'] === 'string' &&
+      (link['kind'] === 'created' || link['kind'] === 'sent')
+      ? [
+          {
+            sessionId: link['sessionId'],
+            kind: link['kind'] as 'created' | 'sent',
+            title: link['title'],
+          },
+        ]
+      : [];
+  });
+}
+
 export function parseChannelMessage(value: unknown): ChannelMessage | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1464,25 +1507,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   if (grantRequest !== undefined && (grantRequest !== true || author.kind !== 'bot'))
     return undefined;
   let grantRequestResolution: ChannelMessage['grantRequestResolution'];
-  const sessionLinks =
-    author.kind === 'bot' && Array.isArray(record['sessionLinks'])
-      ? record['sessionLinks'].flatMap((entry) => {
-          const link = asRecord(entry);
-          return link !== undefined &&
-            typeof link['sessionId'] === 'string' &&
-            link['sessionId'] !== '' &&
-            typeof link['title'] === 'string' &&
-            (link['kind'] === 'created' || link['kind'] === 'sent')
-            ? [
-                {
-                  sessionId: link['sessionId'],
-                  kind: link['kind'] as 'created' | 'sent',
-                  title: link['title'],
-                },
-              ]
-            : [];
-        })
-      : [];
+  const sessionLinks = author.kind === 'bot' ? parseSessionLinks(record['sessionLinks']) : [];
   let assignmentReply: ChannelMessage['assignmentReply'];
   if (record['assignmentReply'] !== undefined) {
     const target = asRecord(record['assignmentReply']);
@@ -2509,6 +2534,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
     const currentOrchestrator = record['currentOrchestrator'];
     const reportState = record['assignmentReportState'];
     const executionWait = record['assignmentExecutionWait'];
+    const engine = parseSessionEngine(record['engine']);
     return [
       {
         sessionId,
@@ -2557,6 +2583,10 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
           : {}),
         ...(parseSessionModelRoute(record['modelRoute'])
           ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
+          : {}),
+        ...(engine === undefined ? {} : { engine }),
+        ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
+          ? { agentPreset: record['agentPreset'] }
           : {}),
         ...(typeof record['subagentCount'] === 'number' &&
         Number.isSafeInteger(record['subagentCount']) &&
@@ -3937,12 +3967,30 @@ const SESSION_TOOL_KINDS: readonly string[] = [
   'fetch',
 ];
 
+export interface SessionEngine {
+  engine: string;
+  account?: string;
+  state: 'starting' | 'running' | 'idle';
+}
+
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
   seq: number;
+  engine?: SessionEngine;
+}
+
+function parseSessionEngine(value: unknown): SessionEngine | undefined {
+  const engine = asRecord(value);
+  if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
+  const state = engine['state'];
+  return {
+    engine: engine['engine'],
+    ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
+    state: state === 'starting' || state === 'running' ? state : 'idle',
+  };
 }
 
 export interface SessionLiveSnapshot {
@@ -4245,12 +4293,14 @@ export async function loadSessionTranscript(
   const items = value?.['items'];
   if (value === undefined || !Array.isArray(items))
     throw new Error('invalid sessionTranscript response');
+  const engine = parseSessionEngine(value['engine']);
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
     items: parseItems(items),
     omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
     running: value['running'] === true,
     seq: finite(value['seq']) ?? 0,
+    ...(engine === undefined ? {} : { engine }),
   };
 }
 
@@ -7453,9 +7503,10 @@ export async function setModelPlan(
   assignmentDefault: ModelRouteView,
   assignmentModels: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
+  groups?: ModelPlanGroupsView,
 ): Promise<ModelPlanView> {
   return setHostModelPlan(bridgeHost(call), slug, expectedRevision, {
-    orchestrator,
+    ...groupPayload(orchestrator, groups),
     assignmentDefault,
     assignmentModels,
     ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),

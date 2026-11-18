@@ -1,3 +1,4 @@
+import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
@@ -323,6 +324,7 @@ import {
   setStandingLimits,
   type ModelCatalogView,
   type ModelChoice,
+  type ModelPlanGroupsView,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -465,7 +467,7 @@ export interface HostDirectoryListing {
   nativePicker?: boolean;
 }
 
-export interface BridgeActions {
+export interface BridgeActions extends BotModeActions {
   readonly teamCall?: BridgeCall;
   genuiDocumentView(
     channelId: string,
@@ -679,6 +681,7 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
     assignmentModels?: AssignmentModelOptionView[],
     openAssignmentModels?: boolean,
+    groups?: ModelPlanGroupsView,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -712,6 +715,7 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
     openAssignmentModels?: boolean,
+    groups?: ModelPlanGroupsView,
   ): Promise<ModelPlanView>;
   listHostFolders(
     path?: string,
@@ -2016,6 +2020,7 @@ export function createActions(
     avatars: await loadHumanAvatars(call, humanIds),
   }));
   const actions: BridgeActions = {
+    ...botModeActions(call),
     teamCall: call,
     genuiDocumentView: (channelId, messageId, document) =>
       loadGenuiDocumentView(call, channelId, messageId, document),
@@ -2196,8 +2201,16 @@ export function createActions(
     deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open) =>
-      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels, open),
+    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open, groups) =>
+      createModelPreset(
+        call,
+        name,
+        orchestrator,
+        assignmentDefault,
+        assignmentModels,
+        open,
+        groups,
+      ),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
@@ -2225,6 +2238,7 @@ export function createActions(
       assignmentDefault,
       assignmentModels,
       openAssignmentModels,
+      groups,
     ) =>
       recorded(
         setModelPlan(
@@ -2235,6 +2249,7 @@ export function createActions(
           assignmentDefault,
           assignmentModels,
           openAssignmentModels,
+          groups,
         ),
         () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
       ),
