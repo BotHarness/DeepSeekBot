@@ -14,6 +14,7 @@ export interface EngineSessionStore {
   enter(session: Session): () => void;
   announce(session: Session): void;
   get(id: SessionId): Session | undefined;
+  flush(session: Session): Promise<boolean>;
 }
 
 export interface EngineSessionHandle {
@@ -35,7 +36,7 @@ export interface EngineSessionPersistence {
 
 export interface OpenedEngineDshSession {
   session: Session;
-  persist(events: readonly SessionEvent[]): Promise<void>;
+  flush(): Promise<unknown>;
   close(): Promise<void>;
 }
 
@@ -84,7 +85,7 @@ export async function openEngineDshSession(
   }
   return {
     session,
-    persist: (events) => owned.append(events),
+    flush: () => store.flush(session),
     close: async () => {
       detach?.();
       detach = undefined;

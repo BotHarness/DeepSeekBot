@@ -5,7 +5,7 @@ import {
   createUserMessage,
   ToolCallId,
 } from '@deepseek-ai/dsh-llm';
-import { type Session, type SessionEvent, SessionLogOffset } from '@deepseek-ai/dsh-session';
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
 
 import type { EngineEvent, EngineId, EngineTurnEnd } from './engine-session.js';
 
@@ -13,7 +13,7 @@ type AssistantBlock = Extract<ContentBlock, { type: 'text' | 'reasoning' | 'tool
 
 export interface EngineLogTarget {
   session: Session;
-  persist(events: readonly SessionEvent[]): Promise<void>;
+  flush(): Promise<unknown>;
 }
 
 export function nextTurnNumber(events: readonly SessionEvent[]): number {
@@ -31,14 +31,10 @@ export class EngineTurnLog {
   #stepHasResults = false;
   #pending: AssistantBlock[] = [];
   readonly #open = new Set<string>();
-  #stored: number;
-  #writing: Promise<void> = Promise.resolve();
-  #failure: unknown;
 
   constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
     this.#target = target;
     this.#source = { provider: engine, model: account };
-    this.#stored = Number(target.session.seq);
     this.#turn = nextTurnNumber(target.session.snapshotEvents());
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
@@ -48,7 +44,6 @@ export class EngineTurnLog {
       createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
       { surfaceOp: 'append' },
     );
-    this.#flush();
   }
 
   get turn(): number {
@@ -82,13 +77,11 @@ export class EngineTurnLog {
           arguments: event.arguments,
         });
         this.#open.add(event.callId);
-        this.#flush();
         return;
       }
       case 'tool-result':
         if (!this.#open.delete(event.callId)) return;
         this.#result(event.callId, event.text, event.isError);
-        this.#flush();
         return;
       case 'approval':
       case 'rate-limit':
@@ -117,12 +110,9 @@ export class EngineTurnLog {
             ? { kind: 'aborted', reason: { kind: 'user' } }
             : { kind: 'error', error: { message: end.message, code: 'engine-failed' } },
     });
-    this.#flush();
-    await this.#writing;
-    if (this.#failure !== undefined)
-      throw new Error('Writing the engine turn to the DSH Session failed', {
-        cause: this.#failure,
-      });
+    await this.#target.flush().catch((error: unknown) => {
+      throw new Error('Writing the engine turn to the DSH Session failed', { cause: error });
+    });
   }
 
   #continueStep(): void {
@@ -162,16 +152,5 @@ export class EngineTurnLog {
       { surfaceOp: 'append' },
     );
     this.#stepHasResults = true;
-  }
-
-  #flush(): void {
-    const suffix = this.#target.session.snapshotEvents(SessionLogOffset(this.#stored));
-    if (suffix.length === 0) return;
-    this.#stored += suffix.length;
-    this.#writing = this.#writing
-      .then(() => (this.#failure === undefined ? this.#target.persist(suffix) : undefined))
-      .catch((error: unknown) => {
-        this.#failure ??= error;
-      });
   }
 }

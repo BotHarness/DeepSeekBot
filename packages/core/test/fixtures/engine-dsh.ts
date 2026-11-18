@@ -18,6 +18,7 @@ export function memoryDsh(): {
 } {
   const live = new Map<string, Session>();
   const stored = new Map<string, { header: SessionHeader; events: SessionEvent[] }>();
+  const writers = new Map<string, EngineSessionHandle>();
   const handle = (id: string): EngineSessionHandle => {
     const entry = stored.get(id)!;
     return {
@@ -49,14 +50,25 @@ export function memoryDsh(): {
       },
       announce: () => undefined,
       get: (id) => live.get(id),
+      flush: async (session) => {
+        const writer = writers.get(session.id);
+        if (writer === undefined) return false;
+        const from = stored.get(session.id)!.events.length;
+        await writer.append(session.snapshotEvents(SessionLogOffset(from)));
+        return true;
+      },
     },
     persistence: {
       stat: async (id) => stored.get(id),
       create: async (header) => {
         stored.set(header.id, { header, events: [] });
-        return handle(header.id);
+        writers.set(header.id, handle(header.id));
+        return writers.get(header.id)!;
       },
-      open: async (id) => handle(id),
+      open: async (id) => {
+        writers.set(id, handle(id));
+        return writers.get(id)!;
+      },
     },
   };
 }

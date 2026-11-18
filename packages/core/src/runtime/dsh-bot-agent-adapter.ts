@@ -1017,9 +1017,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           const tool = tools.find((entry) => entry.name === name);
           if (tool === undefined)
             throw new Error(`${name} is not available to this engine Session`);
+          const callId = `${run.sessionId}:engine:${randomUUID()}`;
           const value = await tool.execute(args, {
-            callId: run.sessionId,
-            rootCallId: run.sessionId,
+            callId,
+            rootCallId: callId,
             name,
             arguments: args,
             signal,

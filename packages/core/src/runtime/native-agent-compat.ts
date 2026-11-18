@@ -180,7 +180,8 @@ export function hostSessionStore<Store>(ctx: Context): Store | undefined {
     typeof Reflect.get(sessions, 'prepare') === 'function' &&
     typeof Reflect.get(sessions, 'enter') === 'function' &&
     typeof Reflect.get(sessions, 'announce') === 'function' &&
-    typeof Reflect.get(sessions, 'get') === 'function'
+    typeof Reflect.get(sessions, 'get') === 'function' &&
+    typeof Reflect.get(sessions, 'flush') === 'function'
     ? (sessions as Store)
     : undefined;
 }

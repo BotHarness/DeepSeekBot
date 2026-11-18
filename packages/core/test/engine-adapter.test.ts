@@ -63,6 +63,40 @@ it('runs an engine-backed Orchestrator turn without a DSH Agent and offers only 
   expect(ready.mock.calls).toEqual([[true], [false]]);
 });
 
+it('gives each engine tool call its own delivery key', async () => {
+  const keys: string[] = [];
+  const engines: DshBotEngines = {
+    engineFor: () => 'codex',
+    isLive: () => false,
+    release: async () => undefined,
+    runTurn: async (request) => {
+      for (const body of ['first', 'second'])
+        await request.execute('bot_send_message', { bot_id: 'bob', body }, request.signal);
+    },
+  };
+  const adapter = createDshBotAgentAdapter({
+    agents: new FakeAgentHost({ kind: 'completed' }),
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => {},
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    engines,
+  });
+  const channels = {
+    ...run.channels,
+    sendToBot: async (input: { body: string; deliveryKey: string }) => {
+      keys.push(input.deliveryKey);
+      return { channelId: 'bot-dm', message: { id: `m-${keys.length}`, body: input.body } };
+    },
+  };
+  try {
+    await adapter.runOrchestrator({ ...run, channels } as unknown as OrchestratorAgentRun);
+  } finally {
+    await adapter.close();
+  }
+  expect(keys).toHaveLength(2);
+  expect(new Set(keys).size).toBe(2);
+});
+
 it('drives engine list, status, login and use through the Host engine route', async () => {
   const http = vi.fn(async (_path: string, body?: Record<string, unknown>) => ({
     bytes: new TextEncoder().encode(

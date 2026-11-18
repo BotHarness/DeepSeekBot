@@ -233,25 +233,17 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
-  it('stops writing a turn after a failed append and reopens the Session for the next turn', async () => {
+  it('fails a turn whose flush fails and reopens the Session for the next turn', async () => {
     const { host, opened, request, dsh } = hostWith(() => fakeCodex());
+    const flush = dsh.store.flush;
     let failNext = true;
-    const wrap = <T extends { append(events: readonly unknown[]): Promise<void> }>(
-      handle: T,
-    ): T => ({
-      ...handle,
-      append: async (events: readonly unknown[]) => {
-        if (failNext) {
-          failNext = false;
-          throw new Error('disk full');
-        }
-        await handle.append(events);
-      },
-    });
-    const create = dsh.persistence.create;
-    const open = dsh.persistence.open;
-    dsh.persistence.create = async (...args) => wrap(await create(...args));
-    dsh.persistence.open = async (...args) => wrap(await open(...args));
+    dsh.store.flush = async (session) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error('disk full');
+      }
+      return flush(session);
+    };
     await expect(host.runTurn(request())).rejects.toThrow();
     expect(dsh.stored.get('orchestrator-ada')?.events ?? []).toEqual([]);
     await host.runTurn(request());
@@ -259,7 +251,7 @@ describe('Engine Host recovery', () => {
     const kinds = dsh.stored
       .get('orchestrator-ada')!
       .events.map((event) => (event as unknown as { type: string }).type);
-    expect(kinds[0]).toBe('turn/start');
+    expect(kinds.filter((kind) => kind === 'turn/start')).toHaveLength(1);
     expect(kinds.at(-1)).toBe('turn/end');
     await host.close();
   });
