@@ -3447,6 +3447,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     defaultModel,
+    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean')
         developerModeTarget.gate?.set(patch.developerMode);
