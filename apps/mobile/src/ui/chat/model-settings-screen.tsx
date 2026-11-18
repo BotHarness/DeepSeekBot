@@ -711,7 +711,11 @@ function ModelsView({
             <>
               <PickerLink
                 label={t.modelSettings.assignment}
-                detail={assignmentGroup ?? routeLabel(value, routes.assignmentDefault)}
+                detail={
+                  assignmentGroup !== undefined
+                    ? `${assignmentGroup} · ${routeLabel(value, routes.assignmentDefault)}`
+                    : routeLabel(value, routes.assignmentDefault)
+                }
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
               {assignmentGroup === undefined &&
