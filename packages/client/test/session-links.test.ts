@@ -25,7 +25,9 @@ const links = [
   { sessionId: 'asg-3', kind: 'created' as const, title: '调研 Lark 签名' },
 ];
 
-async function render(open: (botSlug: string, sessionId: string, title: string) => void) {
+async function render(
+  open: (botSlug: string | undefined, sessionId: string, title: string) => void,
+) {
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -74,4 +76,14 @@ it('turns inline session mentions into links the bubble can open', () => {
   expect(body).toBe('看 [整理发布说明](https://session.tobs.invalid/asg-1) 的进度');
   expect(sessionMentionId('https://session.tobs.invalid/asg-1')).toBe('asg-1');
   expect(sessionMentionId('https://example.com/asg-1')).toBeUndefined();
+});
+
+it('marks Assignment Session chips with the Sessions panel icon', async () => {
+  const host = await render(vi.fn());
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-session-links-toggle]')!.click(),
+  );
+  const icon = host.querySelector('[data-session-link="asg-1"] svg');
+  const paths = [...(icon?.querySelectorAll('path') ?? [])].map((path) => path.getAttribute('d'));
+  expect(paths).toEqual(['M17 5H3', 'M21 12H8', 'M21 19H8', 'M3 12v7']);
 });

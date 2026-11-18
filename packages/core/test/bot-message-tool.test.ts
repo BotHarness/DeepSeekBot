@@ -2,6 +2,7 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -10,7 +11,7 @@ import {
   sessionMentionIds,
   withoutSessionMentions,
 } from '../src/runtime/bot-message-tool.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { inboxFixture, type TurnHook } from './inbox-fixture.js';
@@ -260,6 +261,188 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       expect(f.state(earlier)).toBe('open');
     } finally {
       await adapter.close();
+      await f.close();
+    }
+  });
+
+  it('shows a Human quote to the Bot and lets the Bot cite several messages', async () => {
+    const f = await inboxFixture();
+    const adapter = tools();
+    const append = (id: string, body: string, quotes?: { messageId: string; text?: string }[]) =>
+      f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body,
+        ...(quotes === undefined ? {} : { quotes }),
+      });
+    try {
+      await append('human-1', 'Ship the **export** fix on Friday, then update the docs.');
+      await f.send('Ship the export fix on Friday, then update the docs.');
+      await append('human-2', 'Is this still the plan?', [
+        { messageId: 'human-1', text: 'export fix on Friday' },
+      ]);
+      let prompt = '';
+      let refused: unknown;
+      await f.send('Is this still the plan?', async (run) => {
+        prompt = run.message;
+        const source = run.triage!.current()[0];
+        refused = await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'x',
+            quotes: [{ message_id: 'human-1', text: 'ship on Monday' }],
+          },
+          new AbortController().signal,
+        ).catch((error: unknown) => error);
+        await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'Yes: Friday for the fix, docs after.',
+            quotes: [
+              { message_id: 'human-1', text: 'then update the docs' },
+              { message_id: 'human-2' },
+            ],
+          },
+          new AbortController().signal,
+        );
+      });
+      expect(prompt).toContain('[Quoted messages');
+      expect(prompt).toContain('- Message human-1 from Human');
+      expect(prompt).toContain('(excerpt): "export fix on Friday"');
+      expect(refused).toMatchObject({ code: 'quote-text-mismatch' });
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      const reply = page.entries.find(
+        (entry) => entry.body === 'Yes: Friday for the fix, docs after.',
+      );
+      expect(reply?.author).toMatchObject({ kind: 'bot', slug: 'ada' });
+      expect(reply?.quotes).toMatchObject([
+        {
+          messageId: 'human-1',
+          text: 'then update the docs',
+          preview: { body: expect.any(String) },
+        },
+        { messageId: 'human-2', preview: { body: 'Is this still the plan?' } },
+      ]);
+    } finally {
+      await adapter.close();
+      await f.close();
+    }
+  });
+
+  it('hides a quote target removed by message cleanup from readers and the Bot prompt', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1', text: 'launch on Friday', note: 'Is it?' }],
+      });
+      const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+      const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(preview.messages).toBe(1);
+      f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+      expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      expect(page.entries.find((entry) => entry.id === 'human-2')?.quotes).toEqual([
+        { messageId: 'human-1', note: 'Is it?', preview: null },
+      ]);
+      expect(JSON.stringify(page.entries)).not.toContain('launch on Friday');
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('hides a quote target cleaned up while the Bot turn is being prepared', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1' }],
+      });
+      const prepare = f.core.memory.prepareTurnAsync.bind(f.core.memory);
+      const spy = vi
+        .spyOn(f.core.memory, 'prepareTurnAsync')
+        .mockImplementationOnce(async (...args) => {
+          const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+          const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+          f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+          return prepare(...args);
+        });
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(spy).toHaveBeenCalled();
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('returns a committed quoting send on retry after message cleanup removes its target', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      const send = (run: OrchestratorAgentRun, text: string) =>
+        run.channels.send({
+          channelId: f.dm.id,
+          body: 'Noted.',
+          deliveryKey: 'quote-retry',
+          quotes: [{ messageId: 'human-1', text }],
+        });
+      let first: ChannelMessage | undefined;
+      let retry: ChannelMessage | undefined;
+      let changed: unknown;
+      await f.send('Is the plan still on?', async (run) => {
+        first = await send(run, 'launch on Friday');
+        const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+        const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+        f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+        expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
+        retry = await send(run, 'launch on Friday');
+        changed = await send(run, 'Secret plan').catch((error: unknown) => error);
+      });
+      expect(first?.id).toBeDefined();
+      expect(retry?.id).toBe(first?.id);
+      expect(changed).toMatchObject({ code: 'quote-text-mismatch' });
+    } finally {
       await f.close();
     }
   });

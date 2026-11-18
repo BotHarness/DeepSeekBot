@@ -124,7 +124,7 @@ function fixture(
     undefined,
     undefined,
     undefined,
-    () => group.id,
+    () => ({ kind: 'turn', channelId: group.id }),
     undefined,
     undefined,
     team.approvals,
@@ -1139,7 +1139,7 @@ describe('M5 approval projections and decisions', () => {
         undefined,
         undefined,
         undefined,
-        () => memberDm.id,
+        () => ({ kind: 'turn', channelId: memberDm.id }),
         {
           template: () =>
             mode === 'no-template' ? undefined : { name: 'qa', text: 'Ask when uncertain.' },
@@ -1225,7 +1225,7 @@ describe('M5 approval projections and decisions', () => {
         undefined,
         undefined,
         undefined,
-        () => origin,
+        () => (origin === undefined ? undefined : { kind: 'turn', channelId: origin }),
         { template: () => ({ name: 'qa', text: 'Review.' }), review, log() {} },
       );
       const callId = ToolCallId('invalid-origin-call');

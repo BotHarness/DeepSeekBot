@@ -243,11 +243,11 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['openAssignmentModels'] === undefined ||
+      (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
     (plan['orchestratorGroupId'] === undefined ||
       (typeof plan['orchestratorGroupId'] === 'string' &&
         plan['orchestratorGroupId'].trim().length > 0)) &&
-    (plan['openAssignmentModels'] === undefined ||
-      (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
     isAssignmentGroups(plan['assignmentGroups'], plan['assignmentDefaultGroupId']) &&
     (plan['assignmentGroups'] === undefined || plan['assignmentDefault'] !== undefined) &&
     (plan['assignmentDefault'] === undefined

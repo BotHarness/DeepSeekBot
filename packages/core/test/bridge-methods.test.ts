@@ -101,6 +101,32 @@ describe('composer recovery reference validation', () => {
     ).toBe(false);
     expect(methods.composerValidate({ channelId: 'missing', attachments: [] }).ok).toBe(false);
   });
+
+  it('returns each restored quote target, or null when it is gone or no longer holds the excerpt', async () => {
+    const { channels, methods } = setup();
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    const sent = await methods.channelSend({ channelId: channel.id, body: 'ship on Friday' });
+    if (!sent.ok) throw new Error('send failed');
+    const id = sent.value.message.id;
+    expect(
+      methods.composerValidate({
+        channelId: channel.id,
+        attachments: [],
+        quotes: [
+          { messageId: id, text: 'on Friday' },
+          { messageId: id, text: 'on Monday' },
+          { messageId: 'deleted' },
+        ],
+      }),
+    ).toMatchObject({ ok: true, value: { quotes: [{ id, body: 'ship on Friday' }, null, null] } });
+    expect(
+      methods.composerValidate({
+        channelId: channel.id,
+        attachments: [],
+        quotes: Array.from({ length: 9 }, () => ({ messageId: id })),
+      }).ok,
+    ).toBe(false);
+  });
 });
 
 function tickingNow(): () => Date {
@@ -2907,6 +2933,66 @@ describe('bridge methods', () => {
       replyTo: sourceId,
       replyToPreview: { author: { kind: 'human' }, body: 'source' },
     });
+  });
+
+  it('sends several whole or partial quotes and refuses quotes the Channel cannot back', async () => {
+    const { methods, channels } = setup();
+    methods.channelDm({ slug: 'ada', displayName: 'Ada' });
+    const group = methods.channelCreate({ name: 'Team', members: [] });
+    const groupId = group.ok ? group.value.channel.id : '';
+    const first = await methods.channelSend({
+      channelId: groupId,
+      body: 'Ship the **export** fix on Friday.',
+    });
+    const second = await methods.channelSend({ channelId: groupId, body: 'Docs are ready.' });
+    const firstId = first.ok ? first.value.message.id : '';
+    const secondId = second.ok ? second.value.message.id : '';
+
+    const accepted = await methods.channelSend({
+      channelId: groupId,
+      body: 'Both look right',
+      quotes: [{ messageId: firstId, text: 'export fix on' }, { messageId: secondId }],
+    });
+    expect(accepted.ok && accepted.value.message.quotes).toMatchObject([
+      {
+        messageId: firstId,
+        text: 'export fix on',
+        preview: { author: { kind: 'human' }, body: 'Ship the **export** fix on Friday.' },
+      },
+      {
+        messageId: secondId,
+        preview: { author: { kind: 'human' }, body: 'Docs are ready.' },
+      },
+    ]);
+    expect(accepted.ok && accepted.value.message.quotes?.[1]).not.toHaveProperty('text');
+    const stored = channels
+      .readMessages(groupId)
+      .find((message) => accepted.ok && message.id === accepted.value.message.id);
+    expect(stored?.quotes?.map((quote) => quote.messageId)).toEqual([firstId, secondId]);
+
+    const revision = channels.revision(groupId);
+    expect(
+      await methods.channelSend({
+        channelId: groupId,
+        body: 'made up',
+        quotes: [{ messageId: firstId, text: 'ship on Monday' }],
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'quote-text-mismatch' } });
+    expect(
+      await methods.channelSend({
+        channelId: 'dm-ada',
+        body: 'cross',
+        quotes: [{ messageId: firstId }],
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'quote-target-missing' } });
+    expect(
+      await methods.channelSend({
+        channelId: groupId,
+        body: 'too many',
+        quotes: Array.from({ length: 9 }, (_, index) => ({ messageId: `m-${index}` })),
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(channels.revision(groupId)).toBe(revision);
   });
 
   it('records human messages locally and pages them newest-first', async () => {

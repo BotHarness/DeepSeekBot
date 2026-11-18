@@ -394,6 +394,26 @@ export class TeamApprovals {
       if (channel && typeof record['replyTo'] === 'string' && preview) {
         if (hidesPreview(channel, record['replyTo'])) Reflect.set(entry, 'replyToPreview', null);
       }
+      const quotes = record['quotes'];
+      if (channel && Array.isArray(quotes))
+        for (const quote of quotes) {
+          const cited = object(quote);
+          if (typeof cited?.['messageId'] !== 'string') continue;
+          const quotedAuthor = object(object(cited['preview'])?.['author']);
+          if (
+            quotedAuthor?.['kind'] === 'human' &&
+            quotedAuthor['deleted'] !== true &&
+            (typeof quotedAuthor['humanId'] !== 'string' ||
+              typeof quotedAuthor['displayName'] !== 'string')
+          ) {
+            const attributed = humanAuthorOf(channel, cited['messageId']);
+            if (attributed) Reflect.set(Reflect.get(quote, 'preview'), 'author', attributed);
+          }
+          if (cited['preview'] && hidesPreview(channel, cited['messageId'])) {
+            Reflect.set(quote, 'preview', null);
+            Reflect.deleteProperty(quote, 'text');
+          }
+        }
       const post = object(record['botChannelPost']);
       if (
         typeof post?.['channelId'] === 'string' &&

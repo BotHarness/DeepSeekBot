@@ -1,4 +1,12 @@
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
+import {
+  assertQuoteTargets,
+  ChannelQuoteError,
+  MAX_CHANNEL_QUOTES,
+  parseQuotesInput,
+  quoteTextMatches,
+  sameQuoteIntent,
+} from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
@@ -847,10 +855,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{
-    groups: RoutingGroup[];
-    rests: import('../models/route-rest.js').RestingRoute[];
-  }>;
+  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
   modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
   modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
   modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
@@ -911,6 +916,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
   composerValidate(payload: unknown): BridgeResult<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
@@ -1383,7 +1389,6 @@ export interface BridgeMethodsDeps {
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   routingGroups?: RoutingGroupStore;
-  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -4153,10 +4158,7 @@ function buildBridgeMethods(
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
-      return {
-        ok: true,
-        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
-      };
+      return { ok: true, value: { groups: deps.routingGroups.list() } };
     },
     modelGroup(payload) {
       if (deps.routingGroups === undefined) return unavailable();
@@ -6264,6 +6266,10 @@ function buildBridgeMethods(
           channelId: z.string(),
           replyTo: z.string().optional(),
           attachments: z.array(z.unknown()).max(10),
+          quotes: z
+            .array(z.object({ messageId: z.string(), text: z.string().optional() }).strict())
+            .max(MAX_CHANNEL_QUOTES)
+            .optional(),
         })
         .strict()
         .safeParse(payload);
@@ -6279,17 +6285,24 @@ function buildBridgeMethods(
               .some((member) => member.humanId === deps.channels.humanIdentity(human).humanId))
       )
         return invalidInput('Channel is unavailable');
-      const reply =
-        input.data.replyTo === undefined
-          ? undefined
-          : deps.channels
-              .readHumanTimeline(human, channel.id, {
-                direction: 'around',
-                around: input.data.replyTo,
-                olderLimit: 0,
-                newerLimit: 0,
-              })
-              ?.entries.find((message) => message.id === input.data.replyTo);
+      const visible = (messageId: string) =>
+        deps.channels
+          .readHumanTimeline(human, channel.id, {
+            direction: 'around',
+            around: messageId,
+            olderLimit: 0,
+            newerLimit: 0,
+          })
+          ?.entries.find((message) => message.id === messageId);
+      const reply = input.data.replyTo === undefined ? undefined : visible(input.data.replyTo);
+      const quotes = input.data.quotes?.map((quote) => {
+        const target = visible(quote.messageId);
+        return target === undefined ||
+          (target as { contentPurge?: unknown }).contentPurge !== undefined ||
+          (quote.text !== undefined && !quoteTextMatches(target.body, quote.text))
+          ? null
+          : target;
+      });
       const attachments = input.data.attachments.map((ref) => {
         try {
           return deps.attachments?.current(ref) ?? null;
@@ -6304,7 +6317,11 @@ function buildBridgeMethods(
       });
       return {
         ok: true,
-        value: { ...(reply === undefined ? {} : { reply }), attachments },
+        value: {
+          ...(reply === undefined ? {} : { reply }),
+          attachments,
+          ...(quotes === undefined ? {} : { quotes }),
+        },
       };
     },
     humanNameSet(payload) {
@@ -7837,6 +7854,8 @@ function buildBridgeMethods(
         return invalidInput('replyTo must be a message id');
       }
       let replyTo = typeof rawReplyTo === 'string' ? rawReplyTo : undefined;
+      const quotes = parseQuotesInput(source['quotes']);
+      if (typeof quotes === 'string') return invalidInput(quotes);
       const rawGrantResolution = source['grantRequestResolution'];
       let grantRequestResolution: ChannelMessage['grantRequestResolution'];
       if (rawGrantResolution !== undefined) {
@@ -7965,6 +7984,26 @@ function buildBridgeMethods(
         }) === undefined
       )
         return invalidInput('Reply target must exist in this Channel');
+      try {
+        if (
+          requestedMessageId === undefined ||
+          deps.channels.message(channelId, requestedMessageId) === undefined
+        )
+          assertQuoteTargets(quotes, (messageId) =>
+            deps.channels
+              .readHumanTimeline(human, channelId, {
+                direction: 'around',
+                around: messageId,
+                olderLimit: 0,
+                newerLimit: 0,
+              })
+              ?.entries.find((entry) => entry.id === messageId),
+          );
+      } catch (error) {
+        if (error instanceof ChannelQuoteError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
       const memorySwitchTarget = source['memorySwitchTarget'];
       if (
         memorySwitchTarget !== undefined &&
@@ -7987,6 +8026,7 @@ function buildBridgeMethods(
               genuiReplyContext !== undefined &&
               existing.body === `${body}\n\n${genuiReplyContext}`)) &&
           existing.replyTo === replyTo &&
+          sameQuoteIntent(deps.channels.storedQuotes(channelId, existing.id), quotes) &&
           JSON.stringify(existing.genuiReply) === JSON.stringify(genuiReply) &&
           existing.memorySwitchTarget === memorySwitchTarget &&
           JSON.stringify(existing.assignmentReply) === JSON.stringify(assignmentReply) &&
@@ -8165,6 +8205,7 @@ function buildBridgeMethods(
         ...(channelRefs.length === 0 ? {} : { channelRefs }),
         ...(skillInvocations.length === 0 ? {} : { skillInvocations }),
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(quotes.length === 0 ? {} : { quotes }),
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
         ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -8194,6 +8235,7 @@ function buildBridgeMethods(
           };
         if (
           error instanceof ChannelReplyTargetError ||
+          error instanceof ChannelQuoteError ||
           error instanceof GenuiError ||
           error instanceof AssignmentReplyTargetError ||
           error instanceof ChannelMentionTargetError ||

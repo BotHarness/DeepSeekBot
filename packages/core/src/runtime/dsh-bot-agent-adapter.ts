@@ -393,8 +393,8 @@ export interface DshBotAgentAdapterOptions {
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
-  orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
   openAssignmentRoutes?: OpenAssignmentRoutes;
+  orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
   assignmentGroups?: AssignmentGroupRoutes;
   subagentTools?: (botSlug: string) => ToolDefinition[];
   hasSession?: (sessionId: string) => Promise<boolean>;
@@ -615,8 +615,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #defaultModel: DshDefaultModelHost;
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
-  readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
   readonly #openAssignmentRoutes: OpenAssignmentRoutes | undefined;
+  readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
   readonly #assignmentGroups: AssignmentGroupRoutes | undefined;
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
@@ -673,8 +673,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
     this.#subagentTools = options.subagentTools;
-    this.#orchestratorRoute = options.orchestratorRoute;
     this.#openAssignmentRoutes = options.openAssignmentRoutes;
+    this.#orchestratorRoute = options.orchestratorRoute;
     this.#assignmentGroups = options.assignmentGroups;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;

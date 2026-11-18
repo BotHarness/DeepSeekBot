@@ -1,4 +1,7 @@
+import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
+import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -71,11 +74,39 @@ import {
 } from '../../../core/src/skills/entries.js';
 import {
   activeSkillQuery,
+  rebaseSkills,
   selectSkill,
   type SelectedSkill,
   type SkillQuery,
 } from './skill-refs.js';
 import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
+import {
+  activeSessionQuery,
+  deleteSessionReference,
+  rankSessionOptions,
+  selectSession,
+  type ComposerSessionOption,
+  type SessionQuery,
+} from './session-refs.js';
+import { hasSessionMentions } from './session-links.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { MenuRowButton } from './ds/menu-row-button.js';
+import * as stylex from '@stylexjs/stylex';
+import { ink, space } from './ds/tobs.stylex.js';
+
+const sessionStyles = stylex.create({
+  title: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: space.x2,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  icon: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
+  clip: { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+  owner: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', color: ink.secondary },
+});
 
 export type ComposerSkillOption = SkillCatalogEntry & {
   bot?: BotSummary | undefined;
@@ -133,7 +164,10 @@ export interface ChannelComposerProps {
   skillOptions?: readonly ComposerSkillOption[] | undefined;
   skills?: readonly SelectedSkill[] | undefined;
   readSkill?: ((name: string, owner: string) => Promise<SkillDocument>) | undefined;
+  sessionOptions?: readonly ComposerSessionOption[] | undefined;
+  onSessionMenu?: (() => void) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
+  quotes?: readonly ComposerQuote[] | undefined;
   t?: BotHarnessTranslate | undefined;
   onChange(
     value: string,
@@ -142,10 +176,14 @@ export interface ChannelComposerProps {
     skills?: SelectedSkill[],
   ): void;
   onCancelReply?(): void;
+  onRemoveQuote?(quote: ComposerQuote): void;
+  onQuoteNote?(quote: ComposerQuote, note: string): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
   onStop?: (() => void) | undefined;
 }
+
+const NO_QUOTES: readonly ComposerQuote[] = [];
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
 
@@ -435,10 +473,15 @@ export function ChannelComposer({
   skillOptions = [],
   skills = [],
   readSkill,
+  sessionOptions = [],
+  onSessionMenu,
   reply,
+  quotes = NO_QUOTES,
   t = zhTranslate,
   onChange,
   onCancelReply,
+  onRemoveQuote,
+  onQuoteNote,
   onRecall,
   onSubmit,
   onStop,
@@ -490,12 +533,15 @@ export function ChannelComposer({
     channelCandidates.length > 0 ||
     channelRefs.length > 0 ||
     skillOptions.length > 0 ||
-    skills.length > 0;
+    skills.length > 0 ||
+    sessionOptions.length > 0 ||
+    hasSessionMentions(value);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | undefined>();
   const [channelQuery, setChannelQuery] = useState<ChannelRefQuery | undefined>();
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [slashQuery, setSlashQuery] = useState<ComposerSlashQuery>();
   const [skillQuery, setSkillQuery] = useState<SkillQuery | undefined>();
+  const [sessionQuery, setSessionQuery] = useState<SessionQuery | undefined>();
   const slashTarget = useRef<string | undefined>(undefined);
   const [shortcutIndex, setShortcutIndex] = useState(0);
   const shortcutOptions = composerShortcutOptions(
@@ -512,7 +558,9 @@ export function ChannelComposer({
               ? [option.owner.name]
               : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
         ).slice(0, 8);
-  const menuLength = shortcutOptions.length + skillMatches.length;
+  const sessionMatches =
+    sessionQuery === undefined ? [] : rankSessionOptions(sessionOptions, sessionQuery.query);
+  const menuLength = shortcutOptions.length + skillMatches.length + sessionMatches.length;
   const chipBots = [
     ...mentionCandidates,
     ...skillOptions.flatMap((option) =>
@@ -521,6 +569,7 @@ export function ChannelComposer({
         ? []
         : [option.bot],
     ),
+    ...sessionOptions.flatMap((option) => (option.bot === undefined ? [] : [option.bot])),
   ].filter((bot, index, all) => all.findIndex((item) => item.slug === bot.slug) === index);
   const hasShortcutArgument =
     slashTarget.current === context?.target &&
@@ -543,7 +592,29 @@ export function ChannelComposer({
     if (locked || shortcut.disabled || voice.active) return;
     clearShortcut();
     setSkillQuery(undefined);
+    setSessionQuery(undefined);
     shortcut.run();
+  };
+  const chooseSession = (option: ComposerSessionOption): void => {
+    if (locked || sessionQuery === undefined || voice.active) return;
+    const selected = selectSession(value, sessionQuery, option);
+    onChange(
+      selected.value,
+      rebaseMentions(value, selected.value, mentions),
+      rebaseChannelRefs(value, selected.value, channelRefs),
+      rebaseSkills(value, selected.value, skills),
+    );
+    setSessionQuery(undefined);
+    setSkillQuery(undefined);
+    setSlashQuery(undefined);
+    requestedCaret.current = selected.caret;
+    requestAnimationFrame(() => {
+      const editor = richRef.current;
+      if (editor !== null) {
+        editor.focus();
+        setRichSelection(editor, selected.caret);
+      }
+    });
   };
   const chooseSkill = (option: ComposerSkillOption): void => {
     if (locked || skillQuery === undefined || voice.active) return;
@@ -686,7 +757,8 @@ export function ChannelComposer({
     height: 34,
     animateFirstExpand: false,
   });
-  const hasFooter = fit.expanded || reply !== undefined || attachments.length > 0;
+  const hasFooter =
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     const nextFit = fitComposerTextarea(element);
@@ -721,6 +793,7 @@ export function ChannelComposer({
   const avatarKey = [
     ...mentions.map((mention) => mention.botSlug),
     ...skills.flatMap((skill) => (skill.owner.kind === 'bot' ? [skill.owner.botSlug] : [])),
+    ...sessionOptions.map((option) => option.sessionId + '>' + option.botSlug + '>' + option.title),
   ]
     .map((slug) => {
       const bot = chipBots.find((candidate) => candidate.slug === slug);
@@ -782,6 +855,7 @@ export function ChannelComposer({
         channelRefs,
         attachments,
         skills,
+        sessionOptions,
       );
       setAvatarMounts(mounts);
       setAttachmentMounts(
@@ -900,6 +974,12 @@ export function ChannelComposer({
     setSkillQuery(
       skillOptions.length === 0 ? undefined : activeSkillQuery(next.value, caret, next.skills),
     );
+    const nextSessionQuery =
+      sessionOptions.length === 0 && onSessionMenu === undefined
+        ? undefined
+        : activeSessionQuery(next.value, caret);
+    if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
+    setSessionQuery(nextSessionQuery);
     setShortcutIndex(0);
     setMentionQuery(activeMentionQuery(next.value, caret, next.mentions));
     setChannelQuery(activeChannelRefQuery(next.value, caret, next.channelRefs));
@@ -926,6 +1006,7 @@ export function ChannelComposer({
         event.preventDefault();
         if (shortcutOptions.length > 0) clearShortcut();
         setSkillQuery(undefined);
+        setSessionQuery(undefined);
         return;
       }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -943,6 +1024,10 @@ export function ChannelComposer({
         else {
           const option = skillMatches[index - shortcutOptions.length];
           if (option !== undefined) chooseSkill(option);
+          else {
+            const session = sessionMatches[index - shortcutOptions.length - skillMatches.length];
+            if (session !== undefined) chooseSession(session);
+          }
         }
         return;
       }
@@ -957,7 +1042,9 @@ export function ChannelComposer({
       !event.nativeEvent.isComposing &&
       selection !== undefined
     ) {
-      const deleted = deleteAttachmentReference(value, attachments, selection, event.key);
+      const deleted =
+        deleteAttachmentReference(value, attachments, selection, event.key) ??
+        deleteSessionReference(value, selection, event.key);
       if (deleted !== undefined) {
         event.preventDefault();
         requestedCaret.current = deleted.caret;
@@ -1242,6 +1329,55 @@ export function ChannelComposer({
               </button>
             );
           })}
+          {sessionMatches.length === 0 ? null : (
+            <div className="bh-composer-menu-section" role="presentation">
+              {t('composer.sessions')}
+            </div>
+          )}
+          {sessionMatches.map((option, offset) => {
+            const index = shortcutOptions.length + skillMatches.length + offset;
+            const owner = option.bot?.displayName ?? option.botSlug;
+            return (
+              <MenuRowButton
+                key={`${option.botSlug}/${option.sessionId}`}
+                ref={(node) => {
+                  if (index === shortcutIndex % menuLength)
+                    node?.scrollIntoView?.({ block: 'nearest' });
+                }}
+                className="bh-composer-skill-option"
+                data-session-option={option.sessionId}
+                disabled={locked}
+                aria-label={`${option.title} · ${owner}`}
+                data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSession(option)}
+              >
+                <span className="bh-composer-skill-owner" title={owner}>
+                  <PersonaBotAvatar
+                    personaBotId={option.botSlug}
+                    name={owner}
+                    src={option.bot?.avatar}
+                    appearance={option.bot?.appearance}
+                    avatarSeed={option.bot?.avatarSeed}
+                    size={20}
+                    indicator={false}
+                    t={t}
+                  />
+                </span>
+                <span className="bh-composer-skill-copy">
+                  <strong {...stylex.props(sessionStyles.title)}>
+                    <span {...stylex.props(sessionStyles.icon)}>
+                      <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />
+                    </span>
+                    <span {...stylex.props(sessionStyles.clip)}>{option.title}</span>
+                  </strong>
+                  <small {...stylex.props(sessionStyles.owner)}>
+                    {option.done ? t('composer.sessionDone', { name: owner }) : owner}
+                  </small>
+                </span>
+              </MenuRowButton>
+            );
+          })}
         </div>
       )}
       {mentionQuery !== undefined && candidates.length > 0 ? (
@@ -1328,6 +1464,31 @@ export function ChannelComposer({
               &times;
             </button>
           </div>
+        )}
+        {quotes.length === 0 ? null : (
+          <QuoteChipList label={t('message.quotes')}>
+            {quotes.map((quote) => {
+              const author = quote.author ?? t('message.replyUnavailable');
+              return (
+                <QuoteChip
+                  key={`${quote.messageId}:${quote.text ?? ''}`}
+                  author={author}
+                  excerpt={quote.excerpt ?? quote.text ?? ''}
+                  part={quote.text !== undefined}
+                  note={quote.note ?? ''}
+                  noteLabel={t('message.quoteNoteLabel', { author })}
+                  notePlaceholder={t('message.quoteNote')}
+                  removeLabel={t('message.quoteRemove', { author })}
+                  disabled={locked}
+                  onNoteChange={(note) => onQuoteNote?.(quote, note)}
+                  onRemove={() => onRemoveQuote?.(quote)}
+                />
+              );
+            })}
+          </QuoteChipList>
+        )}
+        {quotes.length < MAX_DRAFT_QUOTES ? null : (
+          <Note>{t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}</Note>
         )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">

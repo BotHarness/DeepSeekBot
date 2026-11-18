@@ -109,7 +109,7 @@ describe('Open Assignment Models', () => {
     expect(store.get(open.id)).not.toHaveProperty('openAssignmentModels');
   });
 
-  it('lists only owner-allowed, credential-ready models with catalog names when open', async () => {
+  it('lists only unlisted, owner-allowed, credential-ready models with catalog names when open', async () => {
     let current = plan(true);
     const validate = vi.fn(async () => {});
     const routes = createOpenAssignmentRoutes({
@@ -128,14 +128,6 @@ describe('Open Assignment Models', () => {
       },
     });
     expect(await routes.list('bot')).toEqual([
-      {
-        provider: 'deepseek',
-        providerName: 'DEEPSEEK',
-        model: 'deepseek-flash',
-        modelName: 'deepseek-flash name',
-        efforts: ['high'],
-        defaultEffort: 'high',
-      },
       {
         provider: 'deepseek',
         providerName: 'DEEPSEEK',

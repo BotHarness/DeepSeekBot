@@ -103,9 +103,9 @@ export interface ModelsUsageValues {
   'assignment-effort'?: string;
   'expected-revision'?: string;
   'plan-stdin'?: boolean;
+  'assignment-models'?: string;
   'members-stdin'?: boolean;
   'orchestrator-group'?: string;
-  'assignment-models'?: string;
   period?: string;
   after?: string;
   start?: string;

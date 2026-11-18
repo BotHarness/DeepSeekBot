@@ -316,8 +316,6 @@ window.__ModuleLoader__.load({
 			],
 			"arrow-left": [["path", { d: "m12 19-7-7 7-7" }], ["path", { d: "M19 12H5" }]],
 			"chevron-right": [["path", { d: "m9 18 6-6-6-6" }]],
-			"chevron-up": [["path", { d: "m18 15-6-6-6 6" }]],
-			"chevron-down": [["path", { d: "m6 9 6 6 6-6" }]],
 			store: [
 				["path", { d: "M15 21v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5" }],
 				["path", { d: "M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244" }],
@@ -1026,8 +1024,11 @@ window.__ModuleLoader__.load({
 				rx: "2"
 			}]]
 		};
+		function glyph(name) {
+			return Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
+		}
 		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, filled = false, strokeWidth = 2 }) {
-			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
+			const nodes = glyph(name);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 				width: size,
 				height: size,
@@ -2035,8 +2036,227 @@ window.__ModuleLoader__.load({
 			} }).catch(() => {});
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/info-tip.tsx
+		function InfoTip({ label, text }) {
+			const id = (0, react.useId)();
+			const [hover, setHover] = (0, react.useState)(false);
+			const [focus, setFocus] = (0, react.useState)(false);
+			const [pinned, setPinned] = (0, react.useState)(false);
+			const open = hover || focus || pinned;
+			const anchor = (0, react.useRef)(null);
+			const bubble = (0, react.useRef)(null);
+			(0, react.useLayoutEffect)(() => {
+				const node = bubble.current;
+				const trigger = anchor.current;
+				if (!open || !node || !trigger) return;
+				const place = () => {
+					const target = trigger.getBoundingClientRect();
+					const gap = Number.parseFloat(getComputedStyle(trigger).fontSize) / 2 || 8;
+					node.style.left = "0px";
+					node.style.top = "0px";
+					const origin = node.getBoundingClientRect();
+					const left = Math.max(0, Math.min(target.left, window.innerWidth - origin.width));
+					node.style.left = `${left - origin.left}px`;
+					node.style.top = `${target.bottom + gap - origin.top}px`;
+				};
+				place();
+				window.addEventListener("resize", place);
+				window.addEventListener("scroll", place, true);
+				return () => {
+					window.removeEventListener("resize", place);
+					window.removeEventListener("scroll", place, true);
+				};
+			}, [open]);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				ref: anchor,
+				className: "bhx1n2onr6 bhx3nfvp2 bhx2lah0s",
+				onPointerEnter: () => {
+					setHover(true);
+				},
+				onPointerLeave: () => {
+					setHover(false);
+				},
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					type: "button",
+					"aria-label": label,
+					"aria-describedby": open ? id : void 0,
+					"aria-expanded": pinned,
+					onFocus: () => {
+						setFocus(true);
+					},
+					onBlur: () => {
+						setFocus(false);
+						setPinned(false);
+					},
+					onClick: () => {
+						setPinned((value) => !value);
+					},
+					onKeyDown: (event) => {
+						if (event.key === "Escape" && open) {
+							event.stopPropagation();
+							setPinned(false);
+							setHover(false);
+							setFocus(false);
+						}
+					},
+					className: "bhx3nfvp2 bhx6s0dn4 bhxl56j7k bhx1x2ywmj bhx6nhqxt bhx1717udv bhxc342km bhx13u8aww bhxjbqb8w bhx1axu3v7 bhx1a36vn4 bhx1146j2 bhx1a2a7pz bhx1i94p6w",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+						width: "14",
+						height: "14",
+						viewBox: "0 0 14 14",
+						"aria-hidden": "true",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "7",
+								r: "6",
+								fill: "none",
+								stroke: "currentColor",
+								strokeWidth: "1.2"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+								d: "M7 6.2v3.6",
+								stroke: "currentColor",
+								strokeWidth: "1.3",
+								strokeLinecap: "round"
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+								cx: "7",
+								cy: "4.3",
+								r: "0.8",
+								fill: "currentColor"
+							})
+						]
+					})
+				}), open ? (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					ref: bubble,
+					id,
+					role: "tooltip",
+					className: "bhxixxii4 bhxu96u03 bhx13vifvy bhxp6lfbs bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
+					children: text
+				}), document.body) : null]
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/surface.ts
+		const surfaceStyles = { card: {
+			"--tobs-on-field": "bhxvn5hdi",
+			"--tobs-on-field-edge": "bhxwe5oui",
+			"--tobs-on-track": "bhxgbxpun",
+			"--tobs-on-secondary": "bhxweo6jt",
+			"--tobs-on-secondary-edge": "bhx1f506l2",
+			$$css: true
+		} };
+		//#endregion
+		//#region packages/client/src/client/ds/settings-row.tsx
+		const SettingsGroupContext = (0, react.createContext)(false);
+		const styles$2 = {
+			rows: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				k7Eaqz: "bhxeuugli",
+				$$css: true
+			},
+			group: {
+				k1xSpc: "bhx78zum5",
+				kXwgrk: "bhxdt5ytf",
+				kOIVth: "bhx103m73q",
+				k7Eaqz: "bhxeuugli",
+				kg3NbH: "bhxf5xh8h bhx1qyef7o",
+				k8WAf4: "bhxggp0jn bhxvz3fld",
+				kaIpWk: "bhxdylm0v bhxtm8dy7",
+				kVQacm: "bhx7giv3",
+				kWkggS: "bhx18mhnxz bhxu7tw00",
+				kGVxlE: "bhx1yc4nx5 bhx6vyjea",
+				$$css: true
+			},
+			row: {
+				k1xSpc: "bhx78zum5",
+				kGNEyG: "bhx6s0dn4 bhx4bgz6 bhx15bqsqq",
+				kXwgrk: "bhx1q0g3np bhxcxmu7o bhx1uptv2i",
+				kOIVth: "bhx1mckxr8 bhx1kwkzks bhxv0lzym",
+				k7Eaqz: "bhxeuugli",
+				kAzted: "bhx1bciaxd",
+				kB7OPa: "bhx9f619",
+				k8WAf4: "bhx1nxcsqp",
+				kg3NbH: "bhx1avbwx3",
+				kaIpWk: "bhx1voi8sm",
+				kWkggS: "bhx1auanwt",
+				kt9PQ7: "bhxrvphhj",
+				kfdmCh: "bhx1q0q8m5",
+				kL6WhQ: "bhx16stqrj bhx79v8zp bhx2jbcm5",
+				$$css: true
+			}
+		};
+		function SettingsRows({ children, rootRef }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				ref: rootRef,
+				"data-settings-group": "",
+				...props(styles$2.rows, styles$2.group, surfaceStyles.card),
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsGroupContext.Provider, {
+					value: true,
+					children
+				})
+			});
+		}
+		function SettingsRow({ title, description, info, control, children, rootRef, data }) {
+			const id = (0, react.useId)();
+			const titleId = `${id}-title`;
+			const descriptionId = `${id}-description`;
+			const grouped = (0, react.useContext)(SettingsGroupContext);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				ref: rootRef,
+				role: "group",
+				"aria-labelledby": titleId,
+				"aria-describedby": description === void 0 ? void 0 : descriptionId,
+				"data-settings-row": "",
+				...data,
+				...{
+					0: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1voi8sm bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5" },
+					1: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5 bhxdylm0v" }
+				}[!!!grouped << 0],
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "bhx78zum5 bhx6s0dn4 bhx12e6dxb bhxeuugli",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								id: titleId,
+								className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
+								children: title
+							}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
+								label: info.label,
+								text: info.text
+							})]
+						}),
+						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							id: descriptionId,
+							className: "bhxwq55zj bhxgowt09 bhx12cu2lo bhxj0a0fe",
+							children: description
+						}),
+						children
+					]
+				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
+					children: control
+				})]
+			});
+		}
+		styles$2.row;
+		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
+			if ((0, react.useContext)(SettingsGroupContext)) {
+				const part = { className: "bhx-default-marker bhxjp7ctv" };
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+					ref: listRef,
+					"aria-label": label,
+					"data-settings-part": "",
+					...part,
+					className: className === void 0 ? part.className : `${part.className} ${className}`,
+					children
+				});
+			}
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 				ref: listRef,
 				"data-flush": flush || void 0,
@@ -2046,6 +2266,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+			const inGroup = (0, react.useContext)(SettingsGroupContext);
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bh-card-leading",
@@ -2095,6 +2316,7 @@ window.__ModuleLoader__.load({
 			const className = mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: "bh-card-row",
+				"data-settings-row": inGroup ? "" : void 0,
 				"data-muted": muted === true ? "true" : void 0,
 				"data-state": state,
 				"data-selected": selection?.checked === true ? "true" : void 0,
@@ -2421,7 +2643,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/note.tsx
-		const styles$2 = {
+		const styles$1 = {
 			note: {
 				kogj98: "bhx1ghz6dp",
 				kGuDYH: "bhxgowt09",
@@ -2458,7 +2680,7 @@ window.__ModuleLoader__.load({
 		function Note({ tone = "muted", inset = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 				role: tone === "danger" ? "alert" : "status",
-				...props(styles$2.note, inset && styles$2.inset, styles$2[tone]),
+				...props(styles$1.note, inset && styles$1.inset, styles$1[tone]),
 				children
 			});
 		}
@@ -3406,159 +3628,6 @@ window.__ModuleLoader__.load({
 			}) : null] });
 		}
 		//#endregion
-		//#region packages/client/src/client/ds/info-tip.tsx
-		function InfoTip({ label, text }) {
-			const id = (0, react.useId)();
-			const [hover, setHover] = (0, react.useState)(false);
-			const [focus, setFocus] = (0, react.useState)(false);
-			const [pinned, setPinned] = (0, react.useState)(false);
-			const open = hover || focus || pinned;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "bhx1n2onr6 bhx3nfvp2 bhx2lah0s",
-				onPointerEnter: () => {
-					setHover(true);
-				},
-				onPointerLeave: () => {
-					setHover(false);
-				},
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					type: "button",
-					"aria-label": label,
-					"aria-describedby": open ? id : void 0,
-					"aria-expanded": pinned,
-					onFocus: () => {
-						setFocus(true);
-					},
-					onBlur: () => {
-						setFocus(false);
-						setPinned(false);
-					},
-					onClick: () => {
-						setPinned((value) => !value);
-					},
-					onKeyDown: (event) => {
-						if (event.key === "Escape" && open) {
-							event.stopPropagation();
-							setPinned(false);
-							setHover(false);
-							setFocus(false);
-						}
-					},
-					className: "bhx3nfvp2 bhx6s0dn4 bhxl56j7k bhx1x2ywmj bhx6nhqxt bhx1717udv bhxc342km bhx13u8aww bhxjbqb8w bhx1axu3v7 bhx1a36vn4 bhx1146j2 bhx1a2a7pz bhx1i94p6w",
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
-						width: "14",
-						height: "14",
-						viewBox: "0 0 14 14",
-						"aria-hidden": "true",
-						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
-								cx: "7",
-								cy: "7",
-								r: "6",
-								fill: "none",
-								stroke: "currentColor",
-								strokeWidth: "1.2"
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
-								d: "M7 6.2v3.6",
-								stroke: "currentColor",
-								strokeWidth: "1.3",
-								strokeLinecap: "round"
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
-								cx: "7",
-								cy: "4.3",
-								r: "0.8",
-								fill: "currentColor"
-							})
-						]
-					})
-				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					id,
-					role: "tooltip",
-					className: "bhx10l6tqk bhx1o0tod bhx6om7eq bhx1n327nk bhxezivpi bhx1jkqq1h bhx1kz1gct bhxq23ktl bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f bhxo1l8bm bhxeaf4i8 bhx47corl",
-					children: text
-				}) : null]
-			});
-		}
-		//#endregion
-		//#region packages/client/src/client/ds/surface.ts
-		const surfaceStyles = { card: {
-			"--tobs-on-field": "bhxvn5hdi",
-			"--tobs-on-field-edge": "bhxwe5oui",
-			"--tobs-on-track": "bhxgbxpun",
-			"--tobs-on-secondary": "bhxweo6jt",
-			"--tobs-on-secondary-edge": "bhx1f506l2",
-			$$css: true
-		} };
-		//#endregion
-		//#region packages/client/src/client/ds/settings-row.tsx
-		const styles$1 = {
-			rows: {
-				k1xSpc: "bhx78zum5",
-				kXwgrk: "bhxdt5ytf",
-				k7Eaqz: "bhxeuugli",
-				$$css: true
-			},
-			group: {
-				k1xSpc: "bhx78zum5",
-				kXwgrk: "bhxdt5ytf",
-				kOIVth: "bhx103m73q",
-				k7Eaqz: "bhxeuugli",
-				kg3NbH: "bhxf5xh8h bhx1qyef7o",
-				k8WAf4: "bhxggp0jn bhxvz3fld",
-				kaIpWk: "bhxdylm0v bhxtm8dy7",
-				kWkggS: "bhx18mhnxz bhxu7tw00",
-				kGVxlE: "bhx1yc4nx5 bhx6vyjea",
-				$$css: true
-			}
-		};
-		function SettingsRows({ children, rootRef }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				ref: rootRef,
-				...props(styles$1.rows, styles$1.group, surfaceStyles.card),
-				children
-			});
-		}
-		function SettingsRow({ title, description, info, control, children, rootRef, data }) {
-			const id = (0, react.useId)();
-			const titleId = `${id}-title`;
-			const descriptionId = `${id}-description`;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				ref: rootRef,
-				role: "group",
-				"aria-labelledby": titleId,
-				"aria-describedby": description === void 0 ? void 0 : descriptionId,
-				...data,
-				className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhxtt8vbz bhxf8re2r bhx1q19waj bhx12uuu9t bhxuwvebi bhx16h01ed bhx18cnbv7 bhx1b2jpjn bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx19o0gr8 bhxqdcwya",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
-					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "bhx78zum5 bhx6s0dn4 bhx12e6dxb bhxeuugli",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								id: titleId,
-								className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
-								children: title
-							}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
-								label: info.label,
-								text: info.text
-							})]
-						}),
-						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							id: descriptionId,
-							className: "bhxwq55zj bhxgowt09 bhx12cu2lo bhxj0a0fe",
-							children: description
-						}),
-						children
-					]
-				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
-					children: control
-				})]
-			});
-		}
-		//#endregion
 		//#region packages/browser/src/client/settings.tsx
 		function ConfigChoice({ scope, field, value, writable, title, items }) {
 			const [saving, setSaving] = (0, react.useState)(false);
@@ -4039,6 +4108,7 @@ window.__ModuleLoader__.load({
 .bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}
 .bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}
 .bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}
+.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}
 .bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}
 .bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}
@@ -4053,6 +4123,7 @@ window.__ModuleLoader__.load({
 .bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}
 .bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}
 .bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}
+.bhx7giv3:not(#\\#):not(#\\#){overflow:clip}
 .bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}
 .bhxt970qd:not(#\\#):not(#\\#){padding-block:0}
 .bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}
@@ -4077,6 +4148,7 @@ window.__ModuleLoader__.load({
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
 .bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}
 .bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}
+.bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}
 .bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
 .bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}
 .bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
@@ -4105,6 +4177,7 @@ window.__ModuleLoader__.load({
 .bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}
 .bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}
 .bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}
+.bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}
 .bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}
 .bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}
 .bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}
@@ -4124,9 +4197,9 @@ window.__ModuleLoader__.load({
 .bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
-.bhx1o0tod:not(#\\#):not(#\\#):not(#\\#){inset-inline-start:0}
 .bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
+.bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}
 .bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
@@ -4139,7 +4212,6 @@ window.__ModuleLoader__.load({
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
-.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}
 .bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}
 .bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
@@ -4148,7 +4220,6 @@ window.__ModuleLoader__.load({
 .bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
-.bhx1n327nk:not(#\\#):not(#\\#):not(#\\#){z-index:10}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
 .bhx6vyjea:has(> section):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}
@@ -4169,13 +4240,9 @@ window.__ModuleLoader__.load({
 @container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
 @container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
 .bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
-.bhx19o0gr8:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}
-.bhxuwvebi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-left-radius:var(--tobs-style-list-item-radius)}
-.bhx18cnbv7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-right-radius:var(--tobs-style-list-item-radius)}
+.bhx16stqrj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 .bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}
 .bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}
-.bhxtt8vbz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-left-radius:var(--tobs-style-list-item-radius)}
-.bhx1q19waj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-right-radius:var(--tobs-style-list-item-radius)}
 .bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
@@ -4192,18 +4259,14 @@ window.__ModuleLoader__.load({
 .bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
 .bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
-.bhx6om7eq:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:calc(100% + 4px)}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
 .bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}
 .bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}
 .bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}
-.bhxf8re2r:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-left-radius:var(--tobs-style-list-group-radius)}
-.bhx12uuu9t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-right-radius:var(--tobs-style-list-group-radius)}
+.bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}
+.bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
-.bhx16h01ed:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-left-radius:var(--tobs-style-list-group-radius)}
-.bhx1b2jpjn:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-right-radius:var(--tobs-style-list-group-radius)}
-.bhxqdcwya:last-of-type:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 @media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 @container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 .bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}

@@ -358,6 +358,54 @@ describe('live CLI over the authenticated DSH carrier', () => {
     expect(blank.code).not.toBe(0);
   });
 
+  it('sends whole and partial quotes with repeated --quote', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-44444444-4444-4444-8444-444444444444' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      [
+        'send',
+        'ada',
+        '--body',
+        'both?',
+        '--message-id',
+        'human-44444444-4444-4444-8444-444444444444',
+        '--quote',
+        'bot-earlier',
+        '--quote',
+        'human-first::the export fix',
+        '--quote-note',
+        '',
+        '--quote-note',
+        'still Friday?',
+      ],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toEqual({
+      channelId: 'dm-ada',
+      body: 'both?',
+      messageId: 'human-44444444-4444-4444-8444-444444444444',
+      quotes: [
+        { messageId: 'bot-earlier' },
+        { messageId: 'human-first', text: 'the export fix', note: 'still Friday?' },
+      ],
+    });
+    const extra = await invoke(
+      ['send', 'ada', '--body', 'x', '--quote', 'id', '--quote-note', 'a', '--quote-note', 'b'],
+      live.url,
+    );
+    expect(extra.code).not.toBe(0);
+    const blank = await invoke(['send', 'ada', '--body', 'x', '--quote', 'id::  '], live.url);
+    expect(blank.code).not.toBe(0);
+  });
+
   it('retains the receipt on timeout and never retries the mutating RPC', async () => {
     const started = Date.now();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(started);

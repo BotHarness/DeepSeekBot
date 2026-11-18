@@ -1791,7 +1791,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
-    orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     assignmentGroups: {
       pick: (botSlug, groupId) => groupFallback.pick(botSlug, groupId),
       describe: (groupId) => {
@@ -1806,6 +1805,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       restingUntil: (route) => routeRests.restingUntil(route),
     },
     openAssignmentRoutes,
+    orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
       createBotSubagentModelTools(
         ctx,
@@ -2803,10 +2803,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (query) => core.runtime.toolApprovalOrigin?.(query),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -3139,7 +3140,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
+              callId: execution.callId,
+            }) === true,
           request: {
             agent,
             toolName: execution.name,
@@ -3660,7 +3666,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     routingGroups: core.routingGroups,
-    routeRests,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
@@ -4570,7 +4575,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
-          (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
+          async (route) => {
+            requireBotModel(core.team, core.registry.get(owner.botSlug), route);
+            await openAssignmentRoutes.require(owner.botSlug, route);
+          },
           () => openAssignmentRoutes.list(owner.botSlug),
         );
       }

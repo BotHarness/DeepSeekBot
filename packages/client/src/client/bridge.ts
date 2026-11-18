@@ -164,13 +164,17 @@ import type {
   ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
+  ChannelMessageQuote,
+  ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
   OwnedSessionSummary,
+  QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
   ApprovalCardView,
 } from './store.js';
+import { quoteRefOf } from './store.js';
 import {
   parseRosterSection,
   parseRosterSnapshot,
@@ -306,72 +310,6 @@ export async function loadModelPlanState(
 ): Promise<ModelPlanStateView> {
   const value = asRecord(await unwrap(call, 'modelPlan', { slug }));
   return value === undefined ? {} : (value as ModelPlanStateView);
-}
-
-export type RoutingGroupMemberView =
-  | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
-  | { kind: 'group'; id: string };
-
-export interface RoutingGroupView {
-  id: string;
-  name: string;
-  revision: number;
-  mode: 'order';
-  members: RoutingGroupMemberView[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface RestingRouteView {
-  provider: string;
-  model: string;
-  until: string;
-  reason?: 'quota' | 'credential' | 'rate-limit';
-}
-
-export async function loadRoutingGroups(
-  call: BridgeCall,
-): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }> {
-  const value = asRecord(await unwrap(call, 'modelGroups', {}));
-  if (!Array.isArray(value?.['groups'])) throw new Error('Invalid Routing Groups');
-  return {
-    groups: value['groups'] as RoutingGroupView[],
-    rests: Array.isArray(value['rests']) ? (value['rests'] as RestingRouteView[]) : [],
-  };
-}
-
-function routingGroupOf(value: unknown): RoutingGroupView {
-  const group = asRecord(asRecord(value)?.['group']);
-  if (group === undefined) throw new Error('Invalid Routing Group result');
-  return group as unknown as RoutingGroupView;
-}
-
-export async function createRoutingGroup(
-  call: BridgeCall,
-  name: string,
-  members: RoutingGroupMemberView[],
-): Promise<RoutingGroupView> {
-  return routingGroupOf(await unwrap(call, 'modelGroupCreate', { name, members }));
-}
-
-export async function updateRoutingGroup(
-  call: BridgeCall,
-  id: string,
-  expectedRevision: number,
-  name: string,
-  members: RoutingGroupMemberView[],
-): Promise<RoutingGroupView> {
-  return routingGroupOf(
-    await unwrap(call, 'modelGroupUpdate', { id, expectedRevision, name, members }),
-  );
-}
-
-export async function deleteRoutingGroup(
-  call: BridgeCall,
-  id: string,
-  expectedRevision: number,
-): Promise<RoutingGroupView> {
-  return routingGroupOf(await unwrap(call, 'modelGroupDelete', { id, expectedRevision }));
 }
 
 export async function createModelPreset(
@@ -2029,6 +1967,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       };
     }
   }
+  const quotes = parseMessageQuotes(record['quotes']);
+  if (quotes === false) return undefined;
   const rawPreview = record['replyToPreview'];
   let replyToPreview: ChannelMessage['replyToPreview'];
   if (rawPreview === null) {
@@ -2245,6 +2185,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
     ...(replyTo === undefined ? {} : { replyTo }),
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
+    ...(quotes === undefined ? {} : { quotes }),
     ...(perf === undefined ? {} : { perf }),
   };
 }
@@ -2939,12 +2880,18 @@ export async function validateComposerDraft(
   channelId: string,
   attachments: ChannelAttachmentRef[],
   replyTo?: string,
-): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }> {
+  quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
+): Promise<{
+  reply?: ChannelMessage;
+  attachments: Array<ChannelAttachmentRef | null>;
+  quotes?: Array<ChannelMessage | null>;
+}> {
   const value = asRecord(
     await unwrap(call, 'composerValidate', {
       channelId,
       attachments,
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined ? {} : { quotes }),
     }),
   );
   if (
@@ -2957,9 +2904,17 @@ export async function validateComposerDraft(
   const reply = value['reply'] === undefined ? undefined : parseChannelMessage(value['reply']);
   if (value['reply'] !== undefined && reply === undefined)
     throw new Error('invalid composer reply');
+  const rawQuotes = value['quotes'];
+  if (quotes !== undefined && (!Array.isArray(rawQuotes) || rawQuotes.length !== quotes.length))
+    throw new Error('invalid composer quotes');
+  const checked = Array.isArray(rawQuotes)
+    ? rawQuotes.map((raw) => (raw === null ? null : parseChannelMessage(raw)))
+    : undefined;
+  if (checked?.some((message) => message === undefined)) throw new Error('invalid composer quotes');
   return {
     ...(reply === undefined ? {} : { reply }),
     attachments: value['attachments'] as Array<ChannelAttachmentRef | null>,
+    ...(checked === undefined ? {} : { quotes: checked as Array<ChannelMessage | null> }),
   };
 }
 
@@ -4998,6 +4953,7 @@ export async function sendChannelMessage(
   allBotMention?: AllBotMention,
   genuiReply?: GenuiMessageReply,
   skillInvocations?: ChannelSkillInvocationToken[],
+  quotes?: readonly QuoteRef[],
 ): Promise<ChannelMessage> {
   const value = await unwrap(
     call,
@@ -5009,6 +4965,11 @@ export async function sendChannelMessage(
         ? {}
         : { skillInvocations }),
       ...(replyTo === undefined ? {} : { replyTo }),
+      ...(quotes === undefined || quotes.length === 0
+        ? {}
+        : {
+            quotes: quotes.map(quoteRefOf),
+          }),
       ...(attachments === undefined ? {} : { attachments }),
       ...(messageId === undefined ? {} : { messageId }),
       ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
@@ -8011,4 +7972,40 @@ export async function setModelPlan(
   );
   if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
   return value!['plan'] as ModelPlanView;
+}
+
+function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
+  if (value === null) return null;
+  const preview = asRecord(value);
+  if (preview === undefined || typeof preview['body'] !== 'string') return false;
+  const author = parseAuthor(preview['author']);
+  if (author === undefined) return false;
+  const media = preview['media'];
+  return {
+    author,
+    body: preview['body'],
+    ...(isChannelReplyPreviewMedia(media) ? { media } : {}),
+  };
+}
+
+function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined | false {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 8) return false;
+  const quotes: ChannelMessageQuote[] = [];
+  for (const entry of value) {
+    const quote = asRecord(entry);
+    if (quote === undefined || typeof quote['messageId'] !== 'string') return false;
+    if (quote['text'] !== undefined && typeof quote['text'] !== 'string') return false;
+    if (quote['note'] !== undefined && typeof quote['note'] !== 'string') return false;
+    const preview =
+      quote['preview'] === undefined ? undefined : parseQuotePreview(quote['preview']);
+    if (preview === false) return false;
+    quotes.push({
+      messageId: quote['messageId'],
+      ...(typeof quote['text'] === 'string' ? { text: quote['text'] } : {}),
+      ...(typeof quote['note'] === 'string' ? { note: quote['note'] } : {}),
+      ...(preview === undefined ? {} : { preview }),
+    });
+  }
+  return quotes;
 }

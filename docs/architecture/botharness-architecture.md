@@ -310,7 +310,7 @@ Usage generation 40 在同一 Operational Database 事务中写入匿名 HMAC �
 
 Model Preset 的当前模板存储由 Profile SQLite 的 owning module 管理，Schema Generation 54 将旧 JSON 模板一次性校验迁入，保留 ID／revision，并写入包含空源的切换标记；成功切换后旧文件仅保留为恢复参考，不再读写（#883）。Schema Generation 55 将 PersonaBot Registry 的身份、外观快照、访问开关与独立 Model Plan 一次性校验迁入 `persona_bots`，导入标记与记录同一事务提交；旧 `bot.json` 与 Soul 文件保留，但正常读写仅使用 owning Registry module／Profile Writer Lease（#884）。无效登记使 Core 启动失败并释放 lease，不会把坏数据当成空名单；修复保留的旧源后重试。Generation 72 的完整 Profile Backup 保存可复用模板与独立 Model Plan 的现值和 revision，恢复不会重新套用模板（#886）。
 
-Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，PersonaBot 保存独立 Model Plan 快照，后续模板编辑不传播到已应用的 Bot。Plan 固定 Orchestrator 的 provider／model／reasoning effort，并定义 Assignment 可用的精确模型、各模型允许及默认的 effort 和默认模型。Host 在每个执行入口按当前 Plan 验证选择，而 DSH SessionEvent 记录实际调用：Orchestrator 的变更在当前 Turn 结束后生效，已有 Assignment 保留当前路由，之后的显式切换按最新 Plan 校验；新建 DSH Subagent 默认继承仍获允许的父路由，否则选当前 Assignment 默认并告知父 Agent。不可用或有歧义的路由停止请求，交由 Human 修复，不静默回退。Model Preset 与 Model Plan 可进入保持身份的 Profile Backup，不进入 SoulSnapshot 或 PersonaBot Export（ADR-0027、ADR-0093，#488）。
+Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，PersonaBot 保存独立 Model Plan 快照，后续模板编辑不传播到已应用的 Bot。Plan 固定 Orchestrator 的 provider／model／reasoning effort，并定义 Assignment 可用的精确模型、各模型允许及默认的 effort 和默认模型。Host 在每个执行入口按当前 Plan 验证选择，而 DSH SessionEvent 记录实际调用：Orchestrator 的变更在当前 Turn 结束后生效，已有 Assignment 保留当前路由，之后的显式切换按最新 Plan 校验；新建 DSH Subagent 默认继承仍获允许的父路由，否则选当前 Assignment 默认并告知父 Agent。可选的开放模式允许 Assignment 和 Subagent 的显式选择使用 Bot 所有者角色允许、且提供方凭据有效的任何目录模型（#4416）。不可用或有歧义的路由停止请求，交由 Human 修复，不静默回退。Model Preset 与 Model Plan 可进入保持身份的 Profile Backup，不进入 SoulSnapshot 或 PersonaBot Export（ADR-0027、ADR-0093，#488）。
 
 快捷模型／effort 切换只修改此 PersonaBot 的 Orchestrator，并在下一 Turn 生效；DM 不猜测某个 Assignment 作为目标。Model Plan 可以同时省略 `assignmentDefault` 与 `assignmentModels`，表示任务继续继承 Profile 全局模型；既有固定任务配置不变。Registry 的 `modelPlanCustomize` 用 revision 校验创建或修改这种独立配置，Web、移动端和 CLI 共用该 Host 操作。已有 Assignment 仅使用自己保留的路由；没有保留路由时继续继承全局，不补用后来出现的 Bot 任务默认值。完整模型设置显示继承状态，选择完整模板或任务模型才建立固定任务策略（[ADR-0218](../adr/0218-quick-model-selection-only-customizes-the-orchestrator.md)，#2000）。
 
@@ -1741,6 +1741,10 @@ See [M7 runtime](team-mode-m7-runtime.md#shared-discovery-and-participant-arrang
 M7 participant DM history keeps metadata-only, read-only Bot entries after audience loss; these
 entries grant no reach or management. Online CLI Bot-DM commands resolve the caller’s actual
 Channel through the Host and preserve that ID in send receipts and lookups.
+
+### 无模型私密工具的审批来源
+
+直接调用私密工具时复用 DSH 原生的存活 Orchestrator Agent，应用定义的审批来源则按 Host 生成的 direct call ID 登记。BotRuntime 同时保存预期 Agent Session、Bot 与认证调用方的 HumanContext，仅在需要审批来源时解析 DM；ChannelToolApproval 用保留原生 ID 类型的命名查询取得本次来源及 direct／turn 类别，私密工具的调用方 DM 绑定不依赖其效果是否为不可撤销。Session 不匹配或调用方 DM 不可用时拒绝路由。普通回合仍使用自己的入站 Channel 和混合 steering 检查。调用结束时只释放本次进程内来源记录，不释放借用的 Agent，也不为私密输入伪造 Human Source Event。直接调用的 Reviewer 不读取借用 Session 的历史，只收到模板与本次调用输入；普通回合仍沿用原有有界历史。
 
 ## Tool effect declarations (E1)
 

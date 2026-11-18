@@ -11,3 +11,7 @@ The plan is BotHarness application-defined operational authority, distinct from 
 ## Refinement: independent Orchestrator selection
 
 [ADR-0218](0218-quick-model-selection-only-customizes-the-orchestrator.md) allows a Bot Model Plan to fix only its Orchestrator while its Assignment policy continues to inherit the Profile default. Both `assignmentDefault` and `assignmentModels` are absent in that case. Existing complete plans and reusable Model Presets retain their previous semantics. An Assignment without a retained route continues to inherit on later requests, rather than adopting a subsequently configured Bot default.
+
+## Refinement: open Assignment models
+
+[#4416](https://github.com/BotHarness/DeepSeekBot/issues/4416) (spec [#4410](https://github.com/BotHarness/DeepSeekBot/issues/4410)) adds an opt-in open mode to a Model Preset and a Bot Model Plan (`openAssignmentModels`). In open mode an explicit Assignment or Subagent choice no longer has to be in the Bot's current Assignment set: it may name any catalog route that the Bot owner's role allows (`requireBotModel`) and whose provider has a valid credential (`catalog.validate`). Both checks stay at the Host execution boundary, for Assignments and for every Subagent path. A listed route keeps its own allowed and default efforts. The Assignment default stays required and is still used when no model is named. Without the flag every rule above is unchanged.

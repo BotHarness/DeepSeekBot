@@ -10,6 +10,7 @@ import {
   type ChannelSidebarRegistry,
 } from './channel-sidebar.js';
 import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar-prefs.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -139,6 +140,7 @@ export function ChannelSettingsDialog({
       sections={sections.map((section) => ({
         id: section.id,
         label: section.label,
+        icon: <ChannelSidebarIcon name={section.icon} />,
         attention: attention.includes(section.id),
       }))}
       activeId={active.id}

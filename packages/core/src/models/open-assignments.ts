@@ -30,10 +30,16 @@ export function createOpenAssignmentRoutes(options: {
   };
   return {
     async list(slug) {
-      if (options.plan(slug)?.openAssignmentModels !== true) return [];
+      const plan = options.plan(slug);
+      if (plan?.openAssignmentModels !== true) return [];
       const entries = await options.catalog.list();
       return entries
-        .filter((entry) => entry.credential === undefined && allowed(slug, entry))
+        .filter(
+          (entry) =>
+            entry.credential === undefined &&
+            !isListedAssignmentRoute(plan, entry) &&
+            allowed(slug, entry),
+        )
         .map((entry) => ({
           provider: entry.provider,
           providerName: entry.providerName,
