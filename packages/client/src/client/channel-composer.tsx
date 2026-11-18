@@ -616,6 +616,7 @@ export function ChannelComposer({
     );
     setSkillQuery(undefined);
     setSlashQuery(undefined);
+    setSessionQuery(undefined);
     requestedCaret.current = selected.caret;
     requestAnimationFrame(() => {
       const editor = richRef.current;
@@ -1040,6 +1041,7 @@ export function ChannelComposer({
           deleted.value,
           rebaseMentions(value, deleted.value, mentions),
           rebaseChannelRefs(value, deleted.value, channelRefs),
+          rebaseSkills(value, deleted.value, skills),
         );
         setMentionQuery(undefined);
         setChannelQuery(undefined);
@@ -1584,6 +1586,12 @@ export function ChannelComposer({
                     : composerSlashQuery(next, event.currentTarget.selectionStart),
                 );
                 setShortcutIndex(0);
+                const nextSessionQuery =
+                  sessionOptions.length === 0 && onSessionMenu === undefined
+                    ? undefined
+                    : activeSessionQuery(next, event.currentTarget.selectionStart);
+                if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
+                setSessionQuery(nextSessionQuery);
                 const nextMentions = rebaseMentions(value, next, mentions);
                 const nextRefs = rebaseChannelRefs(value, next, channelRefs);
                 onChange(next, nextMentions, nextRefs);
