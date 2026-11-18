@@ -321,8 +321,29 @@ const ASSIGNMENT_REPORT_CONTRACT = `## Report delivery contract
 Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished. When you need an answer or decision to continue, report with expects_reply true (or state blocked or waiting-human) and say exactly what you need, instead of guessing or ending silently.
 A text-only task, a request for a Markdown final answer, or a prohibition on work tools does not replace this internal reply transport. Keep those work restrictions: do not run commands, inspect files, delegate, or contact a Channel unless the task permits it. Put the requested Markdown in the report tool, not just a final text reply. Never claim delivery until the tool succeeds. 中文：纯文本 final 不会提交报告；只做文字分析或禁止工作工具时，仍须通过 report_to_orchestrator 提交结果。`;
 
-const MISSING_REPORT_NUDGE =
-  '[Host] Your turn ended without report_to_orchestrator, so the Orchestrator has not received anything. Call report_to_orchestrator now with your actual outcome and the requested result in summary. Do not redo the work.';
+const UNREPORTED_FINAL_PREFIX =
+  '[Host: this Assignment ended its turn without report_to_orchestrator. Its final reply is forwarded below as the result; inspect the Assignment or send it a request if this is not the result you asked for.]';
+
+function finalAssistantText(handle: AgentHandle, fromSeq: SessionLogOffset): string | undefined {
+  const event = handle.agent.session
+    .snapshotEvents(fromSeq)
+    .findLast((candidate) => candidate.type === 'assistant/message');
+  const content = (event?.data as { message?: { content?: unknown } } | undefined)?.message
+    ?.content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .flatMap((block: unknown) =>
+      typeof block === 'object' &&
+      block !== null &&
+      (block as { type?: unknown }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+        ? [(block as { text: string }).text]
+        : [],
+    )
+    .join('\n')
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
 
 function assignmentMessage(text: string) {
   return createUserMessage({
@@ -1229,28 +1250,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.completedTurn?.(completion);
       if (run.resume === true) return;
       if (!entry.reported) {
-        const nudgeFrom = handle.agent.session.seq;
-        run.beginTurn?.();
-        handle.agent.followup(assignmentMessage(MISSING_REPORT_NUDGE));
-        const again = await Promise.race([handle.agent.whenIdle(), abandonable.abandoned]);
-        if (
-          again === 'abandoned' ||
-          this.#stopping.has(run.sessionId) ||
-          this.#stoppedBots.has(run.bot.slug)
-        )
-          return;
-        run.completedTurn?.(
-          requireCompletedTurn(
-            handle,
-            nudgeFrom,
-            run.cancelledTurn,
-            run.failedTurn,
-            (code) => {
-              if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
-            },
-            this.#turnRefusal?.(run.sessionId),
-          ),
-        );
+        const text = finalAssistantText(handle, fromSeq);
+        if (text !== undefined) {
+          await run.report(
+            { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+            { turn: completion.turn },
+          );
+          entry.reported = true;
+        }
       }
       if (!entry.reported) {
         throw new Error('Assignment finished without report_to_orchestrator');
