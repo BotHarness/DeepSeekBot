@@ -474,10 +474,13 @@ export async function runModelsUsage(
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    const { orchestrator, orchestratorGroupId, ...rest } = plan;
     return rpc(full ? 'modelPlanSet' : 'modelPlanAssignmentsSet', {
       slug: target,
       expectedRevision,
-      ...plan,
+      ...rest,
+      ...(orchestrator == null ? {} : { orchestrator }),
+      ...(orchestratorGroupId == null ? {} : { orchestratorGroupId }),
       ...mode,
     });
   }
