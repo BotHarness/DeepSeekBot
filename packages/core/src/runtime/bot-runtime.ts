@@ -103,7 +103,11 @@ import {
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import type { BotCreatePreview } from '../workspaces/tool-approval.js';
+import type {
+  BotCreatePreview,
+  ToolApprovalOrigin,
+  ToolApprovalOriginQuery,
+} from '../workspaces/tool-approval.js';
 import {
   MemoryAcceptError,
   type MemoryChangeDelta,
@@ -876,6 +880,8 @@ export interface BotRuntime {
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
   askChannel?(sessionId: string): string | undefined;
+  toolApprovalOrigin?(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined;
+  hasDirectToolInvocation?(query: ToolApprovalOriginQuery): boolean;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -1795,7 +1801,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
-  readonly #activeDirectTools = new Map<string, { botSlug: string; approvalChannelId?: string }>();
+  readonly #activeDirectTools = new Map<
+    string,
+    { botSlug: string; agentSessionId: string; approvalHuman?: HumanContext }
+  >();
   readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
   readonly #tob: TobService | undefined;
@@ -4601,15 +4610,40 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   askChannel(sessionId: string): string | undefined {
+    return this.#askOrigin({ sessionId })?.channelId;
+  }
+
+  hasDirectToolInvocation({ sessionId, callId }: ToolApprovalOriginQuery): boolean {
+    return this.#activeDirectTools.get(callId)?.agentSessionId === sessionId;
+  }
+
+  toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
+    return this.#askOrigin(query);
+  }
+
+  #askOrigin({
+    sessionId,
+    callId,
+  }: {
+    sessionId: string;
+    callId?: string;
+  }): ToolApprovalOrigin | undefined {
     const owner = this.#ownership.resolve(sessionId);
     if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
-    const direct = this.#activeDirectTools.get(sessionId);
-    if (direct?.botSlug === owner.botSlug) {
+    const direct = this.#activeDirectTools.get(callId ?? sessionId);
+    if (direct !== undefined) {
+      if (direct.botSlug !== owner.botSlug || direct.agentSessionId !== sessionId) return undefined;
       const channel =
-        direct.approvalChannelId === undefined
+        direct.approvalHuman === undefined
           ? undefined
-          : this.#channels.get(direct.approvalChannelId);
-      return channel?.type === 'dm' && channel.botSlug === owner.botSlug ? channel.id : undefined;
+          : this.#channels.getOrCreateDm(
+              direct.approvalHuman,
+              owner.botSlug,
+              this.#registry.get(owner.botSlug)?.displayName,
+            );
+      return channel?.type === 'dm' && channel.botSlug === owner.botSlug
+        ? { kind: 'direct', channelId: channel.id }
+        : undefined;
     }
     const turn = this.#turnSources.get(owner.botSlug);
     if (
@@ -4621,8 +4655,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const channel = this.#channels.get(turn.inboundChannelId);
     if (channel === undefined) return undefined;
     if (channel.type === 'group')
-      return channel.members.includes(owner.botSlug) ? channel.id : undefined;
-    return channel.botSlug === owner.botSlug ? channel.id : undefined;
+      return channel.members.includes(owner.botSlug)
+        ? { kind: 'turn', channelId: channel.id }
+        : undefined;
+    return channel.botSlug === owner.botSlug ? { kind: 'turn', channelId: channel.id } : undefined;
   }
 
   botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
@@ -5313,20 +5349,21 @@ class BotRuntimeImplementation implements BotRuntime {
         observeReads: false,
       }),
     };
-    let approvalChannelId: string | undefined;
+    let approvalHuman: HumanContext | undefined;
     if (
+      PRIVATE_INPUT_TOOLS.has(tool) ||
       hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
       toolEffects(tool, args)?.authority === 'management'
     ) {
-      if (human !== undefined)
-        approvalChannelId = this.#channels.getOrCreateDm(human, botSlug, bot.displayName)?.id;
-      this.#ownership.claim({
-        sessionId,
-        botSlug,
-        rootRole: 'orchestrator',
-        provenance: 'created',
-        at: this.#now().toISOString(),
-      });
+      approvalHuman = human;
+      if (!PRIVATE_INPUT_TOOLS.has(tool))
+        this.#ownership.claim({
+          sessionId,
+          botSlug,
+          rootRole: 'orchestrator',
+          provenance: 'created',
+          at: this.#now().toISOString(),
+        });
     }
     const started = this.#now();
     const record = (outcome: 'ok' | 'error', result: string) => {
@@ -5342,18 +5379,18 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
+    const executionParentSessionId = delegation
+      ? parentSessionId
+      : this.currentOrchestratorSessionId(botSlug);
     this.#activeDirectTools.set(sessionId, {
       botSlug: bot.slug,
-      ...(approvalChannelId === undefined ? {} : { approvalChannelId }),
+      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool)
+        ? (executionParentSessionId ?? sessionId)
+        : sessionId,
+      ...(approvalHuman === undefined ? {} : { approvalHuman }),
     });
     try {
-      const result = await runDirect(
-        run,
-        tool,
-        args,
-        signal,
-        delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
-      );
+      const result = await runDirect(run, tool, args, signal, executionParentSessionId);
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
