@@ -19,6 +19,7 @@ import {
   type UsageSummary,
 } from './model-usage-charts.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 export function OverviewUsageView({
   actions,
   t,
@@ -107,10 +108,10 @@ export function OverviewUsageView({
     };
     refresh.current = (after) => void load(after);
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };

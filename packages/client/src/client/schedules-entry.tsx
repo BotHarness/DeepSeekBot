@@ -27,6 +27,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { IconButton } from './ds/icon-button.js';
+import { visibleInterval } from './visible-interval.js';
 
 export const SCHEDULE_COST_WARNING_SECONDS = 15 * 60;
 const REFRESH_MS = 30_000;
@@ -840,10 +841,10 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
     setLoadError(undefined);
     if (botSlug === undefined) return;
     void refresh(botSlug);
-    const timer = setInterval(() => void refresh(botSlug), REFRESH_MS);
+    const stopRefresh = visibleInterval(() => void refresh(botSlug), REFRESH_MS);
     const unsubscribe = subscribeMessagingDefaults(() => void refresh(botSlug));
     return () => {
-      clearInterval(timer);
+      stopRefresh();
       unsubscribe();
       active.current = undefined;
     };

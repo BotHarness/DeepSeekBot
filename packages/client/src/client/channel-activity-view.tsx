@@ -14,6 +14,7 @@ import { OverviewUsageView } from './overview-usage-view.js';
 import { ChannelActivityChart } from './channel-activity-chart.js';
 import { defaultStorage, type ConfigStorage } from './roster-config.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 
 export function ChannelActivityView({
   actions,
@@ -71,10 +72,10 @@ export function ChannelActivityView({
     };
     refresh.current = () => void load();
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };

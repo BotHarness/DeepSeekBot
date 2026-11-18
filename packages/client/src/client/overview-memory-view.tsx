@@ -14,6 +14,7 @@ import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useProfileChartTokens } from './profile-chart-theme.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 
 function MemoryTrend({
   days,
@@ -132,10 +133,10 @@ export function OverviewMemoryView({
     };
     refresh.current = (more) => void load(more);
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };
