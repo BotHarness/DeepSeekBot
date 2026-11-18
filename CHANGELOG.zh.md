@@ -2493,7 +2493,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - 旧消息附件在 Host 启动时迁移到可恢复的独立真实文件身份，原消息菜单可打开当前目标；相同 hash 不会意外联动，带归属的旧读取跟随保存后的内容，不改写消息或唤醒 Bot（[#577](https://github.com/BotHarness/BotHarness/issues/577)，[迁移指南](docs/file-open.md)）。
 - 本地 IM 验证 Profile 可显式安装固定 Git 提交的已验证临时 dsh-im fork，并在启动前校验运行时代码；旧 npm 包仍不可用，生产启用仍需上游资格验证（[#117](https://github.com/BotHarness/BotHarness/issues/117)、[指南](docs/client-bridge.md#qualified-optional-im-provider)、[ADR-0104](docs/decisions/im-providers.md#adr-0104)）。
 
-- PersonaBot 模型用量现在按实际 provider/model 分别展示 Orchestrator、Assignment 和 DSH 子代理调用，计入失败和重试调用已报告的 token；未报告的用量仍显示未知（[#503](https://github.com/BotHarness/BotHarness/issues/503)、[ADR-0094](docs/adr/0094-retain-per-model-usage-after-session-deletion.md)）。
+- PersonaBot 模型用量现在按实际 provider/model 分别展示 Orchestrator、Assignment 和 DSH 子代理调用，计入失败和重试调用已报告的 token；未报告的用量仍显示未知（[#503](https://github.com/BotHarness/BotHarness/issues/503)、[ADR-0094](docs/decisions/persistence.md#adr-0094)）。
 
 - Human Inbox 在个人视图中展示群聊 Bot 对本地 Human 的直接回复，可按 Bot／Channel 过滤、准确定位来源并原位回复；附近消息按时间排列，显示作者、头像和时间，个人回复与其他未读消息共用去重后的权威未读总数（[#548](https://github.com/BotHarness/BotHarness/issues/548)）。
 - PersonaBot 资料页新增 IM 账号绑定、明确目标授权、持久发送记录和未知结果提示；外部发送要求兼容的公开 dsh-im 契约，旧接口保持禁用（[#117](https://github.com/BotHarness/BotHarness/issues/117)、[ADR-0101](docs/decisions/im-providers.md#adr-0101)）。
@@ -2508,11 +2508,11 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - Group Channel 现在可从聊天头部打开群 Profile，查看已提交消息的每日热力图与按作者分组的活跃度；固定的群卡片显示在弹层中（[#424](https://github.com/BotHarness/BotHarness/issues/424)、[ADR-0085](docs/adr/0085-personabot-profile-is-a-popover-and-a-channel-body-view.md)）。
 - 浏览器观察现在覆盖无角色的可点击目标（图标、自定义按钮，例如 B 站发布框控件）：它们以 `clickable` 角色获得 ref；ref 点击会在元素中心派发真实输入事件；`browser_click` 还支持从 1:1 CSS 像素截图读取的视口 x/y 坐标，用于完全没有 ref 的目标（[#526](https://github.com/BotHarness/BotHarness/issues/526)）。
 - PersonaBot 可以分配到命名的 Bot Browser profile（默认：共享 profile）；同一 profile 上的 Bot 共享登录态，不同 profile 会按需启动为独立浏览器并各自空闲停止。Browser entry 提供 Profile 输入框修改分配（[#497](https://github.com/BotHarness/BotHarness/issues/497)、[ADR-0096](docs/decisions/browser.md#adr-0096)）。
-- Human 可在 PersonaBot Profile 中创建本地模型预设并应用为该 Bot 的独立计划；Orchestrator 从下一轮起使用所选的 provider、模型和 reasoning effort（[#498](https://github.com/BotHarness/BotHarness/issues/498)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)）。
-- Human 可以修订可复用模型预设供今后应用，在 Profile 的紧凑控件中切换某个 PersonaBot 的预设，或把该 Bot 的 Orchestrator 选择保存为自定义快照。已有 Bot 快照保留原路由，过期的预设编辑会被拒绝，每次应用或自定义修改都会增加 Bot 计划修订号（[#501](https://github.com/BotHarness/BotHarness/issues/501)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)）。
-- Human 可在 PersonaBot Profile 中设置新建 Assignment 可用的模型和 reasoning effort，包括每个模型的默认 effort 与整体默认模型。Orchestrator 可为新 Assignment 选择允许的路由，其 DSH Session 使用该路由；超出 Bot 计划的选择会在启动工作前被拒绝（[#504](https://github.com/BotHarness/BotHarness/issues/504)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)）。
-- Human 切换 Bot 预设后，已有 Assignment 保留原模型；Orchestrator 可显式选择当前 Bot 计划允许的路由，在该会话下一次 DSH 请求生效，未获允许的选择不会改变原路由（[#506](https://github.com/BotHarness/BotHarness/issues/506)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)）。
-- PersonaBot 启动 DSH 子代理时，默认继承仍获允许的父会话模型与 effort。如果旧 Assignment 的路由已被当前 Bot 计划排除，新子代理改用当前 Assignment 默认值，并告知父 Agent；越界或不可用的选择会在创建子代理前失败（[#508](https://github.com/BotHarness/BotHarness/issues/508)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)）。
+- Human 可在 PersonaBot Profile 中创建本地模型预设并应用为该 Bot 的独立计划；Orchestrator 从下一轮起使用所选的 provider、模型和 reasoning effort（[#498](https://github.com/BotHarness/BotHarness/issues/498)、[ADR-0093](docs/decisions/persistence.md#adr-0093)）。
+- Human 可以修订可复用模型预设供今后应用，在 Profile 的紧凑控件中切换某个 PersonaBot 的预设，或把该 Bot 的 Orchestrator 选择保存为自定义快照。已有 Bot 快照保留原路由，过期的预设编辑会被拒绝，每次应用或自定义修改都会增加 Bot 计划修订号（[#501](https://github.com/BotHarness/BotHarness/issues/501)、[ADR-0093](docs/decisions/persistence.md#adr-0093)）。
+- Human 可在 PersonaBot Profile 中设置新建 Assignment 可用的模型和 reasoning effort，包括每个模型的默认 effort 与整体默认模型。Orchestrator 可为新 Assignment 选择允许的路由，其 DSH Session 使用该路由；超出 Bot 计划的选择会在启动工作前被拒绝（[#504](https://github.com/BotHarness/BotHarness/issues/504)、[ADR-0093](docs/decisions/persistence.md#adr-0093)）。
+- Human 切换 Bot 预设后，已有 Assignment 保留原模型；Orchestrator 可显式选择当前 Bot 计划允许的路由，在该会话下一次 DSH 请求生效，未获允许的选择不会改变原路由（[#506](https://github.com/BotHarness/BotHarness/issues/506)、[ADR-0093](docs/decisions/persistence.md#adr-0093)）。
+- PersonaBot 启动 DSH 子代理时，默认继承仍获允许的父会话模型与 effort。如果旧 Assignment 的路由已被当前 Bot 计划排除，新子代理改用当前 Assignment 默认值，并告知父 Agent；越界或不可用的选择会在创建子代理前失败（[#508](https://github.com/BotHarness/BotHarness/issues/508)、[ADR-0093](docs/decisions/persistence.md#adr-0093)）。
 - PersonaBot 现在可用 `browser_upload` 把宿主文件附到页面上（可选先点击打开选择器的控件）：原生对话框被拦截，页面文件输入收到该路径；审计只记录文件名（[#491](https://github.com/BotHarness/BotHarness/issues/491)）。
 - `browser_screenshot` 现在会把截图保存到浏览器数据目录并返回其路径，只保留最新的若干张（[#494](https://github.com/BotHarness/BotHarness/issues/494)）。
 - 记忆演化现在提供包含分支、提交、暂存区和工作树状态的审计恢复检查点。Human 确认后可恢复，并完整归档原仓库；检查点区分“何时被观察”与 Git 内容作者（[#115](https://github.com/BotHarness/BotHarness/issues/115)、[ADR-0097](docs/adr/0097-memory-recovery-checkpoints-separate-provenance-from-git-authorship.md)）。
@@ -2681,7 +2681,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - BotHarness 本地开发现支持 DSH 0.1.7 RC2 Web Profile：Client 改动可自动刷新，Host 改动有明确的重启步骤（[#265](https://github.com/BotHarness/BotHarness/issues/265)）。
 
 - Channel 的 Bot 消息气泡改用原先 Human 的灰色底；Human 气泡则使用 DSH 主题的反色中性色，浅色主题近黑、深色主题近白，文字、引用摘要和文件附件在两种主题下均保持可读（[#255](https://github.com/BotHarness/BotHarness/issues/255)）。
-- 运行日志有了持久家：profile 旁的轻量 `logs.db`（版本化 schema、最坏重建空库、5 万行 + 30 天懒清理、按 owner 域读），Computer 诊断 ring 现会写入它，排障可跨重启（[#240](https://github.com/BotHarness/BotHarness/issues/240)、[ADR-0063](docs/adr/0063-operational-log-database.md)）。
+- 运行日志有了持久家：profile 旁的轻量 `logs.db`（版本化 schema、最坏重建空库、5 万行 + 30 天懒清理、按 owner 域读），Computer 诊断 ring 现会写入它，排障可跨重启（[#240](https://github.com/BotHarness/BotHarness/issues/240)、[ADR-0063](docs/decisions/persistence.md#adr-0063)）。
 - Computer viewer 现在会把生命周期（挂载、画面阶段、重连、重试）自述进开发者诊断日志，之后排障可直接回放卡片行为，无需浏览器（[#234](https://github.com/BotHarness/BotHarness/issues/234)）。
 - Web 部署下 Computer 导出/导入改走浏览器：导出完成后**下载**按钮经保存对话框取回（流式），**选择归档文件…**把本地 `.tar` 流式上传导入——无需输入宿主路径，单次传输 token，流式上传需要 Chromium 系浏览器时会明确提示（[#212](https://github.com/BotHarness/BotHarness/issues/212)）。
 - Computer 支持专业 Linux 部署的 opt-in `dataDir`：持久存储 bind mount 到配置目录而不再用命名卷；授权页显示解析后的存储位置与 SQLite 共享文件系统风险说明；非 Linux 上该配置会被忽略并给出可见原因；修改它会重建已停止的容器，运行中的容器不受影响并给出迁移提示——旧数据保留原处，需手工迁移（[#155](https://github.com/BotHarness/BotHarness/issues/155)）。
@@ -2911,7 +2911,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 
 - 确定 Memory 及后续 Workspace／消息附件的原生文件打开菜单设计：明确操作所在 Host，附件作为可直接编辑的真实目标文件，不保留附件版本或因修改唤醒 Bot；附件迁移仍属后续切片（[ADR-0100](docs/adr/0100-file-open-actions-target-real-host-files.md)、[#572](https://github.com/BotHarness/BotHarness/issues/572)）。
 - 明确活动中心由运行总览与个人 Human Inbox 组成，后者覆盖 Channel 未读、提及及卡片内回应；Human 在群聊中的「@所有 Bot」沿用普通直接提及的投递语义。运行时行为未改变（[#126](https://github.com/BotHarness/BotHarness/issues/126)、[#541](https://github.com/BotHarness/BotHarness/issues/541)、[#542](https://github.com/BotHarness/BotHarness/issues/542)、[ADR-0098](docs/adr/0098-activity-center-separates-overview-and-human-inbox.md)、[ADR-0099](docs/decisions/messaging.md#adr-0099)）。
-- 明确部署本地的模型预设在应用到 PersonaBot 时生成独立快照，以及按实际模型统计的 token 用量在普通 Session 删除后保留；运行时功能将由后续切片实现（[#488](https://github.com/BotHarness/BotHarness/issues/488)、[#39](https://github.com/BotHarness/BotHarness/issues/39)、[ADR-0093](docs/adr/0093-model-presets-are-local-snapshots.md)、[ADR-0094](docs/adr/0094-retain-per-model-usage-after-session-deletion.md)）。
+- 明确部署本地的模型预设在应用到 PersonaBot 时生成独立快照，以及按实际模型统计的 token 用量在普通 Session 删除后保留；运行时功能将由后续切片实现（[#488](https://github.com/BotHarness/BotHarness/issues/488)、[#39](https://github.com/BotHarness/BotHarness/issues/39)、[ADR-0093](docs/decisions/persistence.md#adr-0093)、[ADR-0094](docs/decisions/persistence.md#adr-0094)）。
 - 将 in-harness Client 的 Channel 连续阅读、名册移动、DSH shell 集成及 HMR 交互约束整理成独立文档；运行时行为不变（[指南](docs/architecture/client-interaction-contracts.md)、[#452](https://github.com/BotHarness/BotHarness/issues/452)）。
 
 - 记录 Browser use 设计：profile 级托管的 Bot Browser，配 per-PersonaBot 的 Browser Access、按会话的 Browser Authorization、脱敏 Browser Audit 与窗口级 Bot Tab；运行时行为由 tracer 交付（[#459](https://github.com/BotHarness/BotHarness/issues/459)、[ADR-0089](docs/decisions/browser.md#adr-0089)、[ADR-0090](docs/decisions/browser.md#adr-0090)、[ADR-0091](docs/decisions/browser.md#adr-0091)）。

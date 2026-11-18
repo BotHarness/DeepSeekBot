@@ -71,7 +71,7 @@ Q9 与 Q11 确认后，已将 Avatar Family（形象家族）写入双语 CONTEX
 
 - 当前统一 `PersonaBotAvatar` 已覆盖 Blobatar 与图片。Blobatar markup 来自受控生成器，图片失败则回退；外层接收 state/effect/activity，并提供可访问说明。见 [已合并 Avatar renderer](https://github.com/BotHarness/BotHarness/blob/c943506bf58da24aa339cc14e3c6af548ae396d6/packages/client/src/client/avatar.tsx#L130)。
 - 自定义图片是 `avatar` 字段中的有界 PNG/JPEG/WebP data URL，解码上限 128 KiB，有 magic-byte 嗅探；不接受 SVG 和远端 URL。读取通过认证 route 与 ETag，不把 base64 塞入 roster 刷新。见 [ADR-0086](../adr/0086-custom-personabot-avatars-are-bounded-data-urls.md)、[已合并 validator](https://github.com/BotHarness/BotHarness/blob/c943506bf58da24aa339cc14e3c6af548ae396d6/packages/core/src/bots/persona-bot.ts#L71)、[#58（CLOSED）](https://github.com/BotHarness/BotHarness/issues/58)。捏脸配方不能冒充这个图片字段已支持的格式。
-- 当前 Registry 仍读写 `bot.json` 并原子替换。见 [Registry](https://github.com/BotHarness/BotHarness/blob/c943506bf58da24aa339cc14e3c6af548ae396d6/packages/core/src/bots/registry.ts#L103)。[ADR-0041](../adr/0041-one-database-owns-botharness-operational-state.md) 是 operational database 的目标边界；不能在研究中把目标 SQLite 迁移写成现有事实，也不能擅自新建一套配方 store。
+- 当前 Registry 仍读写 `bot.json` 并原子替换。见 [Registry](https://github.com/BotHarness/BotHarness/blob/c943506bf58da24aa339cc14e3c6af548ae396d6/packages/core/src/bots/registry.ts#L103)。[ADR-0041](../decisions/persistence.md#adr-0041) 是 operational database 的目标边界；不能在研究中把目标 SQLite 迁移写成现有事实，也不能擅自新建一套配方 store。
 - Profile view 现有 64px 头像用于编辑；并非已有大型角色舞台，甚至这里不传活动 state。[Profile view](https://github.com/BotHarness/BotHarness/blob/c943506bf58da24aa339cc14e3c6af548ae396d6/packages/client/src/client/personabot-profile.tsx#L288)。小／大形象同等重要仍需要具体 Human 可检视的构图验证。
 
 ### 执行与 attention

@@ -5,7 +5,7 @@ Date: 2026-09-24
 
 # Agent log access needs no dedicated tool
 
-Agents read the operational log database (`logs.db`, ADR-0063) with their own
+Agents read the operational log database (`logs.db`, [ADR-0063](../decisions/persistence.md#adr-0063)) with their own
 shell and SQLite abilities — no model-visible tool is built for it, and
 Developer Mode never gates their reads.
 
@@ -33,8 +33,8 @@ Developer Mode never gates their reads.
    read-only open, WAL handling, the `LogQuery`-equivalent SQL shapes, and
    result caps. Agents read the guide when they need it; nothing log-related
    enters prompts by default.
-5. **Amends ADR-0063 §7.** That section foresaw "the future model-visible
-   read tool enforces the same rule". There is no such tool, and no such
+5. **Extends the [operational log decision](../decisions/persistence.md#adr-0063).**
+   The original ADR anticipated a model-visible tool that enforced the same rule. There is no such tool, and no such
    enforcement on the agent path. The `owner` read-boundary statement stands
    for surfaces that choose to enforce it (viewer filtering, future
    Human-facing scopes) — not as a property of the database itself.

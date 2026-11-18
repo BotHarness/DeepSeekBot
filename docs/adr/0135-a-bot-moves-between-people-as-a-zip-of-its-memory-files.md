@@ -23,7 +23,7 @@ BotHarness drops platform accounts for good. The account-based second phase of t
 
 - **Accounts and hosted uploads** (ADR-0131 Phase 2): rejected. It needs auth, email, storage and moderation for a feature that file sharing already covers.
 - **Always include Git history:** rejected. Most shares only need the files, history makes the zip larger, and it can carry content the Human deleted on purpose.
-- **Revive PersonaBot Export / SoulSnapshot** ([ADR-0040](0040-personabot-export-wraps-soul-and-optional-operational-facets.md), ADR-0020): rejected. A Bot Zip is only Memory files plus the portable descriptor; it has no schema-versioned facets or database state. A whole Profile still moves through Profile Backup (ADR-0042).
+- **Revive PersonaBot Export / SoulSnapshot** ([retired package decisions](../decisions/persistence.md#adr-0040)): rejected. A Bot Zip is only Memory files plus the portable descriptor; it has no schema-versioned facets or database state. A whole Profile still moves through [Profile Backup](../decisions/persistence.md#adr-0042).
 
 ## Consequences
 

@@ -54,7 +54,7 @@ unknown or extra row, newer generation, or absent post-legacy ledger enters reco
 `upgrade-required`. The message names the first differing generation and database/plan ids. The
 owner never repairs existing history. A pre-ledger database cannot reveal which branch produced
 it; its generation is accepted according to the historical release order exactly once. All
-validation and migration failures preserve the active database. See [ADR-0341](../adr/0341-named-schema-migrations-have-an-append-only-ledger.md).
+validation and migration failures preserve the active database. See [ADR-0341](../decisions/persistence.md#adr-0341).
 
 ## Performance
 

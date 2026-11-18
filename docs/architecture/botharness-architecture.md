@@ -293,7 +293,7 @@ flowchart TB
 | Assignments      | Assignment Directory、Assignment Request/Delivery Intent、capacity admission、report/lifecycle routing  | DSH transcript、Subagent runtime         |
 | Usage            | per-PersonaBot／执行类型／实际模型的保留日统计、usage read model 契约                                   | DSH Session 日志、价格表、金额总账       |
 | Workspace Grants | Human 对 DSH Workspace 的授权与撤销、Assignment 创建时的权限快照                                        | DSH Workspace registry、Session 权限实现 |
-| Portability      | SoulSnapshot、PersonaBot Export、Profile Backup/Restore/Transfer 协调                                   | credentials、可执行插件、DSH 私有格式    |
+| Portability      | [Profile Backup 与 Managed Restore](../decisions/persistence.md#adr-0042)                               | credentials、可执行插件、DSH 私有格式    |
 | Read models      | 查询、分页、PersonaBot Activity Projection、Activity、UI-friendly projection                            | 业务事实与写入规则                       |
 
 `botharness.db` 是 BotHarness core 的物理事务宿主，不是共享的 generic repository。Memory 内容与 commit 由 optional Git-backed Provider 掌管；每个 deep module 只通过自己的接口拥有表和不变量，跨模块流程由显式 command/port 协调。
@@ -377,9 +377,9 @@ flowchart TD
   Rebuild --> Ready["Enable admissions, wakes and commands"]
 ```
 
-一个 DSH profile 同时只允许一个 BotHarness writer。所有 module migration 合并成单调递增的 Schema Generation；迁移只在临时副本上完成，校验后原子替换。打开、迁移或页完整性检查失败时进入 recovery mode，不回退到 NDJSON、storage domain 或内存写入。外部工具留下的外键孤儿行不阻止挂载，只记录在诊断和启动日志中；迁移不得新增孤儿（ADR-0258）。
+一个 DSH profile 同时只允许一个 BotHarness writer。所有 module migration 合并成单调递增的 Schema Generation；迁移只在临时副本上完成，校验后原子替换。打开、迁移或页完整性检查失败时进入 recovery mode，不回退到 NDJSON、storage domain 或内存写入。外部工具留下的外键孤儿行不阻止挂载，只记录在诊断和启动日志中；迁移不得新增孤儿（[ADR-0258](../decisions/persistence.md#adr-0258)）。
 
-Module migrations use stable ids in an append-only list; generation is computed from position. The Operational Database Owner writes `schema_migrations(generation, id)` alongside each staged migration and verifies the complete applied prefix on every open. Pre-ledger Profiles through generation 153 are backfilled once by the historical execution order. Divergent or unknown history fails with `upgrade-required` without repair. The committed id/body-hash snapshot protects merged migrations; append conflicts retain both entries in merge order ([ADR-0341](../adr/0341-named-schema-migrations-have-an-append-only-ledger.md), [workflow](../agents/schema-migrations.md)).
+Module migrations use stable ids in an append-only list; generation is computed from position. The Operational Database Owner writes `schema_migrations(generation, id)` alongside each staged migration and verifies the complete applied prefix on every open. Pre-ledger Profiles through generation 153 are backfilled once by the historical execution order. Divergent or unknown history fails with `upgrade-required` without repair. The committed id/body-hash snapshot protects merged migrations; append conflicts retain both entries in merge order ([ADR-0341](../decisions/persistence.md#adr-0341), [workflow](../agents/schema-migrations.md)).
 
 ## 4 · Messaging 事务与外部副作用
 
@@ -951,7 +951,7 @@ Purge Ledger 是应用定义的 Host 深模块权威，必须单调持久并位�
 
 ### Channel 内容清除运行路径（#897）
 
-Generation 70 的应用定义 `ContentPurge` Host owner 通过已有 Typert/API Gateway 提供已结束 Group 的只读历史、所选 Source Event 预览和单独确认；不注册模型 Tool。已结束 Group 的身份保持占用，同名新群聊不覆盖旧历史。本地和外部来源可以共享到仍活跃的会话，但全部位置在对应 revision 上均须仍在 Human 当前可读范围内。普通删除只结束所选 Channel 的路由／摄入，保留其他 Channel／Inbox 目标及外部会话。[ADR-0146](../adr/0146-content-purge-retains-file-selectors-and-settles-issued-effects.md) 记录文件、效果与恢复边界。 Memory 通过自己的查询和 retained／deleted 仓库定位提供已记录的来源衍生提交；Workspace Grant 提供可能的副本位置。这些引用参与确认前重验证，不写入清除账本，也不声称扫描过未追踪的文件或导出。
+Generation 70 的应用定义 `ContentPurge` Host owner 通过已有 Typert/API Gateway 提供已结束 Group 的只读历史、所选 Source Event 预览和单独确认；不注册模型 Tool。已结束 Group 的身份保持占用，同名新群聊不覆盖旧历史。本地和外部来源可以共享到仍活跃的会话，但全部位置在对应 revision 上均须仍在 Human 当前可读范围内。普通删除只结束所选 Channel 的路由／摄入，保留其他 Channel／Inbox 目标及外部会话。[ADR-0146](../decisions/persistence.md#adr-0146) 记录文件、效果与恢复边界。 Memory 通过自己的查询和 retained／deleted 仓库定位提供已记录的来源衍生提交；Workspace Grant 提供可能的副本位置。这些引用参与确认前重验证，不写入清除账本，也不声称扫描过未追踪的文件或导出。
 
 独立 `botharness/purge/ledger.db` 由同一 Host 生命周期拥有，SQLite FULL 同步事务先接受无正文的事件身份、作者／时间／因果、Human 审计及托管文件选择器，再移除运行正文；该文件不属于 `botharness.db` 快照。最小墓碑及 placement 保留，secure-delete 后截断 WAL；应用失败关闭运行数据库进入 recovery，启动先应用事实再创建 Messaging Consumers。Attachment owner 重查全部保留来源、迁移／获取绑定和 Outbox 引用后，仅移除已审阅的独占当前文件和 legacy CAS；共享文件保留，受阻清理可见且重启继续。待投递意图脱敏并取消，已发出请求在活跃 Host 中按真实证据结算，冷中断保持结果未知。持久栅栏和原生 Tool Guard 拒绝重复回填、旧命令与新的内容依赖效果。
 
@@ -1353,7 +1353,7 @@ The Expo app owns a device-local default and optional saved-Host-ID/Channel-ID o
 
 ### Anonymous Host token snapshots (#4255)
 
-The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../adr/0344-token-telemetry-is-a-bounded-snapshot-of-the-usage-projection.md) and [the query contract](../token-telemetry.md).
+The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../decisions/persistence.md#adr-0344) and [the query contract](../token-telemetry.md).
 
 ### Per-turn Context Source telemetry
 
@@ -1622,7 +1622,7 @@ admission seam and retains its strict `running + working` execution guard.
 
 ### Profile Backup compatibility (ADR-0257)
 
-Profile Backup owns archive interpretation behind the existing preview/export/inspect/Managed Restore interface. Historical v1 archives remain readable. New v2 archives record the running Host and plugin-resolved DSH tools versions separately, with explicit unknown values; release labels are provenance, not data compatibility gates. Format version, Schema Generation and Host-owned Dependency Contracts govern readability. The operational database owner performs staged migrations; Activation Readiness separately gates execution. A required core contract cannot be removed or downgraded by the archive. Web and CLI adapters preserve refusal reasons and the UI displays each failure beside its operation. See [ADR-0257](../adr/0257-profile-backup-compatibility-is-owned-by-the-data-contract.md).
+Profile Backup owns archive interpretation behind the existing preview/export/inspect/Managed Restore interface. Historical v1 archives remain readable. New v2 archives record the running Host and plugin-resolved DSH tools versions separately, with explicit unknown values; release labels are provenance, not data compatibility gates. Format version, Schema Generation and Host-owned Dependency Contracts govern readability. The operational database owner performs staged migrations; Activation Readiness separately gates execution. A required core contract cannot be removed or downgraded by the archive. Web and CLI adapters preserve refusal reasons and the UI displays each failure beside its operation. See [ADR-0257](../decisions/persistence.md#adr-0257).
 
 ### Explicit iPhone request status
 
