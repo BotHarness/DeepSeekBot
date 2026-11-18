@@ -279,7 +279,7 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
-  it("makes Tob's own files folder writable once, including a read-only Grant from earlier builds (#4580)", async () => {
+  it("starts Tob's own files folder writable and keeps a read-only Grant read-only (#4580)", async () => {
     let workspace: DshWorkspace | undefined;
     const f = fixture(undefined, {
       ensureTobWorkspace: async (path) => {
@@ -291,20 +291,7 @@ describe('Tob canonical identity and settings', () => {
     try {
       const home = await f.core.tob.ensure();
       const grant = f.core.grants.list(home.botSlug)[0]!;
-      attachOperationalModule(f.core.operationalDatabase, 'tob-legacy-grant-test').transaction(
-        (db) =>
-          db
-            .prepare(
-              'UPDATE workspace_grants SET orchestrator_write = 0, write_revision = 0 WHERE id = ?',
-            )
-            .run(grant.id),
-        ['workspace-grants'],
-      );
-      await f.core.tob.ensure();
-      expect(f.core.grants.requireActive(home.botSlug, grant.id)).toMatchObject({
-        orchestratorWrite: true,
-        writeRevision: 1,
-      });
+      expect(grant).toMatchObject({ workspacePath: home.workspacePath, orchestratorWrite: true });
       f.core.grants.setOrchestratorWrite(home.botSlug, grant.id, false);
       await f.core.tob.ensure();
       expect(f.core.grants.list(home.botSlug)).toHaveLength(1);

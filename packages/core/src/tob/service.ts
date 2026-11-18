@@ -113,14 +113,10 @@ export function createTobService(options: {
       const current = registry.get(slug);
       if (!current || current.ownerHumanId !== human.humanId || human.humanId !== ownerId())
         throw new TobError('tob-identity-unavailable');
-      let grant = options.grants.list(slug).find((entry) => entry.workspaceId === workspace.id);
-      grant ??= await options.grants.create(slug, workspace.id);
-      if (
-        grant.revokedAt === undefined &&
-        grant.orchestratorWrite !== true &&
-        (grant.writeRevision ?? 0) === 0
-      )
+      if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id)) {
+        const grant = await options.grants.create(slug, workspace.id);
         options.grants.setOrchestratorWrite(slug, grant.id, true);
+      }
     }
     const channel = channels.getOrCreateDm(human, slug, bot.displayName);
     if (!channel) throw new TobError('tob-channel-unavailable');
