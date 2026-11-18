@@ -237,7 +237,7 @@ it('refuses out-of-capability calls', async () => {
       });
       for (const path of ['.git/config', '../outside.md', '/etc/passwd'])
         expect(await call('tool_call', { name: 'memory_read', arguments: { path } })).toMatchObject(
-          { isError: true, text: expect.stringMatching(/Memory/u) },
+          { isError: true, text: expect.stringMatching(/memory/iu) },
         );
       expect(
         await call('tool_call', {
