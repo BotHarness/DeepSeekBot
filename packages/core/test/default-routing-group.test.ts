@@ -71,7 +71,7 @@ function setup() {
     ownership: createTestOwnership(),
     roster: createTestRosterStore(),
   });
-  return { root, database, routingGroups, methods, selection: () => selection };
+  return { root, database, registry, routingGroups, methods, selection: () => selection };
 }
 
 describe('The default model can be a Routing Group (#4500)', () => {
@@ -126,6 +126,42 @@ describe('The default model can be a Routing Group (#4500)', () => {
     ).toEqual({ ok: true, value: { revision: 0, groupRevision: 2 } });
     const catalog = await methods.modelCatalog({});
     expect(catalog.ok ? catalog.value.defaultGroupId : 'unread').toBeUndefined();
+  });
+  it('sets the default group from a Bot that then follows it', async () => {
+    const { methods, registry } = setup();
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const own = registry.setModelPlan(
+      'ada',
+      {
+        orchestrator: DEEPSEEK,
+        assignmentDefault: DEEPSEEK,
+        assignmentModels: [{ ...DEEPSEEK, allowedEfforts: [''], defaultEffort: '' }],
+      },
+      0,
+    );
+    if (!own.ok) throw new Error('plan');
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [
+        { kind: 'model', ...GO },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        slug: 'ada',
+        expectedRevision: own.record.modelPlan!.revision,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(registry.get('ada')?.modelPlan).toBeUndefined();
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id },
+    });
   });
 });
 

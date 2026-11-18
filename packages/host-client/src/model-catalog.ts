@@ -31,6 +31,7 @@ export interface ModelCatalogAnswer {
   models: ModelCatalogEntry[];
   default?: ModelCatalogRoute;
   defaultRevision?: number;
+  defaultGroupId?: string;
   favorites?: ModelChoice[];
   groups?: ModelCatalogGroup[];
 }
@@ -182,6 +183,9 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
     Number.isSafeInteger(defaultRevision) &&
     defaultRevision >= 0
       ? { defaultRevision }
+      : {}),
+    ...(typeof answer?.['defaultGroupId'] === 'string'
+      ? { defaultGroupId: answer['defaultGroupId'] }
       : {}),
     ...(Array.isArray(answer?.['favorites'])
       ? {

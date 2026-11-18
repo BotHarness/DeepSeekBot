@@ -131,7 +131,12 @@ export function catalogMenuItems(
         hint:
           group.restingUntil !== undefined
             ? restingHint(group.restingUntil, t)
-            : t('modelMenu.groupFront', { model: entry?.modelName ?? front?.model ?? '' }),
+            : t('modelMenu.groupFront', {
+                model:
+                  entry === undefined
+                    ? (front?.model ?? '')
+                    : `${entry.modelName} · ${entry.providerName}`,
+              }),
         disabled,
       };
     }),

@@ -239,10 +239,22 @@ export async function setModelGroup(
   state: ModelSettingsState,
   groupId: string,
 ): Promise<void> {
-  if (scope.kind !== 'bot') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
+  if (scope.kind === 'preset') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
   const group = state.groups?.find((entry) => entry.id === groupId);
   if (group === undefined || group.restingUntil !== undefined)
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  if (scope.kind === 'global') {
+    await client.call('onboardingModel', {
+      expectedRevision: 0,
+      ...(state.defaultRevision === undefined
+        ? {}
+        : { expectedDefaultRevision: state.defaultRevision }),
+      groupId,
+      globalDefault: true,
+    });
+    recordFeature('model:plan_update', { via: 'group' });
+    return;
+  }
   await client.call('modelPlanCustomize', {
     slug: scope.slug,
     expectedRevision: state.plan?.revision ?? state.revision,

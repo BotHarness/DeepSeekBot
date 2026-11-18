@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactElement } from 'react';
 
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon } from './model-brand.js';
@@ -40,7 +41,9 @@ export function ModelTrigger({
         label={current?.label ?? placeholder}
         placeholder={current === undefined}
         icon={
-          current?.model === undefined ? undefined : (
+          current?.group !== undefined ? (
+            <ChannelSidebarIcon name="git-branch" size={16} />
+          ) : current?.model === undefined ? undefined : (
             <ModelBrandIcon brand={current.brand} size={16} />
           )
         }

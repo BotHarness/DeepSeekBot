@@ -3759,7 +3759,6 @@ function buildBridgeMethods(
           !groupId.trim() ||
           source['route'] !== undefined ||
           source['globalDefault'] !== true ||
-          slug !== undefined ||
           deps.routingGroups === undefined)
       )
         return invalidInput('A default Routing Group replaces the route and needs global scope');

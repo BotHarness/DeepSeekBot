@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadBotModel } from '@botharness/host-client/bot-settings';
+import { currentModel, loadBotModel, loadGlobalModel } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
 import {
   inheritModel,
@@ -287,6 +287,37 @@ describe('native Model Plans and Presets', () => {
     await expect(
       setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'tired'),
     ).rejects.toThrow();
-    await expect(setModelGroup(client, { kind: 'global' }, loaded, 'daily')).rejects.toThrow();
+    await expect(
+      setModelGroup(client, { kind: 'preset', id: 'p' }, loaded, 'daily'),
+    ).rejects.toThrow();
+  });
+
+  it('sets the global default to a Routing Group and shows it for Bots that follow it (#4500)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models,
+      default: flash,
+      defaultRevision: 3,
+      defaultGroupId: 'daily',
+      groups: [daily],
+    }));
+    fake.methods.set('modelPresets', () => ({ presets: [] }));
+    const global = await loadGlobalModel(client);
+    expect(global.defaultGroupId).toBe('daily');
+    expect(currentModel(global).group).toBe('Daily');
+    fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 2 }));
+    await setModelGroup(client, { kind: 'global' }, global, 'daily');
+    expect(fake.calls.at(-1)).toEqual({
+      method: 'onboardingModel',
+      args: {
+        expectedRevision: 0,
+        expectedDefaultRevision: 3,
+        groupId: 'daily',
+        globalDefault: true,
+      },
+    });
+    fake.methods.set('modelPlan', () => ({ revision: 0 }));
+    expect(currentModel(await loadBotModel(client, 'qa')).group).toBe('Daily');
   });
 });

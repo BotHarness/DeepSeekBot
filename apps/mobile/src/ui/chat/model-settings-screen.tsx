@@ -294,8 +294,10 @@ function ModelsView({
         name: entry.modelName,
       })),
     );
-    const groups = picker === 'orchestrator' && scope.kind === 'bot' ? (value.groups ?? []) : [];
-    const currentGroup = groups.find((group) => group.id === value.plan?.orchestratorGroupId);
+    const groups = picker === 'orchestrator' && scope.kind !== 'preset' ? (value.groups ?? []) : [];
+    const currentGroupId =
+      scope.kind === 'global' ? value.defaultGroupId : value.plan?.orchestratorGroupId;
+    const currentGroup = groups.find((group) => group.id === currentGroupId);
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
     const rowKey = (row: PickerRow) =>
       row.kind === 'group'
@@ -484,7 +486,9 @@ function ModelsView({
                       group.restingUntil !== undefined
                         ? restingLabel(group.restingUntil)
                         : t.modelSettings.groupFront(
-                            front?.modelName ?? group.routes[0]?.model ?? '',
+                            front === undefined
+                              ? (group.routes[0]?.model ?? '')
+                              : `${front.modelName} · ${front.providerName}`,
                           )
                     }
                     tone={usable ? 'fg' : 'muted'}
@@ -628,13 +632,14 @@ function ModelsView({
           <PickerLink
             label={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator}
             detail={
-              scope.kind === 'bot' && value.plan?.orchestratorGroupId !== undefined
-                ? `${currentModel(value).group ?? value.plan.orchestratorGroupId} · ${routeLabel(value, routes.orchestrator)}`
+              scope.kind !== 'preset' && currentModel(value).group !== undefined
+                ? `${currentModel(value).group} · ${routeLabel(value, routes.orchestrator)}`
                 : routeLabel(value, routes.orchestrator)
             }
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
-          {value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (
+          {currentModel(value).group === undefined &&
+          value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (
             <PickerLink
               label={t.modelSettings.effort}
               detail={routes.orchestrator?.reasoningEffort ?? t.modelSettings.providerDefault}

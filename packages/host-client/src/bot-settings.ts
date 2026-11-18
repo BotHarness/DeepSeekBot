@@ -54,6 +54,7 @@ export interface BotModel {
   repair?: string;
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
+  defaultGroupId?: string;
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -211,7 +212,7 @@ export async function loadBotModel(
       return { presets: [] };
     }),
   ]);
-  const { models, default: fallback, favorites, groups } = catalogAnswer(catalog);
+  const { models, default: fallback, favorites, groups, defaultGroupId } = catalogAnswer(catalog);
   const current = record(state);
   const saved = plan(current?.['plan']);
   const repair = record(current?.['repair']);
@@ -222,6 +223,7 @@ export async function loadBotModel(
     ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
     ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
     presets: some(record(presets)?.['presets'], preset),
@@ -237,12 +239,20 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     client.call('modelCatalog', {}),
     client.call('modelPresets', {}),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups } = catalogAnswer(catalog);
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+  } = catalogAnswer(catalog);
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
     ...(favorites === undefined ? {} : { favorites }),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
@@ -279,7 +289,7 @@ export function currentModel(model: BotModel): {
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
   if (current === undefined) return {};
-  const groupId = model.plan?.orchestratorGroupId;
+  const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
   const group =
     groupId === undefined
       ? undefined
