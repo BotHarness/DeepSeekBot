@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 
+import { engineLaunch } from './engine-launch.js';
+
 import {
   type EngineAccount,
   type EngineApprovalDecision,
@@ -55,11 +57,13 @@ export function codexProcessSpec(options: CodexProcessOptions): {
 
 export function spawnCodexTransport(options: CodexProcessOptions): CodexTransport {
   const spec = codexProcessSpec(options);
-  const child = spawn(options.command, spec.args, {
+  const target = engineLaunch(options.command, spec.args, { env: options.env ?? process.env });
+  const child = spawn(target.file, target.args, {
     cwd: options.cwd,
     env: spec.env,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
+    ...(target.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
   });
   const listeners: Array<(message: unknown) => void> = [];
   const exits: Array<(detail: string) => void> = [];
@@ -79,23 +83,40 @@ export function spawnCodexTransport(options: CodexProcessOptions): CodexTranspor
   const exited = (detail: string) => {
     for (const listener of exits.splice(0)) listener(detail);
   };
-  child.on('error', (error) => exited(error.message));
-  child.on('exit', (code, signal) =>
-    exited(`codex app-server exited (${signal ?? code})${stderr ? `: ${stderr.trim()}` : ''}`),
-  );
+  let ended = false;
+  child.on('error', (error) => {
+    exited(error.message);
+  });
+  child.stdin.on('error', (error) => {
+    exited(`codex app-server input closed: ${error.message}`);
+    if (!ended && child.pid !== undefined) child.kill('SIGTERM');
+  });
+  child.on('exit', (code, signal) => {
+    ended = true;
+    exited(`codex app-server exited (${signal ?? code})${stderr ? `: ${stderr.trim()}` : ''}`);
+  });
   return {
     send: (message) => {
+      if (ended || child.stdin.destroyed || !child.stdin.writable) return;
       child.stdin.write(`${JSON.stringify(message)}\n`);
     },
     onMessage: (listener) => void listeners.push(listener),
     onExit: (listener) => void exits.push(listener),
     close: async () => {
-      if (child.exitCode !== null || child.signalCode !== null) return;
+      if (ended || child.pid === undefined || child.exitCode !== null || child.signalCode !== null)
+        return;
       const done = new Promise<void>((resolve) => child.once('exit', () => resolve()));
       child.kill('SIGTERM');
-      const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
-      await done;
-      clearTimeout(timer);
+      const kill = setTimeout(() => child.kill('SIGKILL'), 3000);
+      let giveUp: NodeJS.Timeout | undefined;
+      await Promise.race([
+        done,
+        new Promise<void>((resolve) => {
+          giveUp = setTimeout(resolve, 6000);
+        }),
+      ]);
+      clearTimeout(kill);
+      clearTimeout(giveUp);
     },
   };
 }
@@ -133,7 +154,11 @@ interface ActiveTurn {
   options: EngineSendOptions;
   resolve(end: EngineTurnEnd): void;
   failure?: string;
+  stopping?: boolean;
 }
+
+const REQUEST_TIMEOUT_MS = 60_000;
+const THREAD_GONE = /not found|no rollout|does not exist|unknown thread|no such thread/iu;
 
 export class CodexEngineSession implements EngineSession {
   readonly engine = 'codex' as const;
@@ -147,22 +172,31 @@ export class CodexEngineSession implements EngineSession {
   #threadId: string | undefined;
   #turn: ActiveTurn | undefined;
   #exited: string | undefined;
+  readonly #requestTimeoutMs: number;
 
   constructor(
     transport: CodexTransport,
-    options: Pick<EngineStartOptions, 'cwd' | 'instructions'>,
+    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> & { requestTimeoutMs?: number },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
     transport.onMessage((message) => this.#receive(record(message)));
     transport.onExit((detail) => {
       this.#exited = detail;
       for (const pending of this.#pending.values()) pending.reject(new Error(detail));
       this.#pending.clear();
-      this.#turn?.resolve({ status: 'failed', message: detail });
+      const turn = this.#turn;
       this.#turn = undefined;
+      turn?.resolve(
+        turn.stopping === true ? { status: 'interrupted' } : { status: 'failed', message: detail },
+      );
     });
+  }
+
+  get ended(): boolean {
+    return this.#exited !== undefined;
   }
 
   async account(): Promise<EngineAccount> {
@@ -178,11 +212,18 @@ export class CodexEngineSession implements EngineSession {
       sandbox: 'workspace-write',
       developerInstructions: this.#instructions,
     };
-    const result = record(
-      resume === undefined
-        ? await this.#request('thread/start', { ...common, ephemeral: false })
-        : await this.#request('thread/resume', { ...common, threadId: resume }),
-    );
+    let result: Json;
+    if (resume === undefined)
+      result = record(await this.#request('thread/start', { ...common, ephemeral: false }));
+    else
+      try {
+        result = record(await this.#request('thread/resume', { ...common, threadId: resume }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (this.#exited === undefined && THREAD_GONE.test(message))
+          throw new EngineRefusal('engine-thread-gone', message);
+        throw new EngineRefusal('engine-failed', `Codex could not resume its thread: ${message}`);
+      }
     const id = text(record(result['thread'])['id']);
     if (!id) throw new EngineRefusal('engine-failed', 'Codex did not return a thread id');
     this.#threadId = id;
@@ -192,23 +233,44 @@ export class CodexEngineSession implements EngineSession {
   async send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
     if (this.#threadId === undefined) throw new Error('Codex thread is not started');
     if (this.#turn !== undefined) throw new Error('A Codex turn is already running');
+    if (options.signal?.aborted === true) return { status: 'interrupted' };
+    const threadId = this.#threadId;
+    let active!: ActiveTurn;
     const ended = new Promise<EngineTurnEnd>((resolve) => {
-      this.#turn = { options, resolve };
+      active = { options, resolve };
+      this.#turn = active;
     });
+    let turnId: string | undefined;
+    let acknowledged = false;
+    const interrupt = () => {
+      if (turnId === undefined) {
+        void this.#transport.close();
+        return;
+      }
+      this.#request('turn/interrupt', { threadId, turnId }).catch(() => {
+        void this.#transport.close();
+      });
+    };
     const abort = () => {
-      if (this.#threadId !== undefined)
-        void this.#request('turn/interrupt', { threadId: this.#threadId }).catch(() => undefined);
+      active.stopping = true;
+      if (acknowledged) interrupt();
     };
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
-      await this.#request('turn/start', {
-        threadId: this.#threadId,
-        input: [{ type: 'text', text: input, text_elements: [] }],
-        sandboxPolicy: CODEX_TURN_SANDBOX,
-      });
+      const started = record(
+        await this.#request('turn/start', {
+          threadId,
+          input: [{ type: 'text', text: input, text_elements: [] }],
+          sandboxPolicy: CODEX_TURN_SANDBOX,
+        }),
+      );
+      turnId = text(record(started['turn'])['id']) || undefined;
+      acknowledged = true;
+      if (active.stopping === true) interrupt();
       return await ended;
     } catch (error) {
-      this.#turn = undefined;
+      if (this.#turn === active) this.#turn = undefined;
+      if (active.stopping === true) return { status: 'interrupted' };
       return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
     } finally {
       options.signal?.removeEventListener('abort', abort);
@@ -241,7 +303,22 @@ export class CodexEngineSession implements EngineSession {
     if (this.#exited !== undefined) return Promise.reject(new Error(this.#exited));
     const id = this.#next++;
     return new Promise((resolve, reject) => {
-      this.#pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!this.#pending.delete(id)) return;
+        reject(new Error(`Codex did not answer ${method} within ${this.#requestTimeoutMs} ms`));
+        void this.#transport.close();
+      }, this.#requestTimeoutMs);
+      timer.unref?.();
+      this.#pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
       this.#transport.send({ id, method, params });
     });
   }

@@ -1796,7 +1796,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     sessions: () => hostSessionStore<EngineSessionStore>(ctx),
     persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
     observe: (slug, sessionId, state) => {
-      if (state === 'starting')
+      if (state !== 'idle')
         core.states.setSessionState(slug, sessionId, 'thinking', undefined, 'orchestrator');
       else if (core.states.snapshot(slug).sessions[sessionId] === 'thinking')
         core.states.setSessionState(slug, sessionId, 'done', undefined, 'orchestrator');

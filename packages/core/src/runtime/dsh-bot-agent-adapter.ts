@@ -698,6 +698,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #engines: DshBotEngines | undefined;
   readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
   readonly #engineStops = new Map<string, AbortController>();
+  readonly #engineChannels = new Map<string, string>();
   readonly #preparationVisibleMs: number;
   readonly #drafts: ChannelDraftTracker;
   #closed = false;
@@ -986,6 +987,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
     const stop = new AbortController();
     this.#engineStops.set(run.sessionId, stop);
+    if (run.inboundChannelId !== undefined)
+      this.#engineChannels.set(run.sessionId, run.inboundChannelId);
     void abandoned.then(() => stop.abort());
     try {
       run.setExecutionReady?.(true);
@@ -1027,7 +1030,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         signal: stop.signal,
       });
     } finally {
-      if (this.#engineStops.get(run.sessionId) === stop) this.#engineStops.delete(run.sessionId);
+      if (this.#engineStops.get(run.sessionId) === stop) {
+        this.#engineStops.delete(run.sessionId);
+        this.#engineChannels.delete(run.sessionId);
+      }
     }
   }
 
@@ -3148,8 +3154,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator' || active.run.triage === undefined)
             throw new Error('inbox_resolve: the Orchestrator inbox is unavailable');
           const filter = inboxFilter(args);
+          const scope = this.#engineChannels.get(run.sessionId);
           return JSON.stringify(
             active.run.triage.resolve({
+              ...(scope === undefined ? {} : { channelId: scope }),
               outcome: args.outcome,
               ...(args.ids === undefined ? {} : { ids: args.ids }),
               ...(Object.keys(filter).length === 0 ? {} : { filter }),

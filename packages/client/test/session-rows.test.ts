@@ -69,7 +69,9 @@ describe('PersonaBot Session projection', () => {
       engine: 'codex',
       account: 'ChatGPT pro',
     });
-    expect(rows.find((row) => row.sessionId === 'active')?.engine).toBeUndefined();
+    const active = rows.find((row) => row.sessionId === 'active');
+    expect(active).toBeDefined();
+    expect(active?.engine).toBeUndefined();
   });
 
   it('names an Assignment row by its Assignment Title before the native Session title', () => {

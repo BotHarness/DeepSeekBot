@@ -6,7 +6,11 @@ export function engineName(engine: string): string {
 }
 
 export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate): string {
-  return engine.state === 'starting' || engine.account === undefined
-    ? t('sessions.detail.engineStarting', { engine: engineName(engine.engine) })
-    : t('sessions.detail.engine', { engine: engineName(engine.engine), account: engine.account });
+  if (engine.state === 'starting')
+    return t('sessions.detail.engineStarting', { engine: engineName(engine.engine) });
+  if (engine.account === undefined) return engineName(engine.engine);
+  return t('sessions.detail.engine', {
+    engine: engineName(engine.engine),
+    account: engine.account,
+  });
 }

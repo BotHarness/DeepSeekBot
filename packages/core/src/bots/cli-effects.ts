@@ -373,7 +373,7 @@ export const CLI_EFFECTS = {
   'plugin-restart': { effects: destructive, brokerRead: false },
   engine: { effects: management, brokerRead: false },
   'engine-list': { effects: read, brokerRead: true },
-  'engine-login': { effects: management, brokerRead: false },
+  'engine-login': { effects: externalManagement, brokerRead: false },
   'engine-status': { effects: read, brokerRead: true },
   'engine-use': { effects: management, brokerRead: false },
   'presence-report': { effects: write, brokerRead: false },
@@ -567,7 +567,8 @@ function familyEffects(
       }
     }
     case 'engine':
-      return action === 'list' || action === 'status' ? read : management;
+      if (action === 'list' || action === 'status') return read;
+      return action === 'login' ? externalManagement : management;
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':

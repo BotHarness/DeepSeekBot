@@ -2636,10 +2636,10 @@ export async function runBotCreateCli(
       }
     } else if (command === 'engine') {
       const [action, ...targets] = rest;
-      if (!action || !['list', 'status', 'login', 'use'].includes(action))
-        throw usageError('engine needs list, status, login or use.');
-      command = `engine-${action}`;
-      rest = targets;
+      if (action !== undefined && ['list', 'status', 'login', 'use'].includes(action)) {
+        command = `engine-${action}`;
+        rest = targets;
+      } else if (values.help !== true) throw usageError('engine needs list, status, login or use.');
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;

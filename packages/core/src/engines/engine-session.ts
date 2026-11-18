@@ -44,6 +44,7 @@ export interface EngineSendOptions {
 
 export interface EngineSession {
   readonly engine: EngineId;
+  readonly ended: boolean;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
@@ -58,6 +59,7 @@ export class EngineRefusal extends Error {
       | 'engine-not-installed'
       | 'engine-signed-out'
       | 'engine-not-subscription'
+      | 'engine-thread-gone'
       | 'engine-failed',
     message: string,
   ) {

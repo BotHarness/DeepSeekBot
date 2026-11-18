@@ -96,6 +96,10 @@ it('drives engine list, status, login and use through the Host engine route', as
   expect(await runEngineCommand('engine-login', ['codex'], {}, connect)).toMatchObject({
     started: true,
   });
+  expect(http.mock.calls.at(-1)).toEqual([
+    '/api/botharness/engines',
+    { action: 'login', engine: 'codex' },
+  ]);
   expect(
     await runEngineCommand('engine-use', ['ada', 'none'], { role: ['orchestrator'] }, connect),
   ).toEqual({ bot: 'ada', role: 'orchestrator', engine: null });
@@ -108,4 +112,19 @@ it('drives engine list, status, login and use through the Host engine route', as
       code: 'usage',
     },
   );
+});
+
+it('refuses a Host engine response that does not have the expected shape', async () => {
+  const connect = async () => ({
+    http: async () => ({ bytes: new TextEncoder().encode('{}') }),
+  });
+  await expect(runEngineCommand('engine-status', [], {}, connect)).rejects.toMatchObject({
+    code: 'host-protocol-error',
+  });
+  await expect(runEngineCommand('engine-list', [], {}, connect)).rejects.toMatchObject({
+    code: 'host-protocol-error',
+  });
+  await expect(runEngineCommand('engine-login', ['codex'], {}, connect)).rejects.toMatchObject({
+    code: 'host-protocol-error',
+  });
 });

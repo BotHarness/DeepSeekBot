@@ -90,6 +90,7 @@ export function createEngineGateway(): EngineGateway {
   const grants = new Map<string, StoredGrant>();
   let server: Server | undefined;
   let base: string | undefined;
+  let starting: Promise<string> | undefined;
 
   const send = (response: ServerResponse, status: number, body?: unknown) => {
     response.writeHead(status, body === undefined ? {} : { 'content-type': 'application/json' });
@@ -178,28 +179,38 @@ export function createEngineGateway(): EngineGateway {
     const replies: unknown[] = [];
     for (const message of messages) {
       if (message.id === undefined || message.id === null) continue;
-      replies.push(await answer(grant, message, controller.signal));
+      replies.push(
+        grants.get(grant.path) === grant
+          ? await answer(grant, message, controller.signal)
+          : rpcError(message.id, -32001, 'Engine gateway token is not valid here'),
+      );
     }
     if (replies.length === 0) send(response, 202);
     else send(response, 200, Array.isArray(parsed) ? replies : replies[0]);
   };
 
   return {
-    start: async () => {
-      if (base !== undefined) return base;
-      const listening = createServer((request, response) => {
-        handle(request, response).catch(() => {
-          if (!response.headersSent) send(response, 500, rpcError(null, -32603, 'Internal error'));
+    start: () => {
+      if (base !== undefined) return Promise.resolve(base);
+      starting ??= (async () => {
+        const listening = createServer((request, response) => {
+          handle(request, response).catch(() => {
+            if (!response.headersSent)
+              send(response, 500, rpcError(null, -32603, 'Internal error'));
+          });
         });
+        await new Promise<void>((resolve, reject) => {
+          listening.once('error', reject);
+          listening.listen(0, '127.0.0.1', () => resolve());
+        });
+        listening.unref();
+        server = listening;
+        base = `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
+        return base;
+      })().finally(() => {
+        starting = undefined;
       });
-      await new Promise<void>((resolve, reject) => {
-        listening.once('error', reject);
-        listening.listen(0, '127.0.0.1', () => resolve());
-      });
-      listening.unref();
-      server = listening;
-      base = `http://127.0.0.1:${(listening.address() as AddressInfo).port}`;
-      return base;
+      return starting;
     },
     grant: (spec) => {
       if (base === undefined) throw new Error('Engine gateway is not started');
@@ -216,6 +227,7 @@ export function createEngineGateway(): EngineGateway {
       };
     },
     close: async () => {
+      await starting?.catch(() => undefined);
       grants.clear();
       const closing = server;
       server = undefined;
