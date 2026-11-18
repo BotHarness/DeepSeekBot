@@ -40,6 +40,7 @@ import { createDevicesHttp, type PairingOfferView } from '../src/devices/http.js
 import { detectPhoneRoutes } from '../src/devices/routes.js';
 import { createNoiseIdentity } from '../src/devices/noise-identity.js';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { requestListener } from './async-listener.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
@@ -741,12 +742,14 @@ it.each([false, true])(
     const hostKey = randomBytes(32);
     let leakedAuthorization = false;
     const received: string[] = [];
-    const http = createServer(async (request, response) => {
-      let text = '';
-      for await (const chunk of request) text += String(chunk);
-      received.push(text);
-      response.end(text);
-    });
+    const http = createServer(
+      requestListener(async (request, response) => {
+        let text = '';
+        for await (const chunk of request) text += String(chunk);
+        received.push(text);
+        response.end(text);
+      }),
+    );
     http.listen(0, '127.0.0.1');
     await once(http, 'listening');
     const port = (http.address() as AddressInfo).port;

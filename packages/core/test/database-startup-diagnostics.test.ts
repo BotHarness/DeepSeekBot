@@ -307,13 +307,13 @@ it('handles rejected diagnostic observers and error handlers', async () => {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('database-startup-diagnostics-'),
-      onDiagnostic: async () => {
+      onDiagnostic: (async () => {
         throw new Error('async observer');
-      },
-      onObserverError: async (error) => {
+      }) as () => void,
+      onObserverError: (async (error: unknown) => {
         errors.push(error);
         throw new Error('async handler');
-      },
+      }) as (error: unknown) => void,
     }),
   );
   owner.close();

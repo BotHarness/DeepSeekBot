@@ -1464,6 +1464,21 @@ const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
+  id: 'routing-group-default',
+  module: 'routing-groups',
+  description: 'Own the Routing Group chosen as the Profile default model, with its revision',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE routing_group_default (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        group_id TEXT,
+        revision INTEGER NOT NULL CHECK (revision >= 0)
+      );
+    `);
+  },
+};
+
 const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
   id: 'persona-bot-registry',
   module: 'bot-registry',
@@ -4097,4 +4112,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_AVATAR_CHANGE_MIGRATION,
   HUMAN_PROFILE_SETUP_MIGRATION,
   HUMAN_MODEL_FAVORITES_MIGRATION,
+  ROUTING_GROUP_DEFAULT_MIGRATION,
 ]);
