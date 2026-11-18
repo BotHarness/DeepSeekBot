@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -24,35 +25,37 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   const downloads: Array<{ url: string; authorized: boolean }> = [];
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (media && req.url?.startsWith('/api/botharness/attachment?')) {
-      downloads.push({ url: req.url, authorized: req.headers.cookie === 'authority=signed' });
-      res
-        .writeHead(media.status, {
-          'content-type': media.status === 200 ? 'application/octet-stream' : 'application/json',
-        })
-        .end(media.body);
-      return;
-    }
-    if (req.method === 'GET') {
-      res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (media && req.url?.startsWith('/api/botharness/attachment?')) {
+        downloads.push({ url: req.url, authorized: req.headers.cookie === 'authority=signed' });
+        res
+          .writeHead(media.status, {
+            'content-type': media.status === 200 ? 'application/octet-stream' : 'application/json',
+          })
+          .end(media.body);
+        return;
+      }
+      if (req.method === 'GET') {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

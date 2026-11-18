@@ -36,6 +36,7 @@ import { VoiceProviders, wavFromPcm16 } from '../src/voice/providers.js';
 import { clipDurationMs, joinAudio, type AudioClip } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
 import { chunks, concat, cough, knock, silence, speech } from './voice-audio-fixtures.js';
+import { requestListener } from './async-listener.js';
 
 const cleanup: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
@@ -52,10 +53,10 @@ function clipFor(text: string): Uint8Array {
 
 async function fakeSpeechService(transcripts: string[]) {
   const heard: { bytes: number; sampleRate: number; language: string | null }[] = [];
-  const server: Server = createServer((request, response) => {
-    const parts: Buffer[] = [];
-    request.on('data', (chunk: Buffer) => parts.push(chunk));
-    request.on('end', async () => {
+  const server: Server = createServer(
+    requestListener(async (request, response) => {
+      const parts: Buffer[] = [];
+      for await (const chunk of request) parts.push(chunk as Buffer);
       if (request.url === '/v1/audio/speech') {
         response.writeHead(200, { 'Content-Type': 'audio/mpeg' });
         response.end(MP3);
@@ -74,8 +75,8 @@ async function fakeSpeechService(transcripts: string[]) {
       });
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ text: transcripts.shift() ?? '' }));
-    });
-  });
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, heard };

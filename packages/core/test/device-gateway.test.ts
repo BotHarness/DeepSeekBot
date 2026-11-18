@@ -25,6 +25,7 @@ import { createGatewayOrigin } from '../src/devices/connect.js';
 import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -57,25 +58,25 @@ async function fakeDsh(
   };
   const cookie = () => `dsh=${String(state.secret)}`;
   let gateway: ReturnType<typeof createDeviceGateway> | undefined;
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.handle(req, res);
-    if (url.pathname === '/' && url.searchParams.get('token') === state.token) {
-      state.mints++;
-      res.writeHead(303, { 'set-cookie': `${cookie()}; HttpOnly`, location: '/' });
-      return res.end();
-    }
-    if (req.headers.cookie !== cookie()) {
-      res.writeHead(401);
-      return res.end();
-    }
-    if (req.headers['sec-fetch-site'] === 'cross-site') {
-      res.writeHead(403);
-      return res.end('forbidden');
-    }
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', async () => {
+  const server = createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://x');
+      if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return gateway!.handle(req, res);
+      if (url.pathname === '/' && url.searchParams.get('token') === state.token) {
+        state.mints++;
+        res.writeHead(303, { 'set-cookie': `${cookie()}; HttpOnly`, location: '/' });
+        return res.end();
+      }
+      if (req.headers.cookie !== cookie()) {
+        res.writeHead(401);
+        return res.end();
+      }
+      if (req.headers['sec-fetch-site'] === 'cross-site') {
+        res.writeHead(403);
+        return res.end('forbidden');
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
       const { [DEVICE_ROUTE_HEADER]: routeTag, ...headers } = req.headers;
       state.seen.push({
         ...headers,
@@ -100,8 +101,8 @@ async function fakeDsh(
       }
       res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'leak=1' });
       res.end(JSON.stringify({ path: url.pathname, body: Buffer.concat(chunks).toString() }));
-    });
-  });
+    }),
+  );
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     if (req.url?.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.upgrade(req, socket, head);
     if (req.headers.cookie !== cookie()) {

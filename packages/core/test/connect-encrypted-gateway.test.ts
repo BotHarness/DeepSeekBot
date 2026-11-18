@@ -19,6 +19,7 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { requestListener, upgradeListener } from './async-listener.js';
 
 it.each(['connect', 'lan'] as const)(
   '%s admits only the approved Noise key, forwards private RPC and push settings, and closes on device revocation',
@@ -44,25 +45,27 @@ it.each(['connect', 'lan'] as const)(
     if (!paired.ok) throw new Error('pairing failed');
     const observed: string[] = [];
     const appVersions: (string | string[] | undefined)[] = [];
-    const server = createServer(async (request, response) => {
-      expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
-      appVersions.push(request.headers['x-tobs-app-version']);
-      if (request.url === '/botharness-device/push') {
-        response.setHeader('content-type', 'application/json');
-        response.end(
-          JSON.stringify({
-            registered: false,
-            enabled: false,
-            preferences: { approval: true, question: true, 'private-input': true, reply: true },
-            quietChannelIds: [],
-          }),
-        );
-        return;
-      }
-      let body = '';
-      for await (const chunk of request) body += String(chunk);
-      response.end(body);
-    });
+    const server = createServer(
+      requestListener(async (request, response) => {
+        expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
+        appVersions.push(request.headers['x-tobs-app-version']);
+        if (request.url === '/botharness-device/push') {
+          response.setHeader('content-type', 'application/json');
+          response.end(
+            JSON.stringify({
+              registered: false,
+              enabled: false,
+              preferences: { approval: true, question: true, 'private-input': true, reply: true },
+              quietChannelIds: [],
+            }),
+          );
+          return;
+        }
+        let body = '';
+        for await (const chunk of request) body += String(chunk);
+        response.end(body);
+      }),
+    );
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as AddressInfo).port;
     const gateway = createEncryptedGateway({
@@ -71,7 +74,7 @@ it.each(['connect', 'lan'] as const)(
       key: async () => Uint8Array.from(hostKey),
       port: () => port,
     });
-    server.on('upgrade', (req, socket, head) => gateway.upgrade(req, socket, head));
+    server.on('upgrade', upgradeListener(gateway));
     const channel = new ConnectChannel({
       route,
       role: 'initiator',
@@ -232,14 +235,16 @@ async function endpointFixture(
   const paired = pairing.redeem({ offer: offer.offer, publicKey });
   if (!paired.ok) throw new Error('pairing failed');
   const effects: string[] = [];
-  const server = createServer(async (request, response) => {
-    if (request.url === '/botharness-device/api/voice/call')
-      return direct.handle(request, response);
-    let body = '';
-    for await (const chunk of request) body += String(chunk);
-    effects.push(body);
-    if (!body.startsWith('hold-')) response.end(body);
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.url === '/botharness-device/api/voice/call')
+        return direct.handle(request, response);
+      let body = '';
+      for await (const chunk of request) body += String(chunk);
+      effects.push(body);
+      if (!body.startsWith('hold-')) response.end(body);
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const direct = createDeviceGateway({

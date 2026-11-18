@@ -38,6 +38,7 @@ import { selectAssignmentRoute, type ModelRoute } from '../src/models/presets.js
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import type { MessagingProvider } from '../src/messaging/provider.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from '../src/portability/http.js';
+import { requestListener } from './async-listener.js';
 
 const roots: string[] = [];
 const cores: BotHarnessCore[] = [];
@@ -79,32 +80,34 @@ function source(core: BotHarnessCore): ProfileBackupSource {
 it('runs online preview, download and inspection through the CLI and the same Profile Backup owner', async () => {
   const core = mount();
   const handler = createProfileBackupHttp(source(core), root(), core.profileRecovery, catalog);
-  const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (url.pathname === '/') {
-      if (url.searchParams.get('token') !== 'synthetic-private-token') {
+  const server = createServer(
+    requestListener(async (request, response) => {
+      const url = new URL(request.url ?? '/', 'http://localhost');
+      if (url.pathname === '/') {
+        if (url.searchParams.get('token') !== 'synthetic-private-token') {
+          response.writeHead(401).end();
+          return;
+        }
+        response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
+        response.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      if (request.headers.cookie !== 'authority=synthetic') {
         response.writeHead(401).end();
         return;
       }
-      response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
-      response.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    if (request.headers.cookie !== 'authority=synthetic') {
-      response.writeHead(401).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const reply = await handler(
-      new Request(url, {
-        method: request.method ?? 'GET',
-        ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
-      }),
-    );
-    response.writeHead(reply.status, Object.fromEntries(reply.headers));
-    response.end(Buffer.from(await reply.arrayBuffer()));
-  });
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const reply = await handler(
+        new Request(url, {
+          method: request.method ?? 'GET',
+          ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
+        }),
+      );
+      response.writeHead(reply.status, Object.fromEntries(reply.headers));
+      response.end(Buffer.from(await reply.arrayBuffer()));
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const address = server.address();

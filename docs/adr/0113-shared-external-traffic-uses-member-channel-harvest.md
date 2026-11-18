@@ -25,4 +25,4 @@ No schema, scheduler, credential, provider SDK or shared Inbox store is added. E
 
 The behavior expands only explicitly collected ordinary traffic placed in a Group Channel. Inbox-only routes keep #613 semantics. Multi-target routes, second-identity external replies and global platform defaults remain separate tickets. New member admissions already persisted by this version should be settled with a forward fix if necessary; a revert does not undo external effects or accepted facts.
 
-References: [#638](https://github.com/BotHarness/BotHarness/issues/638), [#693](https://github.com/BotHarness/BotHarness/issues/693), [ADR-0108](0108-shared-channel-bridge-places-canonical-external-sources.md), [ADR-0112](0112-channel-bridge-intake-is-managed-at-the-existing-grant.md).
+References: [#638](https://github.com/BotHarness/BotHarness/issues/638), [#693](https://github.com/BotHarness/BotHarness/issues/693), [ADR-0108](../decisions/im-providers.md#adr-0108), [ADR-0112](../decisions/im-providers.md#adr-0112).
