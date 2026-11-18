@@ -10,6 +10,7 @@ import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js'
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
 import { mountWallpaper } from './wallpaper-layer.js';
+import { mountPanelScrollbars, PLUGIN_SCROLLBAR_SCOPE } from './ds/panel-scrollbars.js';
 import { panelTargetId } from './appearance-panels.js';
 import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
@@ -253,9 +254,11 @@ export function apply(ctx: ClientContext): void {
     const offColors = appearance.subscribe(refreshBotPrimaryColors);
     refreshBotPrimaryColors();
     const offWallpaper = mountWallpaper(wallpaper);
+    const offScrollbars = mountPanelScrollbars(document.documentElement, PLUGIN_SCROLLBAR_SCOPE);
     const offControl = member ? () => {} : mountAppearanceControl(appearance, wallpaper);
     return () => {
       offControl();
+      offScrollbars();
       offWallpaper();
       offColors();
       offStyle();
