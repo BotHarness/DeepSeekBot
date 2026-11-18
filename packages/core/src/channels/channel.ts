@@ -73,7 +73,7 @@ export interface GroupMemberWakePolicy {
 
 export const DEFAULT_GROUP_WAKE_POLICY: GroupWakePolicy = {
   mode: 'digest',
-  count: 5,
+  count: 10,
   intervalSeconds: 30,
   revision: 0,
 };
