@@ -413,4 +413,26 @@ describe('Routing Group effort reaches the member that runs (#4497)', () => {
     expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
     expect(await fallback.pick('ada', 'g', 'high')).toEqual({ kind: 'route', route: plain });
   });
+
+  it('drops a Session fallback whose effort the group no longer uses', async () => {
+    let effort: string | undefined = 'max';
+    const fallback = createGroupFallback({
+      plan: () => ({
+        ...plan('g'),
+        ...(effort === undefined ? {} : { orchestratorGroupEffort: effort }),
+      }),
+      routes: () => [DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, value) => ({ ...route, reasoningEffort: value! }),
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    effort = 'low';
+    expect(fallback.route('s1')).toBeUndefined();
+    effort = undefined;
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toEqual(DEEPSEEK);
+  });
 });
