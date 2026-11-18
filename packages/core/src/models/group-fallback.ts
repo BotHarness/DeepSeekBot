@@ -82,9 +82,9 @@ export function createGroupFallback(options: {
       const effort = override.route.reasoningEffort;
       if (
         member === undefined ||
-        (member.reasoningEffort === undefined &&
-          effort !== undefined &&
-          effort !== effortOf(override.botSlug))
+        (member.reasoningEffort === undefined
+          ? effort !== undefined && effort !== effortOf(override.botSlug)
+          : effort !== member.reasoningEffort)
       ) {
         overrides.delete(sessionId);
         return undefined;
