@@ -1,6 +1,7 @@
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import { SettingsGroupPart } from './ds/settings-row.js';
 import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { MethodRefused } from '@botharness/host-client/client';
@@ -412,14 +413,14 @@ function StorageSettingsView({
     setError(undefined);
   };
   return (
-    <div ref={mount} data-storage-setting="">
+    <SettingsGroupPart rootRef={mount} data={{ 'data-storage-setting': '' }}>
       <StatusBlock
         icon="files"
         tone="neutral"
         title={t('storage.row.title')}
         body={t('storage.row.description')}
         action={
-          <Button variant="primary" size="sm" onClick={show} data-storage-open="">
+          <Button variant="outline" size="sm" onClick={show} data-storage-open="">
             {t('storage.row.action')}
           </Button>
         }
@@ -656,7 +657,7 @@ function StorageSettingsView({
           )}
         </FormDialog>
       )}
-    </div>
+    </SettingsGroupPart>
   );
 }
 
