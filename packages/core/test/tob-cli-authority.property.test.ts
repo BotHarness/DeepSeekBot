@@ -25,7 +25,7 @@ const argument = fc.oneof(
 );
 const argv = fc
   .tuple(command, fc.array(argument, { maxLength: 6 }))
-  .map(([name, rest]) => [name, ...rest]);
+  .map(([name, rest]): [string, ...string[]] => [name, ...rest]);
 const refusedOption = fc.constantFrom(
   '--host',
   '--token-file',
@@ -38,9 +38,9 @@ function classify(args: readonly string[]): { write: boolean } | 'refused' | 'in
   try {
     return classifyTobHostCli(args);
   } catch (error) {
-    const code = (error as { code?: unknown }).code;
-    if (code === 'cli-command-refused') return 'refused';
-    if (code === 'invalid-request') return 'invalid';
+    if (typeof error !== 'object' || error === null || !('code' in error)) throw error;
+    if (error.code === 'cli-command-refused') return 'refused';
+    if (error.code === 'invalid-request') return 'invalid';
     throw error;
   }
 }
@@ -51,7 +51,7 @@ describe('Tob runs the Human CLI with approved writes (docs/decisions/tob.md)', 
       fc.property(argv, (args) => {
         const result = classify(args);
         if (typeof result === 'string' || result.write) return;
-        expect(BROKER_CLI_READS.has(canonicalCliCommandName(args[0]!))).toBe(true);
+        expect(BROKER_CLI_READS.has(canonicalCliCommandName(args[0]))).toBe(true);
         expect(cliEffects(args)?.changes).toBe('none');
         expect(args.some((arg) => arg === '--out' || arg.startsWith('--out='))).toBe(false);
       }),
@@ -96,7 +96,7 @@ describe('Tob runs the Human CLI with approved writes (docs/decisions/tob.md)', 
       fc.property(argv, refusedOption, fc.boolean(), fc.nat(), (args, option, inline, at) => {
         const tail = args.slice(1);
         tail.splice(at % (tail.length + 1), 0, ...(inline ? [option + '=x'] : [option, 'x']));
-        expect(classify([args[0]!, ...tail])).toBe('refused');
+        expect(classify([args[0], ...tail])).toBe('refused');
       }),
     );
   });
