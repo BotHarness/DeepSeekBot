@@ -7,6 +7,7 @@ import {
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  setModelGroup,
   setModelRoute,
   toggleAssignmentModel,
   type ModelSettingsState,
@@ -258,5 +259,34 @@ describe('native Model Plans and Presets', () => {
     expect(await global.favorite({ kind: 'model', ...pro }, false)).toEqual([]);
     fake.methods.set('modelFavoriteSet', () => ({}));
     await expect(global.favorite({ kind: 'model', ...pro }, true)).rejects.toThrow();
+  });
+
+  it('reads Routing Groups and runs the Bot Orchestrator on one (#4421)', async () => {
+    const { fake, client } = setup();
+    const until = '2026-11-22T23:23:00.000Z';
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models: [{ ...models[0], restingUntil: until }, models[1]],
+      groups: [daily, { id: 'tired', name: 'Tired', routes: [flash], restingUntil: until }],
+    }));
+    fake.methods.set('modelPlan', () => ({
+      revision: 4,
+      plan: { ...plan, orchestratorGroupId: 'daily' },
+    }));
+    const loaded = await loadBotModel(client, 'qa');
+    expect(loaded.plan?.orchestratorGroupId).toBe('daily');
+    expect(loaded.models[0]?.restingUntil).toBe(until);
+    expect(loaded.groups?.map((group) => group.id)).toEqual(['daily', 'tired']);
+    fake.methods.set('modelPlanCustomize', () => ({ plan }));
+    await setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'daily');
+    expect(fake.calls.at(-1)?.args).toEqual({
+      slug: 'qa',
+      expectedRevision: 4,
+      orchestratorGroupId: 'daily',
+    });
+    await expect(
+      setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'tired'),
+    ).rejects.toThrow();
+    await expect(setModelGroup(client, { kind: 'global' }, loaded, 'daily')).rejects.toThrow();
   });
 });

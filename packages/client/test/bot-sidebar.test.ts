@@ -362,6 +362,9 @@ function stubActions(): BridgeActions {
     setStandingLimits: vi.fn(async () => {
       throw new Error('unused');
     }),
+    chooseModelPlanGroup: vi.fn(async () => {
+      throw new Error('not used');
+    }),
     customizeModelPlan: vi.fn(async () => {
       throw new Error('unexpected Model Plan customization');
     }),

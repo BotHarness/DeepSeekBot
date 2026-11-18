@@ -234,7 +234,10 @@ export const TELEMETRY_EVENTS = {
   'model:plan_update': {
     origin: 'client',
     description: "A PersonaBot's model plan changed.",
-    properties: { via: ['preset', 'custom', 'assignments', 'plan', 'inherit'], ...SURFACE },
+    properties: {
+      via: ['preset', 'custom', 'assignments', 'plan', 'inherit', 'group'],
+      ...SURFACE,
+    },
   },
   'remote_host:host_pair_complete': {
     origin: 'client',

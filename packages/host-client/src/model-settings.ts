@@ -233,6 +233,24 @@ export async function setModelRoute(
   recordFeature('model:plan_update', { via: 'plan' });
 }
 
+export async function setModelGroup(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  groupId: string,
+): Promise<void> {
+  if (scope.kind !== 'bot') throw new HostAnswerInvalid('MODEL_GROUP_NEEDS_BOT');
+  const group = state.groups?.find((entry) => entry.id === groupId);
+  if (group === undefined || group.restingUntil !== undefined)
+    throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  await client.call('modelPlanCustomize', {
+    slug: scope.slug,
+    expectedRevision: state.plan?.revision ?? state.revision,
+    orchestratorGroupId: groupId,
+  });
+  recordFeature('model:plan_update', { via: 'group' });
+}
+
 export async function toggleAssignmentModel(
   client: ModelSettingsClient,
   scope: ModelScope,

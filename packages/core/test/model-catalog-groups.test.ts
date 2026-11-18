@@ -38,7 +38,9 @@ function methods(
       routes: (id: string) => {
         const found = groups.find((candidate) => candidate.id === id);
         if (found === undefined) throw new Error('missing');
-        return found.members.map(({ provider, model }) => ({ provider, model }));
+        return found.members.flatMap((member) =>
+          member.kind === 'model' ? [{ provider: member.provider, model: member.model }] : [],
+        );
       },
     },
     routeRests: { list: () => rests },
