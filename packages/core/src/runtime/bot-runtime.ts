@@ -1675,6 +1675,12 @@ const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment; it is paused with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
 
+const HUMAN_TURN_STOP_NOTICE =
+  'Stopped by the Human together with your turn; it is paused with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
+
+const ORCHESTRATOR_STOP_NOTICE =
+  'Stopped by the Orchestrator; it is paused with its history kept. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
+
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
   channelId: string;
@@ -11001,8 +11007,8 @@ class BotRuntimeImplementation implements BotRuntime {
             cause === 'human-session-stop'
               ? HUMAN_SESSION_STOP_NOTICE
               : cause === 'human-stop'
-                ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
-                : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
+                ? HUMAN_TURN_STOP_NOTICE
+                : ORCHESTRATOR_STOP_NOTICE,
             at,
             at,
             JSON.stringify({
