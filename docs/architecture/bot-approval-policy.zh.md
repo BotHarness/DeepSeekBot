@@ -35,6 +35,10 @@ Profile 有一个可选的全局默认模板，来源是共享 Approval Template
 
 目标取消模型自主 reject，原先由模型拒绝次数触发的熔断及恢复逻辑不再适用。既有拒绝历史是实现证据，不代表本目标已经交付。
 
+## 后续确认的准入边界（2026-11-18）
+
+Human 确认以 [#4337](https://github.com/BotHarness/BotHarness/pull/4337) 恢复后的准入行为为准，取代早先 E2 的强制效果准入目标。效果声明用于标注审批卡，不因不可撤销／外部属性单独新增审批，也不因此覆盖 Full Access。只有按既有规则需要审批的请求才进入 Reviewer 或 Human。已授权的 Browser 与 Computer 保留原有按会话行为。
+
 ## 确定性授权与效果准入
 
 先由代码判断行为是否需要审批，再处理有效的确定性授权；已覆盖的请求不调用 LLM。未覆盖时使用有效模板 Reviewer；未启用 Reviewer 则交给 Human。
@@ -74,20 +78,20 @@ Profile 有一个可选的全局默认模板，来源是共享 Approval Template
 
 静态核查基线为 fc29d448467392b1e9ed2f3d048d3d1df0b14381，不是 live Host 验证：
 
-| 事项       | 原有事实或规格                                                 | 本次确认目标                                       |
-| ---------- | -------------------------------------------------------------- | -------------------------------------------------- |
-| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                  | 继承全局／特定模板／关闭                           |
-| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行      | 一份选定模板的三部分，不叠加 Bot 层                |
-| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human             | 仅 allow/ask-human                                 |
-| 确定性顺序 | tool-approval.ts:306–349 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先，同时保留 E2 改变效果准入的方向 |
-| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                    | 延续，并保持 Bot 归属                              |
-| 引用中删除 | 本次访谈前尚未确定                                             | 二次确认后统一回退继承，删除默认时清空全局         |
+| 事项       | 原有事实或规格                                                 | 本次确认目标                                  |
+| ---------- | -------------------------------------------------------------- | --------------------------------------------- |
+| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                  | 继承全局／特定模板／关闭                      |
+| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行      | 一份选定模板的三部分，不叠加 Bot 层           |
+| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human             | 仅 allow/ask-human                            |
+| 确定性顺序 | tool-approval.ts:306–349 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先；效果准入以后续 #4337 为准 |
+| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                    | 延续，并保持 Bot 归属                         |
+| 引用中删除 | 本次访谈前尚未确定                                             | 二次确认后统一回退继承，删除默认时清空全局    |
 
 代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
 
 2026-11-15 核查时，[#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203)、E1、E2、[E3 #4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)、E4 均 open、无 assignee、全部评论为 0。所查证据未发现认领记录或新范围的可核实实施 PR，但不能据此断言绝无实施。本机 gh 未认证，未确认 timeline 事件的完整性。旧模板 Reviewer 与卡片规则已有合并前身，例如 PR #1835、#2739。访谈未创建、认领或编辑任何 issue／评论。
 
-本次修改 #4203／E3 的模板组合关系及既有 Reviewer 结果集合；延续三部分编辑方式、卡片规则来源展示和 E2 方向。后续应在现有规格协调差异，不创建重复 issue。本设计不推进 SQLite 迁移 #4227；性能 PR #4228 独立，未修改或监控。
+2026-11-15 的访谈修改了 #4203／E3 的模板组合关系及既有 Reviewer 结果集合，保留三部分编辑方式和卡片规则来源展示，当时延续 E2 方向。后续确认的 #4337 修订已取代 E2 的效果强制准入；模板与卡片规则决策继续保留。后续应在现有规格协调差异，不创建重复 issue。本设计不推进 SQLite 迁移 #4227；性能 PR #4228 独立，未修改或监控。
 
 ## Claude Code 研究边界
 
@@ -120,7 +124,7 @@ Human 在 Q1–Q18 分轮访谈后确认了完整汇总；原设计树无未决�
 
 #4210 的可信效果声明描述每次工具调用并显示在审批卡上，本身不要求审批。准入沿用原有规则：密钥、创建 Bot、附件写入和受保护管理操作需要决定，Browser 与 Computer 使用按会话授权，Full Access 对其他普通调用不出卡。管理操作保留 ADR-0249 的专用范围。
 
-直接 CLI 效果调用使用既有 `direct-` 前缀的原生执行 Session。统一归属记录用于准入与审计，但此类单次执行不进入 Bot 持久根 Session 的枚举，不能替代聊天 Orchestrator 或使报告投递唤醒模型。调用结束后释放原生 Agent，保留归属与执行证据。
+独立执行的直接 CLI 效果调用使用既有 `direct-` 前缀的原生执行 Session。统一归属记录用于准入与审计，但此类单次执行不进入 Bot 持久根 Session 的枚举，不能替代聊天 Orchestrator 或使报告投递唤醒模型。调用结束后释放原生 Agent，保留归属与执行证据。
 
 ## Human 审批结果展示
 
@@ -132,4 +136,4 @@ Web 与移动端的 Human 审批卡在允许这次、始终允许或拒绝后保
 
 Orchestrator 的工具审批请求与 Reviewer 记录保留在实际来源 DM 或 Group。参与者 DM 不会回落到管理者的旧 DM；来源不可用或与 Bot 不匹配时，拒绝启动审核和创建卡片。此路由不会授予参与者审批权限；可见内容与决定仍受原有审批者和频道受众检查约束。
 
-已认证的直接 `bot-tool` 请求在派发前，将短期原生执行绑定到调用 Human 的 DM，并在调用结束时移除绑定。工具目标与历史频道记录不决定审批接收者；缺少调用上下文时，不回落到其他 Human。
+已认证的私密工具直调及独立效果调用在派发前，将 Host 生成的本次 call ID 与实际 Agent Session 绑定到调用 Human，并在调用结束时移除绑定。Full Access 或保存规则放行前，先验证调用者；需要审批来源时才解析 DM，不需审批的读取或缺少 Agent 的调用不会创建空 DM。关闭期间仍保留尚未结束的直调身份，由不可用的来源拒绝审批。私密工具借用存活的 Orchestrator Agent，不另建或释放该 Agent。需要审批的只读私密工具同样绑定调用方 DM。直接调用的 Reviewer 只收到模板和本次输入，不读取借用 Session 的历史。工具目标与历史频道记录不决定审批接收者；缺少调用上下文时，不回落到其他 Human。这不创建私密输入所需的 Human Source Event。

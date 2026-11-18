@@ -6,7 +6,7 @@ import type {
   ChannelTurnStop,
   ChannelToolAutoApproval,
 } from '../../core/src/channels/channel';
-import { isChannelTurnStopTarget } from '../../core/src/channels/turn-stop';
+import { isChannelTurnStopRests, isChannelTurnStopTarget } from '../../core/src/channels/turn-stop';
 import {
   isChannelVoiceCallRecord,
   type ChannelVoiceCallRecord,
@@ -143,10 +143,13 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
       humanName: stop['humanName'],
       sessionId: stop['sessionId'],
       ...(stop['held'] === true ? { held: true as const } : {}),
-      ...(stop['cause'] === 'human-stop' || stop['cause'] === 'failures'
+      ...(stop['cause'] === 'human-stop' ||
+      stop['cause'] === 'failures' ||
+      stop['cause'] === 'quota'
         ? { cause: stop['cause'] }
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+      ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
       ...(isChannelTurnStopTarget(stop['target']) ? { target: stop['target'] } : {}),
     };
   return undefined;

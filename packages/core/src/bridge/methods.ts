@@ -425,6 +425,14 @@ import {
   type ModelPresetStore,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import {
+  isRoutingGroupMember,
+  RoutingGroupError,
+  type RoutingGroup,
+  type RoutingGroupInput,
+  type RoutingGroupMember,
+  type RoutingGroupStore,
+} from '../models/routing-groups.js';
 import type { ModelCatalog, ModelCatalogEntry } from '../models/catalog.js';
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
@@ -724,6 +732,7 @@ export interface BridgeError {
     path?: string;
     spaceId?: string;
     route?: string;
+    references?: string[];
   };
   code: string;
   message: string;
@@ -838,6 +847,11 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
+  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
+  modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
+  modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
+  modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
+  modelGroupDelete(payload: unknown): BridgeResult<{ group: RoutingGroup }>;
   modelPlan(payload: unknown): Promise<BridgeResult<ModelPlanState>>;
   modelPlanCustomize(
     payload: unknown,
@@ -1365,6 +1379,7 @@ export interface BridgeMethodsDeps {
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
+  routingGroups?: RoutingGroupStore;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -1701,6 +1716,27 @@ function botPromptView(
   };
 }
 
+function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
+  const name = source['name'];
+  const members = source['members'];
+  if (typeof name !== 'string' || !Array.isArray(members) || !members.every(isRoutingGroupMember))
+    throw new RoutingGroupError(
+      'invalid-input',
+      'A name and members ({kind:"model",provider,model,reasoningEffort?} or {kind:"group",id}) are required',
+    );
+  return { name, members };
+}
+function routingGroupFailure(error: unknown): BridgeResult<never> {
+  if (!(error instanceof RoutingGroupError)) return modelFailure(error);
+  return {
+    ok: false,
+    error: {
+      code: error.code === 'invalid-input' ? 'invalid-input' : `routing-group-${error.code}`,
+      message: error.message,
+      ...(error.references.length > 0 ? { details: { references: error.references } } : {}),
+    },
+  };
+}
 function modelFailure(error: unknown): BridgeResult<never> {
   if (error instanceof TeamError)
     return {
@@ -2308,6 +2344,36 @@ function buildBridgeMethods(
       (deps.registry.get(slug)?.ownerHumanId ?? deps.team.ownerContext().humanId) !== human.humanId
     )
       throw new TeamError('bot-not-found');
+  };
+  const validateGroupMembers = async (members: RoutingGroupMember[]): Promise<void> => {
+    deps.team?.roles.require(human, 'models.use');
+    const routes = members.filter((member) => member.kind === 'model');
+    if (routes.length === 0) return;
+    const known = new Set(
+      (await deps.modelCatalog!.list()).map((entry) =>
+        JSON.stringify([entry.provider, entry.model]),
+      ),
+    );
+    const unknown = routes.find(
+      (route) => !known.has(JSON.stringify([route.provider, route.model])),
+    );
+    if (unknown !== undefined)
+      throw new RoutingGroupError(
+        'invalid-input',
+        `Model ${unknown.provider}/${unknown.model} is not in this Host's model list`,
+      );
+  };
+  const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
+    let failure: Error | undefined;
+    for (const route of routes) {
+      try {
+        await deps.modelCatalog!.validate(route);
+        return { ...route };
+      } catch (error) {
+        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
+      }
+    }
+    throw failure ?? new RoutingGroupError('empty-group', 'The Routing Group has no model');
   };
   const requireRoutes = (slug: string, routes: readonly ModelRoute[]): void => {
     requireOwnedBot(slug);
@@ -4081,6 +4147,78 @@ function buildBridgeMethods(
           : invalidInput('model-unavailable');
       }
     },
+    modelGroups() {
+      if (deps.routingGroups === undefined) return unavailable();
+      return { ok: true, value: { groups: deps.routingGroups.list() } };
+    },
+    modelGroup(payload) {
+      if (deps.routingGroups === undefined) return unavailable();
+      const id = asObject(payload)['id'];
+      if (typeof id !== 'string' || !id.trim())
+        return invalidInput('A Routing Group id is required');
+      try {
+        const group = deps.routingGroups.get(id.trim());
+        if (group === undefined)
+          throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+        return { ok: true, value: { group, routes: deps.routingGroups.routes(group.id) } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    async modelGroupCreate(payload) {
+      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
+      const source = asObject(payload);
+      try {
+        const input = routingGroupInput(source);
+        await validateGroupMembers(input.members);
+        return { ok: true, value: { group: deps.routingGroups.create(input) } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    async modelGroupUpdate(payload) {
+      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
+      const source = asObject(payload);
+      const id = source['id'];
+      const expectedRevision = source['expectedRevision'];
+      if (
+        typeof id !== 'string' ||
+        !Number.isSafeInteger(expectedRevision) ||
+        (expectedRevision as number) < 1
+      )
+        return invalidInput('A Routing Group id and expected revision are required');
+      try {
+        const input = routingGroupInput(source);
+        await validateGroupMembers(input.members);
+        const group = deps.routingGroups.update(id, {
+          ...input,
+          expectedRevision: expectedRevision as number,
+        });
+        return { ok: true, value: { group } };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
+    modelGroupDelete(payload) {
+      if (deps.routingGroups === undefined) return unavailable();
+      const source = asObject(payload);
+      const id = source['id'];
+      const expectedRevision = source['expectedRevision'];
+      if (
+        typeof id !== 'string' ||
+        !Number.isSafeInteger(expectedRevision) ||
+        (expectedRevision as number) < 1
+      )
+        return invalidInput('A Routing Group id and expected revision are required');
+      try {
+        return {
+          ok: true,
+          value: { group: deps.routingGroups.delete(id, expectedRevision as number) },
+        };
+      } catch (error) {
+        return routingGroupFailure(error);
+      }
+    },
     async modelPlan(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -4120,9 +4258,16 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined) return unavailable();
       const source = asObject(payload);
       const slug = source['slug'];
-      const orchestrator = source['orchestrator'];
-      if (typeof slug !== 'string' || !isModelRoute(orchestrator)) {
-        return invalidInput('slug and a valid Orchestrator route are required');
+      const groupId = source['orchestratorGroupId'];
+      if (
+        typeof slug !== 'string' ||
+        (groupId === undefined
+          ? !isModelRoute(source['orchestrator'])
+          : typeof groupId !== 'string' || !groupId.trim() || source['orchestrator'] !== undefined)
+      ) {
+        return invalidInput(
+          'slug and either a valid Orchestrator route or an Orchestrator Routing Group are required',
+        );
       }
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
@@ -4137,11 +4282,36 @@ function buildBridgeMethods(
       )
         return invalidInput('A valid expected revision is required');
       try {
-        requireRoutes(slug, [orchestrator]);
-        await deps.modelCatalog.validate(orchestrator);
+        const group =
+          typeof groupId === 'string'
+            ? (() => {
+                if (deps.routingGroups === undefined)
+                  throw new RoutingGroupError('not-found', 'Routing Groups are unavailable');
+                const found = deps.routingGroups.get(groupId.trim());
+                if (found === undefined)
+                  throw new RoutingGroupError(
+                    'not-found',
+                    `Routing Group ${groupId} does not exist`,
+                  );
+                return found;
+              })()
+            : undefined;
+        const candidates =
+          group === undefined
+            ? [source['orchestrator'] as ModelRoute]
+            : deps.routingGroups!.routes(group.id);
+        requireRoutes(slug, candidates);
+        const orchestrator = await firstUsableRoute(candidates);
         beforeCommit?.();
-        requireRoutes(slug, [orchestrator]);
-        const result = deps.registry.customizeModelPlan(slug, orchestrator, expectedRevision);
+        requireRoutes(slug, candidates);
+        if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
+          return invalidInput('Routing Group changed; read it again before saving');
+        const result = deps.registry.customizeModelPlan(
+          slug,
+          orchestrator,
+          expectedRevision,
+          group?.id,
+        );
         if (!result.ok)
           return result.reason === 'not-found'
             ? unknownBot(slug)
@@ -4150,6 +4320,7 @@ function buildBridgeMethods(
           return invalidInput('Apply a Model Preset first');
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');

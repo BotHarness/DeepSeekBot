@@ -239,12 +239,14 @@ import {
   syncBotDescriptor,
   syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
+import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
 import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
 import { createModelCatalog } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
+import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
@@ -574,6 +576,7 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  routingGroups: RoutingGroupStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
 
@@ -686,6 +689,8 @@ export function createCore(
     autoContinueDelaysMs?: readonly number[];
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
+    routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -759,6 +764,7 @@ function initializeCore(
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let routingGroups: RoutingGroupStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
@@ -883,6 +889,15 @@ function initializeCore(
         options.warn?.(
           `model-presets-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
+    });
+    startup.enter('routing-groups', 'initialize');
+    routingGroups = createRoutingGroupStore({
+      database: operationalDatabase,
+      references: (groupId) =>
+        registry
+          .list()
+          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
+          .map((bot) => `Bot ${bot.displayName}`),
     });
   } catch (error) {
     operationalDatabase.close();
@@ -1364,6 +1379,8 @@ function initializeCore(
   const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
+    ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
@@ -1544,6 +1561,7 @@ function initializeCore(
     externalMessaging,
     registry,
     modelPresets,
+    routingGroups,
     configureBotHopLimit: (read) => {
       const registration = { read };
       botHopLimits.push(registration);
@@ -1999,7 +2017,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
+  const routeRests = createRouteRests();
   const core = createCore({
+    routeRests,
+    sessionRoute: (botSlug, sessionId) =>
+      agentAdapter.modelSelection(sessionId) ??
+      core.registry.get(botSlug)?.modelPlan?.orchestrator ??
+      modelCatalog.defaultRoute?.(),
     startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
@@ -2522,6 +2546,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'agent/request-error',
     createBotRequestRetry({
       isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+      onQuotaExhausted: (route, untilMs) => routeRests.rest(route, untilMs),
       log: (message) => ctx.logger.info(message),
     }),
     { global: true },
@@ -2713,10 +2738,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (query) => core.runtime.toolApprovalOrigin?.(query),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
     core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -3049,7 +3075,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           channelApproval: toolApproval,
           ownership: core.ownership,
           forceChannel:
-            eachUse || toolEffects(execution.name, execution.arguments)?.authority === 'management',
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
+              callId: execution.callId,
+            }) === true,
           request: {
             agent,
             toolName: execution.name,
@@ -3569,6 +3600,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    routingGroups: core.routingGroups,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,

@@ -15,7 +15,14 @@ import {
   type TeamErrorCode,
   type TeamInvitation,
 } from '@botharness/host-client/team-client';
-import { space } from '../../src/ui/design/tokens';
+import { addressInvitation } from '@botharness/host-client/team-sign-in';
+import {
+  fingerprintGroups,
+  pinnedFingerprint,
+  teamAddressRoute,
+} from '../../src/host/team-address';
+import { useDesignTheme } from '../../src/ui/design/theme';
+import { radius, space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
@@ -28,7 +35,9 @@ type Step =
   | { kind: 'link' }
   | { kind: 'sign-in'; invitation: TeamInvitation; again?: boolean; pick?: boolean }
   | { kind: 'change'; host: SavedHost; current: string }
-  | { kind: 'switch'; host: SavedHost };
+  | { kind: 'switch'; host: SavedHost }
+  | { kind: 'address' }
+  | { kind: 'fingerprint'; invitation: TeamInvitation };
 
 function phoneName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
@@ -71,7 +80,9 @@ export default function TeamSignInScreen() {
   const [error, setError] = useState<string | undefined>(first.current.error);
   const [retryAfter, setRetryAfter] = useState<number>();
   const [busy, setBusy] = useState(false);
+  const theme = useDesignTheme();
   const [link, setLink] = useState('');
+  const [address, setAddress] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [next, setNext] = useState('');
@@ -112,6 +123,28 @@ export default function TeamSignInScreen() {
     void revokePairing({ host, carrier: nativeCarrier() }).catch(() => undefined);
     setError(undefined);
     setStep({ kind: 'link' });
+  };
+
+  const lookUp = async (): Promise<void> => {
+    const route = teamAddressRoute(address);
+    if (route === undefined) return setError('insecure-transport');
+    setBusy(true);
+    setError(undefined);
+    const found = await addressInvitation({
+      route,
+      username: username.trim().toLowerCase(),
+      carrier: nativeCarrier(),
+    });
+    setBusy(false);
+    if (!found.ok) return setError(found.code);
+    const pinned = pinnedFingerprint(hostSession.getState().hosts, found.value.host.id);
+    if (pinned !== undefined && pinned !== found.value.host.fingerprint)
+      return setError('fingerprint-mismatch');
+    setStep(
+      pinned === undefined
+        ? { kind: 'fingerprint', invitation: found.value }
+        : { kind: 'sign-in', invitation: found.value },
+    );
   };
 
   const openLink = (): void => {
@@ -222,6 +255,99 @@ export default function TeamSignInScreen() {
             on="canvas"
             disabled={link.trim() === ''}
             onPress={openLink}
+          />
+          <Button
+            testID="team-use-username"
+            label={t.teamSignIn.useUsername}
+            variant="text"
+            on="canvas"
+            onPress={() => {
+              setError(undefined);
+              setStep({ kind: 'address' });
+            }}
+          />
+        </>
+      ) : step.kind === 'address' ? (
+        <>
+          <Text tone="muted">{t.teamSignIn.manualHint}</Text>
+          <TextField
+            testID="team-address"
+            accessibilityLabel={t.teamSignIn.address}
+            placeholder="https://…"
+            value={address}
+            onChangeText={(value) => {
+              setAddress(value);
+              setError(undefined);
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            returnKeyType="next"
+            editable={!busy}
+          />
+          <TextField
+            testID="team-username"
+            accessibilityLabel={t.teamSignIn.username}
+            placeholder={t.teamSignIn.username}
+            value={username}
+            onChangeText={(value) => {
+              setUsername(value);
+              setError(undefined);
+            }}
+            textContentType="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="go"
+            editable={!busy}
+            onSubmitEditing={() => void lookUp()}
+          />
+          {errorText}
+          <Button
+            testID="team-address-continue"
+            label={t.teamSignIn.continue}
+            tone="primary"
+            on="canvas"
+            busy={busy}
+            disabled={busy || address.trim() === '' || username.trim() === ''}
+            onPress={() => void lookUp()}
+          />
+        </>
+      ) : step.kind === 'fingerprint' ? (
+        <>
+          <View style={{ gap: space.x1 }}>
+            <Text variant="title" accessibilityRole="header">
+              {t.teamSignIn.title.replace('{host}', step.invitation.host.name)}
+            </Text>
+            <Text tone="muted">{t.teamSignIn.fingerprintHint}</Text>
+          </View>
+          <View
+            style={{
+              padding: space.x5,
+              borderRadius: radius.lg,
+              backgroundColor: theme.layer.raised.fill,
+            }}
+          >
+            <Text
+              testID="team-fingerprint"
+              selectable
+              style={{ fontFamily: theme.mono, textAlign: 'center' }}
+            >
+              {fingerprintGroups(step.invitation.host.fingerprint)}
+            </Text>
+          </View>
+          <Button
+            testID="team-fingerprint-matches"
+            label={t.teamSignIn.fingerprintMatches}
+            tone="primary"
+            on="canvas"
+            onPress={() => setStep({ kind: 'sign-in', invitation: step.invitation })}
+          />
+          <Button
+            testID="team-fingerprint-cancel"
+            label={t.cancel}
+            on="canvas"
+            onPress={() => setStep({ kind: 'address' })}
           />
         </>
       ) : step.kind === 'switch' ? (

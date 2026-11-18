@@ -98,7 +98,6 @@ export const zh = {
   'entry.setup':
     '未检测到容器运行时。任选其一安装后重试：\n\nColima（推荐，MIT）：\n  brew install colima docker\n  brew services start colima\n\n或 Docker Desktop：https://www.docker.com/products/docker-desktop/',
   'section.title': '电脑控制',
-  'section.description': '操作目标与 Computer 权限',
   'rows.exportDir.title': 'Computer 导出目录',
   'rows.exportDir.current': '当前：{dir}',
   'rows.exportDir.empty': '未配置时使用默认导出目录',
@@ -241,7 +240,6 @@ export const en: Record<keyof typeof zh, string> = {
   'entry.setup':
     'No container runtime found. Install one of these, then retry:\n\nColima (recommended, MIT):\n  brew install colima docker\n  brew services start colima\n\nOr Docker Desktop: https://www.docker.com/products/docker-desktop/',
   'section.title': 'Computer',
-  'section.description': 'Computer target and permissions',
   'rows.exportDir.title': 'Computer export directory',
   'rows.exportDir.current': 'Current: {dir}',
   'rows.exportDir.empty': 'Uses the default export directory when none is set',

@@ -164,6 +164,7 @@ import type {
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import type { RoutingGroup, RoutingGroupMember } from '../models/routing-groups.js';
 import type {
   BridgeError,
   BridgeMethods,
@@ -1320,16 +1321,49 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  modelGroups(): { groups: RoutingGroup[] } {
+    return unwrap(this.methods.modelGroups({}));
+  }
+
+  modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
+    return unwrap(this.methods.modelGroup({ id }));
+  }
+
+  modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupCreate({ name, members }));
+  }
+
+  modelGroupUpdate(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMember[],
+  ): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupUpdate({ id, expectedRevision, name, members }));
+  }
+
+  modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
+    return unwrap(this.methods.modelGroupDelete({ id, expectedRevision }));
+  }
+
   modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
     return unwrapAsync(this.methods.modelPlan({ slug }));
   }
 
   modelPlanCustomize(
     slug: string,
-    orchestrator: ModelRoute,
+    orchestrator?: ModelRoute,
     expectedRevision?: number,
+    orchestratorGroupId?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(this.methods.modelPlanCustomize({ slug, orchestrator, expectedRevision }));
+    return unwrapAsync(
+      this.methods.modelPlanCustomize({
+        slug,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
+        expectedRevision,
+        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+      }),
+    );
   }
 
   modelPlanAssignmentsSet(
@@ -3432,6 +3466,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelPresetCreate',
   'modelPresetUpdate',
   'modelPresetApply',
+  'modelGroups',
+  'modelGroup',
+  'modelGroupCreate',
+  'modelGroupUpdate',
+  'modelGroupDelete',
   'modelPlan',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',

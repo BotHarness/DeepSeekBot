@@ -1,4 +1,11 @@
-import { useId, type ReactElement, type ReactNode, type Ref } from 'react';
+import {
+  createContext,
+  useContext,
+  useId,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { style } from './tobs.stylex.js';
@@ -8,6 +15,8 @@ import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
 const COMPACT = '@container bh-settings (max-width: 480px)';
+
+export const SettingsGroupContext = createContext(false);
 
 const styles = stylex.create({
   titleLine: {
@@ -42,6 +51,7 @@ const styles = stylex.create({
       ':has(> section)': 0,
     },
     borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },
+    overflow: 'clip',
     backgroundColor: {
       default: style.listGroupFill,
       ':has(> section)': 'transparent',
@@ -57,6 +67,13 @@ const styles = stylex.create({
     gap: space.x1,
     paddingBottom: space.x3,
     paddingInline: `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
+  },
+  sectionTitleLine: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+    minWidth: 0,
   },
   sectionTitle: {
     margin: 0,
@@ -79,21 +96,18 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     paddingBlock: style.listItemPaddingBlock,
     paddingInline: style.listItemPadding,
-    borderTopLeftRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
-    borderTopRightRadius: { default: style.listItemRadius, ':first-child': style.listGroupRadius },
-    borderBottomLeftRadius: { default: style.listItemRadius, ':last-child': style.listGroupRadius },
-    borderBottomRightRadius: {
-      default: style.listItemRadius,
-      ':last-child': style.listGroupRadius,
-    },
+    borderRadius: style.listItemRadius,
     backgroundColor: style.listItemFill,
     borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
     borderBottomColor: {
-      default: style.listSeparator,
-      ':last-of-type': 'transparent',
+      default: 'transparent',
+      ':has(~ :is([data-settings-row], [data-settings-part]))': style.listSeparator,
+      [stylex.when.ancestor(':has(~ :is([data-settings-row], [data-settings-part]))')]:
+        style.listSeparator,
     },
   },
+  lone: { borderRadius: style.listGroupRadius },
   text: {
     display: 'flex',
     flexDirection: 'column',
@@ -130,6 +144,7 @@ const styles = stylex.create({
     minWidth: 0,
     maxWidth: { default: '60%', [NARROW]: '100%', [COMPACT]: '100%' },
   },
+  part: { display: 'contents' },
   value: {
     color: color.muted,
     fontSize: text.bodySize,
@@ -147,8 +162,12 @@ export function SettingsRows({
   readonly rootRef?: Ref<HTMLDivElement> | undefined;
 }): ReactElement {
   return (
-    <div ref={rootRef} {...stylex.props(styles.rows, styles.group, surfaceStyles.card)}>
-      {children}
+    <div
+      ref={rootRef}
+      data-settings-group=""
+      {...stylex.props(styles.rows, styles.group, surfaceStyles.card)}
+    >
+      <SettingsGroupContext.Provider value>{children}</SettingsGroupContext.Provider>
     </div>
   );
 }
@@ -156,6 +175,7 @@ export function SettingsRows({
 export interface SettingsSectionProps {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
+  readonly action?: ReactNode;
   readonly portaled?: boolean;
   readonly rootRef?: Ref<HTMLElement> | undefined;
   readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
@@ -165,6 +185,7 @@ export interface SettingsSectionProps {
 export function SettingsSection({
   title,
   description,
+  action,
   portaled = false,
   rootRef,
   data,
@@ -180,15 +201,20 @@ export function SettingsSection({
     >
       {title === undefined ? null : (
         <div {...stylex.props(styles.sectionHead)}>
-          <h3 id={`${id}-title`} {...stylex.props(styles.sectionTitle)}>
-            {title}
-          </h3>
+          <div {...stylex.props(styles.sectionTitleLine)}>
+            <h3 id={`${id}-title`} {...stylex.props(styles.sectionTitle)}>
+              {title}
+            </h3>
+            {action}
+          </div>
           {description === undefined ? null : (
             <div {...stylex.props(styles.description)}>{description}</div>
           )}
         </div>
       )}
-      <div {...stylex.props(styles.group, surfaceStyles.card)}>{children}</div>
+      <div data-settings-group="" {...stylex.props(styles.group, surfaceStyles.card)}>
+        <SettingsGroupContext.Provider value>{children}</SettingsGroupContext.Provider>
+      </div>
     </section>
   );
 }
@@ -215,14 +241,16 @@ export function SettingsRow({
   const id = useId();
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
+  const grouped = useContext(SettingsGroupContext);
   return (
     <div
       ref={rootRef}
       role="group"
       aria-labelledby={titleId}
       aria-describedby={description === undefined ? undefined : descriptionId}
+      data-settings-row=""
       {...data}
-      {...stylex.props(styles.row)}
+      {...stylex.props(styles.row, !grouped && styles.lone)}
     >
       <div {...stylex.props(styles.text)}>
         <div {...stylex.props(styles.titleLine)}>
@@ -246,3 +274,54 @@ export function SettingsRow({
 export function SettingsValue({ children }: { readonly children: ReactNode }): ReactElement {
   return <span {...stylex.props(styles.value)}>{children}</span>;
 }
+
+export function SettingsGroupPart({
+  children,
+  rootRef,
+  busy,
+  role,
+  label,
+  data,
+}: {
+  readonly children: ReactNode;
+  readonly rootRef?: Ref<HTMLDivElement> | undefined;
+  readonly busy?: boolean;
+  readonly role?: 'list' | 'listitem';
+  readonly label?: string;
+  readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
+}): ReactElement {
+  return (
+    <div
+      ref={rootRef}
+      role={role}
+      aria-label={label}
+      aria-busy={busy}
+      data-settings-part=""
+      {...data}
+      {...stylex.props(stylex.defaultMarker(), styles.part)}
+    >
+      {children}
+    </div>
+  );
+}
+
+export const settingsRowStyles = stylex.create({
+  block: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: space.x3,
+  },
+  title: {
+    color: color.fg,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.regular,
+  },
+  description: {
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+});
+
+export const settingsRowBase = styles.row;
