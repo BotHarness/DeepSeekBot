@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { FlatList, Keyboard, ScrollView, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -21,7 +21,6 @@ import {
   type ModelFavoriteChange,
 } from '@botharness/host-client/model-catalog';
 import type { HostClient } from '@botharness/host-client/client';
-import { useHostSession } from '../../host/host-session';
 import {
   inheritModel,
   modelRoutes,
@@ -165,7 +164,7 @@ function useModels(client: HostClient, scope: ModelScope) {
   return { value, error, busy, refresh, run, favorites, favorite };
 }
 
-function ModelsView({
+export function ModelsView({
   client,
   scope,
   picker,
@@ -991,64 +990,5 @@ function ModelsView({
         </SettingsGroupItem>
       )}
     />,
-  );
-}
-
-export function ModelSettingsScreen({
-  kind,
-  pick = false,
-}: {
-  kind: ModelScope['kind'];
-  pick?: boolean;
-}) {
-  const t = useStrings();
-  const {
-    slug = '',
-    id = '',
-    field = 'orchestrator',
-    provider = '',
-    model = '',
-    group = '',
-  } = useLocalSearchParams<{
-    slug: string;
-    id: string;
-    field: string;
-    provider: string;
-    model: string;
-    group: string;
-  }>();
-  const { client, saved } = useHostSession();
-  const scope: ModelScope =
-    kind === 'bot'
-      ? { kind, slug }
-      : kind === 'preset' || (pick && id !== '')
-        ? { kind: 'preset', id }
-        : { kind: 'global' };
-  const picker: ModelField | undefined = pick
-    ? [
-        'assignment',
-        'allowed',
-        'allowed-effort',
-        'orchestrator-effort',
-        'assignment-effort',
-      ].includes(field)
-      ? (field as ModelField)
-      : 'orchestrator'
-    : undefined;
-  const effortTarget: AssignmentEffortTarget | undefined =
-    group !== ''
-      ? { kind: 'group', id: group }
-      : provider !== '' && model !== ''
-        ? { kind: 'model', provider, model }
-        : undefined;
-  if (client === undefined) return <SheetNote>{t.unreachable}</SheetNote>;
-  return (
-    <ModelsView
-      key={`${saved?.hostId}:${modelScopeKey(scope)}:${picker ?? ''}:${group}:${provider}/${model}`}
-      client={client}
-      scope={scope}
-      picker={picker}
-      effortTarget={effortTarget}
-    />
   );
 }
