@@ -30,7 +30,8 @@ export interface StorageCleanupScope {
   kinds: StorageMediaKind[];
 }
 
-export type StorageKeptReason = 'bot-working' | 'delivery-pending' | 'memory' | 'migration';
+export const STORAGE_KEPT = ['bot-working', 'delivery-pending', 'memory', 'migration'] as const;
+export type StorageKeptReason = (typeof STORAGE_KEPT)[number];
 
 export interface StorageCleanupPreview {
   token: string;
@@ -48,7 +49,8 @@ export interface StorageCleanupResult {
   freedBytes: number;
 }
 
-export type StorageMessagesKeptReason = 'bot-working' | 'delivery-pending' | 'shared';
+export const STORAGE_MESSAGES_KEPT = ['bot-working', 'delivery-pending', 'shared'] as const;
+export type StorageMessagesKeptReason = (typeof STORAGE_MESSAGES_KEPT)[number];
 
 export interface StorageMessagesPreview {
   token: string;
@@ -83,18 +85,6 @@ export function storageSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-const STORAGE_KEPT: readonly StorageKeptReason[] = [
-  'bot-working',
-  'delivery-pending',
-  'memory',
-  'migration',
-];
-const STORAGE_MESSAGES_KEPT: readonly StorageMessagesKeptReason[] = [
-  'bot-working',
-  'delivery-pending',
-  'shared',
-];
-
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -103,6 +93,12 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function exactCount(value: unknown, what: string): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new HostAnswerInvalid(`${what} is not a count.`);
+  return value;
 }
 
 function list(value: unknown): Record<string, unknown>[] {
@@ -117,7 +113,10 @@ function oneOf<T extends string>(options: readonly T[], value: unknown): value i
 }
 
 function ids(value: unknown): string[] {
-  return (Array.isArray(value) ? value : []).filter((id): id is string => typeof id === 'string');
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every((id): id is string => typeof id === 'string'))
+    throw new HostAnswerInvalid('Storage cleanup returned an invalid chat restriction.');
+  return value;
 }
 
 export function parseStorageUsage(value: unknown): StorageUsage {
@@ -199,7 +198,10 @@ export function parseStorageMessagesPreview(value: unknown): StorageMessagesPrev
         ? [{ reason: item['reason'], messages: count(item['messages']) }]
         : [],
     ),
-    memoryReferences: count(preview?.['memoryReferences']),
+    memoryReferences: exactCount(
+      preview?.['memoryReferences'],
+      'storageMessagesCleanupPreview memoryReferences',
+    ),
     more: preview?.['more'] === true,
   };
 }
@@ -230,9 +232,9 @@ export async function confirmStorageCleanup(
     }),
   );
   return {
-    messages: count(result?.['messages']),
-    files: count(result?.['files']),
-    freedBytes: count(result?.['freedBytes']),
+    messages: exactCount(result?.['messages'], 'storageCleanupConfirm messages'),
+    files: exactCount(result?.['files'], 'storageCleanupConfirm files'),
+    freedBytes: exactCount(result?.['freedBytes'], 'storageCleanupConfirm freedBytes'),
   };
 }
 
@@ -256,5 +258,8 @@ export async function confirmStorageMessages(
       token: preview.token,
     }),
   );
-  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
+  return {
+    messages: exactCount(result?.['messages'], 'storageMessagesCleanupConfirm messages'),
+    freedBytes: exactCount(result?.['freedBytes'], 'storageMessagesCleanupConfirm freedBytes'),
+  };
 }

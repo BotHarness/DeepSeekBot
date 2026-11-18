@@ -12,6 +12,7 @@
   "channelAllBotPreview",
   "channelAssign",
   "channelAssignments",
+  "channelChangeCursor",
   "channelCreate",
   "channelDm",
   "channelGenuiView",

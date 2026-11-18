@@ -1,26 +1,68 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parse } from '@babel/parser';
 
 export const BASELINE = 'scripts/host-reader-baseline.json';
 export const SHARED = 'packages/host-client/src/';
 export const SIDES = {
   desktop: ['packages/client/src/'],
-  mobile: ['apps/mobile/src/', 'apps/mobile/app/', SHARED],
+  mobile: ['apps/mobile/src/', 'apps/mobile/app/'],
+  shared: [SHARED],
 };
 
-const GENERIC = String.raw`(?:<(?:[^<>()]|<[^<>()]*>)*>)?`;
-const method = (quote) => `(['"\\x60])([A-Za-z][\\w/.-]*)\\${quote}`;
-const CALL = new RegExp(
-  String.raw`\b(?:call|invoke|rpc)\s*${GENERIC}\(\s*${method(1)}|\bunwrap\(\s*[\w.]+,\s*${method(3)}`,
-  'gu',
-);
+const HOST_CALLS = new Set(['call', 'invoke', 'rpc']);
 
-export function hostMethods(source) {
-  return new Set([...source.matchAll(CALL)].map((match) => match[2] ?? match[4]));
+const calleeName = (node) =>
+  node.type === 'Identifier'
+    ? node.name
+    : node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier'
+      ? node.property.name
+      : undefined;
+
+const literal = (node) =>
+  node?.type === 'StringLiteral'
+    ? node.value
+    : node?.type === 'TemplateLiteral' && node.expressions.length === 0
+      ? node.quasis[0].value.cooked
+      : undefined;
+
+export function hostMethods(source, path = 'source.tsx') {
+  const found = new Set();
+  const visit = (node) => {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+      return;
+    }
+    if (node.type === 'CallExpression') {
+      const name = calleeName(node.callee);
+      const method = HOST_CALLS.has(name)
+        ? literal(node.arguments[0])
+        : name === 'unwrap'
+          ? literal(node.arguments[1])
+          : undefined;
+      if (method !== undefined && /^[A-Za-z][\w/.-]*$/u.test(method)) found.add(method);
+    }
+    for (const key of Object.keys(node))
+      if (
+        !['loc', 'start', 'end', 'leadingComments', 'trailingComments', 'innerComments'].includes(
+          key,
+        )
+      )
+        visit(node[key]);
+  };
+  visit(
+    parse(source, {
+      sourceType: 'module',
+      plugins: /\.tsx$/u.test(path) ? ['typescript', 'jsx'] : ['typescript'],
+      errorRecovery: true,
+    }).program,
+  );
+  return found;
 }
 
 export const sideOf = (path) =>
@@ -31,15 +73,21 @@ export function readersByMethod(files) {
   for (const [path, source] of Object.entries(files)) {
     const side = sideOf(path);
     if (side === undefined) continue;
-    for (const method of hostMethods(source)) ((readers[method] ??= {})[side] ??= []).push(path);
+    for (const method of hostMethods(source, path))
+      ((readers[method] ??= {})[side] ??= []).push(path);
   }
   return readers;
 }
 
 export const duplicated = (readers) =>
   Object.keys(readers)
-    .filter((method) => readers[method].desktop && readers[method].mobile)
+    .filter((method) => Object.keys(readers[method]).length > 1)
     .sort();
+
+const where = (readers, method) =>
+  Object.entries(readers[method])
+    .map(([side, paths]) => `${side} (${paths.join(', ')})`)
+    .join(' and ');
 
 export function checkHostReaders(readers, baseline) {
   const allowed = new Set(baseline);
@@ -48,7 +96,7 @@ export function checkHostReaders(readers, baseline) {
     .filter((method) => !allowed.has(method))
     .map(
       (method) =>
-        `Host method '${method}' is read on desktop (${readers[method].desktop.join(', ')}) and on mobile (${readers[method].mobile.join(', ')}). Fix: keep one reader in ${SHARED} that parses the answer from unknown, call it from both (desktop passes bridgeHost(call) from packages/client/src/client/bridge.ts), and delete the other reader.`,
+        `Host method '${method}' is read separately on ${where(readers, method)}. Fix: keep one reader in ${SHARED} that parses the answer from unknown, call it from both (desktop passes bridgeHost(call) from packages/client/src/client/bridge.ts), and delete the other reader.`,
     );
   const stale = baseline.filter((method) => !now.includes(method));
   if (stale.length)
@@ -58,9 +106,8 @@ export function checkHostReaders(readers, baseline) {
   return errors;
 }
 
-function trackedSources(root) {
-  const prefixes = Object.values(SIDES).flat();
-  const result = spawnSync('git', ['ls-files', '-z', '--', ...prefixes], {
+function git(root, args) {
+  const result = spawnSync('git', args, {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 1 << 26,
@@ -68,17 +115,44 @@ function trackedSources(root) {
     windowsHide: true,
   });
   if (result.error) throw result.error;
+  return result;
+}
+
+function sources(root) {
+  const prefixes = Object.values(SIDES).flat();
+  const listed = git(root, [
+    'ls-files',
+    '-z',
+    '--cached',
+    '--others',
+    '--exclude-standard',
+    '--',
+    ...prefixes,
+  ]);
+  if (listed.status !== 0)
+    throw new Error(`git ls-files failed (${listed.status}): ${listed.stderr.trim()}`);
   return Object.fromEntries(
-    result.stdout
-      .split('\0')
+    [...new Set(listed.stdout.split('\0'))]
       .filter((path) => /\.(?:ts|tsx)$/u.test(path) && !/\.d\.ts$|\.test\.tsx?$/u.test(path))
+      .filter((path) => existsSync(join(root, path)))
       .map((path) => [path, readFileSync(join(root, path), 'utf8')]),
   );
 }
 
+export function addedToBaseline(baseline, base) {
+  if (base === undefined) return [];
+  const known = new Set(base);
+  return baseline.filter((method) => !known.has(method));
+}
+
+function mainBaseline(root) {
+  const shown = git(root, ['show', `origin/main:${BASELINE}`]);
+  return shown.status === 0 ? JSON.parse(shown.stdout) : undefined;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const root = resolve(fileURLToPath(import.meta.url), '..', '..');
-  const readers = readersByMethod(trackedSources(root));
+  const readers = readersByMethod(sources(root));
   const baseline = JSON.parse(readFileSync(join(root, BASELINE), 'utf8'));
   if (process.argv.includes('--update')) {
     const now = new Set(duplicated(readers));
@@ -87,11 +161,16 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.log(`host readers: ${next.length} baselined methods`);
   } else {
     const errors = checkHostReaders(readers, baseline);
+    const added = addedToBaseline(baseline, mainBaseline(root));
+    if (added.length)
+      errors.push(
+        `${BASELINE} adds ${added.join(', ')}, which main does not list. The baseline only shrinks: give each of these methods one reader instead.`,
+      );
     for (const error of errors) console.error(`host readers: ${error}`);
     if (errors.length) process.exitCode = 1;
     else
       console.log(
-        `host readers: no new Host method read separately on desktop and mobile (${baseline.length} baselined)`,
+        `host readers: no new Host method read in two places (${baseline.length} baselined)`,
       );
   }
 }

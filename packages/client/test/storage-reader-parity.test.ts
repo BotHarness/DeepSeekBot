@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
-import { loadStorageUsage, previewStorageMessages } from '@botharness/host-client/storage';
+import {
+  confirmStorageCleanup,
+  confirmStorageMessages,
+  loadStorageUsage,
+  previewStorageMessages,
+} from '@botharness/host-client/storage';
 import { bridgeHost, type BridgeCall } from '../src/client/bridge.js';
 
 const answer = {
@@ -48,5 +53,18 @@ describe('storage readers', () => {
     await expect(
       previewStorageMessages(remoteHost({ scope: {} }), { before: '2026-01-01' }),
     ).rejects.toBeInstanceOf(HostAnswerInvalid);
+  });
+
+  it('treat a confirmation without counts as an unknown outcome, not as nothing deleted', async () => {
+    const preview = { token: 't', scope: { before: '2026-11-01T00:00:00.000Z', channelIds: [] } };
+    for (const host of [localHost(null), remoteHost({ messages: 2 })]) {
+      await expect(
+        confirmStorageCleanup(host, { ...preview, scope: { ...preview.scope, kinds: ['image'] } }),
+      ).rejects.toBeInstanceOf(HostAnswerInvalid);
+      await expect(confirmStorageMessages(host, preview)).rejects.toBeInstanceOf(HostAnswerInvalid);
+    }
+    expect(
+      await confirmStorageMessages(remoteHost({ messages: 0, freedBytes: 0 }), preview),
+    ).toEqual({ messages: 0, freedBytes: 0 });
   });
 });
