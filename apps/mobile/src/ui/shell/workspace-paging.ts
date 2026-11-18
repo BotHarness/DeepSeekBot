@@ -4,9 +4,14 @@ type WorkspacePaging = {
 };
 
 let paging: WorkspacePaging | undefined;
+let closeWhenShown = false;
 
 export function bindWorkspacePaging(next: WorkspacePaging): () => void {
   paging = next;
+  if (closeWhenShown) {
+    closeWhenShown = false;
+    next.close();
+  }
   return () => {
     if (paging === next) paging = undefined;
   };
@@ -22,4 +27,9 @@ export function closeWorkspacePage(): boolean {
   if (!paging) return false;
   paging.close();
   return true;
+}
+
+export function closeWorkspacePageWhenShown(): void {
+  if (paging) paging.close();
+  else closeWhenShown = true;
 }

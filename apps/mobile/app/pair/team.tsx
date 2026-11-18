@@ -25,7 +25,7 @@ import { CopyableFingerprint } from '../../src/ui/primitives/copyable-fingerprin
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
-import { closeWorkspacePage } from '../../src/ui/shell/workspace-paging';
+import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
 
 const PASSWORD_MIN = 10;
@@ -94,7 +94,7 @@ export default function TeamSignInScreen() {
 
   const land = (hostId: string): void => {
     conversationFilter.set(computerEnvironmentKey(hostId));
-    closeWorkspacePage();
+    closeWorkspacePageWhenShown();
     router.dismissTo('/');
   };
 

@@ -81,7 +81,9 @@ const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: landing.filter },
 }));
-vi.mock('../src/ui/shell/workspace-paging', () => ({ closeWorkspacePage: landing.closePage }));
+vi.mock('../src/ui/shell/workspace-paging', () => ({
+  closeWorkspacePageWhenShown: landing.closePage,
+}));
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
 vi.mock('expo-clipboard', () => clipboard);
 import TeamSignInScreen from '../app/pair/team';
