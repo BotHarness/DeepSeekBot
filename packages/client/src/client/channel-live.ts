@@ -21,6 +21,7 @@ import {
 } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { ChannelDraft, ChannelMessage, ClientStore } from './store.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const EVENT_NAME = 'channel/message';
 const ADMISSION_EVENT = 'channel/admission';
@@ -284,7 +285,7 @@ export function mountChannelLive(
     try {
       await actions.refreshChannelMessages(channelId);
     } catch (error) {
-      console.warn('botharness: Channel live refresh failed', error);
+      reportFailure('channel-live-refresh-failed', 'Channel live refresh failed', error);
     } finally {
       recovering = false;
       sync();
@@ -683,7 +684,10 @@ export function mountChannelLive(
       next = makeSource('./api/botharness/stream?' + query.toString());
     } catch {
       close();
-      console.warn('botharness: Channel live stream construction refused');
+      reportFailure(
+        'channel-live-stream-construction-refused',
+        'Channel live stream construction refused',
+      );
       return;
     }
     source = next;

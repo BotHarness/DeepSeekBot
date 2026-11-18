@@ -346,9 +346,11 @@ export function runDesktopZoomSetup(args) {
 }
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    console.log(JSON.stringify(await runDesktopZoomSetup(process.argv.slice(2))));
+    process.stdout.write(`${JSON.stringify(await runDesktopZoomSetup(process.argv.slice(2)))}\n`);
   } catch (error) {
-    console.error(JSON.stringify({ code: error.code ?? 'desktop-zoom-setup-failed' }));
+    process.stderr.write(
+      `${JSON.stringify({ code: error.code ?? 'desktop-zoom-setup-failed' })}\n`,
+    );
     process.exitCode = 1;
   }
 }

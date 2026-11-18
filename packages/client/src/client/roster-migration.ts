@@ -16,6 +16,7 @@ import {
   saveRosterConfig,
   type ConfigStorage,
 } from './roster-config.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export interface RosterMigrationOptions {
   storage: ConfigStorage | undefined;
@@ -30,7 +31,10 @@ export async function migrateLegacyRoster(
   options: RosterMigrationOptions,
 ): Promise<RosterMigrationOutcome> {
   const { storage, call } = options;
-  const warn = options.warn ?? ((message: string) => console.warn(message));
+  const warn =
+    options.warn ??
+    ((message: string, error?: unknown) =>
+      reportFailure('roster-migration', message.replace(/^botharness: /u, ''), error));
   if (hasRosterMigrated(storage)) return 'skipped';
   const legacy = loadLegacyRosterArrangement(storage);
   if (legacy === undefined) return 'skipped';

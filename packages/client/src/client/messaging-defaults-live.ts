@@ -5,6 +5,7 @@ import {
 import { parseSkillCatalogChange } from './bridge.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import { parseContentRedactions } from './content-redactions.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const skillListeners = new Map<() => void, string>();
 const skillsChanged = (change?: SkillCatalogChange): void => {
@@ -183,7 +184,7 @@ class SharedSource extends EventTarget implements ActivityEventSource {
       try {
         ensureSource();
       } catch {
-        console.warn('botharness: live transport replacement refused');
+        reportFailure('live-transport-replacement-refused', 'live transport replacement refused');
       }
     }
   }

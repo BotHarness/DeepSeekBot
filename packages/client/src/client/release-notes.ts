@@ -18,6 +18,7 @@ import type { BridgeCall } from './bridge.js';
 import type { HostAcknowledgements } from './host-acknowledgements.js';
 import type { ConfigStorage } from './roster-config.js';
 import { UpdateRunsController } from './update-runs.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export const RELEASE_NOTES_SEEN_KEY = 'botharness.releaseNotes.seenVersion';
 const RELEASE_NOTES_ACK = 'release-notes-seen';
@@ -305,7 +306,7 @@ export class ReleaseNotesController {
   start(): Promise<void> {
     this.started ??= this.announce().catch((error: unknown) => {
       this.started = undefined;
-      console.warn('botharness: failed to read release notes', error);
+      reportFailure('failed-to-read-release-notes', 'failed to read release notes', error);
     });
     return this.started;
   }
@@ -375,7 +376,7 @@ export class ReleaseNotesController {
       try {
         this.storage?.setItem(RELEASE_NOTES_SEEN_KEY, version);
       } catch {
-        console.warn('botharness: failed to remember the seen release');
+        reportFailure('failed-to-remember-the-seen-release', 'failed to remember the seen release');
       }
       const remote = this.acks?.remote(RELEASE_NOTES_ACK);
       if (remote === undefined || !isReleaseVersion(remote) || compareVersions(version, remote) > 0)

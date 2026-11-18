@@ -29,7 +29,7 @@ import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-b
 import type { HostClient } from '@botharness/host-client/client';
 import { setModelFavorite as setHostModelFavorite } from '@botharness/host-client/bot-settings';
 import { parseModelCatalog, type ModelChoice } from '@botharness/host-client/model-catalog';
-import { clientLog } from './diagnostic-log.js';
+import { clientLog, reportFailure } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
@@ -4558,7 +4558,11 @@ export function parseStoredChannelMessage(value: unknown): ChannelMessage | unde
   )
     return undefined;
   const revision = record?.['channelRevision'];
-  console.warn('botharness: showing an unreadable Channel message as plain text', id);
+  reportFailure(
+    'showing-an-unreadable-channel-message-as-plain-text',
+    'showing an unreadable Channel message as plain text',
+    id,
+  );
   return {
     id,
     at,
