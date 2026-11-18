@@ -1888,12 +1888,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.botModeSet({ slug, mode }));
   }
 
-  botModeTemplateSave(input: {
-    id?: string;
-    name: string;
-    modes: string[];
-  }): Promise<BotModesView> {
-    return unwrapAsync(this.methods.botModeTemplateSave(input));
+  botModeTemplateSave(name: string, modes: string[], id?: string): Promise<BotModesView> {
+    return unwrapAsync(
+      this.methods.botModeTemplateSave({ name, modes, ...(id === undefined ? {} : { id }) }),
+    );
   }
 
   botModeTemplateDelete(id: string): Promise<BotModesView> {
