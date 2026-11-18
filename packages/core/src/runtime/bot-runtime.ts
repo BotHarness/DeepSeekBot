@@ -10786,20 +10786,6 @@ class BotRuntimeImplementation implements BotRuntime {
       modelRoute = selectAssignmentRoute(plan, input.model);
     }
     if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
-    const waking = row.activity === 'idle' || recovering;
-    if (waking) {
-      const refusal = this.#assignmentCapacityRefusal('awakened');
-      if (refusal !== undefined) {
-        return {
-          ...refusal,
-          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-          delivery: 'capacity',
-        };
-      }
-      if (stopped !== undefined)
-        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running');
-      this.#setActivity(input.sessionId, 'working');
-    }
     const interrupted = this.#interruptedTools.get(input.sessionId);
     const initiatingHuman = this.#database.read((db) => {
       const source = db
@@ -10814,6 +10800,20 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(parentSessionId ?? null);
       return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
     });
+    const waking = row.activity === 'idle' || recovering;
+    if (waking) {
+      const refusal = this.#assignmentCapacityRefusal('awakened');
+      if (refusal !== undefined) {
+        return {
+          ...refusal,
+          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
+          delivery: 'capacity',
+        };
+      }
+      if (stopped !== undefined)
+        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running');
+      this.#setActivity(input.sessionId, 'working');
+    }
     const run: AssignmentAgentRun = {
       beginTurn: () => {
         if (typeof initiatingHuman !== 'string') return;
