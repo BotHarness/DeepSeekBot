@@ -121,6 +121,7 @@ export function resolveBotMode(input: {
     return input.inherited;
   return (
     input.allowed.find((mode) => input.installed === undefined || input.installed.has(mode)) ??
+    input.allowed[0] ??
     input.inherited
   );
 }

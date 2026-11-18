@@ -119,6 +119,7 @@ describe('Bot mode settings', () => {
     expect(resolve(undefined, ['ptc', 'deepseekbot'])).toBe('deepseekbot');
     expect(resolve(undefined, ['acp', 'ptc'])).toBe('ptc');
     expect(resolve('standard', ['ptc'])).toBe('standard');
+    expect(resolve(undefined, ['acp'])).toBe('acp');
   });
 });
 
@@ -296,6 +297,39 @@ describe('Bot mode bridge methods', () => {
     expect(await restarted.botModes({ slug: 'ada' })).toMatchObject({
       ok: false,
       error: { code: 'settings-unreadable' },
+    });
+  });
+
+  it('never reports a mode outside the template once its modes are uninstalled', async () => {
+    const settings = createBotModeSettings(dir());
+    const bots: Record<string, Partial<PersonaBotRecord>> = { ada: { preset: 'acp' } };
+    let installed = new Set(ROSTER.map((mode) => mode.id));
+    const methods = createBotModeBridgeMethods({
+      modes: {
+        settings,
+        productDefault: 'deepseekbot',
+        roster: async () => ROSTER.filter((mode) => installed.has(mode.id)),
+        modeOf: (slug) =>
+          resolveBotMode({
+            own: bots[slug]?.preset,
+            inherited: 'deepseekbot',
+            allowed: settings.allowedModes(slug),
+            installed,
+          }),
+      },
+      registry: registry(bots),
+    });
+    const saved = await methods.botModeTemplateSave({ name: 'ACP', modes: ['acp'] });
+    const id = saved.ok ? saved.value.templates[0]!.id : '';
+    await methods.botModeTemplateSet({ slug: 'ada', template: id });
+    installed = new Set(['deepseekbot', 'ptc']);
+    expect(await methods.botModeSet({ slug: 'ada', mode: null })).toMatchObject({
+      ok: true,
+      value: { bot: { mode: null, effective: 'acp', allowed: ['acp'] } },
+    });
+    expect(await methods.botModeTemplateSet({ slug: 'ada', template: null })).toMatchObject({
+      ok: true,
+      value: { bot: { effective: 'deepseekbot', allowed: null } },
     });
   });
 
