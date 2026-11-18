@@ -75,9 +75,16 @@ export function createGroupFallback(options: {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;
       const group = routesOf(override.botSlug);
+      const member =
+        group?.groupId === override.groupId
+          ? group.routes.find((route) => same(route, override.route))
+          : undefined;
+      const effort = override.route.reasoningEffort;
       if (
-        group?.groupId !== override.groupId ||
-        !group.routes.some((route) => same(route, override.route))
+        member === undefined ||
+        (member.reasoningEffort === undefined &&
+          effort !== undefined &&
+          effort !== effortOf(override.botSlug))
       ) {
         overrides.delete(sessionId);
         return undefined;

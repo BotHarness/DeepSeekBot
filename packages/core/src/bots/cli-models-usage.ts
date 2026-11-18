@@ -474,7 +474,7 @@ export async function runModelsUsage(
       values,
       [
         ...required,
-        ...(full ? ['orchestrator', 'orchestratorGroupId'] : []),
+        ...(full ? ['orchestrator', 'orchestratorGroupId', 'orchestratorGroupEffort'] : []),
         'assignmentGroups',
         'assignmentDefaultGroupId',
         'assignmentGroupOptions',
