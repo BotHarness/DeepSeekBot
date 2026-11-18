@@ -3,6 +3,7 @@
 ## Sources
 
 - `packages/client/src/client/{model-plan-store,model-preset-profile}.{ts,tsx}`
+- `packages/client/src/client/engine-choice.tsx`
 - `packages/core/src/messaging/im-commands.ts`
 - `packages/host-client/src/bot-settings.ts`
 - `apps/mobile/app/settings/model-preset.tsx`
@@ -12,6 +13,7 @@
 - Orchestrator Session
 - Model Preset
 - PersonaBot Model Plan
+- Subscription Engine
 
 ## Sub-features
 
@@ -20,6 +22,7 @@
 - “Choose preset” shows each preset's name, main model and task model in the same dialog. Selecting a preset stages the complete pair; Save applies it, while Cancel discards it.
 - Direct edits can change either model independently; changing the main model preserves the task route and allowed efforts. Inherited Assignment settings remain absent unless explicitly changed.
 - Sidebar quick selection and mobile Host client use the same `modelPlanCustomize` method.
+- In Specific models on an origin Host, Main subscription engine and Task subscription engine apply immediately and independently. A signed-in task engine offers its models and the selected model's reasoning efforts. Use model restores the task's DSH route.
 
 ## How to get to it (user POV)
 
@@ -30,6 +33,8 @@ Open a Bot DM. Type `/model ` to show available models and scope. Filter, choose
 Launch an isolated Host and run doctor. Create one globally inheriting Bot and one Bot with a complete Model Plan. Drive the composer and sidebar entry points, then inspect `botharness/modelPlan`. Check that only `orchestrator`, revision and customization metadata changed; Assignment fields remain either identical or absent. Repeat after a page reload and Host restart. Run `deepseekbot model-plan-customize` against the same Host with a stale expected revision and verify refusal.
 
 Capture the inline menu, direct model dialog and preset list at desktop and narrow widths. Confirm only one dialog is open and that selecting a preset shows both routes without persisting until Save. Verify task-only edits preserve the main route, cancellation makes no writes, and reopening defaults to “Specific models”. Send a real DM after selecting an available route, and check the reply plus actual Session request route. Unit tests separately gate the current-turn and inherited Assignment continuation boundaries.
+
+In the Task subscription engine group, choose an available engine, then choose an offering from Engine model. Check that Reasoning effort shows the model's default where advertised. Pick an explicit effort and reload the page. Reopen the dialog and compare the visible model and effort with `deepseekbot engine status`. Confirm the main engine selection stayed the same. Use model under the task engine and check that only the Assignment selection disappeared and the Task model still shows its DSH route. Open the editor from the DM and Bot sidebar and capture light and dark. The configuration check requires an available subscription catalog but no model turn.
 
 ## Gotchas
 

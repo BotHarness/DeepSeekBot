@@ -23,6 +23,7 @@ import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store
 import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
+import { markOriginActions } from '../src/client/origin-actions.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
 import { RemoteHostModels } from '../src/client/remote-host-models.js';
 import { createHostClient } from '@botharness/host-client/client';
@@ -400,6 +401,130 @@ function presetPlan(preset: ModelPresetView, revision: number): ModelPlanView {
 }
 
 describe('Model entry', () => {
+  it('sets an Assignment engine, model and effort independently and restores the choice on reopen', async () => {
+    const orchestrator = { botSlug: 'ada', role: 'orchestrator', engine: 'claude', fallback: true };
+    let assignment: Record<string, unknown> | undefined;
+    let reads = 0;
+    const writes: Record<string, unknown>[] = [];
+    const models = vi.fn(() =>
+      Response.json({
+        engine: 'codex',
+        models: [
+          {
+            id: 'gpt',
+            name: 'GPT',
+            defaultEffort: 'medium',
+            efforts: [
+              { id: 'medium', name: 'Medium' },
+              { id: 'high', name: 'High' },
+            ],
+          },
+          { id: 'mini', name: 'Mini', efforts: [] },
+        ],
+      }),
+    );
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      if (init?.method !== 'POST') {
+        reads++;
+        return Response.json({
+          engines: [
+            { engine: 'codex', installed: true, available: true },
+            { engine: 'claude', installed: true, available: true },
+          ],
+          selections: assignment === undefined ? [orchestrator] : [orchestrator, assignment],
+        });
+      }
+      const request = JSON.parse(String(init.body));
+      if (request.action === 'models') {
+        expect(request).toEqual({ action: 'models', engine: 'codex' });
+        return models();
+      }
+      writes.push(request);
+      assignment = request.engine === null ? undefined : { ...request, botSlug: request.bot };
+      return Response.json({});
+    });
+    const actions = markOriginActions({
+      modelPlanState: vi.fn(async () => ({})),
+      modelCatalog: vi.fn(async () => ({ models: catalog })),
+      modelPresets: vi.fn(async () => []),
+    } as unknown as BridgeActions);
+    const group = (role: 'orchestrator' | 'assignment') =>
+      document.querySelector(`[data-engine-choice="${role}"]`);
+    const select = (label: string) =>
+      document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    const pickEngineOption = async (label: string, option: string) => {
+      await act(async () => select(label)!.click());
+      const item = [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-pointer-menu] button, [data-pointer-menu] [role^="menuitem"]',
+        ),
+      ].find((element) => element.textContent?.trim() === option);
+      expect(item).toBeDefined();
+      await act(async () => item!.click());
+    };
+    try {
+      const host = await render(actions);
+      await openEditor(host);
+      expect(reads).toBe(1);
+      expect(models).not.toHaveBeenCalled();
+      expect(group('orchestrator')?.querySelector('[data-selected]')?.textContent).toContain(
+        'Claude Code',
+      );
+      await act(async () =>
+        group('assignment')?.querySelector<HTMLButtonElement>('button.bh-card-main')?.click(),
+      );
+      expect(select('Engine model')?.textContent).toBe('Engine default');
+      expect(select('Reasoning effort')).toBeNull();
+      await pickEngineOption('Engine model', 'GPT');
+      expect(select('Reasoning effort')?.textContent).toBe('Default · Medium');
+      await pickEngineOption('Reasoning effort', 'High');
+      expect(models).toHaveBeenCalledOnce();
+      expect(writes).toEqual([
+        { action: 'use', bot: 'ada', role: 'assignment', engine: 'codex' },
+        { action: 'use', bot: 'ada', role: 'assignment', engine: 'codex', model: 'gpt' },
+        {
+          action: 'use',
+          bot: 'ada',
+          role: 'assignment',
+          engine: 'codex',
+          model: 'gpt',
+          effort: 'high',
+        },
+      ]);
+      await act(async () => button('Cancel').click());
+      await openEditor(host);
+      expect(select('Engine model')?.textContent).toBe('GPT');
+      expect(select('Reasoning effort')?.textContent).toBe('High');
+      await pickEngineOption('Engine model', 'Mini');
+      expect(writes.at(-1)).toEqual({
+        action: 'use',
+        bot: 'ada',
+        role: 'assignment',
+        engine: 'codex',
+        model: 'mini',
+      });
+      expect(select('Reasoning effort')).toBeNull();
+      await act(async () =>
+        group('assignment')
+          ?.querySelector<HTMLButtonElement>('button[aria-label^="Stop using"]')
+          ?.click(),
+      );
+      expect(writes.at(-1)).toEqual({
+        action: 'use',
+        bot: 'ada',
+        role: 'assignment',
+        engine: null,
+      });
+      expect(select('Engine model')).toBeNull();
+      expect(group('orchestrator')?.querySelector('[data-selected]')?.textContent).toContain(
+        'Claude Code',
+      );
+      expect(picked('Task model')).toBe('Inherit global');
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
   it('opens the composer editor directly and cancels without writing either model', async () => {
     const onClose = vi.fn();
     const setModelPlan = vi.fn();

@@ -985,7 +985,7 @@ export function ModelPresetProfile({
             </>
           )}
           {selectionMode === 'models' && isOriginActions(actions) ? (
-            <EngineChoice slug={slug} role="orchestrator" t={t} />
+            <EngineChoice key={slug} slug={slug} roles={['orchestrator', 'assignment']} t={t} />
           ) : null}
           {messages}
         </PanelDialog>

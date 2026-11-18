@@ -1064,9 +1064,13 @@
     },
     {
       "id": "subscription-engines",
-      "description": "The Host lists Subscription Engines, starts the Bot's own Codex or Claude Code sign-in and runs a Bot's Orchestrator on an engine instead of a DSH model.",
-      "scope": "Host / PersonaBot Orchestrator",
-      "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
+      "description": "List Subscription Engines, sign in to Codex or Claude Code, and choose engines for a Bot's Orchestrator and Assignments. Assignment model and effort choices use the engine's catalog.",
+      "scope": "Host and desktop model dialog / PersonaBot",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:ENGINES_PATH",
+        "setting:packages/client/src/client/engine-choice.tsx:{t('engine.model')}",
+        "setting:packages/client/src/client/engine-choice.tsx:{t('engine.effort')}"
+      ],
       "commands": [
         "engine-list",
         "engine-status",

@@ -12,6 +12,10 @@ import {
 } from '../src/client/engine-choice.js';
 import { en } from '../src/client/locale.js';
 
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
+  (await import('./primitive-mocks.js')).shellPrimitives(),
+);
+
 const t = (key: string, params?: Record<string, unknown>) =>
   Object.entries(params ?? {}).reduce(
     (text, [name, value]) => text.replace(`{${name}}`, String(value)),
@@ -42,9 +46,16 @@ const local = (selected?: 'codex' | 'claude'): EnginesView => ({
     selected === undefined ? [] : [{ botSlug: 'ada', role: 'orchestrator', engine: selected }],
 });
 
-const render = async (api: EngineApi, role: EngineRole = 'orchestrator') => {
+const render = async (api: Omit<EngineApi, 'models'>, role: EngineRole = 'orchestrator') => {
   await act(async () => {
-    root.render(createElement(EngineChoice, { slug: 'ada', role, t, api }));
+    root.render(
+      createElement(EngineChoice, {
+        slug: 'ada',
+        roles: [role],
+        t,
+        api: { models: async () => [], ...api },
+      }),
+    );
   });
   await act(async () => {
     await Promise.resolve();
@@ -119,45 +130,59 @@ it('starts the official sign-in and polls until the engine is signed in', async 
   }
 });
 
-it('says why an engine that is not installed cannot be chosen', async () => {
-  const use = vi.fn(async () => {});
-  await render({
-    read: async () => ({
-      engines: [{ engine: 'claude', available: false, reason: 'not-installed', installed: false }],
-      selections: [],
-    }),
-    use,
-    login: async () => ({}),
-  });
-  expect(node.textContent).toContain('Claude Code isn’t installed on this computer');
-  expect(button('Sign in')).toBeUndefined();
-  const row = [...node.querySelectorAll<HTMLElement>('button')].find((item) =>
-    item.textContent?.includes('Claude Code'),
-  );
-  if (row !== undefined) {
-    await act(async () => row.click());
-    expect(use).not.toHaveBeenCalled();
-  }
-});
+it.each<EngineRole>(['orchestrator', 'assignment'])(
+  'says why an uninstalled engine cannot be chosen for %s',
+  async (role) => {
+    const use = vi.fn(async () => {});
+    await render(
+      {
+        read: async () => ({
+          engines: [
+            { engine: 'claude', available: false, reason: 'not-installed', installed: false },
+          ],
+          selections: [],
+        }),
+        use,
+        login: async () => ({}),
+      },
+      role,
+    );
+    expect(node.textContent).toContain('Claude Code isn’t installed on this computer');
+    expect(button('Sign in')).toBeUndefined();
+    const row = [...node.querySelectorAll<HTMLElement>('button')].find((item) =>
+      item.textContent?.includes('Claude Code'),
+    );
+    if (row !== undefined) {
+      await act(async () => row.click());
+      expect(use).not.toHaveBeenCalled();
+    }
+  },
+);
 
-it('explains that a Cloud or VPS Host has no Subscription Engines', async () => {
-  await render({
-    read: async () => ({ engines: [], selections: [] }),
-    use: async () => {},
-    login: async () => ({}),
-  });
-  expect(node.querySelectorAll('li')).toHaveLength(0);
-  expect(node.textContent).toContain(
-    'Subscription Engines run only on your own computer, not on this Host.',
-  );
-});
+it.each<EngineRole>(['orchestrator', 'assignment'])(
+  'explains why a Cloud or VPS Host has no engines for %s',
+  async (role) => {
+    await render(
+      {
+        read: async () => ({ engines: [], selections: [] }),
+        use: async () => {},
+        login: async () => ({}),
+      },
+      role,
+    );
+    expect(node.querySelectorAll('li')).toHaveLength(0);
+    expect(node.textContent).toContain(
+      'Subscription Engines run only on your own computer, not on this Host.',
+    );
+  },
+);
 
 it('shows the Host refusal next to the choice', async () => {
   await render(
     {
       read: async () => local(),
       use: async () => {
-        throw new Error('Only the orchestrator role can use an engine now');
+        throw new Error('Subscription Engines run only on a local Host');
       },
       login: async () => ({}),
     },
@@ -170,7 +195,7 @@ it('shows the Host refusal next to the choice', async () => {
   await act(async () => {
     await Promise.resolve();
   });
-  expect(node.textContent).toContain('Only the orchestrator role can use an engine now');
+  expect(node.textContent).toContain('Subscription Engines run only on a local Host');
 });
 
 it('shows the sign-in link when the browser blocked the sign-in tab', async () => {
@@ -267,11 +292,25 @@ it('rejects a malformed status body at the boundary', () => {
   expect(
     parseEngines({
       engines: [{ engine: 'codex', available: false, installed: true }, { engine: 'other' }],
-      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }, { botSlug: 1 }],
+      selections: [
+        { botSlug: 'ada', role: 'orchestrator', engine: 'codex', model: 7, effort: '' },
+        {
+          botSlug: 'ada',
+          role: 'assignment',
+          engine: 'claude',
+          model: 'opus',
+          effort: 'high',
+          fallback: false,
+        },
+        { botSlug: 1 },
+      ],
     }),
   ).toEqual({
     engines: [{ engine: 'codex', available: false, reason: 'login-unknown', installed: true }],
-    selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
+    selections: [
+      { botSlug: 'ada', role: 'orchestrator', engine: 'codex' },
+      { botSlug: 'ada', role: 'assignment', engine: 'claude', model: 'opus', effort: 'high' },
+    ],
   });
 });
 
