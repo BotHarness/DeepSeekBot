@@ -175,10 +175,12 @@ export class EngineHost {
     const engine = this.engineFor(botSlug);
     if (engine === undefined) return undefined;
     const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
+    const model = this.store.model(botSlug, engine);
     return {
       engine,
       displayName: ENGINE_DEFINITIONS[engine].displayName,
       ...(account === undefined ? {} : { account }),
+      ...(model === undefined ? {} : { model }),
     };
   }
 
@@ -195,6 +197,12 @@ export class EngineHost {
     }
     this.#legacyAccounts.set(botSlug, { engine, account });
     return account;
+  }
+
+  #rememberModel(botSlug: string, engine: EngineId, model: string | undefined): void {
+    if (model === undefined || this.store.model(botSlug, engine) === model) return;
+    this.store.rememberModel(botSlug, engine, model);
+    this.#options.changed?.();
   }
 
   #rememberAccount(botSlug: string, engine: EngineId, account: string): void {
@@ -501,6 +509,7 @@ export class EngineHost {
         nativeId = await opened.start();
       }
       this.store.rememberNativeSession(sessionId, 'codex', nativeId, label);
+      this.#rememberModel(botSlug, opened.engine, opened.model);
       dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {

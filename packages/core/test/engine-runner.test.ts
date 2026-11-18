@@ -104,7 +104,7 @@ it('updates runner notifications and emits only one title through fake engine tu
             method === 'account/read'
               ? { account: { type: 'chatgpt', planType: plan } }
               : method.startsWith('thread/')
-                ? { thread: { id: 'native-thread' } }
+                ? { thread: { id: 'native-thread' }, model: 'gpt-6-astra' }
                 : method === 'turn/start'
                   ? { turn: { id: 'turn' } }
                   : {};
@@ -138,7 +138,8 @@ it('updates runner notifications and emits only one title through fake engine tu
     expect(snapshots).toEqual([
       { engine: 'codex', displayName: 'Codex' },
       { engine: 'codex', displayName: 'Codex', account: 'ChatGPT plus' },
-      { engine: 'codex', displayName: 'Codex', account: 'ChatGPT pro' },
+      { engine: 'codex', displayName: 'Codex', account: 'ChatGPT plus', model: 'gpt-6-astra' },
+      { engine: 'codex', displayName: 'Codex', account: 'ChatGPT pro', model: 'gpt-6-astra' },
     ]);
     await host.release(request.sessionId);
     await host.runTurn({ ...request, input: 'Third message after resume' });

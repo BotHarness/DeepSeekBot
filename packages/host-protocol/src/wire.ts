@@ -256,6 +256,7 @@ export interface OrchestratorRunner {
   engine: string;
   displayName: string;
   account?: string;
+  model?: string;
 }
 
 export interface PersonaBotSummary {

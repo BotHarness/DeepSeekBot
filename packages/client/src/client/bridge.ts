@@ -806,6 +806,7 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
   const engine = runner?.['engine'];
   const runnerName = runner?.['displayName'];
   const account = runner?.['account'];
+  const runnerModel = runner?.['model'];
   return {
     ...(typeof engine === 'string' &&
     engine.trim() &&
@@ -817,6 +818,9 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
             engine,
             displayName: runnerName,
             ...(account === undefined ? {} : { account }),
+            ...(typeof runnerModel === 'string' && runnerModel.trim()
+              ? { model: runnerModel }
+              : {}),
           },
         }
       : {}),

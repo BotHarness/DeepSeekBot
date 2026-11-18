@@ -8,6 +8,8 @@ import {
   type ReactElement,
 } from 'react';
 import { Toast } from './ds/toast.js';
+import * as stylex from '@stylexjs/stylex';
+import { space } from './ds/tokens.stylex.js';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogGroupView,
@@ -59,6 +61,10 @@ import {
   presetMenuItems,
 } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
+
+const styles = stylex.create({
+  runnerIcons: { display: 'inline-flex', alignItems: 'center', gap: space.x1 },
+});
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -485,7 +491,17 @@ function DmComposerContextView({
   const runnerBrand =
     runner === undefined
       ? undefined
-      : modelBrand({ provider: runner.engine, model: runner.engine, name: runner.displayName });
+      : modelBrand({
+          provider: runner.engine,
+          model: runner.model ?? runner.engine,
+          name: runner.model ?? runner.displayName,
+        });
+  const runnerChipLabel =
+    runner === undefined
+      ? ''
+      : runner.model === undefined
+        ? runner.displayName
+        : modelShortName(runner.model, runnerBrand);
   const runnerLabel =
     runner === undefined
       ? ''
@@ -586,9 +602,14 @@ function DmComposerContextView({
             data-composer-chip="model"
             data-runner={runner.engine}
             collapseLabel
-            icon={<ModelBrandIcon brand={runnerBrand} />}
-            label={runner.displayName}
-            title={runnerLabel}
+            icon={
+              <span {...stylex.props(styles.runnerIcons)}>
+                <ChannelSidebarIcon name="plug" size={14} />
+                <ModelBrandIcon brand={runnerBrand} />
+              </span>
+            }
+            label={runnerChipLabel}
+            title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runner.model}`}
             tabIndex={-1}
             disabled
             aria-label={`${t('entry.model')} · ${bot.displayName} · ${runnerLabel}`}

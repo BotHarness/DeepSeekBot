@@ -7,7 +7,14 @@ export type EngineRole = 'orchestrator';
 
 interface EngineFile {
   version: 1;
-  bots: Record<string, { orchestrator?: EngineId; accounts?: Partial<Record<EngineId, string>> }>;
+  bots: Record<
+    string,
+    {
+      orchestrator?: EngineId;
+      accounts?: Partial<Record<EngineId, string>>;
+      models?: Partial<Record<EngineId, string>>;
+    }
+  >;
   sessions: Record<string, { engine: EngineId; nativeId: string; account?: string }>;
 }
 
@@ -16,6 +23,8 @@ export interface EngineStore {
   select(botSlug: string, role: EngineRole, engine: EngineId | undefined): void;
   account(botSlug: string, engine: EngineId): string | undefined;
   rememberAccount(botSlug: string, engine: EngineId, account: string): void;
+  model(botSlug: string, engine: EngineId): string | undefined;
+  rememberModel(botSlug: string, engine: EngineId, model: string): void;
   selections(): Array<{ botSlug: string; role: EngineRole; engine: EngineId }>;
   nativeSession(
     sessionId: string,
@@ -52,7 +61,10 @@ function parse(text: string, path: string): EngineFile {
     for (const [engine, account] of Object.entries(fields(fields(roles)?.['accounts']) ?? {}))
       if (isEngineId(engine) && typeof account === 'string' && account.trim())
         accounts[engine] = account;
-    file.bots[slug] = { ...(isEngineId(orchestrator) ? { orchestrator } : {}), accounts };
+    const models: Partial<Record<EngineId, string>> = {};
+    for (const [engine, model] of Object.entries(fields(fields(roles)?.['models']) ?? {}))
+      if (isEngineId(engine) && typeof model === 'string' && model.trim()) models[engine] = model;
+    file.bots[slug] = { ...(isEngineId(orchestrator) ? { orchestrator } : {}), accounts, models };
   }
   for (const [id, raw] of Object.entries(fields(value['sessions']) ?? {})) {
     const entry = fields(raw);
@@ -94,6 +106,13 @@ export function createEngineStore(path: string): EngineStore {
       const file = structuredClone(read());
       const entry = (file.bots[botSlug] ??= {});
       (entry.accounts ??= {})[engine] = account;
+      write(file);
+    },
+    model: (botSlug, engine) => read().bots[botSlug]?.models?.[engine],
+    rememberModel: (botSlug, engine, model) => {
+      const file = structuredClone(read());
+      const entry = (file.bots[botSlug] ??= {});
+      (entry.models ??= {})[engine] = model;
       write(file);
     },
     selections: () =>

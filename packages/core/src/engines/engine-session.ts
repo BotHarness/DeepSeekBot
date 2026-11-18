@@ -56,6 +56,7 @@ export interface EngineSendOptions {
 export interface EngineSession {
   readonly engine: EngineId;
   readonly ended: boolean;
+  readonly model?: string | undefined;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;

@@ -202,6 +202,12 @@ export class CodexEngineSession implements EngineSession {
     return this.#exited !== undefined || this.#abandoned;
   }
 
+  #model: string | undefined;
+
+  get model(): string | undefined {
+    return this.#model;
+  }
+
   async account(): Promise<EngineAccount> {
     await this.#initialize();
     return codexAccount(await this.#request('account/read', {}));
@@ -227,6 +233,8 @@ export class CodexEngineSession implements EngineSession {
           throw new EngineRefusal('engine-thread-gone', message);
         throw new EngineRefusal('engine-failed', `Codex could not resume its thread: ${message}`);
       }
+    const model = text(result['model']) || text(record(result['thread'])['model']);
+    if (model) this.#model = model;
     const id = text(record(result['thread'])['id']);
     if (!id) throw new EngineRefusal('engine-failed', 'Codex did not return a thread id');
     this.#threadId = id;

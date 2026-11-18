@@ -156,6 +156,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
       engine: 'codex',
       displayName: 'Codex',
       account: 'ChatGPT pro',
+      model: 'gpt-6-astra',
     });
     expect(host.orchestratorRunner('eve')).toBeUndefined();
     expect(createEngineStore(engineStorePath(root)).account('ada', 'codex')).toBe('ChatGPT pro');
