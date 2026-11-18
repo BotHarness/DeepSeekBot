@@ -1,0 +1,90 @@
+# Team mode decisions
+
+How one Host serves several Humans: Host-owned identity and sign-in, who may act or delegate, how Bots and Channels share content, and where execution isolation applies. The [BotHarness architecture](../architecture/botharness-architecture.md) explains the system and the [Team mode design log](../architecture/team-mode.md) records its rollout. [Connection decisions](connections.md) cover transport and pairing, [Session decisions](sessions.md#bot-modes) cover Bot modes, and [Approval decisions](approvals.md) cover approval lifecycle. Product terms live in [GLOSSARY.md](../../GLOSSARY.md).
+
+Two rules run through every section:
+
+- **The Host owns Human identity and authority.** A Member Credential or device grant identifies one Human. The Host checks what that Human may do when it serves the request.
+- **Sharing is scoped to the resource.** Access to a Channel, Bot, Workspace or profile photo follows that resource's audience or an explicit, audited permission.
+
+## 1. One Host, one Owner, multiple independently authorized Humans
+
+<a id="adr-0336"></a>
+_Formerly ADR-0336._
+
+### Identity, credentials and transport
+
+Every Host has one **Host Owner**. The original Human keeps the `local-human` ID, and transfer moves Owner authority without changing either Human ID. Team mode enables additional Host Members on the same data model. The `humans` table holds identity and status, `human_roles` holds role assignments, and `member_credentials` holds the local username and Argon2id password hash. Each Host manages its own member directory. OIDC was a future option in ADR-0336. Tobs Connect and Host Relationships can enroll the Owner's Clients, while members sign in independently on each Host.
+
+The local Desktop, loopback and local `deepseekbot` CLI resolve the current Owner through local OS/DSH authority. Team mode requires an Owner password to enable and offers a separate member sign-in carrier. The ADR's optional forced password for local Owner access is unimplemented. The local CLI's `--as <username>` evaluates the command with the selected member's authority. Team browser and member device sessions use revocable, Human-bound grants. The API Gateway takes the Human from the admitted Peer, defaults to denying DSH-native methods on that carrier, and allows only listed BotHarness operations with their own checks. The browser member page serves the Tobs Client. Existing Owner device records acquire the original Owner ID through the Team migration. Sign-out revokes the selected grant.
+
+Browser password requests require direct loopback, verified HTTPS ingress or the explicit, persistently warned trusted HTTP setting. The member device password endpoints require secure transport or direct loopback even with that setting enabled. The Host refuses browser `Origin` headers on `device-sign-in` and `device-password`. Desktop and Web Clients can ask their own Host through the Owner-only remote custody action `team` to post to those two paths on a bare non-loopback HTTPS origin. Tobs Connect uses encrypted sign-in. Desktop and phone share invitation, pairing and Noise formats in `packages/host-protocol` and sign-in logic in `packages/host-client`, with native storage and key agreement supplied by each app.
+
+A member invitation carries the Host routes, identity fingerprint, username and a 10-minute expiry. Deliver the one-time initial password out of band. The Client checks the fingerprint before sign-in and prompts for the forced change. A signed-in member who has completed the change can request a separate pairing offer for another of their own devices. The Client requires an explicit identity switch before replacing the saved identity for that Host.
+
+Why: one Host-owned identity model supports both a single Human and a team while keeping identity durable through device revocation and ownership transfer. The member carrier keeps DSH authority with the Host.
+
+Enforced by: [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [remote-custody.test.ts](../../packages/core/test/remote-custody.test.ts), [team-sign-in.test.ts](../../packages/host-client/test/team-sign-in.test.ts).
+
+### Host Permissions, management and Owner transfer
+
+The Owner's permissions are implicit. An active member receives the union of their assigned **Host Roles** from the fixed **Host Permission** catalog. Suspended and deactivated members receive no effective permissions. The built-in Member role grants `dm.humans` by default. The built-in Admin role defaults to every catalog permission except `privateContent.view` and can never include that permission. Only the Owner can assign the Admin role or grant `privateContent.view` through a custom role. A non-Owner role manager may grant only permissions and model routes they already hold, manage only roles within their permission ceiling, and may not change their own role assignments. Model routes are unioned across roles. Model providers and keys remain Host configuration. Usage is attributed to the Human and Bot when attribution is available, with no per-member quotas.
+
+A management grant such as `bots.manageAll` permits scoped administration. Viewing another Human's private content requires the dedicated Human-only `privateContent.view` path and an audit record. Team settings disclose that this access is possible. Binding a Bot to an external IM App requires both Bot ownership and `im.bind`. External people remain in Chat pairing.
+
+**Owner-transfer procedure.** The current Owner verifies their current password. The target must be active and must have completed the forced change on a credential issued by that current Owner. The Host records `ownerIssuerHumanId` in the password JSON and preserves it when the member changes their own password. A manager-issued credential, a credential issued by a former Owner, missing provenance or a pending forced change yields `owner-transfer-target-unverified`. To recover, the current Owner resets the target's password, delivers the new initial password directly to the intended Human out of band, and waits for that Human to complete the forced change before retrying. The reset and forced change retire earlier grants. Transfer promotes the target, assigns the former Owner the Admin role, revokes the former Owner's paired-device grants and invalidates outstanding pairing offers.
+
+Why: delegated administration stays within the manager's current authority. The recovery sequence prevents an initial password issued by a member manager from qualifying for Owner transfer.
+
+Enforced by: [team-host-permissions.property.test.ts](../../packages/core/test/team-host-permissions.property.test.ts), [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [team-member-lifecycle.test.ts](../../packages/core/test/team-member-lifecycle.test.ts), [team-minimal-members.test.ts](../../packages/core/test/team-minimal-members.test.ts), [team-private-audit.test.ts](../../packages/core/test/team-private-audit.test.ts), [team-usage-models.test.ts](../../packages/core/test/team-usage-models.test.ts). The property test checks effective permissions against the union of the generated roles, checks denials for inactive members and checks role creation against the member's delegation ceiling.
+
+### Channels, Bot principals and Role Policy
+
+Public Groups automatically include every active Human. Role Groups automatically include eligible Humans. The Host adds or ends role-derived memberships in the same transaction as changes in eligibility. Named invitations create durable membership for any active invitee, including in private and role Groups, and survive a role change. Automatic members can mute or hide a Channel. A Channel's own roles and policies control adding members, posting, @all, adding Bots and editing details. This replaces the ADR's browse, preview and explicit join flow.
+
+A Bot acts for its current principal (`owner_human_id`). Group access follows the principal's active status, current membership and Channel permissions, intersected with the Bot's restrictions. Reading can work without Bot membership. Writing requires it. Private or public visibility controls who can DM or add the Bot. A public Bot's audience can be everyone, selected Host Roles or named Humans. The later Bot access amendment supersedes the original Channel co-occupancy rule: adding a Human does not require them to qualify for every Bot's audience.
+
+Each Human's DM with a public Bot belongs to that participant and the Bot. Its principal needs the audited Human-only route to view another participant's DM. A former audience member can retain read-only DM history. The public side of a private-to-public Bot DM acts for the private Bot's principal. Public Bots cannot initiate DMs with private Bots. Bot–Bot DM reads stay scoped to the participating Bots' principals and the applicable audited access path. Shared discovery provides metadata, and arranging a reachable Bot in a Human's roster grants no management or transcript access.
+
+**Role Policy** is advisory. Admin-set topic tags use Allow, Deny and declared exclusions. Deny wins, and assignment conflicts identify the roles involved. A Bot receives the speaking Human's identity and effective policy through append-only message metadata and revisioned policy attachments on first use or after a change. The Bot can query current policy through the speaker-policy tool. Speaker changes leave the cached system prompt intact.
+
+Why: Humans and Bots can share a Group while DMs, Bot management and content access keep their own audience boundaries. Role Policy gives the model context while the Host enforces permissions.
+
+Enforced by: [team-channel-membership-live.test.ts](../../packages/core/test/team-channel-membership-live.test.ts), [team-channel-auto-join-migration.test.ts](../../packages/core/test/team-channel-auto-join-migration.test.ts), [team-bot-visibility.test.ts](../../packages/core/test/team-bot-visibility.test.ts), [team-private-audit.test.ts](../../packages/core/test/team-private-audit.test.ts).
+
+### Workspace roots, shared Memory and execution confinement
+
+Each member has a personal Workspace root. A personal root can be granted only to its owner's private Bots. A shared root can be granted only to a Bot whose audience it covers. Grants into another member's space, Bot Memory, protected Host data, or an ancestor that would expose those paths are refused, including for the Owner. Space files and Bot Memory occupy separate directories. Each public Bot keeps one Memory in a dedicated hidden shared space (`shared/.bot-<slug>`) with its exact audience. The space is omitted from Workspace and folder APIs. An audience change retargets it, and making the Bot private moves Memory to its principal's account through the durable relocation journal. A Skill installed on a public Bot is persistent shared prompt text that can influence other members' chats.
+
+Path-addressed tools enforce current Workspace Grants. Linux execution confinement wraps DSH's `sandbox.confine` to resolve the calling Session. This replaces the original `runnerCommand` design. For a member Bot, bwrap masks Host and other spaces, binds back authorized Session roots and a private home, and scrubs secret environment variables. With network confinement available, an isolated network namespace allows public egress while filtering loopback, private and other special-use destinations. Team mode reports `enforced` only when both filesystem and network confinement probe successfully. Partial or unavailable confinement, including on macOS and Windows, keeps the trial notice. In trial, a member Bot command may be able to read data elsewhere on that Host.
+
+Why: a Workspace Grant can authorize file operations precisely. Shell confinement needs the calling Session to select its filesystem roots and enforce network limits independently.
+
+Enforced by: [team-spaces.test.ts](../../packages/core/test/team-spaces.test.ts), [team-public-bot-memory.test.ts](../../packages/core/test/team-public-bot-memory.test.ts), [team-bot-skills.test.ts](../../packages/core/test/team-bot-skills.test.ts), [member-confinement.test.ts](../../packages/core/test/member-confinement.test.ts), [team-approvals.test.ts](../../packages/core/test/team-approvals.test.ts).
+
+### Approvals, attention and offboarding
+
+The approval card stays in the Channel where work happened. Channel participants can see that a request exists. The Host reveals its contents and accepts a decision only from an authorized Human in the request's audience. The Bot's owner receives unattended requests in Activity, subject to the same content and decision checks. Approving an opaque DSH tool for a member's Bot requires `approvals.opaqueTools`, granted to the Owner and Admin by default. The Client warns about Host reach. Member-owned Sessions cannot escalate and the execution gate refuses `danger-full-access` or suppressed asks. The ADR's final mode amendment describes choosing an installed DSH mode within the Bot's mode template for the Orchestrator or an Assignment. The separate execution gate still applies its member checks. The dangerous Assignment preset remains Owner-only for the Owner's Bots.
+
+Activity, read positions, snooze state and push delivery are per Human. Bot Inbox stays per Bot and Human-authored Source Events carry the speaking Human ID. Only the current Owner has a Tob. M13 replaced the ADR's per-member Tob design. Former member Tobs are retained as ordinary private Bots.
+
+Turning Team mode off suspends non-Owners, revokes their grants and stops affected Bots. Turning it back on restores each member's prior status and requires a fresh sign-in. For offboarding, deactivate the member, transfer resources that must continue under another Human, then separately preview and confirm permanent deletion through Content Purge. Shared messages survive with deleted-Human authorship. Private content within the member's purge scope is removed.
+
+Why: the request remains tied to the place and Human authority that produced it. Suspension keeps the off switch reversible, while permanent deletion follows the Host's separate purge lifecycle.
+
+Enforced by: [team-approvals.test.ts](../../packages/core/test/team-approvals.test.ts), [bot-modes.test.ts](../../packages/core/test/bot-modes.test.ts), [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [team-minimal-members.test.ts](../../packages/core/test/team-minimal-members.test.ts), [team-member-lifecycle.test.ts](../../packages/core/test/team-member-lifecycle.test.ts).
+
+## 2. Each Human controls their Host-owned chat avatar
+
+<a id="adr-0352"></a>
+_Formerly ADR-0352._
+
+The `human-identity` module stores an optional avatar in `human_avatars(human_id, avatar, version)`. `humanAvatarSet` writes only the calling Human's row. The Host accepts PNG, JPEG or WebP base64 data URLs checked against the declared image signature. The limits are 128 KiB for the data URL and 96 KiB decoded, applied together. Desktop crops to WebP and the phone saves a 256 × 256 JPEG. The version is the first 16 hex characters of SHA-256 over the data URL. Clearing removes the row and Clients fall back to initials. Profile backup carries the row in the operational database. Member Content Purge removes it.
+
+The Human identity and Channel membership projections carry `avatarVersion`. Clients fetch bytes separately with `humanAvatars({ humanIds })`, at most 64 requested IDs per call, through the same bridge authorization used by each carrier. The Host returns the caller's own avatar and avatars of Humans with whom the caller shares a current membership in a non-deleted Channel. Other IDs and absent photos are silently omitted. Clients cache bytes by Human ID and version within the serving Host. Desktop and phone both show photos in supported message and member rows. ADR-0352 was marked Proposed and described placeholders for those phone rows. The Host and Client paths now ship.
+
+A Human Channel nickname overrides the Human display name in that Channel. The default name falls back to the Host display name. The Tobs account name and picture remain a separate marketplace identity. On Desktop, Web and phone a non-Owner without a photo or a completion record receives `profileSetup: 'pending'`. Done or Later calls `humanProfileSetupFinish`, recording completion once per Human in `human_profile_setup` across devices. The Owner and a member with a photo skip the prompt. The CLI exposes `human-avatar-set --file <image>`, `human-avatar-set --clear`, `human-avatars <human-id>...` and `human-profile-setup-finish`.
+
+Why: people can recognize each other without signing in to Tobs Connect. Fetching avatars by version keeps image bytes out of routine Channel refreshes and limits retrieval to current Channel relationships.
+
+Enforced by: [human-avatar.test.ts](../../packages/core/test/human-avatar.test.ts), [human-profile.test.ts](../../packages/host-client/test/human-profile.test.ts), [human-profile-setup.test.ts](../../packages/client/test/human-profile-setup.test.ts), [profile-setup-prompt.test.tsx](../../apps/mobile/test/profile-setup-prompt.test.tsx), [group-info.test.tsx](../../apps/mobile/test/group-info.test.tsx).
