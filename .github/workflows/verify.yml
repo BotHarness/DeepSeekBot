@@ -137,6 +137,8 @@ jobs:
           else
             node scripts/health.mjs --base=HEAD^
           fi
+      - name: Model-check the TLA+ specs (correct models hold, broken variants break)
+        run: node scripts/verify-tla.mjs
       - name: Report the features this change touches
         env:
           HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
