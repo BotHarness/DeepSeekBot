@@ -57,7 +57,7 @@ export interface ClaudeQueryOptions {
     { type: 'http'; url: string; headers: Record<string, string>; alwaysLoad: true }
   >;
   mcpServersDelivery?: 'initialize';
-  permissionMode: 'default';
+  permissionMode: 'default' | 'acceptEdits';
   model?: string;
   effort?: string;
   systemPrompt: { type: 'preset'; preset: 'claude_code'; append: string };
@@ -119,6 +119,7 @@ export interface ClaudeProcessOptions extends EngineChoice {
   cwd: string;
   instructions: string;
   gateway?: EngineGatewayEndpoint;
+  permissionMode?: 'default' | 'acceptEdits';
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -148,7 +149,7 @@ export function claudeQueryOptions(
             },
           },
     ...(options.gateway === undefined ? {} : { mcpServersDelivery: 'initialize' as const }),
-    permissionMode: 'default',
+    permissionMode: options.permissionMode ?? 'default',
     ...(options.model === undefined ? {} : { model: options.model }),
     ...(options.effort === undefined ? {} : { effort: options.effort }),
     systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },

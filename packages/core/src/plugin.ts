@@ -1910,11 +1910,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ...(request.device === undefined ? {} : { device: request.device }),
         signal: request.signal,
       })) ?? 'unavailable',
-    observe: (slug, sessionId, state) => {
+    observe: (slug, sessionId, state, role) => {
       if (state !== 'idle')
-        core.states.setSessionState(slug, sessionId, 'thinking', undefined, 'orchestrator');
+        core.states.setSessionState(slug, sessionId, 'thinking', undefined, role);
       else if (core.states.snapshot(slug).sessions[sessionId] === 'thinking')
-        core.states.setSessionState(slug, sessionId, 'done', undefined, 'orchestrator');
+        core.states.setSessionState(slug, sessionId, 'done', undefined, role);
     },
   });
   ctx.effect(

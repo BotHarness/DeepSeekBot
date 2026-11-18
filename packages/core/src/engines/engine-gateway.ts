@@ -23,6 +23,7 @@ export interface EngineGrantSpec {
   sessionId: string;
   tools: readonly EngineGatewayTool[];
   channelId(): string | undefined;
+  channelless?: boolean;
   call(
     name: string,
     args: Record<string, unknown>,
@@ -49,11 +50,12 @@ const MAX_BODY = 1_000_000;
 export function gatewayScopeRefusal(
   args: Record<string, unknown>,
   channelId: string | undefined,
+  channelless = false,
 ): string | undefined {
-  if (channelId === undefined) return 'session-not-running';
+  if (channelId === undefined && !channelless) return 'session-not-running';
   const nested = args['arguments'];
   if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {
-    const refusal = gatewayScopeRefusal(nested as Record<string, unknown>, channelId);
+    const refusal = gatewayScopeRefusal(nested as Record<string, unknown>, channelId, channelless);
     if (refusal !== undefined) return refusal;
   }
   const requested = args['channel_id'];
@@ -172,7 +174,11 @@ export function createEngineGateway(): EngineGateway {
     const args = rawArgs as Record<string, unknown>;
     if (typeof name !== 'string' || !grant.spec.tools.some((tool) => tool.name === name))
       return rpcError(message.id, -32602, `Unknown tool ${String(name)}`);
-    const refusal = gatewayScopeRefusal(args, grant.spec.channelId());
+    const refusal = gatewayScopeRefusal(
+      args,
+      grant.spec.channelId(),
+      grant.spec.channelless === true,
+    );
     const result =
       refusal !== undefined
         ? { text: `refused: ${refusal}`, isError: true }
