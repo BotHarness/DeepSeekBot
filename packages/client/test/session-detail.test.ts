@@ -488,3 +488,81 @@ it('offers turn navigation once there are several turns', async () => {
   });
   expect(host.querySelectorAll('[data-nav-turn]')).toHaveLength(3);
 });
+
+it('quotes selected Session text with a reply and sends it ahead of the request', async () => {
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(100, 200, 40, 20),
+  });
+  const frame = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) => {
+    callback(0);
+    return 1;
+  };
+  const sendSessionRequest = vi.fn(async () => {});
+  try {
+    const host = await render({
+      sessionTranscript: vi.fn(async () => transcript('assignment')),
+      sendSessionRequest,
+      stopSession: vi.fn(async () => {}),
+    });
+    const select = async (node: Element, word: string) =>
+      act(async () => {
+        const text = [...node.childNodes].find((child) => child.textContent?.includes(word))!;
+        const leaf = text.nodeType === Node.TEXT_NODE ? text : text.firstChild!;
+        const start = leaf.textContent!.indexOf(word);
+        const range = document.createRange();
+        range.setStart(leaf, start);
+        range.setEnd(leaf, start + word.length);
+        window.getSelection()!.removeAllRanges();
+        window.getSelection()!.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+    const quote = async () =>
+      act(async () =>
+        document.body
+          .querySelector('[data-selection-toolbar]')!
+          .querySelector<HTMLButtonElement>('button')!
+          .click(),
+      );
+    await select(host.querySelector('[data-transcript="reply"]')!, 'runs after an await');
+    await quote();
+    await select(host.querySelector('[data-transcript="input"]')!, 'Safari export');
+    await quote();
+    const chips = [...host.querySelectorAll('[data-quote-chip]')];
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      expect.stringContaining('runs after an await'),
+      expect.stringContaining('Safari export'),
+    ]);
+    const note = chips[0]!.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        note,
+        'Is that the cause?',
+      );
+      note.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const input = host.querySelector<HTMLTextAreaElement>('[data-session-composer] textarea')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        input,
+        'Please confirm.',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    );
+    expect(sendSessionRequest).toHaveBeenCalledWith(
+      'tobs',
+      'asg-1',
+      '> runs after an await\n\n↳ Is that the cause?\n\n> Safari export\n\nPlease confirm.',
+      false,
+    );
+    expect(host.querySelector('[data-quote-chip]')).toBeNull();
+  } finally {
+    window.getSelection()!.removeAllRanges();
+    window.requestAnimationFrame = frame;
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  }
+});

@@ -20,6 +20,7 @@ import type {
   SessionTranscriptTrigger,
 } from './bridge.js';
 import { ChannelComposer } from './channel-composer.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { MessageMarkdown } from './channel-message-body.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
@@ -28,6 +29,7 @@ import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
 import { todoCount, TodoRing } from './session-progress-view.js';
@@ -152,7 +154,6 @@ const styles = stylex.create({
     paddingInline: space.x4,
     borderRadius: radius.lg,
     backgroundColor: color.accentTint,
-    whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
   reply: { overflowWrap: 'anywhere', minWidth: 0, marginBlock: space.x2 },
@@ -548,7 +549,12 @@ function TurnBlock({
       )}
       {visible.map((segment) =>
         segment.kind === 'reply' ? (
-          <div key={segment.key} data-transcript="reply" {...stylex.props(styles.reply)}>
+          <div
+            key={segment.key}
+            data-transcript="reply"
+            data-quote-source={quoteSourceId(context.sessionId, segment.key)}
+            {...stylex.props(styles.reply)}
+          >
             <MessageMarkdown text={segment.item.text} t={t} />
           </div>
         ) : (
@@ -577,17 +583,23 @@ function TurnBlock({
 
 function InputBlock({
   block,
+  sessionId,
   t,
 }: {
   block: Extract<TranscriptBlock, { kind: 'input' }>;
+  sessionId: string;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
   if (item.source === 'user')
     return (
-      <div data-transcript="input" {...stylex.props(styles.input)}>
-        {item.text}
+      <div
+        data-transcript="input"
+        data-quote-source={quoteSourceId(sessionId, block.key)}
+        {...stylex.props(styles.input)}
+      >
+        <MessageMarkdown text={item.text} t={t} />
       </div>
     );
   const trigger = item.trigger ?? 'request';
@@ -615,11 +627,13 @@ function liveOf(items: readonly SessionTranscriptItem[]): SessionTranscriptItem[
 export function SessionDetail({
   actions,
   botSlug,
+  botName,
   sessionId,
   t,
 }: {
   actions: BridgeActions;
   botSlug: string;
+  botName?: string | undefined;
   sessionId: string;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -630,6 +644,7 @@ export function SessionDetail({
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<'goal' | 'todos' | undefined>();
   const [draft, setDraft] = useState('');
+  const [quotes, setQuotes] = useState<ComposerQuote[]>([]);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
@@ -766,7 +781,7 @@ export function SessionDetail({
     };
   }, []);
   const send = async (): Promise<void> => {
-    const message = draft.trim();
+    const message = quotedRequest(quotes, draft.trim());
     const deliver = actions.sendSessionRequest;
     if (message === '' || deliver === undefined) return;
     setSending(true);
@@ -774,6 +789,7 @@ export function SessionDetail({
     try {
       await deliver(botSlug, sessionId, message, running);
       setDraft('');
+      setQuotes([]);
       setRevision((value) => value + 1);
     } catch (error) {
       setSendError(
@@ -904,7 +920,7 @@ export function SessionDetail({
             )}
             {blocks.map((block) =>
               block.kind === 'input' ? (
-                <InputBlock key={block.key} block={block} t={t} />
+                <InputBlock key={block.key} block={block} sessionId={sessionId} t={t} />
               ) : (
                 <TurnBlock key={block.key} block={block} context={context} />
               ),
@@ -926,9 +942,40 @@ export function SessionDetail({
             label={t('sessions.detail.composer')}
             sending={sending}
             t={t}
+            quotes={quotes}
+            onRemoveQuote={(quote) =>
+              setQuotes((current) => current.filter((item) => item !== quote))
+            }
+            onQuoteNote={(quote, note) =>
+              setQuotes((current) =>
+                current.map((item) => (item === quote ? { ...item, note } : item)),
+              )
+            }
             onChange={(value) => setDraft(value)}
             onSubmit={send}
             onStop={running ? stop : undefined}
+          />
+          <SessionQuoteToolbar
+            sessionId={sessionId}
+            enabled={!sending}
+            t={t}
+            authorOf={(source) =>
+              blocks.some(
+                (block) => block.kind === 'input' && quoteSourceId(sessionId, block.key) === source,
+              )
+                ? t('main.author.human')
+                : (botName ?? botSlug)
+            }
+            onQuote={(quote) =>
+              setQuotes((current) =>
+                current.length >= MAX_DRAFT_QUOTES ||
+                current.some(
+                  (item) => item.messageId === quote.messageId && item.text === quote.text,
+                )
+                  ? current
+                  : [...current, quote],
+              )
+            }
           />
         </div>
       ) : null}

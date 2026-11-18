@@ -5,12 +5,8 @@ import {
 } from '@botharness/host-client/shared/bot-mode-settings';
 import { collapseRepeatedFailures } from '@botharness/host-client/session-failure';
 import { QuoteIcon } from './quote-icon.js';
-import {
-  dismissSelectionQuote,
-  selectedMessageText,
-  useSelectionQuote,
-} from './selection-quote.js';
-import { SelectionToolbar, SelectionToolbarButton } from './ds/selection-toolbar.js';
+import { MessageSelectionToolbar } from './message-selection-toolbar.js';
+import { selectedMessageText } from './selection-quote.js';
 import { QuoteCard, QuoteCardList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { SessionDetail, SessionDetailPrefsContext } from './session-detail.js';
@@ -334,36 +330,6 @@ export function resolvedGrantRequestIds(messages: readonly ChannelMessage[]): Se
 
 function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
-}
-
-function MessageSelectionToolbar({
-  enabled,
-  label,
-  quoteLabel,
-  canQuote,
-  onQuote,
-}: {
-  readonly enabled: boolean;
-  readonly label: string;
-  readonly quoteLabel: string;
-  readonly canQuote: (messageId: string) => boolean;
-  readonly onQuote: (messageId: string, text: string) => void;
-}): ReactElement | null {
-  const selection = useSelectionQuote(enabled, canQuote);
-  if (selection === undefined) return null;
-  return (
-    <SelectionToolbar x={selection.x} y={selection.y} below={selection.below} label={label}>
-      <SelectionToolbarButton
-        icon={<QuoteIcon />}
-        onPress={() => {
-          onQuote(selection.messageId, selection.text);
-          dismissSelectionQuote();
-        }}
-      >
-        {quoteLabel}
-      </SelectionToolbarButton>
-    </SelectionToolbar>
-  );
 }
 
 function quoteSource(message: ChannelMessage, text?: string): string {
@@ -4385,6 +4351,9 @@ function ConversationView({
                             key={sessionDetail.sessionId}
                             actions={actions}
                             botSlug={dockBotSlug}
+                            botName={
+                              state.bots.find((item) => item.slug === dockBotSlug)?.displayName
+                            }
                             sessionId={sessionDetail.sessionId}
                             t={t}
                           />
