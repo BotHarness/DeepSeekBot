@@ -183,7 +183,7 @@ flowchart TB
 | Messaging   | Source Events, Channel placement, Inbox Admission, Attention, Trigger/Wake Policy, Service Grants, Outbox | Agent execution, provider credentials                |
 | Assignments | Assignment Directory, Assignment Request/Delivery Intent, capacity admission, report/lifecycle routing    | DSH transcripts, Subagent runtime                    |
 | Usage       | retained daily tokens per PersonaBot, execution role, and actual model                                    | DSH Session logs, price tables, currency ledger      |
-| Portability | coordination for SoulSnapshot, PersonaBot Export, Profile Backup/Restore/Transfer                         | credentials, executable plugins, private DSH formats |
+| Portability | coordination for Profile Backup/Restore/Transfer                                                          | credentials, executable plugins, private DSH formats |
 | Read models | queries, pagination, UI-friendly projections                                                              | business facts and write rules                       |
 
 `botharness.db` is the physical transaction host for BotHarness core, not a shared generic repository. Optional Git-backed Providers own Memory content and commits. Each deep module owns its tables and invariants only through its own interfaces; explicit commands and ports coordinate cross-module flows.
@@ -559,7 +559,7 @@ flowchart TB
 | Data                           | Authority                                                                | Portability                                                              |
 | ------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | operational facts              | `$DSH_HOME/botharness/botharness.db`                                     | consistent SQLite snapshot in a manual profile backup                    |
-| optional Memory repositories   | Git-backed Memory Provider                                               | selected SoulSnapshot / PersonaBot Export / profile backup               |
+| optional Memory repositories   | Git-backed Memory Provider                                               | selected profile backup                                                  |
 | attachments                    | real files, identity receipts and Messaging bindings; pending legacy CAS | current referenced files and records                                     |
 | Soul bytes                     | content-addressed files                                                  | dependency-closed selected bytes                                         |
 | Session transcript / execution | DSH SessionPersistence                                                   | only through a verified DSH export adapter; otherwise explicitly omitted |

@@ -27,9 +27,9 @@ _Formerly ADR-0258 and ADR-0341._
 
 An append-only plan assigns Schema Generation by the position of a stable migration ID. The owner records each ID in `schema_migrations` in the transaction that applies that step and validates the full applied prefix on open. Legacy Profiles through generation 153 acquire the ledger in staging. Missing, divergent or newer history fails with `upgrade-required`. Correct executable changes with a new migration and preserve the committed ID and body hashes. See the [migration workflow](../agents/schema-migrations.md).
 
-A failed SQLite page integrity check puts the Profile in recovery mode. The owner reports the first integrity findings. Foreign key orphans left by outside writers produce a bounded diagnostic and can survive mount, backup, restore and forward migration. Operational writes enforce foreign keys, and any migration edge that introduces an orphan fails without publishing the staged copy.
+A failed SQLite page integrity check puts the Profile in recovery mode. The owner reports the first integrity findings. Foreign key orphans left by outside writers produce a bounded diagnostic and can survive mount, backup, restore and forward migration. Operational writes enforce foreign keys. A migration fails without publishing the staged copy when any foreign key edge has more orphans than before it ran. The check compares per-edge counts, so it does not catch a migration that repairs one orphan and creates another on the same edge.
 
-Why: stable names let parallel branches add migrations without reserving numbers, and the ledger catches divergent histories that share a generation number. A pre-existing orphan can leave a relationship incomplete while the database remains readable. Rejecting new orphans keeps upgrades from making existing data worse.
+Why: stable names let parallel branches add migrations without reserving numbers, and the ledger catches divergent histories that share a generation number. A pre-existing orphan can leave a relationship incomplete while the database remains readable. Rejecting a rise in orphans keeps upgrades from making existing data worse.
 
 Enforced by: [schema migration lint](../../scripts/check-schema-migrations.mjs), [schema ledger tests](../../packages/core/test/schema-migration-ledger.test.ts), and [integrity and orphan tests](../../packages/core/test/operational-database.test.ts).
 
@@ -39,7 +39,7 @@ Enforced by: [schema migration lint](../../scripts/check-schema-migrations.mjs),
 
 _Formerly ADR-0063._
 
-The logging module owns the write connection to `$DSH_HOME/botharness/logs.db`. It keeps bounded, structured diagnostic evidence with owner scope and optional causation fields. The in-memory ring serves immediate reads and persistence supplies the durable tail. Retention runs on writes and caps the store at 50,000 rows and 30 days. An unusable store can rebuild empty without putting the Operational Database in recovery. Profile Backup excludes it. Direct diagnostic readers use the [read-only log contract](../dev/guides/reading-operational-logs.md).
+The logging module owns the write connection to `$DSH_HOME/botharness/logs.db`. It keeps bounded, structured diagnostic evidence with owner scope and optional causation fields. The in-memory ring serves immediate reads and persistence supplies the durable tail. Retention runs on writes and caps the store at 50,000 rows and 30 days. An unusable store can rebuild empty without putting the Operational Database in recovery. Profile Backup excludes it. Owner scope (`profile-shared` or a Bot slug) is a read boundary only for surfaces that enforce it, such as viewer filtering; the database does not enforce it, and agent and Developer Mode reads ([ADR-0064](../adr/0064-agent-log-access-without-a-tool.md)) are outside it. Direct diagnostic readers use the [read-only log contract](../dev/guides/reading-operational-logs.md).
 
 Why: diagnostics are high-volume and disposable. Keeping them in their own file avoids adding log traffic to operational writes and lets a Human export bounded evidence for support without sharing roster, Inbox or policy data.
 

@@ -921,7 +921,7 @@ flowchart TB
 | --------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | operational facts                 | `$DSH_HOME/botharness/botharness.db`                                             | consistent SQLite snapshot inside manual profile backup                |
 | operational logs (debug timeline) | `$DSH_HOME/botharness/logs.db` (lightweight owner, rebuild-empty)                | excluded from backup; emailable as-is                                  |
-| optional Memory repositories      | Git-backed Memory Provider                                                       | selected SoulSnapshot / PersonaBot Export / profile backup             |
+| optional Memory repositories      | Git-backed Memory Provider                                                       | selected profile backup                                                |
 | attachments                       | Host-managed files, identity receipts and Messaging bindings; pending legacy CAS | current referenced files and identity mappings                         |
 | Soul bytes                        | content-addressed files                                                          | dependency-closed selected bytes                                       |
 | Session transcript / execution    | DSH SessionPersistence                                                           | only through a verified DSH export adapter; otherwise declared omitted |
