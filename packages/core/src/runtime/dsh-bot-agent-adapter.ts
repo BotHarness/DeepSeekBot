@@ -490,8 +490,9 @@ function agentOptions(
   run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
   defaultSelection: ModelSelection,
   plan: PersonaBotModelPlan | undefined,
+  fallback?: ModelRoute,
 ): ModelSelection {
-  const route = 'inboundChannelId' in run ? plan?.orchestrator : run.modelRoute;
+  const route = 'inboundChannelId' in run ? (fallback ?? plan?.orchestrator) : run.modelRoute;
   if (route !== undefined) {
     return {
       provider: route.provider,
@@ -860,11 +861,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       const selection = this.#orchestratorSelections.get(run.sessionId);
       if (selection !== undefined) {
-        selection.current = agentOptions(
-          run,
-          this.#defaultModel.currentSelection(),
-          this.#orchestratorPlan(run),
-        );
+        selection.current = this.#orchestratorSelection(run);
       }
       selectNativeModel(handle.agent, selection?.current);
       const fromSeq = handle.agent.session.seq;
@@ -1137,6 +1134,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       { bot, inboundChannelId: '' },
       this.#defaultModel.currentSelection(),
       this.#resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
+      this.#orchestratorRoute?.(sessionId),
     );
     selectNativeModel(this.#handles.get(sessionId)?.agent, selection.current);
   }
@@ -1333,23 +1331,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     });
   }
 
-  #orchestratorPlan(run: OrchestratorAgentRun): PersonaBotModelPlan | undefined {
-    const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-    const fallback = this.#orchestratorRoute?.(run.sessionId);
-    return fallback === undefined || plan === undefined
-      ? plan
-      : { ...plan, orchestrator: fallback };
+  #orchestratorSelection(run: OrchestratorAgentRun): ModelSelection {
+    return agentOptions(
+      run,
+      this.#defaultModel.currentSelection(),
+      this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
+      this.#orchestratorRoute?.(run.sessionId),
+    );
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
     signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const resolvedAgentOptions = agentOptions(
-      run,
-      this.#defaultModel.currentSelection(),
-      this.#orchestratorPlan(run),
-    );
+    const resolvedAgentOptions = this.#orchestratorSelection(run);
     const selection = {
       current: resolvedAgentOptions,
       assembled: undefined as ModelSelection | undefined,

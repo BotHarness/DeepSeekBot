@@ -2378,6 +2378,30 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it('runs a Bot without a Model Plan on the fallback route its default group chose', async () => {
+    const fallback = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    let chosen: typeof fallback | undefined;
+    const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'deepseek-official', model: 'flash' }) },
+      orchestratorRoute: () => chosen,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    try {
+      await adapter.runOrchestrator(reportRun);
+      expect(await host.selectedModel(reportRun.sessionId)).toMatchObject({
+        provider: 'deepseek-official',
+      });
+      chosen = fallback;
+      await adapter.runOrchestrator({ ...reportRun, resume: true });
+      expect(await host.selectedModel(reportRun.sessionId)).toMatchObject(fallback);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('lists bridge Tools and the external IM prompt only on turns where the Bot has IM', async () => {
     const listed: string[][] = [];
     const host = new FakeAgentHost(
