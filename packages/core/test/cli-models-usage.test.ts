@@ -217,7 +217,16 @@ describe('Model commands', () => {
     );
     expect(live.calls.at(-1)).toEqual({
       method: 'modelPlanSet',
-      args: { slug: 'ada', expectedRevision: 5, ...plain },
+      args: { slug: 'ada', expectedRevision: 5, ...plan },
+    });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestrator: null }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
     });
   });
 
