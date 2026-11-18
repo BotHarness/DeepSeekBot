@@ -491,4 +491,17 @@ describe('native Model Plans and Presets', () => {
     expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: null });
     expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestratorGroupEffort');
   });
+
+  it('keeps a stored group effort when a Preset is renamed (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const grouped = { ...preset, orchestratorGroupId: 'daily', orchestratorGroupEffort: 'high' };
+    fake.methods.set('modelPresetUpdate', (args) => ({ preset: { ...grouped, ...args } }));
+    await saveModelPreset(client, { ...state, groups: [daily], preset: grouped }, 'Renamed', true);
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      name: 'Renamed',
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+  });
 });
