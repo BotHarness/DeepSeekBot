@@ -18,7 +18,7 @@ A PersonaBot that hits a Tool approval card stops until a Human answers it. Nobo
 
 `ChannelToolApproval.request()` keeps its order, and the reviewer goes in just before the card:
 
-1. A call DSH runs without asking never reaches it. Under [ADR-0205](0205-bot-sessions-follow-dsh-permission-mode-for-shell-and-plugin-tools.md), plugin and Shell tools reach it only when DSH itself raises an `approval/request`, for example for a sandbox escalation.
+1. A call DSH runs without asking never reaches it. Under [ADR-0205](../decisions/sessions.md#adr-0205), plugin and Shell tools reach it only when DSH itself raises an `approval/request`, for example for a sandbox escalation.
 2. A saved Tool Approval Rule that matches is applied as before.
 3. **New:** if the Bot has an Approval Template and auto approval isn't paused for the Session, the Approval Reviewer decides.
 4. Otherwise the Tool approval card is posted, as before.
