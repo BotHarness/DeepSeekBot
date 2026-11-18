@@ -58,6 +58,8 @@ describe('Human message sent straight into the Orchestrator Session', () => {
     const f = await inboxFixture();
     try {
       await f.send('Hello', () => undefined);
+      const current = f.core.runtime.currentOrchestratorSessionId?.('ada');
+      expect(current).toEqual(expect.any(String));
       const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(
         await methods.sessionMessageSend({
@@ -69,7 +71,7 @@ describe('Human message sent straight into the Orchestrator Session', () => {
       expect(
         await methods.sessionMessageSend({
           botSlug: 'ada',
-          sessionId: f.core.runtime.currentOrchestratorSessionId?.('ada'),
+          sessionId: current,
           text: '  ',
         }),
       ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });

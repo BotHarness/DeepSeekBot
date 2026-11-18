@@ -2237,7 +2237,11 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
-    if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
+    if (
+      channel?.type !== 'dm' ||
+      !channel.botSlug ||
+      (message?.author.kind !== 'human' && !messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
+    )
       return undefined;
     const row = this.#database.read((database) =>
       database
@@ -2263,11 +2267,19 @@ class BotRuntimeImplementation implements BotRuntime {
     continuation: DmContinuation,
   ): Promise<void> | undefined {
     const bot = this.#registry.get(botSlug);
-    const message = this.#channels.message(channelId, messageId);
-    if (this.#closed || bot === undefined || bot.paused === true || message === undefined)
-      return undefined;
+    if (this.#closed || bot === undefined || bot.paused === true) return undefined;
     const sourceEventId = this.#continuableDmEvent(channelId, messageId);
     if (sourceEventId === undefined) return undefined;
+    const body =
+      this.#channels.message(channelId, messageId)?.body ??
+      (
+        this.#database.read((database) =>
+          database
+            .prepare('SELECT body FROM source_events WHERE source_event_id = ?')
+            .get(sourceEventId),
+        ) as { body: string } | undefined
+      )?.body;
+    if (body === undefined) return undefined;
     const claimed = this.#database.transaction(
       (database) => {
         const events = database
@@ -2293,7 +2305,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#runHumanDmTurn(
         bot,
         channelId,
-        message.body,
+        body,
         { sourceEventId, shouldRun: true },
         messageId,
         continuation,

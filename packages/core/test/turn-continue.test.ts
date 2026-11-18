@@ -166,6 +166,27 @@ it('continues a transient failure by itself, twice at most, then waits for the H
   expect(attemptState(fx.core, 'human-request')).toBe('retryable');
 });
 
+it('continues a transient failure of a message sent from Session detail', async () => {
+  const fx = await fixture(
+    async (_run, index) => {
+      if (index === 2) throw new Error('TRANSPORT: socket hang up');
+    },
+    [5, 5],
+  );
+  const sessionId = fx.core.runtime.currentOrchestratorSessionId?.('ada');
+  const sent = await fx.methods.sessionMessageSend({
+    botSlug: 'ada',
+    sessionId,
+    text: 'Skip the charts.',
+  });
+  expect(sent).toMatchObject({ ok: true });
+  await until(() => fx.runs.length === 3);
+  await fx.core.runtime.whenIdle();
+  expect(fx.runs[2]!.sessionId).toBe(sessionId);
+  expect(fx.runs[2]!.message).toContain('because it failed with TRANSPORT');
+  expect(fx.runs[2]!.message).toContain('Skip the charts.');
+});
+
 it('does not continue by itself after errors that would fail the same way again', async () => {
   const fx = await fixture(async () => {
     throw new Error('AUTH: invalid api key');
