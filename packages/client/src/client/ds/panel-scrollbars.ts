@@ -70,7 +70,7 @@ ${scoped}, ${scoped} * { --bh-panel-scrollbar-opacity:0; }
 ${scoped}::-webkit-scrollbar-thumb,
 ${scoped} *::-webkit-scrollbar-thumb { background-color:color-mix(in srgb, var(--dsh-scrollbar-thumb) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
 ${scoped}::-webkit-scrollbar-thumb:hover,
-${scoped} *::-webkit-scrollbar-thumb:hover { background-color:color-mix(in srgb, var(--dsh-scrollbar-thumb-hover) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
+${scoped} *::-webkit-scrollbar-thumb:hover { background-color:var(--dsh-scrollbar-thumb-hover); }
 ${scoped}::-webkit-scrollbar-thumb:active,
 ${scoped} *::-webkit-scrollbar-thumb:active { background-color:var(--dsh-scrollbar-thumb-hover); }
 @supports not selector(::-webkit-scrollbar) {
