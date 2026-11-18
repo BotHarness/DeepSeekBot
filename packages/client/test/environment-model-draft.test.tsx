@@ -158,13 +158,29 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
         savedName = args.name;
         revision += 1;
         if (loseReply) throw Error('response lost after commit');
-        return { preset: { id: 'preset' } };
+        return {
+          preset: {
+            id: 'preset',
+            name: savedName,
+            revision,
+            orchestrator: route,
+            assignmentDefault: route,
+          },
+        };
       }
       if (method === 'modelPresetCreate') {
         writes += 1;
         if (typeof args.name !== 'string') throw Error('name missing');
         createdName = args.name;
-        return { preset: { id: 'created' } };
+        return {
+          preset: {
+            id: 'created',
+            name: createdName,
+            revision: 1,
+            orchestrator: route,
+            assignmentDefault: route,
+          },
+        };
       }
       throw Error(`Unexpected method ${method}`);
     },
@@ -450,7 +466,7 @@ it.each(['lost-reply', 'readback-failed'])(
           created = true;
           if (mode === 'lost-reply') throw Error('reply lost after commit');
           readFailure = true;
-          return { preset: { id: 'created-receipt-id' } };
+          return { preset: entry('created-receipt-id') };
         }
         throw Error(`Unexpected method ${method}`);
       },

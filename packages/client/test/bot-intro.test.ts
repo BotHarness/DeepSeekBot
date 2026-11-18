@@ -467,7 +467,7 @@ describe('intro modal', () => {
       );
     const advanced = dialog().querySelector<HTMLDetailsElement>('[data-intro-model-advanced]')!;
     expect(advanced.open).toBe(false);
-    expect(advanced.textContent).toContain('主模型和执行模型相同');
+    expect(advanced.textContent).toContain('主模型和副模型相同');
     await act(async () => {
       advanced.open = true;
       advanced.dispatchEvent(new Event('toggle'));
@@ -477,7 +477,7 @@ describe('intro modal', () => {
         .querySelector<HTMLElement>(`[data-picker="${zhTranslate('modelPreset.assignment')}"]`)!
         .click(),
     );
-    expect(advanced.textContent).toContain('托布的执行模型单独设置');
+    expect(advanced.textContent).toContain('托布的副模型单独设置');
     await next();
     expect(actions.onboardingModel).not.toHaveBeenCalled();
     expect(actions.setModelPlan).toHaveBeenCalledWith(

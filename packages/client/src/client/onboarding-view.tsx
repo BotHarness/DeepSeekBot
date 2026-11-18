@@ -83,12 +83,12 @@ export function OnboardingModelDialog({
       setModels(catalog.models);
       setGroups(catalog.groups ?? []);
       setRevision(state?.revision ?? state?.plan?.revision ?? 0);
-      setGroupId(
-        (previous) =>
-          previous ??
-          (state?.plan === undefined
+      setGroupId((previous) =>
+        previous !== undefined
+          ? previous
+          : state?.plan === undefined
             ? (catalog.defaultGroupId ?? null)
-            : (state.plan.orchestratorGroupId ?? null)),
+            : (state.plan.orchestratorGroupId ?? null),
       );
       const selected = state?.plan?.orchestrator ?? catalog.default;
       setRoute(
@@ -120,7 +120,10 @@ export function OnboardingModelDialog({
   const ready =
     group !== undefined
       ? group.disabled !== true
-      : route !== undefined && selected !== undefined && selected.credential === undefined;
+      : typeof groupId !== 'string' &&
+        route !== undefined &&
+        selected !== undefined &&
+        selected.credential === undefined;
   const confirm = async (): Promise<void> => {
     if (!ready || busy) return;
     setBusy(true);
@@ -832,7 +835,9 @@ export function DefaultModelSettings({
               ? t('modelPreset.noPlan')
               : current === undefined
                 ? t('onboarding.model')
-                : (JSON.parse(current) as string[]).join(' / '))}
+                : groupMenuId(current) !== undefined
+                  ? t('modelPreset.routeUnavailable')
+                  : (JSON.parse(current) as string[]).join(' / '))}
         </Button>
       }
     >

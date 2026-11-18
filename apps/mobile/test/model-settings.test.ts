@@ -390,6 +390,8 @@ describe('native Model Plans and Presets', () => {
     const global = await loadGlobalModel(client);
     expect(global.defaultGroupId).toBe('daily');
     expect(currentModel(global).group).toBe('Daily');
+    const { fallback: _fallback, ...withoutFallback } = global;
+    expect(currentModel(withoutFallback)).toEqual({ group: 'Daily' });
     fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 2 }));
     await setModelGroup(client, { kind: 'global' }, global, 'daily');
     expect(fake.calls.at(-1)).toEqual({

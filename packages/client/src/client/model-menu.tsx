@@ -228,12 +228,10 @@ export function ModelMenu({
         value: item.value,
         label: item.name,
         hint: item.hint,
+        ...(item.hintLabel === undefined ? {} : { hintLabel: item.hintLabel }),
         ...(item.hintBrand === undefined
           ? {}
-          : {
-              hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} />,
-              hintLabel: item.hintLabel,
-            }),
+          : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
         disabled: item.disabled,
         search: [item.value],
         favorite:
