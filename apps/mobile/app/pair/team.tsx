@@ -3,7 +3,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 
+import { computerEnvironmentKey } from '../../src/host/conversation-environments';
 import { hostSession } from '../../src/host/host-session';
+import { conversationFilter } from '../../src/host/native-conversation-filter';
 import type { SavedHost } from '@botharness/host-client/hosts';
 import { nativeCarrier } from '../../src/host/native-carrier';
 import { revokePairing } from '@botharness/host-client/pairing';
@@ -16,17 +18,14 @@ import {
   type TeamInvitation,
 } from '@botharness/host-client/team-client';
 import { addressInvitation } from '@botharness/host-client/team-sign-in';
-import {
-  fingerprintGroups,
-  pinnedFingerprint,
-  teamAddressRoute,
-} from '../../src/host/team-address';
-import { useDesignTheme } from '../../src/ui/design/theme';
-import { radius, space } from '../../src/ui/design/tokens';
+import { pinnedFingerprint, teamAddressRoute } from '../../src/host/team-address';
+import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
+import { CopyableFingerprint } from '../../src/ui/primitives/copyable-fingerprint';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
+import { closeWorkspacePage } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
 
 const PASSWORD_MIN = 10;
@@ -80,7 +79,6 @@ export default function TeamSignInScreen() {
   const [error, setError] = useState<string | undefined>(first.current.error);
   const [retryAfter, setRetryAfter] = useState<number>();
   const [busy, setBusy] = useState(false);
-  const theme = useDesignTheme();
   const [link, setLink] = useState('');
   const [address, setAddress] = useState('');
   const [username, setUsername] = useState('');
@@ -92,6 +90,12 @@ export default function TeamSignInScreen() {
     const copy = t.teamSignIn.errors as Record<string, string>;
     const text = copy[code] ?? copy['generic']!;
     return text.replace('{seconds}', String(retryAfter ?? 60));
+  };
+
+  const land = (hostId: string): void => {
+    conversationFilter.set(computerEnvironmentKey(hostId));
+    closeWorkspacePage();
+    router.dismissTo('/');
   };
 
   const persist = async (host: SavedHost): Promise<boolean> => {
@@ -112,7 +116,7 @@ export default function TeamSignInScreen() {
     setError(undefined);
     const result = await hostSession.pairMember(host, { confirmedIdentitySwitch: true });
     if (result.ok) {
-      router.dismissTo('/');
+      land(host.hostId);
       return;
     }
     setBusy(false);
@@ -188,7 +192,7 @@ export default function TeamSignInScreen() {
     setBusy(true);
     const saved = await persist(result.value);
     if (saved) {
-      router.dismissTo('/');
+      land(result.value.hostId);
       return;
     }
     setBusy(false);
@@ -214,7 +218,7 @@ export default function TeamSignInScreen() {
     }
     const saved = await persist(result.value);
     if (saved) {
-      router.dismissTo('/');
+      land(result.value.hostId);
       return;
     }
     setBusy(false);
@@ -321,21 +325,10 @@ export default function TeamSignInScreen() {
             </Text>
             <Text tone="muted">{t.teamSignIn.fingerprintHint}</Text>
           </View>
-          <View
-            style={{
-              padding: space.x5,
-              borderRadius: radius.lg,
-              backgroundColor: theme.layer.raised.fill,
-            }}
-          >
-            <Text
-              testID="team-fingerprint"
-              selectable
-              style={{ fontFamily: theme.mono, textAlign: 'center' }}
-            >
-              {fingerprintGroups(step.invitation.host.fingerprint)}
-            </Text>
-          </View>
+          <CopyableFingerprint
+            testID="team-fingerprint"
+            fingerprint={step.invitation.host.fingerprint}
+          />
           <Button
             testID="team-fingerprint-matches"
             label={t.teamSignIn.fingerprintMatches}

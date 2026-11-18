@@ -21,12 +21,3 @@ export function pinnedFingerprint(hosts: readonly SavedHost[], hostId: string): 
     (saved.encryption ? noiseFingerprint(keyBytes(saved.encryption.hostKey)) : undefined)
   );
 }
-
-export function fingerprintGroups(fingerprint: string): string {
-  return (
-    fingerprint
-      .replace(/\s+/gu, '')
-      .match(/.{1,4}/gu)
-      ?.join(' ') ?? fingerprint
-  );
-}
