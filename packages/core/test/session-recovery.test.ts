@@ -20,7 +20,10 @@ function namedError(name: string, message: string): Error {
   return error;
 }
 
-async function fixture(sideEffect = false, { unsaved = false, member = false } = {}) {
+async function fixture(
+  sideEffect = false,
+  { unsaved = false, member = false, direct = false } = {},
+) {
   const archived = new Set<string>();
   const saved = new Set<string>();
   const runs: string[] = [];
@@ -81,19 +84,29 @@ async function fixture(sideEffect = false, { unsaved = false, member = false } =
   const dm = member
     ? core.team.bots.dm(human, 'ada')!
     : core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
-  await core.channels.appendMessage(human, dm.id, {
-    id: 'human-request',
-    at: new Date().toISOString(),
-    author: { kind: 'human' },
-    body: 'Hello',
-  });
-  const admission = core.runtime.admitDmMessage(human, {
-    channelId: dm.id,
-    messageId: 'human-request',
-    body: 'Hello',
-  });
-  if (!admission.admitted) throw new Error(admission.reason);
-  await admission.settled.catch(() => undefined);
+  if (direct) {
+    const sent = core.runtime.sendOrchestratorMessage!(human, {
+      botSlug: 'ada',
+      sessionId: core.runtime.currentOrchestratorSessionId!('ada')!,
+      text: 'Hello',
+    });
+    if (!sent.delivered) throw new Error(sent.reason);
+    await sent.settled.catch(() => undefined);
+  } else {
+    await core.channels.appendMessage(human, dm.id, {
+      id: 'human-request',
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Hello',
+    });
+    const admission = core.runtime.admitDmMessage(human, {
+      channelId: dm.id,
+      messageId: 'human-request',
+      body: 'Hello',
+    });
+    if (!admission.admitted) throw new Error(admission.reason);
+    await admission.settled.catch(() => undefined);
+  }
   await core.runtime.whenIdle();
   const failure = core.channels.readMessages(dm.id).find((message) => message.sessionFailure);
   if (!failure) throw new Error('Missing failure');
@@ -158,6 +171,20 @@ it('loads a cold Session, serializes concurrent recovery, and retries after comp
   expect(fx.loaded).toEqual([fx.runs[0]]);
   expect(fx.runs).toEqual([fx.runs[0], fx.runs[0]]);
   expect(fx.archived.size).toBe(0);
+});
+
+it('retries a message sent from Session detail after compaction or in a new Session', async () => {
+  for (const action of ['compact', 'new-session'] as const) {
+    const fx = await fixture(false, { direct: true });
+    await fx.core.runtime.recoverDmMessage!({
+      ...fx.input,
+      action,
+      compact: async () => true,
+    });
+    await fx.core.runtime.whenIdle();
+    expect(fx.runs).toHaveLength(2);
+    expect(fx.runs[1] === fx.runs[0]).toBe(action === 'compact');
+  }
 });
 
 it('does not retry or replace when compaction cannot produce a useful summary', async () => {

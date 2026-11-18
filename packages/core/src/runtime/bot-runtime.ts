@@ -2212,24 +2212,25 @@ class BotRuntimeImplementation implements BotRuntime {
   #retryableDmMessage(channelId: string, messageId: string) {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
-    if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
+    const direct = message === undefined && messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX);
+    if (channel?.type !== 'dm' || !channel.botSlug || (message?.author.kind !== 'human' && !direct))
       throw new Error('Retry requires the original Human DM message');
-    if (message.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
+    if (message?.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
     const safe = this.#database.read((database) =>
       database
         .prepare(
           `
-      SELECT 1 FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+      SELECT e.body FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
       WHERE e.channel_id = ? AND e.message_id = ? AND a.bot_slug = ?
         AND e.attempt_state = 'retryable' AND a.attempt_state = 'retryable'
         AND e.side_effect_started_at IS NULL AND a.side_effect_started_at IS NULL
     `,
         )
         .get(channelId, messageId, channel.botSlug!),
-    );
+    ) as { body: string } | undefined;
     if (!safe)
       throw new Error('This message cannot be safely retried; inspect its original Session');
-    return message;
+    return { body: message?.body ?? safe.body };
   }
 
   #continuableDmEvent(channelId: string, messageId: string): string | undefined {
