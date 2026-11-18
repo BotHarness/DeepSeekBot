@@ -510,24 +510,27 @@ export class EngineHost {
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
+    const engineId = this.engineFor(request.botSlug);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
-      if (this.#openingEngine.get(request.sessionId) === selected) return pending;
+      if (this.#openingEngine.get(request.sessionId) === engineId) return pending;
       await pending.catch(() => undefined);
       return this.#open(request);
     }
-    const opening = this.#start(request).finally(() => {
+    const opening = this.#start(request, engineId).finally(() => {
       this.#opening.delete(request.sessionId);
       this.#openingEngine.delete(request.sessionId);
     });
     this.#opening.set(request.sessionId, opening);
-    if (selected !== undefined) this.#openingEngine.set(request.sessionId, selected);
+    if (engineId !== undefined) this.#openingEngine.set(request.sessionId, engineId);
     return opening;
   }
 
-  async #start(request: EngineTurnRequest): Promise<LiveEngineSession> {
+  async #start(
+    request: EngineTurnRequest,
+    engineId: EngineId | undefined,
+  ): Promise<LiveEngineSession> {
     const { botSlug, sessionId } = request;
-    const engineId = this.engineFor(botSlug);
     if (engineId === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
