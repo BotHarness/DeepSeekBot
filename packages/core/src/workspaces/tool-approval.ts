@@ -296,6 +296,8 @@ export class ChannelToolApproval {
     callId: string;
     toolName: string;
     input: Record<string, unknown>;
+    reason?: string | undefined;
+    device?: { kind: 'computer' | 'browser'; authorizationScope?: () => string } | undefined;
     signal: AbortSignal;
   }): Promise<ApprovalOutcome> {
     const agent = {
@@ -309,7 +311,19 @@ export class ChannelToolApproval {
       agent,
       signal: request.signal,
     } as unknown as ToolExecution;
-    const untrack = this.track(execution);
+    const untrack =
+      request.device === undefined
+        ? this.track(execution)
+        : this.track(
+            execution,
+            'operation',
+            false,
+            request.device.kind,
+            undefined,
+            request.device.authorizationScope === undefined
+              ? undefined
+              : { authorizationScope: request.device.authorizationScope },
+          );
     if (untrack === undefined) return 'unavailable';
     try {
       return (

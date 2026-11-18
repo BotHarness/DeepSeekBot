@@ -361,6 +361,7 @@ export const LIVE_OPTIONS = {
   quote: { type: 'string', multiple: true },
   'quote-note': { type: 'string', multiple: true },
   'failure-message-id': { type: 'string' },
+  fallback: { type: 'string' },
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { type EngineId, isEngineId } from './engine-session.js';
+import { type EngineId, type EngineQuota, isEngineId } from './engine-session.js';
 
 export type EngineRole = 'orchestrator';
 
@@ -11,21 +11,31 @@ interface EngineFile {
     string,
     {
       orchestrator?: EngineId;
+      fallback?: true;
       accounts?: Partial<Record<EngineId, string>>;
       models?: Partial<Record<EngineId, string>>;
     }
   >;
   sessions: Record<string, { engine: EngineId; nativeId: string; account?: string }>;
+  quota?: Partial<Record<EngineId, EngineQuota>>;
 }
 
 export interface EngineStore {
   selection(botSlug: string, role: EngineRole): EngineId | undefined;
-  select(botSlug: string, role: EngineRole, engine: EngineId | undefined): void;
+  select(
+    botSlug: string,
+    role: EngineRole,
+    engine: EngineId | undefined,
+    options?: { fallback?: boolean },
+  ): void;
+  fallback(botSlug: string, role: EngineRole): boolean;
   account(botSlug: string, engine: EngineId): string | undefined;
   rememberAccount(botSlug: string, engine: EngineId, account: string): void;
   model(botSlug: string, engine: EngineId): string | undefined;
   rememberModel(botSlug: string, engine: EngineId, model: string): void;
-  selections(): Array<{ botSlug: string; role: EngineRole; engine: EngineId }>;
+  selections(): Array<{ botSlug: string; role: EngineRole; engine: EngineId; fallback: boolean }>;
+  quota(engine: EngineId): EngineQuota | undefined;
+  rememberQuota(engine: EngineId, quota: EngineQuota): void;
   nativeSession(
     sessionId: string,
   ): { engine: EngineId; nativeId: string; account?: string } | undefined;
@@ -64,7 +74,18 @@ function parse(text: string, path: string): EngineFile {
     const models: Partial<Record<EngineId, string>> = {};
     for (const [engine, model] of Object.entries(fields(fields(roles)?.['models']) ?? {}))
       if (isEngineId(engine) && typeof model === 'string' && model.trim()) models[engine] = model;
-    file.bots[slug] = { ...(isEngineId(orchestrator) ? { orchestrator } : {}), accounts, models };
+    file.bots[slug] = {
+      ...(isEngineId(orchestrator) ? { orchestrator } : {}),
+      ...(isEngineId(orchestrator) && fields(roles)?.['fallback'] === true
+        ? { fallback: true as const }
+        : {}),
+      accounts,
+      models,
+    };
+  }
+  for (const [engine, raw] of Object.entries(fields(value['quota']) ?? {})) {
+    const quota = parseQuota(raw);
+    if (isEngineId(engine) && quota !== undefined) (file.quota ??= {})[engine] = quota;
   }
   for (const [id, raw] of Object.entries(fields(value['sessions']) ?? {})) {
     const entry = fields(raw);
@@ -75,6 +96,20 @@ function parse(text: string, path: string): EngineFile {
       file.sessions[id] = { engine, nativeId, ...(typeof account === 'string' ? { account } : {}) };
   }
   return file;
+}
+
+function parseQuota(raw: unknown): EngineQuota | undefined {
+  const entry = fields(raw);
+  if (typeof entry?.['limited'] !== 'boolean' || typeof entry['observedAt'] !== 'string')
+    return undefined;
+  const { account, usedPercent, resetsAt } = entry;
+  return {
+    ...(typeof account === 'string' ? { account } : {}),
+    ...(typeof usedPercent === 'number' && Number.isFinite(usedPercent) ? { usedPercent } : {}),
+    ...(typeof resetsAt === 'string' ? { resetsAt } : {}),
+    limited: entry['limited'],
+    observedAt: entry['observedAt'],
+  };
 }
 
 export function createEngineStore(path: string): EngineStore {
@@ -93,11 +128,17 @@ export function createEngineStore(path: string): EngineStore {
   };
   return {
     selection: (botSlug) => read().bots[botSlug]?.orchestrator,
-    select: (botSlug, _role, engine) => {
+    select: (botSlug, _role, engine, options) => {
       const file = structuredClone(read());
       const entry = file.bots[botSlug] ?? {};
-      if (engine === undefined) delete entry.orchestrator;
-      else entry.orchestrator = engine;
+      if (engine === undefined) {
+        delete entry.orchestrator;
+        delete entry.fallback;
+      } else {
+        entry.orchestrator = engine;
+        if (options?.fallback === true) entry.fallback = true;
+        else delete entry.fallback;
+      }
       file.bots[botSlug] = entry;
       write(file);
     },
@@ -115,12 +156,26 @@ export function createEngineStore(path: string): EngineStore {
       (entry.models ??= {})[engine] = model;
       write(file);
     },
+    fallback: (botSlug) => read().bots[botSlug]?.fallback === true,
     selections: () =>
       Object.entries(read().bots).flatMap(([botSlug, roles]) =>
         roles.orchestrator === undefined
           ? []
-          : [{ botSlug, role: 'orchestrator' as const, engine: roles.orchestrator }],
+          : [
+              {
+                botSlug,
+                role: 'orchestrator' as const,
+                engine: roles.orchestrator,
+                fallback: roles.fallback === true,
+              },
+            ],
       ),
+    quota: (engine) => read().quota?.[engine],
+    rememberQuota: (engine, quota) => {
+      const file = structuredClone(read());
+      (file.quota ??= {})[engine] = quota;
+      write(file);
+    },
     nativeSession: (sessionId) => read().sessions[sessionId],
     rememberNativeSession: (sessionId, engine, nativeId, account) => {
       const file = structuredClone(read());

@@ -147,6 +147,12 @@ import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEngineGateway } from './engines/engine-gateway.js';
 import { EngineHost } from './engines/engine-host.js';
+import {
+  createEngineMemoryTools,
+  ENGINE_MEMORY_TOOL_NAMES,
+} from './engines/engine-memory-tools.js';
+import type { EngineBotTool, EngineToolInfo, EngineToolSource } from './engines/engine-tools.js';
+import { createEngineToolGate, type EngineDeviceTools } from './engines/engine-tool-gate.js';
 import type { EngineSessionPersistence, EngineSessionStore } from './engines/engine-dsh-session.js';
 import { readEnginePersona, subscriptionEnginesAllowed } from './engines/engine-plugin.js';
 import { ENGINES_PATH, engineRouteFetch } from './engines/engine-route.js';
@@ -250,10 +256,14 @@ import {
   type FallbackOverrideStore,
 } from './models/fallback-overrides.js';
 import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
-import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
+import {
+  assignmentGroupOptionOf,
+  createModelPresetStore,
+  type ModelPresetStore,
+} from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
-import { createModelCatalog } from './models/catalog.js';
+import { createModelCatalog, groupMemberRoute } from './models/catalog.js';
 import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
@@ -574,7 +584,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   subscriptionEngines: Schema.boolean()
     .default(true)
     .description(
-      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex). Cloud and VPS Hosts set false.',
+      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex, Claude Code). Cloud and VPS Hosts set false.',
     ),
   telemetry: Schema.boolean()
     .default(true)
@@ -607,6 +617,8 @@ export interface BotHarnessCore {
   fallbackOverrides: FallbackOverrideStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
+  contributeEngineTools(source: EngineToolSource): () => void;
+  engineTools(info: EngineToolInfo): Promise<EngineBotTool[]>;
 
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
@@ -720,6 +732,7 @@ export function createCore(
     routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
     groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
     sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
+    engineFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['engineFallback'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1377,6 +1390,25 @@ function initializeCore(
       botAgentSetups.delete(contribute);
     };
   };
+  const engineToolSources = new Set<EngineToolSource>();
+  const contributeEngineTools = (source: EngineToolSource): (() => void) => {
+    engineToolSources.add(source);
+    return () => {
+      engineToolSources.delete(source);
+    };
+  };
+  const engineTools = async (info: EngineToolInfo): Promise<EngineBotTool[]> =>
+    (
+      await Promise.all(
+        [...engineToolSources].map(async (source) => {
+          try {
+            return [...(await source(info))];
+          } catch {
+            return [];
+          }
+        }),
+      )
+    ).flat();
   const runBotAgentSetups = (
     agentCtx: import('@deepseek-ai/cordis').Context,
     agent: import('@deepseek-ai/dsh-agent').Agent,
@@ -1428,6 +1460,7 @@ function initializeCore(
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
+    ...(options.engineFallback === undefined ? {} : { engineFallback: options.engineFallback }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
@@ -1636,6 +1669,8 @@ function initializeCore(
       };
     },
     contributeBotAgentSetup,
+    contributeEngineTools,
+    engineTools,
     runBotAgentSetups,
     hostTools,
     states,
@@ -1871,6 +1906,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         callId: request.callId,
         toolName: request.toolName,
         input: request.input,
+        ...(request.reason === undefined ? {} : { reason: request.reason }),
+        ...(request.device === undefined ? {} : { device: request.device }),
         signal: request.signal,
       })) ?? 'unavailable',
     observe: (slug, sessionId, state) => {
@@ -1887,8 +1924,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     'botharness: Subscription Engine Sessions',
   );
+  const engineToolGate = createEngineToolGate({
+    owner: (sessionId) => core.ownership.resolve(sessionId)?.botSlug,
+    botExists: (slug) => core.registry.get(slug) !== undefined,
+    fullAccess: (sessionId) => sessionHasFullAccess(core, sessionId),
+    devices: () => [
+      {
+        kind: 'computer',
+        tools: ctx.get('botharnessComputerTools') as EngineDeviceTools | undefined,
+        reason: "This PersonaBot wants to act on the profile's shared Computer.",
+      },
+      {
+        kind: 'browser',
+        tools: ctx.get('botharnessBrowserTools') as EngineDeviceTools | undefined,
+        reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
+      },
+    ],
+    approvalRequired: (name, args) => requiresHumanToolApproval(name, args, templateInUse),
+  });
   const agentAdapter = createDshBotAgentAdapter({
     engines: engineHost,
+    engineTools: (info) => core.engineTools(info),
+    engineToolGate,
     enginePersona: (bot) =>
       readEnginePersona(core.registry.memoryDirFor(bot.slug), bot.standingLimits),
     tobCliInvocation,
@@ -1908,7 +1965,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     assignmentGroups: {
-      pick: (botSlug, groupId) => groupFallback.pick(botSlug, groupId),
+      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
       describe: (groupId) => {
         const group = core.routingGroups.get(groupId);
         if (group === undefined) return undefined;
@@ -1938,7 +1995,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             const plan = core.registry.get(slug)?.modelPlan;
             if (!(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
-            const picked = await groupFallback.pick(slug, groupId);
+            const picked = await groupFallback.pick(
+              slug,
+              groupId,
+              assignmentGroupOptionOf(plan, groupId)?.defaultEffort,
+            );
             if (picked.kind === 'route') return picked.route;
             throw new Error(
               picked.kind === 'exhausted' && picked.rests.length > 0
@@ -2219,6 +2280,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
     validate: (route) => modelCatalog.validate(route),
+    withEffort: async (route, effort) => groupMemberRoute(route, effort, await modelCatalog.list()),
     overrides: {
       get: (sessionId) => core.fallbackOverrides.get(sessionId),
       set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),
@@ -2233,6 +2295,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentAdapter.modelSelection(sessionId) ??
       core.registry.get(botSlug)?.modelPlan?.orchestrator ??
       modelCatalog.defaultRoute?.(),
+    engineFallback: (botSlug, limit) => {
+      if (!engineHost.fallsBack(botSlug)) return undefined;
+      const to =
+        core.registry.get(botSlug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (to === undefined) return undefined;
+      return {
+        kind: 'switch',
+        from: { provider: limit.engine, model: limit.account },
+        to: { ...to },
+        reason: 'quota',
+        until: limit.until,
+      };
+    },
     startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
@@ -2538,6 +2613,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   core.cloudWork = cloudWork;
   ctx.effect(() => () => cloudWork.close(), 'botharness: cloud work');
   core.hostTools.add('cloud_work');
+  ctx.effect(
+    () =>
+      core.contributeEngineTools(({ botSlug }) =>
+        createEngineMemoryTools(() => core.registry.memoryDirFor(botSlug)),
+      ),
+    'botharness: engine Memory tools',
+  );
+  for (const name of ENGINE_MEMORY_TOOL_NAMES) core.hostTools.add(name);
+  ctx.effect(
+    () => () => {
+      for (const name of ENGINE_MEMORY_TOOL_NAMES) core.hostTools.delete(name);
+    },
+    'botharness: engine Memory tool names',
+  );
   ctx.effect(
     () => () => {
       core.hostTools.delete('cloud_work');
@@ -4358,6 +4447,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             engineRouteFetch(request, {
               host: engineHost,
               botExists: (slug) => core.registry.get(slug) !== undefined,
+              tools: (bot) => agentAdapter.engineToolCatalog(bot),
+              runTool: async (bot, tool, args) => {
+                const found = (await core.engineTools({ botSlug: bot, sessionId: '' })).find(
+                  (entry) => entry.name === tool,
+                );
+                if (found === undefined)
+                  throw new Error(
+                    `${tool} is not an engine-only tool; run Bot tools with deepseekbot bot tool`,
+                  );
+                return found.run(args, AbortSignal.timeout(120_000));
+              },
+              releaseQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
               approvals: () =>
                 core.registry
                   .list()

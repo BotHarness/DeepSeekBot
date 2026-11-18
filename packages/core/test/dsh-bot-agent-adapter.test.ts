@@ -4238,6 +4238,7 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
     };
     const calls: Array<Promise<unknown>> = [];
     const created: unknown[] = [];
+    const picks: Array<string | undefined> = [];
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
@@ -4269,7 +4270,10 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
       orchestratorCwd: () => '/memory/ada',
       ensureWorkspace: () => undefined,
       assignmentGroups: {
-        pick: async () => ({ kind: 'route', route: { ...pro, reasoningEffort: 'medium' } }),
+        pick: async (_slug, _group, effort) => {
+          picks.push(effort);
+          return { kind: 'route', route: { ...pro, reasoningEffort: effort ?? 'medium' } };
+        },
         describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
         restingUntil: (route) =>
           route.provider === spent.provider ? { ...spent, until, reason: 'quota' } : undefined,
@@ -4303,6 +4307,7 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
         { title: 'Chosen effort', model: { ...pro, reasoningEffort: 'low' }, modelGroupId: 'g' },
       ]);
       expect(created).toHaveLength(2);
+      expect(picks).toEqual(['high', 'low']);
     } finally {
       await adapter.close();
     }

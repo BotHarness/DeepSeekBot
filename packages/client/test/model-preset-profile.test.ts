@@ -83,7 +83,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import type { ModelPlanView, ModelPresetView } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
-import { draftOf, planParts } from '../src/client/model-preset-draft.js';
+import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
@@ -956,6 +956,39 @@ describe('Model entry', () => {
     expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
   });
 
+  it('offers a group the efforts of its reasoning members in advanced mode', async () => {
+    const route = { provider: 'deepseek', model: 'pro' };
+    const plan: ModelPlanView = {
+      revision: 3,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: route,
+      assignmentDefault: route,
+      appliedAt: '',
+    };
+    const groups = [
+      {
+        id: 'main',
+        name: 'Main',
+        revision: 1,
+        routes: [
+          { provider: 'deepseek', model: 'flash' },
+          { provider: 'kimi', model: 'k2' },
+        ],
+      },
+    ];
+    const host = await render({
+      modelPlanState: vi.fn(async () => ({ plan })),
+      modelPresets: vi.fn(async () => []),
+      modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
+    } as unknown as BridgeActions);
+    await openEditor(host);
+    await act(async () => button('Advanced').click());
+    await choose('Add an allowed model', 'Main', 'Main');
+    const card = document.querySelector<HTMLElement>('li[data-model-group]')!;
+    expect([...card.querySelectorAll('label')].map((item) => item.textContent)).toContain('High');
+  });
+
   it('opens a grouped plan and saves it back with its groups (#4501)', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
@@ -1641,5 +1674,75 @@ describe('planParts under an Assignment Routing Group', () => {
     expect(parts?.assignmentModels).toEqual([
       { ...draftB, allowedEfforts: [''], defaultEffort: '' },
     ]);
+  });
+});
+
+describe('one reasoning effort for a Routing Group (#4497)', () => {
+  it('reads and saves the group effort in both slots without opening advanced mode', () => {
+    const draft = draftOf(
+      {
+        orchestrator: draftA,
+        orchestratorGroupId: 'daily',
+        orchestratorGroupEffort: 'high',
+        assignmentDefault: draftB,
+        assignmentModels: [{ ...draftB, allowedEfforts: [''], defaultEffort: '' }],
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+        assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['max'], defaultEffort: 'max' }],
+      },
+      '',
+    );
+    expect(draft.advanced).toBe(false);
+    expect(draft.orchestrator.effort).toBe('high');
+    expect(draft.assignment.effort).toBe('max');
+    expect(planParts(draft, [draftDaily])?.groups).toEqual({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+      assignmentGroups: ['daily'],
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['max'], defaultEffort: 'max' }],
+    });
+    const plain = {
+      ...draft,
+      orchestrator: { ...draft.orchestrator, effort: '' },
+      assignment: { ...draft.assignment, effort: '' },
+    };
+    expect(planParts(plain, [draftDaily])?.groups).toEqual({
+      orchestratorGroupId: 'daily',
+      assignmentGroups: ['daily'],
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [],
+    });
+  });
+
+  it('carries the group effort into advanced mode and back', () => {
+    const simple = draftOf(
+      {
+        orchestrator: draftA,
+        assignmentDefault: draftB,
+        assignmentGroups: ['daily'],
+        assignmentDefaultGroupId: 'daily',
+      },
+      '',
+    );
+    const advanced = withAdvanced(
+      { ...simple, assignment: { ...simple.assignment, effort: 'high' } },
+      true,
+    );
+    expect(advanced.groups).toEqual([
+      { group: 'daily', allowedEfforts: ['high'], defaultEffort: 'high' },
+    ]);
+    expect(withAdvanced(advanced, false).assignment.effort).toBe('high');
+    const cleared = withAdvanced(
+      {
+        ...advanced,
+        groups: [{ ...advanced.groups[0]!, note: 'Daily work' }],
+        advanced: false,
+        assignment: { ...advanced.assignment, effort: '' },
+      },
+      true,
+    );
+    expect(cleared.groups).toEqual([{ group: 'daily', note: 'Daily work' }]);
+    expect(withAdvanced(cleared, false).assignment.effort).toBe('');
   });
 });

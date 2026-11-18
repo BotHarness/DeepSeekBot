@@ -2007,10 +2007,10 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - 一个任务里第一次弹出工具审批卡之前，Bot 现在会先在对话里说明要做什么、需要对方做什么；如果它还没说话，Host 会把这次调用退回一次（[#1541](https://github.com/BotHarness/DeepSeekBot/issues/1541)）。
 - Bot 在处理群里的请求时，现在就在这个群里询问：工具审批卡、提问卡和文件夹授权请求出现在任务所在的 Channel，不再一律发到 Bot 的私聊。密钥输入仍留在私聊（[#1536](https://github.com/BotHarness/DeepSeekBot/issues/1536)、[ADR-0186](docs/decisions/sessions.md#adr-0186)）。
 - 群聊输入框下方只显示一个工作区数量，即所有成员 Bot 可用工作区去重后的总数，不再逐个列出 Bot；私聊仍显示该 Bot 的工作区数（[#1515](https://github.com/BotHarness/DeepSeekBot/pull/1515)）。
-- 新手引导改为上手清单，从侧栏「Bot 模式」那一行里的进度环打开（移动端在退出按钮旁），不再占用垂直空间。清单包括配置模型、发出第一条消息，以及让它记住你、连接聊天软件、设一个每日任务、召唤窗口伙伴；每一项都可以直接操作，完成状态读取各功能自己的数据。界面导览从清单里启动，最后一步说明怎样退出 Bot 模式；第一次进入之前，「Bot 模式」那一行会显示一个「试试看」提示（[#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496)，[ADR-0180](docs/adr/0180-onboarding-is-a-checklist-launched-from-the-bot-mode-row.md)）。
+- 新手引导改为上手清单，从侧栏「Bot 模式」那一行里的进度环打开（移动端在退出按钮旁），不再占用垂直空间。清单包括配置模型、发出第一条消息，以及让它记住你、连接聊天软件、设一个每日任务、召唤窗口伙伴；每一项都可以直接操作，完成状态读取各功能自己的数据。界面导览从清单里启动，最后一步说明怎样退出 Bot 模式；第一次进入之前，「Bot 模式」那一行会显示一个「试试看」提示（[#1496](https://github.com/BotHarness/DeepSeekBot/issues/1496)，[ADR-0180](docs/decisions/onboarding.md#adr-0180)）。
 - 私聊和群聊里，一组消息比可视区域高时，旁边的头像会停在消息列表底边，滚动时始终能看到是谁在说话（[#1491](https://github.com/BotHarness/DeepSeekBot/pull/1491)）。
 - Channel 输入框下方统一显示实际生效的完整模型名，不附加 provider 或继承来源标记；移动端仅保留模型选择入口，桌面端继续显示工作区与 token 用量（[#1479](https://github.com/BotHarness/DeepSeekBot/issues/1479)）。
-- 新手教程改为多步 driver.js 界面导览：依次介绍欢迎信、消息列表、收件箱、Bot 设置、会话头部、输入框、右侧栏和窗口伙伴，不再是 Bot 模式内容区顶部的常驻横条；首次进入 Bot 模式自动开始，关闭即暂停，浮层内提供「跳过教程」，**Bot 设置 → 通用** 可重新开始；已完成教程的 Profile 不再看到任何教程横条（[#1295](https://github.com/BotHarness/BotHarness/issues/1295)，[#1301](https://github.com/BotHarness/BotHarness/issues/1301)，[ADR-0155](docs/adr/0155-onboarding-tutorial-is-a-floating-tour-replayed-from-bot-settings.md)）。
+- 新手教程改为多步 driver.js 界面导览：依次介绍欢迎信、消息列表、收件箱、Bot 设置、会话头部、输入框、右侧栏和窗口伙伴，不再是 Bot 模式内容区顶部的常驻横条；首次进入 Bot 模式自动开始，关闭即暂停，浮层内提供「跳过教程」，**Bot 设置 → 通用** 可重新开始；已完成教程的 Profile 不再看到任何教程横条（[#1295](https://github.com/BotHarness/BotHarness/issues/1295)，[#1301](https://github.com/BotHarness/BotHarness/issues/1301)，[ADR-0155](docs/decisions/onboarding.md#adr-0155)）。
 - 预设欢迎消息改为 Bot 的第一人称来信：banner、头像、名字与标签，四张建议问题保留为回信选项；时间线里这条消息的作者显示 Bot 名字，而不是 System（[#1301](https://github.com/BotHarness/BotHarness/issues/1301)）。
 - 记忆 commit 查看页的顶部现在只显示短 hash 和 commit 信息；「从某个记忆新建分支」移到了记忆演化图里对应 commit 的右键菜单（[#1288](https://github.com/BotHarness/DeepSeekBot/issues/1288)）。
 - PersonaBot 因为群聊或 Bot 私聊而给另一个 Bot 发私信时，「发送了私聊消息」这一行（现在带两个 Bot 的头像和名字）显示在引起它的那个对话里，而不是发送方的私聊；发送方的 Bot Inbox 同时保留一条已处理的记录；两个 Bot 在彼此的私聊里来回回复，不再往 Human 私聊里加事件行。这类事件行不再计入未读、没有已读回执，也不会成为频道预览（[#1276](https://github.com/BotHarness/DeepSeekBot/issues/1276)，[ADR-0154](docs/adr/0154-bot-self-records-keep-memory-commits-and-bot-actions-in-the-timeline-and-inbox.md)）。
@@ -2165,7 +2165,7 @@ Bot 可以作为像素窗口伙伴固定在窗口里播放回复；绑定一个�
 - 隔离 AX 启动向 coding agent 提供有界、白名单化的真实 Client 启动／运行证据和明确 shell 就绪状态，跨文档重试保留首次失败（[#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184), [guide](docs/dev/guides/client-startup-diagnostics.md)）。
 
 - 已结束群聊可查看保留历史，并单独预览、确认 Source Event 内容清除，确认前展示全部共享位置、收件记录、托管文件与依赖效果。独占的当前／旧版附件会清理，共享文件保留，中断清理重启后继续，已发出回复保留真实结果；恢复检查点和异步清除屏障为后续 Profile 备份提供合同（[#897](https://github.com/BotHarness/DeepSeekBot/issues/897)，[验收指南](docs/agents/qa-channel-purge.md)）。
-- 首次进入 Bot 模式会准备一个 DeepSeek Bot、真实私聊，以及能力介绍、新闻和定时请求的欢迎选项；模型保存与问题发送分步进行，保留未发出的请求，支持 Profile 默认模型与 Bot 继承，只有收到真实回复才算完成；欢迎消息收紧间距，底部创建入口使用独立的主题强调色按钮，提问默认隐藏 Session 来源与短标题，仅开发者模式展示，其他回答使用紧凑输入提示，切换偏好保留答案；欢迎与提问选项复用首尾圆角相连的侧栏卡片，使用独立背景、直接单选和复选框多选，引导与全局模型设置复用 Bot 编辑器的模型和推理强度控件。教程进度可跨重启恢复，安全的手动重试沿用原 Human 消息（[#1175](https://github.com/BotHarness/DeepSeekBot/issues/1175)，[ADR-0147](docs/adr/0147-onboarding-is-profile-progress-over-canonical-dm-evidence.md)）。
+- 首次进入 Bot 模式会准备一个 DeepSeek Bot、真实私聊，以及能力介绍、新闻和定时请求的欢迎选项；模型保存与问题发送分步进行，保留未发出的请求，支持 Profile 默认模型与 Bot 继承，只有收到真实回复才算完成；欢迎消息收紧间距，底部创建入口使用独立的主题强调色按钮，提问默认隐藏 Session 来源与短标题，仅开发者模式展示，其他回答使用紧凑输入提示，切换偏好保留答案；欢迎与提问选项复用首尾圆角相连的侧栏卡片，使用独立背景、直接单选和复选框多选，引导与全局模型设置复用 Bot 编辑器的模型和推理强度控件。教程进度可跨重启恢复，安全的手动重试沿用原 Human 消息（[#1175](https://github.com/BotHarness/DeepSeekBot/issues/1175)，[ADR-0147](docs/decisions/onboarding.md#adr-0147)）。
 
 - 钉选的窗口伙伴在审批之外显示正式待答问题，可通过相连选项列表、复选框多选或紧凑输入直接回答，无需切换聊天；草稿不受新消息及开发者模式切换影响，只有既有提问拥有者可接受回答并恢复原本等待的 Session（[#1179](https://github.com/BotHarness/DeepSeekBot/issues/1179)）。
 

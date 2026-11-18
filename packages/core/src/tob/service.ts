@@ -113,8 +113,10 @@ export function createTobService(options: {
       const current = registry.get(slug);
       if (!current || current.ownerHumanId !== human.humanId || human.humanId !== ownerId())
         throw new TobError('tob-identity-unavailable');
-      if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id))
-        await options.grants.create(slug, workspace.id);
+      if (!options.grants.list(slug).some((grant) => grant.workspaceId === workspace.id)) {
+        const grant = await options.grants.create(slug, workspace.id);
+        options.grants.setOrchestratorWrite(slug, grant.id, true);
+      }
     }
     const channel = channels.getOrCreateDm(human, slug, bot.displayName);
     if (!channel) throw new TobError('tob-channel-unavailable');

@@ -443,7 +443,7 @@ export async function runModelsUsage(
     const effort = values['orchestrator-effort']?.trim();
     if (values['orchestrator-group'] !== undefined && !group)
       usage('--orchestrator-group must not be empty.');
-    if (group && (provider || model || effort))
+    if (group && (provider || model))
       usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
     if (!group && (!provider || !model))
       usage(
@@ -456,7 +456,7 @@ export async function runModelsUsage(
       slug: target,
       expectedRevision,
       ...(group
-        ? { orchestratorGroupId: group }
+        ? { orchestratorGroupId: group, ...(effort ? { orchestratorGroupEffort: effort } : {}) }
         : {
             orchestrator: {
               provider,
@@ -474,7 +474,7 @@ export async function runModelsUsage(
       values,
       [
         ...required,
-        ...(full ? ['orchestrator', 'orchestratorGroupId'] : []),
+        ...(full ? ['orchestrator', 'orchestratorGroupId', 'orchestratorGroupEffort'] : []),
         'assignmentGroups',
         'assignmentDefaultGroupId',
         'assignmentGroupOptions',
@@ -519,17 +519,25 @@ export async function runModelsUsage(
         'The specified Model Preset does not exist on this Host.',
       );
     const flags = presetGroupFlags(values);
-    const routeGiven = ['provider', 'model', 'effort'].some(
+    const routeGiven = ['provider', 'model'].some(
       (part) => values[`orchestrator-${part}` as 'orchestrator-provider'] !== undefined,
     );
+    const effortGiven = values['orchestrator-effort'] !== undefined;
     if (routeGiven && flags.orchestratorGroupId)
       usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
     const orchestratorGroupId =
       'orchestratorGroupId' in flags
         ? flags.orchestratorGroupId
-        : routeGiven
+        : routeGiven || (effortGiven && current.orchestratorGroupId === undefined)
           ? null
           : (current.orchestratorGroupId ?? null);
+    const orchestratorGroupEffort = !orchestratorGroupId
+      ? null
+      : effortGiven
+        ? values['orchestrator-effort']!.trim() || null
+        : orchestratorGroupId === current.orchestratorGroupId
+          ? (current.orchestratorGroupEffort ?? null)
+          : null;
     const assignmentGroups = flags.assignmentGroups ?? current.assignmentGroups ?? [];
     const assignmentDefaultGroupId =
       'assignmentDefaultGroupId' in flags
@@ -546,6 +554,7 @@ export async function runModelsUsage(
         : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
       orchestratorGroupId,
+      orchestratorGroupEffort,
       assignmentGroups,
       assignmentDefaultGroupId,
       ...plan,

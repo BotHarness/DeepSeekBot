@@ -137,6 +137,42 @@ export function codexAccount(result: unknown): EngineAccount {
   return { kind: 'signed-out', engine: 'codex' };
 }
 
+const USAGE_LIMIT = /usage limit|hit your limit|rate limit reached/iu;
+
+export function codexUsageLimit(error: Json): boolean {
+  const info = error['codexErrorInfo'];
+  if (info === 'usageLimitExceeded' || record(info)['usageLimitExceeded'] !== undefined)
+    return true;
+  return USAGE_LIMIT.test(text(error['message']));
+}
+
+export function codexRateLimit(limits: Json): Extract<EngineEvent, { kind: 'rate-limit' }> {
+  const limited = limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true;
+  const windows = [record(limits['primary']), record(limits['secondary'])].filter(
+    (window) => typeof window['usedPercent'] === 'number',
+  );
+  const percent = (window: Json) => window['usedPercent'] as number;
+  const reset = (window: Json) =>
+    typeof window['resetsAt'] === 'number' ? window['resetsAt'] : undefined;
+  const spent = windows.filter((window) => percent(window) >= 100);
+  const shown =
+    limited && spent.length
+      ? spent.reduce((latest, window) =>
+          (reset(window) ?? 0) > (reset(latest) ?? 0) ? window : latest,
+        )
+      : windows.reduce<Json | undefined>(
+          (most, window) => (most === undefined || percent(window) > percent(most) ? window : most),
+          undefined,
+        );
+  const resetsAt = shown === undefined ? undefined : reset(shown);
+  return {
+    kind: 'rate-limit',
+    ...(shown === undefined ? {} : { usedPercent: percent(shown) }),
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+    limited: limited || spent.length > 0,
+  };
+}
+
 export const CODEX_TURN_SANDBOX = {
   type: 'workspaceWrite',
   writableRoots: [],
@@ -366,22 +402,14 @@ export class CodexEngineSession implements EngineSession {
       case 'item/completed':
         this.#itemCompleted(record(params['item']));
         return;
-      case 'account/rateLimits/updated': {
-        const limits = record(params['rateLimits']);
-        const primary = record(limits['primary']);
-        this.#emit({
-          kind: 'rate-limit',
-          ...(typeof primary['usedPercent'] === 'number'
-            ? { usedPercent: primary['usedPercent'] }
-            : {}),
-          ...(typeof primary['resetsAt'] === 'number' ? { resetsAt: primary['resetsAt'] } : {}),
-          limited: limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true,
-        });
+      case 'account/rateLimits/updated':
+        this.#emit(codexRateLimit(record(params['rateLimits'])));
         return;
-      }
       case 'error': {
         if (params['willRetry'] === true || this.#turn === undefined) return;
-        this.#turn.failure = text(record(params['error'])['message']) || 'Codex turn failed';
+        const error = record(params['error']);
+        this.#turn.failure = text(error['message']) || 'Codex turn failed';
+        if (codexUsageLimit(error)) this.#emit({ kind: 'rate-limit', limited: true });
         return;
       }
       case 'turn/completed': {
@@ -392,12 +420,15 @@ export class CodexEngineSession implements EngineSession {
         const status = turn['status'];
         if (status === 'completed') active.resolve({ status: 'completed' });
         else if (status === 'interrupted') active.resolve({ status: 'interrupted' });
-        else
+        else {
+          if (codexUsageLimit(record(turn['error'])))
+            active.options.onEvent({ kind: 'rate-limit', limited: true });
           active.resolve({
             status: 'failed',
             message:
               text(record(turn['error'])['message']) || active.failure || 'Codex turn failed',
           });
+        }
         return;
       }
       default:

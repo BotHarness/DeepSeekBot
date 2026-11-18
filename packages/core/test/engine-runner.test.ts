@@ -58,7 +58,7 @@ describe('Orchestrator runner summaries', () => {
       host.use('ada', 'orchestrator', undefined);
       expect(host.orchestratorRunner('ada')).toBeUndefined();
       expect(restored.selections()).toEqual([
-        { botSlug: 'ada', role: 'orchestrator', engine: 'codex' },
+        { botSlug: 'ada', role: 'orchestrator', engine: 'codex', fallback: false },
       ]);
       expect(createEngineStore(engineStorePath(root)).selections()).toEqual([]);
     } finally {

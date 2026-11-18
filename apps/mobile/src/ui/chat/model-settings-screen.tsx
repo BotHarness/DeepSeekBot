@@ -46,10 +46,13 @@ import { FavoriteButton } from '../primitives/favorite-button';
 import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { GroupNotes } from './group-notes';
 import { PickerLink, RouteIcon } from './model-route-label';
-import { EffortBar, GroupEfforts } from './model-effort';
+import { EffortBar, GroupEffortBar, GroupEffortLink, GroupEfforts } from './model-effort';
 import {
   effortChoices,
+  groupEffortChoices,
+  groupEffortOf,
   keptEffort,
+  keptGroupEffort,
   presetDetail,
   presetFront,
   routeEffortLabel,
@@ -248,15 +251,12 @@ function ModelsView({
         },
       );
     };
-    const effortGroup = value.groups?.find(
-      (group) =>
-        group.id ===
-        (!assignment
-          ? scope.kind === 'global'
-            ? value.defaultGroupId
-            : routes.groups.orchestratorGroupId
-          : routes.groups.assignmentDefaultGroupId),
-    );
+    const fieldGroupId = assignment
+      ? routes.groups.assignmentDefaultGroupId
+      : scope.kind === 'global'
+        ? value.defaultGroupId
+        : routes.groups.orchestratorGroupId;
+    const effortGroup = value.groups?.find((group) => group.id === fieldGroupId);
     const chooseEffort = (effort: string) =>
       current === undefined
         ? undefined
@@ -265,20 +265,45 @@ function ModelsView({
             model: current.model,
             ...(effort === '' ? {} : { reasoningEffort: effort }),
           });
+    const field = assignment ? 'assignment' : 'orchestrator';
+    const groupEffort = groupEffortOf(routes.groups, assignment);
+    const pickGroup = (group: ModelCatalogGroup, effort: string, stay: boolean) =>
+      models.run(
+        () => setModelGroup(client, scope, value, group.id, field, effort),
+        () => {
+          if (stay) return;
+          Keyboard.dismiss();
+          router.back();
+        },
+      );
+    const effortBar = (group: ModelCatalogGroup | undefined) =>
+      group === undefined ? (
+        <EffortBar
+          options={effortChoices(currentEntry)}
+          current={current === undefined ? undefined : (current.reasoningEffort ?? '')}
+          busy={models.busy}
+          onChange={chooseEffort}
+        />
+      ) : (
+        <GroupEffortBar
+          value={value}
+          group={group}
+          effort={groupEffort}
+          global={scope.kind === 'global'}
+          busy={models.busy}
+          onChange={(effort) => pickGroup(group, effort, true)}
+        />
+      );
     if (picker.endsWith('-effort'))
       return frame(
-        effortGroup === undefined ? (
+        effortGroup !== undefined &&
+          (scope.kind === 'global' || groupEffortChoices(value, effortGroup).length === 0) ? (
+          <GroupEfforts value={value} group={effortGroup} header={banner} />
+        ) : (
           <View>
             {banner}
-            <EffortBar
-              entry={currentEntry}
-              route={current}
-              busy={models.busy}
-              onChange={chooseEffort}
-            />
+            {effortBar(effortGroup)}
           </View>
-        ) : (
-          <GroupEfforts value={value} group={effortGroup} header={banner} />
         ),
       );
     const families = modelFamilies(
@@ -290,15 +315,8 @@ function ModelsView({
     );
     const groups = picker === 'orchestrator' || scope.kind !== 'global' ? (value.groups ?? []) : [];
     const listedGroups = routes.groups.assignmentGroups ?? [];
-    const currentGroupId =
-      picker === 'orchestrator'
-        ? scope.kind === 'global'
-          ? value.defaultGroupId
-          : routes.groups.orchestratorGroupId
-        : picker === 'assignment'
-          ? routes.groups.assignmentDefaultGroupId
-          : undefined;
-    const currentGroup = groups.find((group) => group.id === currentGroupId);
+    const currentGroup =
+      picker === 'allowed' ? undefined : groups.find((group) => group.id === fieldGroupId);
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
     const rowKey = (row: PickerRow) =>
       row.kind === 'preset'
@@ -657,19 +675,19 @@ function ModelsView({
                                       toggleAssignmentGroup(client, scope, value, group.id),
                                     )
                                 : () =>
-                                    models.run(
-                                      () =>
-                                        setModelGroup(
-                                          client,
-                                          scope,
-                                          value,
-                                          group.id,
-                                          picker === 'assignment' ? 'assignment' : 'orchestrator',
-                                        ),
-                                      () => {
-                                        Keyboard.dismiss();
-                                        router.back();
-                                      },
+                                    pickGroup(
+                                      group,
+                                      scope.kind === 'global'
+                                        ? ''
+                                        : keptGroupEffort(
+                                            value,
+                                            group,
+                                            currentGroup === undefined
+                                              ? (current?.reasoningEffort ?? '')
+                                              : groupEffort,
+                                          ),
+                                      scope.kind !== 'global' &&
+                                        groupEffortChoices(value, group).length > 0,
                                     )
                     }
                   />
@@ -751,14 +769,7 @@ function ModelsView({
             );
           }}
         />
-        {picker === 'allowed' || currentGroup !== undefined ? null : (
-          <EffortBar
-            entry={currentEntry}
-            route={current}
-            busy={models.busy}
-            onChange={chooseEffort}
-          />
-        )}
+        {picker === 'allowed' ? null : effortBar(currentGroup)}
       </>,
     );
   }
@@ -807,9 +818,13 @@ function ModelsView({
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
           {orchestratorGroup === undefined ? null : (
-            <PickerLink
-              label={t.modelSettings.effort}
-              detail={t.modelSettings.groupEffort}
+            <GroupEffortLink
+              value={value}
+              groupId={
+                scope.kind === 'global' ? value.defaultGroupId : routes.groups.orchestratorGroupId
+              }
+              effort={groupEffortOf(routes.groups, false)}
+              global={scope.kind === 'global'}
               onPress={models.busy ? undefined : () => openPicker('orchestrator-effort')}
             />
           )}
@@ -833,9 +848,11 @@ function ModelsView({
                 onPress={models.busy ? undefined : () => openPicker('assignment')}
               />
               {assignmentGroup === undefined ? null : (
-                <PickerLink
-                  label={t.modelSettings.effort}
-                  detail={t.modelSettings.groupEffort}
+                <GroupEffortLink
+                  value={value}
+                  groupId={assignmentCatalogGroup?.id}
+                  effort={groupEffortOf(routes.groups, true)}
+                  global={false}
                   onPress={models.busy ? undefined : () => openPicker('assignment-effort')}
                 />
               )}

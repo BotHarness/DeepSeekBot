@@ -54,7 +54,7 @@ import {
   SessionMetaChip,
   TodoProgressChip,
 } from './session-progress-view.js';
-import { engineName, sessionEngineText } from './session-engine.js';
+import { engineChipLabel, sessionEngineText } from './session-engine.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -486,7 +486,7 @@ function SessionsPanel({
                     <SessionMetaChip
                       kind="engine"
                       icon={<IconCordisPluginOutlineRegular size={12} />}
-                      label={engineName(row.engine.engine)}
+                      label={engineChipLabel(row.engine, t)}
                       title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
                     />
                   )}

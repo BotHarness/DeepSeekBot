@@ -38,3 +38,21 @@ export function isChannelTurnStopRests(value: unknown): value is ChannelTurnStop
     })
   );
 }
+
+export interface ChannelTurnStopEngine {
+  engine: string;
+  account: string;
+  until: string;
+}
+
+export function isChannelTurnStopEngine(value: unknown): value is ChannelTurnStopEngine {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const fields = value as Record<string, unknown>;
+  return (
+    Object.keys(fields).length === 3 &&
+    ['engine', 'account', 'until'].every(
+      (key) => typeof fields[key] === 'string' && fields[key].length > 0,
+    ) &&
+    Number.isFinite(Date.parse(fields['until'] as string))
+  );
+}

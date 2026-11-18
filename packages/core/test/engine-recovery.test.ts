@@ -476,9 +476,11 @@ describe('Engine Host recovery', () => {
       sessions: () => undefined,
       persistence: () => undefined,
       detectCodex: async () => ({ installed: true, version: '0.170.0', login: 'unknown' }),
+      detectClaude: async () => ({ installed: false, login: 'unknown' }),
     });
     expect(await host.status()).toEqual([
       expect.objectContaining({ available: false, reason: 'login-unknown', login: 'unknown' }),
+      expect.objectContaining({ engine: 'claude', available: false, reason: 'not-installed' }),
     ]);
   });
 });

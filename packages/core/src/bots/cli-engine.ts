@@ -9,7 +9,7 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-status',
     description:
-      'show each engine with install and sign-in state and which Bots run on it (engine status)',
+      'show each engine with install, sign-in and subscription quota, and which Bots run on it (engine status)',
   },
   {
     command: 'engine-approvals',
@@ -17,14 +17,24 @@ export const ENGINE_COMMANDS = [
       'list the approval cards engine Sessions are waiting on; answer one with tool-approval-decide (engine approvals)',
   },
   {
+    command: 'engine-tools',
+    description:
+      'list or search the Bot tools an engine-backed Bot reaches through tool_search (engine tools <bot> --query memory)',
+  },
+  {
+    command: 'engine-tool',
+    description:
+      'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
+  },
+  {
     command: 'engine-login',
     description:
-      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex)',
+      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
   },
   {
     command: 'engine-use',
     description:
-      'run a Bot Orchestrator on an engine, or none for the DSH model (engine use <bot> codex --role orchestrator)',
+      'run a Bot Orchestrator on an engine, or none for its API model, and resume a Bot paused by the limit (engine use <bot> codex|claude --role orchestrator [--fallback on])',
   },
 ] as const;
 
@@ -66,8 +76,9 @@ async function call(
 export async function runEngineCommand(
   command: string,
   rest: string[],
-  values: { role?: string[] },
+  values: { role?: string[]; fallback?: string; query?: string; 'args-stdin'?: boolean },
   connect: Connect,
+  readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
@@ -93,24 +104,63 @@ export async function runEngineCommand(
     if (!Array.isArray(approvals) || !approvals.every(isObject)) throw protocolError();
     return { approvals };
   }
+  if (command === 'engine-tools') {
+    if (rest.length !== 1) throw new CliLiveError('usage', 'engine tools needs one Bot ID.');
+    const value = await call(connect, {
+      action: 'tools',
+      bot: rest[0],
+      ...(values.query === undefined ? {} : { query: values.query }),
+    });
+    if (!Array.isArray(value['tools']) || !value['tools'].every(isObject)) throw protocolError();
+    return value;
+  }
+  if (command === 'engine-tool') {
+    if (rest.length !== 2)
+      throw new CliLiveError('usage', 'engine tool needs a Bot ID and a tool name.');
+    let args: unknown = {};
+    if (values['args-stdin'] === true) {
+      try {
+        args = JSON.parse(await readStdin());
+      } catch {
+        args = undefined;
+      }
+      if (!isObject(args))
+        throw new CliLiveError('usage', '--args-stdin must be a JSON object of tool arguments.');
+    }
+    const [bot, tool] = rest as [string, string];
+    const value = await call(connect, { action: 'tool', bot, tool, args });
+    if (value['bot'] !== bot || value['tool'] !== tool || !('result' in value))
+      throw protocolError();
+    return value;
+  }
   if (command === 'engine-login') {
-    if (rest.length !== 1) throw new CliLiveError('usage', 'engine login needs one engine: codex.');
+    if (rest.length !== 1)
+      throw new CliLiveError('usage', 'engine login needs one engine: codex or claude.');
     const value = await call(connect, { action: 'login', engine: rest[0] });
     if (value['started'] !== true || typeof value['engine'] !== 'string') throw protocolError();
     return value;
   }
   if (command === 'engine-use') {
     if (rest.length !== 2)
-      throw new CliLiveError('usage', 'engine use needs <bot> and an engine (codex or none).');
+      throw new CliLiveError(
+        'usage',
+        'engine use needs <bot> and an engine (codex, claude or none).',
+      );
     const role = values.role ?? [];
     if (role.length !== 1 || role[0] !== 'orchestrator')
       throw new CliLiveError('usage', 'engine use needs --role orchestrator.');
     const [bot, engine] = rest as [string, string];
+    const fallback = values.fallback;
+    if (fallback !== undefined && fallback !== 'on' && fallback !== 'off')
+      throw new CliLiveError('usage', 'engine use --fallback takes on or off.');
+    if (fallback !== undefined && engine === 'none')
+      throw new CliLiveError('usage', 'engine use none takes no --fallback.');
     const value = await call(connect, {
       action: 'use',
       bot,
       role: 'orchestrator',
       engine: engine === 'none' ? null : engine,
+      ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
     });
     if (value['bot'] !== bot || value['role'] !== 'orchestrator') throw protocolError();
     return value;

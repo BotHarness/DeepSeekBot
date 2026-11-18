@@ -76,6 +76,7 @@ function setup(recording = RECORDING, local = true) {
     },
     detectCodex: async () => ({ installed: true, version: '0.170.0', login: 'chatgpt' }),
     startCodexLogin: async () => ({ url: 'https://auth.openai.com/oauth/authorize?x=1' }),
+    detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'signed-out' }),
   });
   const execute = vi.fn(async (name: string, args: Record<string, unknown>) =>
     name === 'channel_read'
@@ -167,6 +168,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
       engine: 'codex',
       account: 'ChatGPT pro',
       state: 'idle',
+      quota: expect.objectContaining({ usedPercent: 79 }),
     });
     await host.close();
     expect(replay.closed).toBe(true);
@@ -373,7 +375,7 @@ describe('Engine selection, status and route', () => {
       await (
         await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: 'codex' })
       ).json(),
-    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex' });
+    ).toEqual({ bot: 'ada', role: 'orchestrator', engine: 'codex', fallback: false });
     expect(
       (await post({ action: 'use', bot: 'eve', role: 'orchestrator', engine: 'codex' })).status,
     ).toBe(404);
@@ -398,8 +400,17 @@ describe('Engine selection, status and route', () => {
           version: '0.170.0',
           login: 'chatgpt',
         },
+        {
+          engine: 'claude',
+          displayName: 'Claude Code',
+          available: false,
+          reason: 'signed-out',
+          installed: true,
+          version: '2.1.327',
+          login: 'signed-out',
+        },
       ],
-      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
+      selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex', fallback: false }],
       approvals: [],
     });
     await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: null });
