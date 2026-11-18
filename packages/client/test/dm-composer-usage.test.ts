@@ -103,6 +103,11 @@ it('shows the Bot name and session share meters in the saved Bot Primary Color',
   expect(meters()).toHaveLength(2);
   expect(meters().map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['75', '25']);
   expect(meters().map((meter) => meter.querySelector('span')!.style.width)).toEqual(['75%', '25%']);
+  expect(
+    [...document.querySelectorAll('.bh-composer-usage-session strong')].map(
+      (row) => row.textContent,
+    ),
+  ).toEqual(['300 · 75%', '100 · 25%', '不可用']);
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', LIGHT));
 
