@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const RESOURCE_CHANGED_EVENT = 'resource/changed';
 
-export const liveResourceSchema = z.enum(['devices', 'relationships']);
+export const liveResourceSchema = z.enum(['devices', 'relationships', 'private-inputs']);
 
 export const resourceChangeSchema = z.object({
   resource: liveResourceSchema,
@@ -10,6 +10,11 @@ export const resourceChangeSchema = z.object({
 });
 
 export type LiveResource = z.infer<typeof liveResourceSchema>;
+
+export const OWNER_ONLY_RESOURCES: ReadonlySet<LiveResource> = new Set([
+  'devices',
+  'relationships',
+]);
 export type ResourceChange = z.infer<typeof resourceChangeSchema>;
 
 export function parseResourceChange(value: unknown): ResourceChange | undefined {

@@ -144,7 +144,7 @@ export function apply(ctx, config) {
       sources: sources.map((source) => source.id),
     };
   };
-  const timer = setInterval(async () => {
+  const poll = async () => {
     if (busy || !existsSync(command)) return;
     busy = true;
     try {
@@ -157,6 +157,9 @@ export function apply(ctx, config) {
     } finally {
       busy = false;
     }
+  };
+  const timer = setInterval(() => {
+    poll().catch((error) => console.error(error));
   }, 100);
   ctx.effect(() => () => {
     clearInterval(timer);

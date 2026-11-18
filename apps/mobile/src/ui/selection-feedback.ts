@@ -4,7 +4,7 @@ import { haptic } from './haptics';
 
 type Activation<T> = { target: T; order: number; pending: boolean };
 
-export function useSelectionFeedback<T>(value: T, onChange: (next: T) => void) {
+export function useSelectionFeedback<T>(value: T, onChange: (next: T) => void | PromiseLike<void>) {
   const activations = useRef(new Map<T, Activation<T>>());
   const latest = useRef<Activation<T> | undefined>(undefined);
   const nextOrder = useRef(0);

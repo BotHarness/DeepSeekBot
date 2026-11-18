@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 assert.ok(
@@ -16,34 +17,36 @@ const payload = 'Synthetic upload acceptance proof\n';
 const digest = createHash('sha256').update(payload).digest('hex');
 if (mode === '--serve') {
   const receipts = [];
-  createServer(async (req, res) => {
-    const url = new URL(req.url, fixture);
-    if (url.pathname === '/state') return res.end(JSON.stringify({ receipts }));
-    if (url.pathname === '/submit' && req.method === 'POST') {
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = Buffer.concat(chunks).toString('utf8');
-      const target = body.match(/name="target"; filename="([^"]*)"/)?.[1];
-      const other = body.match(/name="other"; filename="([^"]*)"/)?.[1];
-      const kind = url.searchParams.get('kind');
-      if (target !== 'qa-upload.txt' || other !== '' || !body.includes(payload)) {
-        res.statusCode = 400;
-        return res.end('Incorrect upload field or bytes');
+  createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url, fixture);
+      if (url.pathname === '/state') return res.end(JSON.stringify({ receipts }));
+      if (url.pathname === '/submit' && req.method === 'POST') {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const body = Buffer.concat(chunks).toString('utf8');
+        const target = body.match(/name="target"; filename="([^"]*)"/)?.[1];
+        const other = body.match(/name="other"; filename="([^"]*)"/)?.[1];
+        const kind = url.searchParams.get('kind');
+        if (target !== 'qa-upload.txt' || other !== '' || !body.includes(payload)) {
+          res.statusCode = 400;
+          return res.end('Incorrect upload field or bytes');
+        }
+        const receipt = { kind, target, other, bytes: Buffer.byteLength(payload), sha256: digest };
+        receipts.push(receipt);
+        return res.end(JSON.stringify(receipt));
       }
-      const receipt = { kind, target, other, bytes: Buffer.byteLength(payload), sha256: digest };
-      receipts.push(receipt);
-      return res.end(JSON.stringify(receipt));
-    }
-    const kind = url.pathname.slice(1);
-    if (!['chooser', 'direct', 'empty'].includes(kind)) {
-      res.statusCode = 404;
-      return res.end();
-    }
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(
-      `<!doctype html><title>Upload acceptance ${kind}</title><body style="font:22px sans-serif;padding:30px;background:#fff;color:#111"><h1>Upload acceptance ${kind}</h1><form><section style="padding:24px;border:2px solid #555;margin:20px 0"><h2>Target document</h2>${kind === 'empty' ? 'No file input on this page' : `<input type="file" name="target" aria-label="Target document" ${kind === 'chooser' ? 'hidden' : ''}>${kind === 'chooser' ? '<button type="button" id="attach">Attach document</button>' : ''}`}</section>${kind === 'empty' ? '' : '<section style="padding:24px;border:2px solid #999;margin:20px 0"><h2>Other attachment</h2><input type="file" name="other" aria-label="Other attachment"></section>'}<p id="state">Target: none; Other: none; Completed: 0</p><button id="submit" disabled>Submit document</button><label style="display:block;margin-top:24px">Continue editing <input aria-label="Continue editing" name="note"></label></form><style>button,input{font:22px sans-serif;padding:10px}</style><script>const form=document.querySelector('form'),target=form.elements.target,other=form.elements.other,submit=document.querySelector('#submit');let completed=0;const refresh=()=>{document.querySelector('#state').textContent='Target: '+(target?.files[0]?.name||'none')+'; Other: '+(other?.files[0]?.name||'none')+'; Completed: '+completed;submit.disabled=!target?.files.length||completed>0};document.querySelector('#attach')?.addEventListener('click',()=>target.click());form.addEventListener('change',refresh);form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;const r=await fetch('/submit?kind=${kind}',{method:'POST',body:new FormData(form)});if(!r.ok)throw Error('Incorrect upload');completed++;refresh()});</script></body>`,
-    );
-  }).listen(port, '127.0.0.1');
+      const kind = url.pathname.slice(1);
+      if (!['chooser', 'direct', 'empty'].includes(kind)) {
+        res.statusCode = 404;
+        return res.end();
+      }
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(
+        `<!doctype html><title>Upload acceptance ${kind}</title><body style="font:22px sans-serif;padding:30px;background:#fff;color:#111"><h1>Upload acceptance ${kind}</h1><form><section style="padding:24px;border:2px solid #555;margin:20px 0"><h2>Target document</h2>${kind === 'empty' ? 'No file input on this page' : `<input type="file" name="target" aria-label="Target document" ${kind === 'chooser' ? 'hidden' : ''}>${kind === 'chooser' ? '<button type="button" id="attach">Attach document</button>' : ''}`}</section>${kind === 'empty' ? '' : '<section style="padding:24px;border:2px solid #999;margin:20px 0"><h2>Other attachment</h2><input type="file" name="other" aria-label="Other attachment"></section>'}<p id="state">Target: none; Other: none; Completed: 0</p><button id="submit" disabled>Submit document</button><label style="display:block;margin-top:24px">Continue editing <input aria-label="Continue editing" name="note"></label></form><style>button,input{font:22px sans-serif;padding:10px}</style><script>const form=document.querySelector('form'),target=form.elements.target,other=form.elements.other,submit=document.querySelector('#submit');let completed=0;const refresh=()=>{document.querySelector('#state').textContent='Target: '+(target?.files[0]?.name||'none')+'; Other: '+(other?.files[0]?.name||'none')+'; Completed: '+completed;submit.disabled=!target?.files.length||completed>0};document.querySelector('#attach')?.addEventListener('click',()=>target.click());form.addEventListener('change',refresh);form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;const r=await fetch('/submit?kind=${kind}',{method:'POST',body:new FormData(form)});if(!r.ok)throw Error('Incorrect upload');completed++;refresh()});</script></body>`,
+      );
+    }),
+  ).listen(port, '127.0.0.1');
 } else {
   const origin = process.env.BH_E2E_ORIGIN;
   const home = process.env.BH_E2E_HOME;
