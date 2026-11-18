@@ -7,6 +7,7 @@ import {
   loadGlobalModel,
   sameModel,
   setModelFavorite,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type BotModel,
   type ModelCatalogEntry,
@@ -26,6 +27,8 @@ import {
   setOnboardingModel,
   updateModelPreset,
 } from './model-plans';
+
+export const ASSIGNMENT_GROUP_NOTE_MAX = 500;
 
 export type ModelScope =
   | { kind: 'global' }
@@ -409,6 +412,39 @@ export async function toggleAssignmentGroup(
     groups: {
       ...routes.groups,
       assignmentGroups: listed ? ids.filter((id) => id !== groupId) : [...ids, groupId],
+    },
+  });
+  recordFeature('model:plan_update', { via: 'assignments' });
+}
+
+export async function setAssignmentGroupNote(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  groupId: string,
+  note: string,
+): Promise<void> {
+  const routes = modelRoutes(state);
+  if (!(routes.groups.assignmentGroups ?? []).includes(groupId))
+    throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
+  const text = note.trim();
+  if (text.length > ASSIGNMENT_GROUP_NOTE_MAX) throw new HostAnswerInvalid('NOTE_TOO_LONG');
+  const options = routes.groups.assignmentGroupOptions ?? [];
+  const { note: _note, ...kept } = options.find((option) => option.group === groupId) ?? {
+    group: groupId,
+  };
+  const next: AssignmentGroupOption = text === '' ? kept : { ...kept, note: text };
+  const keep = next.allowedEfforts !== undefined || next.note !== undefined;
+  await writePlan(client, scope, state, {
+    orchestrator: requireRoute(routes.orchestrator),
+    assignmentDefault: requireRoute(routes.assignmentDefault),
+    assignmentModels: routes.assignmentModels,
+    groups: {
+      ...routes.groups,
+      assignmentGroupOptions: [
+        ...options.filter((option) => option.group !== groupId),
+        ...(keep ? [next] : []),
+      ],
     },
   });
   recordFeature('model:plan_update', { via: 'assignments' });

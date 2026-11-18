@@ -29,6 +29,8 @@ import {
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  ASSIGNMENT_GROUP_NOTE_MAX,
+  setAssignmentGroupNote,
   setModelGroup,
   setModelRoute,
   toggleAssignmentGroup,
@@ -150,6 +152,39 @@ function routeLabel(value: ModelSettingsState, route: ModelRoute | undefined): s
   if (route === undefined) return t.modelSettings.inherited;
   const model = value.models.find((entry) => sameModel(entry, route));
   return `${model?.modelName ?? route.model} · ${model?.providerName ?? route.provider}`;
+}
+
+function GroupNoteField({
+  testID,
+  label,
+  saved,
+  disabled,
+  onSave,
+}: {
+  testID: string;
+  label: string;
+  saved: string;
+  disabled: boolean;
+  onSave: (note: string) => void;
+}) {
+  const [draft, setDraft] = useState(saved);
+  const commit = () => {
+    if (draft.trim() !== saved.trim()) onSave(draft);
+  };
+  return (
+    <TextField
+      testID={testID}
+      value={draft}
+      onChangeText={setDraft}
+      onEndEditing={commit}
+      onSubmitEditing={commit}
+      editable={!disabled}
+      maxLength={ASSIGNMENT_GROUP_NOTE_MAX}
+      returnKeyType="done"
+      accessibilityLabel={label}
+      placeholder={label}
+    />
+  );
 }
 
 function PickerLink({
@@ -506,6 +541,33 @@ function ModelsView({
             picker === 'allowed' ? <SheetNote>{t.modelSettings.allowedHint}</SheetNote> : undefined
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
+          ListFooterComponent={
+            picker === 'allowed' && listedGroups.length > 0 ? (
+              <View style={{ gap: space.x3, paddingTop: space.x4 }}>
+                <SheetNote>{t.modelSettings.groupNotesHint}</SheetNote>
+                <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
+                  {listedGroups.map((id) => {
+                    const name = value.groups?.find((group) => group.id === id)?.name ?? id;
+                    const saved =
+                      routes.groups.assignmentGroupOptions?.find((option) => option.group === id)
+                        ?.note ?? '';
+                    return (
+                      <GroupNoteField
+                        key={`${id}:${saved}`}
+                        testID={`model-group-note-${id}`}
+                        label={t.modelSettings.groupNote(name)}
+                        saved={saved}
+                        disabled={models.busy}
+                        onSave={(note) =>
+                          models.run(() => setAssignmentGroupNote(client, scope, value, id, note))
+                        }
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            ) : undefined
+          }
           renderItem={({ item: row, index }) => {
             if (row.kind === 'preset') {
               const { preset } = row;

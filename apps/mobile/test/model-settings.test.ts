@@ -8,6 +8,7 @@ import {
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  setAssignmentGroupNote,
   setModelGroup,
   setModelRoute,
   toggleAssignmentGroup,
@@ -343,6 +344,16 @@ describe('native Model Plans and Presets', () => {
     await expect(toggleAssignmentGroup(client, scope, current(), 'side')).rejects.toThrow(
       'ASSIGNMENT_DEFAULT_REQUIRED',
     );
+    await setAssignmentGroupNote(client, scope, current(), 'daily', '  Quick checks  ');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentGroups: ['side', 'daily'],
+      assignmentGroupOptions: [{ group: 'daily', note: 'Quick checks' }],
+    });
+    await setAssignmentGroupNote(client, scope, current(), 'daily', '');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroupOptions: [] });
+    await expect(
+      setAssignmentGroupNote(client, scope, { ...current(), groups: [] }, 'other', 'x'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
     await setModelRoute(client, scope, current(), 'assignment', flash);
     expect(fake.calls.at(-1)?.args).toMatchObject({
       orchestratorGroupId: 'daily',
