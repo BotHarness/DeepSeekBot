@@ -343,17 +343,9 @@ export function createConnectAccount(options: {
         );
       if (signal.aborted) cancel();
       else signal.addEventListener('abort', cancel, { once: true });
-      next.then(
-        (value) => {
-          signal.removeEventListener('abort', cancel);
-          if (signal.aborted) cancel();
-          else resolve(value);
-        },
-        (error: unknown) => {
-          signal.removeEventListener('abort', cancel);
-          reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
-        },
-      );
+      next
+        .finally(() => signal.removeEventListener('abort', cancel))
+        .then((value) => (signal.aborted ? cancel() : resolve(value)), reject);
     });
   };
 
