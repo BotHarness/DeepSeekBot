@@ -1046,8 +1046,12 @@ export async function runLiveCli(
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (ENGINE_COMMANDS.some((entry) => entry.command === command))
-    return runEngineCommand(command, rest, values, () =>
-      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    return runEngineCommand(
+      command,
+      rest,
+      values,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+      () => io.readStdin?.() ?? Promise.resolve(''),
     );
   if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
     return runPresenceCommand(command, rest, values, () =>

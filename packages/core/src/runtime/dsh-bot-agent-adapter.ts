@@ -83,6 +83,16 @@ import {
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-host.js';
 import { engineInstructions } from '../engines/engine-persona.js';
+import {
+  ENGINE_LISTED_TOOLS,
+  ENGINE_UNSUPPORTED_TOOLS,
+  type EngineBotTool,
+  type EngineToolGate,
+  type EngineToolSource,
+  searchEngineTools,
+  TOOL_CALL,
+  TOOL_SEARCH,
+} from '../engines/engine-tools.js';
 
 export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
@@ -511,6 +521,8 @@ export interface DshBotAgentAdapterOptions {
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
   engines?: DshBotEngines;
   enginePersona?: (bot: PersonaBotRecord) => { soul?: string; coreMemory?: string };
+  engineTools?: EngineToolSource;
+  engineToolGate?: EngineToolGate;
 }
 
 export interface DshBotEngines {
@@ -776,6 +788,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
   readonly #engines: DshBotEngines | undefined;
   readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
+  readonly #engineTools: EngineToolSource | undefined;
+  readonly #engineToolGate: EngineToolGate | undefined;
   readonly #engineStops = new Map<string, AbortController>();
   readonly #engineChannels = new Map<string, string>();
   readonly #preparationVisibleMs: number;
@@ -821,6 +835,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.#engines = options.engines;
     this.#enginePersona = options.enginePersona;
+    this.#engineTools = options.engineTools;
+    this.#engineToolGate = options.engineToolGate;
   }
 
   async #prepare<T>(
@@ -1078,9 +1094,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.setExecutionReady?.(true);
       run.requireContent?.();
       if (run.acceptNativeInput !== undefined && !run.acceptNativeInput()) return;
-      const tools = this.#directToolDefinitions(run).filter((tool) =>
-        ENGINE_GATEWAY_TOOLS.has(tool.name),
-      );
+      const catalog = await this.#engineCatalog(run, stop.signal);
+      if (stop.signal.aborted) return;
+      const tools = [
+        ...this.#directToolDefinitions(run).filter((tool) => ENGINE_LISTED_TOOLS.has(tool.name)),
+        TOOL_SEARCH,
+        TOOL_CALL,
+      ].filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name));
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       const promptText = this.#promptText(run.sessionId);
       const persona = this.#enginePersona?.(run.bot) ?? {};
@@ -1096,21 +1116,29 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           replyDelivery: orchestratorPromptSections(promptText).replyDelivery,
         }),
         tools,
-        execute: async (name, args, signal) => {
-          const tool = tools.find((entry) => entry.name === name);
-          if (tool === undefined)
-            throw new Error(`${name} is not available to this engine Session`);
-          const callId = `${run.sessionId}:engine:${randomUUID()}`;
-          const value = await tool.execute(args, {
-            callId,
-            rootCallId: callId,
-            name,
-            arguments: args,
-            signal,
-            deferContext: () => undefined,
-            concludeTurn: () => undefined,
-          } as unknown as ToolRunContext);
-          return value;
+        execute: async (name, args, signal, context) => {
+          if (name === TOOL_SEARCH.name) return searchEngineTools(catalog, args);
+          const [toolName, toolArgs] =
+            name === TOOL_CALL.name ? toolCallTarget(args) : [name, args];
+          const tool = catalog.find((entry) => entry.name === toolName);
+          if (
+            tool === undefined ||
+            (name !== TOOL_CALL.name && !tools.some((entry) => entry.name === name))
+          )
+            throw new Error(`refused: ${toolName} is not available to this engine Session`);
+          if (this.#engineToolGate !== undefined) {
+            const refusal = await this.#engineToolGate({
+              botSlug: run.bot.slug,
+              sessionId: run.sessionId,
+              session: context.session,
+              toolName,
+              args: toolArgs,
+              signal,
+              ask: context.ask,
+            });
+            if (refusal !== undefined) throw new Error(`refused: ${refusal}`);
+          }
+          return tool.run(toolArgs, signal);
         },
         signal: stop.signal,
       });
@@ -1120,6 +1148,58 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#engineChannels.delete(run.sessionId);
       }
     }
+  }
+
+  async #engineCatalog(run: OrchestratorAgentRun, signal: AbortSignal): Promise<EngineBotTool[]> {
+    const own: ToolDefinition[] = [];
+    const collect = (tool: ToolDefinition) => {
+      if (!ENGINE_UNSUPPORTED_TOOLS.has(tool.name)) own.push(tool);
+    };
+    this.#orchestratorTools(
+      run,
+      { get: () => undefined } as Pick<Context, 'get'>,
+      collect,
+      collect,
+    );
+    const catalog: EngineBotTool[] = own.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.parameters as Record<string, unknown>,
+      run: async (args, toolSignal) => {
+        const callId = `${run.sessionId}:engine:${randomUUID()}`;
+        try {
+          return await tool.execute(args, {
+            callId,
+            rootCallId: callId,
+            name: tool.name,
+            arguments: args,
+            signal: toolSignal,
+            deferContext: () => undefined,
+            concludeTurn: () => undefined,
+          } as unknown as ToolRunContext);
+        } catch (error) {
+          if (error instanceof ToolArgsError)
+            throw new Error(`${tool.name}: ${error.message}`, { cause: error });
+          throw error;
+        }
+      },
+    }));
+    const contributed = await untilAborted(
+      Promise.resolve(
+        this.#engineTools?.({ botSlug: run.bot.slug, sessionId: run.sessionId }) ?? [],
+      ).catch(() => []),
+      signal,
+    ).catch(() => []);
+    for (const tool of contributed)
+      if (!catalog.some((entry) => entry.name === tool.name)) catalog.push(tool);
+    return catalog;
+  }
+
+  async engineToolCatalog(botSlug: string): Promise<EngineBotTool[]> {
+    return this.#engineCatalog(
+      { sessionId: '', bot: { slug: botSlug } } as unknown as OrchestratorAgentRun,
+      AbortSignal.timeout(30_000),
+    );
   }
 
   ownsModelFreeTobTurn(agent: Agent): boolean {
@@ -5062,6 +5142,7 @@ export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): Bo
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;
   ownsModelFreeTobTurn(agent: Agent): boolean;
+  engineToolCatalog(botSlug: string): Promise<EngineBotTool[]>;
   runModelFreeTobTurn(
     agent: Agent,
     messages: readonly ReturnType<typeof createUserMessage>[],
@@ -5107,4 +5188,13 @@ async function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined
     signal.addEventListener('abort', stop, { once: true });
     work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
   });
+}
+
+function toolCallTarget(args: Record<string, unknown>): [string, Record<string, unknown>] {
+  const name = args['name'];
+  const inner = args['arguments'] ?? {};
+  if (typeof name !== 'string' || name === '') throw new Error('tool_call: name is required');
+  if (typeof inner !== 'object' || inner === null || Array.isArray(inner))
+    throw new Error('tool_call: arguments must be an object');
+  return [name, inner as Record<string, unknown>];
 }

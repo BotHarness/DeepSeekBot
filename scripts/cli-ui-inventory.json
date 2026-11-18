@@ -1067,7 +1067,15 @@
       "description": "The Host lists Subscription Engines, starts the Bot's own Codex sign-in and runs a Bot's Orchestrator on an engine instead of a DSH model.",
       "scope": "Host / PersonaBot Orchestrator",
       "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
-      "commands": ["engine-list", "engine-status", "engine-approvals", "engine-login", "engine-use"]
+      "commands": [
+        "engine-list",
+        "engine-status",
+        "engine-approvals",
+        "engine-tools",
+        "engine-tool",
+        "engine-login",
+        "engine-use"
+      ]
     },
     {
       "id": "desktop-window-zoom-setup",
