@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { SQLInputValue } from 'node:sqlite';
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { ChannelStore } from '../channels/store.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { channelSql, conversationSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './attention.js';
@@ -292,6 +292,34 @@ export function createInboxTriage(
       return openRows(botSlug, {}, 'inbox').map((row) => row.source_event_id);
     },
     openSummary(botSlug, limit = 5) {
+      const status = (ids: readonly string[]): string => {
+        const rows = database.read(
+          (db) =>
+            db
+              .prepare(
+                `SELECT a.title, a.activity, a.stop_state
+                   FROM request_assignments ra
+                   JOIN assignments a ON a.session_id = ra.session_id
+                  WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
+                    AND a.bot_slug = ? AND a.archived_at IS NULL
+                  ORDER BY ra.linked_at`,
+              )
+              .all(...ids, botSlug) as unknown as Array<{
+              title: string;
+              activity: string;
+              stop_state: string;
+            }>,
+        );
+        if (rows.length === 0) return '';
+        const parts = rows
+          .slice(0, 2)
+          .map(
+            (row) =>
+              `Assignment ${JSON.stringify(oneLine(row.title, 40))} ${row.stop_state === 'running' ? row.activity : 'stopped'}`,
+          );
+        const extra = rows.length > 2 ? `; +${rows.length - 2} more Assignments` : '';
+        return ` Status: ${parts.join('; ')}${extra}.`;
+      };
       const rows = openRows(botSlug, {}, 'inbox');
       const snoozedCount = openRows(botSlug, {}, 'inbox', 'only').length;
       if (rows.length === 0) return '';
@@ -304,7 +332,7 @@ export function createInboxTriage(
               ? `Channel ${JSON.stringify(entry.channelName)}`
               : entry.sourceKind;
         const more = entry.count > 1 ? ` (+${entry.count - 1} more in this conversation)` : '';
-        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}`;
+        return `- [Source Event ${entry.ids[0]}] ${where}, ${entry.latestAt}: ${oneLine(entry.latest, 120)}${more}${status(entry.ids)}`;
       });
       const rest = [
         ...(groups.length > limit ? [`- …and ${groups.length - limit} more conversations.`] : []),
@@ -337,8 +365,70 @@ export function createInboxTriage(
       };
       const write = (ids: string[], outcome: InboxResolution, note: string | undefined) => {
         const at = now().toISOString();
+        const settled = (db: DatabaseSync): string[] => {
+          if (ids.length === 0 || outcome !== 'done') return [];
+          const list = (values: readonly string[]) => values.map(() => '?').join(', ');
+          const linked = (
+            db
+              .prepare(
+                `SELECT DISTINCT a.source_event_id FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                   JOIN request_assignments ra ON ra.session_id = e.assignment_session_id
+                   JOIN assignments s ON s.session_id = ra.session_id
+                  WHERE a.bot_slug = ? AND a.observed_at IS NOT NULL
+                    AND a.attempt_state IN ('running', 'handled')
+                    AND a.resolved_at IS NULL AND a.ignored_at IS NULL
+                    AND a.reason IN ('assignment-report', 'assignment-lifecycle')
+                    AND e.expects_reply = 0 AND s.activity <> 'working'
+                    AND ra.request_source_event_id IN (${list(ids)})`,
+              )
+              .all(botSlug, ...ids) as unknown as Array<{ source_event_id: string }>
+          ).map((row) => row.source_event_id);
+          const reports = [...ids, ...linked];
+          const paired = (
+            db
+              .prepare(
+                `SELECT a.source_event_id FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                  WHERE a.bot_slug = ? AND a.reason = 'assignment-lifecycle'
+                    AND a.resolved_at IS NULL AND a.ignored_at IS NULL
+                    AND a.attempt_state <> 'needs-repair'
+                    AND json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId')
+                      IN (${list(reports)})`,
+              )
+              .all(botSlug, ...reports) as unknown as Array<{ source_event_id: string }>
+          ).map((row) => row.source_event_id);
+          return [...new Set([...linked, ...paired])].filter((id) => !ids.includes(id));
+        };
         database.transaction(
           (db) => {
+            const follow = settled(db);
+            for (const id of follow) {
+              db.prepare(
+                'UPDATE source_events SET observed_at = COALESCE(observed_at, ?) WHERE source_event_id = ?',
+              ).run(at, id);
+              db.prepare(`
+                UPDATE inbox_admissions
+                   SET resolved_at = ?, resolution = 'done', resolution_note = ?,
+                       resolved_by_session_id = ?,
+                       observed_at = COALESCE(observed_at, ?),
+                       opened_at = COALESCE(opened_at, ?),
+                       handled_at = CASE WHEN attempt_state IN ('pending', 'retryable')
+                         THEN COALESCE(handled_at, ?) ELSE handled_at END,
+                       attempt_state = CASE WHEN attempt_state IN ('pending', 'retryable')
+                         THEN 'handled' ELSE attempt_state END
+                 WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
+              `).run(
+                at,
+                'Resolved with the work it belongs to',
+                sessionId,
+                at,
+                at,
+                at,
+                id,
+                botSlug,
+              );
+            }
             for (const id of ids)
               db.prepare(`
                 UPDATE inbox_admissions
@@ -360,7 +450,7 @@ export function createInboxTriage(
                 botSlug,
               );
           },
-          ['bot-inbox'],
+          ['source-event', 'bot-inbox'],
         );
         notify(ids);
       };

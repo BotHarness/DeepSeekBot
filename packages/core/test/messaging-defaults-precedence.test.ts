@@ -85,7 +85,7 @@ it('restores Channel inheritance through the owning store without losing prior a
     expect(core.channels.get(channel.id)!.wakePolicies!.ada!.revision).toBe(1);
     core.channels.setGroupWakePolicy(channel.id, 'ada', { ...custom, inherit: true });
     expect(core.channels.get(channel.id)!.wakePolicies!.ada).toBeUndefined();
-    expect(core.channels.getGroupWakePolicy(channel.id, 'ada').count).toBe(5);
+    expect(core.channels.getGroupWakePolicy(channel.id, 'ada').count).toBe(10);
     core.channels.setGroupWakePolicy(channel.id, 'ada', custom);
     expect(core.channels.get(channel.id)!.wakePolicies!.ada!.revision).toBe(3);
   } finally {

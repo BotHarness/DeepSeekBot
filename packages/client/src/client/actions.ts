@@ -1,6 +1,10 @@
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
+import {
+  createHumanAvatarCache,
+  type HumanAvatarCache,
+} from '@botharness/host-client/human-profile';
 import { approveWorkspaceGrantRequest } from './bridge.js';
 import {
   loadGenuiView,
@@ -162,6 +166,8 @@ import {
   setGroupAvatar as setGroupAvatarViaBridge,
   setChannelHumanName,
   loadHumanIdentity,
+  loadHumanAvatars,
+  setHumanAvatar,
   setBotAvatar as setBotAvatarViaBridge,
   setBotBanner as setBotBannerViaBridge,
   updateBotProfile as updateBotProfileViaBridge,
@@ -187,6 +193,7 @@ import {
   loadSessionLive,
   loadSessionToolDetail,
   sendSessionRequest,
+  sendOrchestratorMessage,
   type SessionProgress,
   type SessionTranscript,
   type SessionLiveSnapshot,
@@ -484,6 +491,8 @@ export interface BridgeActions {
     reply: GenuiReply,
   ): Promise<void>;
   humanIdentity(signal?: AbortSignal): Promise<import('./bridge.js').LocalHumanIdentity>;
+  humanAvatarSet(avatar: string | null): Promise<import('./bridge.js').LocalHumanIdentity>;
+  readonly humanAvatars: HumanAvatarCache;
   tobHome(): Promise<
     import('../../../core/src/tob/service.js').TobHome & {
       attention?: { unreadCount: number; hasAction: boolean };
@@ -1211,6 +1220,7 @@ export interface BridgeActions {
   ): Promise<SessionLiveSnapshot>;
   sessionToolDetail?(slug: string, sessionId: string, callId: string): Promise<SessionToolDetail>;
   sendSessionRequest?(slug: string, sessionId: string, text: string, steer: boolean): Promise<void>;
+  sendOrchestratorMessage?(slug: string, sessionId: string, text: string): Promise<void>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -1985,6 +1995,9 @@ export function createActions(
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return result.value as T;
   };
+  const humanAvatars = createHumanAvatarCache(async (humanIds) => ({
+    avatars: await loadHumanAvatars(call, humanIds),
+  }));
   const actions: BridgeActions = {
     teamCall: call,
     genuiDocumentView: (channelId, messageId, document) =>
@@ -2041,6 +2054,13 @@ export function createActions(
     },
     tobHome: () => invoke('tobHome', {}),
     humanIdentity: (signal) => loadHumanIdentity(call, signal),
+    async humanAvatarSet(avatar) {
+      const identity = await setHumanAvatar(call, avatar);
+      if (avatar !== null && identity.avatarVersion !== undefined)
+        humanAvatars.put({ humanId: identity.humanId, version: identity.avatarVersion, avatar });
+      return identity;
+    },
+    humanAvatars,
     async sendHome(channelId, body, messageId, attachments) {
       const message = await sendChannelMessage(
         call,
@@ -4019,6 +4039,9 @@ export function createActions(
     },
     sendSessionRequest(slug, sessionId, text, steer) {
       return sendSessionRequest(call, slug, sessionId, text, steer);
+    },
+    sendOrchestratorMessage(slug, sessionId, text) {
+      return sendOrchestratorMessage(call, slug, sessionId, text);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

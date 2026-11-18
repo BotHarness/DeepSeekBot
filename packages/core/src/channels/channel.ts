@@ -73,7 +73,7 @@ export interface GroupMemberWakePolicy {
 
 export const DEFAULT_GROUP_WAKE_POLICY: GroupWakePolicy = {
   mode: 'digest',
-  count: 5,
+  count: 10,
   intervalSeconds: 30,
   revision: 0,
 };
@@ -346,6 +346,22 @@ export interface LocalHumanIdentity {
   humanId: string;
   defaultDisplayName: string | null;
   displayName: string;
+  avatarVersion?: string;
+  profileSetup?: 'pending';
+}
+
+export interface HumanAvatar {
+  humanId: string;
+  version: string;
+  avatar: string;
+}
+
+export const HUMAN_AVATAR_BATCH = 64;
+
+export const isHumanAvatar = (value: unknown): value is string => isGroupAvatar(value);
+
+export function humanAvatarVersion(avatar: string): string {
+  return createHash('sha256').update(avatar).digest('hex').slice(0, 16);
 }
 
 export interface ChannelHumanReceipt {

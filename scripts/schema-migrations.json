@@ -646,5 +646,17 @@
   {
     "id": "assignment-model-group",
     "sha256": "13a736b040c4019d21fc4942a5f27a8f1b0924b632af6f1dff0380a018cc7a76"
+  },
+  {
+    "id": "human-avatar",
+    "sha256": "d5b46fddbe5a3902ab2d12670eec3bca1626b7cb83cf07f314246d4ba348dc79"
+  },
+  {
+    "id": "human-avatar-channel-changes",
+    "sha256": "f6056f3b8ef9b6a7c8e946bae4b134e83af454b4ec9259aabbf45f0b8a3bc9f8"
+  },
+  {
+    "id": "human-profile-setup",
+    "sha256": "b0262ea93b28bc5b54d04c57a7782f2f4f8bc39c025bbf63c02180932cd06f42"
   }
 ]

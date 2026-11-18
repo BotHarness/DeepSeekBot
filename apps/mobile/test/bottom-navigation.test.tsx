@@ -34,7 +34,7 @@ vi.mock('react-native-reanimated', async () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
+vi.mock('expo-router', () => ({ router: { push: vi.fn() }, useIsFocused: () => true }));
 vi.mock('expo-router/js-tabs', () => ({
   Tabs: Object.assign(
     ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>

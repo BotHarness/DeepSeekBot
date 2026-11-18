@@ -475,6 +475,10 @@ deepseekbot roster-top-reorder section:<section-id> channel:<channel-id>
 deepseekbot roster-section-remove <section-id> --confirm
 deepseekbot human-identity
 deepseekbot human-name-set --name "Vain"
+deepseekbot human-avatar-set --file ./me.webp
+deepseekbot human-avatar-set --clear
+deepseekbot human-avatars <human-id> <human-id>
+deepseekbot human-profile-setup-finish
 deepseekbot channel-human-name-set <channel-id> --nickname "Boss"
 deepseekbot part-library
 deepseekbot part-library-import --file ./parts.zip
@@ -484,7 +488,7 @@ deepseekbot part-library-export --out /tmp/part-library.zip
 deepseekbot part-library-export --part-id <part-id> --out /tmp/part.png
 ```
 
-Images are read from a file path: an avatar is a PNG, JPEG or WebP; a banner is a 3:1 PNG; `--clear` returns the avatar to its default and the banner to the seeded scene. `bot-appearance-set` takes the same pixel recipe as the avatar editor and redraws the avatar from it. `--source-class` is `assignment-report` (`--wake conditional|immediate`), `group-ordinary` (`--wake immediate|digest|mentions|silent` with `--digest-count` and `--digest-interval` seconds), or `human-dm`, `bot-dm` and `group-mention` (`--delivery steer|turn`). Roster commands take Channel ids (`dm-<bot-id>` for a DM); `roster-pins-set` and `roster-hidden-set` replace the whole list, so pass no ids to clear it, and `roster-batch move` without `--section` moves to the top level. `roster-section-remove` needs `--confirm` and moves the section's Channels to the top level. With `--host` or `DEEPSEEKBOT_HOST`, `human-name-set` and `channel-human-name-set` use the Host; with `--home` they keep their offline path. `part-library-export` writes the part PNG, or a zip of the whole library, to `--out` and prints its file name and size; `--part-stdin` exports a worn part given as JSON.
+Images are read from a file path: an avatar is a PNG, JPEG or WebP; a banner is a 3:1 PNG; `--clear` returns the avatar to its default and the banner to the seeded scene. `bot-appearance-set` takes the same pixel recipe as the avatar editor and redraws the avatar from it. `--source-class` is `assignment-report` (`--wake conditional|immediate`), `group-ordinary` (`--wake immediate|digest|mentions|silent` with `--digest-count` and `--digest-interval` seconds), or `human-dm`, `bot-dm` and `group-mention` (`--delivery steer|turn`). Roster commands take Channel ids (`dm-<bot-id>` for a DM); `roster-pins-set` and `roster-hidden-set` replace the whole list, so pass no ids to clear it, and `roster-batch move` without `--section` moves to the top level. `roster-section-remove` needs `--confirm` and moves the section's Channels to the top level. With `--host` or `DEEPSEEKBOT_HOST`, `human-name-set` and `channel-human-name-set` use the Host; with `--home` they keep their offline path. `human-avatar-set` sets the calling Human's own chat avatar on that Host (a PNG, JPEG or WebP of at most 96 KiB; the apps crop to 256×256 WebP) and needs no Tobs account; `human-identity` then shows its `avatarVersion`. In Team mode it acts as the signed-in member. `human-avatars` returns the avatars of yourself and of Humans who share a Channel with you, at most 64 per call; others are left out. A Team member who has not set a chat name or photo shows `profileSetup: "pending"` in `human-identity`, and the apps ask for both once at sign-in; `human-profile-setup-finish` stops that prompt, the same as choosing Later. `part-library-export` writes the part PNG, or a zip of the whole library, to `--out` and prints its file name and size; `--part-stdin` exports a worn part given as JSON.
 
 ### IM apps from the CLI
 
@@ -630,6 +634,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-send <bot-id> <orchestrator-session-id> [--] <text>
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
 deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
@@ -645,6 +650,8 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 Card-created rules also appear under **Always allow · this Bot** in Bot permissions. This is the same canonical rule list: `tool-approval-rules` reads it and `tool-approval-rule-revoke` revokes it. Rules retain their Bot, role and authority scope independently of shared template text and copies. Reload the permissions list after a CLI revoke; the next matching call returns to the existing review flow.
 
 `session-stop <bot-id> <session-id>` stops one running Session of a Bot, as the stop button on its row in the Sessions panel does. Its Subagents stop with it, and the Bot's other Sessions keep running. It returns `stopped` and `alreadyIdle`, each a list of `{ botSlug, sessionId, role }`: a Session that is idle, already stopped or stopped twice comes back in `alreadyIdle` and still succeeds. A Session the Bot does not own is refused with `unknown-session`. With `--channel`, the Channel the stop came from gets a one-line notice (`turnStop.target`, plus `messageId` in the result), but only when the Session belongs there: the Bot's Orchestrator in a Channel the Bot is in, an Assignment only in the Channel that started it.
+
+`session-send <bot-id> <orchestrator-session-id> <text>` sends the Human's text straight into the Bot's current Orchestrator Session, as the input box in that Session's detail does. It is a deliberate steer and is rare. No Channel shows the text: the Session receives it raw under one line saying the Human wrote it in Session detail, and the Bot Inbox keeps it as a Human Source Event on the Human's DM, so it survives a restart or compaction. A running turn takes it at its next step, whatever the `human-dm` delivery setting; while the Bot is preparing or reconciling its Memory it waits for the next turn instead, and an idle Orchestrator wakes for it. The Bot does not have to reply; a `bot_send_message` with that `source_event_id` lands in the Human's DM without a quote. Put `--` before text that starts with `-`; text that looks like a secret flag, such as `--token` or `--api-key=…`, is still refused with `secret-in-argv`, because secrets never travel in arguments. It returns `{ sourceEventId }`. Any other Session of a Bot that can take the message is refused with `invalid-input`; a Bot that cannot take messages now, for example a paused one, is refused with `unavailable`.
 
 `session-stop <bot-id> --activity <activity-id>` stops the Session behind one row of the Bot's live activity snapshot (`sessions[].id`), as the stop on a row of the Messages header popover does. A row that has already gone means the Session finished, so the command returns empty `stopped` and `alreadyIdle` lists and still succeeds. Pass either a Session id or `--activity`, not both.
 

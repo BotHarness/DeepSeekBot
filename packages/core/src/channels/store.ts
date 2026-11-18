@@ -54,6 +54,7 @@ import {
   isGroupAvatar,
   isValidChannelId,
   type LocalHumanIdentity,
+  type HumanAvatar,
   type BotCreateAction,
   type ChannelMemoryCommit,
   type ChannelMessage,
@@ -434,13 +435,16 @@ export interface ChannelStore {
   setHumanDefaultName(human: HumanContext, displayName: string | null): LocalHumanIdentity;
   humanNickname(human: HumanContext, id: string): string | null | undefined;
   setHumanNickname(human: HumanContext, id: string, nickname: string | null): void;
+  setHumanAvatar(human: HumanContext, avatar: string | null): LocalHumanIdentity;
+  finishHumanProfileSetup(human: HumanContext): LocalHumanIdentity;
+  humanAvatars(human: HumanContext, humanIds: readonly string[]): HumanAvatar[];
   list(): ChannelRecord[];
   get(id: string): ChannelRecord | undefined;
   hasHumanMembership?(human: HumanContext, id: string): boolean;
   listHumanMembers(
     human: HumanContext,
     id: string,
-  ): Array<{ humanId: string; displayName: string }>;
+  ): Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
 
   latestHumanMessageId?(human: HumanContext, id: string): string | undefined;
   latestMessage(id: string): ChannelMessage | undefined;
@@ -909,6 +913,15 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
     setHumanNickname: (human: HumanContext) => {
       throw new Error('Human names require the operational database');
     },
+    setHumanAvatar: (human: HumanContext) => {
+      throw new Error('Human avatars require the operational database');
+    },
+    finishHumanProfileSetup: (human: HumanContext) => ({
+      humanId: human.humanId,
+      defaultDisplayName: null,
+      displayName: 'Human',
+    }),
+    humanAvatars: (human: HumanContext) => [],
     listHumanMembers: (human: HumanContext) => [],
     readPosition,
     markRead(human: HumanContext, id, messageId) {

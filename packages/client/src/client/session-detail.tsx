@@ -767,7 +767,13 @@ export function SessionDetail({
   }, []);
   const send = async (): Promise<void> => {
     const message = draft.trim();
-    const deliver = actions.sendSessionRequest;
+    const deliver =
+      transcript?.role === 'assignment'
+        ? actions.sendSessionRequest
+        : transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined
+          ? (slug: string, session: string) =>
+              actions.sendOrchestratorMessage!(slug, session, draft)
+          : undefined;
     if (message === '' || deliver === undefined) return;
     setSending(true);
     setSendError(undefined);
@@ -913,7 +919,8 @@ export function SessionDetail({
         )}
       </div>
       <TurnNav blocks={blocks} t={t} />
-      {transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined ? (
+      {(transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
+      (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined) ? (
         <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>

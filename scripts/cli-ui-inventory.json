@@ -369,13 +369,20 @@
     },
     {
       "id": "profile-personal",
-      "description": "Human default name, Channel nickname and DM trace policy.",
+      "description": "Human default name, Host chat avatar, Channel nickname and DM trace policy.",
       "scope": "Host",
       "surfaces": [
         "setting:packages/client/src/client/channel-personal-settings.tsx:{<label htmlFor=\"bh-channel-human-nickname\">{t('humanNickname.title')}</label>}",
-        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}"
+        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}",
+        "setting:packages/client/src/client/human-avatar-settings.tsx:{t('humanAvatar.title')}"
       ],
-      "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
+      "commands": [
+        "human-identity",
+        "human-name-set",
+        "human-avatar-set",
+        "human-avatars",
+        "channel-human-name-set"
+      ]
     },
     {
       "id": "account-profile",
@@ -1203,6 +1210,7 @@
       "description": "Loading, empty and load-failure rows shown inside settings groups.",
       "scope": "Client transport / transient state",
       "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loading')}",
         "setting:packages/client/src/client/im-apps-section.tsx:{t('imApps.empty')}",
         "setting:packages/client/src/client/im-apps-section.tsx:{<span role=\"status\">{t('imApps.loadFailed')}</span>}",
         "setting:packages/client/src/client/messaging-defaults-settings.tsx:{<Note tone=\"danger\">{error}</Note>}",

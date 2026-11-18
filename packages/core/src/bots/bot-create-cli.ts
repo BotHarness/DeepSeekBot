@@ -347,6 +347,7 @@ Usage:
   tobs session-ids
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs session-send <id> <orchestrator-session-id> [--] <text>
   tobs session-stop <id> <session-id> [--channel <channel-id>]
   tobs bot-stop <id> [--channel <channel-id>]
   tobs tool-approval-rules <id>
@@ -368,6 +369,9 @@ Usage:
   tobs bot-standing-limits-set <id> --soul <n> --core-memory <n>
   tobs developer-mode-set (--enabled | --disabled)
   tobs roster | human-identity | part-library
+  tobs human-avatar-set (--file <image> | --clear)
+  tobs human-avatars <human-id>...
+  tobs human-profile-setup-finish
   tobs roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
   tobs roster-pins-set|roster-hidden-set [<channel>...]
   tobs roster-section-create <name>
@@ -2662,6 +2666,7 @@ export async function runBotCreateCli(
           !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
           !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
           !LOCAL_MEMORY_COMMANDS.has(command) &&
+          !PROFILE_ONLINE_COMMANDS.some((entry) => entry === command) &&
           !LIVE_COMMANDS.some((entry) => entry.command === command)))
     )
       throw usageError('as-online-required');
