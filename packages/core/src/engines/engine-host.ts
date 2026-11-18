@@ -587,10 +587,10 @@ export class EngineHost {
             'Claude Code is not installed on this computer',
           );
         const { version } = await (this.#options.detectClaude ?? detectClaude)(claude);
-        if (version !== undefined && olderThan(version, CLAUDE_MIN_VERSION))
+        if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
           throw new EngineRefusal(
             'engine-unavailable',
-            `Claude Code ${version} is too old for DeepSeekBot. Update it to ${CLAUDE_MIN_VERSION} or newer`,
+            `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
           );
         opened = new ClaudeEngineSession({
           query: this.#options.openClaude ?? sdkClaudeQuery,

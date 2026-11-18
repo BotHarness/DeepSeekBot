@@ -79,7 +79,11 @@ function setup(
     openClaude: replay.factory,
     ...(approve === undefined ? {} : { approve }),
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
-    detectClaude: async () => ({ installed: true, version: claudeVersion, login: 'subscription' }),
+    detectClaude: async () => ({
+      installed: true,
+      ...(claudeVersion === '' ? {} : { version: claudeVersion }),
+      login: 'subscription',
+    }),
     startClaudeLogin: async () => ({ url: 'https://claude.ai/oauth/authorize?x=1' }),
   });
   const execute = vi.fn(async (name: string, args: Record<string, unknown>) =>
@@ -274,6 +278,15 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     await expect(host.runTurn(request)).rejects.toMatchObject({
       code: 'engine-unavailable',
       message: expect.stringContaining('Update it to 2.1.326 or newer'),
+    });
+    expect(replay.options).toEqual([]);
+  });
+
+  it('refuses Claude Code before opening a query when its version cannot be read', async () => {
+    const { host, request, replay } = setup([RECORDING], undefined, undefined, '');
+    await expect(host.runTurn(request)).rejects.toMatchObject({
+      code: 'engine-unavailable',
+      message: expect.stringContaining('unknown version'),
     });
     expect(replay.options).toEqual([]);
   });
