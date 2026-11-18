@@ -183,7 +183,7 @@ describe('Account Profile screen', () => {
     expect(onLater).toHaveBeenCalled();
     await act(async () => (byTestId(view, 'profile-setup-photo') as HTMLButtonElement).click());
     expect(editor.choose).toHaveBeenCalledTimes(1);
-    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChange);
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChoose);
     await act(async () =>
       (byTestId(view, 'profile-setup-choose-photo') as HTMLButtonElement).click(),
     );

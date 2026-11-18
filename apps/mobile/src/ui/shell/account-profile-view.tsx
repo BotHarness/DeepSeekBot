@@ -66,7 +66,7 @@ function ChatProfileRows({ chat }: { chat: ChatProfile }) {
         <SettingsRow
           on={SHEET_GROUP}
           testID="chat-avatar-choose"
-          title={t.avatarChange}
+          title={chat.hasAvatar ? t.avatarChange : t.avatarChoose}
           control={editor.busy ? { kind: 'busy' } : { kind: 'chevron' }}
           onPress={editor.busy ? undefined : () => void editor.choose()}
         />

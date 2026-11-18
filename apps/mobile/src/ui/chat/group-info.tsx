@@ -190,19 +190,15 @@ function RenameSheet({
           />
         </View>
         <SheetActions>
-          <View>
-            <Button label={t.cancel} on="canvas" onPress={onClose} />
-          </View>
-          <View>
-            <Button
-              label={t.groupRenameSave}
-              tone="primary"
-              on="canvas"
-              busy={busy}
-              disabled={(!allowEmpty && next === '') || next === name}
-              onPress={() => void save()}
-            />
-          </View>
+          <Button label={t.cancel} on="canvas" onPress={onClose} />
+          <Button
+            label={t.groupRenameSave}
+            tone="primary"
+            on="canvas"
+            busy={busy}
+            disabled={(!allowEmpty && next === '') || next === name}
+            onPress={() => void save()}
+          />
         </SheetActions>
       </KeyboardFormScroll>
     </Sheet>

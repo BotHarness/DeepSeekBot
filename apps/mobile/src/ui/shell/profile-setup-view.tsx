@@ -78,7 +78,7 @@ export function ProfileSetupView({
             <AccountAvatar uri={avatar} name={draft || name} size={profileShell.avatar} />
           </EditableAvatar>
           <Button
-            label={t.avatarChange}
+            label={avatar === undefined ? t.avatarChoose : t.avatarChange}
             variant="text"
             busy={editor.busy}
             disabled={busy}
