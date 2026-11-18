@@ -23,6 +23,7 @@ vi.mock('../src/host/human-profile', () => ({
 }));
 
 import { PROFILE_SETUP_SETTLE_MS, useProfileSetupPrompt } from '../src/host/profile-setup-prompt';
+import { sheetClosing } from '../src/ui/primitives/sheet-closing';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -82,4 +83,14 @@ it('does not prompt when another sheet opens before the shell settles, then prom
   await render();
   await act(async () => vi.advanceTimersByTime(PROFILE_SETUP_SETTLE_MS));
   expect(state.push).toHaveBeenCalledOnce();
+});
+
+it('waits for a dismissed sign-in sheet to unmount before prompting', async () => {
+  const release = sheetClosing();
+  state.shown = true;
+  await render();
+  await act(async () => vi.advanceTimersByTime(PROFILE_SETUP_SETTLE_MS * 2));
+  expect(state.push).not.toHaveBeenCalled();
+  await act(async () => release());
+  expect(state.push).toHaveBeenCalledExactlyOnceWith('/settings/profile-setup');
 });
