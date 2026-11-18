@@ -2195,6 +2195,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanNameSet({ displayName }));
   }
 
+  humanAvatarSet(avatar: string | null) {
+    return unwrap(this.methods.humanAvatarSet({ avatar }));
+  }
+
+  humanAvatars(humanIds: string[]) {
+    return unwrap(this.methods.humanAvatars({ humanIds }));
+  }
+
+  humanProfileSetupFinish() {
+    return unwrap(this.methods.humanProfileSetupFinish({}));
+  }
+
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
     return unwrap(this.methods.channelGroupDelete({ channelId }));
   }
@@ -3542,6 +3554,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'composerIdentity',
   'composerValidate',
   'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
+  'humanProfileSetupFinish',
   'channelHumanNameSet',
   'channelDm',
   'channelGet',

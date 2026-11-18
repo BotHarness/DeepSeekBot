@@ -139,11 +139,21 @@ function RenameSheet({
   name,
   onSave,
   onClose,
+  title,
+  fieldLabel,
+  placeholder,
+  allowEmpty = false,
+  testID,
 }: {
   visible: boolean;
   name: string;
   onSave(name: string): Promise<boolean>;
   onClose(): void;
+  title?: string;
+  fieldLabel?: string;
+  placeholder?: string;
+  allowEmpty?: boolean;
+  testID?: string;
 }) {
   const t = useStrings();
   const [draft, setDraft] = useState(name);
@@ -158,25 +168,27 @@ function RenameSheet({
   return (
     <Sheet
       visible={visible}
-      label={t.groupRename}
-      title={t.groupRename}
+      label={title ?? t.groupRename}
+      title={title ?? t.groupRename}
       onClose={onClose}
       avoidKeyboard
     >
       <KeyboardFormScroll enabled={false} nestedScrollEnabled>
-        <TextField
-          value={draft}
-          onChangeText={setDraft}
-          accessibilityLabel={t.groupName}
-          placeholder={name}
-          maxLength={GROUP_NAME_MAX}
-          autoFocus
-          returnKeyType="done"
-          onSubmitEditing={() => {
-            if (next !== '' && next !== name) void save();
-          }}
-          style={{ marginHorizontal: space.x5 }}
-        />
+        <View style={{ paddingHorizontal: space.x5 }}>
+          <TextField
+            value={draft}
+            onChangeText={setDraft}
+            accessibilityLabel={fieldLabel ?? t.groupName}
+            placeholder={placeholder ?? name}
+            {...(testID === undefined ? {} : { testID })}
+            maxLength={GROUP_NAME_MAX}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if ((allowEmpty || next !== '') && next !== name) void save();
+            }}
+          />
+        </View>
         <SheetActions>
           <View>
             <Button label={t.cancel} on="canvas" onPress={onClose} />
@@ -187,7 +199,7 @@ function RenameSheet({
               tone="primary"
               on="canvas"
               busy={busy}
-              disabled={next === '' || next === name}
+              disabled={(!allowEmpty && next === '') || next === name}
               onPress={() => void save()}
             />
           </View>
@@ -211,6 +223,13 @@ export interface GroupProfileProps {
   onNotifications?: (() => void) | undefined;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   stopper?: SessionStopper | undefined;
+  nickname?: GroupNickname | undefined;
+}
+
+export interface GroupNickname {
+  value: string | null | undefined;
+  name: string | undefined;
+  save(nickname: string | null): Promise<void>;
 }
 
 export function GroupProfilePage({
@@ -227,11 +246,12 @@ export function GroupProfilePage({
   onNotifications,
   files,
   stopper,
+  nickname,
 }: GroupProfileProps) {
   const t = useStrings();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
-  const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
+  const [sheet, setSheet] = useState<'invite' | 'rename' | 'nickname' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
   const [work, setWork] = useState<ProfilePart<ProfileAssignment[]> | undefined>();
   const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
@@ -390,6 +410,23 @@ export function GroupProfilePage({
             setSheet('rename');
           }}
         />
+        {nickname === undefined ? null : (
+          <SettingsRow
+            on={ON}
+            testID="group-nickname"
+            title={t.groupNickname}
+            detail={nickname.value ?? nickname.name ?? ''}
+            control={{ kind: 'chevron' }}
+            onPress={
+              nickname.value === undefined
+                ? undefined
+                : () => {
+                    setRenameOpened((count) => count + 1);
+                    setSheet('nickname');
+                  }
+            }
+          />
+        )}
       </SettingsSection>
     )),
     gap(
@@ -518,6 +555,20 @@ export function GroupProfilePage({
         onSave={(name) => run('rename', () => actions.rename(name))}
         onClose={() => setSheet(undefined)}
       />
+      {nickname === undefined ? null : (
+        <RenameSheet
+          key={`nickname:${renameOpened}`}
+          visible={sheet === 'nickname'}
+          name={nickname.value ?? ''}
+          title={t.groupNickname}
+          fieldLabel={t.groupNickname}
+          placeholder={nickname.name ?? ''}
+          allowEmpty
+          testID="group-nickname-field"
+          onSave={(next) => run('nickname', () => nickname.save(next === '' ? null : next))}
+          onClose={() => setSheet(undefined)}
+        />
+      )}
     </>
   );
 }

@@ -508,9 +508,9 @@ The #1374 `bridge_directory` Tool adds three bounded/pageable reads through the 
 
 ### Bot 之间的 Channel 协作（ADR-0065）
 
-Orchestrator Session 中注册的 `group_attention_get` 与 `group_attention_set` 是 DSH model-facing Tool，消费 BotHarness Host 的 application-defined Channel capability；Host 从该 Session 所属 PersonaBot 确定 actor，并在读写时复核当前 Group membership。未保存的 Group 偏好只读为 digest 5 条／30 秒、revision 0；Human Bridge 写入和 Bot Tool 写入共用 Channel record 中的 `wakePolicies`，每次实质变更在同一 SQLite 事务里追加不可改写的 actor／时间／revision 审计事实。审计表只存历史，不作为第二套当前偏好；Admission 在消息提交时固定有效策略与 revision，不会随之后的编辑回写。
+Orchestrator Session 中注册的 `group_attention_get` 与 `group_attention_set` 是 DSH model-facing Tool，消费 BotHarness Host 的 application-defined Channel capability；Host 从该 Session 所属 PersonaBot 确定 actor，并在读写时复核当前 Group membership。未保存的 Group 偏好只读为 digest 10 条／30 秒、revision 0；Human Bridge 写入和 Bot Tool 写入共用 Channel record 中的 `wakePolicies`，每次实质变更在同一 SQLite 事务里追加不可改写的 actor／时间／revision 审计事实。审计表只存历史，不作为第二套当前偏好；Admission 在消息提交时固定有效策略与 revision，不会随之后的编辑回写。
 
-#366 把 Human DM、Bot DM、群内提及、普通群消息、入群邀请与申请流程、Assignment 报告及生命周期的内建来源规则写成每个 PersonaBot 本地的不可改写修订事实。Host 在建立新 Inbox Admission 的同一事务里读取对应规则并保存来源规则 revision／wake 快照；既有 Admission 不回填。普通群消息的来源默认值沿用 5 条／30 秒 digest，适用的 per-Channel `wakePolicies` 覆盖仍保留在 Group Channel record；Assignment 进度报告仍按报告状态与回复请求决定是否即时唤醒。资料页经 Host Bridge 查询所有有效规则、修订及最后修改者。来源类别修订与 Channel 覆盖分属不同作用域。
+#366 把 Human DM、Bot DM、群内提及、普通群消息、入群邀请与申请流程、Assignment 报告及生命周期的内建来源规则写成每个 PersonaBot 本地的不可改写修订事实。Host 在建立新 Inbox Admission 的同一事务里读取对应规则并保存来源规则 revision／wake 快照；既有 Admission 不回填。普通群消息的来源默认值为 10 条／30 秒 digest，适用的 per-Channel `wakePolicies` 覆盖仍保留在 Group Channel record；Assignment 进度报告仍按报告状态与回复请求决定是否即时唤醒。资料页经 Host Bridge 查询所有有效规则、修订及最后修改者。来源类别修订与 Channel 覆盖分属不同作用域。
 
 #370 的 `source_attention_get/set/reset` 是仅对所属 PersonaBot 可见的 Orchestrator Tools，Human Profile 通过 Typert/API Gateway Bridge 编辑同一 `bot_source_policy_revisions` 修订权威。v1.0 可编辑提醒强度的来源为 `assignment-report`（`conditional`／`immediate`）与 `group-ordinary`（`immediate`／`digest`／`mentions`／`silent`，汇总条数及间隔有界）；两者始终 `admit`。`human-dm`、`bot-dm`、`group-mention` 始终接收并即时唤醒；Human Bridge 与所属 Orchestrator 的 `source_attention_set/reset` 可编辑／恢复 `delivery: steer | turn`，默认 `steer`。直接来源要求 `wake: immediate` 和显式 delivery，拒绝汇总参数；其他可编辑来源拒绝 delivery。Host 在投递唤醒时读取当前 delivery；Admission 保留入队时的 wake 与修订。`group-invite`、`group-join-request`、`group-join-decision`、`assignment-lifecycle` 保持即时工作流通知；其中与 completed Report 明确配对的成功执行通知只搭乘收割，不重复触发同一因果唤醒（ADR-0077）；其余来源没有安全的延后／静默收割语义，因此规则只读，Bot Tool 与 Human Bridge 都拒绝其修改。删除可编辑覆盖以带 Human／Bot actor 的新修订恢复内建默认，不删除历史；后提交的 Admission 才读取新修订。Orchestrator 真正启动时为所纳入的来源类别追加不可改写的 wake-attempt 事实，近七天计数从这些事实投影，而非把 Admission 数或汇总阈值当作唤醒次数。Group Channel 的普通消息覆盖继续独立存于 Channel record，优先于 PersonaBot 来源默认值；冻结规则按 ADR-0076 延后。
 
@@ -1354,6 +1354,10 @@ The Expo app owns a device-local default and optional saved-Host-ID/Channel-ID o
 ### Anonymous Host token snapshots (#4255)
 
 The application-defined Usage Projection remains the sole token-accounting owner. Its internal telemetry snapshot reads the latest seven Host-local days from `usage_daily` across Bot-owned Orchestrator, Assignment and derived Sessions, preserving receipt deduplication and unknown-bucket semantics. The Host Telemetry lifecycle checks hourly, emits changed anonymous `app:token_usage_report` snapshots, and cancels on Fiber disposal. It adds no persistence, Host API or Session identifier to analytics. PostHog selects the whole latest snapshot per Install ID and day before aggregation; provider uncertainty and incomplete history reconciliation remain explicit. See [ADR-0344](../adr/0344-token-telemetry-is-a-bounded-snapshot-of-the-usage-projection.md) and [the query contract](../token-telemetry.md).
+
+### Per-turn Context Source telemetry
+
+The Host Telemetry lifecycle also observes native Session events for Bot-owned turns. When a turn ends it sends one anonymous `chat:bot_turn_complete`: provider-reported usage summed over the turn's model requests, and the native Token Meter's context estimate split by Context Source for the whole context and for what the turn appended. The split is the same `contextSources` read model the composer's context breakdown uses; it recognizes every `[Bot Inbox…]`, `[Open Inbox]` and `[Host…]` section of a user message, not only the `[Bot Inbox]` list. It adds no persistence, Host API or identifier, sends no text, and does nothing while telemetry is off. See [the query contract](../token-telemetry.md#per-turn-cost-and-context-sources).
 
 ### Optional mobile statistics (#1935, #2682)
 

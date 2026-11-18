@@ -9,6 +9,13 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import {
+  humanAvatarVersionOf,
+  parseHumanAvatars,
+  parseHumanIdentity,
+  type HumanAvatarImage,
+  type HumanIdentity,
+} from '@botharness/host-client/human-profile';
 import { memberPage } from './member-page.js';
 import {
   isTakeoverRequestCard,
@@ -1006,7 +1013,13 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
             const member = asRecord(raw);
             return typeof member?.['humanId'] === 'string' &&
               typeof member['displayName'] === 'string'
-              ? [{ humanId: member['humanId'], displayName: member['displayName'] }]
+              ? [
+                  {
+                    humanId: member['humanId'],
+                    displayName: member['displayName'],
+                    ...humanAvatarVersionOf(member['avatarVersion']),
+                  },
+                ]
               : [];
           }),
         }
@@ -3032,28 +3045,7 @@ export async function renameChannel(
   return { channel, ...(bot === undefined ? {} : { bot }) };
 }
 
-export interface LocalHumanIdentity {
-  humanId: string;
-  defaultDisplayName: string | null;
-  displayName: string;
-}
-
-function parseHumanIdentity(value: unknown): LocalHumanIdentity {
-  const item = asRecord(value);
-  const name = item?.['defaultDisplayName'];
-  if (
-    item?.['humanId'] !== 'local-human' ||
-    (name !== null &&
-      (typeof name !== 'string' || name.trim().length === 0 || name.length > 128)) ||
-    item['displayName'] !== (name ?? 'Human')
-  )
-    throw new Error('invalid local Human identity');
-  return {
-    humanId: 'local-human',
-    defaultDisplayName: name,
-    displayName: item['displayName'] as string,
-  };
-}
+export type LocalHumanIdentity = HumanIdentity;
 
 export type TelemetryLock = 'config' | 'DO_NOT_TRACK' | 'BOTHARNESS_TELEMETRY';
 
@@ -3665,6 +3657,24 @@ export async function setHumanDefaultName(
   displayName: string | null,
 ): Promise<LocalHumanIdentity> {
   return parseHumanIdentity(await unwrap(call, 'humanNameSet', { displayName }));
+}
+
+export async function setHumanAvatar(
+  call: BridgeCall,
+  avatar: string | null,
+): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanAvatarSet', { avatar }));
+}
+
+export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
+  return parseHumanIdentity(await unwrap(call, 'humanProfileSetupFinish', {}));
+}
+
+export async function loadHumanAvatars(
+  call: BridgeCall,
+  humanIds: string[],
+): Promise<HumanAvatarImage[]> {
+  return parseHumanAvatars(await unwrap(call, 'humanAvatars', { humanIds }));
 }
 
 export async function setChannelHumanName(

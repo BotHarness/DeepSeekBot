@@ -67,7 +67,14 @@ import {
   type AttachmentSaveInput,
 } from '../attachments/file-operations.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
-import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
+import { withMentionNames } from '../messaging/mention-text.js';
+import {
+  EXTERNAL_GUIDANCE_CHARS,
+  inboxLine,
+  renderInbox,
+  type InboxUnit,
+  type ScheduleFiringFacts,
+} from './inbox-render.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
@@ -127,6 +134,7 @@ import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
+  DEFAULT_GROUP_WAKE_POLICY,
   dmChannelId,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -1241,35 +1249,6 @@ interface GroupPromptBudget {
 const GROUP_PROMPT_CHANNEL_LIMIT = 100;
 const GROUP_SKILL_CONTENT_LIMIT = 2_000;
 
-interface ScheduleFiringFacts {
-  id: string;
-  title: string;
-  prompt: string;
-  occurrenceAt: string;
-  trigger: 'planned' | 'manual';
-  creator: 'human' | 'personabot';
-}
-
-interface InboxUnit {
-  external?: ExternalSource;
-  schedule?: ScheduleFiringFacts;
-  sourceEventId: string;
-  sourceKind: InboxReportRow['source_kind'];
-  assignmentSessionId: string | null;
-  summary: string;
-  createdAt: string;
-  openAskId?: string | null;
-  openAskSummary?: string | null;
-  continuityKey: string | null;
-  activity: AssignmentActivity | null;
-  repeats: number;
-  lifecycleNotices?: Array<{
-    sourceEventId: string;
-    reportSourceEventId?: string;
-    summary: string;
-  }>;
-}
-
 type SourceEventAttemptState = 'pending' | 'running' | 'retryable' | 'needs-repair' | 'handled';
 
 interface SourceEventRow {
@@ -1451,6 +1430,17 @@ export function queryAssignmentDirectory(
   };
 }
 
+const COMPLETION_DIGEST_COUNT = DEFAULT_GROUP_WAKE_POLICY.count;
+const COMPLETION_DIGEST_MS = DEFAULT_GROUP_WAKE_POLICY.intervalSeconds * 1000;
+
+function onlyPairedLifecycle(unit: InboxUnit): boolean {
+  return (
+    unit.sourceKind === 'assignment-lifecycle' &&
+    (unit.lifecycleNotices ?? []).length > 0 &&
+    (unit.lifecycleNotices ?? []).every((notice) => notice.reportSourceEventId !== undefined)
+  );
+}
+
 function keptLifecycleNotice(
   row: InboxReportRow,
 ): NonNullable<InboxUnit['lifecycleNotices']>[number] | undefined {
@@ -1541,53 +1531,6 @@ function takeoverResolutionPrompt(
     by: resolution.by,
   };
   return `[Bot Inbox: Takeover Handoff ended]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nHandoff: ${JSON.stringify(facts)}\n${TAKEOVER_OUTCOME_GUIDANCE[resolution.outcome]} Credentials the Human typed stay in the live view; never ask for them in chat.`;
-}
-
-function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
-  const lines = units.map((unit) => {
-    if (unit.external !== undefined) {
-      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${unit.external.event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, ...(unit.external.event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}), people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. ${unit.external.event.actor.kind === 'bot' ? `${text('external-bot-sender')} ` : ''}Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
-    }
-    if (unit.schedule !== undefined) {
-      const schedule = unit.schedule;
-      return `- Bot Schedule ${JSON.stringify(schedule.title)} [Source Event ${unit.sourceEventId}; schedule ${schedule.id}; ${schedule.trigger === 'manual' ? 'run now by the Human' : `occurrence ${schedule.occurrenceAt}`}; created by ${schedule.creator === 'human' ? 'the Human' : 'you'}] is due. Scheduled task: ${JSON.stringify(schedule.prompt)}. Carry it out now as this PersonaBot: answer directly, or dispatch an Assignment for long work (the schedule id makes a stable continuity key).`;
-    }
-    if (unit.sourceKind === 'memory-change') {
-      return `- Memory change (event ${unit.sourceEventId}): ${unit.summary} Inspect the named paths in the current Memory Repository and decide what, if anything, needs attention.`;
-    }
-    const target = unit.assignmentSessionId ?? 'unknown Assignment';
-    const lifecycle = (unit.lifecycleNotices ?? [])
-      .map((notice) =>
-        notice.reportSourceEventId === undefined
-          ? ` Host lifecycle notice [Source Event ${notice.sourceEventId}]: ${notice.summary}`
-          : ` Host lifecycle notice [Source Event ${notice.sourceEventId}; same native Turn as Report ${notice.reportSourceEventId}]: ${notice.summary}`,
-      )
-      .join('');
-    const facts = [
-      `key ${unit.continuityKey}`,
-      `activity ${unit.activity ?? 'unknown'}`,
-      `repeats ${unit.repeats}`,
-    ].join(', ');
-    if (unit.openAskId != null) {
-      return `- ${target} (${facts}) WAITING for your answer (answer_to: ${unit.openAskId}): ${unit.openAskSummary ?? unit.summary}${lifecycle}`;
-    }
-    if (
-      unit.sourceKind === 'assignment-lifecycle' &&
-      unit.lifecycleNotices?.some((notice) => notice.sourceEventId === unit.sourceEventId)
-    )
-      return `- ${target} (${facts})${lifecycle}`;
-    if (unit.sourceKind === 'assignment-lifecycle') {
-      return `- ${target} (${facts}) Host lifecycle notice [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
-    }
-    return `- ${target} (${facts}) reported [Source Event ${unit.sourceEventId}]: ${unit.summary}${lifecycle}`;
-  });
-  return [
-    '[Bot Inbox] External mentions, due Bot Schedules, actionable Memory changes, Assignment reports, and Host lifecycle notices since your last turn.',
-    'Answer an item that waits for',
-    'your answer with send_assignment_request using its answer_to value; otherwise use them as',
-    'context. Do not repeat these summaries back verbatim.',
-    ...lines,
-  ].join('\n');
 }
 
 function requireBoundedText(value: unknown, field: string, maxLength: number): string {
@@ -1824,6 +1767,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #steerSettlements = new Set<Promise<void>>();
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
+  readonly #completionDigestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #autoContinues = new Map<string, PendingAutoContinue>();
   readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
@@ -2018,7 +1962,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#triageQueued.delete(botSlug);
     const bot = this.#registry.get(botSlug);
     if (this.#closed || bot === undefined || bot.paused === true || this.#held.has(botSlug)) return;
-    const ids = this.#inboxTriage.openIds(botSlug);
+    const ids = this.#withoutWorkingAssignment(this.#inboxTriage.openIds(botSlug));
     const baseline = this.#triageBaseline.get(botSlug);
     this.#triageBaseline.delete(botSlug);
     if (ids.length === 0) {
@@ -2073,6 +2017,26 @@ class BotRuntimeImplementation implements BotRuntime {
     } finally {
       this.#triageRunning.delete(botSlug);
     }
+  }
+
+  #withoutWorkingAssignment(ids: string[]): string[] {
+    if (ids.length === 0) return ids;
+    const delegated = new Set(
+      this.#database
+        .read(
+          (database) =>
+            database
+              .prepare(
+                `SELECT DISTINCT ra.request_source_event_id AS id FROM request_assignments ra
+                 JOIN assignments s ON s.session_id = ra.session_id
+                WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
+                  AND s.activity = 'working' AND s.stop_state = 'running' AND s.archived_at IS NULL`,
+              )
+              .all(...ids) as unknown as Array<{ id: string }>,
+        )
+        .map((row) => row.id),
+    );
+    return ids.filter((id) => !delegated.has(id));
   }
 
   async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
@@ -2848,7 +2812,8 @@ class BotRuntimeImplementation implements BotRuntime {
         repeats: 1,
       };
       const units = [unit];
-      let characters = source.body.length + 1600;
+      let characters =
+        EXTERNAL_GUIDANCE_CHARS + inboxLine(unit, this.#promptText(botSlug)).length + 1;
       for (const candidate of this.#pendingExternalRows(botSlug, true)) {
         if (
           candidate.source_event_id === sourceEventId ||
@@ -2856,20 +2821,21 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
         const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        if (
-          context.grantId !== source.grantId ||
-          characters + context.body.length + 1600 >
-            this.#promptLimits(botSlug)['group-context-chars']
-        )
-          continue;
-        characters += context.body.length + 1600;
-        units.push({
+        const next: InboxUnit = {
           ...unit,
           sourceEventId: candidate.source_event_id,
           external: context,
           summary: context.body,
           createdAt: context.at,
-        });
+        };
+        const cost = inboxLine(next, this.#promptText(botSlug)).length + 1;
+        if (
+          context.grantId !== source.grantId ||
+          characters + cost > this.#promptLimits(botSlug)['group-context-chars']
+        )
+          continue;
+        characters += cost;
+        units.push(next);
       }
       const context = source.localChannelId
         ? this.#database.transaction(
@@ -3710,6 +3676,71 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#digestTimers.set(key, timer);
   }
 
+  #scheduleReportHarvest(botSlug: string): boolean {
+    if (!this.#holdsCompletionDigest(botSlug)) {
+      const prior = this.#completionDigestTimers.get(botSlug);
+      if (prior !== undefined) clearTimeout(prior);
+      this.#completionDigestTimers.delete(botSlug);
+      this.#scheduleHarvest(botSlug);
+      return true;
+    }
+    if (!this.#completionDigestTimers.has(botSlug)) {
+      const timer = setTimeout(() => {
+        this.#completionDigestTimers.delete(botSlug);
+        this.#scheduleHarvest(botSlug);
+      }, COMPLETION_DIGEST_MS);
+      timer.unref();
+      this.#completionDigestTimers.set(botSlug, timer);
+    }
+    return false;
+  }
+
+  #holdsCompletionDigest(botSlug: string): boolean {
+    return this.#database.read((database) => {
+      const rows = database
+        .prepare(
+          `SELECT e.assignment_session_id AS session_id, e.source_kind,
+                  e.expects_reply, json_extract(e.payload_json, '$.assignmentReport.state') AS state
+             FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
+            WHERE a.bot_slug = ? AND a.attempt_state = 'pending' AND e.observed_at IS NULL
+              AND a.reason IN ('assignment-report', 'assignment-lifecycle')
+              AND NOT (e.source_kind = 'assignment-lifecycle' AND
+                json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') IS NOT NULL)
+              AND NOT (e.source_kind = 'assignment-report' AND e.expects_reply = 0 AND
+                json_extract(e.payload_json, '$.assignmentReport.state') = 'progress')`,
+        )
+        .all(botSlug) as unknown as Array<{
+        session_id: string | null;
+        source_kind: string;
+        expects_reply: number;
+        state: string | null;
+      }>;
+      if (
+        rows.length === 0 ||
+        rows.some(
+          (row) =>
+            row.session_id === null ||
+            row.source_kind !== 'assignment-report' ||
+            row.expects_reply !== 0 ||
+            row.state !== 'completed',
+        )
+      )
+        return false;
+      if (rows.length >= COMPLETION_DIGEST_COUNT) return false;
+      const sessions = [...new Set(rows.map((row) => row.session_id!))];
+      const other = database
+        .prepare(
+          `SELECT 1 FROM assignments
+            WHERE bot_slug = ? AND activity = 'working' AND stop_state = 'running'
+              AND archived_at IS NULL
+              AND session_id NOT IN (${sessions.map(() => '?').join(', ')})
+            LIMIT 1`,
+        )
+        .get(botSlug, ...sessions);
+      return other !== undefined;
+    });
+  }
+
   #scheduleHarvest(botSlug: string): void {
     if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
@@ -3795,10 +3826,7 @@ class BotRuntimeImplementation implements BotRuntime {
           )
           .get(botSlug),
       );
-      if (report !== undefined) {
-        this.#scheduleHarvest(botSlug);
-        return;
-      }
+      if (report !== undefined && this.#scheduleReportHarvest(botSlug)) return;
     }
     this.#scheduleExternalDigest(botSlug);
     for (const channelId of this.#pendingDigestChannels(botSlug)) {
@@ -3855,9 +3883,12 @@ class BotRuntimeImplementation implements BotRuntime {
     if (
       claimed.items.length === 0 &&
       claimed.digests.length === 0 &&
-      collected.eventIds.length === 0
-    )
+      (collected.eventIds.length === 0 ||
+        (claimed.contexts.length === 0 && collected.units.every(onlyPairedLifecycle)))
+    ) {
+      this.#settleSeenPairedNotices(botSlug, collected.eventIds);
       return;
+    }
     const externalChannelId = collected.units.find((unit) => unit.external?.localChannelId)
       ?.external?.localChannelId;
     const primaryChannelId =
@@ -6718,6 +6749,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#typingAssignments.clear();
     for (const timer of this.#digestTimers.values()) clearTimeout(timer);
     this.#digestTimers.clear();
+    for (const timer of this.#completionDigestTimers.values()) clearTimeout(timer);
+    this.#completionDigestTimers.clear();
     for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
     this.#snoozeTimers.clear();
     for (const pending of this.#autoContinues.values()) clearTimeout(pending.timer);
@@ -7707,9 +7740,21 @@ class BotRuntimeImplementation implements BotRuntime {
           signal: AbortSignal.any([signal, this.#waitLifetime.signal]),
           timeoutMs,
         }).then((outcome) => {
-          if (outcome.outcome !== 'timeout' && readAdmissions !== undefined)
-            this.#claimAssignmentNotices(bot.slug, sessionId, readAdmissions);
-          return outcome;
+          if (outcome.outcome === 'timeout' || readAdmissions === undefined) return outcome;
+          const inboxIds = this.#claimAssignmentNotices(
+            bot.slug,
+            sessionId,
+            outcome.reportId,
+            readAdmissions,
+          );
+          return inboxIds.length === 0
+            ? outcome
+            : {
+                ...outcome,
+                inboxIds,
+                resolveHint:
+                  'You have now seen these Inbox items. Once this result is used, resolve them with inbox_resolve in the same step as your reply, so no triage turn follows.',
+              };
         });
       },
       stop: (sessionId) => this.#stopAssignment(bot, sessionId, markSideEffect),
@@ -11610,7 +11655,7 @@ class BotRuntimeImplementation implements BotRuntime {
       reportWake === 'immediate' ||
       (reportWake === 'conditional' && this.#shouldWakeNow(input.state, expectsReply))
     )
-      this.#scheduleHarvest(botSlug);
+      this.#scheduleReportHarvest(botSlug);
     return report;
   }
 
@@ -11723,11 +11768,30 @@ class BotRuntimeImplementation implements BotRuntime {
     );
 
     rows.reverse();
-    let externalCharacters = 0;
+    let externalCharacters = EXTERNAL_GUIDANCE_CHARS;
     for (const row of this.#pendingExternalRows(botSlug, true)) {
       if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
-      const cost = row.body.length + 1600;
-      if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
+      const external = this.#externalMessaging.inbound.read(botSlug, row.source_event_id);
+      const cost =
+        inboxLine(
+          {
+            sourceEventId: row.source_event_id,
+            sourceKind: 'bridge-message',
+            external,
+            assignmentSessionId: null,
+            summary: row.body,
+            createdAt: row.created_at,
+            continuityKey: null,
+            activity: null,
+            repeats: 0,
+          },
+          this.#promptText(botSlug),
+        ).length + 1;
+      if (
+        externalCharacters > EXTERNAL_GUIDANCE_CHARS &&
+        externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']
+      )
+        break;
       externalCharacters += cost;
       rows.push({
         ...row,
@@ -11736,7 +11800,7 @@ class BotRuntimeImplementation implements BotRuntime {
         expects_reply: 0,
         continuity_key: null,
         activity: null,
-        external: this.#externalMessaging.inbound.read(botSlug, row.source_event_id),
+        external,
       });
     }
     const units = coalesceInbox(rows);
@@ -11881,7 +11945,12 @@ class BotRuntimeImplementation implements BotRuntime {
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
   }
 
-  #claimAssignmentNotices(botSlug: string, sessionId: string, readAdmissions: Set<string>): void {
+  #claimAssignmentNotices(
+    botSlug: string,
+    sessionId: string,
+    reportId: string | undefined,
+    readAdmissions: Set<string>,
+  ): string[] {
     const at = this.#now().toISOString();
     const claimed = this.#database.transaction(
       (db) =>
@@ -11894,15 +11963,30 @@ class BotRuntimeImplementation implements BotRuntime {
             AND source_event_id IN (SELECT source_event_id FROM source_events
               WHERE bot_slug = ? AND assignment_session_id = ?
                 AND COALESCE(json_extract(payload_json, '$.assignmentLifecycle.cause'), '')
-                  NOT LIKE 'direct-%')
+                  NOT LIKE 'direct-%'
+                AND (? IS NULL
+                  OR rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?)
+                  OR json_extract(payload_json, '$.assignmentLifecycle.reportSourceEventId') IN (
+                    SELECT r.source_event_id FROM source_events r
+                     WHERE r.assignment_session_id = ? AND r.source_kind = 'assignment-report'
+                       AND r.rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?))))
           RETURNING source_event_id`,
           )
-          .all(at, botSlug, botSlug, sessionId) as unknown as Array<{
+          .all(
+            at,
+            botSlug,
+            botSlug,
+            sessionId,
+            reportId ?? null,
+            reportId ?? null,
+            sessionId,
+            reportId ?? null,
+          ) as unknown as Array<{
           source_event_id: string;
         }>,
       ['bot-inbox'],
     );
-    if (claimed.length === 0) return;
+    if (claimed.length === 0) return [];
     const ids = claimed.map((row) => row.source_event_id);
     this.#database.transaction(
       (db) =>
@@ -11915,6 +11999,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ['bot-inbox'],
     );
     for (const id of ids) readAdmissions.add(id);
+    return ids;
   }
 
   #observeExternalRead(botSlug: string, ids: string[], readAdmissions: Set<string>): void {
@@ -12023,6 +12108,27 @@ class BotRuntimeImplementation implements BotRuntime {
           .run(this.#now().toISOString(), botSlug, ...sourceEventIds),
       ['bot-inbox'],
     );
+  }
+
+  #settleSeenPairedNotices(botSlug: string, sourceEventIds: string[]): void {
+    if (sourceEventIds.length === 0) return;
+    const placeholders = sourceEventIds.map(() => '?').join(', ');
+    const seen = this.#database.read(
+      (database) =>
+        database
+          .prepare(
+            `SELECT n.source_event_id FROM source_events n
+               JOIN source_events r
+                 ON r.source_event_id = json_extract(n.payload_json, '$.assignmentLifecycle.reportSourceEventId')
+              WHERE n.source_kind = 'assignment-lifecycle' AND r.observed_at IS NOT NULL
+                AND n.source_event_id IN (${placeholders})`,
+          )
+          .all(...sourceEventIds) as unknown as Array<{ source_event_id: string }>,
+    );
+    const ids = seen.map((row) => row.source_event_id);
+    if (ids.length === 0) return;
+    this.#setObserved(ids, this.#now().toISOString(), botSlug);
+    this.#markReportsHandled(ids, botSlug);
   }
 
   #setObserved(sourceEventIds: string[], at: string | null, botSlug?: string): void {

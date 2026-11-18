@@ -7,6 +7,8 @@ const history = channelNavigationHarness(true);
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('@expo/ui', () => ({
   Host: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -104,12 +106,16 @@ async function setup() {
   });
   return { confirmed, approve: async () => act(async () => resolvePair!({ ok: true })) };
 }
+function shownFingerprint() {
+  const rows = view.querySelector('[data-testid="pairing-fingerprint-rows"]')!;
+  return Array.from(rows.children, (row) => row.textContent).join(' ');
+}
 async function click(id: string) {
   await act(async () => view.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
 }
 it('shows the complete fingerprint and optional explanation without granting trust', async () => {
   const { confirmed, approve } = await setup();
-  expect(view.querySelector('[data-testid="pairing-fingerprint"]')!.textContent).toBe(fingerprint);
+  expect(shownFingerprint()).toBe(fingerprint);
   expect(view.textContent).toContain('Studio');
   expect(view.textContent).not.toContain(t.pairingVerification.explanation);
   await click('pairing-fingerprint-details');
@@ -124,7 +130,7 @@ it('shows the complete fingerprint and optional explanation without granting tru
   expect(mocks.dismissTo).toHaveBeenCalledWith('/');
   expect(pairing.busy).toBe(true);
   expect(view.textContent).toContain(t.pairingVerification.waiting);
-  expect(view.querySelector('[data-testid="pairing-fingerprint"]')!.textContent).toBe(fingerprint);
+  expect(shownFingerprint()).toBe(fingerprint);
 });
 it('refuses a mismatch without proceeding to device approval', async () => {
   const { confirmed } = await setup();

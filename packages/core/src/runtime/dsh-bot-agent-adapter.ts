@@ -309,7 +309,7 @@ function orchestratorPrompt(text: PromptText, tob = false): string {
   return `You are the Orchestrator for one PersonaBot, and your working directory is its Memory Repository.
 ## You coordinate work from an inbox
 Your Bot Inbox collects events from different people, other Bots, external IM, Bot Schedules, Host notices and your own Assignments. ${text('coordination')}
-Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. While open items remain after a turn you are woken again with a [Triage] message until each has a destination; a round that leaves the open count unchanged ends the triage. inbox_history remains the diary of everything past.
+Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. While open items remain after a turn you are woken again with a [Triage] message until each has a destination (a request whose Assignment is still working already has one); a round that leaves the open count unchanged ends the triage. inbox_history remains the diary of everything past.
 ## Reply delivery contract
 Your assistant text is private Session output, not a delivered message. For Channel and external IM messages, use bot_send_message: reply with the trusted source_event_id from your Inbox, or proactively specify channel_id. Never guess a destination from recency or combine different senders' authority. Use the same tool for Group/Bot DM, attachments and external IM. External proactive sends require an authorized grant_id; external file replies require one imported attachment and empty body. Reactions and source sharing remain separate actions.
 ${text('progress-reporting')}
@@ -328,8 +328,32 @@ When the Human asks for a one-time reminder or recurring task, create a Bot Sche
 When the Human asks to set up, connect or configure an MCP server, or to use a service that needs their credential, do it yourself in this conversation with the secret tools. Do not inspect or edit Profile or DSH configuration for it, and never ask them to paste a secret into a Channel. If the server needs a credential, call ask_secret at once, with one field per variable the server documents, then call secret_mcp_connect with the server's usual launcher, for example npx -y <package> or uvx <package>, and those variables as placeholders, each field id wrapped in double braces as the tool describes. Ask a question first only when you cannot tell which server they mean. When it has connected, list its tools in the Channel. For a single HTTP request use secret_http instead, and for a single command-line tool secret_cli.`;
 }
 const ASSIGNMENT_REPORT_CONTRACT = `## Report delivery contract
-Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished.
+Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished. When you need an answer or decision to continue, report with expects_reply true (or state blocked or waiting-human) and say exactly what you need, instead of guessing or ending silently.
 A text-only task, a request for a Markdown final answer, or a prohibition on work tools does not replace this internal reply transport. Keep those work restrictions: do not run commands, inspect files, delegate, or contact a Channel unless the task permits it. Put the requested Markdown in the report tool, not just a final text reply. Never claim delivery until the tool succeeds. 中文：纯文本 final 不会提交报告；只做文字分析或禁止工作工具时，仍须通过 report_to_orchestrator 提交结果。`;
+
+const UNREPORTED_FINAL_PREFIX =
+  '[Host: this Assignment ended its turn without report_to_orchestrator. Its final reply is forwarded below as the result; inspect the Assignment or send it a request if this is not the result you asked for.]';
+
+function finalAssistantText(handle: AgentHandle, fromSeq: SessionLogOffset): string | undefined {
+  const event = handle.agent.session
+    .snapshotEvents(fromSeq)
+    .findLast((candidate) => candidate.type === 'assistant/message');
+  const content = (event?.data as { message?: { content?: unknown } } | undefined)?.message
+    ?.content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .flatMap((block: unknown) =>
+      typeof block === 'object' &&
+      block !== null &&
+      (block as { type?: unknown }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+        ? [(block as { text: string }).text]
+        : [],
+    )
+    .join('\n')
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
 
 function assignmentMessage(text: string) {
   return createUserMessage({
@@ -1271,6 +1295,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       run.completedTurn?.(completion);
       if (run.resume === true) return;
+      if (!entry.reported) {
+        const text = finalAssistantText(handle, fromSeq);
+        if (text !== undefined) {
+          await run.report(
+            { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+            { turn: completion.turn },
+          );
+          entry.reported = true;
+        }
+      }
       if (!entry.reported) {
         throw new Error('Assignment finished without report_to_orchestrator');
       }

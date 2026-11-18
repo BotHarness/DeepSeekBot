@@ -60,6 +60,14 @@
       "gap": "Packaged Host, CLI member carrier and rendered member Web Client; native mobile and Human acceptance are separate."
     },
     {
+      "id": "team.first-sign-in-profile",
+      "label": "A new member is asked once for a chat name and photo after their first sign-in",
+      "source": "packages/client/src/client/human-profile-setup.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/team-mode.md",
+      "task": 4446,
+      "gap": "Packaged Host, CLI member carrier and rendered member Web Client; the phone screen has a source test only until native QA."
+    },
+    {
       "id": "team.member-sign-in",
       "label": "Host member sign-in, public Channels and local CLI member dispatch",
       "source": "packages/core/src/team/http.ts",
@@ -1963,6 +1971,14 @@
       "reason": "Fresh named Host; picker opens a Human DM through --as without listing it for either side, the first message lists it for both and the recipient's member Web Client shows it live in light and dark; no model or native mobile qualification.",
       "task": 4222,
       "sha256": "a4e99876da9f68436be1ecf28bfa02d6ebac14ceae6c62f9b0aad75e18da72b1"
+    },
+    {
+      "path": "scripts/e2e-team-profile-setup.mjs",
+      "category": "mapped",
+      "behaviors": ["team.first-sign-in-profile"],
+      "reason": "Fresh named Host; a new member is asked once for a chat name and photo in the member Web Client, Done saves both and Later skips, neither returns after reload, the Owner is never asked, with light and dark screenshots; no model or native mobile qualification.",
+      "task": 4446,
+      "sha256": "4f64f1a9c4a980aead0bfae548a2a43021436a6f5efd0385c5133e6655695188"
     },
     {
       "path": "scripts/e2e-team-bot-memory.mjs",
