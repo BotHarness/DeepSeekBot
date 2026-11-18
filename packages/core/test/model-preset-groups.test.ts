@@ -1,13 +1,15 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { EngineRefusal } from '../src/engines/engine-session.js';
+import type { BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
@@ -31,6 +33,7 @@ afterEach(() => {
 function setup(
   rests: { provider: string; model: string; until: string }[] = [],
   onValidate: () => void = () => undefined,
+  subscriptionEngines?: BridgeMethodsDeps['subscriptionEngines'],
 ) {
   const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
   roots.push(root);
@@ -43,6 +46,7 @@ function setup(
   const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     modelPresets,
+    ...(subscriptionEngines === undefined ? {} : { subscriptionEngines }),
     routingGroups,
     modelCatalog: {
       list: async () =>
@@ -308,5 +312,81 @@ describe('Model Presets with Routing Groups', () => {
         assignmentDefault: ROUTE,
       }),
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  });
+});
+
+describe('Model Presets with subscription models', () => {
+  const orchestratorEngine = { engine: 'codex', model: 'gpt-6', effort: 'high' };
+  const assignmentEngine = { engine: 'claude', model: 'opus', effort: 'medium' };
+
+  it('round-trips each engine choice and applies it through the subscription owner', async () => {
+    const validateChoice = vi.fn(async () => {});
+    const use = vi.fn();
+    const { methods, registry, root, database } = setup([], undefined, {
+      validateChoice,
+      use,
+      fallsBack: () => false,
+    });
+    const created = await methods.modelPresetCreate({
+      name: 'Subscriptions',
+      orchestrator: ROUTE,
+      assignmentDefault: ROUTE,
+      orchestratorEngine,
+      assignmentEngine,
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const { id } = created.value.preset;
+    expect(createModelPresetStore({ rootDir: root, database }).get(id)).toMatchObject({
+      orchestratorEngine,
+      assignmentEngine,
+    });
+    const result = await methods.modelPresetApply({ slug: 'ada', presetId: id });
+    expect(result.ok).toBe(true);
+    expect(registry.get('ada')?.modelPlan?.orchestrator).toEqual(ROUTE);
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'high', fallback: false }],
+      ['ada', 'assignment', 'claude', { model: 'opus', effort: 'medium' }],
+    ]);
+    expect(validateChoice).toHaveBeenCalledTimes(4);
+    const updated = await methods.modelPresetUpdate({
+      id,
+      expectedRevision: 1,
+      name: 'Renamed',
+      orchestrator: ROUTE,
+      assignmentDefault: ROUTE,
+      assignmentEngine: null,
+    });
+    if (!updated.ok) throw new Error(updated.error.message);
+    expect(updated.value.preset.orchestratorEngine).toEqual(orchestratorEngine);
+    expect(updated.value.preset.assignmentEngine).toBeUndefined();
+  });
+
+  it('validates both choices before writing the Bot plan or either role', async () => {
+    const validateChoice = vi.fn(async () => {});
+    const use = vi.fn();
+    const { methods, registry } = setup([], undefined, {
+      validateChoice,
+      use,
+      fallsBack: () => false,
+    });
+    const created = await methods.modelPresetCreate({
+      name: 'Subscriptions',
+      orchestrator: ROUTE,
+      assignmentDefault: ROUTE,
+      orchestratorEngine,
+      assignmentEngine,
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    validateChoice.mockRejectedValueOnce(
+      new EngineRefusal('unknown-effort', 'Effort no longer offered'),
+    );
+    expect(
+      await methods.modelPresetApply({ slug: 'ada', presetId: created.value.preset.id }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'unknown-effort' },
+    });
+    expect(registry.get('ada')?.modelPlan).toBeUndefined();
+    expect(use).not.toHaveBeenCalled();
   });
 });

@@ -3927,6 +3927,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    subscriptionEngines: engineHost,
+    releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,
     routeRests,

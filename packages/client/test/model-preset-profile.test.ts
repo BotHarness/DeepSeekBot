@@ -18,6 +18,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import type { ModelPresetView } from '../src/client/bridge.js';
+import { engineApi, type EngineSelectionView } from '../src/client/engine-choice.js';
+import { markOriginActions } from '../src/client/origin-actions.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
 import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';
@@ -1686,5 +1688,139 @@ describe('one reasoning effort for a Routing Group (#4497)', () => {
     );
     expect(cleared.groups).toEqual([{ group: 'daily', note: 'Daily work' }]);
     expect(withAdvanced(cleared, false).assignment.effort).toBe('');
+  });
+});
+
+describe('Subscription models in the model dialog', () => {
+  const route = { provider: 'deepseek', model: 'flash' };
+  const plan: ModelPlanView = {
+    revision: 7,
+    orchestrator: route,
+    assignmentDefault: route,
+    sourcePresetId: '',
+    sourcePresetName: '',
+  };
+
+  function fixture(selections: EngineSelectionView[] = []) {
+    const read = vi.spyOn(engineApi, 'read').mockImplementation(async () => ({
+      engines: [{ engine: 'codex', available: true, installed: true }],
+      selections,
+    }));
+    vi.spyOn(engineApi, 'models').mockResolvedValue([
+      {
+        id: 'gpt-6',
+        name: 'GPT-6 Subscription',
+        efforts: [
+          { id: 'medium', name: 'Medium' },
+          { id: 'high', name: 'High' },
+        ],
+        defaultEffort: 'medium',
+        isDefault: true,
+      },
+    ]);
+    const use = vi
+      .spyOn(engineApi, 'use')
+      .mockImplementation(async (botSlug, role, engine, options) => {
+        selections = selections.filter((entry) => entry.botSlug !== botSlug || entry.role !== role);
+        if (engine !== null) selections.push({ botSlug, role, engine, ...options });
+      });
+    const create = vi.fn(async (): Promise<ModelPresetView> => ({
+      id: 'engine-preset',
+      name: 'Subscription setup',
+      revision: 1,
+      orchestrator: route,
+      assignmentDefault: route,
+    }));
+    const apply = vi.fn(async () => plan);
+    const set = vi.fn(async () => ({ ...plan, revision: 8 }));
+    const actions = {
+      modelPlanState: async () => ({ plan }),
+      modelCatalog: async () => ({ models: catalog }),
+      modelPresets: async () => [],
+      setModelPlan: set,
+      createModelPreset: create,
+      applyModelPreset: apply,
+    } as unknown as BridgeActions;
+    return { actions, read, use, create, apply, set };
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('stages a model and a role-specific effort in each picker until Save', async () => {
+    const { actions, use, set } = fixture();
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Main model · Reasoning effort"] button:last-child',
+        )!
+        .click(),
+    );
+    await choose('Task model', 'gpt-6', 'GPT-6 Subscription');
+    expect(picked('Main model')).toBe('GPT-6 Subscription');
+    expect(picked('Task model')).toBe('GPT-6 Subscription');
+    expect(use).not.toHaveBeenCalled();
+    await act(async () => button('Save').click());
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'high' }],
+      ['ada', 'assignment', 'codex', { model: 'gpt-6', effort: 'medium' }],
+    ]);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('persists an explicit model for an engine configured before model selection was available', async () => {
+    const { actions, use } = fixture([{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }]);
+    await render(markOriginActions(actions), vi.fn());
+    expect(picked('Main model')).toBe('GPT-6 Subscription');
+    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => button('Save').click());
+    expect(use).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', 'codex', {
+      model: 'gpt-6',
+      effort: 'medium',
+    });
+  });
+
+  it('shows the current engine model and clears only the role changed to a DSH route', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([
+      { ...choice, role: 'orchestrator' },
+      { ...choice, role: 'assignment' },
+    ]);
+    await render(markOriginActions(actions), vi.fn());
+    expect(picked('Main model')).toBe('GPT-6 Subscription');
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+    expect(use).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', null, {});
+    expect(set.mock.invocationCallOrder[0]).toBeLessThan(use.mock.invocationCallOrder[0]!);
+  });
+
+  it('stores a subscription model and effort in a reusable preset', async () => {
+    const { actions, create, apply } = fixture();
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => button('Save as preset').click());
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
+    await search(input, 'Subscription setup');
+    await act(async () => button('Save preset').click());
+    expect(create).toHaveBeenCalledExactlyOnceWith(
+      'Subscription setup',
+      route,
+      route,
+      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
+      undefined,
+      undefined,
+      { orchestratorEngine: { engine: 'codex', model: 'gpt-6', effort: 'medium' } },
+    );
+    expect(apply).toHaveBeenCalledExactlyOnceWith('ada', 'engine-preset');
+  });
+
+  it('keeps the remote picker on the remote DSH catalog', async () => {
+    const { actions, read } = fixture();
+    await render(actions, vi.fn());
+    await openPicker('Main model');
+    expect(document.querySelector('[data-picker-filter="engine:codex"]')).toBeNull();
+    expect(read).not.toHaveBeenCalled();
   });
 });

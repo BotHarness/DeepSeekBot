@@ -802,3 +802,66 @@ it('forwards explicit native default and preset target revisions', async () => {
     ).json.error.code,
   ).toBe('usage');
 });
+
+it('passes subscription flags and explicit removal to the online preset owner', async () => {
+  const route = { provider: 'deepseek', model: 'flash' };
+  const preset = {
+    id: 'p1',
+    name: 'Daily',
+    revision: 1,
+    orchestrator: route,
+    assignmentDefault: route,
+  };
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelPresets' ? { presets: [preset] } : { preset },
+  }));
+  const create = [
+    'model-preset-create',
+    '--name',
+    'Daily',
+    '--orchestrator-provider',
+    'deepseek',
+    '--orchestrator-model',
+    'flash',
+    '--assignment-provider',
+    'deepseek',
+    '--assignment-model',
+    'flash',
+  ];
+  expect(
+    (await invoke([...create, '--orchestrator-engine-model', 'gpt-6'], live.url)).json.error.code,
+  ).toBe('usage');
+  expect(
+    (
+      await invoke(
+        [
+          ...create,
+          '--orchestrator-engine',
+          'codex',
+          '--orchestrator-engine-model',
+          'gpt-6',
+          '--orchestrator-engine-effort',
+          'high',
+          '--assignment-engine',
+          'claude',
+        ],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(
+    (await invoke(['model-preset-update', 'p1', '--assignment-engine', 'none'], live.url)).code,
+  ).toBe(0);
+  expect(live.calls).toMatchObject([
+    {
+      method: 'modelPresetCreate',
+      args: {
+        orchestratorEngine: { engine: 'codex', model: 'gpt-6', effort: 'high' },
+        assignmentEngine: { engine: 'claude' },
+      },
+    },
+    { method: 'modelPresets' },
+    { method: 'modelPresetUpdate', args: { assignmentEngine: null, expectedRevision: 1 } },
+  ]);
+});

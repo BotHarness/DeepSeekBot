@@ -3,7 +3,17 @@ import { useId, type ReactElement, type ReactNode } from 'react';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
 import { ModelTrigger } from './model-trigger.js';
-import { catalogMenuItems, groupMenuId, modelMenuItems } from './model-menu.js';
+import type { SubscriptionModel } from '@botharness/host-client/model-plans';
+import type { EngineId, EngineModelView } from './engine-choice.js';
+import {
+  catalogMenuItems,
+  engineMenuKey,
+  engineSignInKey,
+  groupMenuId,
+  modelMenuItems,
+  selectedEngineMenuItem,
+  type ModelMenuItem,
+} from './model-menu.js';
 import { modelCatalogGroupEfforts } from '@botharness/host-client/model-catalog';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -23,6 +33,7 @@ export function ModelPicker({
   onChange,
   disabled,
   action,
+  subscription,
   t,
 }: {
   title: string;
@@ -35,9 +46,30 @@ export function ModelPicker({
   onChange: (choice: ModelChoice) => void;
   disabled: boolean;
   action?: ReactNode;
+  subscription?:
+    | {
+        choice: SubscriptionModel | null;
+        items: readonly ModelMenuItem[];
+        models: Partial<Record<EngineId, readonly EngineModelView[]>>;
+        onChange(choice: SubscriptionModel): void;
+        signIn(engine: EngineId): void;
+      }
+    | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
+  const engine = subscription?.choice ?? null;
+  const models = engine === null ? [] : (subscription?.models[engine.engine] ?? []);
+  const selectedModel =
+    engine?.model === undefined
+      ? (models.find((model) => model.isDefault) ?? models[0])
+      : models.find((model) => model.id === engine.model);
+  const selectedEngine =
+    engine === null ? undefined : selectedEngineMenuItem(engine, selectedModel);
+  const shown =
+    selectedEngine === undefined
+      ? choice
+      : { key: selectedEngine.value, effort: engine?.effort ?? '' };
   const entry = catalog.find((item) => JSON.stringify([item.provider, item.model]) === choice.key);
   const effortsOf = (key: string) => {
     const groupId = groupMenuId(key);
@@ -53,11 +85,14 @@ export function ModelPicker({
   const items = [
     ...catalogMenuItems(catalog, t, groups).filter((item) => item.group !== undefined),
     ...modelMenuItems(options, catalog),
+    ...(subscription?.items ?? []),
   ];
-  const known = items.some((item) => item.value === choice.key);
+  if (selectedEngine !== undefined && !items.some((item) => item.value === shown.key))
+    items.push(selectedEngine);
+  const known = items.some((item) => item.value === shown.key);
   const efforts = [
     { value: '', label: t('modelPreset.providerDefault') },
-    ...effortsOf(choice.key).map((effort) => ({
+    ...(engine === null ? effortsOf(choice.key) : (selectedModel?.efforts ?? [])).map((effort) => ({
       value: effort.id,
       label: effort.name,
     })),
@@ -81,7 +116,7 @@ export function ModelPicker({
       <ModelTrigger
         label={title}
         items={items}
-        value={choice.key}
+        value={shown.key}
         placeholder={
           entry === undefined && !known
             ? t('modelPreset.routeUnavailable')
@@ -90,6 +125,24 @@ export function ModelPicker({
         invalid={entry === undefined && !known}
         disabled={disabled}
         onSelect={(key) => {
+          const item = items.find((entry) => entry.value === key);
+          if (item?.engine !== undefined && subscription !== undefined) {
+            if (key === engineSignInKey(item.engine)) subscription.signIn(item.engine);
+            else if (item.model !== undefined && key === engineMenuKey(item.engine, item.model)) {
+              if (engine?.engine === item.engine && engine.model === item.model) return;
+              const model = subscription.models[item.engine]?.find(
+                (entry) => entry.id === item.model,
+              );
+              if (model === undefined) return;
+              const effort = model.efforts.find((option) => option.id === model.defaultEffort);
+              subscription.onChange({
+                engine: item.engine,
+                model: model.id,
+                ...(effort === undefined ? {} : { effort: effort.id }),
+              });
+            }
+            return;
+          }
           const kept = effortsOf(key).some((effort) => effort.id === choice.effort);
           const fallback = catalog.find(
             (item) => JSON.stringify([item.provider, item.model]) === key,
@@ -98,14 +151,24 @@ export function ModelPicker({
         }}
         t={t}
       />
-      {(entry !== undefined || groupMenuId(choice.key) !== undefined) && efforts.length > 1 && (
+      {efforts.length > 1 && (
         <div className="bh-model-picker-effort">
           <span>{t('modelPreset.effort')}</span>
           <SegmentedControl
             id={id}
-            value={efforts.some((effort) => effort.value === choice.effort) ? choice.effort : ''}
+            value={efforts.some((effort) => effort.value === shown.effort) ? shown.effort : ''}
             options={efforts}
-            onChange={(effort) => onChange({ ...choice, effort })}
+            onChange={(effort) => {
+              if (engine === null) onChange({ ...choice, effort });
+              else if (subscription !== undefined) {
+                const { effort: _removed, ...selected } = engine;
+                subscription.onChange({
+                  ...selected,
+                  ...(selectedModel === undefined ? {} : { model: selectedModel.id }),
+                  ...(effort === '' ? {} : { effort }),
+                });
+              }
+            }}
             label={`${title} · ${t('modelPreset.effort')}`}
             disabled={disabled}
           />

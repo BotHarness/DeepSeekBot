@@ -1,3 +1,4 @@
+import { hasPresetEngines } from '../models/presets.js';
 import { ownsBot } from '../team/bot-access.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isDeepStrictEqual } from 'node:util';
@@ -401,6 +402,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       const id = text(args.presetId),
         preset = deps.presets.get(id);
       if (!preset) throw new TobError('unknown-preset');
+      if (hasPresetEngines(preset)) throw new TobError('engine-unavailable');
       same(preset.revision, revision(args.expectedPresetRevision));
       patch = { presetId: id, presetRevision: preset.revision, plan: preset };
       routes = [
