@@ -1,4 +1,10 @@
 import { MARKETPLACE_INSTALL_SOURCES } from '../marketplace/client.js';
+import {
+  BOT_TURN_CONTEXT_PROPERTIES,
+  BOT_TURN_OUTCOMES,
+  BOT_TURN_ROLES,
+  BOT_TURN_TRIGGERS,
+} from './bot-turn-spec.js';
 import { CLIENT_ISSUE_DURATION_BUCKETS, CLIENT_ISSUE_KINDS } from './client-issues.js';
 
 export const CONNECTOR_TYPES = ['feishu', 'lark', 'slack', 'discord', 'weixin', 'other'] as const;
@@ -150,6 +156,25 @@ export const TELEMETRY_EVENTS = {
       unknown_total_count: 'count',
       is_partial: 'boolean',
       is_reconciled: 'boolean',
+    },
+  },
+  'chat:bot_turn_complete': {
+    origin: 'host',
+    description:
+      'A Bot-owned Orchestrator or Assignment turn ended: reported token usage summed over its model steps, and estimated context tokens per Context Source for the whole context (the context properties) and for what this turn added (the added properties). No message text.',
+    properties: {
+      role: BOT_TURN_ROLES,
+      outcome: BOT_TURN_OUTCOMES,
+      trigger: BOT_TURN_TRIGGERS,
+      step_count: 'count',
+      tool_call_count: 'count',
+      input_token_count: 'count',
+      output_token_count: 'count',
+      cache_read_token_count: 'count',
+      cache_write_token_count: 'count',
+      context_token_count: 'count',
+      is_partial: 'boolean',
+      ...Object.fromEntries(BOT_TURN_CONTEXT_PROPERTIES.map((name) => [name, 'count' as const])),
     },
   },
   'app:client_issue_report': {

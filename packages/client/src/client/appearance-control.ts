@@ -5,7 +5,8 @@ import { resetAppearance } from './appearance-recovery.js';
 import { WallpaperError } from './wallpaper-store.js';
 import type { Wallpaper } from './wallpaper.js';
 import { createWallpaperControl } from './wallpaper-control.js';
-import { Appearance, AppearanceError, object } from './appearance.js';
+import { Appearance, AppearanceError, object, type AppearanceSnapshot } from './appearance.js';
+import { keepWallpaperMaterials } from './appearance-materials.js';
 import { remoteHosts } from './remote-hosts.js';
 import { createConnectionControl } from './connection-control.js';
 import { isConnectionManagement, manageConnections } from './connection-management.js';
@@ -126,7 +127,12 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
                 snapshot:
                   command.patch === undefined
                     ? owner.getSnapshot()
-                    : owner.update(command.patch, command.expectedRevision as string),
+                    : presetWithWallpaper(
+                        owner,
+                        wallpaper,
+                        owner.update(command.patch, command.expectedRevision as string),
+                        command.patch,
+                      ),
               };
             }
           } catch (error) {
@@ -201,4 +207,15 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
         body: JSON.stringify({ action: 'unregister', ...registration }),
       }).catch(() => {});
   };
+}
+
+function presetWithWallpaper(
+  owner: Appearance,
+  wallpaper: Wallpaper | undefined,
+  snapshot: AppearanceSnapshot,
+  patch: unknown,
+): AppearanceSnapshot {
+  if (object(patch).preset === undefined) return snapshot;
+  keepWallpaperMaterials(owner, wallpaper?.getSnapshot().current !== undefined);
+  return owner.getSnapshot();
 }

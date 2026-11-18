@@ -55,7 +55,7 @@ describe('asks follow the Channel the task came from', () => {
       undefined,
       undefined,
       undefined,
-      askChannel,
+      (query) => core.runtime.toolApprovalOrigin?.(query),
     );
     const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,

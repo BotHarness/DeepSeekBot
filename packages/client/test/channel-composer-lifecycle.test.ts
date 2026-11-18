@@ -111,7 +111,7 @@ describe('mounted Channel composer', () => {
         new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }),
       ),
     );
-    expect(onChange).toHaveBeenLastCalledWith('before after', [], []);
+    expect(onChange).toHaveBeenLastCalledWith('before after', [], [], []);
     expect(onRemoveAttachment).not.toHaveBeenCalled();
   });
 

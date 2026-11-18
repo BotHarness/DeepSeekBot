@@ -15,10 +15,16 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+const tobs = vi.hoisted(() => ({ state: { status: 'signed-out' } as { status: string } }));
+vi.mock('../src/account/native-account-profile', () => ({
+  useAccountProfile: () => tobs.state,
+}));
 
 import type { AccountProfileState } from '../src/account/account-profile';
 import { AccountNameEditor } from '../src/ui/shell/account-name-editor';
+import { ProfileSetupView } from '../src/ui/shell/profile-setup-view';
 import { AccountProfileView } from '../src/ui/shell/account-profile-view';
+import { AccountProfileRow } from '../src/ui/shell/account-profile-row';
 import { UploadedBotsView } from '../src/ui/shell/uploaded-bots-view';
 import type { MarketplaceAuthoredBot } from '../../../packages/core/src/marketplace/client';
 import { t } from '../src/ui/strings';
@@ -53,6 +59,32 @@ const byTestId = (view: HTMLElement, id: string) =>
   view.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
 describe('Account Profile screen', () => {
+  it('edits the Host chat name and photo without a Tobs sign-in', async () => {
+    const onEditName = vi.fn();
+    const chatEditor = { busy: false, error: undefined, choose: vi.fn(), remove: vi.fn() };
+    const view = await render(
+      <AccountProfileView
+        state={{ status: 'signed-out' }}
+        avatar={editor}
+        chat={{
+          name: 'Little Bear',
+          avatar: 'data:image/jpeg;base64,AAAA',
+          hasAvatar: true,
+          editor: chatEditor,
+          onEditName,
+        }}
+        actions={actions()}
+      />,
+    );
+    expect(view.textContent).toContain(t.accountProfile.chatTitle);
+    expect(view.textContent).toContain('Little Bear');
+    expect(byTestId(view, 'account-profile-sign-in')).not.toBeNull();
+    await act(async () => byTestId(view, 'chat-profile-name')!.click());
+    expect(onEditName).toHaveBeenCalledOnce();
+    await act(async () => byTestId(view, 'chat-avatar-remove')!.click());
+    expect(chatEditor.remove).toHaveBeenCalledOnce();
+  });
+
   it('asks to sign in when signed out', async () => {
     const on = actions();
     const view = await render(
@@ -123,6 +155,117 @@ describe('Account Profile screen', () => {
     await act(async () => save.click());
     expect(onSave).toHaveBeenCalledWith('爱丽丝');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('asks a new Team member for a name and photo, saving a changed name or skipping', async () => {
+    const onDone = vi.fn(async () => {});
+    const onLater = vi.fn(async () => {});
+    const view = await render(
+      <ProfileSetupView
+        name="Mia"
+        avatar={undefined}
+        hasAvatar={false}
+        editor={editor}
+        onDone={onDone}
+        onLater={onLater}
+      />,
+    );
+    expect(view.textContent).toContain(t.accountProfile.setupTitle);
+    const field = view.querySelector('textarea')!;
+    expect(field.value).toBe('Mia');
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+      setter.call(field, ' Mia Chen ');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => (byTestId(view, 'profile-setup-done') as HTMLButtonElement).click());
+    expect(onDone).toHaveBeenCalledWith('Mia Chen');
+    await act(async () => (byTestId(view, 'profile-setup-later') as HTMLButtonElement).click());
+    expect(onLater).toHaveBeenCalled();
+    await act(async () => (byTestId(view, 'profile-setup-photo') as HTMLButtonElement).click());
+    expect(editor.choose).toHaveBeenCalledTimes(1);
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChoose);
+    await act(async () =>
+      (byTestId(view, 'profile-setup-choose-photo') as HTMLButtonElement).click(),
+    );
+    expect(editor.choose).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the photo action only once it knows whether a photo is set', async () => {
+    const chatEditor = { busy: false, error: undefined, choose: vi.fn(), remove: vi.fn() };
+    const chat = { name: 'Mia', avatar: undefined, editor: chatEditor, onEditName: vi.fn() };
+    const loading = await render(
+      <AccountProfileView
+        state={{ status: 'signed-out' }}
+        avatar={editor}
+        chat={{ ...chat, hasAvatar: undefined }}
+        actions={actions()}
+      />,
+    );
+    const row = () => byTestId(loading, 'chat-avatar-choose')!.textContent;
+    expect(row()).toContain(t.avatarTitle);
+    expect(row()).not.toContain(t.avatarChoose);
+    const photo = () => byTestId(loading, 'chat-avatar-change')!.getAttribute('aria-label');
+    expect(photo()).toBe(t.avatarTitle);
+    await act(async () =>
+      root!.render(
+        <AccountProfileView
+          state={{ status: 'signed-out' }}
+          avatar={editor}
+          chat={{ ...chat, hasAvatar: true }}
+          actions={actions()}
+        />,
+      ),
+    );
+    expect(row()).toContain(t.avatarChange);
+    expect(byTestId(loading, 'chat-avatar-remove')).not.toBeNull();
+    expect(photo()).toBe(t.avatarChange);
+    await act(async () =>
+      root!.render(
+        <AccountProfileView
+          state={{ status: 'signed-out' }}
+          avatar={editor}
+          chat={{ ...chat, hasAvatar: false }}
+          actions={actions()}
+        />,
+      ),
+    );
+    expect(photo()).toBe(t.avatarChoose);
+  });
+
+  it('says Change photo in the setup prompt while a stored photo is still loading', async () => {
+    const view = await render(
+      <ProfileSetupView
+        name="Mia"
+        avatar={undefined}
+        hasAvatar
+        editor={editor}
+        onDone={vi.fn(async () => {})}
+        onLater={vi.fn(async () => {})}
+      />,
+    );
+    expect(byTestId(view, 'profile-setup-choose-photo')?.textContent).toContain(t.avatarChange);
+  });
+
+  it('leads Settings with the Host chat name and photo when signed out of Tobs', async () => {
+    const view = await render(
+      <AccountProfileRow
+        chat={{ name: 'Little Bear', avatar: 'data:image/png;base64,AAAA' }}
+        onPress={vi.fn()}
+      />,
+    );
+    const row = byTestId(view, 'settings-account-profile')!;
+    expect(row.textContent).toContain('Little Bear');
+    expect(row.textContent).toContain(t.accountProfile.tobsSignedOut);
+    expect(row.textContent).not.toContain(t.accountProfile.signInHint);
+    expect(row.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,AAAA');
+  });
+
+  it('asks to sign in from Settings before the Host chat name loads', async () => {
+    const view = await render(<AccountProfileRow onPress={vi.fn()} />);
+    const row = byTestId(view, 'settings-account-profile')!;
+    expect(row.textContent).toContain(t.accountProfile.signIn);
+    expect(row.textContent).toContain(t.accountProfile.signInHint);
   });
 
   it('lists uploaded Bots with size, date and a taken-down mark', async () => {

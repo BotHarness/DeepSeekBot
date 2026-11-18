@@ -41,9 +41,11 @@ import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
+import { HumanAvatarSettings } from './human-avatar-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
+import { RoutingGroupSettings } from './routing-group-settings.js';
 import { ConnectionsPage } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
@@ -100,10 +102,29 @@ export type MessagingSectionFace = BotModePrefsFace & {
 };
 
 export function AccountSection(
-  props: SectionProps<{ actions: BridgeActions; startSignIn(): Promise<ConnectSignInCode> }>,
+  props: SectionProps<{
+    actions: BridgeActions;
+    startSignIn(): Promise<ConnectSignInCode>;
+    call: BridgeCall;
+    store: ClientStore;
+    onSaved(): Promise<void>;
+  }>,
 ): ReactElement {
   return (
     <Rows>
+      <SettingsSection
+        title={props.t('profile.section.chat')}
+        description={props.t('profile.section.chatHint')}
+        data={{ 'data-chat-profile': '' }}
+      >
+        <HumanAvatarSettings actions={props.actions} t={props.t} />
+        <HumanNameSettings
+          call={props.call}
+          store={props.store}
+          onSaved={props.onSaved}
+          t={props.t}
+        />
+      </SettingsSection>
       <AccountProfileSettings
         actions={props.actions}
         startSignIn={props.startSignIn}
@@ -144,6 +165,7 @@ export function ModelsSection(
       <SettingsSection title={props.t('models.section.default')}>
         <DefaultModelSettings actions={props.actions} t={props.t} />
       </SettingsSection>
+      <RoutingGroupSettings actions={props.actions} t={props.t} />
       <SettingsSection title={props.t('models.section.context')}>
         <IdleCompactionSetting call={props.call} t={props.t} />
         <CompactionThresholdSetting call={props.call} t={props.t} />
@@ -187,14 +209,6 @@ export function VoiceSection(props: SectionProps<{ actions: BridgeActions }>): R
 export function MessagingSection(props: SectionProps<MessagingSectionFace>): ReactElement {
   return (
     <Rows>
-      <SettingsSection title={props.t('messaging.section.me')}>
-        <HumanNameSettings
-          call={props.call}
-          store={props.store}
-          onSaved={props.onSaved}
-          t={props.t}
-        />
-      </SettingsSection>
       <SettingsSection title={props.t('messaging.section.input')}>
         <SendKeySetting {...props} />
       </SettingsSection>

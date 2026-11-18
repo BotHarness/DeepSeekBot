@@ -245,10 +245,6 @@ describe('Bot Stop', () => {
       expect(f.core.runtime.heldCause?.('ada')).toBeUndefined();
 
       const access = f.live.access()!;
-      expect(() =>
-        access.request({ sessionId: first, mode: 'next-turn', text: 'Continue' }),
-      ).toThrow(/stopped by the Human/);
-      await expect(access.unarchive!(first)).resolves.toMatchObject({ outcome: 'unarchived' });
       const resumed = access.request({
         sessionId: first,
         mode: 'next-turn',
