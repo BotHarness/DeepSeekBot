@@ -94,7 +94,7 @@ describe('PersonaBot Session projection', () => {
     });
   });
 
-  it('keeps a paused Assignment current and moves only an archived one to Resolved', () => {
+  it('keeps a stopped Assignment current and moves only an archived one to Resolved', () => {
     const archived = owned.map((item) =>
       item.sessionId === 'stopped' ? { ...item, assignmentArchived: true as const } : item,
     );

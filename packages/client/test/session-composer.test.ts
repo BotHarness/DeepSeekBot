@@ -103,7 +103,7 @@ describe('session references', () => {
         {
           botSlug: 'ben',
           bot: ben,
-          items: [assignment('asg-stopped', '暂停的任务', { assignmentActivity: 'stopped' })],
+          items: [assignment('asg-stopped', '已停止的任务', { assignmentActivity: 'stopped' })],
         },
       ]).map((option) => option.done),
     ).toEqual([false]);
