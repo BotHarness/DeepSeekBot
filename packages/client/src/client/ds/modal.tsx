@@ -75,6 +75,8 @@ export type ModalProps = ModalBaseProps &
 
 function focusFirst(node: HTMLElement): void {
   window.requestAnimationFrame(() => {
+    const active = node.ownerDocument.activeElement;
+    if (active instanceof HTMLElement && active !== node && node.contains(active)) return;
     const target =
       node.querySelector<HTMLElement>('[data-modal-autofocus]') ??
       node.querySelector<HTMLElement>(
