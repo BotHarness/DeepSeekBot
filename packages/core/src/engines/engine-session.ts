@@ -1,6 +1,6 @@
-export type EngineId = 'codex';
+export type EngineId = 'codex' | 'claude';
 
-export const ENGINE_IDS: readonly EngineId[] = ['codex'];
+export const ENGINE_IDS: readonly EngineId[] = ['codex', 'claude'];
 
 export function isEngineId(value: unknown): value is EngineId {
   return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);

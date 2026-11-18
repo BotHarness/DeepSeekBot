@@ -169,8 +169,8 @@ Usage:
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
   tobs engine list|status --host <url>
-  tobs engine login codex --host <url>
-  tobs engine use <id> codex|none --role orchestrator --host <url>
+  tobs engine login codex|claude --host <url>
+  tobs engine use <id> codex|claude|none --role orchestrator --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]

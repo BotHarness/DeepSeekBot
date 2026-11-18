@@ -78,7 +78,7 @@ describe("generated developer reference", () => {
         type: "boolean",
         default: true,
         description:
-          "Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex). Cloud and VPS Hosts set false.",
+          "Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex, Claude Code). Cloud and VPS Hosts set false.",
         source: "packages/core/src/plugin.ts",
       },
       {

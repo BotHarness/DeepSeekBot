@@ -1098,17 +1098,19 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### Subscription Engines
 
-A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH model: the Host drives the engine with the Human's own subscription on this computer (ADR-0353). Codex is the first engine; it runs `codex app-server` signed in with ChatGPT. The Bot signs in to its own Codex home under `$DSH_HOME/botharness/engines`, so it never shares the Human's own Codex login or config.
+A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH model: the Host drives the engine with the Human's own subscription on this computer (ADR-0353). Two engines are offered: Codex runs `codex app-server` signed in with ChatGPT, and Claude Code runs the Human's installed `claude` through the Claude Agent SDK signed in with a Claude subscription. The Bot signs in to its own Codex home and its own Claude config directory under `$DSH_HOME/botharness/engines`, so it never shares the Human's own login, CLAUDE.md, settings, MCP servers or hooks.
 
 ```bash
 deepseekbot engine list
 deepseekbot engine status
 deepseekbot engine login codex
+deepseekbot engine login claude
 deepseekbot engine use <bot> codex --role orchestrator
+deepseekbot engine use <bot> claude --role orchestrator
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
-`engine list` returns `{engines: [{engine, available, reason?}]}`; `engine status` adds `installed`, `version` and `login` (`chatgpt`, `api-key`, `signed-out` or `unknown`) and lists `selections` as `{botSlug, role, engine}`. `reason` is `not-installed`, `signed-out` or `not-subscription`. A Cloud or VPS Host (`subscriptionEngines: false`, or `DEEPSEEKBOT_HOST_KIND=cloud|vps`) lists no engines. `engine login codex` starts `codex login` for the Bot's Codex home on the Host computer and returns `{engine, started, url?}`; finish the sign-in in the browser with the ChatGPT account. `engine use` returns `{bot, role, engine}`; `none` returns the Bot to its DSH model. Before a turn the Host reads the engine's account and refuses anything but a ChatGPT subscription (`engine-not-subscription`, `engine-signed-out`). The engine reaches `bot_send_message` and `channel_read` through a loopback MCP gateway whose token is bound to the Bot, the Session and the current Channel; its own final text is not posted. Refusals: `unknown-bot`, `unknown-engine`, `engine-unavailable`, `invalid-input` and `usage`.
+`engine list` returns `{engines: [{engine, available, reason?}]}`; `engine status` adds `installed`, `version` and `login` (`chatgpt` for Codex, `subscription` for Claude Code, `api-key`, `signed-out` or `unknown`) and lists `selections` as `{botSlug, role, engine}`. `reason` is `not-installed`, `signed-out` or `not-subscription`. A Cloud or VPS Host (`subscriptionEngines: false`, or `DEEPSEEKBOT_HOST_KIND=cloud|vps`) lists no engines. `engine login codex` starts `codex login` for the Bot's Codex home and `engine login claude` starts `claude auth login --claudeai` for the Bot's Claude config directory on the Host computer; both return `{engine, started, url?}`. Finish the sign-in in the browser with the ChatGPT or Claude subscription account. `engine use` returns `{bot, role, engine}`; `none` returns the Bot to its DSH model. Before a turn the Host reads the engine's account and refuses anything but a subscription: a ChatGPT login for Codex, and for Claude Code an account with a subscription type whose key source is `none` (`engine-not-subscription`, `engine-signed-out`). Claude Code runs with no setting sources, `--strict-mcp-config` and every provider key variable removed; a turn whose `init` reports an API key stops. Tool permission requests from either engine are declined until engine approval cards land (#4487). The engine reaches `bot_send_message` and `channel_read` through a loopback MCP gateway whose token is bound to the Bot, the Session and the current Channel; its own final text is not posted. Refusals: `unknown-bot`, `unknown-engine`, `engine-unavailable`, `invalid-input` and `usage`.
 
 ### Desktop presence
 

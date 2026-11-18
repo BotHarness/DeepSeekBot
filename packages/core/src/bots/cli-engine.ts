@@ -14,12 +14,12 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-login',
     description:
-      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex)',
+      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
   },
   {
     command: 'engine-use',
     description:
-      'run a Bot Orchestrator on an engine, or none for the DSH model (engine use <bot> codex --role orchestrator)',
+      'run a Bot Orchestrator on an engine, or none for the DSH model (engine use <bot> codex|claude --role orchestrator)',
   },
 ] as const;
 
@@ -81,14 +81,18 @@ export async function runEngineCommand(
     return value;
   }
   if (command === 'engine-login') {
-    if (rest.length !== 1) throw new CliLiveError('usage', 'engine login needs one engine: codex.');
+    if (rest.length !== 1)
+      throw new CliLiveError('usage', 'engine login needs one engine: codex or claude.');
     const value = await call(connect, { action: 'login', engine: rest[0] });
     if (value['started'] !== true || typeof value['engine'] !== 'string') throw protocolError();
     return value;
   }
   if (command === 'engine-use') {
     if (rest.length !== 2)
-      throw new CliLiveError('usage', 'engine use needs <bot> and an engine (codex or none).');
+      throw new CliLiveError(
+        'usage',
+        'engine use needs <bot> and an engine (codex, claude or none).',
+      );
     const role = values.role ?? [];
     if (role.length !== 1 || role[0] !== 'orchestrator')
       throw new CliLiveError('usage', 'engine use needs --role orchestrator.');

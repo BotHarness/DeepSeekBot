@@ -2,7 +2,9 @@ import type { SessionEngine } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export function engineName(engine: string): string {
-  return engine === 'codex' ? 'Codex' : engine;
+  if (engine === 'codex') return 'Codex';
+  if (engine === 'claude') return 'Claude Code';
+  return engine;
 }
 
 export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate): string {

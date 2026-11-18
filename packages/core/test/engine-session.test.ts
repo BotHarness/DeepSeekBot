@@ -75,6 +75,7 @@ function setup(recording = RECORDING, local = true) {
     },
     detectCodex: async () => ({ installed: true, version: '0.170.0', login: 'chatgpt' }),
     startCodexLogin: async () => ({ url: 'https://auth.openai.com/oauth/authorize?x=1' }),
+    detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'signed-out' }),
   });
   const execute = vi.fn(async (name: string, args: Record<string, unknown>) =>
     name === 'channel_read'
@@ -379,6 +380,14 @@ describe('Engine selection, status and route', () => {
     expect(listed).toEqual({
       engines: [
         { engine: 'codex', available: true, installed: true, version: '0.170.0', login: 'chatgpt' },
+        {
+          engine: 'claude',
+          available: false,
+          reason: 'signed-out',
+          installed: true,
+          version: '2.1.327',
+          login: 'signed-out',
+        },
       ],
       selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex' }],
     });

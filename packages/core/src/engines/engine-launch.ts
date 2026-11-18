@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { win32 } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 export interface EngineLaunch {
   file: string;
@@ -32,6 +32,23 @@ function resolveWindows(
     if (directory === '') continue;
     const found = candidates(win32.join(directory, command)).find(exists);
     if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+export function resolveEngineCommand(
+  command: string,
+  options: EngineLaunchOptions = {},
+): string | undefined {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const exists = options.exists ?? existsSync;
+  if (platform === 'win32') return resolveWindows(command, env, exists);
+  if (command.includes('/')) return exists(command) ? command : undefined;
+  for (const directory of (variable(env, 'PATH') ?? '').split(':')) {
+    if (directory === '') continue;
+    const candidate = posix.join(directory, command);
+    if (exists(candidate)) return candidate;
   }
   return undefined;
 }

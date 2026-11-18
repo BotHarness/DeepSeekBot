@@ -8,6 +8,9 @@ import {
   spawnCodexTransport,
 } from './codex-engine.js';
 import { type CodexStatus, detectCodex, startCodexLogin } from './codex-status.js';
+import { type ClaudeQueryFactory, ClaudeEngineSession, sdkClaudeQuery } from './claude-engine.js';
+import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
+import { resolveEngineCommand } from './engine-launch.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
@@ -66,13 +69,14 @@ export interface EngineStatusReport {
   reason?: 'host-not-local' | 'not-installed' | 'signed-out' | 'not-subscription' | 'login-unknown';
   installed: boolean;
   version?: string;
-  login: CodexStatus['login'];
+  login: CodexStatus['login'] | ClaudeStatus['login'];
 }
 
 export interface EngineHostOptions {
   root: string;
   local: boolean;
   codexCommand?: string;
+  claudeCommand?: string;
   env?: Readonly<Record<string, string | undefined>>;
   gateway: EngineGateway;
   sessions(): EngineSessionStore | undefined;
@@ -82,6 +86,9 @@ export interface EngineHostOptions {
   openCodex?(options: CodexProcessOptions): CodexTransport;
   detectCodex?(options: { command: string; home: string }): Promise<CodexStatus>;
   startCodexLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
+  openClaude?: ClaudeQueryFactory;
+  detectClaude?(options: { command: string; home: string }): Promise<ClaudeStatus>;
+  startClaudeLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
 }
 
 interface TurnScope {
@@ -103,8 +110,14 @@ interface LiveEngineSession {
   running: Promise<void>;
 }
 
-const SIGN_IN_HINT =
-  'Sign the Bot in with your ChatGPT subscription: run `deepseekbot engine login codex` on this computer.';
+const SIGN_IN_HINTS: Record<EngineId, string> = {
+  codex:
+    'Sign the Bot in with your ChatGPT subscription: run `deepseekbot engine login codex` on this computer.',
+  claude:
+    'Sign the Bot in with your Claude subscription: run `deepseekbot engine login claude` on this computer.',
+};
+
+const ENGINE_LABELS: Record<EngineId, string> = { codex: 'Codex', claude: 'Claude Code' };
 
 export class EngineHost {
   readonly store: EngineStore;
@@ -129,6 +142,18 @@ export class EngineHost {
     return {
       command: this.#options.codexCommand ?? 'codex',
       home: join(this.#options.root, 'codex', 'home'),
+      ...(this.#options.env === undefined ? {} : { env: this.#options.env }),
+    };
+  }
+
+  get #claude(): {
+    command: string;
+    home: string;
+    env?: Readonly<Record<string, string | undefined>>;
+  } {
+    return {
+      command: this.#options.claudeCommand ?? 'claude',
+      home: join(this.#options.root, 'claude', 'home'),
       ...(this.#options.env === undefined ? {} : { env: this.#options.env }),
     };
   }
@@ -161,25 +186,13 @@ export class EngineHost {
 
   async status(): Promise<EngineStatusReport[]> {
     if (!this.#options.local) return [];
-    const detected = await (this.#options.detectCodex ?? detectCodex)(this.#codex);
-    const reason: EngineStatusReport['reason'] = !detected.installed
-      ? 'not-installed'
-      : detected.login === 'chatgpt'
-        ? undefined
-        : detected.login === 'api-key'
-          ? 'not-subscription'
-          : detected.login === 'unknown'
-            ? 'login-unknown'
-            : 'signed-out';
+    const [codex, claude] = await Promise.all([
+      (this.#options.detectCodex ?? detectCodex)(this.#codex),
+      (this.#options.detectClaude ?? detectClaude)(this.#claude),
+    ]);
     return [
-      {
-        engine: 'codex',
-        available: reason === undefined,
-        ...(reason === undefined ? {} : { reason }),
-        installed: detected.installed,
-        ...(detected.version === undefined ? {} : { version: detected.version }),
-        login: detected.login,
-      },
+      statusReport('codex', codex, 'chatgpt'),
+      statusReport('claude', claude, 'subscription'),
     ];
   }
 
@@ -189,7 +202,10 @@ export class EngineHost {
         'engine-unavailable',
         'Subscription Engines run only on a local Host',
       );
-    const started = await (this.#options.startCodexLogin ?? startCodexLogin)(this.#codex);
+    const started =
+      engine === 'codex'
+        ? await (this.#options.startCodexLogin ?? startCodexLogin)(this.#codex)
+        : await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude);
     return { engine, started: true, ...started };
   }
 
@@ -315,7 +331,8 @@ export class EngineHost {
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
-    if (live !== undefined && !live.engine.ended) return live;
+    const selected = this.engineFor(request.botSlug);
+    if (live !== undefined && !live.engine.ended && live.engine.engine === selected) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
@@ -328,7 +345,13 @@ export class EngineHost {
 
   async #start(request: EngineTurnRequest): Promise<LiveEngineSession> {
     const { botSlug, sessionId } = request;
-    this.#setState(sessionId, { engine: 'codex', state: 'starting' }, botSlug);
+    const engineId = this.engineFor(botSlug);
+    if (engineId === undefined)
+      throw new EngineRefusal(
+        'engine-unavailable',
+        'This Bot does not run on a Subscription Engine',
+      );
+    this.#setState(sessionId, { engine: engineId, state: 'starting' }, botSlug);
     const holder: { live?: LiveEngineSession } = {};
     let grant: EngineGrant | undefined;
     let engine: EngineSession | undefined;
@@ -363,35 +386,56 @@ export class EngineHost {
           };
         },
       });
-      const options: CodexProcessOptions = {
-        ...this.#codex,
-        cwd,
-        gateway: { url: grant.url, token: grant.token },
-      };
-      const transport = (this.#options.openCodex ?? spawnCodexTransport)(options);
-      const opened = new CodexEngineSession(transport, {
-        cwd,
-        instructions: request.instructions,
-      });
+      const stored = this.store.nativeSession(sessionId);
+      const resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      const gatewayEndpoint = { url: grant.url, token: grant.token };
+      let opened: EngineSession;
+      if (engineId === 'codex') {
+        const options: CodexProcessOptions = { ...this.#codex, cwd, gateway: gatewayEndpoint };
+        const transport = (this.#options.openCodex ?? spawnCodexTransport)(options);
+        opened = new CodexEngineSession(transport, { cwd, instructions: request.instructions });
+      } else {
+        const claude = this.#claude;
+        const executable = resolveEngineCommand(claude.command, {
+          env: claude.env ?? process.env,
+        });
+        if (executable === undefined)
+          throw new EngineRefusal(
+            'engine-not-installed',
+            'Claude Code is not installed on this computer',
+          );
+        opened = new ClaudeEngineSession({
+          query: this.#options.openClaude ?? sdkClaudeQuery,
+          executable,
+          home: claude.home,
+          cwd,
+          instructions: request.instructions,
+          gateway: gatewayEndpoint,
+          ...(claude.env === undefined ? {} : { env: claude.env }),
+          ...(resume === undefined ? {} : { resume }),
+        });
+      }
       engine = opened;
-      this.#cancels.set(sessionId, () => void opened.close());
+      const started = opened;
+      this.#cancels.set(sessionId, () => void started.close());
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
+      const name = ENGINE_LABELS[engineId];
       const account = await opened.account().catch((error: unknown) => {
+        if (error instanceof EngineRefusal) throw error;
         const message = error instanceof Error ? error.message : String(error);
         throw /ENOENT/u.test(message)
-          ? new EngineRefusal('engine-not-installed', 'Codex is not installed on this computer')
-          : new EngineRefusal('engine-failed', `Codex did not start: ${message}`);
+          ? new EngineRefusal('engine-not-installed', `${name} is not installed on this computer`)
+          : new EngineRefusal('engine-failed', `${name} did not start: ${message}`);
       });
       const label = requireSubscription(account);
-      const stored = this.store.nativeSession(sessionId);
       let nativeId: string;
       try {
-        nativeId = await opened.start(stored?.engine === 'codex' ? stored.nativeId : undefined);
+        nativeId = await opened.start(resume);
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
         nativeId = await opened.start();
       }
-      this.store.rememberNativeSession(sessionId, 'codex', nativeId, label);
+      this.store.rememberNativeSession(sessionId, engineId, nativeId, label);
       dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
@@ -440,11 +484,42 @@ async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boo
 }
 
 export function requireSubscription(account: EngineAccount): string {
-  if (account.kind === 'subscription') return `ChatGPT ${account.plan}`;
+  const hint = SIGN_IN_HINTS[account.engine];
+  if (account.kind === 'subscription')
+    return account.engine === 'codex'
+      ? `ChatGPT ${account.plan}`
+      : `Claude ${account.plan.replace(/^claude\s+/iu, '')}`;
   if (account.kind === 'metered')
     throw new EngineRefusal(
       'engine-not-subscription',
-      `${account.detail}, which bills per use. ${SIGN_IN_HINT}`,
+      `${account.detail}, which bills per use. ${hint}`,
     );
-  throw new EngineRefusal('engine-signed-out', `Codex is not signed in. ${SIGN_IN_HINT}`);
+  throw new EngineRefusal(
+    'engine-signed-out',
+    `${ENGINE_LABELS[account.engine]} is not signed in. ${hint}`,
+  );
+}
+
+function statusReport(
+  engine: EngineId,
+  detected: CodexStatus | ClaudeStatus,
+  subscription: string,
+): EngineStatusReport {
+  const reason: EngineStatusReport['reason'] = !detected.installed
+    ? 'not-installed'
+    : detected.login === subscription
+      ? undefined
+      : detected.login === 'api-key'
+        ? 'not-subscription'
+        : detected.login === 'unknown'
+          ? 'login-unknown'
+          : 'signed-out';
+  return {
+    engine,
+    available: reason === undefined,
+    ...(reason === undefined ? {} : { reason }),
+    installed: detected.installed,
+    ...(detected.version === undefined ? {} : { version: detected.version }),
+    login: detected.login,
+  };
 }

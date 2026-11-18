@@ -574,7 +574,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   subscriptionEngines: Schema.boolean()
     .default(true)
     .description(
-      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex). Cloud and VPS Hosts set false.',
+      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex, Claude Code). Cloud and VPS Hosts set false.',
     ),
   telemetry: Schema.boolean()
     .default(true)
