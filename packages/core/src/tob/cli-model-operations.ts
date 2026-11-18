@@ -13,6 +13,7 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { PreparedTobOperation } from './cli-operations.js';
+import type { RoutingGroupStore } from '../models/routing-groups.js';
 import { TobError } from './service.js';
 
 export const TOB_MODEL_CAPABILITIES = [
@@ -48,6 +49,7 @@ export interface TobModelOperationDependencies {
   catalog: ModelCatalog;
   settings: () => TobNativeSettings | undefined;
   defaultModel?: { currentSelection(): ModelRoute };
+  routingGroups?: Pick<RoutingGroupStore, 'defaultGroup' | 'setDefaultGroup'>;
   runtimeChanged?: (patch: Record<string, unknown>) => void;
 }
 const runtimeFields = [
@@ -315,6 +317,9 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
           )
             throw new TobError('setting-readback-mismatch');
           if (!isDefault) deps.runtimeChanged?.(patch);
+          const group = isDefault ? deps.routingGroups?.defaultGroup() : undefined;
+          if (group?.groupId !== undefined)
+            deps.routingGroups!.setDefaultGroup(undefined, group.revision);
           return isDefault ? { route: saved.value, revision: saved.revision } : saved;
         },
       );

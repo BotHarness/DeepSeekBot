@@ -33,6 +33,7 @@ export interface BotModel {
   repair?: string;
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
+  defaultGroupId?: string;
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -103,13 +104,14 @@ export async function loadBotModel(
       return [];
     }),
   ]);
-  const { models, default: fallback, favorites, groups } = catalog;
+  const { models, default: fallback, favorites, groups, defaultGroupId } = catalog;
   return {
     revision: state.revision ?? state.plan?.revision ?? 0,
     ...(state.plan === undefined ? {} : { plan: state.plan }),
     ...(state.repair === undefined ? {} : { repair: state.repair.code }),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
     ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
     presets,
@@ -123,12 +125,13 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     loadModelCatalog(client),
     loadModelPresets(client),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups } = catalog;
+  const { models, default: fallback, defaultRevision, favorites, groups, defaultGroupId } = catalog;
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
     ...(favorites === undefined ? {} : { favorites }),
     presets,
     ...(fallback === undefined ? {} : { fallback }),
@@ -165,7 +168,7 @@ export function currentModel(model: BotModel): {
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
   if (current === undefined) return {};
-  const groupId = model.plan?.orchestratorGroupId;
+  const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
   const group =
     groupId === undefined
       ? undefined

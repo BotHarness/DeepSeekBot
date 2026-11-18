@@ -31,4 +31,4 @@ Generation 71 is forward-only; a binary supporting only generation 70 cannot reo
 
 ## Refinement: independent Orchestrator selection
 
-[ADR-0218](0218-quick-model-selection-only-customizes-the-orchestrator.md) allows a Bot Model Plan to fix only its Orchestrator while its Assignment policy continues to inherit the Profile default. Both `assignmentDefault` and `assignmentModels` are absent in that case. Existing complete plans and reusable Model Presets retain their previous semantics. An Assignment without a retained route continues to inherit on later requests, rather than adopting a subsequently configured Bot default.
+[ADR-0218](../decisions/sessions.md#adr-0218) allows a Bot Model Plan to fix only its Orchestrator while its Assignment policy continues to inherit the Profile default. Both `assignmentDefault` and `assignmentModels` are absent in that case. Existing complete plans and reusable Model Presets retain their previous semantics. An Assignment without a retained route continues to inherit on later requests, rather than adopting a subsequently configured Bot default.

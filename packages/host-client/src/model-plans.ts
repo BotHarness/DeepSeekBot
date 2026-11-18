@@ -298,7 +298,7 @@ export async function setOnboardingModel(
     slug?: string;
     expectedRevision: number;
     expectedDefaultRevision?: number;
-    route: ModelRoute;
+    route?: ModelRoute;
     groupId?: string;
     globalDefault: boolean;
   },

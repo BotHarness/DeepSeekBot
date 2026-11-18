@@ -441,8 +441,8 @@ describe('A Bot without a Model Plan runs Assignments on the default Routing Gro
 });
 
 describe('An Assignment on a Routing Group keeps its chosen effort after a fallback (#4502)', () => {
-  it('moves to the next member at the same effort', async () => {
-    const clock = Date.parse('2026-11-18T00:00:00.000Z');
+  it('moves to the next member at the same effort and stays there after the rest ends', async () => {
+    let clock = Date.parse('2026-11-18T00:00:00.000Z');
     const rests = createRouteRests({ now: () => clock });
     const fallback = createGroupFallback({
       plan: () => undefined,
@@ -541,6 +541,11 @@ describe('An Assignment on a Routing Group keeps its chosen effort after a fallb
         { ...SPENT, reasoningEffort: 'high' },
         { ...DEEPSEEK, reasoningEffort: 'high' },
       ]);
+      clock += 3_600_000;
+      expect(await orchestrator!.assignments.refreshRoute?.(created.assignment.sessionId)).toEqual({
+        ...DEEPSEEK,
+        reasoningEffort: 'high',
+      });
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

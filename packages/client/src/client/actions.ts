@@ -527,7 +527,7 @@ export interface BridgeActions {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRouteView,
+    choice: ModelRouteView | { groupId: string },
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
@@ -2107,11 +2107,11 @@ export function createActions(
             : slug,
         action,
       }),
-    onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
+    onboardingModel: async (slug, expectedRevision, choice, globalDefault) => {
       const result = await setOnboardingModel(host, {
         ...(slug === undefined ? {} : { slug }),
         expectedRevision,
-        route,
+        ...('groupId' in choice ? { groupId: choice.groupId } : { route: choice }),
         globalDefault,
       });
       if (globalDefault) invalidateInheritedModelPlans(actions);
