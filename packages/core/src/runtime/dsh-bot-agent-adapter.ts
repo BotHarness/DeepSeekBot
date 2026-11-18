@@ -683,6 +683,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
   >();
+  readonly #orchestratorModeChoices = new Map<string, AssignmentModeChoices>();
   readonly #assignmentSelections = new Map<
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
@@ -1129,6 +1130,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   #forgetHandle(sessionId: string): void {
     this.#handles.delete(sessionId);
     this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorModeChoices.delete(sessionId);
     this.#orchestratorBridgeTools.delete(sessionId);
     this.#assignmentSelections.delete(sessionId);
   }
@@ -1332,6 +1334,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const handles = [...this.#handles.values()];
     this.#handles.clear();
     this.#orchestratorSelections.clear();
+    this.#orchestratorModeChoices.clear();
     this.#assignmentSelections.clear();
     for (const sessionId of this.#runs.keys()) this.#drafts.end(sessionId);
     for (const controller of this.#preparations.values()) controller.abort();
@@ -1511,6 +1514,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     };
     const resume =
       run.resume && (this.#hasSession === undefined || (await this.#hasSession(run.sessionId)));
+    const modeChoices = await this.#readAssignmentModes(run.bot.slug, signal);
+    if (modeChoices === undefined) this.#orchestratorModeChoices.delete(run.sessionId);
+    else this.#orchestratorModeChoices.set(run.sessionId, modeChoices);
     const handle = resume
       ? await this.#agents.resume({
           resumeSessionId: SessionId(run.sessionId),
@@ -1840,11 +1846,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             description:
               'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
           },
-          mode: {
-            type: 'string',
-            description:
-              'Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode. A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work, such as a terminal-only mode for a lookup or a script. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.',
-          },
+          mode: assignmentModeParameter(this.#orchestratorModeChoices.get(run.sessionId)),
         },
         output: {
           schema: { type: 'string' },
@@ -4579,18 +4581,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async #loadBotModes(signal: AbortSignal | undefined): Promise<void> {
     signal?.throwIfAborted();
     const loading = this.#ensureBotModes?.();
-    if (loading === undefined) return;
-    if (signal === undefined) return loading;
-    await new Promise<void>((resolve, reject) => {
-      const stop = () =>
-        reject(
-          signal.reason instanceof Error
-            ? signal.reason
-            : new Error('Preparation stopped', { cause: signal.reason }),
-        );
-      signal.addEventListener('abort', stop, { once: true });
-      loading.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
-    });
+    if (loading !== undefined) await untilAborted(loading, signal);
+  }
+
+  async #readAssignmentModes(
+    botSlug: string,
+    signal: AbortSignal | undefined,
+  ): Promise<AssignmentModeChoices | undefined> {
+    signal?.throwIfAborted();
+    const reading = this.#assignmentModes?.(botSlug).catch(() => undefined);
+    return reading === undefined ? undefined : untilAborted(reading, signal);
   }
 
   async #createAssignment(
@@ -4800,4 +4800,41 @@ export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): Bo
   ): Promise<boolean>;
 } {
   return new DshBotAgentAdapter(options);
+}
+
+const ASSIGNMENT_MODE_GUIDANCE =
+  'A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.';
+
+export function assignmentModeParameter(choices: AssignmentModeChoices | undefined): {
+  type: 'string';
+  description: string;
+  enum?: string[];
+} {
+  if (choices === undefined || choices.allowed.length < 2)
+    return {
+      type: 'string',
+      description: `Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode (${choices?.default ?? 'unknown'}). ${ASSIGNMENT_MODE_GUIDANCE}`,
+    };
+  const modes = choices.allowed
+    .map((mode) => `- ${mode.id}: ${mode.description ?? mode.name ?? 'no description'}`)
+    .join('\n');
+  return {
+    type: 'string',
+    enum: choices.allowed.map((mode) => mode.id),
+    description: `Optional DSH mode for this Assignment; omitted uses this Bot’s mode (${choices.default}). ${ASSIGNMENT_MODE_GUIDANCE} Allowed modes:\n${modes}`,
+  };
+}
+
+async function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    const stop = () =>
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error('Preparation stopped', { cause: signal.reason }),
+      );
+    signal.addEventListener('abort', stop, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
 }

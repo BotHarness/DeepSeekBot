@@ -4348,6 +4348,8 @@ describe('Assignment Directory Tools', () => {
 
   it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
     let modesFail = false;
+    let narrowed = false;
+    let modeParameter: unknown;
     const calls: Array<Promise<unknown>> = [];
     const created: Array<{ title: string; mode?: string }> = [];
     const host = new FakeAgentHost(
@@ -4370,9 +4372,20 @@ describe('Assignment Directory Tools', () => {
               },
               {} as ToolRunContext,
             );
+          modeParameter = Reflect.get(
+            Reflect.get(tool('create_assignment').parameters, 'properties') as object,
+            'mode',
+          );
           calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
           calls.push(create('ptc'));
           calls.push(create('acp').then(String, (error: Error) => error.message));
+          const settled = Promise.allSettled([...calls]);
+          calls.push(
+            settled.then(() => {
+              narrowed = true;
+              return create('ptc').then(String, (error: Error) => error.message);
+            }),
+          );
           calls.push(
             Promise.allSettled([...calls]).then(() => {
               modesFail = true;
@@ -4394,7 +4407,9 @@ describe('Assignment Directory Tools', () => {
         return {
           default: 'deepseekbot',
           restricted: true,
-          allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+          allowed: narrowed
+            ? [{ id: 'deepseekbot' }]
+            : [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
         };
       },
     });
@@ -4446,7 +4461,12 @@ describe('Assignment Directory Tools', () => {
       },
     });
     try {
-      const [models, accepted, refused, withoutModes] = await Promise.all(calls);
+      const [models, accepted, refused, narrowedRefusal, withoutModes] = await Promise.all(calls);
+      expect(modeParameter).toMatchObject({ type: 'string', enum: ['deepseekbot', 'ptc'] });
+      expect(Reflect.get(modeParameter as object, 'description')).toContain(
+        'omitted uses this Bot’s mode (deepseekbot)',
+      );
+      expect(Reflect.get(modeParameter as object, 'description')).toContain('- ptc: PTC');
       expect(JSON.parse(String(models))).toMatchObject({
         assignmentModes: {
           default: 'deepseekbot',
@@ -4457,7 +4477,8 @@ describe('Assignment Directory Tools', () => {
         outcome: 'created',
         mode: 'ptc',
       });
-      expect(refused).toContain('mode acp is not allowed');
+      expect(refused).toContain('"mode" must be one of ["deepseekbot","ptc"]');
+      expect(narrowedRefusal).toContain('mode ptc is not allowed; choose one of deepseekbot');
       const fallback = JSON.parse(String(withoutModes)) as Record<string, unknown>;
       expect(fallback['assignmentModes']).toBeUndefined();
       expect(String(fallback['assignmentModesError'])).toContain('roster unavailable');
