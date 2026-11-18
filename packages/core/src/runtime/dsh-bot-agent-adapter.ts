@@ -1809,6 +1809,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,
               model: args.model!,
+              ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
             });
           const outcome = active.run.assignments.create({
             title: args.title,

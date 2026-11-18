@@ -1300,13 +1300,13 @@ function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { prese
   const assignmentDefault = parseRoute(values, 'assignment');
   assertKnownProvider(orchestrator.provider);
   assertKnownProvider(assignmentDefault.provider);
+  const mode = values['assignment-models'];
+  if (mode !== undefined && mode !== 'open' && mode !== 'listed')
+    throw usageError('--assignment-models must be open or listed.');
   const dshHome = resolveHome(values, io);
   const { owner } = openRegistry(dshHome);
   try {
     try {
-      const mode = values['assignment-models'];
-      if (mode !== undefined && mode !== 'open' && mode !== 'listed')
-        throw usageError('--assignment-models must be open or listed.');
       const preset = modelStore(dshHome, owner).create({
         name,
         orchestrator,

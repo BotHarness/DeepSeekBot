@@ -4571,6 +4571,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
           (route) => requireBotModel(core.team, core.registry.get(owner.botSlug), route),
+          () => openAssignmentRoutes.list(owner.botSlug),
         );
       }
     },
