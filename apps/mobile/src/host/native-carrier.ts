@@ -6,12 +6,7 @@ import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { isLanRoute } from '@botharness/host-protocol/route';
 import { localNetworkStatus, openLanSocket } from './native-lan-socket';
 import { openDirectChannel, type DirectNative } from './direct-channel';
-
-type NativeWebSocket = new (
-  url: string,
-  protocols: undefined,
-  options: { headers: Record<string, string> },
-) => WebSocket;
+import { openWebSocket } from './web-socket';
 
 function transportFailure(origin: string): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -78,10 +73,7 @@ export function nativeCarrier(): HostCarrier {
         if (Object.keys(headers).length > 0) throw new Error('encrypted-channel-required');
         return openLanSocket(url, events);
       }
-      const socket =
-        Object.keys(headers).length === 0
-          ? new WebSocket(url)
-          : new (WebSocket as unknown as NativeWebSocket)(url, undefined, { headers });
+      const socket = openWebSocket(url, headers);
       let done = false;
       const closed = (reason: string): void => {
         if (done) return;
