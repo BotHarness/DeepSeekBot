@@ -9,7 +9,7 @@
 ## 最后一次 main 推进后的再整合
 
 - 最终远端检查发现 main 已从 `006c0fa3` 推进至 `04c01e0e91f4cab933cedaf3ded8b0bbf82557c9`。本次整合保留窗口伙伴、PersonaBot 确认删除、连接教程入口和真实群名能力。
-- main 现占用 ADR-0144 及 generation 66（PersonaBot 删除）；微信顺延为 [ADR-0145](../adr/0145-wechat-typing-follows-owned-processing-leases.md) / generation **67**。保留 main 的 generation 66 原文，迁移回归增加从 66 升级的覆盖。
+- main 现占用 ADR-0144 及 generation 66（PersonaBot 删除）；微信顺延为 [ADR-0145](../decisions/im-providers.md#adr-0145) / generation **67**。保留 main 的 generation 66 原文，迁移回归增加从 66 升级的覆盖。
 - `.911.7` QA Profile 的 generation 66 属于早期微信候选，不能作为新 schema 的升级来源。保留原 Profile 及下文真实测试证据，另建独立 Profile 补验；不修改历史迁移或摘要绕过保护。
 - Provider 整合 main 固定的 `a0ba2839dadbdcdda9a9bf7511da3094a79eb1fb`，新候选 `36da305c9586335a47d4bab6ee4f0025247a9d8f` / `.15`，404 runtime 文件、SHA-256 `221c8888098886cfb50f7d33c8703fac154ad8dfaccfab4b4465e49ea973c4a8`。微信输入／收件、群名、Lark 卡片和 Slack／Discord 聚焦回归 **89/89**、包校验通过；TypeScript 检查通过，Host／Client／迁移聚焦回归 **7 文件 / 74 测试**通过，默认接入及产品打包固定版本另有 **2 文件 / 28 测试**通过。
 - `.911.8` 实际产品包构建、打包及全新 Windows Profile 的认证启动通过；同一 Profile 已保存真实模型 Channel 回复 `MODEL-911-V8-OK`。切换前只读确认旧 `.911.7` Host 与 Assignment 空闲，再停止其准确进程，保留原 Profile。新的微信配对、绑定及原生补验尚待 Human 操作，不能将下文旧候选的完整矩阵直接算作新包通过。
@@ -20,7 +20,7 @@
 
 - 接手任务：`codex/local/01a119ff-d4c2-74b0-9ea8-17aa1a3811d0`，认领见 [#911 comment](https://github.com/BotHarness/DeepSeekBot/issues/911#issuecomment-6053099542)。继续同一个 Draft PR #1102。
 - main 基线：`006c0fa3`。保留新身份/会话弹窗、默认接入、多个同平台应用、外部会话接入及现有 Lark/Slack/Discord 能力。
-- 当时 main 已占用 ADR-0142/0143 和 generation 61–65；本票旧候选使用 ADR-0144（现顺延为 [ADR-0145](../adr/0145-wechat-typing-follows-owned-processing-leases.md)）/ generation **66**，不改当时 main 的迁移历史。旧迁移覆盖从 59–65 升级并保留原有 Lark 审批配置。旧 `.911.1`–`.911.3` QA Profile 均不是 `.911.7` 的升级来源。
+- 当时 main 已占用 ADR-0142/0143 和 generation 61–65；本票旧候选使用 ADR-0144（现顺延为 [ADR-0145](../decisions/im-providers.md#adr-0145)）/ generation **66**，不改当时 main 的迁移历史。旧迁移覆盖从 59–65 升级并保留原有 Lark 审批配置。旧 `.911.1`–`.911.3` QA Profile 均不是 `.911.7` 的升级来源。
 - Provider 整合 `55b4528480ccce3e8acc067e10b880556bf5034c` 至现有 typing 分支，候选提交 `7c2489da79017e9c6a86e36898698a9b82c65a52`；产品固定 `.14`，404 runtime 文件，摘要 `2736154321b9966fdcbc513e3f5ae763f8f78fd8d2dce374d232e36d084930b0`。无 npm 发布。
 - Windows Node 24.21.0 / pnpm 12.4.2；独立 main 对照和候选 Profile 均通过认证 API 启动。当前候选为实际产品压缩包 `0.0.0-test.911.7`，同一隔离 Profile 由 `.911.6` 空闲重启升级；本机私有模型凭据注入，`.911.5`、`.911.6`、`.911.7` 均有实际模型调用和已保存的 Channel 回复。
 - Human 已重新扫码、绑定。真实微信私聊的原生“对方正在输入”由 Human 确认并提供[截图](../assets/pr/911-wechat-typing/native-input-visible.png)。最初等待命令在原生沙箱启动前失败；Human 确认错误回复收到且输入提示消失，这只算失败清理证据。
@@ -56,7 +56,7 @@
 - 原任务认领：[issue comment](https://github.com/BotHarness/BotHarness/issues/911#issuecomment-6031570739)，任务 `codex/local/01a112f7-9794-7692-9b17-b71aa980b313`。本任务为迁到 Windows 交接；接手任务按 agent-work-trace 留下自己的认领并引用本记录。
 - Provider 维护 fork 分支：[`DoodleBears/dsh-im:codex/911-wechat-typing`](https://github.com/DoodleBears/dsh-im/tree/codex/911-wechat-typing)。提交 [`d93f6236e4800dce06fc96506fc0e6a5b760476b`](https://github.com/DoodleBears/dsh-im/commit/d93f6236e4800dce06fc96506fc0e6a5b760476b)，基于 main 原固定版本 `4f4f0a6282580bb59968eb90571778eb7e37ee73`。已推送；未提交上游 PR、未发布 npm。
 - 候选固定版本：`@botharness/im-provider@4.32.0-botharness.13`，398 个 runtime 文件，SHA-256 `8eaee5405a42a747a66c891ab0c9fb2fc3c4f2e61b1029469ce965490d75e663`；原 manifest/lock 摘要不变。Lark 图片和 main 的审批能力不能丢失。
-- ADR 为 [ADR-0145](../adr/0145-wechat-typing-follows-owned-processing-leases.md)，微信偏好迁移为 generation **61**。main 的 ADR-0140 / ADR-0141 和 generation 60 均保留。测试覆盖从 59、60 升级并保留 Lark 审批配置。
+- ADR 为 [ADR-0145](../decisions/im-providers.md#adr-0145)，微信偏好迁移为 generation **61**。main 的 ADR-0140 / ADR-0141 和 generation 60 均保留。测试覆盖从 59、60 升级并保留 Lark 审批配置。
 
 ## 已实现的候选行为
 

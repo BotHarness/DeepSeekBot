@@ -46,7 +46,7 @@ Schema 激活是单向升级：旧的 hash-only 版本不能读取 generation 39
 
 刷新 Channel 后，从原消息下载或重新打开附件，检查当前内容。同一 fileId 的显式共享引用会展示修改，Host 重启后仍然如此；内容相同的独立上传和上传者的本地源文件不受影响。原生访问在当前回合结束后失效，每次操作复查来源成员资格。离开来源 Channel 或原件缺失后禁止后续访问，不从上传快照重建缺失原件。文件编辑不产生 Source Revision、文件变化 Inbox Admission 或自动唤醒；对话确认仍需显式回复。保留原生检查与 Shell 审批，不增加 BotHarness 锁或文件版本档案。
 
-这些本地切片是 #632、#633。见 [ADR-0105](adr/0105-attachments-use-native-file-operations-under-source-authority.md)。
+这些本地切片是 #632、#633。见 [ADR-0105](decisions/im-providers.md#adr-0105)。
 
 ## 在原话题处理 Lark ZIP
 
@@ -56,4 +56,4 @@ Schema 激活是单向升级：旧的 hash-only 版本不能读取 generation 39
 
 Bot 通过 `bridge_read` 与 `bridge_attachment_save` 另存独立工作副本，使用原生文件工具及经审批的 Shell 处理，再通过 `channel_attachment_import` 明确选择新结果，使用 `bot_send_message` 以自己的账号回到准确原话题。文本与文件共用每个来源唯一的回复 intent，不先自动发送一条占用它的确认文本。请在 Lark 下载收到的结果并检查内容；「平台已接受」本身不能证明送达或已读。
 
-原件保持不变。沿用 25 MiB 传输上限；撤销来源访问会阻止未来平台读取／回复，已完成的独立副本仍受其 Workspace Grant 约束。重启保留来源和文件身份，不重复不确定发送。这是 #657 的临时 provider 切片，不表示生产启用、Slack 支持或通用历史读取。见 [ADR-0107](adr/0107-external-files-use-trusted-source-capabilities-and-existing-owner.md)。
+原件保持不变。沿用 25 MiB 传输上限；撤销来源访问会阻止未来平台读取／回复，已完成的独立副本仍受其 Workspace Grant 约束。重启保留来源和文件身份，不重复不确定发送。这是 #657 的临时 provider 切片，不表示生产启用、Slack 支持或通用历史读取。见 [ADR-0107](decisions/im-providers.md#adr-0107)。

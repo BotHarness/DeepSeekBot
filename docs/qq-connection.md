@@ -25,7 +25,7 @@ After the first mention, open the application's **Edit identity** conversation l
 
 Expand **Reception intervals** to inspect pause, block, waiting and connection records. **Local control boundaries** come from local actions; **Local observation times** come from connection checks. After an unclean restart, an **unverified continuity** range spans the last observation to the next check. These ranges cannot establish missed-message counts. Each app retains the latest 128 closed intervals and current intervals, without another message transcript.
 
-See [#1153](https://github.com/BotHarness/BotHarness/issues/1153) and [ADR-0152](adr/0152-qq-reception-intervals-record-local-observations.md).
+See [#1153](https://github.com/BotHarness/BotHarness/issues/1153) and [ADR-0152](decisions/im-providers.md#adr-0152).
 
 ## Use two Bots in the same QQ group
 
@@ -115,7 +115,7 @@ Switching back to mentions-only stops future ordinary collection. Blocking, disa
 - For an expired source, send a fresh @mention in QQ. An unknown send outcome needs inspection in the group before another message is requested.
 - Check that the Bot, binding and conversation are enabled and allowed. Pausing, blocking or unbinding invalidates pending authority.
 
-The [Provider integration guide](dev/guides/im-provider-integration.md) and [ADR-0151](adr/0151-qq-group-replies-use-authenticated-apps-and-process-local-source-proof.md) describe the implementation boundary.
+The [Provider integration guide](dev/guides/im-provider-integration.md) and [ADR-0151](decisions/im-providers.md#adr-0151) describe the implementation boundary.
 
 ## Receive and play group voice
 
