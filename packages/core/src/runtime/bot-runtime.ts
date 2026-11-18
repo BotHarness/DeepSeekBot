@@ -2795,6 +2795,9 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#release(bot.slug);
     const steered =
       claim.shouldRun &&
+      ![...this.#tobCliRequests.values()].some(
+        (request) => request.botSlug === bot.slug && request.status.state === 'running',
+      ) &&
       this.#steerDmAdmission(
         bot.slug,
         channel.id,
@@ -10299,7 +10302,7 @@ class BotRuntimeImplementation implements BotRuntime {
         pending,
       );
       envelopes.push(envelope);
-      const direct = sessionDirectSpeaker(text, envelope.text);
+      const direct = sessionDirectSpeaker(text, id, envelope.text);
       if (direct !== undefined) {
         text = direct;
         continue;

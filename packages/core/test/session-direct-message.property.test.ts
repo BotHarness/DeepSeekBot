@@ -55,12 +55,34 @@ describe('Session detail direct message format', () => {
         (notes, envelope, text, sourceEventId) => {
           const prompt = sessionDirectSpeaker(
             notes.join('') + sessionDirectPrompt(text, sourceEventId),
+            sourceEventId,
             envelope,
           );
           expect(prompt?.startsWith(notes.join('') + envelope)).toBe(true);
           expect(sessionDirectBody(prompt ?? '')).toBe(text);
         },
       ),
+    );
+  });
+
+  it('keeps the body when Host text follows the footer after a blank line', () => {
+    fc.assert(
+      fc.property(body, id, fc.string({ maxLength: 40 }), (text, sourceEventId, after) => {
+        expect(sessionDirectBody(`${sessionDirectPrompt(text, sourceEventId)}\n\n${after}`)).toBe(
+          text,
+        );
+      }),
+    );
+  });
+
+  it('places a speaker envelope only for its own Source Event', () => {
+    fc.assert(
+      fc.property(body, id, id, speaker, (text, sourceEventId, other, envelope) => {
+        fc.pre(sourceEventId !== other);
+        expect(
+          sessionDirectSpeaker(sessionDirectPrompt(text, sourceEventId), other, envelope),
+        ).toBeUndefined();
+      }),
     );
   });
 

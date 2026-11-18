@@ -229,7 +229,7 @@ describe('Session transcript', () => {
           content: [
             {
               type: 'text',
-              text: `[Host: stopped.]\n\n${sessionDirectSpeaker(sessionDirectPrompt('Ship it.', 'evt-1'), speaker)}`,
+              text: `[Host: stopped.]\n\n${sessionDirectSpeaker(sessionDirectPrompt('Ship it.', 'evt-1'), 'evt-1', speaker)}`,
             },
           ],
         }),
@@ -242,11 +242,39 @@ describe('Session transcript', () => {
             },
           ],
         }),
+        event(3, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `Current Channel Human: {"humanId":"h1","displayName":"Ada"}\n[Host: your earlier turn for the message below stopped before it finished.]\n\n${sessionDirectPrompt('Go on.', 'evt-3')}`,
+            },
+          ],
+        }),
+        event(4, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            { type: 'text', text: sessionDirectPrompt('Steer now.', 'evt-4') },
+            { type: 'text', text: '[Host reply transport reminder] Use bot_send_message.' },
+          ],
+        }),
+        event(5, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            {
+              type: 'text',
+              text: `${sessionDirectPrompt('With context.', 'evt-5')}\n\n[Bot Inbox: pending DM context]\nChannel: dm\n- Message m1 [Source Event e1] from Human at now: earlier`,
+            },
+          ],
+        }),
       ],
     });
     expect(transcript.items).toMatchObject([
       { text: 'Ship it.', origin: 'session-detail' },
       { text: 'Wait.', origin: 'session-detail' },
+      { text: 'Go on.', origin: 'session-detail' },
+      { text: 'Steer now.', origin: 'session-detail' },
+      { text: 'With context.', origin: 'session-detail' },
     ]);
   });
 
