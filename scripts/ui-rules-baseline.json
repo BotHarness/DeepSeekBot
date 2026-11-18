@@ -7,6 +7,7 @@
     "packages/client/src/client/channel-message-body.tsx": ["Open channel {…}"],
     "packages/client/src/client/connection-hosts.tsx": ["Tobs Connect"],
     "packages/client/src/client/create-app-form.tsx": ["App ID", "App Secret"],
+    "packages/client/src/client/dm-composer-usage.tsx": ["路 {…}%"],
     "packages/client/src/client/external-source-content.tsx": ["Source Event:"],
     "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
   }

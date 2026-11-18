@@ -42,13 +42,16 @@ export function isCopy(text) {
   return CJK.test(trimmed) || (words.length >= 2 && words.some((word) => WORD.test(word)));
 }
 
-function literalText(node) {
-  if (!node) return undefined;
-  if (node.type === 'StringLiteral') return node.value;
-  if (node.type === 'JSXExpressionContainer') return literalText(node.expression);
+function literalTexts(node) {
+  if (!node) return [];
+  if (node.type === 'StringLiteral') return [node.value];
+  if (node.type === 'JSXExpressionContainer') return literalTexts(node.expression);
   if (node.type === 'TemplateLiteral')
-    return node.quasis.map((quasi) => quasi.value.cooked ?? '').join('{…}');
-  return undefined;
+    return [node.quasis.map((quasi) => quasi.value.cooked ?? '').join('{…}')];
+  if (node.type === 'ConditionalExpression')
+    return [...literalTexts(node.consequent), ...literalTexts(node.alternate)];
+  if (node.type === 'LogicalExpression') return literalTexts(node.right);
+  return [];
 }
 
 function walk(node, visit) {
@@ -67,26 +70,27 @@ export function jsxCopy(source, file) {
   const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
   const found = [];
   const add = (text, line) => {
-    if (text !== undefined && isCopy(text))
-      found.push({ file, line, text: text.replace(/\s+/gu, ' ').trim() });
+    if (isCopy(text)) found.push({ file, line, text: text.replace(/\s+/gu, ' ').trim() });
+  };
+  const addAll = (node, line) => {
+    for (const text of literalTexts(node)) add(text, line);
   };
   walk(ast.program, (node) => {
     if (node.type === 'JSXText') add(node.value, node.loc.start.line);
     else if (node.type === 'JSXAttribute') {
       const name = node.name.type === 'JSXIdentifier' ? node.name.name : undefined;
-      if (name && COPY_PROPS.has(name)) add(literalText(node.value), node.loc.start.line);
+      if (name && COPY_PROPS.has(name)) addAll(node.value, node.loc.start.line);
     } else if (node.type === 'JSXElement' || node.type === 'JSXFragment') {
       for (const child of node.children)
-        if (child.type === 'JSXExpressionContainer')
-          add(literalText(child.expression), child.loc.start.line);
+        if (child.type === 'JSXExpressionContainer') addAll(child.expression, child.loc.start.line);
     }
   });
-  return found;
+  return found.sort((a, b) => a.line - b.line);
 }
 
 function files(directory) {
   return readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
+    const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) return files(path);
     return entry.name.endsWith('.tsx') && !SKIP.test(path) ? [path] : [];
   });
@@ -144,7 +148,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const { problems, stale } = compare(found, baseline);
   const write = process.argv.includes('--write');
   if (write) {
-    if (problems.length && !process.argv.includes('--init')) {
+    if (problems.length) {
       for (const line of problems) console.error(`ui rules: ${line}`);
       console.error('The baseline only shrinks; fix the new findings instead.');
       process.exit(1);

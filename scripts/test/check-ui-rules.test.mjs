@@ -13,6 +13,8 @@ export function Panel({ name }) {
       <code>SOUL.md</code>
       <Button label={t('save')} placeholder="Type a name" />
       {t('panel.hint')}
+      <button title={busy ? 'Please wait' : t('retry')} />
+      {failed && 'Could not load'}
       OK
     </section>
   );
@@ -29,6 +31,8 @@ describe('check-ui-rules jsxCopy', () => {
       '6 Nothing here yet',
       '7 Open {…} now',
       '11 Type a name',
+      '13 Please wait',
+      '14 Could not load',
     ]);
   });
 
@@ -44,7 +48,7 @@ describe('check-ui-rules jsxCopy', () => {
       jsxCopy: { 'a.tsx': ['Nothing here yet', 'Recent activity', 'Gone text'] },
     };
     const { problems, stale } = compare(found, baseline);
-    expect(problems).toHaveLength(3);
+    expect(problems).toHaveLength(5);
     expect(problems[0]).toBe(
       'a.tsx:5 "最近活动": move visible text into locale.ts and read it with t() (docs/agents/ui-copy.md § Where copy lives)',
     );
