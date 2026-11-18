@@ -634,7 +634,15 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   const humanIdentity = (human: HumanContext): LocalHumanIdentity => {
     const row = database.read((db) =>
       db
-        .prepare(`SELECT n.default_display_name${sourceHumanIdentity() ? ', h.display_name' : ''}${humanAvatarTable() ? ', a.version AS avatar_version' : ''}
+        .prepare(`SELECT n.default_display_name${sourceHumanIdentity() ? ', h.display_name' : ''}${humanAvatarTable() ? ', a.version AS avatar_version' : ''}${
+          profileSetupTable()
+            ? `, EXISTS (SELECT 1 FROM humans p
+                   WHERE p.human_id = actor.human_id
+                     AND p.human_id IS NOT COALESCE((SELECT owner_human_id FROM team_settings), 'local-human')
+                     AND NOT EXISTS (SELECT 1 FROM human_profile_setup s WHERE s.human_id = p.human_id)
+                 ) AS profile_pending`
+            : ''
+        }
           FROM (SELECT ? AS human_id) actor
           LEFT JOIN local_human_names n ON n.human_id = actor.human_id
           ${sourceHumanIdentity() ? 'LEFT JOIN humans h ON h.human_id = actor.human_id' : ''}
@@ -645,22 +653,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           default_display_name: string | null;
           display_name?: string | null;
           avatar_version?: string | null;
+          profile_pending?: number;
         }
       | undefined;
     const defaultDisplayName = row?.default_display_name ?? null;
     const avatarVersion = row?.avatar_version ?? undefined;
-    const pending =
-      avatarVersion === undefined &&
-      profileSetupTable() &&
-      database.read(
-        (db) =>
-          db
-            .prepare(`SELECT 1 FROM humans h
-               WHERE h.human_id = ?
-                 AND h.human_id IS NOT COALESCE((SELECT owner_human_id FROM team_settings), 'local-human')
-                 AND NOT EXISTS (SELECT 1 FROM human_profile_setup s WHERE s.human_id = h.human_id)`)
-            .get(human.humanId) !== undefined,
-      );
+    const pending = avatarVersion === undefined && row?.profile_pending === 1;
     return {
       humanId: human.humanId,
       defaultDisplayName,
