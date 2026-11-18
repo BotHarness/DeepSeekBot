@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -17,7 +17,7 @@ import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { Switch } from './ds/switch.js';
-import { color, space } from './ds/tokens.stylex.js';
+import { ink, space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -52,6 +52,7 @@ function modeName(view: BotModesView, id: string, t: BotHarnessTranslate): strin
   return mode === undefined ? id : modeText(mode, t).name;
 }
 
+const TOBS = 'deepseekbot';
 const PRODUCT = '@product';
 const FOLLOW = '@global';
 const ALL = '@all';
@@ -62,7 +63,7 @@ function templateModes(view: BotModesView, template: BotModeTemplateView, t: Bot
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  check: { display: 'inline-flex', color: color.fg },
+  check: { display: 'inline-flex', color: ink.primary },
 });
 
 function useBotModes(
@@ -73,13 +74,19 @@ function useBotModes(
   (view: BotModesView) => void,
   string | undefined,
   (node: HTMLDivElement) => void,
+  () => void,
 ] {
   const [view, setView] = useState<BotModesView>();
   const [error, setError] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
+  const latest = useRef(load);
+  latest.current = load;
   const mount = useMountedResource<HTMLDivElement>(() => {
-    if (load === undefined) return;
+    const read = latest.current;
+    if (read === undefined) return;
     let live = true;
-    load().then(
+    setError(undefined);
+    read().then(
       (next) => {
         if (live) setView(next);
       },
@@ -90,8 +97,29 @@ function useBotModes(
     return () => {
       live = false;
     };
-  }, [load, key]);
-  return [view, setView, error, mount];
+  }, [load === undefined, key, attempt]);
+  return [view, setView, error, mount, () => setAttempt((count) => count + 1)];
+}
+
+function LoadFailure({
+  message,
+  retry,
+  t,
+  inset = false,
+}: {
+  message: string;
+  retry: () => void;
+  t: BotHarnessTranslate;
+  inset?: boolean;
+}): ReactElement {
+  return (
+    <Note tone="danger" inset={inset}>
+      {message}{' '}
+      <Button size="sm" variant="ghost" onClick={retry}>
+        {t('botMode.retry')}
+      </Button>
+    </Note>
+  );
 }
 
 export function BotModeDefaultSetting({
@@ -101,12 +129,15 @@ export function BotModeDefaultSetting({
   actions: BotModeActions;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const [view, setView, loadError, mount] = useBotModes(actions.botModes, undefined);
+  const [view, setView, loadError, mount, retry] = useBotModes(actions.botModes, undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   if (actions.botModes === undefined || actions.setBotModeDefault === undefined) return null;
   const set = actions.setBotModeDefault;
-  const value = view?.globalDefault ?? PRODUCT;
+  const value =
+    view === undefined || view.globalDefault === null || view.globalDefault === view.productDefault
+      ? PRODUCT
+      : view.globalDefault;
   const options =
     view === undefined
       ? [{ value, label: '…' }]
@@ -115,12 +146,12 @@ export function BotModeDefaultSetting({
             value: PRODUCT,
             label: t('botMode.productLabel', { name: modeName(view, view.productDefault, t) }),
           },
-          ...(view.globalDefault !== null &&
-          !view.modes.some((mode) => mode.id === view.globalDefault)
+          ...(value !== PRODUCT &&
+          !view.modes.some((mode) => mode.id === value && mode.broken === undefined)
             ? [
                 {
-                  value: view.globalDefault,
-                  label: t('botMode.missing', { id: view.globalDefault }),
+                  value,
+                  label: t('botMode.missing', { id: value }),
                 },
               ]
             : []),
@@ -137,7 +168,7 @@ export function BotModeDefaultSetting({
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
-  const shown = error ?? loadError;
+  const shown = error;
   return (
     <>
       <SettingsRow
@@ -155,8 +186,11 @@ export function BotModeDefaultSetting({
           />
         }
       />
-      {view !== undefined && view.effectiveDefault !== view.productDefault ? (
+      {view !== undefined && view.effectiveDefault !== TOBS ? (
         <Note inset>{t('botMode.notTobs')}</Note>
+      ) : null}
+      {view === undefined && loadError !== undefined ? (
+        <LoadFailure message={loadError} retry={retry} t={t} inset />
       ) : null}
       {shown === undefined ? null : (
         <Note tone="danger" inset>
@@ -177,7 +211,7 @@ export function BotModeSettingsEntry({
     botSlug === undefined || modeActions.botModes === undefined
       ? undefined
       : () => modeActions.botModes!(botSlug);
-  const [view, setView, loadError, mount] = useBotModes(load, botSlug);
+  const [view, setView, loadError, mount, retry] = useBotModes(load, botSlug);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   if (botSlug === undefined || load === undefined || modeActions.setBotMode === undefined)
@@ -193,7 +227,7 @@ export function BotModeSettingsEntry({
       loadError === undefined ? (
         <LoadingSkeleton kind="sidebar" label={t('entry.mode')} />
       ) : (
-        <Note tone="danger">{loadError}</Note>
+        <LoadFailure message={loadError} retry={retry} t={t} />
       ),
     );
   const own = view.bot?.mode ?? null;
@@ -279,7 +313,11 @@ export function BotModeSettingsEntry({
                 disabled={busy || (card.disabled && !active)}
                 trailing={
                   active ? (
-                    <span {...stylex.props(styles.check)}>
+                    <span
+                      role="img"
+                      aria-label={t('botMode.selected')}
+                      {...stylex.props(styles.check)}
+                    >
                       <Icon name="check" />
                     </span>
                   ) : undefined
@@ -290,7 +328,7 @@ export function BotModeSettingsEntry({
           })}
         </SidebarCardList>
       </section>
-      {effective === view.productDefault ? null : <Note>{t('botMode.notTobs')}</Note>}
+      {effective === TOBS ? null : <Note>{t('botMode.notTobs')}</Note>}
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
     </>,
   );
@@ -309,7 +347,7 @@ export function BotModeTemplateSettings({
   actions: BotModeActions;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const [view, setView, loadError, mount] = useBotModes(actions.botModes, undefined);
+  const [view, setView, loadError, mount, retry] = useBotModes(actions.botModes, undefined);
   const [draft, setDraft] = useState<TemplateDraft>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -333,6 +371,11 @@ export function BotModeTemplateSettings({
     setDraft(next);
   };
   const installed = view?.modes.filter((mode) => mode.broken === undefined) ?? [];
+  const missingText = (id: string) => t('botMode.missing', { id });
+  const unavailable =
+    draft === undefined
+      ? []
+      : draft.modes.filter((id) => !installed.some((mode) => mode.id === id));
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
   const toggle = (current: TemplateDraft, id: string, on: boolean): TemplateDraft => ({
     ...current,
@@ -359,9 +402,11 @@ export function BotModeTemplateSettings({
       }
     >
       {view === undefined ? (
-        <Note inset tone={loadError === undefined ? 'muted' : 'danger'}>
-          {loadError ?? '…'}
-        </Note>
+        loadError === undefined ? (
+          <Note inset>…</Note>
+        ) : (
+          <LoadFailure message={loadError} retry={retry} t={t} inset />
+        )
       ) : view.templates.length === 0 ? (
         <Note inset>{t('botMode.templates.empty')}</Note>
       ) : (
@@ -413,7 +458,7 @@ export function BotModeTemplateSettings({
                 modes: installed
                   .map((mode) => mode.id)
                   .filter((id) => draft.modes.includes(id))
-                  .concat(draft.modes.filter((id) => !installed.some((mode) => mode.id === id))),
+                  .concat(unavailable),
               }),
             )
           }
@@ -447,6 +492,20 @@ export function BotModeTemplateSettings({
                       checked={draft.modes.includes(mode.id)}
                       disabled={busy}
                       onChange={(on) => setDraft(toggle(draft, mode.id, on))}
+                    />
+                  }
+                />
+              ))}
+              {unavailable.map((id) => (
+                <SettingsRow
+                  key={id}
+                  title={missingText(id)}
+                  control={
+                    <Switch
+                      label={missingText(id)}
+                      checked
+                      disabled={busy}
+                      onChange={() => setDraft(toggle(draft, id, false))}
                     />
                   }
                 />

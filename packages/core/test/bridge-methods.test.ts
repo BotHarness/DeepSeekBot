@@ -7,6 +7,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { BotModesDeps } from '../src/bridge/bot-modes.js';
+import { createBotModeSettings } from '../src/runtime/bot-mode-settings.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
@@ -148,6 +150,7 @@ function setup(
   usage?: UsageProjection,
   modelCatalog?: ModelCatalog,
   readUsageSessionLog?: DshUsageSessionLogReader,
+  botModes?: BotModesDeps,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -201,6 +204,7 @@ function setup(
       ...(readUsageSessionLog === undefined ? {} : { readUsageSessionLog }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
+      ...(botModes === undefined ? {} : { botModes }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
     }),
   };
@@ -2624,6 +2628,33 @@ describe('bridge methods', () => {
         coreMemory: 3000,
       }),
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
+  });
+
+  it('keeps a profile update inside the Bot mode template', () => {
+    const modeHome = mkdtempSync(join(tmpdir(), 'botharness-modes-'));
+    roots.push(modeHome);
+    const settings = createBotModeSettings(modeHome);
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { settings, productDefault: 'deepseekbot', roster: async () => [] },
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    settings.setTemplateOf('ada', settings.saveTemplate({ name: 'Coding', modes: ['ptc'] }).id);
+    expect(methods.update({ slug: 'ada', patch: { preset: 'acp' } })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(methods.update({ slug: 'ada', patch: { preset: 'ptc' } })).toMatchObject({ ok: true });
+    expect(methods.update({ slug: 'ada', patch: { preset: '' } })).toMatchObject({ ok: true });
   });
 
   it('rejects unknown or malformed updates', () => {

@@ -10747,6 +10747,7 @@ class BotRuntimeImplementation implements BotRuntime {
       resume: true,
       permission,
       ...(modelRoute === undefined ? {} : { modelRoute }),
+      ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
       report: async (report, execution) =>
         this.#recordReport(bot.slug, input.sessionId, report, execution),
       completedTurn: (execution) =>

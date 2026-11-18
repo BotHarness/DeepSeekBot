@@ -397,6 +397,7 @@ export const LIVE_OPTIONS = {
 
 export const BOT_CLI_OPTIONS = {
   administration: { type: 'boolean' },
+  id: { type: 'string' },
   name: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },

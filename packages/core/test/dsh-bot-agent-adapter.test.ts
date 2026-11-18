@@ -4348,7 +4348,7 @@ describe('Assignment Directory Tools', () => {
 
   it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
     const calls: Array<Promise<unknown>> = [];
-    const created: unknown[] = [];
+    const created: Array<{ title: string; mode?: string }> = [];
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
@@ -4454,7 +4454,9 @@ describe('Assignment Directory Tools', () => {
         grantId: 'grant-1',
         mode: 'ptc',
       });
-      expect(created).not.toContainEqual(expect.objectContaining({ mode: 'acp' }));
+      expect(created.filter((input) => input.title === 'Port the parser')).toEqual([
+        expect.objectContaining({ mode: 'ptc' }),
+      ]);
     } finally {
       await adapter.close();
     }
@@ -4464,48 +4466,64 @@ describe('Assignment Directory Tools', () => {
     const host = new FakeAgentHost();
     const mounted: Array<string | undefined> = [];
     let recorded: string | null = null;
-    const adapter = createDshBotAgentAdapter({
-      agents: host,
-      defaultModel: {
-        currentSelection: () => ({ provider: 'test', model: 'test' }),
-      },
-      orchestratorCwd: () => '/memory/ada',
-      ensureWorkspace: () => undefined,
-      defaultAgentPreset: () => 'deepseekbot',
-      resolveAgentPresets: () => ({
-        mount: async (_agentCtx, id) => {
-          mounted.push(id);
-          return undefined;
+    let current = 'deepseekbot';
+    const adapterFor = () =>
+      createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: {
+          currentSelection: () => ({ provider: 'test', model: 'test' }),
         },
-        presetForSession: () => recorded,
-      }),
-    });
-    const run = (sessionId: string) =>
-      adapter.runAssignment({
-        sessionId,
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        botModeOf: () => current,
+        resolveAgentPresets: () => ({
+          mount: async (_agentCtx, id) => {
+            mounted.push(id);
+            return undefined;
+          },
+          presetForSession: () => recorded,
+        }),
+      });
+    const permission = {
+      grantId: 'grant-1',
+      workspaceId: 'workspace-1',
+      primaryCwd: '/project',
+      mode: 'workspace-write' as const,
+      approval: 'ask' as const,
+      presetRevision: 0,
+    };
+    const first = adapterFor();
+    try {
+      await first.runAssignment({
+        sessionId: 'assignment-ptc',
         bot: BOT,
         text: 'Port the parser',
         agentPreset: 'ptc',
-        permission: {
-          grantId: 'grant-1',
-          workspaceId: 'workspace-1',
-          primaryCwd: '/project',
-          mode: 'workspace-write',
-          approval: 'ask',
-          presetRevision: 0,
-        },
+        permission,
         report: vi.fn(),
       });
-    try {
-      await run('assignment-ptc');
-      expect(host.createOptions.at(-1)?.meta).toMatchObject({
-        agentPreset: 'ptc',
-      });
-      recorded = 'minimal';
-      await run('assignment-minimal');
-      expect(mounted).toEqual(['ptc', 'minimal']);
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'ptc' });
     } finally {
-      await adapter.close();
+      await first.close();
+    }
+    recorded = 'ptc';
+    current = 'standard';
+    const second = adapterFor();
+    try {
+      await second.runAssignment({
+        sessionId: 'assignment-ptc',
+        bot: BOT,
+        text: 'Continue',
+        resume: true,
+        permission,
+        report: vi.fn(),
+      });
+      expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
+        'assignment-ptc',
+      ]);
+      expect(mounted).toEqual(['ptc', 'ptc']);
+    } finally {
+      await second.close();
     }
   });
 

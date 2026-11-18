@@ -19,13 +19,15 @@ export interface BotModesView {
   globalDefault: string | null;
   effectiveDefault: string;
   templates: BotModeTemplateView[];
-  bot?: {
-    slug: string;
-    mode: string | null;
-    effective: string;
-    template: string | null;
-    allowed: string[] | null;
-  };
+  bot?: BotModeView;
+}
+
+export interface BotModeView {
+  slug: string;
+  mode: string | null;
+  effective: string;
+  template: string | null;
+  allowed: string[] | null;
 }
 
 export interface BotModeActions {
@@ -57,20 +59,52 @@ function strings(value: unknown): string[] | undefined {
     : undefined;
 }
 
-function parseTemplates(value: unknown): BotModeTemplateView[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
+function parseTemplates(value: unknown, method: string): BotModeTemplateView[] {
+  if (!Array.isArray(value)) throw new Error(`invalid ${method} response`);
+  return value.map((entry) => {
     const template = record(entry);
     const id = template?.['id'];
     const name = template?.['name'];
     const modes = strings(template?.['modes']);
-    return typeof id === 'string' && typeof name === 'string' && modes !== undefined
-      ? [{ id, name, modes }]
-      : [];
+    if (typeof id !== 'string' || typeof name !== 'string' || modes === undefined)
+      throw new Error(`invalid ${method} response`);
+    return { id, name, modes };
   });
 }
 
-export function parseBotModesView(value: unknown, method: string): BotModesView {
+function parseBot(
+  value: unknown,
+  method: string,
+  slug: string | undefined,
+): BotModeView | undefined {
+  if (value === undefined) {
+    if (slug !== undefined) throw new Error(`invalid ${method} response`);
+    return undefined;
+  }
+  const bot = record(value);
+  const template = bot?.['template'];
+  const allowed = bot?.['allowed'];
+  const mode = bot?.['mode'];
+  if (
+    bot === undefined ||
+    typeof bot['slug'] !== 'string' ||
+    (slug !== undefined && bot['slug'] !== slug) ||
+    typeof bot['effective'] !== 'string' ||
+    (mode !== null && typeof mode !== 'string') ||
+    (template !== null && typeof template !== 'string') ||
+    (allowed !== null && strings(allowed) === undefined)
+  )
+    throw new Error(`invalid ${method} response`);
+  return {
+    slug: bot['slug'],
+    mode,
+    effective: bot['effective'],
+    template,
+    allowed: allowed === null ? null : strings(allowed)!,
+  };
+}
+
+export function parseBotModesView(value: unknown, method: string, slug?: string): BotModesView {
   const view = record(value);
   const modes = view?.['modes'];
   const productDefault = view?.['productDefault'];
@@ -83,7 +117,7 @@ export function parseBotModesView(value: unknown, method: string): BotModesView 
     typeof effectiveDefault !== 'string'
   )
     throw new Error(`invalid ${method} response`);
-  const bot = record(view?.['bot']);
+  const bot = parseBot(view?.['bot'], method, slug);
   return {
     modes: modes.flatMap((entry) => {
       const mode = record(entry);
@@ -104,21 +138,8 @@ export function parseBotModesView(value: unknown, method: string): BotModesView 
     productDefault,
     globalDefault,
     effectiveDefault,
-    templates: parseTemplates(view?.['templates']),
-    ...(bot !== undefined &&
-    typeof bot['slug'] === 'string' &&
-    typeof bot['effective'] === 'string' &&
-    (bot['mode'] === null || typeof bot['mode'] === 'string')
-      ? {
-          bot: {
-            slug: bot['slug'],
-            mode: bot['mode'],
-            effective: bot['effective'],
-            template: typeof bot['template'] === 'string' ? bot['template'] : null,
-            allowed: strings(bot['allowed']) ?? null,
-          },
-        }
-      : {}),
+    templates: parseTemplates(view?.['templates'], method),
+    ...(bot === undefined ? {} : { bot }),
   };
 }
 
@@ -128,11 +149,12 @@ export function botModeActions(call: BridgeCall): Required<BotModeActions> {
       parseBotModesView(
         await unwrap(call, 'botModes', slug === undefined ? {} : { slug }),
         'botModes',
+        slug,
       ),
     setBotModeDefault: async (mode) =>
       parseBotModesView(await unwrap(call, 'botModeDefaultSet', { mode }), 'botModeDefaultSet'),
     setBotMode: async (slug, mode) =>
-      parseBotModesView(await unwrap(call, 'botModeSet', { slug, mode }), 'botModeSet'),
+      parseBotModesView(await unwrap(call, 'botModeSet', { slug, mode }), 'botModeSet', slug),
     saveBotModeTemplate: async (input) =>
       parseBotModesView(await unwrap(call, 'botModeTemplateSave', input), 'botModeTemplateSave'),
     deleteBotModeTemplate: async (id) =>
@@ -144,6 +166,7 @@ export function botModeActions(call: BridgeCall): Required<BotModeActions> {
       parseBotModesView(
         await unwrap(call, 'botModeTemplateSet', { slug, template }),
         'botModeTemplateSet',
+        slug,
       ),
   };
 }

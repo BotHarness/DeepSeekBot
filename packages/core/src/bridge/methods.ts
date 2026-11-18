@@ -5542,6 +5542,20 @@ function buildBridgeMethods(
         ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
         ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
       };
+      const allowedModes = deps.botModes?.settings.allowedModes(slug);
+      if (
+        preset.value !== undefined &&
+        preset.value.trim().length > 0 &&
+        allowedModes !== undefined &&
+        !allowedModes.includes(preset.value.trim())
+      )
+        return {
+          ok: false,
+          error: {
+            code: 'mode-not-allowed',
+            message: `Mode ${preset.value.trim()} is not in this Bot's mode template; choose one of ${allowedModes.join(', ')} or change the template.`,
+          },
+        };
       const expectedProfile = asObject(payload)['expectedProfile'];
       if (expectedProfile !== undefined) {
         if (typeof expectedProfile !== 'string' || !/^[a-f0-9]{64}$/u.test(expectedProfile))

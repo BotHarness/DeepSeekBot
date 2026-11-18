@@ -357,7 +357,12 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
-import { createBotModeSettings, type BotModeOption } from './runtime/bot-mode-settings.js';
+import {
+  createBotModeSettings,
+  isBotModeId,
+  resolveBotMode,
+  type BotModeOption,
+} from './runtime/bot-mode-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
@@ -1636,14 +1641,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   mountClientDiagnostics(ctx, dshHome);
   const botModeSettings = createBotModeSettings(join(dshHome, 'botharness'));
-  const globalBotMode = (): string =>
-    botModeSettings.defaultMode() ?? config.agentPreset ?? DEFAULT_AGENT_PRESET;
+  const productBotMode = config.agentPreset ?? DEFAULT_AGENT_PRESET;
+  let reconcileBotModeSkills: (() => void) | undefined;
+  let installedBotModeIds: ReadonlySet<string> | undefined;
+  const globalBotMode = (): string => {
+    const saved = botModeSettings.defaultMode();
+    if (saved !== undefined && installedBotModeIds === undefined)
+      void installedBotModes().catch(() => undefined);
+    return saved !== undefined &&
+      (installedBotModeIds === undefined || installedBotModeIds.has(saved))
+      ? saved
+      : productBotMode;
+  };
   const botModeOf = (slug: string | undefined): string =>
-    (slug === undefined ? undefined : core.registry.get(slug)?.preset) ?? globalBotMode();
+    slug === undefined
+      ? globalBotMode()
+      : resolveBotMode({
+          own: core.registry.get(slug)?.preset,
+          inherited: globalBotMode(),
+          allowed: botModeSettings.allowedModes(slug),
+          installed: installedBotModeIds,
+        });
   const installedBotModes = async (): Promise<BotModeOption[]> => {
     const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
     if (presets === undefined) return [];
-    return (await presets.list()).map((preset) => ({
+    const listed = (await presets.list()).filter((preset) => isBotModeId(preset.id));
+    installedBotModeIds = new Set(
+      listed.filter((preset) => preset.broken === undefined).map((preset) => preset.id),
+    );
+    return listed.map((preset) => ({
       id: preset.id,
       ...(preset.name === undefined ? {} : { name: preset.name }),
       ...(preset.description === undefined ? {} : { description: preset.description }),
@@ -1887,12 +1913,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       );
     },
     defaultAgentPreset: globalBotMode,
+    botModeOf,
     assignmentModes: async (slug) => {
-      const allowed = botModeSettings.allowedModes(slug);
+      const installed = await installedBotModes();
+      const allowed =
+        botModeSettings.readError() === undefined ? botModeSettings.allowedModes(slug) : [];
       return {
         default: botModeOf(slug),
         restricted: allowed !== undefined,
-        allowed: (await installedBotModes())
+        allowed: installed
           .filter((mode) => mode.broken === undefined)
           .filter((mode) => allowed === undefined || allowed.includes(mode.id))
           .map((mode) => ({
@@ -3558,7 +3587,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     });
     const offHost = onHostSkillsChange(ctx, () => refresh.hostChanged());
     const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
+    reconcileBotModeSkills = () => refresh.reconcile();
     return () => {
+      reconcileBotModeSkills = undefined;
       offAgents();
       offHost();
       offRegistry();
@@ -3663,8 +3694,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     approvalReviewer,
     botModes: {
       settings: botModeSettings,
-      productDefault: config.agentPreset ?? DEFAULT_AGENT_PRESET,
+      productDefault: productBotMode,
       roster: installedBotModes,
+      modeOf: botModeOf,
+      changed: () => reconcileBotModeSkills?.(),
     },
     idleCompaction: {
       settings: idleCompactionSettings,

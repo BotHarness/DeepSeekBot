@@ -516,6 +516,7 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues,
     VoiceValues {
+  id?: string;
   skill?: string[];
   as?: string;
   username?: string;
@@ -1161,10 +1162,15 @@ export async function runLiveCli(
       return (await connectLiveHost(values, io, signal)).rpc;
     });
   if (isBotModeCommand(command))
-    return runBotModeCommand(command, rest, async () => {
-      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-      return (await connectLiveHost(values, io, signal)).rpc;
-    });
+    return runBotModeCommand(
+      command,
+      rest,
+      async () => {
+        const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+        return (await connectLiveHost(values, io, signal)).rpc;
+      },
+      values.id === undefined ? {} : { id: values.id },
+    );
   if (isPromptPresetCommand(command))
     return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));

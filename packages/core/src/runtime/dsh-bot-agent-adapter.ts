@@ -438,6 +438,7 @@ export interface DshBotAgentAdapterOptions {
   resolveAgentPresets?: () => DshAgentPresetHost | undefined;
 
   defaultAgentPreset?: string | (() => string | undefined);
+  botModeOf?: (botSlug: string) => string | undefined;
   assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
@@ -518,11 +519,10 @@ function createMeta(
   run: OrchestratorAgentRun | AssignmentAgentRun,
   cwd: string,
   ensureWorkspace: ((path: string) => void) | undefined,
-  defaultAgentPreset: string | undefined,
+  botMode: string | undefined,
 ) {
   ensureWorkspace?.(cwd);
-  const agentPreset =
-    ('agentPreset' in run ? run.agentPreset : undefined) ?? run.bot.preset ?? defaultAgentPreset;
+  const agentPreset = ('agentPreset' in run ? run.agentPreset : undefined) ?? botMode;
   return {
     cwd,
     ...(agentPreset === undefined ? {} : { agentPreset }),
@@ -661,6 +661,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #defaultAgentPresetOf: () => string | undefined;
+  readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
@@ -716,6 +717,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
+    this.#currentBotModeOf = options.botModeOf;
     const defaultAgentPreset = options.defaultAgentPreset;
     this.#defaultAgentPresetOf =
       typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
@@ -1505,7 +1507,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run,
       this.#resolveOrchestratorCwd(run.bot),
       this.#ensureWorkspace,
-      this.#defaultAgentPresetOf(),
+      this.#botModeOf(run.bot),
     );
     const resume =
       run.resume && (this.#hasSession === undefined || (await this.#hasSession(run.sessionId)));
@@ -4543,11 +4545,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
     await presets.mount(
       agentCtx,
-      recorded ??
-        ('agentPreset' in run ? run.agentPreset : undefined) ??
-        run.bot.preset ??
-        this.#defaultAgentPresetOf(),
+      recorded ?? ('agentPreset' in run ? run.agentPreset : undefined) ?? this.#botModeOf(run.bot),
     );
+  }
+
+  #botModeOf(bot: PersonaBotRecord): string | undefined {
+    return this.#currentBotModeOf?.(bot.slug) ?? bot.preset ?? this.#defaultAgentPresetOf();
   }
 
   #resolveOrchestratorCwd(bot: PersonaBotRecord): string {
@@ -4561,12 +4564,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const meta = createMeta(
-      run,
-      run.permission.primaryCwd,
-      undefined,
-      this.#defaultAgentPresetOf(),
-    );
+    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
     const resolvedAgentOptions = agentOptions(
       run,
       this.#defaultModel.currentSelection(),

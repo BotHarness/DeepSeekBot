@@ -50,6 +50,7 @@ export async function runBotModeCommand(
   command: Command,
   rest: string[],
   connect: () => Promise<Rpc>,
+  options: { id?: string } = {},
 ): Promise<unknown> {
   const args = rest.map((value) => value.trim());
   if (command === 'bot-modes') {
@@ -63,11 +64,9 @@ export async function runBotModeCommand(
     return (await connect())('botModeDefaultSet', { mode });
   }
   if (command === 'bot-mode-template-save') {
-    const values = [...args];
-    const at = values.indexOf('--id');
-    const id = at === -1 ? undefined : values.splice(at, 2)[1];
-    if (at !== -1 && !id) usage('--id needs a <template-id>.');
-    const [name, ...modes] = values;
+    const id = options.id?.trim();
+    if (options.id !== undefined && !id) usage('--id needs a <template-id>.');
+    const [name, ...modes] = args;
     if (!name || modes.length === 0 || modes.some((mode) => mode === ''))
       usage('bot-mode-template-save needs <name> and at least one <mode>.');
     return (await connect())('botModeTemplateSave', {

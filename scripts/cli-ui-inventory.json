@@ -315,7 +315,8 @@
         "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.default.title')}",
         "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.template.bot.title')}",
         "setting:packages/client/src/client/bot-mode-settings.tsx:{template.name}",
-        "setting:packages/client/src/client/bot-mode-settings.tsx:{modeText(mode, t).name}"
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{modeText(mode, t).name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{missingText(id)}"
       ],
       "commands": [
         "bot-modes",

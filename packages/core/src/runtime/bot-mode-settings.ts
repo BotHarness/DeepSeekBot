@@ -36,6 +36,7 @@ export interface BotModeSettings {
   templateOf(slug: string): string | undefined;
   setTemplateOf(slug: string, template: string | undefined): void;
   allowedModes(slug: string): string[] | undefined;
+  readError(): string | undefined;
 }
 
 interface StoredSettings {
@@ -109,6 +110,21 @@ function readSettings(file: string): StoredSettings {
   };
 }
 
+export function resolveBotMode(input: {
+  own: string | undefined;
+  inherited: string;
+  allowed: readonly string[] | undefined;
+  installed: ReadonlySet<string> | undefined;
+}): string {
+  if (input.own !== undefined) return input.own;
+  if (input.allowed === undefined || input.allowed.includes(input.inherited))
+    return input.inherited;
+  return (
+    input.allowed.find((mode) => input.installed === undefined || input.installed.has(mode)) ??
+    input.inherited
+  );
+}
+
 export function normalizeTemplateInput(input: { name: unknown; modes: unknown }): {
   name: string;
   modes: string[];
@@ -130,6 +146,10 @@ export function createBotModeSettings(dir: string): BotModeSettings {
   const file = join(dir, BOT_MODE_SETTINGS_FILE);
   let cached: StoredSettings | undefined;
   const current = () => (cached ??= readSettings(file));
+  const fresh = () => {
+    cached = undefined;
+    return current();
+  };
   const safe = (): StoredSettings => {
     try {
       return current();
@@ -157,7 +177,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     },
     setDefaultMode(mode) {
       if (mode !== undefined && !isBotModeId(mode)) throw new Error('invalid mode id');
-      const { defaultMode: _previous, ...rest } = current();
+      const { defaultMode: _previous, ...rest } = fresh();
       write(mode === undefined ? rest : { ...rest, defaultMode: mode });
     },
     templates() {
@@ -171,7 +191,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     },
     saveTemplate(input) {
       const { name, modes } = normalizeTemplateInput(input);
-      const state = current();
+      const state = fresh();
       const templates = state.templates ?? [];
       if (input.id !== undefined) {
         if (!templates.some((template) => template.id === input.id))
@@ -188,7 +208,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
       return { ...saved, modes: [...modes] };
     },
     deleteTemplate(id) {
-      const state = current();
+      const state = fresh();
       const botTemplates = Object.fromEntries(
         Object.entries(state.botTemplates ?? {}).filter(([, template]) => template !== id),
       );
@@ -205,7 +225,7 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     setTemplateOf(slug, template) {
       if (template !== undefined && settings.template(template) === undefined)
         throw new Error(`unknown mode template: ${template}`);
-      const state = current();
+      const state = fresh();
       const { [slug]: _previous, ...others } = state.botTemplates ?? {};
       write({
         ...state,
@@ -215,6 +235,14 @@ export function createBotModeSettings(dir: string): BotModeSettings {
     allowedModes(slug) {
       const id = settings.templateOf(slug);
       return id === undefined ? undefined : settings.template(id)?.modes;
+    },
+    readError() {
+      try {
+        current();
+        return undefined;
+      } catch (error) {
+        return (error as Error).message;
+      }
     },
   };
   return settings;

@@ -12,6 +12,8 @@ export interface BotModesDeps {
   settings: BotModeSettings;
   productDefault: string;
   roster(): Promise<BotModeOption[]>;
+  modeOf?(slug: string): string;
+  changed?(): void;
 }
 
 export interface BotModeView {
@@ -57,12 +59,16 @@ export function createBotModeBridgeMethods(deps: {
 }): BotModeBridgeMethods {
   const unavailable = () =>
     fail('modes-unavailable', 'DSH modes (Agent Presets) are unavailable on this Host.');
-  const view = async (modes: BotModesDeps, slug?: string): Promise<BotModesView> => {
+  const view = async (
+    modes: BotModesDeps,
+    slug?: string,
+    roster?: BotModeOption[],
+  ): Promise<BotModesView> => {
     const globalDefault = modes.settings.defaultMode() ?? null;
     const effectiveDefault = globalDefault ?? modes.productDefault;
     const bot = slug === undefined ? undefined : deps.registry.get(slug);
     return {
-      modes: await modes.roster(),
+      modes: roster ?? (await modes.roster()),
       productDefault: modes.productDefault,
       globalDefault,
       effectiveDefault,
@@ -73,7 +79,7 @@ export function createBotModeBridgeMethods(deps: {
             bot: {
               slug: bot.slug,
               mode: bot.preset ?? null,
-              effective: bot.preset ?? effectiveDefault,
+              effective: modes.modeOf?.(bot.slug) ?? bot.preset ?? effectiveDefault,
               template: modes.settings.templateOf(bot.slug) ?? null,
               allowed: modes.settings.allowedModes(bot.slug) ?? null,
             },
@@ -83,11 +89,12 @@ export function createBotModeBridgeMethods(deps: {
   const chosen = async (
     modes: BotModesDeps,
     value: unknown,
+    roster?: BotModeOption[],
   ): Promise<BridgeResult<string | null>> => {
     if (value === null) return { ok: true, value: null };
     if (!isBotModeId(value))
       return fail('invalid-input', 'mode must be a mode id from botModes, or null');
-    const option = (await modes.roster()).find((entry) => entry.id === value);
+    const option = (roster ?? (await modes.roster())).find((entry) => entry.id === value);
     if (option === undefined)
       return fail('mode-not-found', `No mode named ${value} is installed; read botModes.`);
     if (option.broken !== undefined)
@@ -97,6 +104,8 @@ export function createBotModeBridgeMethods(deps: {
   return {
     async botModes(payload) {
       if (deps.modes === undefined) return unavailable();
+      const unreadable = deps.modes.settings.readError();
+      if (unreadable !== undefined) return fail('settings-unreadable', unreadable);
       const slug = object(payload)['slug'];
       if (slug !== undefined && typeof slug !== 'string')
         return fail('invalid-input', 'slug must be a string');
@@ -110,6 +119,7 @@ export function createBotModeBridgeMethods(deps: {
       const mode = await chosen(modes, object(payload)['mode']);
       if (!mode.ok) return mode;
       modes.settings.setDefaultMode(mode.value ?? undefined);
+      modes.changed?.();
       return { ok: true, value: await view(modes) };
     },
     async botModeSet(payload) {
@@ -149,8 +159,9 @@ export function createBotModeBridgeMethods(deps: {
       } catch (error) {
         return fail('invalid-input', (error as Error).message);
       }
+      const roster = await modes.roster();
       for (const value of input.modes) {
-        const mode = await chosen(modes, value);
+        const mode = await chosen(modes, value, roster);
         if (!mode.ok) return mode;
       }
       if (typeof id === 'string') {
@@ -173,7 +184,8 @@ export function createBotModeBridgeMethods(deps: {
         ...(typeof id === 'string' ? { id } : {}),
         ...input,
       });
-      return { ok: true, value: await view(modes) };
+      modes.changed?.();
+      return { ok: true, value: await view(modes, undefined, roster) };
     },
     async botModeTemplateDelete(payload) {
       const modes = deps.modes;
@@ -191,6 +203,7 @@ export function createBotModeBridgeMethods(deps: {
           `Bots still use this mode template: ${users.join(', ')}. Move them to another template first.`,
         );
       modes.settings.deleteTemplate(id);
+      modes.changed?.();
       return { ok: true, value: await view(modes) };
     },
     async botModeTemplateSet(payload) {
@@ -214,6 +227,7 @@ export function createBotModeBridgeMethods(deps: {
           `This Bot uses mode ${bot.preset}, which the template leaves out. Change the Bot's mode first.`,
         );
       modes.settings.setTemplateOf(slug, template ?? undefined);
+      modes.changed?.();
       return { ok: true, value: await view(modes, slug) };
     },
   };
