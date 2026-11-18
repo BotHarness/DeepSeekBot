@@ -32,7 +32,7 @@ A **Computer** is a durable resource of the profile. Every PersonaBot of the pro
 
 **Audit** records each call's Bot, Session, role, tool, a short summary, outcome and duration. The summary never contains typed text or a screenshot: `type_text` records `chars=N`, and `verify_state` records the predicate length only.
 
-Why: a Bot's value is handing work to another Bot without repeating sign-ins or moving files. Per-Bot desktops, browser profiles, OS users or microVMs would break that handoff and still could not hide shared credentials. Per-Bot Takeover was rejected because the Human's typing would stay visible to every other Bot.
+Why: a Bot's value is handing work to another Bot without repeating sign-ins or moving files. Per-Bot desktops, browser profiles, OS users or microVMs would make every Bot sign in again and still could not hide shared credentials. Per-Bot Takeover was rejected because the Human's typing would stay visible to every other Bot.
 
 Enforced by: `packages/computer/test/computer-audit.property.test.ts` (for any arguments, no tool's audit summary contains the typed text or predicate, and `type_text` records only its length), `computer-tools.test.ts` (Access, Authorization, pause refusals), `permission-settings.test.ts`.
 
@@ -76,13 +76,13 @@ _Formerly ADR-0209, ADR-0210 and ADR-0245._
 
 - **Observation** admits a viewer without pausing Bots or granting input.
 - **Control** belongs to at most one viewer. Each grant has a fresh generation that the Host checks when an input runs, so a late input from an old grant is refused, not replayed. A lost control connection keeps its reservation for at most 30 seconds; after that, control is released and Bots stay paused.
-- **Pause** applies to every PersonaBot on the Computer and blocks their screenshots as well as their actions. Taking control first writes the pause atomically to a durable record and drains Bot calls already running; if either step fails, the Human gets no control. The pause survives control release, helper failure and Host restart, and only an explicit resume ends it. Continuous scroll is capped at 200 px/s on each axis.
+- **Pause** applies to every PersonaBot on the Computer and blocks their screenshots as well as their actions. A **Takeover** (taking control) first writes the pause atomically to a durable record and drains Bot calls already running; if either step fails, the Human gets no control. The pause survives control release, helper failure and Host restart, and only an explicit resume ends it. Continuous scroll is capped at 200 px/s on each axis.
 
 On this target the old frame, takeover and input routes refuse, so a bare `active: true` request cannot bypass the owner.
 
 **Local target on Linux.** The phone still uses the screenshot stream. `GET /api/computer/frame` long-polls single-flight captures of at most 1600 px, sent as JPEG at quality 70. `POST /api/computer/takeover` pauses every Bot and drains running calls for up to 10 seconds. `POST /api/computer/input` works only while paused. That pause is a 30-second lease renewed by polls and input.
 
-In every mode, Human input is recorded as a `computer-action` with its kind and character count, never the typed text, and frames are never stored. A Bot that needs the Human asks through the non-blocking `takeover_request` handoff with target `computer`, which requires Computer Access.
+In every mode, Human input is recorded as a `computer-action` with its kind and character count, never the typed text, and frames are never stored. A Bot that needs the Human asks with a non-blocking [Takeover Handoff](../../GLOSSARY.md) (`takeover_request` with target `computer`), which requires Computer Access.
 
 Why: a Human who is away from the desk needs to sign in or answer a captcha without installing a separate remote-desktop app. Video separates watching from controlling, so watching never pauses a Bot. A durable pause means a closed app or a crashed helper cannot hand the desktop back while the Human is typing a password. Dropping the image fallback avoids a second transport lifecycle and silent image traffic through Connect.
 
