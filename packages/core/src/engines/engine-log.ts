@@ -1,3 +1,7 @@
+import type {} from '@deepseek-ai/dsh-session-title';
+import { inboundSessionTitle } from '../runtime/inbound-envelope.js';
+import { isSessionActivityName } from '../state/tool-activity.js';
+
 import {
   type ContentBlock,
   createAssistantMessage,
@@ -35,15 +39,29 @@ export class EngineTurnLog {
   constructor(target: EngineLogTarget, engine: EngineId, account: string, input: string) {
     this.#target = target;
     this.#source = { provider: engine, model: account };
-    this.#turn = nextTurnNumber(target.session.snapshotEvents());
+    const events = target.session.snapshotEvents();
+    this.#turn = nextTurnNumber(events);
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
-    session.append(
+    const message = session.append(
       'user/message',
       createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
       { surfaceOp: 'append' },
     );
+    if (
+      !events.some(
+        (event) => event.type === 'session/title' && isSessionActivityName(event.data.title),
+      )
+    ) {
+      const title = inboundSessionTitle(input);
+      if (isSessionActivityName(title))
+        session.append('session/title', {
+          title,
+          messageSeqs: [message.seq],
+          source: { kind: 'fallback' },
+        });
+    }
   }
 
   get turn(): number {

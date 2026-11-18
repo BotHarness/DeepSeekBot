@@ -18,6 +18,7 @@ import type {
   SessionToolDetail,
   SessionTranscript,
   SessionTranscriptItem,
+  SessionTranscriptEnvelope,
   SessionTranscriptTrigger,
 } from './bridge.js';
 import { ChannelComposer } from './channel-composer.js';
@@ -101,6 +102,14 @@ const TRIGGER_ICONS: Record<SessionTranscriptTrigger, string> = {
   plugin: 'plug',
 };
 
+const ENVELOPE_ICONS: Record<SessionTranscriptEnvelope['kind'], string> = {
+  'human-dm': 'message-square',
+  group: 'hash',
+  'bot-dm': 'bot',
+  inbox: 'inbox',
+  other: 'inbox',
+};
+
 const styles = stylex.create({
   root: {
     position: 'relative',
@@ -152,6 +161,17 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   center: { textAlign: 'center' },
+  envelope: {
+    alignSelf: 'flex-end',
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x1,
+    marginTop: space.x3,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  afterEnvelope: { marginTop: space.x1 },
   input: {
     alignSelf: 'flex-end',
     maxWidth: '88%',
@@ -537,16 +557,27 @@ function InputBlock({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
-  if (item.source === 'user')
-    return (
+  if (item.source === 'user') {
+    const bubble = (
       <div
         data-transcript="input"
         data-quote-source={quoteSourceId(sessionId, block.key)}
-        {...stylex.props(styles.input)}
+        {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
       >
         <MessageMarkdown text={item.text} t={t} />
       </div>
     );
+    if (item.envelope === undefined) return bubble;
+    return (
+      <>
+        <span data-transcript-envelope={item.envelope.kind} {...stylex.props(styles.envelope)}>
+          <ChannelSidebarIcon name={ENVELOPE_ICONS[item.envelope.kind]} size={12} />
+          {t(`sessions.detail.envelope.${item.envelope.kind}`)}
+        </span>
+        {bubble}
+      </>
+    );
+  }
   const trigger = item.trigger ?? 'request';
   const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
   return (

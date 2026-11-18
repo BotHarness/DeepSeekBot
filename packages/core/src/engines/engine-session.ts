@@ -1,5 +1,9 @@
 export type EngineId = 'codex';
 
+export const ENGINE_DEFINITIONS = {
+  codex: { displayName: 'Codex' },
+} satisfies Record<EngineId, { displayName: string }>;
+
 export const ENGINE_IDS: readonly EngineId[] = ['codex'];
 
 export function isEngineId(value: unknown): value is EngineId {

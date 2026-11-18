@@ -481,6 +481,20 @@ function DmComposerContextView({
           : 'composerContext.noModel',
     );
   const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
+  const runner = bot.orchestratorRunner;
+  const runnerBrand =
+    runner === undefined
+      ? undefined
+      : modelBrand({ provider: runner.engine, model: runner.engine, name: runner.displayName });
+  const runnerLabel =
+    runner === undefined
+      ? ''
+      : runner.account === undefined
+        ? t('composerContext.runner', { engine: runner.displayName })
+        : t('composerContext.runnerAccount', {
+            engine: runner.displayName,
+            account: runner.account,
+          });
   const currentEntry = models.find(
     (entry) => entry.provider === route?.provider && entry.model === route?.model,
   );
@@ -550,22 +564,36 @@ function DmComposerContextView({
           />
         }
       >
-        <ChipButton
-          data-composer-chip="model"
-          collapseLabel
-          icon={<ModelBrandIcon brand={brand} />}
-          label={modelChipLabel}
-          title={group === undefined ? modelLabel : `${group.name} · ${modelLabel}`}
-          ref={modelTrigger}
-          onClick={() =>
-            modelStatus === 'unavailable' || models.length === 0
-              ? onOpen('model')
-              : setModelMenuOpen((open) => !open)
-          }
-          aria-haspopup="dialog"
-          aria-expanded={modelMenuOpen}
-          aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
-        />
+        {runner === undefined ? (
+          <ChipButton
+            data-composer-chip="model"
+            collapseLabel
+            icon={<ModelBrandIcon brand={brand} />}
+            label={modelChipLabel}
+            title={group === undefined ? modelLabel : `${group.name} · ${modelLabel}`}
+            ref={modelTrigger}
+            onClick={() =>
+              modelStatus === 'unavailable' || models.length === 0
+                ? onOpen('model')
+                : setModelMenuOpen((open) => !open)
+            }
+            aria-haspopup="dialog"
+            aria-expanded={modelMenuOpen}
+            aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
+          />
+        ) : (
+          <ChipButton
+            data-composer-chip="model"
+            data-runner={runner.engine}
+            collapseLabel
+            icon={<ModelBrandIcon brand={runnerBrand} />}
+            label={runner.displayName}
+            title={runnerLabel}
+            tabIndex={-1}
+            disabled
+            aria-label={`${t('entry.model')} · ${bot.displayName} · ${runnerLabel}`}
+          />
+        )}
         {avgPerf === undefined ? null : (
           <ChipButton
             data-composer-chip="avg-perf"

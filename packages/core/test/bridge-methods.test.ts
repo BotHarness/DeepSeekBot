@@ -1,3 +1,7 @@
+import { EngineHost } from '../src/engines/engine-host.js';
+import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { createEngineGateway } from '../src/engines/engine-gateway.js';
+import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
@@ -4216,4 +4220,76 @@ it('projects current network contact facts without persisting them in the Channe
   const result = await methods.channels({});
   expect(result.ok && result.value.channels[0]).not.toHaveProperty('remoteContact');
   expect(result.ok && result.value.channels[0]?.remoteAvailability).toBe('withdrawn');
+});
+
+it('returns the live Orchestrator runner through list and detail after engine use and none', async () => {
+  const f = setup();
+  f.registry.create({ slug: 'ada', displayName: 'Ada' });
+  f.registry.create({ slug: 'eve', displayName: 'Eve' });
+  const notifications: unknown[] = [];
+  const host = new EngineHost({
+    root: join(f.root, 'engines'),
+    local: true,
+    gateway: createEngineGateway(),
+    sessions: () => undefined,
+    persistence: () => undefined,
+    changed: () => notifications.push(methods.list({})),
+  });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+    registry: f.registry,
+    states: f.states,
+    channels: f.channels,
+    ownership: createTestOwnership(),
+    roster: createTestRosterStore(),
+    orchestratorRunner: (slug) => host.orchestratorRunner(slug),
+  });
+  const use = (engine: string | null) =>
+    engineRouteFetch(
+      new Request('http://host/api/botharness/engines', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'use', bot: 'ada', role: 'orchestrator', engine }),
+      }),
+      { host, botExists: (slug) => f.registry.get(slug) !== undefined },
+    );
+  const bots = () => {
+    const result = methods.list({});
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value.bots;
+  };
+  try {
+    expect(bots().every((bot) => !('orchestratorRunner' in bot))).toBe(true);
+    expect((await use('codex')).status).toBe(200);
+    const runner = { engine: 'codex', displayName: 'Codex' };
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', runner);
+    expect(bots().find((bot) => bot.slug === 'eve')).not.toHaveProperty('orchestratorRunner');
+    expect(methods.get({ slug: 'ada' })).toMatchObject({
+      ok: true,
+      value: { bot: { orchestratorRunner: runner } },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      value: { bots: [expect.objectContaining({ orchestratorRunner: runner }), expect.anything()] },
+    });
+    host.store.rememberAccount('ada', 'codex', 'ChatGPT Plus');
+    host.store.rememberAccount('eve', 'codex', 'ChatGPT Pro');
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', {
+      ...runner,
+      account: 'ChatGPT Plus',
+    });
+    expect(
+      createEngineStore(engineStorePath(join(f.root, 'engines'))).account('ada', 'codex'),
+    ).toBe('ChatGPT Plus');
+    expect((await use(null)).status).toBe(200);
+    expect(bots().find((bot) => bot.slug === 'ada')).not.toHaveProperty('orchestratorRunner');
+    expect(methods.get({ slug: 'ada' })).not.toHaveProperty('value.bot.orchestratorRunner');
+    expect(notifications).toHaveLength(2);
+    expect(await use('codex')).toHaveProperty('status', 200);
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', {
+      ...runner,
+      account: 'ChatGPT Plus',
+    });
+  } finally {
+    await host.close();
+  }
 });

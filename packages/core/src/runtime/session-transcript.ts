@@ -2,6 +2,7 @@ import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import { type InboundEnvelope, parseInboundEnvelope } from './inbound-envelope.js';
 import { isPublicToolDetail } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
@@ -24,6 +25,12 @@ export interface SessionTurnUsage {
   outputMs: number;
 }
 
+export interface SessionTranscriptEnvelope {
+  kind: InboundEnvelope['kind'];
+  channelId?: string;
+  messageId?: string;
+}
+
 export type SessionTranscriptItem =
   | {
       kind: 'input';
@@ -33,6 +40,7 @@ export type SessionTranscriptItem =
       source: 'user' | 'system';
       trigger?: SessionTranscriptTrigger;
       origin?: 'session-detail';
+      envelope?: SessionTranscriptEnvelope;
     }
   | { kind: 'reply'; text: string; at: string }
   | { kind: 'reasoning'; text: string; at: string; durationMs?: number }
@@ -256,15 +264,25 @@ export function summarizeSessionTranscript(input: {
       const direct = sessionDirectBody(raw);
       const text = direct === undefined ? clip(raw).replace(HOST_BLOCK, '').trim() : clip(direct);
       const human = direct !== undefined || kind === undefined || kind === 'user';
+      const parsed = direct === undefined && human ? parseInboundEnvelope(text) : undefined;
+      const envelope =
+        parsed === undefined || parsed.body.trim() === ''
+          ? undefined
+          : {
+              kind: parsed.kind,
+              ...(parsed.channelId === undefined ? {} : { channelId: parsed.channelId }),
+              ...(parsed.messageId === undefined ? {} : { messageId: parsed.messageId }),
+            };
       if (text !== '')
         items.push({
           kind: 'input',
-          text,
+          text: envelope === undefined ? text : parsed!.body.trim(),
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',
           ...(human ? {} : { trigger: transcriptTrigger(source) }),
           ...(direct === undefined ? {} : { origin: 'session-detail' as const }),
+          ...(envelope === undefined ? {} : { envelope }),
         });
     } else if (event.type === 'assistant/message') {
       const parts = blocks(data);

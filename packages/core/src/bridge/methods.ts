@@ -1,3 +1,4 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
 import {
   assertQuoteTargets,
@@ -604,9 +605,10 @@ export interface ActivityOverview {
 
 export type SharedBotSummary = ReturnType<
   import('../team/bots.js').TeamBots['sharedRoster']
->[number];
+>[number] & { orchestratorRunner?: OrchestratorRunner };
 
 export interface PersonaBotSummary {
+  orchestratorRunner?: OrchestratorRunner;
   modelAllowed?: boolean;
   ownerHumanId?: string;
   owner?: boolean;
@@ -1470,6 +1472,7 @@ export interface BridgeMethodsDeps {
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
+  orchestratorRunner?(botSlug: string): OrchestratorRunner | undefined;
   describeEngineSession?(
     sessionId: string,
   ): { engine: string; account?: string; state: 'starting' | 'running' | 'idle' } | undefined;
@@ -2994,9 +2997,14 @@ function buildBridgeMethods(
     }
   };
   const createBotId = deps.createBotId ?? (() => 'bot-' + randomUUID().replaceAll('-', ''));
+  const runnerOf = (slug: string) => {
+    const orchestratorRunner = deps.orchestratorRunner?.(slug);
+    return orchestratorRunner === undefined ? {} : { orchestratorRunner };
+  };
   const detailOf = (record: PersonaBotRecord): { bot: PersonaBotDetail } => ({
     bot: {
       ...detail(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+      ...runnerOf(record.slug),
       ownerHumanId: botOwner(record),
       owner: botOwner(record) === human.humanId,
       ...(botOwner(record) !== human.humanId || deps.team?.bots.hasForeignDms(human, record.slug)
@@ -4974,6 +4982,7 @@ function buildBridgeMethods(
         })
         .map((record) => ({
           ...summarize(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
+          ...runnerOf(record.slug),
           ...(deps.team ? { modelAllowed: allowed(record) } : {}),
           ownerHumanId: botOwner(record),
           owner: botOwner(record) === human.humanId,
@@ -4996,7 +5005,8 @@ function buildBridgeMethods(
               !query ||
               bot.displayName.toLowerCase().includes(query) ||
               bot.slug.toLowerCase().includes(query),
-          ) ?? [];
+          )
+          .map((bot) => ({ ...bot, ...runnerOf(bot.slug) })) ?? [];
       return { ok: true, value: { bots: [...bots, ...shared] } };
     },
     channelActivityToday() {

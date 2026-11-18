@@ -1075,7 +1075,9 @@ deepseekbot engine use <bot> codex --role orchestrator
 deepseekbot engine use <bot> none --role orchestrator
 ```
 
-`engine list` 返回 `{engines: [{engine, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（`chatgpt`、`api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out` 或 `not-subscription`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，返回 `{engine, started, url?}`；在浏览器里用 ChatGPT 账号完成登录。`engine use` 返回 `{bot, role, engine}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受 ChatGPT 订阅（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。引擎通过本机 MCP 网关调用 `bot_send_message` 和 `channel_read`，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+`engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（`chatgpt`、`api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out` 或 `not-subscription`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，返回 `{engine, started, url?}`；在浏览器里用 ChatGPT 账号完成登录。`engine use` 返回 `{bot, role, engine}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受 ChatGPT 订阅（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。引擎通过本机 MCP 网关调用 `bot_send_message` 和 `channel_read`，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+
+`list` 的 Bot 摘要通过 `orchestratorRunner: {engine, displayName, account?}` 返回选中的 Orchestrator 引擎；Host 提供名称和最近已知的账号标签，使用 DSH 模型时省略此字段。
 
 ### 桌面在线状态
 

@@ -1,3 +1,5 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
+
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -17,6 +19,7 @@ import {
 import type { EngineGateway, EngineGatewayTool, EngineGrant } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
+  ENGINE_DEFINITIONS,
   type EngineAccount,
   type EngineId,
   type EngineSession,
@@ -61,6 +64,7 @@ export interface EngineSessionDescription {
 }
 
 export interface EngineStatusReport {
+  displayName: string;
   engine: EngineId;
   available: boolean;
   reason?: 'host-not-local' | 'not-installed' | 'signed-out' | 'not-subscription' | 'login-unknown';
@@ -77,6 +81,8 @@ export interface EngineHostOptions {
   gateway: EngineGateway;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
+  sessionIdsForBot?(botSlug: string): readonly string[];
+  changed?(): void;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState): void;
   releaseGraceMs?: number;
   openCodex?(options: CodexProcessOptions): CodexTransport;
@@ -112,6 +118,7 @@ export class EngineHost {
   readonly #live = new Map<string, LiveEngineSession>();
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
   readonly #states = new Map<string, EngineSessionDescription>();
+  readonly #legacyAccounts = new Map<string, { engine: EngineId; account: string | undefined }>();
   #closed = false;
   readonly #releasing = new Map<string, Promise<void>>();
   readonly #cancels = new Map<string, () => void>();
@@ -145,6 +152,39 @@ export class EngineHost {
         'Subscription Engines run only on a local Host',
       );
     this.store.select(botSlug, role, engine);
+    this.#options.changed?.();
+  }
+
+  orchestratorRunner(botSlug: string): OrchestratorRunner | undefined {
+    const engine = this.engineFor(botSlug);
+    if (engine === undefined) return undefined;
+    const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
+    return {
+      engine,
+      displayName: ENGINE_DEFINITIONS[engine].displayName,
+      ...(account === undefined ? {} : { account }),
+    };
+  }
+
+  #previousAccount(botSlug: string, engine: EngineId): string | undefined {
+    const cached = this.#legacyAccounts.get(botSlug);
+    if (cached?.engine === engine) return cached.account;
+    let account: string | undefined;
+    for (const id of this.#options.sessionIdsForBot?.(botSlug) ?? []) {
+      const session = this.store.nativeSession(id);
+      if (session?.engine === engine && session.account !== undefined) {
+        account = session.account;
+        break;
+      }
+    }
+    this.#legacyAccounts.set(botSlug, { engine, account });
+    return account;
+  }
+
+  #rememberAccount(botSlug: string, engine: EngineId, account: string): void {
+    if (this.store.account(botSlug, engine) === account) return;
+    this.store.rememberAccount(botSlug, engine, account);
+    this.#options.changed?.();
   }
 
   describe(sessionId: string): EngineSessionDescription | undefined {
@@ -174,6 +214,7 @@ export class EngineHost {
     return [
       {
         engine: 'codex',
+        displayName: ENGINE_DEFINITIONS.codex.displayName,
         available: reason === undefined,
         ...(reason === undefined ? {} : { reason }),
         installed: detected.installed,
@@ -219,6 +260,7 @@ export class EngineHost {
       } else if (!request.signal.aborted) {
         if (!accountChecked) live.account = requireSubscription(await live.engine.account());
         if (request.signal.aborted) return;
+        this.#rememberAccount(request.botSlug, engine, live.account);
         const stop = new AbortController();
         live.stop = stop;
         const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
@@ -383,6 +425,7 @@ export class EngineHost {
           : new EngineRefusal('engine-failed', `Codex did not start: ${message}`);
       });
       const label = requireSubscription(account);
+      this.#rememberAccount(botSlug, opened.engine, label);
       const stored = this.store.nativeSession(sessionId);
       let nativeId: string;
       try {

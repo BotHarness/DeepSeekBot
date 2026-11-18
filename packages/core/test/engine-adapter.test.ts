@@ -106,6 +106,7 @@ it('drives engine list, status, login and use through the Host engine route', as
               engines: [
                 {
                   engine: 'codex',
+                  displayName: 'Codex',
                   available: false,
                   reason: 'signed-out',
                   installed: true,
@@ -122,7 +123,7 @@ it('drives engine list, status, login and use through the Host engine route', as
   }));
   const connect = async () => ({ http });
   expect(await runEngineCommand('engine-list', [], {}, connect)).toEqual({
-    engines: [{ engine: 'codex', available: false, reason: 'signed-out' }],
+    engines: [{ engine: 'codex', displayName: 'Codex', available: false, reason: 'signed-out' }],
   });
   expect(await runEngineCommand('engine-status', [], {}, connect)).toMatchObject({
     selections: [],

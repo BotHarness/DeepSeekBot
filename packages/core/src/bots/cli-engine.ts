@@ -74,6 +74,7 @@ export async function runEngineCommand(
       return {
         engines: engines.map((engine) => ({
           engine: engine['engine'],
+          displayName: engine['displayName'],
           available: engine['available'],
           ...(engine['reason'] === undefined ? {} : { reason: engine['reason'] }),
         })),
