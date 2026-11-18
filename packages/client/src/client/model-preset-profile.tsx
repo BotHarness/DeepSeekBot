@@ -33,6 +33,7 @@ import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
+import { savePresetStyles } from './model-preset-save-styles.js';
 import {
   assignmentChoice,
   draftOf,
@@ -64,13 +65,6 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: color.divider,
   },
-  savePreset: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-  },
-  grow: { flexGrow: 1, minWidth: 0 },
 });
 
 export function ModelPresetProfile({
@@ -955,8 +949,8 @@ export function ModelPresetProfile({
                   />
                   {taskEditor}
                   {presetName !== undefined && (
-                    <div {...stylex.props(styles.savePreset)}>
-                      <span {...stylex.props(styles.grow)}>
+                    <div {...stylex.props(savePresetStyles.row)}>
+                      <span {...stylex.props(savePresetStyles.grow)}>
                         <Input
                           aria-label={t('modelPreset.name')}
                           placeholder={t('modelPreset.name')}
