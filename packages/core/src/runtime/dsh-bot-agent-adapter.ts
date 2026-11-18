@@ -47,6 +47,7 @@ import type { InboxOpenFilter } from './inbox-triage.js';
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import {
+  assignmentGroupOptionOf,
   assignmentModelsOf,
   type ModelRoute,
   type PersonaBotModelPlan,
@@ -1742,7 +1743,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1765,11 +1766,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             const until = members.map((member) =>
               'restingUntil' in member ? member.restingUntil : undefined,
             );
+            const front = members.find((member) => !('restingUntil' in member));
+            const option = assignmentGroupOptionOf(plan, id);
             return [
               {
                 group: id,
                 name: group.name,
                 ...(isDefault ? { default: true } : {}),
+                ...(option?.note === undefined ? {} : { note: option.note }),
+                ...(front === undefined
+                  ? {}
+                  : { front: { provider: front.provider, model: front.model } }),
+                ...(option?.allowedEfforts === undefined
+                  ? {}
+                  : { efforts: option.allowedEfforts, defaultEffort: option.defaultEffort }),
                 members,
                 ...(until.length > 0 && until.every((value) => value !== undefined)
                   ? { restingUntil: until.sort()[0] }
@@ -1860,7 +1870,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           reasoning_effort: {
             type: 'string',
             description:
-              'Optional allowed effort for the selected model; omitted uses that model’s Human-selected default. Pass an empty string to select the provider default when allowed.',
+              'Optional allowed effort for the selected model, or for the selected Routing Group when list_assignment_models gives it efforts; omitted uses the Human-selected default. Pass an empty string to select the provider default when allowed.',
           },
           group: {
             type: 'string',
@@ -1907,8 +1917,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
-          if (args.reasoning_effort !== undefined && args.provider === undefined)
-            throw new Error('create_assignment: reasoning_effort requires provider and model');
+          if (args.reasoning_effort !== undefined && args.provider === undefined) {
+            if (groupId === undefined)
+              throw new Error('create_assignment: reasoning_effort requires provider and model');
+            const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
+            if (!allowed.includes(args.reasoning_effort))
+              throw new Error(
+                `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+              );
+          }
+          const groupEffort =
+            groupId === undefined
+              ? undefined
+              : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
+          if (picked !== undefined && groupEffort !== undefined)
+            picked = { ...picked, reasoningEffort: groupEffort };
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,

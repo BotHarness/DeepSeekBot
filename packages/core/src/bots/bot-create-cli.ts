@@ -446,6 +446,9 @@ Models:
   --assignment-models open lets Assignments and Subagents use any model the Bot
   owner may use whose provider has an API key; listed (the default) keeps them to
   the Assignment model list. The Assignment default is still required.
+  --plan-stdin may give assignmentGroupOptions for Assignment Routing Groups:
+  [{group, allowedEfforts?, defaultEffort?, note?}]. A group may offer only the
+  effort levels every member supports.
 
 Memory:
   memory-snapshot/file/history/diff read the bot memory store; memory-save

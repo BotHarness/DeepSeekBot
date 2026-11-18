@@ -111,6 +111,7 @@ import { readFileSync, statSync } from 'node:fs';
 import {
   isAssignmentModelChoice,
   isModelRoute,
+  assignmentGroupOptionOf,
   selectAssignmentGroup,
   selectAssignmentRoute,
   type ModelRoute,
@@ -11412,8 +11413,16 @@ class BotRuntimeImplementation implements BotRuntime {
     const current = row === undefined ? undefined : modelRouteFromRow(row);
     if (groupId == null || current === undefined || this.#groupFallback === undefined)
       return current;
-    const picked = await this.#groupFallback.pick(botSlug, groupId);
-    if (picked.kind !== 'route' || sameModelRoute(picked.route, current)) return current;
+    const pick = await this.#groupFallback.pick(botSlug, groupId);
+    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
+    const kept = assignmentGroupOptionOf(
+      this.#registry.get(botSlug)?.modelPlan,
+      groupId,
+    )?.allowedEfforts?.includes(current.reasoningEffort ?? '');
+    const picked = {
+      ...pick,
+      route: kept ? { ...pick.route, reasoningEffort: current.reasoningEffort! } : pick.route,
+    };
     const rest = this.#routeRests?.restingUntil(current);
     const at = this.#now().toISOString();
     this.#database.transaction(
