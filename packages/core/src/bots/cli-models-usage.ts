@@ -302,7 +302,12 @@ export async function runModelsUsage(
   if (command === 'home-model-set') {
     const group = values.group?.trim();
     if (values.group !== undefined && !group) usage('--group must not be empty.');
-    if (group && (values.provider || values.model || values['orchestrator-effort']))
+    if (
+      group &&
+      (values.provider !== undefined ||
+        values.model !== undefined ||
+        values['orchestrator-effort'] !== undefined)
+    )
       usage('Use either --group or --provider/--model.');
     if (!group && (!values.provider || !values.model))
       usage('home-model-set requires --provider and --model, or --group.');

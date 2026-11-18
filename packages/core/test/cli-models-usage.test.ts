@@ -672,6 +672,10 @@ it('configures the Home native default with its actual revision and reasoning ef
     },
   ]);
   expect((await invoke(['home-model-set'], live.url)).json.error.code).toBe('usage');
+  expect(
+    (await invoke(['home-model-set', '--group', 'daily', '--provider', ''], live.url)).json.error
+      .code,
+  ).toBe('usage');
 });
 it('forwards explicit native default and preset target revisions', async () => {
   const live = await host(() => ({ ok: true, value: { revision: 9 } }));

@@ -12,6 +12,7 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import { MethodRefused } from '@botharness/host-client/client';
 import type { StorageCleanupPreview, StorageUsage } from '@botharness/host-client/storage';
 import { StorageSettings, type StorageSettingsPort } from '../src/ui/storage-settings';
@@ -193,6 +194,22 @@ describe('Storage settings', () => {
     expect(storage.confirm).toHaveBeenCalledWith(expect.objectContaining({ token: 'reviewed' }));
     expect(notices(view, 'success')).toEqual([t.storage.done(3, '4.0 MB')]);
     expect(storage.usage).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops the old total and shows the error when the read-back after a cleanup fails', async () => {
+    const storage = port({
+      usage: vi
+        .fn()
+        .mockResolvedValueOnce(usage)
+        .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed')),
+    });
+    const view = await render(<StorageSettings port={storage} />);
+    expect(view.textContent).toContain(t.storage.total('8.0 MB'));
+    await press(view, t.storage.clear);
+    await choose(t.storage.confirm);
+    expect(storage.usage).toHaveBeenCalledTimes(2);
+    expect(view.textContent).not.toContain(t.storage.total('8.0 MB'));
+    expect(view.textContent).toContain(t.loadFailed);
   });
 
   it('says when the Host refuses a preview that changed, and clears the image cache', async () => {

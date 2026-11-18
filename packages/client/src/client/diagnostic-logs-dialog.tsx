@@ -287,6 +287,7 @@ export function DiagnosticLogsDialog({
       <div ref={mount} {...stylex.props(styles.toolbar)}>
         <SegmentedControl
           id={id}
+          controlsPanel
           label={t('diagnosticLogs.filter')}
           value={filter}
           options={(Object.keys(FILTERS) as DiagnosticLogFilter[]).map((value) => ({

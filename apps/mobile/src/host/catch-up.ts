@@ -1,8 +1,6 @@
-import type { CachedChanges } from '@botharness/host-client/conversation';
+import { readChannelChanges, wireMessage } from '@botharness/host-client/channel-messages';
 import { applyStoredChanges } from './local-conversation-cache';
 import type { LocalStore } from '@botharness/host-client/local-store';
-
-type ChangePage = { reset: true } | (CachedChanges & { reset?: never; hasMore: boolean });
 
 export interface CatchUpOptions {
   store(hostId: string): Promise<LocalStore>;
@@ -30,11 +28,7 @@ export function createCatchUp(options: CatchUpOptions) {
         [channelId],
       );
       if (cursor === undefined) return;
-      const pulled = (await host.call('channelChanges', {
-        channelId,
-        sinceSeq: cursor.seq,
-        epoch: cursor.epoch,
-      })) as ChangePage;
+      const pulled = await readChannelChanges(host, channelId, cursor, wireMessage);
       if (pulled.reset) return;
       await db.write((tx) => applyStoredChanges(tx, channelId, pulled));
       if (!pulled.hasMore) return;

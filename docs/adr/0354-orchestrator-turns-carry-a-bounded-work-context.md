@@ -6,7 +6,7 @@ Issues: [#4405](https://github.com/BotHarness/DeepSeekBot/issues/4405)
 
 # Orchestrator turns carry a bounded work context
 
-> Amends [ADR-0045](0045-orchestrator-manages-assignments-through-a-durable-directory.md): BotHarness now adds a short, bounded summary of active Workspace Grants and unarchived Assignments to an Orchestrator turn when that summary changed.
+> Amends [ADR-0045](../decisions/sessions.md#adr-0045): BotHarness now adds a short, bounded summary of active Workspace Grants and unarchived Assignments to an Orchestrator turn when that summary changed.
 
 ADR-0045 kept the Assignment Directory out of every Orchestrator turn so that context would not grow without bound, and left inventory to `list_assignments` and `list_workspace_grants`. Once the coordination Prompt Part made the Orchestrator delegate all real work (#4405), every dispatch began with those two lookups. A real-model eval measured three to four serial model calls, 12 to 18 seconds, before the first Assignment started, almost all of it model reasoning spent on the lookups.
 
