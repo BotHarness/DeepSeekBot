@@ -19,6 +19,7 @@ export function memoryDsh(): {
   const live = new Map<string, Session>();
   const stored = new Map<string, { header: SessionHeader; events: SessionEvent[] }>();
   const writers = new Map<string, EngineSessionHandle>();
+  const routed = new Map<string, number>();
   const handle = (id: string): EngineSessionHandle => {
     const entry = stored.get(id)!;
     return {
@@ -26,6 +27,12 @@ export function memoryDsh(): {
       inheritedEventCount: SessionLogOffset(0),
       read: async () => ({ events: structuredClone(entry.events), eventState: 'detached' }),
       append: async (events) => {
+        events.forEach((event, index) => {
+          if (Number(event.seq) !== entry.events.length + index)
+            throw new Error(
+              `append seq mismatch: expected ${entry.events.length + index}, got ${event.seq}`,
+            );
+        });
         entry.events.push(...structuredClone(events));
       },
       close: async () => undefined,
@@ -46,6 +53,7 @@ export function memoryDsh(): {
             ),
       enter: (session) => {
         live.set(session.id, session);
+        routed.set(session.id, Number(session.seq));
         return () => live.delete(session.id);
       },
       announce: () => undefined,
@@ -53,8 +61,9 @@ export function memoryDsh(): {
       flush: async (session) => {
         const writer = writers.get(session.id);
         if (writer === undefined) return false;
-        const from = stored.get(session.id)!.events.length;
+        const from = routed.get(session.id) ?? 0;
         await writer.append(session.snapshotEvents(SessionLogOffset(from)));
+        routed.set(session.id, Number(session.seq));
         return true;
       },
     },

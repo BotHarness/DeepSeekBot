@@ -5,7 +5,7 @@ import {
   type SessionEvent,
   type SessionHeader,
   SessionId,
-  type SessionLogOffset,
+  SessionLogOffset,
   type SessionSeedEventState,
 } from '@deepseek-ai/dsh-session';
 
@@ -57,12 +57,17 @@ export async function openEngineDshSession(
       const stored = await handle.read();
       const closers = interruptedTurnClosers(stored.events);
       if (closers.length > 0) await handle.append(closers);
+      const seed = [...stored.events, ...closers];
       session = store.prepare(id, {
-        seed: [...stored.events, ...closers],
+        seed,
         meta: structuredClone(handle.header),
         inheritedEventCount: handle.inheritedEventCount,
         eventState: stored.eventState,
       });
+      const marker = session.snapshotEvents(
+        SessionLogOffset(seed.length > 0 ? Number(seed.at(-1)!.seq) + 1 : 0),
+      );
+      if (marker.length > 0) await handle.append(marker);
     } else {
       session = store.prepare(id, { meta: { cwd } });
       handle = await persistence.create(session.header, {
