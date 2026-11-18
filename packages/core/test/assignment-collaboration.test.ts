@@ -788,6 +788,33 @@ describe('Assignment collaboration', () => {
     }
   });
 
+  it('batches completions from different requests while another Assignment runs', async () => {
+    const { agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        run.assignments.create({ title: 'Job', grantId: TEST_GRANT_ID, description: 'Job' });
+      };
+      await admit('First job', 'digest-first');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(1));
+      await admit('Second job', 'digest-second');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
   it('does not hold a blocked Report for a sibling Assignment', async () => {
     const { runtime, agents, admit, close } = await setup();
     try {

@@ -120,6 +120,7 @@ import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
+  DEFAULT_GROUP_WAKE_POLICY,
   dmChannelId,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -1399,7 +1400,8 @@ export function queryAssignmentDirectory(
   };
 }
 
-const SIBLING_REPORT_HOLD_MS = 15_000;
+const COMPLETION_DIGEST_COUNT = DEFAULT_GROUP_WAKE_POLICY.count;
+const COMPLETION_DIGEST_MS = DEFAULT_GROUP_WAKE_POLICY.intervalSeconds * 1000;
 
 function onlyPairedLifecycle(unit: InboxUnit): boolean {
   return (
@@ -1713,7 +1715,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #steerSettlements = new Set<Promise<void>>();
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
-  readonly #siblingHoldTimers = new Map<string, NodeJS.Timeout>();
+  readonly #completionDigestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
   readonly #autoContinues = new Map<string, PendingAutoContinue>();
   readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
@@ -3611,25 +3613,25 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleReportHarvest(botSlug: string): boolean {
-    if (!this.#waitsForSiblings(botSlug)) {
-      const prior = this.#siblingHoldTimers.get(botSlug);
+    if (!this.#holdsCompletionDigest(botSlug)) {
+      const prior = this.#completionDigestTimers.get(botSlug);
       if (prior !== undefined) clearTimeout(prior);
-      this.#siblingHoldTimers.delete(botSlug);
+      this.#completionDigestTimers.delete(botSlug);
       this.#scheduleHarvest(botSlug);
       return true;
     }
-    if (!this.#siblingHoldTimers.has(botSlug)) {
+    if (!this.#completionDigestTimers.has(botSlug)) {
       const timer = setTimeout(() => {
-        this.#siblingHoldTimers.delete(botSlug);
+        this.#completionDigestTimers.delete(botSlug);
         this.#scheduleHarvest(botSlug);
-      }, SIBLING_REPORT_HOLD_MS);
+      }, COMPLETION_DIGEST_MS);
       timer.unref();
-      this.#siblingHoldTimers.set(botSlug, timer);
+      this.#completionDigestTimers.set(botSlug, timer);
     }
     return false;
   }
 
-  #waitsForSiblings(botSlug: string): boolean {
+  #holdsCompletionDigest(botSlug: string): boolean {
     return this.#database.read((database) => {
       const rows = database
         .prepare(
@@ -3660,22 +3662,18 @@ class BotRuntimeImplementation implements BotRuntime {
         )
       )
         return false;
+      if (rows.length >= COMPLETION_DIGEST_COUNT) return false;
       const sessions = [...new Set(rows.map((row) => row.session_id!))];
-      const placeholders = sessions.map(() => '?').join(', ');
-      const sibling = database
+      const other = database
         .prepare(
-          `SELECT 1 FROM request_assignments mine
-             JOIN request_assignments sib
-               ON sib.request_source_event_id = mine.request_source_event_id
-             JOIN assignments s ON s.session_id = sib.session_id
-            WHERE mine.session_id IN (${placeholders})
-              AND sib.session_id NOT IN (${placeholders})
-              AND s.bot_slug = ? AND s.activity = 'working' AND s.stop_state = 'running'
-              AND s.archived_at IS NULL
+          `SELECT 1 FROM assignments
+            WHERE bot_slug = ? AND activity = 'working' AND stop_state = 'running'
+              AND archived_at IS NULL
+              AND session_id NOT IN (${sessions.map(() => '?').join(', ')})
             LIMIT 1`,
         )
-        .get(...sessions, ...sessions, botSlug);
-      return sibling !== undefined;
+        .get(botSlug, ...sessions);
+      return other !== undefined;
     });
   }
 
@@ -6459,8 +6457,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#typingAssignments.clear();
     for (const timer of this.#digestTimers.values()) clearTimeout(timer);
     this.#digestTimers.clear();
-    for (const timer of this.#siblingHoldTimers.values()) clearTimeout(timer);
-    this.#siblingHoldTimers.clear();
+    for (const timer of this.#completionDigestTimers.values()) clearTimeout(timer);
+    this.#completionDigestTimers.clear();
     for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
     this.#snoozeTimers.clear();
     for (const pending of this.#autoContinues.values()) clearTimeout(pending.timer);
