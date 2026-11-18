@@ -25,6 +25,7 @@ import type {
 import { errorMessage } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
 import { EngineChoice } from './engine-choice.js';
+import { isOriginActions } from './origin-actions.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space } from './ds/tokens.stylex.js';
@@ -951,7 +952,6 @@ export function ModelPresetProfile({
                     disabled={busy}
                     t={t}
                   />
-                  <EngineChoice slug={slug} role="orchestrator" t={t} />
                   {taskEditor}
                   {presetName !== undefined && (
                     <div {...stylex.props(styles.savePreset)}>
@@ -989,6 +989,9 @@ export function ModelPresetProfile({
               )}
             </>
           )}
+          {selectionMode === 'models' && isOriginActions(actions) ? (
+            <EngineChoice slug={slug} role="orchestrator" t={t} />
+          ) : null}
           {messages}
         </PanelDialog>
       )}

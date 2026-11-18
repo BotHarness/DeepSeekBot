@@ -1,4 +1,5 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { markOriginActions } from './origin-actions.js';
 import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { disposeClientLog, installClientLog, reportFailure } from './diagnostic-log.js';
@@ -338,6 +339,7 @@ export function apply(ctx: ClientContext): void {
       ctx.uiWorkspace.openSession(sessionId as SessionId);
     },
   });
+  markOriginActions(actions);
   const setupRpc = connectionRpc(ctx);
   if (setupRpc) actions.appSetup = new ProviderAppSetup(setupRpc);
   recordRemoteHosts((event, properties) => actions.telemetryEvent(event, properties));
