@@ -81,14 +81,14 @@ Why: the managed browser cannot reuse the Human's current sign-ins. Each step up
 
 Enforced by: `packages/browser/test/borrow.test.ts`, `borrow-http.test.ts`, `extension-worker.test.ts`, `daily.test.ts`, `daily-document.test.ts`, `profile-control.test.ts`, `profile-worker.test.ts`.
 
-## 6. Takeover is a non-blocking handoff through the shared viewer
+## 6. Browser Takeover goes through the shared viewer; a Bot asks with a non-blocking Takeover Handoff
 
 <a id="adr-0163"></a>
 _Formerly ADR-0163; its blocking `browser_takeover` tool was replaced by `takeover_request` (#3379)._
 
-The local Bot Browser is served at `/botharness-browser/viewer/local/` through the same Host prefix pattern and `remote-viewer` component as the Container and Computer viewers. Human click, scroll and keyboard input (committed text through `Input.insertText`, so IME composition happens on the Human's device) require an active Pause. Small viewports default to trackpad mode with a direct-tap toggle.
+The local Bot Browser is served at `/botharness-browser/viewer/local/` through the same Host prefix pattern and `remote-viewer` component as the Container and Computer viewers. In a **Browser Takeover**, Human click, scroll and keyboard input (committed text through `Input.insertText`, so IME composition happens on the Human's device) require an active Pause. Small viewports default to trackpad mode with a direct-tap toggle.
 
-When a page asks for a login, code or CAPTCHA, the Bot calls `takeover_request` with target `browser`, a short title and one sentence, and its turn ends. The card in the conversation opens the live view; Done, Could not finish, cancel or expiry wakes the Bot through its Inbox, and it observes again before acting. Each Bot has at most one pending handoff, which expires after 30 minutes by default and 120 at most; the Computer uses the same handoff ([Takeover Handoff](../../GLOSSARY.md)). Credentials are typed only in the live view, never in chat, and the handoff never logs the Bot's sentence.
+When a page asks for a login, code or CAPTCHA, the Bot calls `takeover_request` with target `browser`, a short title and one sentence, and its turn ends. The card in the conversation opens the live view; Done, Could not finish, cancel or expiry wakes the Bot through its Inbox, and it observes again before acting. Each Bot has at most one pending Takeover Handoff, which expires after 30 minutes by default and 120 at most; the Computer uses the same [Takeover Handoff](../../GLOSSARY.md). Credentials are typed only in the live view, never in chat, and the Takeover Handoff never logs the Bot's sentence.
 
 Why: synthetic CDP input breaks IME composition, so the Human path must be the viewer. A blocking tool held the Bot's turn while the Human was away; an Inbox wake lets the Bot resume with a fresh observation.
 
