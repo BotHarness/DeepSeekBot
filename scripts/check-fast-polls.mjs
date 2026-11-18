@@ -54,7 +54,16 @@ function numeric(node, parents, bindings, depth = 0) {
 }
 
 const isScope = (node) =>
-  ['Program', 'BlockStatement', 'StaticBlock'].includes(node.type) || isFunction(node);
+  [
+    'Program',
+    'BlockStatement',
+    'StaticBlock',
+    'ForStatement',
+    'ForInStatement',
+    'ForOfStatement',
+    'SwitchStatement',
+    'CatchClause',
+  ].includes(node.type) || isFunction(node);
 
 function lookup(name, parents, bindings) {
   for (let index = parents.length - 1; index >= 0; index -= 1) {

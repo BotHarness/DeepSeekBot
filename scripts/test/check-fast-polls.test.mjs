@@ -49,12 +49,14 @@ describe('fast polls', () => {
       function fast() { const DELAY = 1000; setInterval(() => void readHost(), DELAY); }
       function slow() { const DELAY = 30_000; setInterval(() => void readHost(), DELAY); }
       function shadowed(SECOND) { setInterval(() => void readHost(), SECOND); }
+      function looped() { const LOOP = 1000; for (const LOOP = 30_000; false;) {} setInterval(() => void readHost(), LOOP); }
       const tick = () => setNow(Date.now());
       setInterval(tick, SECOND);
     `;
     expect(fastPolls(source).map((poll) => [poll.line, poll.delay])).toEqual([
       [5, 2000],
       [6, 1000],
+      [9, 1000],
     ]);
   });
 
