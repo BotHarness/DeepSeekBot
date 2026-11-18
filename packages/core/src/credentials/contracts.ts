@@ -1,6 +1,8 @@
 import type { ApprovalDecider } from '../team/approval-contract.js';
 import { z } from 'zod';
 
+import { PRIVATE_FIELD_ID } from './references.js';
+
 export const privateRequestSchema = z
   .strictObject({
     account: z.string().min(1).max(120),
@@ -8,7 +10,7 @@ export const privateRequestSchema = z
     fields: z
       .array(
         z.strictObject({
-          id: z.string().regex(/^[a-z][a-z0-9_]{0,47}$/),
+          id: z.string().regex(PRIVATE_FIELD_ID),
           label: z.string().min(1).max(120),
           required: z.boolean(),
         }),

@@ -16,6 +16,7 @@ import type { SecretMcpRecord, SecretMcpStore } from './secret-mcp-store.js';
 import { privateInputLog, privateToolFailure, privateToolOutcome } from './diagnostics.js';
 import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import { privateInputWebUrl } from './web-locator.js';
+import { fillSecretPlaceholders, privateReferenceField } from './references.js';
 import { credentialStoreDenial, credentialStorePath, denyStoreRead } from './store-guard.js';
 import { resolveDshHome } from '../im/config-store.js';
 
@@ -399,9 +400,7 @@ export function mountPrivateInputs(
                 const endpointField = args.endpoint_field ?? 'endpoint';
                 const references: Record<string, string> = {};
                 for (const reference of args.references) {
-                  const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(
-                    reference,
-                  )?.[1];
+                  const field = privateReferenceField(reference);
                   if (field === undefined || references[field] !== undefined)
                     throw new Error('references must be distinct ask_secret references');
                   references[field] = reference;
@@ -415,7 +414,7 @@ export function mountPrivateInputs(
                     references,
                     async (values, signal) => {
                       const fill = (text: string): string =>
-                        text.replace(/\{\{([a-z][a-z0-9_]{0,47})\}\}/g, (_match, field: string) => {
+                        fillSecretPlaceholders(text, (field) => {
                           const value = field === endpointField ? undefined : values[field];
                           if (value === undefined)
                             throw new SecretHttpRefusal(
@@ -512,9 +511,7 @@ export function mountPrivateInputs(
               observe('secret_cli', async () => {
                 const references: Record<string, string> = {};
                 for (const reference of args.references) {
-                  const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(
-                    reference,
-                  )?.[1];
+                  const field = privateReferenceField(reference);
                   if (field === undefined || references[field] !== undefined)
                     throw new Error('references must be distinct ask_secret references');
                   references[field] = reference;
@@ -567,17 +564,14 @@ export function mountPrivateInputs(
                       try {
                         const env = secretCommandBaseEnv();
                         for (const [index, entry] of args.env.entries())
-                          env[names[index]!] = entry.value.replace(
-                            /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
-                            (_match, field: string) => {
-                              const value = values[field];
-                              if (value === undefined)
-                                throw new SecretCommandRefusal(
-                                  'A placeholder names a field that was not referenced',
-                                );
-                              return value;
-                            },
-                          );
+                          env[names[index]!] = fillSecretPlaceholders(entry.value, (field) => {
+                            const value = values[field];
+                            if (value === undefined)
+                              throw new SecretCommandRefusal(
+                                'A placeholder names a field that was not referenced',
+                              );
+                            return value;
+                          });
                         return await runSecretCommand(
                           confined.argv,
                           env,
@@ -614,7 +608,7 @@ export function mountPrivateInputs(
         ): Promise<string> => {
           const references: Record<string, string> = {};
           for (const reference of input.references) {
-            const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(reference)?.[1];
+            const field = privateReferenceField(reference);
             if (field === undefined || references[field] !== undefined)
               throw new Error('references must be distinct ask_secret references');
             references[field] = reference;
@@ -672,17 +666,14 @@ export function mountPrivateInputs(
                   const env = secretMcpEnv();
                   try {
                     for (const [index, entry] of input.env.entries())
-                      env[plan.names[index]!] = entry.value.replace(
-                        /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
-                        (_match, field: string) => {
-                          const value = values[field];
-                          if (value === undefined)
-                            throw new SecretCommandRefusal(
-                              'A placeholder names a field that was not referenced',
-                            );
-                          return value;
-                        },
-                      );
+                      env[plan.names[index]!] = fillSecretPlaceholders(entry.value, (field) => {
+                        const value = values[field];
+                        if (value === undefined)
+                          throw new SecretCommandRefusal(
+                            'A placeholder names a field that was not referenced',
+                          );
+                        return value;
+                      });
                     const running = await mcpServers.start(
                       agentCtx,
                       agent,

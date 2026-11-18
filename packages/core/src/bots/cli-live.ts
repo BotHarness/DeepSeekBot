@@ -150,6 +150,7 @@ import {
   runShareDraftCommand,
   SHARE_DRAFT_COMMANDS,
 } from './cli-share-draft.js';
+import { PRIVATE_FIELD_ID } from '../credentials/references.js';
 export { CliLiveError } from './cli-live-error.js';
 
 const DEVICE_COMMANDS = [
@@ -1305,9 +1306,7 @@ export async function runLiveCli(
         entries.length > 8 ||
         entries.some(
           ([key, value]) =>
-            !/^[a-z][a-z0-9_]{0,47}$/.test(key) ||
-            typeof value !== 'string' ||
-            value.length > 16_384,
+            !PRIVATE_FIELD_ID.test(key) || typeof value !== 'string' || value.length > 16_384,
         )
       )
         throw new Error('Invalid private fields');
