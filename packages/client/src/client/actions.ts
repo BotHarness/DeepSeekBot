@@ -1,4 +1,4 @@
-import { botModeActions, type BotModeActions } from './bot-mode-settings.js';
+import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
