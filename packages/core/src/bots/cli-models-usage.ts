@@ -116,6 +116,8 @@ export interface ModelsUsageValues {
   'assignment-models'?: string;
   'members-stdin'?: boolean;
   'orchestrator-group'?: string;
+  'assignment-groups'?: string;
+  'assignment-default-group'?: string;
   period?: string;
   after?: string;
   start?: string;
@@ -217,6 +219,32 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function presetGroupFlags(values: {
+  'orchestrator-group'?: string | undefined;
+  'assignment-groups'?: string | undefined;
+  'assignment-default-group'?: string | undefined;
+}): {
+  orchestratorGroupId?: string | null;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string | null;
+} {
+  const orchestrator = values['orchestrator-group'];
+  const list = values['assignment-groups'];
+  const defaultId = values['assignment-default-group'];
+  return {
+    ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() || null }),
+    ...(list === undefined
+      ? {}
+      : {
+          assignmentGroups: list
+            .split(',')
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0),
+        }),
+    ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId.trim() || null }),
+  };
 }
 
 export function assignmentModelsMode(value: string | undefined): {
@@ -453,12 +481,36 @@ export async function runModelsUsage(
         'unknown-preset',
         'The specified Model Preset does not exist on this Host.',
       );
+    const flags = presetGroupFlags(values);
+    const routeGiven = ['provider', 'model', 'effort'].some(
+      (part) => values[`orchestrator-${part}` as 'orchestrator-provider'] !== undefined,
+    );
+    if (routeGiven && flags.orchestratorGroupId)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    const orchestratorGroupId =
+      'orchestratorGroupId' in flags
+        ? flags.orchestratorGroupId
+        : routeGiven
+          ? null
+          : (current.orchestratorGroupId ?? null);
+    const assignmentGroups = flags.assignmentGroups ?? current.assignmentGroups ?? [];
+    const assignmentDefaultGroupId =
+      'assignmentDefaultGroupId' in flags
+        ? flags.assignmentDefaultGroupId
+        : (current.assignmentDefaultGroupId ?? null);
+    if (assignmentDefaultGroupId && !assignmentGroups.includes(assignmentDefaultGroupId))
+      usage('--assignment-default-group must be one of the Assignment Routing Groups.');
     return rpc('modelPresetUpdate', {
       id: target,
       expectedRevision: expected ?? current.revision,
       name: name ?? current.name,
-      orchestrator: routeOverride(values, 'orchestrator', current.orchestrator),
+      ...(orchestratorGroupId
+        ? {}
+        : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
       ...plan,
       ...mode,
     });

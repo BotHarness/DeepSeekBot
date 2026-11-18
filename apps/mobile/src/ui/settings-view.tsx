@@ -14,6 +14,7 @@ export interface SettingsActions {
   onNotifications(): void;
   onStorage(): void;
   onModels(): void;
+  onPrompts(): void;
   onCopyVersion(text: string): void;
 }
 
@@ -60,6 +61,15 @@ export function SettingsView({
           detail={t.modelSettings.global}
           disclosure
           onPress={actions.onModels}
+        />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.prompts.title}
+          icon="prompts"
+          detail={t.prompts.hint}
+          disclosure
+          testID="settings-prompts"
+          onPress={actions.onPrompts}
         />
       </SettingsSection>
       <SettingsSection on={SHEET_GROUP}>

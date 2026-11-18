@@ -6,7 +6,8 @@ import {
   modelShortName,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
-import type { ModelCatalogEntryView } from './bridge.js';
+import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
+import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ComboboxOption } from './combobox.js';
 import { FilterPicker } from './ds/filter-picker.js';
@@ -19,6 +20,7 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly name: string;
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
+  readonly group?: string | undefined;
 }
 
 export interface ModelMenuEffort {
@@ -29,6 +31,27 @@ export interface ModelMenuEffort {
 const ALL = 'all';
 const FAVORITES = 'favorites';
 const OTHER = 'other';
+const GROUPS = 'groups';
+const GROUP_PREFIX = 'group:';
+
+export function groupMenuKey(id: string): string {
+  return `${GROUP_PREFIX}${id}`;
+}
+
+export function groupMenuId(key: string): string | undefined {
+  return key.startsWith(GROUP_PREFIX) ? key.slice(GROUP_PREFIX.length) : undefined;
+}
+
+export function restingHint(until: string, t: BotHarnessTranslate): string {
+  return t('routingGroups.resting', {
+    until: new Date(until).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  });
+}
 
 export function modelMenuItems(
   options: readonly ComboboxOption[],
@@ -58,26 +81,62 @@ export function modelMenuItems(
 export function catalogMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
+  groups: readonly ModelCatalogGroupView[] = [],
 ): ModelMenuItem[] {
-  return modelMenuItems(
+  const unusable = (entry: ModelCatalogEntryView) =>
+    entry.credential !== undefined || entry.restingUntil !== undefined;
+  const models = modelMenuItems(
     [...catalog]
-      .sort((a, b) => Number(a.credential !== undefined) - Number(b.credential !== undefined))
+      .sort((a, b) => Number(unusable(a)) - Number(unusable(b)))
       .map((entry) => ({
         value: JSON.stringify([entry.provider, entry.model]),
         label: entry.modelName,
         hint:
-          entry.credential === undefined
-            ? entry.providerName
-            : t(
+          entry.credential !== undefined
+            ? t(
                 entry.credential === 'missing'
                   ? 'modelPreset.credentialMissing'
                   : 'modelPreset.credentialInvalid',
                 { provider: entry.providerName },
-              ),
-        disabled: entry.credential !== undefined,
+              )
+            : entry.restingUntil !== undefined
+              ? `${entry.providerName} · ${restingHint(entry.restingUntil, t)}`
+              : entry.providerName,
+        disabled: unusable(entry),
       })),
     catalog,
   );
+  return [
+    ...groups.map((group): ModelMenuItem => {
+      const front = modelCatalogGroupFront(group, [...catalog]);
+      const entry = catalog.find(
+        (item) => item.provider === front?.provider && item.model === front.model,
+      );
+      const disabled =
+        group.restingUntil !== undefined ||
+        group.routes.every((route) =>
+          catalog.some(
+            (item) =>
+              item.provider === route.provider &&
+              item.model === route.model &&
+              item.credential !== undefined,
+          ),
+        );
+      return {
+        value: groupMenuKey(group.id),
+        label: group.name,
+        name: group.name,
+        brand: undefined,
+        group: group.id,
+        hint:
+          group.restingUntil !== undefined
+            ? restingHint(group.restingUntil, t)
+            : t('modelMenu.groupFront', { model: entry?.modelName ?? front?.model ?? '' }),
+        disabled,
+      };
+    }),
+    ...models,
+  ];
 }
 
 function familyKey(brand: ModelBrand | undefined): string {
@@ -112,6 +171,7 @@ export function ModelMenu({
   t: BotHarnessTranslate;
 }): ReactElement {
   const models = items.filter((item) => item.model !== undefined);
+  const groups = items.filter((item) => item.group !== undefined);
   const favorites = useModelFavorites();
   const [favoriteError, setFavoriteError] = useState<string>();
   return (
@@ -126,19 +186,33 @@ export function ModelMenu({
         hint: item.hint,
         disabled: item.disabled,
         search: [item.value],
-        favorite: item.model !== undefined && favorites.keys.has(item.value),
-        ...(item.model === undefined
-          ? {}
-          : {
-              icon: <ModelBrandIcon brand={item.brand} size={16} />,
-              filter: familyKey(item.brand),
-            }),
+        favorite:
+          (item.model !== undefined || item.group !== undefined) && favorites.keys.has(item.value),
+        ...(item.group !== undefined
+          ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
+          : item.model === undefined
+            ? {}
+            : {
+                icon: <ModelBrandIcon brand={item.brand} size={16} />,
+                filter: familyKey(item.brand),
+              }),
       }))}
-      filters={modelFamilies(models).map((family) => ({
-        key: familyKey(family.brand),
-        label: family.title ?? t('modelMenu.other'),
-        icon: <ModelBrandIcon brand={family.brand} size={16} />,
-      }))}
+      filters={[
+        ...(groups.length === 0
+          ? []
+          : [
+              {
+                key: GROUPS,
+                label: t('routingGroups.title'),
+                icon: <ChannelSidebarIcon name="git-branch" size={16} />,
+              },
+            ]),
+        ...modelFamilies(models).map((family) => ({
+          key: familyKey(family.brand),
+          label: family.title ?? t('modelMenu.other'),
+          icon: <ModelBrandIcon brand={family.brand} size={16} />,
+        })),
+      ]}
       filtersLabel={t('modelMenu.families')}
       allFilter={{
         key: ALL,
@@ -178,13 +252,17 @@ export function ModelMenu({
               addLabel: t('modelMenu.favoriteAdd'),
               removeLabel: t('modelMenu.favoriteRemove'),
               onToggle: (key, favorite) => {
+                const group = groups.find((entry) => entry.value === key)?.group;
                 const item = models.find((entry) => entry.value === key);
-                if (item?.provider === undefined || item.model === undefined) return;
+                const choice =
+                  group !== undefined
+                    ? ({ kind: 'group', id: group } as const)
+                    : item?.provider !== undefined && item.model !== undefined
+                      ? ({ kind: 'model', provider: item.provider, model: item.model } as const)
+                      : undefined;
+                if (choice === undefined) return;
                 setFavoriteError(undefined);
-                void setModelFavorite(
-                  { kind: 'model', provider: item.provider, model: item.model },
-                  favorite,
-                ).catch((error: unknown) =>
+                void setModelFavorite(choice, favorite).catch((error: unknown) =>
                   setFavoriteError(
                     t('modelMenu.favoriteFailed', {
                       error: error instanceof Error ? error.message : String(error),

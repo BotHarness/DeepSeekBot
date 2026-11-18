@@ -5,6 +5,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
   applyModelPreset,
+  currentModel,
   errorText,
   sameModel,
   type ModelChoice,
@@ -12,7 +13,10 @@ import {
 } from '@botharness/host-client/bot-settings';
 import {
   applyModelFavoriteChanges,
+  modelCatalogGroupFront,
   modelChoiceKey,
+  type ModelCatalogEntry,
+  type ModelCatalogGroup,
   type ModelFavoriteChange,
 } from '@botharness/host-client/model-catalog';
 import type { HostClient } from '@botharness/host-client/client';
@@ -24,6 +28,7 @@ import {
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  setModelGroup,
   setModelRoute,
   toggleAssignmentModel,
   type ModelField,
@@ -35,7 +40,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
-import { modelEntryLabel, modelFamilyKey } from './composer-labels';
+import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -46,9 +51,15 @@ import { TextField } from '../primitives/text-field';
 import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { RowIcon } from '../primitives/row-icon';
 
 const FAVORITES = 'favorites';
 const ALL = 'all';
+const GROUPS = 'groups';
+
+type PickerRow =
+  | { kind: 'model'; entry: ModelCatalogEntry }
+  | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined };
 
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
@@ -167,9 +178,11 @@ function ModelsView({
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<string>();
   const [held, setHeld] = useState<ReadonlySet<string>>();
+  const [restNotice, setRestNotice] = useState<string>();
   const chooseFamily = (next: string) => {
     setFamily(next);
     setHeld(undefined);
+    setRestNotice(undefined);
   };
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
@@ -281,16 +294,30 @@ function ModelsView({
         name: entry.modelName,
       })),
     );
+    const groups = picker === 'orchestrator' && scope.kind === 'bot' ? (value.groups ?? []) : [];
+    const currentGroup = groups.find((group) => group.id === value.plan?.orchestratorGroupId);
     const starredKeys = new Set(models.favorites.map(modelChoiceKey));
+    const rowKey = (row: PickerRow) =>
+      row.kind === 'group'
+        ? modelChoiceKey({ kind: 'group', id: row.group.id })
+        : modelChoiceKey({ kind: 'model', provider: row.entry.provider, model: row.entry.model });
+    const starredRow = (row: PickerRow) => starredKeys.has(rowKey(row));
     const starredModel = (entry: ModelRoute) =>
       starredKeys.has(
         modelChoiceKey({ kind: 'model', provider: entry.provider, model: entry.model }),
       );
-    const listedModel = (entry: ModelRoute) =>
-      held === undefined
-        ? starredModel(entry)
-        : held.has(JSON.stringify([entry.provider, entry.model]));
-    const favoriteCount = value.models.filter(starredModel).length;
+    const listedRow = (row: PickerRow) =>
+      held === undefined ? starredRow(row) : held.has(rowKey(row));
+    const groupRows: PickerRow[] = groups.map((group) => {
+      const front = modelCatalogGroupFront(group, value.models);
+      return {
+        kind: 'group',
+        group,
+        front: value.models.find((entry) => front !== undefined && sameModel(entry, front)),
+      };
+    });
+    const favoriteCount =
+      value.models.filter(starredModel).length + groupRows.filter(starredRow).length;
     const showFavorites = !picker.endsWith('-effort') && favoriteCount > 0;
     const filter =
       family === FAVORITES || (family === undefined && showFavorites)
@@ -300,32 +327,53 @@ function ModelsView({
         : family === undefined
           ? ALL
           : family;
-    const shownFamily = families.some((entry) => (entry.brand ?? 'other') === filter)
-      ? filter
-      : filter === FAVORITES
-        ? FAVORITES
-        : ALL;
-    const found = searchModels(value.models, query).filter((entry) =>
+    const shownFamily =
+      families.some((entry) => (entry.brand ?? 'other') === filter) ||
+      (filter === GROUPS && groups.length > 0)
+        ? filter
+        : filter === FAVORITES
+          ? FAVORITES
+          : ALL;
+    const needle = query.trim().toLowerCase();
+    const found: PickerRow[] = [
+      ...groupRows.filter(
+        (row) =>
+          row.kind === 'group' &&
+          (needle === '' ||
+            [row.group.name, row.front?.modelName ?? ''].some((part) =>
+              part.toLowerCase().includes(needle),
+            )),
+      ),
+      ...searchModels(value.models, query).map((entry): PickerRow => ({ kind: 'model', entry })),
+    ].filter((row) =>
       shownFamily === FAVORITES
-        ? query.trim() !== '' || listedModel(entry)
-        : shownFamily === ALL || modelFamilyKey(entry) === shownFamily,
+        ? needle !== '' || listedRow(row)
+        : shownFamily === ALL ||
+          (shownFamily === GROUPS
+            ? row.kind === 'group'
+            : row.kind === 'model' && modelFamilyKey(row.entry) === shownFamily),
     );
     const entries =
       shownFamily === FAVORITES
         ? found
-        : [...found.filter(listedModel), ...found.filter((entry) => !listedModel(entry))];
-    const star = (entry: ModelRoute, on: boolean) => {
+        : [...found.filter(listedRow), ...found.filter((row) => !listedRow(row))];
+    const star = (row: PickerRow, on: boolean) => {
       if (family === undefined) setFamily(shownFamily);
       setHeld(
         (current) =>
           current ??
           new Set(
-            value.models
-              .filter(starredModel)
-              .map((item) => JSON.stringify([item.provider, item.model])),
+            [...groupRows, ...value.models.map((entry): PickerRow => ({ kind: 'model', entry }))]
+              .filter(starredRow)
+              .map(rowKey),
           ),
       );
-      models.favorite({ kind: 'model', provider: entry.provider, model: entry.model }, on);
+      models.favorite(
+        row.kind === 'group'
+          ? { kind: 'group', id: row.group.id }
+          : { kind: 'model', provider: row.entry.provider, model: row.entry.model },
+        on,
+      );
     };
     return frame(
       <>
@@ -335,7 +383,7 @@ function ModelsView({
           placeholder={t.modelSettings.search}
           onChangeText={setQuery}
         />
-        {families.length > 1 || showFavorites ? (
+        {families.length > 1 || showFavorites || groups.length > 0 ? (
           <ScrollView
             horizontal
             testID="model-family-filters"
@@ -365,6 +413,15 @@ function ModelsView({
               selected={shownFamily === ALL}
               onPress={() => chooseFamily(ALL)}
             />
+            {groups.length > 0 ? (
+              <Chip
+                testID="model-family-groups"
+                label={t.modelSettings.groups}
+                count={groups.length}
+                selected={shownFamily === GROUPS}
+                onPress={() => chooseFamily(shownFamily === GROUPS ? ALL : GROUPS)}
+              />
+            ) : null}
             {families.length > 1
               ? families.map((entry) => {
                   const key = entry.brand ?? 'other';
@@ -383,25 +440,97 @@ function ModelsView({
           </ScrollView>
         ) : null}
         {banner}
+        {restNotice === undefined ? null : <SheetCallout tone="warning">{restNotice}</SheetCallout>}
         {models.busy ? <LoadingIndicator /> : null}
         <FlatList
           style={{ flex: 1 }}
           data={entries}
-          keyExtractor={(item) => JSON.stringify([item.provider, item.model])}
+          keyExtractor={rowKey}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ListHeaderComponent={
             picker === 'allowed' ? <SheetNote>{t.modelSettings.allowedHint}</SheetNote> : undefined
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
-          renderItem={({ item, index }) => {
+          renderItem={({ item: row, index }) => {
+            if (row.kind === 'group') {
+              const { group, front } = row;
+              const selected = currentGroup?.id === group.id;
+              const usable =
+                group.restingUntil === undefined &&
+                group.routes.some(
+                  (route) =>
+                    value.models.find((entry) => sameModel(entry, route))?.credential === undefined,
+                );
+              const isFavorite = starredRow(row);
+              return (
+                <SettingsGroupItem
+                  first={index === 0}
+                  last={index === entries.length - 1}
+                  on={SHEET_GROUP}
+                >
+                  <SettingsRow
+                    on={SHEET_GROUP}
+                    testID={`model-group-${group.id}`}
+                    leading={
+                      <RowIcon
+                        name="model"
+                        size={theme.type.title.line}
+                        color={usable ? theme.color.fg : theme.color.muted}
+                      />
+                    }
+                    title={group.name}
+                    detail={
+                      group.restingUntil !== undefined
+                        ? restingLabel(group.restingUntil)
+                        : t.modelSettings.groupFront(
+                            front?.modelName ?? group.routes[0]?.model ?? '',
+                          )
+                    }
+                    tone={usable ? 'fg' : 'muted'}
+                    selected={selected}
+                    control={selected ? { kind: 'check' } : undefined}
+                    accessory={
+                      <FavoriteButton
+                        testID={`model-favorite-group-${group.id}`}
+                        label={
+                          isFavorite
+                            ? t.modelSettings.favoriteRemove(group.name)
+                            : t.modelSettings.favoriteAdd(group.name)
+                        }
+                        favorite={isFavorite}
+                        disabled={models.busy}
+                        onPress={() => star(row, !isFavorite)}
+                      />
+                    }
+                    onPress={
+                      models.busy || selected
+                        ? undefined
+                        : restingNotice(group.name, group) !== undefined
+                          ? () => setRestNotice(restingNotice(group.name, group))
+                          : !usable
+                            ? undefined
+                            : () =>
+                                models.run(
+                                  () => setModelGroup(client, scope, value, group.id),
+                                  () => {
+                                    Keyboard.dismiss();
+                                    router.back();
+                                  },
+                                )
+                    }
+                  />
+                </SettingsGroupItem>
+              );
+            }
+            const item = row.entry;
             const selected =
               picker === 'allowed'
                 ? routes.assignmentModels.some((option) => sameModel(option, item))
-                : sameModel(item, current);
-            const usable = item.credential === undefined;
+                : currentGroup === undefined && sameModel(item, current);
+            const usable = item.credential === undefined && item.restingUntil === undefined;
             const required = picker === 'allowed' && sameModel(item, routes.assignmentDefault);
-            const isFavorite = starredModel(item);
+            const isFavorite = starredRow(row);
             return (
               <SettingsGroupItem
                 first={index === 0}
@@ -424,7 +553,9 @@ function ModelsView({
                       ? t.modelNeedsKey(item.providerName)
                       : item.credential === 'invalid'
                         ? t.modelKeyInvalid(item.providerName)
-                        : item.providerName
+                        : item.restingUntil !== undefined
+                          ? `${item.providerName} · ${restingLabel(item.restingUntil)}`
+                          : item.providerName
                   }
                   tone={usable ? 'fg' : 'muted'}
                   selected={selected}
@@ -439,28 +570,33 @@ function ModelsView({
                       }
                       favorite={isFavorite}
                       disabled={models.busy}
-                      onPress={() => star(item, !isFavorite)}
+                      onPress={() => star(row, !isFavorite)}
                     />
                   }
                   onPress={
-                    models.busy || (!usable && !(picker === 'allowed' && selected)) || required
+                    models.busy || required
                       ? undefined
-                      : () => {
-                          if (picker === 'allowed')
-                            models.run(() => toggleAssignmentModel(client, scope, value, item));
-                          else {
-                            const reasoningEffort = sameModel(item, current)
-                              ? current?.reasoningEffort
-                              : item.defaultEffort;
-                            choose({
-                              provider: item.provider,
-                              model: item.model,
-                              ...(reasoningEffort === undefined || reasoningEffort === ''
-                                ? {}
-                                : { reasoningEffort }),
-                            });
-                          }
-                        }
+                      : restingNotice(item.modelName, item) !== undefined &&
+                          !(picker === 'allowed' && selected)
+                        ? () => setRestNotice(restingNotice(item.modelName, item))
+                        : !usable && !(picker === 'allowed' && selected)
+                          ? undefined
+                          : () => {
+                              if (picker === 'allowed')
+                                models.run(() => toggleAssignmentModel(client, scope, value, item));
+                              else {
+                                const reasoningEffort = sameModel(item, current)
+                                  ? current?.reasoningEffort
+                                  : item.defaultEffort;
+                                choose({
+                                  provider: item.provider,
+                                  model: item.model,
+                                  ...(reasoningEffort === undefined || reasoningEffort === ''
+                                    ? {}
+                                    : { reasoningEffort }),
+                                });
+                              }
+                            }
                   }
                 />
               </SettingsGroupItem>
@@ -491,7 +627,11 @@ function ModelsView({
         >
           <PickerLink
             label={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator}
-            detail={routeLabel(value, routes.orchestrator)}
+            detail={
+              scope.kind === 'bot' && value.plan?.orchestratorGroupId !== undefined
+                ? `${currentModel(value).group ?? value.plan.orchestratorGroupId} · ${routeLabel(value, routes.orchestrator)}`
+                : routeLabel(value, routes.orchestrator)
+            }
             onPress={models.busy ? undefined : () => openPicker('orchestrator')}
           />
           {value.models.find((entry) => sameModel(entry, routes.orchestrator))?.efforts?.length ? (

@@ -540,6 +540,9 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -549,6 +552,9 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
     ]);
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
@@ -656,6 +662,9 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -665,6 +674,9 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [

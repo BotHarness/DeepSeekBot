@@ -1,6 +1,7 @@
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import { gitImportSource } from '@botharness/host-client/bot-creation';
+import * as prompts from '@botharness/host-client/prompt-presets';
 import {
   createHumanAvatarCache,
   type HumanAvatarCache,
@@ -313,6 +314,7 @@ import {
   updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
+  chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
   setStandingLimits,
@@ -548,32 +550,17 @@ export interface BridgeActions {
   botSystemPrompt(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
-  promptParts?(): Promise<{
-    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
-    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
-  }>;
-  promptPresets?(): Promise<{
-    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
-    globalPresetId: string | null;
-  }>;
+  promptParts?(): Promise<import('@botharness/host-client/prompt-presets').PromptParts>;
+  promptPresets?(): Promise<import('@botharness/host-client/prompt-presets').PromptPresets>;
   promptPresetCreate?(
     name: string,
     parts: Record<string, string | null>,
     limits?: Record<string, number | null>,
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetUpdate?(
     id: string,
-    change: {
-      name?: string;
-      parts?: Record<string, string | null>;
-      limits?: Record<string, number | null>;
-      expectedRevision?: number;
-    },
-  ): Promise<{
-    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
-  }>;
+    change: import('@botharness/host-client/prompt-presets').PromptPresetChange,
+  ): Promise<{ preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
@@ -694,6 +681,11 @@ export interface BridgeActions {
   customizeModelPlan(
     slug: string,
     orchestrator: ModelRouteView,
+    expectedRevision?: number,
+  ): Promise<ModelPlanView>;
+  chooseModelPlanGroup(
+    slug: string,
+    groupId: string,
     expectedRevision?: number,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
@@ -2001,6 +1993,9 @@ export function createActions(
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return result.value as T;
   };
+  const host: prompts.PromptPresetClient = {
+    call: (method, args) => invoke(method, args ?? {}),
+  };
   const humanAvatars = createHumanAvatarCache(async (humanIds) => ({
     avatars: await loadHumanAvatars(call, humanIds),
   }));
@@ -2118,17 +2113,13 @@ export function createActions(
     async botSystemPrompt(botSlug) {
       return invoke('botSystemPrompt', { slug: botSlug });
     },
-    promptParts: () => invoke('promptParts', {}),
-    promptPresets: () => invoke('promptPresets', {}),
+    promptParts: () => prompts.loadPromptParts(host),
+    promptPresets: () => prompts.loadPromptPresets(host),
     promptPresetCreate: (name, parts, limits) =>
-      invoke('promptPresetCreate', {
-        name,
-        parts,
-        ...(limits === undefined ? {} : { limits }),
-      }),
-    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
-    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
-    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+      prompts.createPromptPreset(host, name, parts, limits),
+    promptPresetUpdate: (id, change) => prompts.updatePromptPreset(host, id, change),
+    promptPresetDelete: (id) => prompts.deletePromptPreset(host, id),
+    promptGlobalSet: (presetId) => prompts.setGlobalPromptPreset(host, presetId),
     botPrompt: (slug) => invoke('botPrompt', { slug }),
     botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
     async botTurnInput(botSlug, turns = 1) {
@@ -2205,6 +2196,10 @@ export function createActions(
     customizeModelPlan: (slug, orchestrator, expectedRevision) =>
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
+    chooseModelPlanGroup: (slug, groupId, expectedRevision) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'group' }),
       ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>

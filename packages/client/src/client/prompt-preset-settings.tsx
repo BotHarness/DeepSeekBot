@@ -431,16 +431,26 @@ export function PromptPresetSettings({
   const [error, setError] = useState<string>();
   const mount = useMountedResource<HTMLElement>(() => {
     let live = true;
-    if (actions.promptParts !== undefined)
+    if (actions.promptParts === undefined) return undefined;
+    const refresh = (): void => {
+      if (document.visibilityState !== 'visible') return;
       loadLibrary(actions)
         .then((next) => {
-          if (live) setLibrary(next);
+          if (!live) return;
+          setLibrary(next);
+          setLoadError(undefined);
         })
         .catch((cause: unknown) => {
           if (live) setLoadError(errorMessage(cause));
         });
+    };
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
     return () => {
       live = false;
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
     };
   }, [actions]);
   if (actions.promptParts === undefined) return null;
@@ -660,7 +670,11 @@ export function PromptPresetSettings({
                         <Tag tone="success">{t('prompts.globalTag')}</Tag>
                       ) : null}
                       {stale ? <Tag tone="warning">{t('prompts.defaultChanged')}</Tag> : null}
-                      <span>{t('prompts.changed', { count: changed })}</span>
+                      <span>
+                        {changed === 0
+                          ? t('prompts.bot.none')
+                          : t('prompts.changed', { count: changed })}
+                      </span>
                     </span>
                   }
                   control={

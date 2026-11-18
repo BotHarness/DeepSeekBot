@@ -71,6 +71,7 @@ export default function SettingsScreen() {
           onNotifications: () => router.push('/settings/notifications'),
           onStorage: () => router.push('/settings/storage'),
           onModels: () => router.push('/settings/models'),
+          onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,
         }}
       />

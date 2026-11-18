@@ -92,6 +92,12 @@ const option = {
   defaultEffort: 'low',
 };
 
+const noGroups = {
+  orchestratorGroupId: null,
+  assignmentGroups: [],
+  assignmentDefaultGroupId: null,
+};
+
 describe('Model commands', () => {
   it('reads the model catalog from the live Host', async () => {
     const live = await host(() => ({
@@ -380,6 +386,7 @@ describe('Model commands', () => {
           name: 'Nightly',
           orchestrator: route('reasoner', 'max'),
           assignmentDefault: route('chat', 'low'),
+          ...noGroups,
         },
       },
       {
@@ -391,9 +398,51 @@ describe('Model commands', () => {
           orchestrator: route('reasoner', 'high'),
           assignmentDefault: route('flash'),
           assignmentModels: [option],
+          ...noGroups,
         },
       },
     ]);
+  });
+
+  it('keeps the Routing Groups of a preset, replaces only the ones named, and clears with an empty value', async () => {
+    const preset = {
+      id: 'p1',
+      name: 'Grouped',
+      revision: 4,
+      orchestrator: route('reasoner', 'high'),
+      orchestratorGroupId: 'main',
+      assignmentDefault: route('chat', 'low'),
+      assignmentGroups: ['side'],
+      assignmentDefaultGroupId: 'side',
+      createdAt: '2026-10-01T00:00:00.000Z',
+    };
+    const live = await host((method, args) =>
+      method === 'modelPresets'
+        ? { ok: true, value: { presets: [preset] } }
+        : { ok: true, value: { preset: { ...preset, ...args, revision: 5 } } },
+    );
+    await invoke(['model-preset-update', 'p1', '--name', 'Renamed'], live.url);
+    await invoke(['model-preset-update', 'p1', '--assignment-groups', 'side,extra'], live.url);
+    await invoke(['model-preset-update', 'p1', '--orchestrator-model', 'chat'], live.url);
+    const calls = live.calls
+      .filter((call) => call.method === 'modelPresetUpdate')
+      .map((call) => call.args);
+    expect(calls[0]).toMatchObject({
+      name: 'Renamed',
+      orchestratorGroupId: 'main',
+      assignmentGroups: ['side'],
+      assignmentDefaultGroupId: 'side',
+    });
+    expect(calls[0]).not.toHaveProperty('orchestrator');
+    expect(calls[1]).toMatchObject({
+      orchestratorGroupId: 'main',
+      assignmentGroups: ['side', 'extra'],
+      assignmentDefaultGroupId: 'side',
+    });
+    expect(calls[2]).toMatchObject({
+      orchestratorGroupId: null,
+      orchestrator: route('chat'),
+    });
   });
 });
 

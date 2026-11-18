@@ -14,8 +14,8 @@ import { t } from '../strings';
 export function modelLabel(model: Loadable<BotModel>): string {
   if (model.status === 'loading') return t.contextLoading;
   if (model.status === 'failed') return t.contextUnavailable;
-  const { name } = currentModel(model.value);
-  if (name !== undefined) return name;
+  const { name, group } = currentModel(model.value);
+  if (name !== undefined) return group === undefined ? name : `${group} · ${name}`;
   return model.value.repair === undefined ? t.noModel : t.contextUnavailable;
 }
 
@@ -50,4 +50,25 @@ export function modelEntryLabel(entry: {
 
 export function modelFamilyKey(entry: { provider: string; model: string; modelName: string }) {
   return modelEntryLabel(entry).brand ?? 'other';
+}
+
+function restTime(until: string): string {
+  return new Date(until).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function restingLabel(until: string): string {
+  return t.modelSettings.resting(restTime(until));
+}
+
+export function restingNotice(
+  name: string,
+  row: { restingUntil?: string | undefined; credential?: string | undefined },
+): string | undefined {
+  if (row.restingUntil === undefined || row.credential !== undefined) return undefined;
+  return t.modelSettings.restingTap(name, restTime(row.restingUntil));
 }

@@ -294,6 +294,11 @@ Object.defineProperty(NativeSession.prototype, '@deepseek-ai/dsh-typert-protocol
 });
 
 describe('Host members', { timeout: 60_000 }, () => {
+  it('admits an owner call from a DSH release whose peers carry no principal', async () => {
+    const f = await enabledFixture();
+    expect(() => f.team.assertCall(undefined, 'create')).not.toThrow();
+  });
+
   it('exposes only audience names through the Gateway to manageShared without member or role management', async () => {
     const f = await enabledFixture();
     const role = f.team.roles.create(owner, 'Space manager', ['workspaces.manageShared']).role;

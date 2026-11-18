@@ -12,6 +12,15 @@ export interface ModelCatalogEntry {
   efforts?: { id: string; name: string }[];
   defaultEffort?: string;
   credential?: 'missing' | 'invalid';
+  restingUntil?: string;
+}
+
+export interface ModelCatalogGroup {
+  id: string;
+  name: string;
+  revision: number;
+  routes: ModelCatalogRoute[];
+  restingUntil?: string;
 }
 
 export type ModelChoice =
@@ -23,6 +32,7 @@ export interface ModelCatalogAnswer {
   default?: ModelCatalogRoute;
   defaultRevision?: number;
   favorites?: ModelChoice[];
+  groups?: ModelCatalogGroup[];
 }
 
 export function modelChoice(value: unknown): ModelChoice | undefined {
@@ -107,7 +117,41 @@ export function modelCatalogEntry(value: unknown): ModelCatalogEntry | undefined
       : {}),
     ...(filled(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
     ...(credential === 'missing' || credential === 'invalid' ? { credential } : {}),
+    ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
   };
+}
+
+export function modelCatalogGroup(value: unknown): ModelCatalogGroup | undefined {
+  const row = record(value);
+  const id = row?.['id'];
+  const revision = row?.['revision'];
+  if (row === undefined || !filled(id) || !Array.isArray(row['routes'])) return undefined;
+  const routes = row['routes'].flatMap((route) => {
+    const parsed = catalogRoute(route);
+    return parsed === undefined ? [] : [parsed];
+  });
+  if (routes.length === 0) return undefined;
+  return {
+    id,
+    name: filled(row['name']) ? row['name'] : id,
+    revision: typeof revision === 'number' && Number.isSafeInteger(revision) ? revision : 0,
+    routes,
+    ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
+  };
+}
+
+export function modelCatalogGroupFront(
+  group: ModelCatalogGroup,
+  models: readonly ModelCatalogEntry[],
+): ModelCatalogRoute {
+  const resting = (route: ModelCatalogRoute) =>
+    models.some(
+      (entry) =>
+        entry.provider === route.provider &&
+        entry.model === route.model &&
+        (entry.restingUntil !== undefined || entry.credential !== undefined),
+    );
+  return group.routes.find((route) => !resting(route)) ?? group.routes[0]!;
 }
 
 function catalogRoute(value: unknown): ModelCatalogRoute | undefined {
@@ -144,6 +188,14 @@ export function parseModelCatalog(value: unknown): ModelCatalogAnswer {
           favorites: answer['favorites'].flatMap((value) => {
             const choice = modelChoice(value);
             return choice === undefined ? [] : [choice];
+          }),
+        }
+      : {}),
+    ...(Array.isArray(answer?.['groups'])
+      ? {
+          groups: answer['groups'].flatMap((value) => {
+            const group = modelCatalogGroup(value);
+            return group === undefined ? [] : [group];
           }),
         }
       : {}),
