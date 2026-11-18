@@ -167,6 +167,15 @@ describe('Codex Engine Session stop and timeouts', () => {
     expect(session.ended).toBe(true);
   });
 
+  it('marks the Session ended as soon as a request times out, before Codex exits', async () => {
+    const codex = fakeCodex({ 'turn/start': () => 'hang' });
+    codex.transport.close = async () => undefined;
+    const session = await started(codex, 30);
+    const end = await session.send('hi', { onEvent: () => undefined });
+    expect(end.status).toBe('failed');
+    expect(session.ended).toBe(true);
+  });
+
   it('starts a new thread only when Codex says the old one is gone', async () => {
     const missing = new CodexEngineSession(
       fakeCodex({ 'thread/resume': () => ({ error: 'thread not found: t-1' }) }).transport,

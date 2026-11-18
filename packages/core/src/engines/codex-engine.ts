@@ -173,6 +173,7 @@ export class CodexEngineSession implements EngineSession {
   #threadId: string | undefined;
   #turn: ActiveTurn | undefined;
   #exited: string | undefined;
+  #abandoned = false;
   readonly #requestTimeoutMs: number;
 
   constructor(
@@ -197,7 +198,7 @@ export class CodexEngineSession implements EngineSession {
   }
 
   get ended(): boolean {
-    return this.#exited !== undefined;
+    return this.#exited !== undefined || this.#abandoned;
   }
 
   async account(): Promise<EngineAccount> {
@@ -302,10 +303,12 @@ export class CodexEngineSession implements EngineSession {
 
   #request(method: string, params: unknown): Promise<unknown> {
     if (this.#exited !== undefined) return Promise.reject(new Error(this.#exited));
+    if (this.#abandoned) return Promise.reject(new Error('The Codex process is closing'));
     const id = this.#next++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (!this.#pending.delete(id)) return;
+        this.#abandoned = true;
         reject(new Error(`Codex did not answer ${method} within ${this.#requestTimeoutMs} ms`));
         void this.#transport.close();
       }, this.#requestTimeoutMs);
