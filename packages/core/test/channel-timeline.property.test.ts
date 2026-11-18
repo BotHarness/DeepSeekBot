@@ -104,7 +104,9 @@ describe('ADR-0061 Channel timeline pages use Host-owned opaque cursors', () => 
         const messages = history(length);
         let page = pageChannelTimeline('dm-ada', messages, { limit: size })!;
         const seen = [...page.entries];
+        let requests = 0;
         while (page.hasOlder) {
+          expect(++requests).toBeLessThan(Math.max(1, messages.length));
           page = pageChannelTimeline('dm-ada', messages, {
             direction: 'older',
             cursor: page.olderCursor!,

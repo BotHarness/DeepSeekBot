@@ -104,7 +104,7 @@ A direct Bot-to-Bot mention or Bot DM admits its recipient on every send within 
 
 Why: a reviewer sending work back is a normal workflow, and the per-chain de-duplication silently stopped it half done. Whether a Bot speaks is the Bot's choice, shaped by its Soul and Memory; the Host only stops loops.
 
-Enforced by: `bot-hop-limit.test.ts`, `bot-group-review-rounds.test.ts`, `bot-group-steered-causation.test.ts`.
+Enforced by: `bot-hop-limit.test.ts`, `bot-hop-limit.property.test.ts` (any limit, Bot count and relay order where every Bot always relays: exactly the allowed hops commit, the next is refused undelivered), `bot-group-review-rounds.test.ts`, `bot-group-steered-causation.test.ts`.
 
 ## 10. Asks follow the Channel the task came from, and questions do not block the Bot
 
