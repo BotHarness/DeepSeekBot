@@ -179,7 +179,7 @@ it('says when the Session cannot be read', async () => {
   expect(host.textContent).toContain('读取会话失败');
 });
 
-it('sends a direct request into the Assignment and reports a refusal', async () => {
+it('sends a direct request that resumes a stopped or archived Assignment and reports a refusal', async () => {
   const { loadSessionTranscript, sendSessionRequest } = await import('../src/client/bridge.js');
   const calls: [string, Record<string, unknown>][] = [];
   const delivered = vi.fn(async (endpoint: string, payload: Record<string, unknown>) => {
@@ -195,10 +195,10 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
       'botToolRun',
       {
         slug: 'tobs',
-        tool: 'send_assignment_request',
+        tool: 'unarchive_assignment',
         args: {
           session_id: 'asg-1',
-          text: 'Also cover Firefox.',
+          message: 'Also cover Firefox.',
           mode: 'next-step',
         },
       },
@@ -207,11 +207,11 @@ it('sends a direct request into the Assignment and reports a refusal', async () 
   const refused = vi.fn(async () => ({
     ok: true as const,
     value: {
-      result: { code: 'assignment-ended', message: 'Assignment is archived' },
+      result: { code: 'request-not-delivered', message: 'The Bot is at capacity' },
     },
   }));
   await expect(sendSessionRequest(refused, 'tobs', 'asg-1', 'Hi', false)).rejects.toThrow(
-    'Assignment is archived',
+    'The Bot is at capacity',
   );
   const read = vi.fn(async () => ({
     ok: true as const,

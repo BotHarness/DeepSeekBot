@@ -1687,6 +1687,7 @@ const DIRECT_NOTICE_TEXT_LIMIT = 2_000;
 const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
   'create_assignment',
   'send_assignment_request',
+  'unarchive_assignment',
 ]);
 
 const HUMAN_SESSION_STOP_NOTICE =
@@ -5487,7 +5488,10 @@ class BotRuntimeImplementation implements BotRuntime {
     } else {
       if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
       cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
+      body =
+        tool === 'unarchive_assignment'
+          ? `The Human resumed this Assignment and sent it a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.message) ?? '(empty)'}. Its next report answers that request.`
+          : `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(args.text) ?? '(empty)'}. Its next report answers that request.`;
     }
     const id = this.#createEventId();
     const at = this.#now().toISOString();

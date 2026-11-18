@@ -4373,8 +4373,8 @@ export async function sendSessionRequest(
   const value = asRecord(
     await unwrap(call, 'botToolRun', {
       slug,
-      tool: 'send_assignment_request',
-      args: { session_id: sessionId, text, mode: steer ? 'next-step' : 'next-turn' },
+      tool: 'unarchive_assignment',
+      args: { session_id: sessionId, message: text, mode: steer ? 'next-step' : 'next-turn' },
     }),
   );
   let result: unknown = value?.['result'];
