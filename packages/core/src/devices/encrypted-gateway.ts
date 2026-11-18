@@ -156,6 +156,11 @@ export function createEncryptedGateway(options: {
       admitted = false;
     let enrollmentOffer: { body: string; offer: string } | undefined;
     let detach: (() => void) | undefined;
+    let unwatchKey: (() => void) | undefined;
+    const stopWatchingKey = () => {
+      unwatchKey?.();
+      unwatchKey = undefined;
+    };
     const streams = new Map<string, WebSocket>();
     const requests = new Map<string, () => void>();
     let videoBinding: LocalVideoBinding | undefined;
@@ -225,6 +230,7 @@ export function createEncryptedGateway(options: {
       clearTimeout(deadline);
       clearInterval(keepalive);
       detach?.();
+      stopWatchingKey();
       channel.close();
       for (const stream of streams.values()) stream.terminate();
       for (const cancel of requests.values()) cancel();
@@ -265,6 +271,7 @@ export function createEncryptedGateway(options: {
       }
     };
     const refuse = (code: string) => {
+      stopWatchingKey();
       send({ type: 'refused', code });
       socket.close(1008, 'channel-refused');
       setTimeout(() => close('refused'), 100).unref();
@@ -672,6 +679,7 @@ export function createEncryptedGateway(options: {
           return;
         }
         if (type === 'pair') {
+          stopWatchingKey();
           let offer = field(input, 'offer');
           let accountAutoApprove = false;
           if (input['enrollment'] !== undefined) {
@@ -708,29 +716,45 @@ export function createEncryptedGateway(options: {
           if (!proposed.ok) return refuse(proposed.code);
           if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
             options.log?.('account-device-approved');
-          const paired = options.pairing.redeem({
-            offer,
-            publicKey,
-            ...(verifier === undefined ? {} : { verifier }),
-          });
-          if (!paired.ok) {
-            if (paired.code === 'device-approval-required')
-              return send({ type: 'pair-pending', receipt: proposed.receipt });
-            return refuse(paired.code);
+          const redeem = () => {
+            stopWatchingKey();
+            const paired = options.pairing.redeem({
+              offer,
+              publicKey,
+              ...(verifier === undefined ? {} : { verifier }),
+            });
+            if (!paired.ok) {
+              if (paired.code !== 'device-approval-required') refuse(paired.code);
+              return paired;
+            }
+            send({
+              type: 'paired',
+              host: paired.host,
+              deviceId: paired.device.id,
+              credential: paired.credential,
+              ...(paired.humanId === undefined
+                ? {}
+                : {
+                    humanId: paired.humanId,
+                    displayName: paired.displayName,
+                    mustChangePassword: paired.mustChangePassword,
+                  }),
+            });
+            return paired;
+          };
+          const paired = redeem();
+          if (!paired.ok && paired.code === 'device-approval-required') {
+            if (!send({ type: 'pair-pending', receipt: proposed.receipt })) return;
+            unwatchKey = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
+              if (closed || admitted) return;
+              try {
+                if (event.state === 'approved') redeem();
+                else refuse(event.state === 'expired' ? 'offer-expired' : 'offer-invalid');
+              } catch {
+                close('invalid-frame');
+              }
+            });
           }
-          send({
-            type: 'paired',
-            host: paired.host,
-            deviceId: paired.device.id,
-            credential: paired.credential,
-            ...(paired.humanId === undefined
-              ? {}
-              : {
-                  humanId: paired.humanId,
-                  displayName: paired.displayName,
-                  mustChangePassword: paired.mustChangePassword,
-                }),
-          });
           return;
         }
         if (type !== 'admit') throw new Error('channel-admission-required');
@@ -740,6 +764,7 @@ export function createEncryptedGateway(options: {
           publicKey,
         );
         if (!admission.ok) return refuse(admission.code);
+        stopWatchingKey();
         admitted = true;
         negotiating--;
         encrypted++;

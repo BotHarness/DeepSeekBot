@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -41,6 +41,93 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('watches only the exact pending key and notifies approval once, including a registration race', () => {
+    const { pairing } = fixture().open();
+    const offer = pairing.createOffer();
+    const publicKey = '11'.repeat(32);
+    pairing.requestKey({ offer: offer.offer, publicKey });
+    const approved = vi.fn(),
+      wrong = vi.fn(),
+      late = vi.fn();
+    pairing.watchKey(offer.receipt, publicKey, approved);
+    pairing.watchKey(offer.receipt, '22'.repeat(32), wrong);
+    expect(wrong).toHaveBeenCalledExactlyOnceWith({ receipt: offer.receipt, state: 'unknown' });
+    expect(pairing.approveKey(offer.receipt, '22'.repeat(32))).toBe(false);
+    expect(approved).not.toHaveBeenCalled();
+    expect(pairing.approveKey(offer.receipt, publicKey)).toBe(true);
+    pairing.approveKey(offer.receipt, publicKey);
+    expect(approved).toHaveBeenCalledExactlyOnceWith({ state: 'approved' });
+    pairing.watchKey(offer.receipt, publicKey, late);
+    expect(late).toHaveBeenCalledExactlyOnceWith({ state: 'approved' });
+    pairing.clearOffers();
+    expect(approved).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['superseded', 'refused', 'redeemed'] as const)(
+    'pushes %s to a watcher and replays a settlement that races registration',
+    (state) => {
+      const { pairing } = fixture().open();
+      const publicKey = '11'.repeat(32);
+      const offer = pairing.createOffer(
+        state === 'refused' ? { relationshipId: 'cancel-me' } : undefined,
+      );
+      pairing.requestKey({ offer: offer.offer, publicKey });
+      const listener = vi.fn(),
+        late = vi.fn();
+      if (state === 'redeemed') {
+        pairing.watchKey(offer.receipt, publicKey, () => {
+          pairing.redeem({ offer: offer.offer, publicKey });
+        });
+      }
+      pairing.watchKey(offer.receipt, publicKey, listener);
+      if (state === 'superseded') pairing.clearOffers();
+      else if (state === 'refused') pairing.cancelRelationshipOffers('cancel-me', publicKey);
+      else pairing.approveKey(offer.receipt, publicKey);
+      const status = pairing.offerStatus(offer.receipt);
+      expect(status.state).toBe(state);
+      expect(listener).toHaveBeenCalledExactlyOnceWith(status);
+      pairing.watchKey(offer.receipt, publicKey, late);
+      expect(late).toHaveBeenCalledExactlyOnceWith(status);
+      pairing.clearOffers();
+      expect(listener).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('expires a watched offer without polling and releases timers on unsubscribe or settle', () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture();
+      const { pairing } = f.open();
+      const publicKey = '11'.repeat(32);
+      const offer = pairing.createOffer();
+      pairing.requestKey({ offer: offer.offer, publicKey });
+      const listener = vi.fn();
+      const stop = pairing.watchKey(offer.receipt, publicKey, listener);
+      const other = pairing.watchKey(offer.receipt, publicKey, vi.fn());
+      expect(vi.getTimerCount()).toBe(1);
+      other();
+      expect(vi.getTimerCount()).toBe(1);
+      f.advance(PAIRING_OFFER_TTL_MS);
+      vi.advanceTimersByTime(PAIRING_OFFER_TTL_MS);
+      expect(listener).toHaveBeenCalledExactlyOnceWith(pairing.offerStatus(offer.receipt));
+      expect(listener.mock.calls[0]?.[0].state).toBe('expired');
+      expect(vi.getTimerCount()).toBe(0);
+      stop();
+      const next = pairing.createOffer();
+      pairing.requestKey({ offer: next.offer, publicKey });
+      const cancelled = vi.fn();
+      const unsubscribe = pairing.watchKey(next.receipt, publicKey, cancelled);
+      unsubscribe();
+      unsubscribe();
+      expect(vi.getTimerCount()).toBe(0);
+      pairing.approveKey(next.receipt, publicKey);
+      pairing.clearOffers();
+      expect(cancelled).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('runs the same bounded Connect health owner from HTTP and snapshots without accepting a caller target', async () => {
     const host = fixture().open();
     let checks = 0;
