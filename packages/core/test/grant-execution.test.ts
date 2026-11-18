@@ -173,17 +173,13 @@ describe('Workspace Grant execution boundary', () => {
       expect(append).toHaveBeenCalledTimes(calls);
       state.overrideOf.mockReturnValue('ask');
       alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
-      expect(append).toHaveBeenLastCalledWith('approval/policy', {
-        policy: 'never',
-      });
+      expect(append).toHaveBeenLastCalledWith('approval/policy', { policy: 'never' });
       access.mode = 'workspace-write';
       expect(grantExecutionDenial(core, child, state.policy, state.approval)).toMatch(
         /differs from this PersonaBot's access setting/,
       );
       alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
-      expect(append).toHaveBeenLastCalledWith('sandbox/mode', {
-        mode: 'workspace-write',
-      });
+      expect(append).toHaveBeenLastCalledWith('sandbox/mode', { mode: 'workspace-write' });
       expect(grantExecutionDenial(core, child, state.policy, state.approval)).toBeUndefined();
       expect(sessionHasFullAccess(core, childId)).toBe(false);
       expect(
@@ -563,10 +559,7 @@ describe('Workspace Grant execution boundary', () => {
   it('extends a dangerous Assignment snapshot to its delegated Subagents (#2870)', () => {
     const state = fixture();
     const childId = 'dsh-assignment-child';
-    const child = {
-      id: childId,
-      header: { cwd, parentSession: assignmentSessionId },
-    } as never;
+    const child = { id: childId, header: { cwd, parentSession: assignmentSessionId } } as never;
     const resolve = (state.core as { ownership: { resolve: ReturnType<typeof vi.fn> } }).ownership
       .resolve;
     resolve.mockImplementation((sessionId: string) =>
@@ -579,12 +572,7 @@ describe('Workspace Grant execution boundary', () => {
             parentSessionId: assignmentSessionId,
           }
         : sessionId === assignmentSessionId
-          ? {
-              sessionId,
-              botSlug,
-              rootRole: 'assignment',
-              parentSessionId: undefined,
-            }
+          ? { sessionId, botSlug, rootRole: 'assignment', parentSessionId: undefined }
           : undefined,
     );
     const outside = { file_path: '/outside/project/file', content: 'x' };
@@ -833,9 +821,7 @@ describe('Workspace Grant execution boundary', () => {
     let mode: 'workspace-write' | 'danger-full-access' = 'workspace-write';
     const core = {
       ...(state.core as object),
-      assignmentAccess: {
-        get: () => ({ botSlug, mode, scope: 'chat', revision: 1 }),
-      },
+      assignmentAccess: { get: () => ({ botSlug, mode, scope: 'chat', revision: 1 }) },
     } as never;
     const appended: Array<[string, unknown]> = [];
     const orchestrator = {
@@ -859,10 +845,7 @@ describe('Workspace Grant execution boundary', () => {
     ]);
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
     expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toBeUndefined();
-    const assignment = {
-      ...(state.assignment as object),
-      append: vi.fn(),
-    } as never;
+    const assignment = { ...(state.assignment as object), append: vi.fn() } as never;
     expect(
       alignOrchestratorPermission(core, assignment, state.policy, state.approval),
     ).toBeUndefined();
@@ -875,12 +858,7 @@ describe('Workspace Grant execution boundary', () => {
     const core = {
       ...(state.core as object),
       assignmentAccess: {
-        get: () => ({
-          botSlug,
-          mode: 'danger-full-access',
-          scope: 'chat',
-          revision: 2,
-        }),
+        get: () => ({ botSlug, mode: 'danger-full-access', scope: 'chat', revision: 2 }),
       },
     } as never;
     const orchestrator = {
@@ -965,19 +943,11 @@ describe('Workspace Grant execution boundary', () => {
     const state = fixture();
     const append = vi.fn();
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
-    const moved = {
-      id: assignmentSessionId,
-      header: { cwd: '/tmp/elsewhere' },
-      append,
-    } as never;
+    const moved = { id: assignmentSessionId, header: { cwd: '/tmp/elsewhere' }, append } as never;
     expect(admitBotSession(state.core, moved, 'assignment', state.policy, state.approval)).toMatch(
       /snapshot is missing or mismatched/,
     );
-    const assignment = {
-      id: assignmentSessionId,
-      header: { cwd },
-      append,
-    } as never;
+    const assignment = { id: assignmentSessionId, header: { cwd }, append } as never;
     state.requireActive.mockImplementation(() => {
       throw new Error('revoked');
     });
@@ -996,11 +966,7 @@ describe('Workspace Grant execution boundary', () => {
       orchestratorWrite: writable,
     }));
     const append = vi.fn();
-    const assignment = {
-      id: assignmentSessionId,
-      header: { cwd },
-      append,
-    } as never;
+    const assignment = { id: assignmentSessionId, header: { cwd }, append } as never;
     expect(
       admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
     ).toMatch(/permission mode differs from its snapshot/);
@@ -1014,9 +980,7 @@ describe('Workspace Grant execution boundary', () => {
     expect(alignAssignmentPermission(state.core, assignment, state.policy, state.approval)).toBe(
       true,
     );
-    expect(append).toHaveBeenCalledWith('sandbox/mode', {
-      mode: 'workspace-write',
-    });
+    expect(append).toHaveBeenCalledWith('sandbox/mode', { mode: 'workspace-write' });
     state.resolvePolicy.mockReturnValue({ mode: 'workspace-write' });
     expect(
       admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
@@ -1137,20 +1101,13 @@ describe('Bot Session admission', () => {
     const core = {
       ...(state.core as object),
       assignmentAccess: {
-        get: () => ({
-          botSlug,
-          mode: testCase.access,
-          scope: 'chat',
-          revision: 1,
-        }),
+        get: () => ({ botSlug, mode: testCase.access, scope: 'chat', revision: 1 }),
       },
     } as never;
     const writes: string[] = [];
     const session = {
       id: testCase.role === 'orchestrator' ? 'botharness-orchestrator' : assignmentSessionId,
-      header: {
-        cwd: testCase.cwd ?? (testCase.role === 'orchestrator' ? memory : cwd),
-      },
+      header: { cwd: testCase.cwd ?? (testCase.role === 'orchestrator' ? memory : cwd) },
       append: (type: string, data: { mode?: string; policy?: string }) => {
         writes.push(type);
         if (type === 'sandbox/mode') state.resolvePolicy.mockReturnValue({ mode: data.mode! });
@@ -1170,11 +1127,7 @@ describe('Bot Session admission', () => {
     state.requireActive.mockImplementation(() => {
       throw new Error('revoked');
     });
-    const assignment = {
-      id: assignmentSessionId,
-      header: { cwd },
-      append: vi.fn(),
-    } as never;
+    const assignment = { id: assignmentSessionId, header: { cwd }, append: vi.fn() } as never;
     expect(borrowedAgentDenial(state.core, assignment, 'assignment')).toBeUndefined();
     expect(borrowedAgentDenial(state.core, assignment, 'orchestrator')).toBe(
       'BotHarness Agent role mismatch',
@@ -1194,11 +1147,7 @@ describe('Bot Session admission', () => {
     const state = fixture();
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
     const repairs: string[] = [];
-    const assignment = {
-      id: assignmentSessionId,
-      header: { cwd },
-      append: vi.fn(),
-    } as never;
+    const assignment = { id: assignmentSessionId, header: { cwd }, append: vi.fn() } as never;
     admitBotSession(state.core, assignment, undefined, state.policy, state.approval, (repair) =>
       repairs.push(repair),
     );

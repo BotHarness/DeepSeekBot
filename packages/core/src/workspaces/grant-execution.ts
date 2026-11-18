@@ -146,10 +146,7 @@ export function assignmentSandboxMode(
 export function orchestratorPermission(
   core: AccessCore,
   botSlug: string,
-): {
-  mode: 'workspace-write' | 'danger-full-access';
-  approval: 'ask' | 'never';
-} {
+): { mode: 'workspace-write' | 'danger-full-access'; approval: 'ask' | 'never' } {
   if (isMemberBot(core, botSlug)) return { mode: 'workspace-write', approval: 'ask' };
   const preset = core.assignmentAccess?.get(botSlug);
   return preset?.mode === 'danger-full-access' && preset.scope === 'chat'

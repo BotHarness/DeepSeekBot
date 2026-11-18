@@ -96,12 +96,10 @@ export function createTobService(options: {
         () => {
           const identity = database.read((db) =>
             db
-              .prepare(
-                `SELECT 1 FROM tob_identity t
+              .prepare(`SELECT 1 FROM tob_identity t
           JOIN humans h ON h.human_id = t.human_id
           JOIN team_settings s ON s.owner_human_id = t.human_id
-          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`,
-              )
+          WHERE t.human_id = ? AND t.bot_slug = ? AND h.status = 'active'`)
               .get(human.humanId, slug),
           );
           if (!identity) throw new TobError('tob-identity-unavailable');
@@ -143,11 +141,7 @@ export function createTobService(options: {
       8;
     if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 32)
       throw new TobError('invalid-setting');
-    return {
-      scope: 'global',
-      value: Number(value),
-      revision: descriptor.revision,
-    };
+    return { scope: 'global', value: Number(value), revision: descriptor.revision };
   };
   return {
     async ensure(human = humanContext(ownerId())) {

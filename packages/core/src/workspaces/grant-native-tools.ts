@@ -354,10 +354,7 @@ export function nativeExecutionRoot(
   const input = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {};
   const shell = NATIVE_SHELL_TOOL_NAMES.has(name);
   const request = shell
-    ? {
-        path: typeof input.workdir === 'string' ? input.workdir : '.',
-        kind: 'write' as const,
-      }
+    ? { path: typeof input.workdir === 'string' ? input.workdir : '.', kind: 'write' as const }
     : nativePaths(name, args)[0];
   if (request === undefined || session.header.cwd === undefined)
     throw new Error('BotHarness requires an authorized execution path');

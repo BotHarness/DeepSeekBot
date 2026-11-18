@@ -62,25 +62,15 @@ afterEach(async () => {
   }
 });
 function fixture(home = realpathSync(createTempRoot('m6-spaces-'))) {
-  const extra: {
-    id: string;
-    path: string;
-    title: string;
-    status(): Promise<'ok'>;
-  }[] = [];
+  const extra: { id: string; path: string; title: string; status(): Promise<'ok'> }[] = [];
   const core = createCore({
     dshHome: home,
     agents: createDshBotAgentAdapter({
       agents: new FakeAgentHost({ kind: 'completed' }),
-      defaultModel: {
-        currentSelection: () => ({ provider: 'test', model: 'test' }),
-      },
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: (bot) => core.registry.memoryDirFor(bot.slug),
     }),
-    workspaces: () => ({
-      get: (id) => extra.find((entry) => entry.id === id),
-      list: () => extra,
-    }),
+    workspaces: () => ({ get: (id) => extra.find((entry) => entry.id === id), list: () => extra }),
   });
   cores.push(core);
   const db = attachOperationalModule(core.operationalDatabase, 'm6-test');
@@ -103,11 +93,7 @@ function fixture(home = realpathSync(createTempRoot('m6-spaces-'))) {
     return id;
   };
   const createBot = (human = alice, slug = human.humanId + '-bot') => {
-    const created = core.registry.create({
-      slug,
-      displayName: slug,
-      ownerHumanId: human.humanId,
-    });
+    const created = core.registry.create({ slug, displayName: slug, ownerHumanId: human.humanId });
     if (!created.ok) throw new Error(created.reason);
     return created.record;
   };
@@ -134,10 +120,16 @@ describe('M6 spaces and current authority', () => {
         ['reports', 0],
         ['drafts', 1],
       ] as const)
-        db.prepare(
-          `INSERT INTO workspace_grants (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
-          VALUES (?,?,?,?,?,'before',?,?)`,
-        ).run('legacy-' + name, bot.slug, 'legacy-' + name, join(source, name), name, write, write);
+        db.prepare(`INSERT INTO workspace_grants (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
+          VALUES (?,?,?,?,?,'before',?,?)`).run(
+          'legacy-' + name,
+          bot.slug,
+          'legacy-' + name,
+          join(source, name),
+          name,
+          write,
+          write,
+        );
     });
     relocateTobWorkspaces(f.db, f.home);
     expect(f.core.registry.get(bot.slug)?.workspaces).toEqual([]);
@@ -147,14 +139,8 @@ describe('M6 spaces and current authority', () => {
         .filter((grant) => !grant.revokedAt)
         .toSorted((a, b) => a.workspacePath.localeCompare(b.workspacePath)),
     ).toEqual([
-      expect.objectContaining({
-        workspacePath: join(target, 'drafts'),
-        orchestratorWrite: true,
-      }),
-      expect.objectContaining({
-        workspacePath: join(target, 'reports'),
-        orchestratorWrite: false,
-      }),
+      expect.objectContaining({ workspacePath: join(target, 'drafts'), orchestratorWrite: true }),
+      expect.objectContaining({ workspacePath: join(target, 'reports'), orchestratorWrite: false }),
     ]);
     for (const grant of f.core.grants.list(bot.slug).filter((grant) => !grant.revokedAt)) {
       expect(grant.workspacePath).not.toBe(target);
@@ -176,10 +162,8 @@ describe('M6 spaces and current authority', () => {
     writeFileSync(join(source, 'kept.txt'), 'Kept');
     f.db.transaction((db) =>
       db
-        .prepare(
-          `INSERT INTO workspace_grants
-      (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at) VALUES ('unsafe',?,'unsafe',?,'unsafe','before')`,
-        )
+        .prepare(`INSERT INTO workspace_grants
+      (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at) VALUES ('unsafe',?,'unsafe',?,'unsafe','before')`)
         .run(bot.slug, source + '/../escape'),
     );
     expect(() => relocateTobWorkspaces(f.db, f.home)).toThrow('grant-protected-path');
@@ -264,10 +248,7 @@ describe('M6 spaces and current authority', () => {
         allowed.push(grant.id);
         continue;
       }
-      const denial = {
-        code: 'grant-outside-audience',
-        details: { path, spaceId: space.spaceId },
-      };
+      const denial = { code: 'grant-outside-audience', details: { path, spaceId: space.spaceId } };
       await expect(f.core.grants.create('owner-audience', space.spaceId)).rejects.toMatchObject(
         denial,
       );
@@ -292,11 +273,9 @@ describe('M6 spaces and current authority', () => {
       const id = 'legacy-owner-shared-' + index;
       f.db.transaction((db) =>
         db
-          .prepare(
-            `INSERT INTO workspace_grants
+          .prepare(`INSERT INTO workspace_grants
         (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
-        VALUES (?, 'owner-audience', ?, ?, 'Legacy', '2026-11-15', 1, 1)`,
-          )
+        VALUES (?, 'owner-audience', ?, ?, 'Legacy', '2026-11-15', 1, 1)`)
           .run(id, space.spaceId, path),
       );
       refused.push({ id, spaceId: space.spaceId, path });
@@ -316,10 +295,7 @@ describe('M6 spaces and current authority', () => {
       expect(retained).toBeDefined();
       expect(retained?.revokedAt).toBeUndefined();
       expect(() => restarted.core.grants.requireActive('owner-audience', id)).toThrowError(
-        expect.objectContaining({
-          code: 'grant-outside-audience',
-          details: { path, spaceId },
-        }),
+        expect.objectContaining({ code: 'grant-outside-audience', details: { path, spaceId } }),
       );
     }
   });
@@ -359,9 +335,7 @@ describe('M6 spaces and current authority', () => {
     'refuses restricted shared content hard-linked into %j private Memory',
     (human) => {
       const f = fixture();
-      const everyone = f.core.spaces.create(owner, 'Memory container', {
-        kind: 'everyone',
-      });
+      const everyone = f.core.spaces.create(owner, 'Memory container', { kind: 'everyone' });
       const slug = 'memory-link-' + human.humanId;
       expect(
         f.core.registry.create({
@@ -392,10 +366,9 @@ describe('M6 spaces and current authority', () => {
     const f = fixture();
     const creator = f.core.team.roles.create(owner, 'Private creator', ['bots.createPrivate']).role;
     f.core.team.roles.set(owner, alice.humanId, ['member', creator.roleId]);
-    const created = await f.bridge(alice).create({
-      displayName: 'Personal',
-      operationKey: 'member-bot-default-1',
-    });
+    const created = await f
+      .bridge(alice)
+      .create({ displayName: 'Personal', operationKey: 'member-bot-default-1' });
     if (!created.ok) throw new Error(created.error.code);
     const slug = created.value.bot.slug;
     const grants = f.core.grants.list(slug);
@@ -424,10 +397,7 @@ describe('M6 spaces and current authority', () => {
     expect(
       await f.bridge(alice).grantWriteSet({ slug, grantId: grants[0]!.id, enabled: false }),
     ).toMatchObject({ ok: true });
-    await f.bridge(alice).create({
-      displayName: 'Personal',
-      operationKey: 'member-bot-default-1',
-    });
+    await f.bridge(alice).create({ displayName: 'Personal', operationKey: 'member-bot-default-1' });
     expect(f.core.grants.requireActive(slug, grants[0]!.id).orchestratorWrite).toBe(false);
     expect(nativeFileToolDenial(f.core, session, 'read', { file_path: file })).toBeUndefined();
     expect(nativeFileToolDenial(f.core, session, 'write', { file_path: file })).toMatch(
@@ -436,10 +406,7 @@ describe('M6 spaces and current authority', () => {
     expect(await f.bridge(alice).grantRevoke({ slug, grantId: grants[0]!.id })).toMatchObject({
       ok: true,
     });
-    await f.bridge(alice).create({
-      displayName: 'Personal',
-      operationKey: 'member-bot-default-1',
-    });
+    await f.bridge(alice).create({ displayName: 'Personal', operationKey: 'member-bot-default-1' });
     expect(f.core.grants.list(slug)).toHaveLength(1);
     expect(f.core.grants.list(slug)[0]?.revokedAt).toBeDefined();
     expect(nativeFileToolDenial(f.core, session, 'read', { file_path: file })).toMatch(/outside/);
@@ -488,15 +455,9 @@ describe('M6 spaces and current authority', () => {
     });
     const dm = f.core.channels.getOrCreateDm(alice, 'alice-bot', 'Alice')!;
     const paths = [
-      {
-        path: createTempRoot('member-request-outside-'),
-        code: 'grant-protected-path',
-      },
+      { path: createTempRoot('member-request-outside-'), code: 'grant-protected-path' },
       { path: join(f.home, 'spaces/bob/files'), code: 'grant-foreign-space' },
-      {
-        path: join(f.home, shared.spaceId, 'files'),
-        code: 'grant-outside-audience',
-      },
+      { path: join(f.home, shared.spaceId, 'files'), code: 'grant-outside-audience' },
     ];
     for (const [index, entry] of paths.entries()) {
       const id = 'request-' + index;
@@ -551,15 +512,11 @@ describe('M6 spaces and current authority', () => {
         "CREATE TRIGGER fail_provision BEFORE INSERT ON workspace_grants BEGIN SELECT RAISE(ABORT, 'provisioning-failed'); END",
       ),
     );
-    expect(await f.core.registry.createFromFiles(input)).toMatchObject({
-      ok: false,
-    });
+    expect(await f.core.registry.createFromFiles(input)).toMatchObject({ ok: false });
     expect(f.core.registry.get(input.slug)).toBeUndefined();
     expect(existsSync(accountMemoryPath(f.home, 'alice', input.slug))).toBe(false);
     f.db.transaction((db) => db.exec('DROP TRIGGER fail_provision'));
-    expect(await f.core.registry.createFromFiles(input)).toMatchObject({
-      ok: true,
-    });
+    expect(await f.core.registry.createFromFiles(input)).toMatchObject({ ok: true });
     expect(f.core.grants.list(input.slug)).toMatchObject([
       { workspaceId: 'spaces/alice', orchestratorWrite: true },
     ]);
@@ -580,11 +537,7 @@ describe('M6 spaces and current authority', () => {
         ok: true,
         value: {
           workspaces: expect.arrayContaining([
-            {
-              id: 'native-workspace',
-              path: nativePath,
-              title: 'native-workspace',
-            },
+            { id: 'native-workspace', path: nativePath, title: 'native-workspace' },
           ]),
         },
       });
@@ -607,11 +560,7 @@ describe('M6 spaces and current authority', () => {
           ok: true,
           value: {
             workspaces: [
-              {
-                id: 'spaces/alice',
-                path: join(f.home, 'spaces/alice/files'),
-                title: 'alice',
-              },
+              { id: 'spaces/alice', path: join(f.home, 'spaces/alice/files'), title: 'alice' },
             ],
           },
         });
@@ -621,14 +570,8 @@ describe('M6 spaces and current authority', () => {
 
   it('creates only the caller account and audience-visible shared spaces, with manager access to shared spaces only', async () => {
     const f = fixture();
-    const member = f.core.spaces.create(owner, 'Members', {
-      kind: 'members',
-      humanIds: ['alice'],
-    });
-    const role = f.core.spaces.create(owner, 'Role', {
-      kind: 'roles',
-      roleIds: ['admin'],
-    });
+    const member = f.core.spaces.create(owner, 'Members', { kind: 'members', humanIds: ['alice'] });
+    const role = f.core.spaces.create(owner, 'Role', { kind: 'roles', roleIds: ['admin'] });
     const all = f.core.spaces.create(owner, 'All', { kind: 'everyone' });
     expect(f.core.spaces.list(alice).map((space) => space.spaceId)).toEqual([
       all.spaceId,
@@ -658,10 +601,7 @@ describe('M6 spaces and current authority', () => {
       .spaceCreate({ name: 'Refused', audience: { kind: 'everyone' } });
     expect(changed).toMatchObject({
       ok: false,
-      error: {
-        code: 'permission-required',
-        details: { permission: 'workspaces.manageShared' },
-      },
+      error: { code: 'permission-required', details: { permission: 'workspaces.manageShared' } },
     });
     expect(
       f.core.spaces.update(owner, member.spaceId, {
@@ -679,16 +619,10 @@ describe('M6 spaces and current authority', () => {
       'space-name-taken',
     );
     expect(() =>
-      f.core.spaces.create(owner, 'Other', {
-        kind: 'roles',
-        roleIds: ['missing'],
-      }),
+      f.core.spaces.create(owner, 'Other', { kind: 'roles', roleIds: ['missing'] }),
     ).toThrow('role-not-found');
     expect(() =>
-      f.core.spaces.create(owner, 'Other', {
-        kind: 'members',
-        humanIds: ['missing'],
-      }),
+      f.core.spaces.create(owner, 'Other', { kind: 'members', humanIds: ['missing'] }),
     ).toThrow('member-not-found');
     for (const human of [alice, bob]) {
       expect(() => f.core.spaces.update(human, space.spaceId, { name: 'Hacked' })).toThrow(
@@ -760,9 +694,7 @@ describe('M6 spaces and current authority', () => {
     ).toMatchObject({ ok: false, error: { code: 'grant-foreign-space' } });
     expect(await f.bridge(alice).grantRequestApprove(input)).toMatchObject({
       ok: true,
-      value: {
-        grant: { workspaceId: 'spaces/alice', orchestratorWrite: true },
-      },
+      value: { grant: { workspaceId: 'spaces/alice', orchestratorWrite: true } },
     });
   });
 
@@ -770,10 +702,7 @@ describe('M6 spaces and current authority', () => {
     const f = fixture();
     const role = f.core.team.roles.create(owner, 'Finance', ['models.use']).role;
     f.core.team.roles.set(owner, alice.humanId, [role.roleId]);
-    const group = f.core.channels.createGroup(owner, {
-      name: 'Finance',
-      members: [],
-    });
+    const group = f.core.channels.createGroup(owner, { name: 'Finance', members: [] });
     f.core.team.channelAccess.visibilitySet(owner, group.id, {
       kind: 'roles',
       roleIds: [role.roleId],
@@ -793,9 +722,7 @@ describe('M6 spaces and current authority', () => {
     });
     expect(f.core.team.roles.list(owner)).toEqual(before);
     expect(f.core.team.channelAccess.canRead(alice, group.id)).toBe(true);
-    f.core.spaces.update(owner, shared.spaceId, {
-      audience: { kind: 'everyone' },
-    });
+    f.core.spaces.update(owner, shared.spaceId, { audience: { kind: 'everyone' } });
     expect(f.core.team.roles.delete(owner, role.roleId)).toBeNull();
     expect(f.core.team.channelAccess.canRead(alice, group.id)).toBe(false);
     expect(f.core.spaces.list(bob).some((space) => space.spaceId === shared.spaceId)).toBe(true);
@@ -832,10 +759,7 @@ describe('M6 spaces and current authority', () => {
     });
     await expect(f.core.grants.create('alice-bot', 'spaces/bob')).rejects.toMatchObject({
       code: 'grant-foreign-space',
-      details: {
-        path: join(f.home, 'spaces/bob/files'),
-        spaceId: 'spaces/bob',
-      },
+      details: { path: join(f.home, 'spaces/bob/files'), spaceId: 'spaces/bob' },
     });
     for (const path of [
       f.core.registry.memoryDirFor('alice-bot')!,
@@ -857,10 +781,7 @@ describe('M6 spaces and current authority', () => {
       .grantCreate({ slug: 'alice-bot', workspaceId: 'spaces/bob' });
     expect(result).toMatchObject({
       ok: false,
-      error: {
-        code: 'grant-foreign-space',
-        details: { spaceId: 'spaces/bob' },
-      },
+      error: { code: 'grant-foreign-space', details: { spaceId: 'spaces/bob' } },
     });
   });
 });
@@ -877,9 +798,7 @@ const tools = [
 ] as const;
 const toolArgs = (tool: string, path: string) =>
   tool === 'apply_patch'
-    ? {
-        input: `*** Begin Patch\n*** Update File: ${path}\n@@\n-old\n+new\n*** End Patch`,
-      }
+    ? { input: `*** Begin Patch\n*** Update File: ${path}\n@@\n-old\n+new\n*** End Patch` }
     : tool === 'glob' || tool === 'grep'
       ? { path, pattern: '*' }
       : tool === 'str_replace_editor'
@@ -913,10 +832,7 @@ describe('M6 path-addressed tools', () => {
         cwdReference: f.core.registry.memoryDirFor('alice-bot')!,
         at: '2026-11-14',
       });
-      const session = {
-        id: 'alice-session',
-        header: { cwd: project },
-      } as Session;
+      const session = { id: 'alice-session', header: { cwd: project } } as Session;
       for (const path of [
         secret,
         join(project, 'link/secret'),
@@ -1002,10 +918,7 @@ describe('M6 path-addressed tools', () => {
       f.bridge(alice).workspaceFileTarget({ slug: 'alice-bot', grantId: grant.id }),
     ).toMatchObject({
       ok: false,
-      error: {
-        code: 'grant-foreign-space',
-        details: { spaceId: 'spaces/bob' },
-      },
+      error: { code: 'grant-foreign-space', details: { spaceId: 'spaces/bob' } },
     });
     const dm = f.core.channels.getOrCreateDm(alice, 'alice-bot', 'Alice')!;
     linkSync(secret, join(project, 'hardlink'));
@@ -1067,10 +980,8 @@ describe('M6 Memory migration and offboarding', () => {
       );
       db.transaction((connection) => {
         connection
-          .prepare(
-            `INSERT INTO channel_records(channel_id, record_json, visibility_json, owner_human_id)
-        VALUES ('main-role-channel', ?, ?, 'alice')`,
-          )
+          .prepare(`INSERT INTO channel_records(channel_id, record_json, visibility_json, owner_human_id)
+        VALUES ('main-role-channel', ?, ?, 'alice')`)
           .run(
             JSON.stringify({
               id: 'main-role-channel',
@@ -1097,11 +1008,9 @@ describe('M6 Memory migration and offboarding', () => {
       const ownerNative = realpathSync(createTempRoot('m6-upgrade-owner-native-'));
       db.transaction((connection) =>
         connection
-          .prepare(
-            `INSERT INTO workspace_grants
+          .prepare(`INSERT INTO workspace_grants
         (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at,orchestrator_write,write_revision)
-        VALUES ('old-owner-native','old-owner','old-owner-native',?,'Native','2026-11-15',1,1)`,
-          )
+        VALUES ('old-owner-native','old-owner','old-owner-native',?,'Native','2026-11-15',1,1)`)
           .run(ownerNative),
       );
       for (const slug of ['old-private', 'old-tob', 'old-retained', 'old-erasing'])
@@ -1111,9 +1020,7 @@ describe('M6 Memory migration and offboarding', () => {
             displayName: slug,
             ownerHumanId: 'alice',
             ...(slug === 'old-tob' && generation !== 150
-              ? {
-                  workspaces: [join(home, 'botharness/tob-workspaces/old-tob')],
-                }
+              ? { workspaces: [join(home, 'botharness/tob-workspaces/old-tob')] }
               : {}),
           }).ok,
         ).toBe(true);
@@ -1216,10 +1123,7 @@ describe('M6 Memory migration and offboarding', () => {
       );
       expect(f.core.tob.slug(alice)).toBeUndefined();
       expect(f.core.tob.isTob('old-tob')).toBe(false);
-      expect(await f.bridge(alice).tobHome({})).toEqual({
-        ok: true,
-        value: { available: false },
-      });
+      expect(await f.bridge(alice).tobHome({})).toEqual({ ok: true, value: { available: false } });
       expect(readFileSync(join(home, 'spaces/alice/files/notes/kept.txt'), 'utf8')).toBe(
         'Tob file',
       );
@@ -1239,10 +1143,7 @@ describe('M6 Memory migration and offboarding', () => {
         generation === 150 ? [] : [join(home, 'spaces/alice/files')],
       );
       expect(f.core.grants.list('old-tob')).toContainEqual(
-        expect.objectContaining({
-          id: 'old-tob-grant',
-          revokedAt: expect.any(String),
-        }),
+        expect.objectContaining({ id: 'old-tob-grant', revokedAt: expect.any(String) }),
       );
       expect(f.core.grants.list('old-tob')).toContainEqual(
         expect.objectContaining({
@@ -1318,10 +1219,7 @@ describe('M6 Memory migration and offboarding', () => {
     const ownerMemory = f.core.registry.memoryDirFor(tob.botSlug);
     const formerMemory = f.core.registry.memoryDirFor(formerTob.slug)!;
     writeFileSync(join(formerMemory, 'kept'), 'former Tob Memory');
-    expect(await f.bridge(alice).tobHome({})).toEqual({
-      ok: true,
-      value: { available: false },
-    });
+    expect(await f.bridge(alice).tobHome({})).toEqual({ ok: true, value: { available: false } });
     const oldMemory = f.core.registry.memoryDirFor('alice-bot')!;
     writeFileSync(join(oldMemory, 'retained'), 'bot memory');
     writeFileSync(join(f.home, 'spaces/alice/report.txt'), 'member file');
@@ -1403,10 +1301,7 @@ describe('M6 Memory migration and offboarding', () => {
     const ctx = new Context();
     const provider = ctx.plugin({
       apply(c: Context) {
-        c.provide('systemPrompt', {
-          tools: () => () => undefined,
-          section: () => () => undefined,
-        });
+        c.provide('systemPrompt', { tools: () => () => undefined, section: () => () => undefined });
       },
     });
     await provider.await();
@@ -1430,19 +1325,14 @@ describe('M6 Memory migration and offboarding', () => {
                 items: {
                   type: 'object',
                   additionalProperties: false,
-                  properties: {
-                    path: { type: 'string' },
-                    line: { type: 'string' },
-                  },
+                  properties: { path: { type: 'string' }, line: { type: 'string' } },
                 },
               },
             },
           },
           render: () => [{ type: 'text', text: 'PRIVATE_MEMORY_SECRET' }],
         },
-        execute: async () => ({
-          matches: [{ path, line: 'PRIVATE_MEMORY_SECRET' }],
-        }),
+        execute: async () => ({ matches: [{ path, line: 'PRIVATE_MEMORY_SECRET' }] }),
       }),
     );
     ctx.on('tools/post-execute', async (_exec, _result, next) => {
@@ -1453,10 +1343,7 @@ describe('M6 Memory migration and offboarding', () => {
       published.push(result);
     });
     installNativeSearchResultGuard(ctx, f.core, () => false);
-    const agent = {
-      session: { id: 'pipeline-search', header: { cwd } },
-      ctx,
-    } as unknown as Agent;
+    const agent = { session: { id: 'pipeline-search', header: { cwd } }, ctx } as unknown as Agent;
     try {
       const result = await executeNativeTool(ctx, {
         agent,
@@ -1733,10 +1620,7 @@ describe('M6 Memory migration and offboarding', () => {
       const listing = f.core.operationalDatabase.diagnostics().metrics.reads - before;
       before = f.core.operationalDatabase.diagnostics().metrics.reads;
       f.core.spaces.assertPath('alice-bot', join(f.home, 'spaces/alice/files'));
-      return {
-        listing,
-        path: f.core.operationalDatabase.diagnostics().metrics.reads - before,
-      };
+      return { listing, path: f.core.operationalDatabase.diagnostics().metrics.reads - before };
     };
     const before = sample();
     f.db.transaction((connection) => {
@@ -1746,10 +1630,7 @@ describe('M6 Memory migration and offboarding', () => {
           .run('member-' + i);
     });
     for (let i = 0; i < 20; i++)
-      f.core.spaces.create(owner, 'Role ' + i, {
-        kind: 'roles',
-        roleIds: ['member'],
-      });
+      f.core.spaces.create(owner, 'Role ' + i, { kind: 'roles', roleIds: ['member'] });
     expect(sample()).toEqual(before);
     expect(before.listing).toBeLessThanOrEqual(4);
     expect(before.path).toBeLessThanOrEqual(4);
