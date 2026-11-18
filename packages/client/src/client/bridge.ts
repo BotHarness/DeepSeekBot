@@ -32,7 +32,7 @@ import {
   loadWorkspaceOptions as loadHostWorkspaceOptions,
   setModelFavorite as setHostModelFavorite,
 } from '@botharness/host-client/bot-settings';
-import { type ModelChoice } from '@botharness/host-client/model-catalog';
+import type { ModelChoice } from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {
@@ -181,7 +181,7 @@ import type { MarketplaceLanguage } from '../../../core/src/marketplace/language
 import type { OverviewUsage } from '@botharness/host-client/usage';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
-import { type UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
+import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';

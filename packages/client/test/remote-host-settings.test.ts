@@ -38,13 +38,15 @@ describe('Remote Host settings ownership', () => {
     ]);
     expect(local).toMatchObject({ preset: { name: 'a' } });
     expect(remote).toMatchObject({ preset: { name: 'b' } });
-    b.host.methods.set('modelPresetUpdate', () => ({ preset: { id: 'same-id' } }));
+    b.host.methods.set('modelPresetUpdate', (args) => ({
+      preset: { ...remote.preset, ...args, revision: 4 },
+    }));
     await saveModelPreset(b.client, remote, 'Renamed remote', true);
     expect(b.host.calls.at(-1)).toMatchObject({
       method: 'modelPresetUpdate',
       args: { id: 'same-id', expectedRevision: 3, name: 'Renamed remote', orchestrator: b.route },
     });
-    b.host.methods.set('onboardingModel', () => ({}));
+    b.host.methods.set('onboardingModel', () => ({ revision: 1 }));
     await setModelRoute(
       b.client,
       { kind: 'global' },
@@ -62,8 +64,39 @@ describe('Remote Host settings ownership', () => {
   it('reads usage and storage through the selected Host and preserves explicit cleanup preview scope', async () => {
     const a = setup('a');
     const b = setup('b');
-    b.host.methods.set('overviewUsage', (args) => ({ source: 'b', ...args }));
-    b.host.methods.set('overviewMemory', (args) => ({ source: 'b', ...args }));
+    const days = Array.from({ length: 7 }, (_, index) => `2026-11-${String(12 + index)}`);
+    const tokens = {
+      inputTokens: 1,
+      outputTokens: 1,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 2,
+    };
+    const usage = {
+      period: 'week',
+      start: days[0],
+      end: days[6],
+      timezone: 'UTC',
+      readAt: '2026-11-18T00:00:00.000Z',
+      nextRefreshAt: '2026-11-18T00:05:00.000Z',
+      totals: tokens,
+      days: days.map((day) => ({ ...tokens, day })),
+      bots: [],
+      freshness: 'ready',
+      legacyBaseline: false,
+      reconciledAt: null,
+    };
+    const memory = {
+      start: days[0],
+      end: days[6],
+      days,
+      timezone: 'UTC',
+      readAt: '2026-11-18T00:00:00.000Z',
+      nextRefreshAt: '2026-11-18T00:05:00.000Z',
+      bots: [],
+    };
+    b.host.methods.set('overviewUsage', () => usage);
+    b.host.methods.set('overviewMemory', () => memory);
     b.host.methods.set('storageUsage', () => ({ totalBytes: 12, chats: [], parts: [] }));
     const scope = {
       before: '2026-01-01T00:00:00.000Z',
@@ -81,12 +114,11 @@ describe('Remote Host settings ownership', () => {
     };
     b.host.methods.set('storageCleanupPreview', () => preview);
     b.host.methods.set('storageCleanupConfirm', () => ({ files: 1, messages: 1, freedBytes: 12 }));
-    expect(await b.source.usage.overviewUsage('week', 'cursor')).toEqual({
-      source: 'b',
-      period: 'week',
-      after: 'cursor',
-    });
-    expect(await b.source.usage.overviewMemory('cursor')).toEqual({ source: 'b', after: 'cursor' });
+    expect(await b.source.usage.overviewUsage('week', 'cursor')).toEqual(usage);
+    expect(await b.source.usage.overviewMemory('cursor')).toEqual(memory);
+    expect(
+      b.host.calls.filter((call) => call.method.startsWith('overview')).map((call) => call.args),
+    ).toEqual([{ period: 'week', after: 'cursor' }, { after: 'cursor' }]);
     expect(await b.source.storage.usage()).toMatchObject({ totalBytes: 12 });
     const result = await b.source.storage.previewMedia(scope);
     expect(b.host.calls.some((call) => call.method === 'storageCleanupConfirm')).toBe(false);

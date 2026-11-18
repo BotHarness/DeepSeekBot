@@ -16,11 +16,11 @@ function botRow(value: unknown, method: string): Record<string, unknown> & { slu
 export function parseBotList(value: unknown): PersonaBotSummary[] {
   const bots = record(value)?.['bots'];
   if (!Array.isArray(bots)) throw new HostAnswerInvalid('list returned no Bots.');
-  return bots.flatMap((entry) => {
-    const bot = record(entry);
-    return text(bot?.['slug']) && bot['slug'].length > 0 && text(bot['displayName'])
-      ? [bot as unknown as PersonaBotSummary]
-      : [];
+  return bots.map((entry) => {
+    const bot = botRow(entry, 'list');
+    if (!text(bot['displayName']))
+      throw new HostAnswerInvalid('list returned a Bot without a name.');
+    return bot as unknown as PersonaBotSummary;
   });
 }
 

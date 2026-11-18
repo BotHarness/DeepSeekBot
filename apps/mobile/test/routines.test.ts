@@ -44,7 +44,7 @@ function host(): FakeHost {
     occurrences: ['2026-10-16T00:00:00.000Z', '2026-10-17T00:00:00.000Z'],
   }));
   fake.methods.set('scheduleCreate', (args) => ({
-    schedule: { id: 'new-1', enabled: true, ...(args['input'] as object) },
+    schedule: { ...digest, id: 'new-1', enabled: true, ...(args['input'] as object) },
   }));
   return fake;
 }

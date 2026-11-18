@@ -206,9 +206,7 @@ describe('routine readers', () => {
 
 describe('overview, settings and Bot readers', () => {
   it('give both Hosts the same answers', async () => {
-    const bots = await same(listBots, {
-      bots: [{ slug: 'tob', displayName: 'Tob' }, { slug: 'nameless' }],
-    });
+    const bots = await same(listBots, { bots: [{ slug: 'tob', displayName: 'Tob' }] });
     expect(bots.map((bot) => bot.slug)).toEqual(['tob']);
     await same((host) => loadBotDetail(host, 'tob'), {
       bot: { slug: 'tob', memoryDir: '/m' },
@@ -224,6 +222,7 @@ describe('overview, settings and Bot readers', () => {
 
   it('refuse a malformed answer the same way on both', async () => {
     await bothRefuse(listBots, { bots: null });
+    await bothRefuse(listBots, { bots: [{ slug: 'tob', displayName: 'Tob' }, { slug: 'x' }] });
     await bothRefuse((host) => loadBotDetail(host, 'tob'), {
       bot: { slug: 'tob' },
     });

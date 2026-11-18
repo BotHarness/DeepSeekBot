@@ -299,19 +299,14 @@ export async function setOnboardingModel(
     expectedRevision: number;
     expectedDefaultRevision?: number;
     route: ModelRoute;
+    groupId?: string;
     globalDefault: boolean;
   },
-): Promise<{ revision: number }> {
-  return revisionAnswer(
-    await host.call('onboardingModel', {
-      ...(input.slug === undefined ? {} : { slug: input.slug }),
-      expectedRevision: input.expectedRevision,
-      ...(input.expectedDefaultRevision === undefined
-        ? {}
-        : { expectedDefaultRevision: input.expectedDefaultRevision }),
-      route: input.route,
-      globalDefault: input.globalDefault,
-    }),
-    'onboardingModel',
-  );
+): Promise<{ revision: number; groupRevision?: number }> {
+  const answer = await host.call('onboardingModel', { ...input });
+  const groupRevision = record(answer)?.['groupRevision'];
+  return {
+    ...revisionAnswer(answer, 'onboardingModel'),
+    ...(typeof groupRevision === 'number' ? { groupRevision } : {}),
+  };
 }
