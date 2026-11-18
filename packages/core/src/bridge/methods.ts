@@ -2518,7 +2518,12 @@ function buildBridgeMethods(
   };
   const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
     let failure: Error | undefined;
-    for (const route of routes) {
+    const rests = catalogRests();
+    const ordered = [
+      ...routes.filter((route) => !rests.has(routeKey(route))),
+      ...routes.filter((route) => rests.has(routeKey(route))),
+    ];
+    for (const route of ordered) {
       try {
         await deps.modelCatalog!.validate(route);
         return { ...route };
