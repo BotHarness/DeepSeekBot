@@ -41,7 +41,12 @@ it('runs the Bot Inbox rendering eval against a live model', async () => {
   };
   const report = env['INBOX_EVAL_RESCORE']
     ? load(env['INBOX_EVAL_RESCORE'])
-    : await runSuite(endpoint(), scenarios, { runs, label, log: (line) => console.log(line) });
+    : await runSuite(endpoint(), scenarios, {
+        runs,
+        label,
+        openStatus: env['INBOX_EVAL_OPEN_STATUS'] !== 'off',
+        log: (line) => console.log(line),
+      });
   if (!out.endsWith('.json')) throw new Error('INBOX_EVAL_OUT must end in .json');
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(report, null, 1));

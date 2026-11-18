@@ -6,7 +6,7 @@ import {
   replyReminderText,
 } from '../../src/runtime/dsh-bot-agent-adapter.js';
 import { renderInbox } from '../../src/runtime/inbox-render.js';
-import type { Scenario, ToolCall } from './scenarios.js';
+import { withoutOpenStatus, type Scenario, type ToolCall } from './scenarios.js';
 import type { EvalReport, ScenarioRun } from './score.js';
 
 export interface ModelEndpoint {
@@ -193,8 +193,15 @@ export async function runScenario(
   endpoint: ModelEndpoint,
   scenario: Scenario,
   system: string,
+  options: { openStatus?: boolean } = {},
 ): Promise<ScenarioRun & { calls: ToolCall[]; inbox: string }> {
-  const inbox = renderInbox([...scenario.units], DEFAULT_PROMPT_TEXT);
+  const open =
+    scenario.openInbox === undefined || options.openStatus !== false
+      ? scenario.openInbox
+      : withoutOpenStatus(scenario.openInbox);
+  const inbox = [renderInbox([...scenario.units], DEFAULT_PROMPT_TEXT), open]
+    .filter((part) => part !== undefined)
+    .join('\n\n');
   const messages: Message[] = [
     { role: 'system', content: system },
     ...history(),
@@ -246,7 +253,13 @@ export async function runScenario(
 export async function runSuite(
   endpoint: ModelEndpoint,
   scenarios: readonly Scenario[],
-  options: { runs: number; label: string; concurrency?: number; log?: (line: string) => void },
+  options: {
+    runs: number;
+    label: string;
+    concurrency?: number;
+    openStatus?: boolean;
+    log?: (line: string) => void;
+  },
 ): Promise<EvalReport & { runs: (ScenarioRun & { calls: ToolCall[]; inbox: string })[] }> {
   const system = systemPrompt();
   await complete(
@@ -260,7 +273,7 @@ export async function runSuite(
   const worker = async () => {
     while (next < jobs.length) {
       const scenario = jobs[next++]!;
-      const result = await runScenario(endpoint, scenario, system);
+      const result = await runScenario(endpoint, scenario, system, options);
       options.log?.(
         `${scenario.id} cost-in=${result.usage.uncachedInput} hit=${result.usage.cacheRead} out=${result.usage.output} steps=${result.usage.steps} ${JSON.stringify({ ...result.behavior, ...result.safety })}`,
       );

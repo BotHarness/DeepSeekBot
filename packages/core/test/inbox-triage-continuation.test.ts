@@ -88,9 +88,7 @@ describe('Orchestrator triage continuation', () => {
       await f.admit('Any news?');
       await vi.waitFor(() => expect(f.runs).toHaveLength(2));
       const open = f.runs[1]!.inbox.split('[Open Inbox]')[1] ?? '';
-      expect(open).toContain(
-        'Status: Assignment "Research" working, last report progress: Halfway through the CSV writer.',
-      );
+      expect(open).toContain('Status: Assignment "Research" working.');
     } finally {
       await f.close();
     }

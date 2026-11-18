@@ -297,16 +297,7 @@ export function createInboxTriage(
           (db) =>
             db
               .prepare(
-                `SELECT a.title, a.activity, a.stop_state,
-                        (SELECT json_extract(r.payload_json, '$.assignmentReport.state')
-                           FROM source_events r
-                          WHERE r.assignment_session_id = a.session_id
-                            AND r.source_kind = 'assignment-report'
-                          ORDER BY r.rowid DESC LIMIT 1) AS report_state,
-                        (SELECT r.body FROM source_events r
-                          WHERE r.assignment_session_id = a.session_id
-                            AND r.source_kind = 'assignment-report'
-                          ORDER BY r.rowid DESC LIMIT 1) AS report_body
+                `SELECT a.title, a.activity, a.stop_state
                    FROM request_assignments ra
                    JOIN assignments a ON a.session_id = ra.session_id
                   WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
@@ -317,19 +308,15 @@ export function createInboxTriage(
               title: string;
               activity: string;
               stop_state: string;
-              report_state: string | null;
-              report_body: string | null;
             }>,
         );
         if (rows.length === 0) return '';
-        const parts = rows.slice(0, 2).map((row) => {
-          const state = row.stop_state === 'running' ? row.activity : 'stopped';
-          const report =
-            row.report_state === null || row.report_body === null
-              ? 'no report yet'
-              : `last report ${row.report_state}: ${oneLine(row.report_body, 80)}`;
-          return `Assignment ${JSON.stringify(oneLine(row.title, 40))} ${state}, ${report}`;
-        });
+        const parts = rows
+          .slice(0, 2)
+          .map(
+            (row) =>
+              `Assignment ${JSON.stringify(oneLine(row.title, 40))} ${row.stop_state === 'running' ? row.activity : 'stopped'}`,
+          );
         const extra = rows.length > 2 ? `; +${rows.length - 2} more Assignments` : '';
         return ` Status: ${parts.join('; ')}${extra}.`;
       };
