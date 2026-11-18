@@ -1717,7 +1717,7 @@ export function ChannelComposer({
               className="bh-send-btn"
               variant="primary"
               size="sm"
-              icon={<Icon name="send" size={16} />}
+              icon={<Icon name="arrow-up" size={16} />}
               aria-label={sending ? t('message.sending') : t('composer.send')}
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||
