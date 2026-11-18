@@ -6,6 +6,7 @@ export interface SelectionQuote {
   readonly x: number;
   readonly y: number;
   readonly below: boolean;
+  readonly viewportWidth: number;
 }
 
 const TOOLBAR_GAP_PX = 8;
@@ -48,6 +49,7 @@ function currentSelectionQuote(): SelectionQuote | undefined {
     x: rect.left + rect.width / 2,
     y: below ? rect.bottom + TOOLBAR_GAP_PX : rect.top - TOOLBAR_GAP_PX,
     below,
+    viewportWidth: document.documentElement.clientWidth,
   };
 }
 
@@ -56,8 +58,22 @@ let snapshot: SelectionQuote | undefined;
 let pointerDown = false;
 let frame = 0;
 
+function sameQuote(a: SelectionQuote | undefined, b: SelectionQuote | undefined): boolean {
+  return (
+    a === b ||
+    (a !== undefined &&
+      b !== undefined &&
+      a.messageId === b.messageId &&
+      a.text === b.text &&
+      a.x === b.x &&
+      a.y === b.y &&
+      a.below === b.below &&
+      a.viewportWidth === b.viewportWidth)
+  );
+}
+
 function publish(next: SelectionQuote | undefined): void {
-  if (next === snapshot) return;
+  if (sameQuote(next, snapshot)) return;
   snapshot = next;
   listeners.forEach((notify) => notify());
 }

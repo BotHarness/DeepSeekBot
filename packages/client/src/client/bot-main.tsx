@@ -334,6 +334,36 @@ function memberName(bots: readonly BotSummary[], slug: string): string {
   return bots.find((bot) => bot.slug === slug)?.displayName ?? slug;
 }
 
+function MessageSelectionToolbar({
+  enabled,
+  label,
+  quoteLabel,
+  canQuote,
+  onQuote,
+}: {
+  readonly enabled: boolean;
+  readonly label: string;
+  readonly quoteLabel: string;
+  readonly canQuote: (messageId: string) => boolean;
+  readonly onQuote: (messageId: string, text: string) => void;
+}): ReactElement | null {
+  const selection = useSelectionQuote(enabled, canQuote);
+  if (selection === undefined) return null;
+  return (
+    <SelectionToolbar x={selection.x} y={selection.y} below={selection.below} label={label}>
+      <SelectionToolbarButton
+        icon={<QuoteIcon />}
+        onPress={() => {
+          onQuote(selection.messageId, selection.text);
+          dismissSelectionQuote();
+        }}
+      >
+        {quoteLabel}
+      </SelectionToolbarButton>
+    </SelectionToolbar>
+  );
+}
+
 function quoteSource(message: ChannelMessage, text?: string): string {
   return (
     text ??
@@ -1763,10 +1793,6 @@ function ConversationView({
       author: authorLabel(target, state.bots, t, channelHumanName(channel)),
       excerpt: Array.from(quoteSource(target, quote.text)).slice(0, 140).join(''),
     };
-  });
-  const selectionQuote = useSelectionQuote(!mutationLocked, (messageId) => {
-    const target = messages.find((candidate) => candidate.id === messageId);
-    return target !== undefined && quotableMessage(target);
   });
   const profileBot =
     channel?.type === 'dm' && channel.botSlug !== undefined
@@ -4055,29 +4081,19 @@ function ConversationView({
               </div>
             </div>
           )}
-          {activeMemoryView !== undefined ||
-          messageMenu !== undefined ||
-          selectionQuote === undefined ? null : (
-            <SelectionToolbar
-              x={selectionQuote.x}
-              y={selectionQuote.y}
-              below={selectionQuote.below}
-              label={t('message.quoteSelection')}
-            >
-              <SelectionToolbarButton
-                icon={<QuoteIcon />}
-                onPress={() => {
-                  const target = messages.find(
-                    (candidate) => candidate.id === selectionQuote.messageId,
-                  );
-                  if (target !== undefined) quoteMessage(target, selectionQuote.text);
-                  dismissSelectionQuote();
-                }}
-              >
-                {t('message.quote')}
-              </SelectionToolbarButton>
-            </SelectionToolbar>
-          )}
+          <MessageSelectionToolbar
+            enabled={!mutationLocked && activeMemoryView === undefined && messageMenu === undefined}
+            label={t('message.quoteSelection')}
+            quoteLabel={t('message.quote')}
+            canQuote={(messageId) => {
+              const target = messages.find((candidate) => candidate.id === messageId);
+              return target !== undefined && quotableMessage(target);
+            }}
+            onQuote={(messageId, text) => {
+              const target = messages.find((candidate) => candidate.id === messageId);
+              if (target !== undefined) quoteMessage(target, text);
+            }}
+          />
           {activeMemoryView !== undefined || messageMenu === undefined ? null : (
             <MessageActionMenu
               request={messageMenu}

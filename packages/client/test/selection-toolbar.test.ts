@@ -120,3 +120,51 @@ it('moves a visible toolbar back inside the viewport when the window narrows', a
     Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
   }
 });
+
+it('follows the selection on scroll and skips renders while its position holds', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  let top = 200;
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(100, top, 40, 20),
+  });
+  const frame = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) => {
+    callback(0);
+    return 1;
+  };
+  const message = document.createElement('p');
+  message.setAttribute('data-message-id', 'm1');
+  message.textContent = 'Ship on Friday';
+  document.body.append(message);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const positions: number[] = [];
+  function Harness() {
+    const quote = useSelectionQuote(true, () => true);
+    if (quote !== undefined) positions.push(quote.y);
+    return null;
+  }
+  const scroll = () => act(async () => window.dispatchEvent(new Event('scroll')));
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    await act(async () => {
+      window.getSelection()!.selectAllChildren(message);
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    await scroll();
+    await scroll();
+    expect(positions).toEqual([192]);
+    top = 150;
+    await scroll();
+    expect(positions).toEqual([192, 142]);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    message.remove();
+    window.getSelection()!.removeAllRanges();
+    window.requestAnimationFrame = frame;
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  }
+});
