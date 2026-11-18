@@ -1050,7 +1050,7 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
-  groupFallback?: Pick<GroupFallback, 'choose' | 'restore' | 'pick' | 'inherited'>;
+  groupFallback?: Pick<GroupFallback, 'choose' | 'start' | 'pick' | 'inherited'>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -6513,25 +6513,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return choice;
   }
 
-  async #returnToPreferred(
-    botSlug: string,
-    sessionId: string,
-    channelId: string | undefined,
-  ): Promise<void> {
-    const back = await this.#groupFallback?.restore(botSlug, sessionId);
-    if (back === undefined) return;
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'model-return',
-        botSlug,
-        from: `${back.from.provider}/${back.from.model}`,
-        to: `${back.to.provider}/${back.to.model}`,
-      }),
-    );
-    await this.#appendModelSwitch(botSlug, sessionId, channelId, back);
-  }
-
   async #appendModelSwitch(
     botSlug: string,
     sessionId: string,
@@ -7047,7 +7028,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
-    await this.#returnToPreferred(bot.slug, orchestrator.sessionId, channelId);
+    if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
     const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
     if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
     const turnSources = new Set([
@@ -11413,6 +11394,8 @@ class BotRuntimeImplementation implements BotRuntime {
     const current = row === undefined ? undefined : modelRouteFromRow(row);
     if (groupId == null || current === undefined || this.#groupFallback === undefined)
       return current;
+    const rest = this.#routeRests?.restingUntil(current);
+    if (rest === undefined) return current;
     const pick = await this.#groupFallback.pick(botSlug, groupId);
     if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return current;
     const kept = assignmentGroupOptionOf(
@@ -11423,7 +11406,6 @@ class BotRuntimeImplementation implements BotRuntime {
       ...pick,
       route: kept ? { ...pick.route, reasoningEffort: current.reasoningEffort! } : pick.route,
     };
-    const rest = this.#routeRests?.restingUntil(current);
     const at = this.#now().toISOString();
     this.#database.transaction(
       (database) => {
@@ -11440,13 +11422,13 @@ class BotRuntimeImplementation implements BotRuntime {
       kind: 'switch',
       from: { provider: current.provider, model: current.model },
       to: picked.route,
-      reason: rest === undefined ? 'returned' : (rest.reason ?? 'quota'),
-      ...(rest === undefined ? {} : { until: rest.until }),
+      reason: rest.reason ?? 'quota',
+      until: rest.until,
     };
     this.#warn?.(
       JSON.stringify({
         component: 'bot-runtime',
-        event: rest === undefined ? 'model-return' : 'model-fallback',
+        event: 'model-fallback',
         botSlug,
         session: sessionId,
         from: `${choice.from.provider}/${choice.from.model}`,
