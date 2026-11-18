@@ -117,6 +117,7 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+  modelSwitch?: unknown;
   voiceCallRecord?: unknown;
 }
 

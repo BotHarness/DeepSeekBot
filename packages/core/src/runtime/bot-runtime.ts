@@ -101,6 +101,7 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { RestingRoute, RouteRests } from '../models/route-rest.js';
+import type { GroupFallback, ModelSwitch } from '../models/group-fallback.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -1012,6 +1013,7 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
+  groupFallback?: Pick<GroupFallback, 'choose'>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
   externalMessaging?: OutboundMessaging;
@@ -1645,9 +1647,9 @@ export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
 
 class RouteRestingError extends Error {
   readonly code = 'ROUTE_RESTING';
-  constructor(readonly rest: RestingRoute) {
+  constructor(readonly rests: readonly RestingRoute[]) {
     super(
-      `ROUTE_RESTING: ${rest.provider}/${rest.model} is out of quota until ${rest.until}; no request was sent.`,
+      `ROUTE_RESTING: ${rests.map((rest) => `${rest.provider}/${rest.model} rests until ${rest.until}`).join('; ')}; no request was sent.`,
     );
   }
 }
@@ -1716,6 +1718,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #routeRests: BotRuntimeOptions['routeRests'];
+  readonly #groupFallback: BotRuntimeOptions['groupFallback'];
   readonly #sessionRoute: BotRuntimeOptions['sessionRoute'];
   readonly #team: TeamService | undefined;
   readonly #externalMessaging: OutboundMessaging | undefined;
@@ -1844,6 +1847,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
     this.#routeRests = options.routeRests;
+    this.#groupFallback = options.groupFallback;
     this.#sessionRoute = options.sessionRoute;
     this.#team = options.team;
     this.#requireModelRoute = options.requireModelRoute;
@@ -6262,10 +6266,69 @@ class BotRuntimeImplementation implements BotRuntime {
     return route === undefined ? undefined : this.#routeRests.restingUntil(route);
   }
 
-  #restOf(botSlug: string, error: unknown): RestingRoute | undefined {
-    return error instanceof RouteRestingError
-      ? error.rest
-      : this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
+  #restsOf(botSlug: string, error: unknown): readonly RestingRoute[] | undefined {
+    if (error instanceof RouteRestingError) return error.rests;
+    const rest = this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
+    return rest === undefined ? undefined : [rest];
+  }
+
+  async #fallBack(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+  ): Promise<ModelSwitch | readonly RestingRoute[] | undefined> {
+    const rest = this.#restingRoute(botSlug, sessionId);
+    if (rest === undefined) return undefined;
+    const choice = await this.#groupFallback?.choose(botSlug, sessionId, rest);
+    if (choice?.kind !== 'switch') return choice?.rests ?? [rest];
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'model-fallback',
+        botSlug,
+        from: `${choice.from.provider}/${choice.from.model}`,
+        to: `${choice.to.provider}/${choice.to.model}`,
+        reason: choice.reason,
+        until: choice.until,
+      }),
+    );
+    await this.#appendModelSwitch(botSlug, sessionId, channelId, choice);
+    return choice;
+  }
+
+  async #appendModelSwitch(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+    choice: ModelSwitch,
+  ): Promise<void> {
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined) return;
+    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
+    const channel =
+      original !== undefined &&
+      !isBotDmChannel(original) &&
+      (original.type !== 'group' || original.members.includes(botSlug))
+        ? original.id
+        : this.#channels.getOrCreateDm(humanContext(botOwner(bot)), botSlug, bot.displayName)?.id;
+    if (channel === undefined) return;
+    await this.#channels
+      .appendMessage(OWNER_HUMAN_CONTEXT, channel, {
+        id: `model-switch-${randomUUID()}`,
+        at: this.#now().toISOString(),
+        author: { kind: 'system' },
+        body: '',
+        modelSwitch: {
+          botSlug,
+          botName: bot.displayName,
+          sessionId,
+          from: { provider: choice.from.provider, model: choice.from.model },
+          to: { provider: choice.to.provider, model: choice.to.model },
+          reason: choice.reason,
+          ...(choice.until === undefined ? {} : { until: choice.until }),
+        },
+      })
+      .catch(() => undefined);
   }
 
   async #holdForRestingRoute(
@@ -6273,8 +6336,17 @@ class BotRuntimeImplementation implements BotRuntime {
     channelId: string | undefined,
     error: unknown,
   ): Promise<boolean> {
-    const rest = this.#restOf(botSlug, error);
-    if (rest === undefined) return false;
+    const rests = this.#restsOf(botSlug, error);
+    if (rests === undefined || rests.length === 0) return false;
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    if (!(error instanceof RouteRestingError) && sessionId !== undefined) {
+      const fallback = await this.#fallBack(botSlug, sessionId, channelId);
+      if (fallback !== undefined && 'kind' in fallback) {
+        this.#failureStreaks.delete(botSlug);
+        return true;
+      }
+    }
+    const rest = rests[0]!;
     if (this.#held.has(botSlug)) return true;
     this.#failureStreaks.delete(botSlug);
     this.#hold(botSlug, 'quota');
@@ -6291,8 +6363,11 @@ class BotRuntimeImplementation implements BotRuntime {
     await this.#appendHoldNotice(
       botSlug,
       channelId,
-      `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: ${rest.provider}/${rest.model} is out of quota until ${rest.until}. Send it a message to try again.`,
-      { cause: 'quota', rests: [rest] },
+      `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: ${rests.map((item) => `${item.provider}/${item.model} rests until ${item.until}`).join('; ')}. Send it a message to try again.`,
+      {
+        cause: 'quota',
+        rests: rests.map(({ provider, model, until }) => ({ provider, model, until })),
+      },
     );
     return true;
   }
@@ -6622,7 +6697,27 @@ class BotRuntimeImplementation implements BotRuntime {
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
-      const resting = this.#restOf(bot.slug, error) !== undefined;
+      const resting = this.#restsOf(bot.slug, error) !== undefined;
+      if (
+        resting &&
+        !(error instanceof RouteRestingError) &&
+        tobCliTurn === undefined &&
+        !this.#stoppedTurns.has(bot.slug) &&
+        !this.#held.has(bot.slug) &&
+        channelId === dmChannelId(bot.slug)
+      ) {
+        const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+        if (fallback !== undefined && 'kind' in fallback) {
+          this.#failureStreaks.delete(bot.slug);
+          this.#armAutoContinue(
+            bot.slug,
+            { channelId, messageId, sessionId: orchestrator.sessionId, attempt: autoAttempts },
+            0,
+            code ?? 'ROUTE_FALLBACK',
+          );
+          throw error;
+        }
+      }
       const autoContinue =
         tobCliTurn === undefined &&
         !resting &&
@@ -6714,8 +6809,8 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
-    const resting = this.#restingRoute(bot.slug, orchestrator.sessionId);
-    if (resting !== undefined) throw new RouteRestingError(resting);
+    const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+    if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
     const turnSources = new Set([
       ...(sourceEventId === undefined ? [] : [sourceEventId]),
       ...wakeEventIds,

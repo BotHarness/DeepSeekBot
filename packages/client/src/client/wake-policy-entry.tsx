@@ -1,4 +1,5 @@
 import { Button } from './ds/button.js';
+import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -51,8 +52,8 @@ const SOURCE_ICON: Record<BotSourcePolicyView['sourceClass'], string> = {
   'group-invite': 'users',
   'group-join-request': 'users',
   'group-join-decision': 'users',
-  'assignment-report': 'list-checks',
-  'assignment-lifecycle': 'list-checks',
+  'assignment-report': ASSIGNMENT_SESSION_ICON,
+  'assignment-lifecycle': ASSIGNMENT_SESSION_ICON,
 };
 
 function SourcePolicyEditModal({

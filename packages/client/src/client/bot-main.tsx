@@ -99,6 +99,7 @@ import {
 } from './use-client-store.js';
 import { MessageHostContext, type MessageHost } from './message-host.js';
 import { SessionOpenContext } from './session-links.js';
+import { useComposerSessionOptions } from './composer-session-options.js';
 import { useRemoteHosts } from './host-tabs.js';
 import { conversationKey } from './remote-hosts.js';
 import { useRemoteNativeConversation } from './remote-native-conversation.js';
@@ -203,6 +204,7 @@ import { GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
 import { MemoryCommitLine } from './memory-commit-line.js';
+import { ModelSwitchLine } from './model-switch-line.js';
 import { AutoApprovalLine, AutoApprovalPauseLine } from './approval-template-entry.js';
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
@@ -1758,6 +1760,7 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
+      item.modelSwitch === undefined &&
       item.voiceCallRecord === undefined &&
       item.toolAutoApproval === undefined &&
       item.toolAutoApprovalPause === undefined,
@@ -1978,6 +1981,13 @@ function ConversationView({
         ? state.bots.find((bot) => entry.owner.kind === 'bot' && bot.slug === entry.owner.botSlug)
         : undefined,
   }));
+  const composerSessions = useComposerSessionOptions({
+    channel: botDm ? undefined : channel,
+    bots: state.bots,
+    dmSessions: sessionItems,
+    readSessions: actions.readSessions,
+    refreshDmSessions: actions.refreshSessions,
+  });
   const [searchTop, setSearchTop] = useScopedState<number | undefined>(scopeKey, undefined);
   const searchAvailable = useScopedRef(scopeKey, false);
   const searchReturnFocus = useScopedRef<HTMLElement | null>(scopeKey, null);
@@ -3368,6 +3378,13 @@ function ConversationView({
                           record={first.voiceCallRecord}
                           t={t}
                         />
+                      ) : first.modelSwitch !== undefined ? (
+                        <ModelSwitchLine
+                          messageId={first.id}
+                          record={first.modelSwitch}
+                          bots={state.bots}
+                          t={t}
+                        />
                       ) : first.turnStop !== undefined ? (
                         <div className="bh-member-departure" data-message-id={first.id}>
                           <span>{turnStopText(first.turnStop, t)}</span>
@@ -3727,6 +3744,8 @@ function ConversationView({
                     skills={skillTokens}
                     skillOptions={skillOptions}
                     readSkill={actions.skillDetail}
+                    sessionOptions={composerSessions.options}
+                    onSessionMenu={composerSessions.refresh}
                     channelCandidates={
                       channel?.type === 'dm' && channel.botSlug !== undefined
                         ? state.channels.filter((candidate) => candidate.type === 'group')
@@ -3907,8 +3926,8 @@ function ConversationView({
     ) : (
       conversationPane
     );
-  const openSession = (botSlug: string, sessionId: string, title: string): void => {
-    if (botSlug !== dockBotSlug) return;
+  const openSession = (botSlug: string | undefined, sessionId: string, title: string): void => {
+    if (dockBotSlug === undefined || (botSlug ?? dockBotSlug) !== dockBotSlug) return;
     setDetail({
       sessionId,
       title:

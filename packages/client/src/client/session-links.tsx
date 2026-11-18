@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ChipButton } from './ds/chip-button.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -13,7 +13,7 @@ import type { ChannelMessage } from './store.js';
 
 export type SessionLink = NonNullable<ChannelMessage['sessionLinks']>[number];
 
-export type OpenSession = (botSlug: string, sessionId: string, title: string) => void;
+export type OpenSession = (botSlug: string | undefined, sessionId: string, title: string) => void;
 
 export const SessionOpenContext = createContext<OpenSession | undefined>(undefined);
 
@@ -117,7 +117,7 @@ export function SessionLinkRail({
                 <span key={link.sessionId} {...stylex.props(styles.row)}>
                   <ChipButton
                     data-session-link={link.sessionId}
-                    icon={<ChannelSidebarIcon name="list-checks" size={14} />}
+                    icon={<ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />}
                     disabled={open === undefined}
                     onClick={() => open?.(botSlug, link.sessionId, row?.title ?? link.title)}
                     title={own.length === 1 ? label : undefined}
