@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { InlineTokenButton } from './ds/inline-token-button.js';
@@ -26,16 +28,14 @@ import { MessageAlbum, messageFileAttachments } from './message-album.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  FileTypeIcon,
   fileSizeText,
-  IconFolderOpenOutlineRegular,
   MarkdownDelegateProvider,
   MarkdownText,
   StateDot,
   useMarkdownDelegate,
-  Tag,
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 
 import { errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -926,7 +926,7 @@ export function ChannelMessageBody({
           </span>
         ) : skill.owner.kind === 'workspace' && host === undefined ? (
           <span className="bh-inline-mention-avatar" aria-hidden="true">
-            <IconFolderOpenOutlineRegular size={16} />
+            <Icon name="folder-open" size={16} />
           </span>
         ) : null}
         <span>/{skill.name}</span>

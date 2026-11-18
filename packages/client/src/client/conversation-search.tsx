@@ -1,10 +1,6 @@
+import { Icon } from './ds/icon.js';
 import * as stylex from '@stylexjs/stylex';
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
-
-import {
-  IconCloseOutlineRegular,
-  IconSearchOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { IconButton } from './ds/icon-button.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -247,7 +243,7 @@ export function ConversationSearch({
       style={{ top }}
     >
       <div {...stylex.props(styles.bar)}>
-        <IconSearchOutlineRegular size={16} aria-hidden="true" />
+        <Icon name="search" size={16} aria-hidden="true" />
         <input
           ref={inputMount}
           type="text"
@@ -301,7 +297,7 @@ export function ConversationSearch({
           </span>
         )}
         <IconButton aria-label={t('search.close')} size="inline" tone="subtle" onClick={onClose}>
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </IconButton>
       </div>
       {error !== undefined ? (

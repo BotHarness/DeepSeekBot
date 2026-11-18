@@ -1,78 +1,15 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ModelPlanView } from '../src/client/bridge.js';
 import { dialog } from './primitive-mocks.js';
 import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement, forwardRef } = await import('react');
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    Button: ({
-      children,
-      onClick,
-      disabled,
-      'aria-label': label,
-    }: {
-      children: ReactNode;
-      onClick?: () => void;
-      disabled?: boolean;
-      'aria-label'?: string;
-    }) => createElement('button', { onClick, disabled, 'aria-label': label }, children),
-    Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-    Checkbox: ({
-      label,
-      checked,
-      disabled,
-      onChange,
-    }: {
-      label: string;
-      checked: boolean;
-      disabled?: boolean;
-      onChange: (next: boolean) => void;
-    }) =>
-      createElement(
-        'label',
-        null,
-        createElement('input', {
-          type: 'checkbox',
-          checked,
-          disabled,
-          onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-        }),
-        label,
-      ),
-    SegmentedControl: ({
-      value,
-      options,
-      onChange,
-      label,
-    }: {
-      value: string;
-      options: { value: string; label: string }[];
-      onChange: (next: string) => void;
-      label: string;
-    }) =>
-      createElement(
-        'div',
-        { role: 'tablist', 'aria-label': label },
-        options.map((option) =>
-          createElement(
-            'button',
-            {
-              key: option.value,
-              role: 'tab',
-              'aria-selected': option.value === value,
-              onClick: () => onChange(option.value),
-            },
-            option.label,
-          ),
-        ),
-      ),
-    Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
-      createElement('span', null, createElement('input', props)),
-    IconChevronDownOutlineRegular: () => null,
 
     useAnchoredPosition: () => ({ top: 0, left: 0 }),
     useDismissOnOutsidePointer: () => undefined,
@@ -80,7 +17,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { ModelPlanView, ModelPresetView } from '../src/client/bridge.js';
+import type { ModelPresetView } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
 import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';

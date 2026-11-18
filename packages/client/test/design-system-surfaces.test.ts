@@ -1,17 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, createRef, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { act, createElement, createRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
 }));
 
-import type {
-  ChannelSidebarEntry,
-  ChannelSidebarEntryProps,
-} from '../src/client/channel-sidebar.js';
+import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 import { ChannelSidebarEntrySection } from '../src/client/channel-sidebar-view.js';
 import { ComposerContextBar } from '../src/client/composer-context-bar.js';
 import { ChipButton } from '../src/client/ds/chip-button.js';

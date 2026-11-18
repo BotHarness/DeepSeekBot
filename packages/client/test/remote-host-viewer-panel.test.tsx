@@ -1,26 +1,15 @@
-import {
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type RemoteHostViewerState } from '../src/client/remote-host-viewer.js';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { createHostClient } from '@botharness/host-client/client';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { RemoteHostViewerState } from '../src/client/remote-host-viewer.js';
+
 import { RemoteHostViewerPanel } from '../src/client/remote-host-viewer-panel.js';
 
 let snapshot: RemoteHostViewerState;
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
 
   StateDot: () => null,
 }));

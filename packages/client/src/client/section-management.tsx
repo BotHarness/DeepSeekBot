@@ -1,10 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
-import {
-  IconCheckOutlineRegular,
-  IconEditOutlineRegular,
-  IconTrashOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import { type MenuEntry, type MenuItem } from './ds/menu.js';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
@@ -58,12 +54,12 @@ export function sectionMenuItems(
     {
       id: 'rename',
       label: t('section.rename'),
-      icon: <IconEditOutlineRegular />,
+      icon: <Icon name="pencil" />,
     },
     {
       id: 'delete',
       label: t('section.delete'),
-      icon: <IconTrashOutlineRegular />,
+      icon: <Icon name="trash" />,
       danger: true,
     },
   ];
@@ -78,7 +74,7 @@ function checkedTargetLabel(text: string): ReactElement {
   return (
     <span className="bh-move-checked">
       <span className="bh-move-checked-text">{text}</span>
-      <IconCheckOutlineRegular />
+      <Icon name="check" />
     </span>
   );
 }

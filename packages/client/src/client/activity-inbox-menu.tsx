@@ -1,11 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import { useSearchOpenMark } from './search-open-mark.js';
 import { useState, useRef, useSyncExternalStore, type ReactElement } from 'react';
-import {
-  IconEllipsisOutlineRegular,
-  IconSearchOutlineRegular,
-  IconCloseFillRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { type MenuEntry } from './ds/menu.js';
 import type { BridgeActions } from './actions.js';
 import { sameBotNames, useClientStore } from './use-client-store.js';
@@ -285,7 +282,7 @@ function ScopedActivityInboxMenu({
                 }
               }}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </IconButton>
           </Tooltip>
         }
@@ -336,7 +333,7 @@ export function ActivityInboxHeader({
                 requestAnimationFrame(() => input.current?.focus());
               }}
             >
-              <IconSearchOutlineRegular size={searchOpen ? 11 : 14} />
+              <Icon name="search" size={searchOpen ? 11 : 14} />
             </button>
           </Tooltip>
           <input
@@ -369,7 +366,7 @@ export function ActivityInboxHeader({
               aria-label={t('activityInbox.closeSearch')}
               onClick={close}
             >
-              <IconCloseFillRegular />
+              <Icon name="circle-x" />
             </button>
           ) : null}
         </div>

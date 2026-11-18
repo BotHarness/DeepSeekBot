@@ -1,21 +1,17 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ComponentType } from 'react';
+import { type ReactNode } from 'react';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ComponentType, ReactNode } from 'react';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement } = await import('react');
-  const control = (p: Record<string, unknown>) => {
-    const { children, variant: _variant, size: _size, ...rest } = p;
-    return createElement('button', { type: 'button', ...rest }, children as ReactNode);
-  };
+
   return {
-    Button: control,
-    Pill: control,
-    Tag: (p: { children: ReactNode }) => createElement('span', null, p.children),
     StateDot: () => null,
-    IconFullscreenOutlineRegular: () => null,
+
     Modal: (p: { children: ReactNode; title: string; onClose(): void }) =>
       createElement(
         'div',
@@ -23,13 +19,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
         createElement('button', { onClick: p.onClose }, 'Close'),
         p.children,
       ),
-    Switch: (p: { checked: boolean; label: string; onChange(v: boolean): void }) =>
-      createElement('button', {
-        role: 'switch',
-        'aria-label': p.label,
-        'aria-checked': p.checked,
-        onClick: () => p.onChange(!p.checked),
-      }),
   };
 });
 vi.mock('../src/client/profile-combobox.js', () => ({ ProfileCombobox: () => null }));

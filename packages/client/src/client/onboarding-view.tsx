@@ -1,3 +1,5 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import {
   selectConversationChannel,
@@ -6,7 +8,7 @@ import {
   useClientStore,
 } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';

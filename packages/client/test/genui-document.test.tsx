@@ -1,22 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, StrictMode, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createElement } from 'react';
+import { type Root } from 'react-dom/client';
+import { type GenuiDocumentHandle } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GenuiDocumentActions } from '../src/client/genui-document-view.js';
+import { act, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GenuiError } from '../../core/src/channels/genui.js';
 import {
   initialGenuiDocumentState,
   parseGenuiDocument,
 } from '../../core/src/channels/genui-document.js';
-import type {
-  GenuiDocumentHandle,
-  GenuiDocumentMountOptions,
-  GenuiDocumentRuntime,
-} from '../../core/src/channels/genui-document-runtime.js';
+
 import { GENUI_EXECUTION_LIMITS } from '../../core/src/channels/genui-execution-limits.js';
 import { GENUI_MIRROR_SHELL } from '../../core/src/channels/genui-mirror-shell.js';
 import { GenuiDocumentCard } from '../src/client/genui-document.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import type { GenuiDocumentActions } from '../src/client/genui-document-view.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 
 const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
 vi.mock('../src/client/genui-document-runtime.js', () => ({
@@ -24,13 +26,6 @@ vi.mock('../src/client/genui-document-runtime.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    children,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; children: ReactNode }) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
 }));
 
 const fixture = parseGenuiDocument({

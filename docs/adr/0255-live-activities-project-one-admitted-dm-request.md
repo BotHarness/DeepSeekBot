@@ -39,6 +39,6 @@ This decision authorizes source implementation only. No provider credentials wer
 ## References
 
 - [Issue #2815](https://github.com/BotHarness/DeepSeekBot/issues/2815)
-- [Existing Connect ownership](0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md)
+- [Existing Connect ownership](../decisions/connections.md#adr-0241)
 - [Expo SDK 58 Widgets](https://docs.expo.dev/versions/v58.0.0/sdk/widgets/)
 - [Apple ActivityKit remote updates](https://developer.apple.com/documentation/ActivityKit/starting-and-updating-live-activities-with-activitykit-push-notifications)

@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import {
   useCallback,
@@ -9,11 +10,7 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconEllipsisOutlineRegular,
-  IconCloseFillRegular,
-  IconNewChatOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { type MenuEntry } from './ds/menu.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { attentionCount } from './activity-attention.js';
@@ -847,7 +844,7 @@ export function WindowCompanionView({
                   companion.dismiss(head.messageId, head.channelId);
                 }}
               >
-                <IconCloseFillRegular size={14} />
+                <Icon name="circle-x" size={14} />
               </button>
             </header>
             <CompanionMessageText
@@ -869,7 +866,7 @@ export function WindowCompanionView({
             title={t('companion.openDm')}
             onClick={() => openDm(bot.slug)}
           >
-            <IconNewChatOutlineRegular size={16} />
+            <Icon name="message-square-plus" size={16} />
           </button>
           <button
             type="button"
@@ -899,7 +896,7 @@ export function WindowCompanionView({
                 aria-expanded={menu}
                 onClick={() => setMenu(!menu)}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             }
             onSelect={(id) => {

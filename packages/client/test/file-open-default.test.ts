@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type HostFileApplication } from '../src/client/host-file-actions.js';
+import { type HostFileTarget } from '../src/client/host-file-actions.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const stub = () => null;
   type Item = {
     type?: string;
     id: string;
@@ -16,14 +19,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     writeClipboard: vi.fn(async () => true),
-    IconEllipsisOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconCopyOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
   };
 });
 import {
@@ -31,7 +26,7 @@ import {
   fileOpenScope,
   resolveFileOpenDefault,
 } from '../src/client/file-open-preferences.js';
-import type { HostFileApplication, HostFileTarget } from '../src/client/host-file-actions.js';
+
 import { HostFileOpenButton, type HostFileCommands } from '../src/client/host-file-menu.js';
 import { queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';

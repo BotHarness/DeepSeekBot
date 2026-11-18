@@ -5,12 +5,8 @@ import type { RemoteHost } from '../src/client/remote-hosts.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: () => null,
 
-  Input: () => null,
   Textarea: () => null,
-
-  IconEllipsisOutlineRegular: () => null,
 }));
 
 const fixture = vi.hoisted(() => ({

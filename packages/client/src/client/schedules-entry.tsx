@@ -1,10 +1,12 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconPlusOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -27,6 +29,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { IconButton } from './ds/icon-button.js';
+import { visibleInterval } from './visible-interval.js';
 
 export const SCHEDULE_COST_WARNING_SECONDS = 15 * 60;
 const REFRESH_MS = 30_000;
@@ -382,7 +385,7 @@ export function BotSchedulesHeaderAction({ botSlug, t }: ChannelSidebarEntryProp
         aria-haspopup="dialog"
         onClick={() => requestCreate(botSlug)}
       >
-        <IconPlusOutlineRegular size={16} />
+        <Icon name="plus" size={16} />
       </IconButton>
     </Tooltip>
   );
@@ -840,10 +843,10 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
     setLoadError(undefined);
     if (botSlug === undefined) return;
     void refresh(botSlug);
-    const timer = setInterval(() => void refresh(botSlug), REFRESH_MS);
+    const stopRefresh = visibleInterval(() => void refresh(botSlug), REFRESH_MS);
     const unsubscribe = subscribeMessagingDefaults(() => void refresh(botSlug));
     return () => {
-      clearInterval(timer);
+      stopRefresh();
       unsubscribe();
       active.current = undefined;
     };

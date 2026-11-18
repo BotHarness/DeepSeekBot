@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Switch } from './ds/switch.js';
 import { ReceptionStatus } from './reception-status.js';
@@ -6,12 +8,7 @@ import type { ProviderAppSetup } from './provider-app-setup.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Tag,
-  IconPlusOutlineRegular,
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingSnapshot } from '../../../core/src/messaging/outbound.js';
 import type {
@@ -459,7 +456,7 @@ export function ExternalIdentityList({
                   {...stylex.props(styles.link)}
                 >
                   {t(`identity.tutorial.${guide}`)}
-                  <IconRightUpOutlineRegular size={14} />
+                  <Icon name="arrow-up-right" size={14} />
                 </a>
               ))}
             </div>
@@ -537,7 +534,7 @@ export function ExternalIdentityList({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      icon={<IconRefreshOutlineRegular size={16} />}
+                      icon={<Icon name="refresh-cw" size={16} />}
                       aria-label={t('identity.refreshApps')}
                       aria-busy={refreshing}
                       disabled={busy || refreshing}
@@ -561,7 +558,7 @@ export function ExternalIdentityList({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    icon={<IconPlusOutlineRegular size={16} />}
+                    icon={<Icon name="plus" size={16} />}
                     disabled={busy || refreshing}
                     onClick={openAppSettings}
                   >

@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type UsageFilter } from '../src/client/bridge.js';
+import { type ProfileModelUsageRow } from '../src/client/bridge.js';
+import { type UsageSummary } from '../src/client/model-usage-charts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => createElement('svg'),
-  IconEllipsisOutlineRegular: () => createElement('svg'),
 }));
 
-import type { UsageFilter, UsageQueryResult, ProfileModelUsageRow } from '../src/client/bridge.js';
+import type { UsageQueryResult } from '../src/client/bridge.js';
 import { en } from '../src/client/locale.js';
 import { ModelUsageBreakdown } from '../src/client/model-usage-breakdown.js';
-import { UsageMeasures, type UsageSummary } from '../src/client/model-usage-charts.js';
+import { UsageMeasures } from '../src/client/model-usage-charts.js';
 
 function translate(key: string, params?: Record<string, unknown>): string {
   let text = (en as Record<string, string>)[key] ?? key;

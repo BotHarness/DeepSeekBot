@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import {
   DEFAULT_SESSION_COLLAPSE,
   DEFAULT_SESSION_DETAIL_LEVEL,
@@ -69,16 +70,6 @@ import {
   type ReactNode,
 } from 'react';
 
-import {
-  IconWarningTriangleOutlineRegular,
-  IconCheckOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconChecklistOutlineRegular,
-  IconCopyOutlineRegular,
-  IconNewChatOutlineRegular,
-  IconPanelLeftOutlineRegular,
-  IconUserOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import { Toast } from './ds/toast.js';
 import { Tooltip } from './ds/tooltip.js';
 
@@ -297,6 +288,7 @@ import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
 import { TurnStopLine } from './turn-stop-line.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 import { reportFailure } from './diagnostic-log.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
@@ -671,7 +663,7 @@ export function MessageBubbleWrap({
     >
       {selection?.active === true && selectable ? (
         <span className="bh-bubble-check" aria-hidden="true" data-checked={checked}>
-          {checked ? <IconCheckOutlineRegular size={12} /> : null}
+          {checked ? <Icon name="check" size={12} /> : null}
         </span>
       ) : null}
       <BubbleHoveredContext.Provider value={hovered}>{children}</BubbleHoveredContext.Provider>
@@ -981,7 +973,7 @@ const MessageGroupView = memo(function MessageGroupView({
                     )}
                     title={message.failed}
                   >
-                    <IconWarningTriangleOutlineRegular size={16} />
+                    <Icon name="triangle-alert" size={16} />
                   </span>
                 ) : (
                   <button
@@ -995,7 +987,7 @@ const MessageGroupView = memo(function MessageGroupView({
                     title={message.failed}
                     onClick={() => onRestoreFailed(message)}
                   >
-                    <IconWarningTriangleOutlineRegular size={16} />
+                    <Icon name="triangle-alert" size={16} />
                   </button>
                 )}
                 <div
@@ -1184,7 +1176,7 @@ function MessageActionMenu({
           {
             id: 'copy',
             label: request.selection === undefined ? t('message.copy') : t('message.copySelection'),
-            icon: <IconCopyOutlineRegular />,
+            icon: <Icon name="copy" />,
           },
           ...(onSelect === undefined || !selectableMessage(request.message)
             ? []
@@ -1192,7 +1184,7 @@ function MessageActionMenu({
                 {
                   id: 'select',
                   label: t('message.select'),
-                  icon: <IconChecklistOutlineRegular />,
+                  icon: <Icon name="list-checks" />,
                 },
               ]),
           ...(onFeedback === undefined || !selectableMessage(request.message)
@@ -1255,7 +1247,7 @@ export function BotAvatarMenu({
           {
             id: 'message',
             label: t('message.avatar.message'),
-            icon: <IconNewChatOutlineRegular />,
+            icon: <Icon name="message-square-plus" />,
           },
           ...(canMention
             ? [
@@ -1269,7 +1261,7 @@ export function BotAvatarMenu({
           {
             id: 'profile',
             label: t('message.avatar.profile'),
-            icon: <IconUserOutlineRegular />,
+            icon: <Icon name="user" />,
           },
         ]}
         onSelect={(id) => {
@@ -1452,8 +1444,7 @@ function ConversationView({
   const dockInboxMount = useMountedResource<HTMLSpanElement>(() => {
     if (!inboxOpen || dockBotSlug === undefined) return;
     void actions.refreshBotInbox(dockBotSlug);
-    const timer = window.setInterval(() => void actions.refreshBotInbox(dockBotSlug), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void actions.refreshBotInbox(dockBotSlug));
   }, [inboxOpen, dockBotSlug, actions]);
   const sendKey = useContext(ComposerSendKeyContext);
   const streamReplies = useContext(StreamReplies);
@@ -2199,8 +2190,6 @@ function ConversationView({
         );
       else refreshUsage();
     }
-    const usageTimer =
-      channel?.type === 'dm' ? window.setInterval(refreshUsage, 30_000) : undefined;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!profileViewOpen) return;
       if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -2211,7 +2200,6 @@ function ConversationView({
     document.addEventListener('keydown', onKeyDown);
     return () => {
       cancelled = true;
-      window.clearInterval(usageTimer);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [
@@ -3865,7 +3853,7 @@ function ConversationView({
                     {unseen > 99 ? '99+' : unseen}
                   </span>
                 ) : (
-                  <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                  <Icon name="chevron-down" size={16} aria-hidden="true" />
                 )}
               </button>
             </div>
@@ -4489,7 +4477,7 @@ function ConversationView({
                     aria-controls="bh-channel-sidebar"
                     onClick={sidebar.toggle}
                   >
-                    <IconPanelLeftOutlineRegular size={16} />
+                    <Icon name="panel-left" size={16} />
                   </button>
                 </>,
               )}

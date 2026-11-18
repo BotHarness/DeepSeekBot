@@ -1,23 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ActivityListSource } from '../src/client/activity-list-view.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { type InboxSnapshot } from '@botharness/host-client/inbox';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: {
-    children?: ReactNode;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 vi.mock('../src/client/bot-sidebar.js', async () => {
   const { useSyncExternalStore } = await import('react');
@@ -25,9 +18,9 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { ActivityListView, type ActivityListSource } from '../src/client/activity-list-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { activityListSnoozeUntil } from '../src/client/activity-list-snooze.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const approval = (slug: string): HumanAttentionItem => ({
   id: 'approval:' + slug,
@@ -363,7 +356,7 @@ import { ActivityCenterView } from '../src/client/activity-center-view.js';
 import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { InboxSnapshot } from '@botharness/host-client/inbox';
+
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 
 async function remoteFixture(host: FakeHost) {

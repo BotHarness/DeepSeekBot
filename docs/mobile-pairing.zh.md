@@ -137,7 +137,7 @@ Tailscale 在大多数网络下都能直连或通过它自己的中继连通。�
 
 - 配对后的手机拥有和你在电脑上一样的权限，请只配对自己的设备。
 - 手机上的凭据只保存在系统钥匙串（iOS Keychain／Android Keystore）里，电脑只保存它的哈希值。
-- DSH 本身仍只监听本机地址，手机的请求经过 DeepSeekBot 的设备网关转发，并且随时可以撤销。技术细节见 [ADR-0199](adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)。
+- DSH 本身仍只监听本机地址，手机的请求经过 DeepSeekBot 的设备网关转发，并且随时可以撤销。技术细节见 [ADR-0199](decisions/connections.md#adr-0199)。
 
 ## 管理已关联电脑
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { BridgeFile } from '../src/client/bridge-file.js';
@@ -10,14 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     FileTypeIcon: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconCopyOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
+
     writeClipboard: vi.fn(),
   };
 });

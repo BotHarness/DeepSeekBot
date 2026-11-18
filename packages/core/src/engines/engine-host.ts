@@ -62,6 +62,7 @@ export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
   'inbox_resolve',
   'tool_search',
   'tool_call',
+  'report_to_orchestrator',
 ]);
 
 export interface EngineTool {
@@ -72,6 +73,8 @@ export interface EngineTool {
 
 export interface EngineTurnRequest {
   botSlug: string;
+  role?: EngineRole;
+  cwd?: string;
   sessionId: string;
   channelId: string | undefined;
   input: string;
@@ -84,6 +87,12 @@ export interface EngineTurnRequest {
     context: EngineToolContext,
   ): Promise<unknown>;
   signal: AbortSignal;
+}
+
+export interface EngineTurnOutcome {
+  turn?: number;
+  endSeq?: number;
+  text?: string;
 }
 
 export interface EngineToolApproval {
@@ -148,7 +157,7 @@ export interface EngineHostOptions {
   persistence(): EngineSessionPersistence | undefined;
   sessionIdsForBot?(botSlug: string): readonly string[];
   changed?(): void;
-  observe?(botSlug: string, sessionId: string, state: EngineSessionState): void;
+  observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
   releaseGraceMs?: number;
   now?: () => number;
@@ -204,6 +213,7 @@ export class EngineHost {
   readonly #live = new Map<string, LiveEngineSession>();
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
   readonly #openingChoice = new Map<string, string>();
+  readonly #roles = new Map<string, EngineRole>();
   readonly #models = new Map<EngineId, { at: number; models: Promise<EngineModel[]> }>();
   readonly #states = new Map<string, EngineSessionDescription>();
   readonly #legacyAccounts = new Map<string, { engine: EngineId; account: string | undefined }>();
@@ -308,10 +318,10 @@ export class EngineHost {
     return this.engineFor(botSlug, role) !== undefined && this.store.fallback(botSlug, role);
   }
 
-  runsOnEngine(botSlug: string): boolean {
-    const engine = this.engineFor(botSlug);
+  runsOnEngine(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
+    const engine = this.engineFor(botSlug, role);
     if (engine === undefined) return false;
-    return !(this.fallsBack(botSlug) && this.limit(engine) !== undefined);
+    return !(this.fallsBack(botSlug, role) && this.limit(engine) !== undefined);
   }
 
   limit(engine: EngineId): { account: string; until: string } | undefined {
@@ -456,7 +466,7 @@ export class EngineHost {
   async #claudeSession(
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort'
+      'gateway' | 'model' | 'effort' | 'permissionMode'
     >,
   ): Promise<ClaudeEngineSession> {
     const claude = this.#claude;
@@ -484,14 +494,18 @@ export class EngineHost {
     });
   }
 
-  async runTurn(request: EngineTurnRequest): Promise<void> {
-    const selected = this.engineFor(request.botSlug);
+  async runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome> {
+    const role = request.role ?? 'orchestrator';
+    this.#roles.set(request.sessionId, role);
+    const selected = this.engineFor(request.botSlug, role);
     if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
-        'This Bot does not run on a Subscription Engine',
+        role === 'assignment'
+          ? 'This Bot does not run its Assignments on a Subscription Engine'
+          : 'This Bot does not run on a Subscription Engine',
       );
-    if (request.signal.aborted) return;
+    if (request.signal.aborted) return {};
     const limited = this.limit(selected);
     if (limited !== undefined) throw new EngineLimitError(selected, limited.account, limited.until);
     const live = await this.#open(request);
@@ -508,6 +522,7 @@ export class EngineHost {
     const current = () => !live.closing && this.#live.get(request.sessionId) === live;
     let broken = false;
     let reopen = false;
+    const outcome: EngineTurnOutcome = {};
     try {
       await previous;
       if (!current()) {
@@ -516,8 +531,8 @@ export class EngineHost {
           throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
       } else if (!request.signal.aborted) {
         if (!accountChecked) live.account = requireSubscription(await live.engine.account());
-        if (request.signal.aborted) return;
-        this.#rememberAccount(request.botSlug, engine, live.account);
+        if (request.signal.aborted) return outcome;
+        if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
         const stop = new AbortController();
         live.stop = stop;
         const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
@@ -528,6 +543,7 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
+        outcome.turn = log.turn;
         let limitedNow = false;
         const signal = AbortSignal.any([request.signal, stop.signal]);
         scope.context = {
@@ -547,6 +563,8 @@ export class EngineHost {
             signal,
             onEvent: (event) => {
               log.accept(event);
+              if (event.kind === 'text') outcome.text = event.text;
+              if (event.kind === 'tool-call') delete outcome.text;
               if (event.kind === 'approval')
                 void this.#approve(live, scope, log, event, request.sessionId, signal);
               if (event.kind === 'rate-limit') {
@@ -555,13 +573,16 @@ export class EngineHost {
               }
             },
           });
-          this.#rememberModel(request.botSlug, engine, live.engine.model);
+          if (role === 'orchestrator')
+            this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
           } catch (error) {
             broken = true;
             throw error;
           }
+          const last = live.dsh.session.snapshotEvents().at(-1);
+          if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine) : undefined;
             if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
@@ -585,7 +606,8 @@ export class EngineHost {
         void this.release(request.sessionId);
       }
     }
-    if (reopen) await this.runTurn(request);
+    if (reopen) return this.runTurn(request);
+    return outcome;
   }
 
   async #approve(
@@ -683,7 +705,8 @@ export class EngineHost {
     live.closing = true;
     this.#live.delete(sessionId);
     this.#states.delete(sessionId);
-    this.#options.observe?.(live.botSlug, sessionId, 'idle');
+    this.#options.observe?.(live.botSlug, sessionId, 'idle', this.#role(sessionId));
+    this.#roles.delete(sessionId);
     live.grant.revoke();
     live.stop?.abort();
     const grace = this.#options.releaseGraceMs ?? RELEASE_GRACE_MS;
@@ -706,21 +729,26 @@ export class EngineHost {
     return this.#live.has(sessionId) || this.#opening.has(sessionId);
   }
 
+  #role(sessionId: string): EngineRole {
+    return this.#roles.get(sessionId) ?? 'orchestrator';
+  }
+
   #setState(sessionId: string, description: EngineSessionDescription, botSlug: string): void {
     this.#states.set(sessionId, description);
-    this.#options.observe?.(botSlug, sessionId, description.state);
+    this.#options.observe?.(botSlug, sessionId, description.state, this.#role(sessionId));
   }
 
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
-    const selected = this.choiceFor(request.botSlug);
+    const role = request.role ?? 'orchestrator';
+    const selected = this.choiceFor(request.botSlug, role);
     if (live !== undefined && !live.engine.ended && live.choice === selected) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const engineId = this.engineFor(request.botSlug);
-    const choice = this.store.choice(request.botSlug, 'orchestrator');
+    const engineId = this.engineFor(request.botSlug, role);
+    const choice = this.store.choice(request.botSlug, role);
     const key = choiceKey(engineId, choice);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
@@ -758,8 +786,8 @@ export class EngineHost {
       const persistence = this.#options.persistence();
       if (sessions === undefined || persistence === undefined)
         throw new EngineRefusal('engine-unavailable', 'DSH Session Persistence is unavailable');
-      const cwd = join(this.#options.root, 'workdirs', botSlug);
-      mkdirSync(cwd, { recursive: true });
+      const cwd = request.cwd ?? join(this.#options.root, 'workdirs', botSlug);
+      if (request.cwd === undefined) mkdirSync(cwd, { recursive: true });
       await this.#options.gateway.start();
       const tools: EngineGatewayTool[] = request.tools
         .filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name))
@@ -773,6 +801,7 @@ export class EngineHost {
         sessionId,
         tools,
         channelId: () => holder.live?.turn?.channelId,
+        channelless: request.role === 'assignment',
         call: async (name, args, signal) => {
           const turn = holder.live?.turn;
           if (turn?.context === undefined)
@@ -797,6 +826,7 @@ export class EngineHost {
           cwd,
           instructions: request.instructions,
           gateway: gatewayEndpoint,
+          ...(request.role === 'assignment' ? { permissionMode: 'acceptEdits' as const } : {}),
           ...choice,
           ...(resume === undefined ? {} : { resume }),
         });
@@ -842,7 +872,7 @@ export class EngineHost {
       this.#cancels.delete(sessionId);
       grant?.revoke();
       this.#states.delete(sessionId);
-      this.#options.observe?.(botSlug, sessionId, 'idle');
+      this.#options.observe?.(botSlug, sessionId, 'idle', this.#role(sessionId));
       await Promise.allSettled([engine?.close(), dsh?.close()]);
       throw error;
     }

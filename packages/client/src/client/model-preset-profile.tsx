@@ -1,9 +1,10 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import {
   modelCatalogGroupEfforts,
@@ -24,12 +25,15 @@ import type {
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
+import { EngineChoice } from './engine-choice.js';
+import { isOriginActions } from './origin-actions.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
+import { savePresetStyles } from './model-preset-save-styles.js';
 import {
   assignmentChoice,
   draftOf,
@@ -61,13 +65,6 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: color.divider,
   },
-  savePreset: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-  },
-  grow: { flexGrow: 1, minWidth: 0 },
 });
 
 export function ModelPresetProfile({
@@ -952,8 +949,8 @@ export function ModelPresetProfile({
                   />
                   {taskEditor}
                   {presetName !== undefined && (
-                    <div {...stylex.props(styles.savePreset)}>
-                      <span {...stylex.props(styles.grow)}>
+                    <div {...stylex.props(savePresetStyles.row)}>
+                      <span {...stylex.props(savePresetStyles.grow)}>
                         <Input
                           aria-label={t('modelPreset.name')}
                           placeholder={t('modelPreset.name')}
@@ -987,6 +984,9 @@ export function ModelPresetProfile({
               )}
             </>
           )}
+          {selectionMode === 'models' && isOriginActions(actions) ? (
+            <EngineChoice slug={slug} role="orchestrator" t={t} />
+          ) : null}
           {messages}
         </PanelDialog>
       )}

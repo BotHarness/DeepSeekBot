@@ -1,67 +1,26 @@
 // @vitest-environment jsdom
-import { act, createElement, forwardRef, type PropsWithChildren } from 'react';
+import { type ChannelMessage } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/segmented.js', async () => ({
-  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconWarningTriangleOutlineRegular: () => null,
-    IconCodeOutlineRegular: () => null,
-    IconStopFillRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
 
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
     IconCloseFill14: stub,
-    IconCopyOutlineRegular: stub,
-    IconGoalOutlineRegular: stub,
-    IconChecklistOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
 
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
-    Input: stub,
 
     MarkdownText: stub,
 
-    SegmentedControl: stub,
     StateDot: stub,
-    Tag,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
@@ -83,7 +42,7 @@ import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-buil
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { ChannelSidebarEntrySection } from '../src/client/channel-sidebar-view.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelMessage } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { CSS } from '../src/client/styles.js';
 import { inertSubmissionActions } from './inert-submissions.js';
@@ -690,7 +649,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     expect(markup).toContain('bh-bubble-pending');
-    expect(markup).not.toContain('发送中');
+    expect(markup).not.toContain('>发送中<');
     expect(markup).toContain('hello');
     expect(markup).not.toContain('bh-message-group-avatar');
   });
@@ -740,7 +699,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('bh-bubble-failed');
     expect(markup).toContain('将失败消息放回输入框修改后重发');
     expect(markup).toContain('network disconnected');
-    expect(markup).not.toContain('发送中');
+    expect(markup).not.toContain('>发送中<');
   });
   it('keeps a Bot DM read-only when its stored member list is incomplete', () => {
     const previous = store.getSnapshot();

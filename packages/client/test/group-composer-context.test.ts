@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode, type InputHTMLAttributes } from 'react';
+import { type ReactNode } from 'react';
+import { type WorkspaceGrantView } from '../src/client/bridge.js';
+import { type BotSummary } from '../src/client/store.js';
+import { type ComposerContext } from '../src/client/composer-shortcuts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import {
@@ -7,11 +11,10 @@ import {
   groupWorkspaceChip,
   useGroupComposerContext,
 } from '../src/client/group-composer-context.js';
-import { BridgeCallError, type WorkspaceGrantView } from '../src/client/bridge.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { BotSummary } from '../src/client/store.js';
+
 import { zhTranslate } from '../src/client/locale.js';
-import type { ComposerContext } from '../src/client/composer-shortcuts.js';
 
 vi.mock('../src/client/modal.js', () => ({
   Modal: ({ children, title }: { children: ReactNode; title: string }) =>
@@ -19,15 +22,6 @@ vi.mock('../src/client/modal.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  IconChevronDownOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
 }));
 
 const ada: BotSummary = {

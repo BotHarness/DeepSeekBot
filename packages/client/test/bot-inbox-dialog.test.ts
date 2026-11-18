@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,18 +7,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    Button: ({ children, onClick }: PropsWithChildren<{ onClick?(): void }>) =>
-      createElement('button', { onClick }, children),
-    Input: stub,
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 
     StateDot: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
@@ -7,7 +7,6 @@ import { zhTranslate } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
 
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));

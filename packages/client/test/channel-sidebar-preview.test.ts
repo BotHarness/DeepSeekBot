@@ -1,27 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { act, createElement, useSyncExternalStore } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
 import { TerminologySettings } from './support/terminology-settings.js';
 import {
   channelSidebarPrefs,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import {
   sessionViewPreferenceSnapshot,
   subscribeSessionViewPreference,
 } from '../src/client/session-view-prefs.js';
-import type {
-  ChannelSidebarEntry,
-  ChannelSidebarEntryProps,
-} from '../src/client/channel-sidebar.js';
+import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 let root: Root;
 let host: HTMLDivElement;
 let prefs: ChannelSidebarPrefs;

@@ -1,40 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderOverlayMarkup } from './primitive-mocks.js';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/segmented.js', async () => ({
-  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCloseOutlineRegular: () => element('span'),
-    SegmentedControl: (props: {
-      label: string;
-      value: string;
-      disabled?: boolean;
-      onChange: (value: string) => void;
-      options: { label: string; value: string }[];
-    }) =>
-      element(
-        'select',
-        {
-          'aria-label': props.label,
-          value: props.value,
-          disabled: props.disabled,
-          onChange: (event: { currentTarget: HTMLSelectElement }) =>
-            props.onChange(event.currentTarget.value),
-        },
-        ...props.options.map((option) =>
-          element('option', { key: option.value, value: option.value }, option.label),
-        ),
-      ),
-    Tag: (props: { children?: ReactNode }) => element('span', null, props.children),
   };
 });
 
@@ -188,13 +163,11 @@ async function typeText(host: HTMLElement, selector: string, value: string) {
 }
 
 async function choose(host: HTMLElement, label: string, value: string) {
-  const input = document.body.querySelector<HTMLSelectElement>(
-    'select[aria-label="' + label + '"]',
-  )!;
-  await act(async () => {
-    input.value = value;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  const tab = document.body.querySelector<HTMLButtonElement>(
+    `[role="tablist"][aria-label="${label}"] [role="tab"][id$="-${value}"]`,
+  );
+  if (tab === null) throw new Error(`Missing ${value} tab in ${label}`);
+  await act(async () => tab.click());
 }
 
 async function submit(host: HTMLElement) {

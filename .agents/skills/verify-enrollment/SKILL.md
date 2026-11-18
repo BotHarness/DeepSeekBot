@@ -5,7 +5,7 @@ description: Model-check Host Relationship enrollment (one grant per Client key,
 
 # Verify relationship enrollment
 
-`verification/enrollment/Enrollment.tla` models how a source Host enrolls Client keys on a target Host over one Host Relationship ([ADR-0339](../../../docs/adr/0339-relationship-enrollment-keeps-issuance-and-cancellation-durable.md)). TLC checks every order of enrollment start, late offer requests, redemptions, lost replies, confirmations, deadlines, explicit cancellations, cleanup, record reclamation and a target restart, for two keys with up to two live offers each.
+`verification/enrollment/Enrollment.tla` models how a source Host enrolls Client keys on a target Host over one Host Relationship ([ADR-0339](../../../docs/decisions/connections.md#adr-0339)). TLC checks every order of enrollment start, late offer requests, redemptions, lost replies, confirmations, deadlines, explicit cancellations, cleanup, record reclamation and a target restart, for two keys with up to two live offers each.
 
 It checks four rules:
 

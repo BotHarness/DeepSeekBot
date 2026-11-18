@@ -34,124 +34,6 @@ window.__ModuleLoader__.load({
 		_deepseek_ai_dsh_client_ui_primitives = __toESM(_deepseek_ai_dsh_client_ui_primitives, 1);
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
-		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
-		var styleq = {};
-		var hasRequiredStyleq;
-		function requireStyleq() {
-			if (hasRequiredStyleq) return styleq;
-			hasRequiredStyleq = 1;
-			Object.defineProperty(styleq, "__esModule", { value: true });
-			styleq.styleq = void 0;
-			var cache = /* @__PURE__ */ new WeakMap();
-			var compiledKey = "$$css";
-			function createStyleq(options) {
-				var disableCache;
-				var disableMix;
-				var transform;
-				if (options != null) {
-					disableCache = options.disableCache === true;
-					disableMix = options.disableMix === true;
-					transform = options.transform;
-				}
-				return function styleq() {
-					var definedProperties = [];
-					var className = "";
-					var inlineStyle = null;
-					var debugString = "";
-					var nextCache = disableCache ? null : cache;
-					var styles = new Array(arguments.length);
-					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
-					while (styles.length > 0) {
-						var possibleStyle = styles.pop();
-						if (possibleStyle == null || possibleStyle === false) continue;
-						if (Array.isArray(possibleStyle)) {
-							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
-							continue;
-						}
-						var style = transform != null ? transform(possibleStyle) : possibleStyle;
-						if (style.$$css != null) {
-							var classNameChunk = "";
-							if (nextCache != null && nextCache.has(style)) {
-								var cacheEntry = nextCache.get(style);
-								if (cacheEntry != null) {
-									classNameChunk = cacheEntry[0];
-									debugString = cacheEntry[2];
-									definedProperties.push.apply(definedProperties, cacheEntry[1]);
-									nextCache = cacheEntry[3];
-								}
-							} else {
-								var definedPropertiesChunk = [];
-								for (var prop in style) {
-									var value = style[prop];
-									if (prop === compiledKey) {
-										var compiledKeyValue = style[prop];
-										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
-										continue;
-									}
-									if (typeof value === "string" || value === null) {
-										if (!definedProperties.includes(prop)) {
-											definedProperties.push(prop);
-											if (nextCache != null) definedPropertiesChunk.push(prop);
-											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
-										}
-									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
-								}
-								if (nextCache != null) {
-									var weakMap = /* @__PURE__ */ new WeakMap();
-									nextCache.set(style, [
-										classNameChunk,
-										definedPropertiesChunk,
-										debugString,
-										weakMap
-									]);
-									nextCache = weakMap;
-								}
-							}
-							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
-						} else if (disableMix) {
-							if (inlineStyle == null) inlineStyle = {};
-							inlineStyle = Object.assign({}, style, inlineStyle);
-						} else {
-							var subStyle = null;
-							for (var _prop in style) {
-								var _value = style[_prop];
-								if (_value !== void 0) {
-									if (!definedProperties.includes(_prop)) {
-										if (_value != null) {
-											if (inlineStyle == null) inlineStyle = {};
-											if (subStyle == null) subStyle = {};
-											subStyle[_prop] = _value;
-										}
-										definedProperties.push(_prop);
-										nextCache = null;
-									}
-								}
-							}
-							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
-						}
-					}
-					return [
-						className,
-						inlineStyle,
-						debugString
-					];
-				};
-			}
-			var styleq$1 = styleq.styleq = createStyleq();
-			styleq$1.factory = createStyleq;
-			return styleq;
-		}
-		var styleqExports = /*@__PURE__*/ requireStyleq();
-		function props(...styles) {
-			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
-			const result = {};
-			if (className != null && className !== "") result.className = className;
-			if (style != null && Object.keys(style).length > 0) result.style = style;
-			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
-			return result;
-		}
-		Object.freeze({});
-		//#endregion
 		//#region packages/client/src/client/channel-sidebar-icon.tsx
 		/**
 		* Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
@@ -177,6 +59,120 @@ window.__ModuleLoader__.load({
 		* PERFORMANCE OF THIS SOFTWARE.
 		*/
 		const glyphs = {
+			ellipsis: [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "1"
+				}],
+				["circle", {
+					cx: "19",
+					cy: "12",
+					r: "1"
+				}],
+				["circle", {
+					cx: "5",
+					cy: "12",
+					r: "1"
+				}]
+			],
+			"circle-x": [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "10"
+				}],
+				["path", { d: "m15 9-6 6" }],
+				["path", { d: "m9 9 6 6" }]
+			],
+			"arrow-up": [["path", { d: "m5 12 7-7 7 7" }], ["path", { d: "M12 19V5" }]],
+			"arrow-up-right": [["path", { d: "M7 7h10v10" }], ["path", { d: "M7 17 17 7" }]],
+			download: [
+				["path", { d: "M12 15V3" }],
+				["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
+				["path", { d: "m7 10 5 5 5-5" }]
+			],
+			save: [
+				["path", { d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" }],
+				["path", { d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" }],
+				["path", { d: "M7 3v4a1 1 0 0 0 1 1h7" }]
+			],
+			"triangle-alert": [
+				["path", { d: "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" }],
+				["path", { d: "M12 9v4" }],
+				["path", { d: "M12 17h.01" }]
+			],
+			"message-square-plus": [
+				["path", { d: "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }],
+				["path", { d: "M12 8v6" }],
+				["path", { d: "M9 11h6" }]
+			],
+			"panel-left": [["rect", {
+				width: "18",
+				height: "18",
+				x: "3",
+				y: "3",
+				rx: "2"
+			}], ["path", { d: "M9 3v18" }]],
+			pencil: [["path", { d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" }], ["path", { d: "m15 5 4 4" }]],
+			"folder-open": [["path", { d: "m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" }]],
+			pin: [["path", { d: "M12 17v5" }], ["path", { d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" }]],
+			share: [
+				["path", { d: "M12 2v13" }],
+				["path", { d: "m16 6-4-4-4 4" }],
+				["path", { d: "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" }]
+			],
+			"chevron-left": [["path", { d: "m15 18-6-6 6-6" }]],
+			"circle-check": [["circle", {
+				cx: "12",
+				cy: "12",
+				r: "10"
+			}], ["path", { d: "m16 9-5.5 5.5L8 12" }]],
+			maximize: [
+				["path", { d: "M8 3H5a2 2 0 0 0-2 2v3" }],
+				["path", { d: "M21 8V5a2 2 0 0 0-2-2h-3" }],
+				["path", { d: "M3 16v3a2 2 0 0 0 2 2h3" }],
+				["path", { d: "M16 21h3a2 2 0 0 0 2-2v-3" }]
+			],
+			link: [["path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }], ["path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }]],
+			paperclip: [["path", { d: "m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551" }]],
+			shield: [["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }]],
+			"refresh-cw": [
+				["path", { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" }],
+				["path", { d: "M21 3v5h-5" }],
+				["path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }],
+				["path", { d: "M8 16H3v5" }]
+			],
+			sparkles: [
+				["path", { d: "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" }],
+				["path", { d: "M20 2v4" }],
+				["path", { d: "M22 4h-4" }],
+				["circle", {
+					cx: "4",
+					cy: "20",
+					r: "2"
+				}]
+			],
+			clock: [["circle", {
+				cx: "12",
+				cy: "12",
+				r: "10"
+			}], ["path", { d: "M12 6v6l4 2" }]],
+			folder: [["path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" }]],
+			"wrap-text": [
+				["path", { d: "m16 16-3 3 3 3" }],
+				["path", { d: "M3 12h14.5a1 1 0 0 1 0 7H13" }],
+				["path", { d: "M3 19h6" }],
+				["path", { d: "M3 5h18" }]
+			],
+			list: [
+				["path", { d: "M3 5h.01" }],
+				["path", { d: "M3 12h.01" }],
+				["path", { d: "M3 19h.01" }],
+				["path", { d: "M8 5h13" }],
+				["path", { d: "M8 12h13" }],
+				["path", { d: "M8 19h13" }]
+			],
 			eraser: [["path", { d: "M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" }], ["path", { d: "m5.082 11.09 8.828 8.828" }]],
 			"paint-bucket": [
 				["path", { d: "M11 7 6 2" }],
@@ -1032,9 +1028,11 @@ window.__ModuleLoader__.load({
 		function glyph(name) {
 			return Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
 		}
-		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, filled = false, strokeWidth = 2 }) {
+		function ChannelSidebarIcon({ name = "panels-top-left", size = 16, filled = false, strokeWidth = 2, className }) {
 			const nodes = glyph(name);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+				className,
+				"data-icon": name,
 				width: size,
 				height: size,
 				viewBox: "0 0 24 24",
@@ -1049,6 +1047,157 @@ window.__ModuleLoader__.load({
 					key: index
 				}))
 			});
+		}
+		//#endregion
+		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
+		var styleq = {};
+		var hasRequiredStyleq;
+		function requireStyleq() {
+			if (hasRequiredStyleq) return styleq;
+			hasRequiredStyleq = 1;
+			Object.defineProperty(styleq, "__esModule", { value: true });
+			styleq.styleq = void 0;
+			var cache = /* @__PURE__ */ new WeakMap();
+			var compiledKey = "$$css";
+			function createStyleq(options) {
+				var disableCache;
+				var disableMix;
+				var transform;
+				if (options != null) {
+					disableCache = options.disableCache === true;
+					disableMix = options.disableMix === true;
+					transform = options.transform;
+				}
+				return function styleq() {
+					var definedProperties = [];
+					var className = "";
+					var inlineStyle = null;
+					var debugString = "";
+					var nextCache = disableCache ? null : cache;
+					var styles = new Array(arguments.length);
+					for (var i = 0; i < arguments.length; i++) styles[i] = arguments[i];
+					while (styles.length > 0) {
+						var possibleStyle = styles.pop();
+						if (possibleStyle == null || possibleStyle === false) continue;
+						if (Array.isArray(possibleStyle)) {
+							for (var _i = 0; _i < possibleStyle.length; _i++) styles.push(possibleStyle[_i]);
+							continue;
+						}
+						var style = transform != null ? transform(possibleStyle) : possibleStyle;
+						if (style.$$css != null) {
+							var classNameChunk = "";
+							if (nextCache != null && nextCache.has(style)) {
+								var cacheEntry = nextCache.get(style);
+								if (cacheEntry != null) {
+									classNameChunk = cacheEntry[0];
+									debugString = cacheEntry[2];
+									definedProperties.push.apply(definedProperties, cacheEntry[1]);
+									nextCache = cacheEntry[3];
+								}
+							} else {
+								var definedPropertiesChunk = [];
+								for (var prop in style) {
+									var value = style[prop];
+									if (prop === compiledKey) {
+										var compiledKeyValue = style[prop];
+										if (compiledKeyValue !== true) debugString = debugString ? compiledKeyValue + "; " + debugString : compiledKeyValue;
+										continue;
+									}
+									if (typeof value === "string" || value === null) {
+										if (!definedProperties.includes(prop)) {
+											definedProperties.push(prop);
+											if (nextCache != null) definedPropertiesChunk.push(prop);
+											if (typeof value === "string") classNameChunk += classNameChunk ? " " + value : value;
+										}
+									} else console.error("styleq: ".concat(prop, " typeof ").concat(String(value), " is not \"string\" or \"null\"."));
+								}
+								if (nextCache != null) {
+									var weakMap = /* @__PURE__ */ new WeakMap();
+									nextCache.set(style, [
+										classNameChunk,
+										definedPropertiesChunk,
+										debugString,
+										weakMap
+									]);
+									nextCache = weakMap;
+								}
+							}
+							if (classNameChunk) className = className ? classNameChunk + " " + className : classNameChunk;
+						} else if (disableMix) {
+							if (inlineStyle == null) inlineStyle = {};
+							inlineStyle = Object.assign({}, style, inlineStyle);
+						} else {
+							var subStyle = null;
+							for (var _prop in style) {
+								var _value = style[_prop];
+								if (_value !== void 0) {
+									if (!definedProperties.includes(_prop)) {
+										if (_value != null) {
+											if (inlineStyle == null) inlineStyle = {};
+											if (subStyle == null) subStyle = {};
+											subStyle[_prop] = _value;
+										}
+										definedProperties.push(_prop);
+										nextCache = null;
+									}
+								}
+							}
+							if (subStyle != null) inlineStyle = Object.assign(subStyle, inlineStyle);
+						}
+					}
+					return [
+						className,
+						inlineStyle,
+						debugString
+					];
+				};
+			}
+			var styleq$1 = styleq.styleq = createStyleq();
+			styleq$1.factory = createStyleq;
+			return styleq;
+		}
+		var styleqExports = /*@__PURE__*/ requireStyleq();
+		function props(...styles) {
+			const [className, style, dataStyleSrc] = styleqExports.styleq(styles);
+			const result = {};
+			if (className != null && className !== "") result.className = className;
+			if (style != null && Object.keys(style).length > 0) result.style = style;
+			if (dataStyleSrc != null && dataStyleSrc !== "") result["data-style-src"] = dataStyleSrc;
+			return result;
+		}
+		Object.freeze({});
+		//#endregion
+		//#region packages/client/src/client/ds/tobs.stylex.ts
+		const size$3 = {
+			icon: "16px",
+			iconLarge: "20px",
+			iconSlot: "20px",
+			iconStroke: "1.5px",
+			controlSmall: "24px",
+			control: "28px",
+			controlLarge: "32px",
+			row: "28px",
+			rowMedium: "36px",
+			rowComfortable: "40px",
+			rowLarge: "44px"
+		};
+		//#endregion
+		//#region packages/client/src/client/ds/icon.tsx
+		function Icon({ name, large = false, size, filled = false, className }) {
+			const box = size ?? (large ? size$3.iconLarge : size$3.icon);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
+				name,
+				size: box,
+				filled,
+				className,
+				strokeWidth: Number.parseFloat(size$3.iconStroke) * 24 / Number.parseFloat(String(box))
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/class-name.ts
+		function joinClass(...names) {
+			const joined = names.filter((name) => name !== void 0 && name !== "").join(" ");
+			return joined === "" ? void 0 : joined;
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/tokens.stylex.ts
@@ -1113,56 +1262,8 @@ window.__ModuleLoader__.load({
 			accentTint: "var(--tobs-accent-tint)"
 		};
 		//#endregion
-		//#region packages/client/src/client/ds/empty-state.tsx
-		function PanelEmptyState({ icon, children, action }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				role: "status",
-				"data-panel-empty": "",
-				className: "bhx78zum5 bhxdt5ytf bhx6s0dn4 bhxl56j7k bhx1iyjqo2 bhx1mckxr8 bhx1tsjn1a bhx9f619 bhx2b8uid bhxr3raxm",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						"aria-hidden": "true",
-						className: "bhx1i1gie9 bhxdkzj7d bhx2lah0s bhxwq55zj",
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
-							name: icon,
-							size: "100%"
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: "bhx1ghz6dp bhxxc7z9f bhxr3raxm bhxgowt09 bhx12cu2lo",
-						children
-					}),
-					action === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						"data-panel-empty-action": "",
-						children: action
-					})
-				]
-			});
-		}
-		//#endregion
-		//#region packages/client/src/client/ds/class-name.ts
-		function joinClass(...names) {
-			const joined = names.filter((name) => name !== void 0 && name !== "").join(" ");
-			return joined === "" ? void 0 : joined;
-		}
-		//#endregion
-		//#region packages/client/src/client/ds/tobs.stylex.ts
-		const size$3 = {
-			icon: "16px",
-			iconLarge: "20px",
-			iconSlot: "20px",
-			iconStroke: "1.5px",
-			controlSmall: "24px",
-			control: "28px",
-			controlLarge: "32px",
-			row: "28px",
-			rowMedium: "36px",
-			rowComfortable: "40px",
-			rowLarge: "44px"
-		};
-		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
-		const styles$3 = {
+		const styles$4 = {
 			base: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -1225,17 +1326,147 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		const Button$4 = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
+		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
-				className: joinClass(props(styles$3.base, styles$3[size], styles$3[variant]).className, className),
+				className: joinClass(props(styles$4.base, styles$4[size], styles$4[variant]).className, className),
 				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
 					children: icon
 				}), children]
 			});
 		});
+		//#endregion
+		//#region packages/client/src/client/ds/switch.tsx
+		function Switch({ checked, onChange, label, disabled = false, title, className }) {
+			const track = {
+				0: { className: "bhx9f619 bhx1n2onr6 bhx2lah0s bhxhtpqs2 bhx5ej1o7 bhx1717udv bhxc342km bhx1hir1rn bhx17wyupo bhxnyootd bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1hl8ikr" },
+				1: { className: "bhx9f619 bhx1n2onr6 bhx2lah0s bhxhtpqs2 bhx5ej1o7 bhx1717udv bhxc342km bhx1hir1rn bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1i94p6w bhx1hl8ikr bhx1rolmtn bhx1gnnqk1" }
+			}[!!checked << 0];
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				type: "button",
+				role: "switch",
+				"aria-checked": checked,
+				"aria-label": label,
+				title,
+				disabled,
+				className: joinClass(track.className, className),
+				onClick: () => {
+					onChange(!checked);
+				},
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { ...{
+					0: { className: "bhx10l6tqk bhxwa60dl bhxu96u03 bhx1lliihq bhx16m33ld bhx15ro3sd bhx13u8aww bhx1x7efqg bhx1dm6lkz bhxs12ov2 bhxjk0iim bhxtrec30 bhxtp3wbg" },
+					1: { className: "bhx10l6tqk bhxwa60dl bhxu96u03 bhx1lliihq bhx13u8aww bhxjk0iim bhxtrec30 bhxtp3wbg bhxxbn18l bhx1xd5puz bhxn8qxt5 bhxjtbsy0 bhxyl194i" }
+				}[!!checked << 0] })
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/tag.tsx
+		const styles$3 = {
+			tag: {
+				kB7OPa: "bhx9f619",
+				k1xSpc: "bhx3nfvp2",
+				kGNEyG: "bhx6s0dn4",
+				k8WAf4: "bhxgxqyfi",
+				kg3NbH: "bhx1j7gxbw",
+				kaIpWk: "bhx1hir1rn",
+				kGuDYH: "bhx1cwq2zs",
+				kLWn49: "bhxsxgpsl",
+				k63SB2: "bhxk50ysn",
+				khDVqt: "bhxuxw1ft",
+				$$css: true
+			},
+			outline: {
+				kGVxlE: "bhx1hle45t",
+				kMwMTN: "bhx1axu3v7",
+				$$css: true
+			},
+			solid: {
+				kWkggS: "bhxdoljrk",
+				kMwMTN: "bhxwm96u7",
+				$$css: true
+			},
+			neutral: {
+				kWkggS: "bhxp02wjs",
+				kMwMTN: "bhx14lg19",
+				$$css: true
+			},
+			quiet: {
+				kMwMTN: "bhx1axu3v7",
+				$$css: true
+			},
+			success: {
+				kWkggS: "bhx1q91288",
+				kMwMTN: "bhxcz3oas",
+				$$css: true
+			},
+			info: {
+				kWkggS: "bhx1m3nrc0",
+				kMwMTN: "bhxigofnc",
+				$$css: true
+			},
+			warning: {
+				kWkggS: "bhxl8vzxm",
+				kMwMTN: "bhx65eiyc",
+				$$css: true
+			},
+			danger: {
+				kWkggS: "bhxw91tbh",
+				kMwMTN: "bhx1cq2c6i",
+				$$css: true
+			}
+		};
+		function Tag({ tone = "neutral", className, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				"data-tone": tone,
+				className: joinClass(props(styles$3.tag, styles$3[tone]).className, className),
+				children
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/empty-state.tsx
+		function PanelEmptyState({ icon, children, action }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				role: "status",
+				"data-panel-empty": "",
+				className: "bhx78zum5 bhxdt5ytf bhx6s0dn4 bhxl56j7k bhx1iyjqo2 bhx1mckxr8 bhx1tsjn1a bhx9f619 bhx2b8uid bhxr3raxm",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						"aria-hidden": "true",
+						className: "bhx1i1gie9 bhxdkzj7d bhx2lah0s bhxwq55zj",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
+							name: icon,
+							size: "100%"
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "bhx1ghz6dp bhxxc7z9f bhxr3raxm bhxgowt09 bhx12cu2lo",
+						children
+					}),
+					action === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						"data-panel-empty-action": "",
+						children: action
+					})
+				]
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/pill-button.tsx
+		function PillButton({ children, active, variant, className, as = "button", ...rest }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(as, {
+				type: as === "button" ? "button" : void 0,
+				...rest,
+				"aria-pressed": as === "button" ? active : void 0,
+				className: joinClass({
+					0: { className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhxamr80a bhx1eunnl6 bhx8yp5u bhx24dycr bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1m95a6t bhx1y3gkto" },
+					2: { className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhxamr80a bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1m95a6t bhx1y3gkto bhx1nycijx bhxyja9ir" },
+					1: { className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhxamr80a bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1m95a6t bhx1y3gkto bhx1rolmtn bhx14w2d3c" },
+					3: { className: "bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhx193iq5w bhxxevliy bhx1vid4s1 bhxc342km bhxamr80a bhxjb2p0i bhx5g6txa bhx3350y7 bhxuxw1ft bhx1ypdohk bhxtgyt42 bhx1hc1fzr bhxijokvz bhx1a2a7pz bhx1m95a6t bhx1y3gkto bhx1rolmtn bhx14w2d3c" }
+				}[!!active << 1 | !!(variant === "primary") << 0].className, className),
+				children
+			});
+		}
 		//#endregion
 		//#region packages/client/src/client/mounted-resource.ts
 		function useMountedResource(start, dependencies) {
@@ -1561,7 +1792,7 @@ window.__ModuleLoader__.load({
 							opacity: .75
 						},
 						children: t("entry.noScreen")
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 						variant: "toolbar",
 						size: "sm",
 						onClick: onRetry,
@@ -1587,17 +1818,13 @@ window.__ModuleLoader__.load({
 					background: BH.hoverScrim,
 					borderRadius: 8
 				},
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(_deepseek_ai_dsh_client_ui_primitives.Pill, {
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PillButton, {
 					onClick: onOpen,
-					style: {
-						background: BH.businessPrimary,
-						color: BH.labelPrimaryForeground,
-						height: 28,
-						padding: "0 12px",
-						fontSize: 13,
-						gap: 6
-					},
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFullscreenOutlineRegular, { size: 14 }), t("entry.openFullscreen")]
+					variant: "primary",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+						name: "maximize",
+						size: 14
+					}), t("entry.openFullscreen")]
 				})
 			});
 		}
@@ -1688,7 +1915,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function StopButton({ t, busy, stopping, onStop }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 				variant: "ghost",
 				size: "sm",
 				disabled: busy || stopping,
@@ -1739,7 +1966,7 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
 					extraControls,
-					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+					hideInteractiveToggle ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 						variant: interactive ? "ghost" : "primary",
 						size: "sm",
 						"aria-pressed": interactive,
@@ -1754,7 +1981,7 @@ window.__ModuleLoader__.load({
 						stopping,
 						onStop
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 						variant: "ghost",
 						size: "sm",
 						onClick: onCollapse,
@@ -11172,14 +11399,14 @@ window.__ModuleLoader__.load({
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "bhx78zum5 bhx12e6dxb bhx1a02dak",
 						children: [
-							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+							access !== "none" && installing === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 								size: "sm",
 								variant: "primary",
 								disabled: busy,
 								onClick: onInstall,
 								children: labels.install
 							}) : null,
-							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button$4, {
+							access === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 								size: "sm",
 								variant: "outline",
 								onClick: copy,
@@ -11345,7 +11572,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/input.tsx
-		const Input$2 = (0, react.forwardRef)(function Input({ icon, className, ...rest }, ref) {
+		const Input = (0, react.forwardRef)(function Input({ icon, className, ...rest }, ref) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				className: joinClass({ className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx12e6dxb bhxeuugli bhxisypcw bhx14i569m bhxvz6vxc bhxym0p2z bhx1ikcoup bhx1a2a7pz bhxay4pf5 bhx1g40iwv bhx1hc1fzr bhxozmhvb" }.className, className),
 				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -13622,16 +13849,6 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
-		//#region packages/client/src/client/ds/icon.tsx
-		function Icon({ name, large = false }) {
-			const box = large ? size$3.iconLarge : size$3.icon;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChannelSidebarIcon, {
-				name,
-				size: box,
-				strokeWidth: Number.parseFloat(size$3.iconStroke) * 24 / Number.parseFloat(box)
-			});
-		}
-		//#endregion
 		//#region packages/client/src/client/ds/shell-layer.ts
 		function useShellLayer(element, open, onClose) {
 			(0, _deepseek_ai_dsh_client_ui_primitives.useModalLayer)(element, open, onClose);
@@ -13989,7 +14206,7 @@ window.__ModuleLoader__.load({
 				className: className === void 0 ? "bh-combobox" : `bh-combobox ${className}`,
 				ref: root,
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input$2, {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input, {
 						className: "bh-combobox-input",
 						role: "combobox",
 						"aria-label": label,
@@ -14032,7 +14249,10 @@ window.__ModuleLoader__.load({
 								setOpen(true);
 							}
 						},
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 16 })
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+							name: "chevron-down",
+							size: 16
+						})
 					}),
 					open && !disabled && hasPopup ? (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsx)(MenuSurface, {
 						compact: true,
@@ -14065,7 +14285,10 @@ window.__ModuleLoader__.load({
 								},
 								onClick: () => select(option.value),
 								children: [
-									option.value === actionValue ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, { size: 16 }) : null,
+									option.value === actionValue ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+										name: "plus",
+										size: 16
+									}) : null,
 									option.label,
 									option.hint === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: "bh-combobox-hint",
@@ -14187,7 +14410,10 @@ window.__ModuleLoader__.load({
 					children: current?.label
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx2lah0s bhx1axu3v7",
-					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+						name: "chevron-down",
+						size: 12
+					})
 				})]
 			}), active && point ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PointerMenu, {
 				point,
@@ -14339,16 +14565,16 @@ window.__ModuleLoader__.load({
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardRow, {
 						icon: "globe",
 						title: t("settings.profile-control"),
-						chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [view?.paired !== true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [view?.paired !== true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "neutral",
 							children: t("entry.chip.unpaired")
-						}) : view.connected ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						}) : view.connected ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "success",
 							children: t("entry.chip.connected")
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "warning",
 							children: t("entry.chip.offline")
-						}), paused ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						}), paused ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "warning",
 							children: t("entry.chip.paused")
 						}) : null] }),
@@ -14368,13 +14594,13 @@ window.__ModuleLoader__.load({
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: "bh-browser-actions",
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 										size: "sm",
 										variant: "outline",
 										disabled: busy,
 										onClick: () => invoke(view?.paired ? "forget" : "pair"),
 										children: t(view?.paired ? "entry.profile.forget" : "entry.profile.pair")
-									}), view?.connected ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+									}), view?.connected ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 										size: "sm",
 										variant: "outline",
 										disabled: !enabled || busy,
@@ -14384,7 +14610,7 @@ window.__ModuleLoader__.load({
 								}),
 								view?.paired || pair === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.profile.instructions") }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Input, {
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input, {
 										"aria-label": t("entry.borrow.code"),
 										value: pair.code,
 										readOnly: true
@@ -14442,19 +14668,19 @@ window.__ModuleLoader__.load({
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardRow, {
 							icon: "globe",
 							title: t("settings.daily-control"),
-							chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [view === null || view.state === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [view === null || view.state === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "neutral",
 								children: t("entry.chip.disconnected")
-							}) : view.state === "connecting" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}) : view.state === "connecting" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "info",
 								children: t("entry.chip.connecting")
-							}) : view.state === "confirm" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}) : view.state === "confirm" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "warning",
 								children: t("entry.chip.confirm")
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "success",
 								children: t("entry.chip.controlled")
-							}), paused && view?.state === "controlled" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}), paused && view?.state === "controlled" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "warning",
 								children: t("entry.chip.paused")
 							}) : null] }),
@@ -14481,28 +14707,28 @@ window.__ModuleLoader__.load({
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 										className: "bh-browser-actions",
-										children: view === null || view.state === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+										children: view === null || view.state === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 											size: "sm",
 											variant: "outline",
 											disabled: !enabled || busy,
 											onClick: () => invoke("connect"),
 											children: t("entry.daily.connect")
 										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-											view.state === "confirm" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											view.state === "confirm" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "outline",
 												disabled: !enabled || busy,
 												onClick: () => invoke("grant"),
 												children: t("entry.daily.allow")
 											}) : null,
-											view.state === "controlled" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											view.state === "controlled" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "outline",
 												disabled: busy,
 												onClick: () => invoke("pause"),
 												children: t(paused ? "entry.view.resume" : "entry.view.pause")
 											}) : null,
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "outline",
 												disabled: busy,
@@ -14576,10 +14802,10 @@ window.__ModuleLoader__.load({
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardRow, {
 						icon: "globe",
 						title: t("settings.extension"),
-						chips: tab == null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						chips: tab == null ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "neutral",
 							children: t("entry.chip.notShared")
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 							tone: "info",
 							children: t("entry.chip.readOnly")
 						}),
@@ -14594,7 +14820,7 @@ window.__ModuleLoader__.load({
 									className: "bh-browser-borrow-url",
 									children: tab.url
 								})] }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 									size: "sm",
 									variant: "outline",
 									disabled: !enabled || busy,
@@ -14603,13 +14829,13 @@ window.__ModuleLoader__.load({
 								}),
 								tab != null || pair === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.borrow.instructions") }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Input, {
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input, {
 										"aria-label": t("entry.borrow.code"),
 										value: pair.code,
 										readOnly: true
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: location.origin }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 										size: "sm",
 										variant: "outline",
 										onClick: () => {
@@ -14691,9 +14917,11 @@ window.__ModuleLoader__.load({
 .bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}
 .bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}
 .bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}
+.bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}
 .bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}
 .bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}
 .bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}
+.bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}
 .bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}
@@ -14717,12 +14945,14 @@ window.__ModuleLoader__.load({
 .bhx7giv3:not(#\\#):not(#\\#){overflow:clip}
 .bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}
 .bhxt970qd:not(#\\#):not(#\\#){padding-block:0}
+.bhxgxqyfi:not(#\\#):not(#\\#){padding-block:1px}
 .bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}
 .bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}
 .bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}
 .bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}
 .bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}
 .bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}
+.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}
 .bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}
 .bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}
 .bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}
@@ -14734,6 +14964,7 @@ window.__ModuleLoader__.load({
 .bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}
 .bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
 .bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
+.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}
 .bhxup6t74:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}
 .bhx1decy8s:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}
 .bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}
@@ -14747,8 +14978,12 @@ window.__ModuleLoader__.load({
 .bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}
 .bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}
 .bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}
+.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}
 .bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
+.bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}
 .bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}
+.bhx1m3nrc0:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}
+.bhx1nycijx:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}
 .bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}
 .bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
 .bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
@@ -14756,18 +14991,30 @@ window.__ModuleLoader__.load({
 .bhx1tfgve3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-line-divider)}
 .bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}
 .bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}
+.bhx17wyupo:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-track, var(--tobs-style-on-page-track))}
 .bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
 .bhxxt5fwl:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-selected)}
+.bhxw91tbh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-tint)}
+.bhx1q91288:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-success-tint)}
+.bhxl8vzxm:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-warning-tint)}
 .bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}
 .bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}
+.bhx1x7efqg:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-switch-thumb-off-fill)}
 .bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}
 .bhx1yc4nx5:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 0 0 .5px var(--tobs-style-list-group-edge)}
+.bhx1dm6lkz:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 1px 2px var(--tobs-style-switch-thumb-off-shadow)}
+.bhx1hle45t:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}
+.bhxnyootd:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}
 .bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}
 .bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}
+.bhx1gnnqk1:not(#\\#):not(#\\#):not(#\\#){box-shadow:none}
+.bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}
 .bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}
 .bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
 .bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}
+.bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}
 .bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}
+.bhxyja9ir:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-solid)}
 .bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}
 .bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}
 .bhx14lg19:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
@@ -14779,11 +15026,14 @@ window.__ModuleLoader__.load({
 .bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}
 .bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}
 .bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}
+.bhxcz3oas:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-ink)}
 .bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}
+.bhx65eiyc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-ink)}
 .bhxv008iy:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-button-secondary-ink)}
 .bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}
 .bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}
 .bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}
+.bhx1lliihq:not(#\\#):not(#\\#):not(#\\#){display:block}
 .bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}
 .bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}
 .bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}
@@ -14799,6 +15049,7 @@ window.__ModuleLoader__.load({
 .bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
+.bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}
 .bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx1knm1co:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
@@ -14812,22 +15063,30 @@ window.__ModuleLoader__.load({
 .bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
+.bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}
 .bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}
 .bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}
+.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}
 .bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
 .bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
+.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}
 .bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}
 .bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
 .bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}
 .bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}
 .bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}
+.bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}
+.bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}
+.bhxtrec30:not(#\\#):not(#\\#):not(#\\#){transition-duration:120ms}
+.bhxjk0iim:not(#\\#):not(#\\#):not(#\\#){transition-property:transform,width,height,background-color}
+.bhxtp3wbg:not(#\\#):not(#\\#):not(#\\#){transition-timing-function:cubic-bezier(0.2, 0, 0, 1)}
 .bhx87ps6o:not(#\\#):not(#\\#):not(#\\#){user-select:none}
 .bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}
 .bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
@@ -14846,6 +15105,7 @@ window.__ModuleLoader__.load({
 .bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}
 .bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
+.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}
 .bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}
@@ -14871,7 +15131,11 @@ window.__ModuleLoader__.load({
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
 .bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}
 .bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
+.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
 .bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}
+.bhx5ej1o7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-height)}
+.bhx15ro3sd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-off)}
+.bhx1xd5puz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-on)}
 .bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}
 .bhxes3if4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){margin-top:2px}
 .bhx8l92br:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:var(--available-height,70vh)}
@@ -14894,12 +15158,16 @@ window.__ModuleLoader__.load({
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
 .bhx1f2dah2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:2px}
 .bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
+.bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
 .bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}
 .bhx1bev70i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:calc(100% - 2px * 2)}
 .bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}
 .bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}
+.bhx16m33ld:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-off)}
+.bhxxbn18l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-on)}
+.bhxhtpqs2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-width)}
 .bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}
 .bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
@@ -15441,13 +15709,13 @@ window.__ModuleLoader__.load({
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardRow, {
 							icon: "globe",
 							title: t(observation?.target === "container" ? "settings.container" : "settings.local"),
-							chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [observation?.running === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							chips: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [observation?.running === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "success",
 								children: t("entry.chip.running")
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "neutral",
 								children: t("entry.chip.stopped")
-							}), paused ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tag, {
+							}), paused ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tag, {
 								tone: "warning",
 								children: t("entry.chip.paused")
 							}) : null] }),
@@ -15468,7 +15736,7 @@ window.__ModuleLoader__.load({
 									}),
 									viewerUrl === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 										className: "bh-browser-card-field",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.view.follow") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Switch, {
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("entry.view.follow") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Switch, {
 											checked: follow,
 											onChange: onFollow,
 											label: t("entry.view.follow"),
@@ -15478,13 +15746,13 @@ window.__ModuleLoader__.load({
 									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 										className: "bh-browser-actions",
 										children: [
-											viewerUrl === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											viewerUrl === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "primary",
 												disabled: busy || cleanupRequired,
 												onClick: () => invoke(OPEN_ENDPOINT, follow || preview === void 0 ? {} : { tab: preview }),
 												children: t(busy ? "entry.view.opening" : "entry.view.open")
-											}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "primary",
 												disabled: busy || cleanupRequired,
@@ -15494,20 +15762,23 @@ window.__ModuleLoader__.load({
 												},
 												children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 													className: "bh-viewer-btn-content",
-													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFullscreenOutlineRegular, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+														name: "maximize",
+														size: 14
+													}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 														"data-bh-viewer-btn-label": true,
 														children: t("entry.view.fullscreen")
 													})]
 												})
 											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "outline",
 												disabled: busy || cleanupRequired,
 												onClick: onPause,
 												children: t(paused ? "entry.view.resume" : "entry.view.pause")
 											}),
-											observation?.running === true || cleanupRequired ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+											observation?.running === true || cleanupRequired ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 												size: "sm",
 												variant: "outline",
 												disabled: busy,
@@ -15551,7 +15822,7 @@ window.__ModuleLoader__.load({
 							setViewer(next ? viewerUrl : void 0);
 							if (!next) disableInteraction();
 						},
-						extraControls: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [showHeaderTakeover ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						extraControls: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [showHeaderTakeover ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 							size: "sm",
 							variant: "outline",
 							disabled: busy,
@@ -15565,7 +15836,7 @@ window.__ModuleLoader__.load({
 									children: t("entry.view.inputMode.trackpad")
 								})]
 							})
-						}) : null, showHeaderTakeover ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						}) : null, showHeaderTakeover ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
 							size: "sm",
 							variant: interaction ? "ghost" : "primary",
 							disabled: busy,

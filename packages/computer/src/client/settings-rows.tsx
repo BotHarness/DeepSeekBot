@@ -1,14 +1,11 @@
+import { Icon } from '../../../client/src/client/ds/icon.js';
+import { Input } from '../../../client/src/client/ds/input.js';
+import { Switch } from '../../../client/src/client/ds/switch.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronDownOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  Input,
-  Menu,
-  Switch,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Menu } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
@@ -328,7 +325,7 @@ function Selector({
     >
       {label}
       <span {...stylex.props(styles.chevron)}>
-        <IconChevronDownOutlineRegular size={12} />
+        <Icon name="chevron-down" size={12} />
       </span>
     </PillButton>
   );
@@ -628,7 +625,7 @@ export function ComputerSettingsRows({
               <>
                 {canAdjust ? (
                   <PillButton disabled={!writable} onClick={pickExportDir}>
-                    <IconFolderOpenOutlineRegular size={14} />
+                    <Icon name="folder-open" size={14} />
                     {t('rows.exportDir.pick')}
                   </PillButton>
                 ) : null}

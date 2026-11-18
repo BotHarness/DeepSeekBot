@@ -1,17 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
 
   closeTopModal: () => undefined,
-
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
 }));
 
 import type { MessagingApp } from '../../core/src/messaging/outbound.js';

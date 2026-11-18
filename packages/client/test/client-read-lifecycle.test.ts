@@ -1,45 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
-  Switch: () => null,
-
-  Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
-    createElement('span', null, createElement('input', props)),
 
   useAnchoredPosition: () => ({ top: 0, left: 0 }),
   useDismissOnOutsidePointer: () => undefined,
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconEditOutlineRegular: () => null,
-  IconInfoOutlineRegular: () => null,
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-
-  IconBranchOutlineRegular: () => null,
-
-  IconCloseOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
 
 vi.mock('../src/client/modal.js', () => ({
@@ -64,16 +34,16 @@ import { zhTranslate } from '../src/client/locale.js';
 import { MemoryFileView } from '../src/client/memory-current-view.js';
 import { GroupAvatarCropModal } from '../src/client/group-avatar-crop.js';
 import { PersonaBotAvatarCropModal } from '../src/client/personabot-avatar-crop.js';
-import { ProfileView } from '../src/client/personabot-profile.js';
+
 import { SourcePolicyDetails } from '../src/client/source-policy.js';
 import { WakePolicyBadge, WakePolicyEntry } from '../src/client/wake-policy-entry.js';
 import { createProfileCardBuiltins } from '../src/client/profile-cards-builtins.js';
-import type { ProfileCardRegistry, ProfileCardViewProps } from '../src/client/profile-cards.js';
+import type { ProfileCardViewProps } from '../src/client/profile-cards.js';
 import { useMountedResource } from '../src/client/mounted-resource.js';
 import { WorkspaceGrantsEntry } from '../src/client/workspace-grants-entry.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
 import type { BotSourcePolicyView } from '../src/client/bridge.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 
 let host: HTMLDivElement;
@@ -232,7 +202,9 @@ describe('mounted request ownership', () => {
         t: zhTranslate,
       });
     await act(async () => root.render(render('ada')));
-    const revokeButton = host.querySelector<HTMLButtonElement>('button[aria-label*="ada project"]');
+    const revokeButton = host.querySelector<HTMLButtonElement>(
+      'button.bh-workspace-folder-delete[aria-label*="ada project"]',
+    );
     expect(revokeButton).not.toBeNull();
     await act(async () => revokeButton!.click());
     expect(actions.revokeWorkspaceGrant).toHaveBeenCalledWith('ada', 'ada');

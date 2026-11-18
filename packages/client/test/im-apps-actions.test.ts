@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ImAppsFace } from '../src/client/im-apps-section.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 
   closeTopModal: () => undefined,
-  IconCloseOutlineRegular: () => null,
 }));
 
 import type { MessagingApp } from '../../core/src/messaging/outbound.js';
-import { createImApps, ImAppsSection, type ImAppsFace } from '../src/client/im-apps-section.js';
+import { createImApps, ImAppsSection } from '../src/client/im-apps-section.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { BotSettings } from '../src/client/bot-settings.js';
 import { createStore } from '../src/client/store.js';

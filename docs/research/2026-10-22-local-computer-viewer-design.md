@@ -22,8 +22,8 @@
 - **保留 Bot 屏障。** 当前先暂停、再等待在途调用结束，且 [tool/provider.ts](../../packages/computer/src/tool/provider.ts) 在 driver call 前后检查暂停。媒体迁移不能移除这些检查。
 - **本机采集尚无视频实现。** [target.ts](../../packages/computer/src/target.ts) 仅对 Container 提供 WebRTC；[local Provider](../../packages/computer/src/providers/local.ts) 运行现有 driver。Cindy 的 Electron hidden BrowserWindow 不是 Node DSH Host 可直接使用的能力。
 - **并行观看不能靠切断另一端实现。** [ADR-0209](../decisions/computer.md#adr-0209) 的 Selkies 模式切换明确不保证手机与桌面无扰并行。它不能作为本轮 Local Computer 多端观看已实现的证据。
-- **现有网络目标已包含 Connect。** [ADR-0241](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md) 接受了不安装 Tailscale 的 Hosted Connect；其 HTTPS gateway 可承载应用请求，不等于 WebRTC 媒体可经同一路由直接传输。第一片必须明确 tailnet、LAN、Connect 的视频资格与回退规则。
-- **客户端复用有既定方向。** [ADR-0242](../adr/0242-a-browser-pairs-other-computers-through-their-device-gateway.md) 与 [ADR-0243](../adr/0243-every-client-reads-every-host-through-one-host-feed.md) 要求 Web Client 与手机复用平台无关 Host client、各自提供适配器。新增 viewer 不应另造一套 Host 身份或设备配对。
+- **现有网络目标已包含 Connect。** [ADR-0241](../decisions/connections.md#adr-0241) 接受了不安装 Tailscale 的 Hosted Connect；其 HTTPS gateway 可承载应用请求，不等于 WebRTC 媒体可经同一路由直接传输。第一片必须明确 tailnet、LAN、Connect 的视频资格与回退规则。
+- **客户端复用有既定方向。** [ADR-0242](../decisions/connections.md#adr-0242) 与 [ADR-0243](../decisions/connections.md#adr-0243) 要求 Web Client 与手机复用平台无关 Host client、各自提供适配器。新增 viewer 不应另造一套 Host 身份或设备配对。
 
 ## DSH seam：已收敛的职责，具体 API 待实现验证
 

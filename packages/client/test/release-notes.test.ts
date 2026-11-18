@@ -1,22 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ReleaseNote } from '../../core/src/release/notes.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
 
-  IconCloseOutlineRegular: () => null,
-  IconDownloadOutlineRegular: () => null,
-  Tag: (props: { tone?: string; children?: ReactNode }) =>
-    createElement('span', { 'data-tone': props.tone }, props.children),
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
 }));
 
-import type { ReleaseNote } from '../../core/src/release/notes.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import {

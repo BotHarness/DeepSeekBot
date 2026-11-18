@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
 import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
@@ -21,18 +22,8 @@ import {
   type ReactElement,
 } from 'react';
 
-import {
-  FileTypeIcon,
-  IconCheckOutlineRegular,
-  IconCloseOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconPaperclipOutlineRegular,
-  IconSendOutlineRegular,
-  IconSkillOutlineRegular,
-  IconStopFillRegular,
-  ImageLightbox,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { ImageLightbox, fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -317,7 +308,7 @@ function ComposerImageAttachment({
           aria-label={t('composer.removeAttachment', { name: item.file.name })}
           onClick={onRemove}
         >
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </button>
       </div>
       {previewOpen && source !== undefined ? (
@@ -376,7 +367,7 @@ function ComposerFileAttachment({
         aria-label={t('composer.removeAttachment', { name: item.file.name })}
         onClick={onRemove}
       >
-        <IconCloseOutlineRegular size={14} />
+        <Icon name="x" size={14} />
       </button>
     </div>
   );
@@ -1271,7 +1262,7 @@ export function ChannelComposer({
               {shortcut.key === undefined ? (
                 <small>/{shortcut.id}</small>
               ) : shortcut.selected ? (
-                <IconCheckOutlineRegular size={16} />
+                <Icon name="check" size={16} />
               ) : null}
             </button>
           ))}
@@ -1317,9 +1308,9 @@ export function ChannelComposer({
                       t={t}
                     />
                   ) : option.owner.kind === 'workspace' ? (
-                    <IconFolderOpenOutlineRegular size={20} />
+                    <Icon name="folder-open" size={20} />
                   ) : (
-                    <IconSkillOutlineRegular size={20} />
+                    <Icon name="sparkles" size={20} />
                   )}
                 </span>
                 <span className="bh-composer-skill-copy">
@@ -1651,7 +1642,7 @@ export function ChannelComposer({
         {avatarMounts.map((mount, index) =>
           createPortal(
             mount.kind === 'workspace' ? (
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
             ) : (
               <PersonaBotAvatar
                 personaBotId={mount.botSlug}
@@ -1702,7 +1693,7 @@ export function ChannelComposer({
             fileInputRef.current?.click();
           }}
         >
-          <IconPaperclipOutlineRegular size={16} />
+          <Icon name="paperclip" size={16} />
         </button>
         {voice.mounts.map((mount, index) => (
           <span key={index} ref={mount} hidden />
@@ -1716,7 +1707,7 @@ export function ChannelComposer({
               variant="primary"
               size="sm"
               data-composer-stop=""
-              icon={<IconStopFillRegular size={12} />}
+              icon={<Icon name="square" filled size={12} />}
               aria-label={t('sessions.stop')}
               disabled={disabled}
               onClick={onStop}
@@ -1726,7 +1717,7 @@ export function ChannelComposer({
               className="bh-send-btn"
               variant="primary"
               size="sm"
-              icon={<IconSendOutlineRegular size={16} />}
+              icon={<Icon name="arrow-up" size={16} />}
               aria-label={sending ? t('message.sending') : t('composer.send')}
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||

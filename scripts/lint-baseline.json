@@ -56,8 +56,7 @@
   },
   "eslint/no-unsafe-optional-chaining": {
     "packages/client/src/client/bridge.ts": 1,
-    "packages/client/test/apply.test.ts": 5,
-    "packages/client/test/bot-mode-setting-rows.test.ts": 1
+    "packages/client/test/apply.test.ts": 5
   },
   "eslint/no-constant-condition": {
     "packages/core/test/assignment-report.test.ts": 1

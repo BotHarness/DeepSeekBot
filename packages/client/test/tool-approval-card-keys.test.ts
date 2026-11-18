@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
 import { approvalCountdown } from '../src/client/approval-countdown.js';
@@ -15,10 +16,6 @@ import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
 
 const message = (toolName = 'bash', input = '{"command":"echo QA"}'): ChannelMessage =>

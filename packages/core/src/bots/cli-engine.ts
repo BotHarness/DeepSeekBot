@@ -39,7 +39,7 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-use',
     description:
-      'run a Bot Orchestrator on an engine, or none for its API model, and resume a Bot paused by the limit (engine use <bot> codex|claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on])',
+      'run a Bot Orchestrator or its Assignments on an engine, or none for the API model, and resume a Bot paused by the limit (engine use <bot> codex|claude --role orchestrator|assignment [--model <id>] [--effort <level>] [--fallback on])',
   },
 ] as const;
 
@@ -166,27 +166,30 @@ export async function runEngineCommand(
         'engine use needs <bot> and an engine (codex, claude or none).',
       );
     const role = values.role ?? [];
-    if (role.length !== 1 || role[0] !== 'orchestrator')
-      throw new CliLiveError('usage', 'engine use needs --role orchestrator.');
+    const chosen = role[0];
+    if (role.length !== 1 || (chosen !== 'orchestrator' && chosen !== 'assignment'))
+      throw new CliLiveError('usage', 'engine use needs --role orchestrator or --role assignment.');
     const [bot, engine] = rest as [string, string];
     const fallback = values.fallback;
     if (fallback !== undefined && fallback !== 'on' && fallback !== 'off')
       throw new CliLiveError('usage', 'engine use --fallback takes on or off.');
     if (fallback !== undefined && engine === 'none')
       throw new CliLiveError('usage', 'engine use none takes no --fallback.');
+    if (fallback !== undefined && chosen === 'assignment')
+      throw new CliLiveError('usage', 'engine use --role assignment takes no --fallback.');
     const { model, effort } = values;
     if ((model !== undefined || effort !== undefined) && engine === 'none')
       throw new CliLiveError('usage', 'engine use none takes no --model or --effort.');
     const value = await call(connect, {
       action: 'use',
       bot,
-      role: 'orchestrator',
+      role: chosen,
       engine: engine === 'none' ? null : engine,
       ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
     });
-    if (value['bot'] !== bot || value['role'] !== 'orchestrator') throw protocolError();
+    if (value['bot'] !== bot || value['role'] !== chosen) throw protocolError();
     return value;
   }
   throw new CliLiveError('usage', 'Unknown engine command.');

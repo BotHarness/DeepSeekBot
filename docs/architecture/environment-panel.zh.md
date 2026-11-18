@@ -1,6 +1,6 @@
 # 环境面板与双向 Host 连接
 
-Human 在 2026-11-13 完成 Q1–Q28 并整体确认的目标设计，不代表已实现或已验收。它扩展 [#4069](https://github.com/BotHarness/DeepSeekBot/issues/4069)：原规格排除双向授权的边界仍是既有九个切片的历史范围。架构决定见 [ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md)。[English](environment-panel.md)。
+Human 在 2026-11-13 完成 Q1–Q28 并整体确认的目标设计，不代表已实现或已验收。它扩展 [#4069](https://github.com/BotHarness/DeepSeekBot/issues/4069)：原规格排除双向授权的边界仍是既有九个切片的历史范围。架构决定见 [ADR-0334](../decisions/connections.md#adr-0334)。[English](environment-panel.md)。
 
 ## 面板与环境筛选
 

@@ -81,8 +81,13 @@ import {
   type OrchestratorAssignmentAccess,
 } from './bot-runtime.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
-import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-host.js';
-import { engineInstructions } from '../engines/engine-persona.js';
+import {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTool,
+  type EngineTurnOutcome,
+  type EngineTurnRequest,
+} from '../engines/engine-host.js';
+import { engineAssignmentInstructions, engineInstructions } from '../engines/engine-persona.js';
 import {
   ENGINE_LISTED_TOOLS,
   ENGINE_UNSUPPORTED_TOOLS,
@@ -408,6 +413,31 @@ function finalAssistantText(handle: AgentHandle, fromSeq: SessionLogOffset): str
   return text.length > 0 ? text : undefined;
 }
 
+const ENGINE_REPORT_TOOL: EngineTool = {
+  name: 'report_to_orchestrator',
+  description:
+    'Required internal reply transport to the Orchestrator: ordinary assistant text is private, not a delivered report. Put the requested result in summary. Report progress at milestones and one terminal state before finishing; set expects_reply when you need an Orchestrator answer to continue.',
+  parameters: {
+    type: 'object',
+    properties: {
+      state: {
+        type: 'string',
+        enum: ['progress', 'completed', 'blocked', 'waiting-human', 'failed'],
+      },
+      summary: {
+        type: 'string',
+        description: 'Outcome, blocker, or question to report to the Orchestrator.',
+      },
+      expects_reply: {
+        type: 'boolean',
+        description:
+          'True when you cannot continue before the Orchestrator answers; end your turn after reporting and you will be resumed with the answer.',
+      },
+    },
+    required: ['state', 'summary'],
+  },
+};
+
 function assignmentMessage(text: string) {
   return createUserMessage({
     content: [
@@ -527,9 +557,9 @@ export interface DshBotAgentAdapterOptions {
 }
 
 export interface DshBotEngines {
-  engineFor(botSlug: string): string | undefined;
-  runsOnEngine?(botSlug: string): boolean;
-  runTurn(request: EngineTurnRequest): Promise<void>;
+  engineFor(botSlug: string, role?: 'orchestrator' | 'assignment'): string | undefined;
+  runsOnEngine?(botSlug: string, role?: 'orchestrator' | 'assignment'): boolean;
+  runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
 }
@@ -1081,10 +1111,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
-  #runsOnEngine(botSlug: string): boolean {
+  #runsOnEngine(botSlug: string, role: 'orchestrator' | 'assignment' = 'orchestrator'): boolean {
     const engines = this.#engines;
     if (engines === undefined) return false;
-    return engines.runsOnEngine?.(botSlug) ?? engines.engineFor(botSlug) !== undefined;
+    return engines.runsOnEngine?.(botSlug, role) ?? engines.engineFor(botSlug, role) !== undefined;
   }
 
   async #runEngineTurn(
@@ -1503,6 +1533,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async stopAssignment(sessionId: string): Promise<void> {
     this.#stopping.add(sessionId);
     this.#abortPreparation(sessionId);
+    if (this.#runs.get(sessionId)?.role === 'assignment') this.#engineStops.get(sessionId)?.abort();
     const handle = this.#handles.get(sessionId);
     if (handle !== undefined && this.#runs.get(sessionId)?.role === 'assignment') {
       this.#markStop(sessionId, handle);
@@ -1518,6 +1549,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#stopSeqs.delete(run.sessionId);
     const abandonable = this.#abandonable(run.sessionId);
     try {
+      const engines = this.#engines;
+      if (engines !== undefined && this.#runsOnEngine(run.bot.slug, 'assignment')) {
+        await this.#runEngineAssignment(run, engines, entry, abandonable.abandoned, accepted);
+        return;
+      }
+      if (engines?.isLive(run.sessionId)) await engines.release(run.sessionId);
       const handle = await this.#prepare(run.sessionId, async (signal) => {
         await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
         return this.#assignmentHandle(run, signal);
@@ -1588,6 +1625,101 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#runs.delete(run.sessionId);
         run.setExecutionReady?.(false);
       }
+    }
+  }
+
+  async #runEngineAssignment(
+    run: AssignmentAgentRun,
+    engines: DshBotEngines,
+    entry: Extract<ActiveRun, { role: 'assignment' }>,
+    abandoned: Promise<'abandoned'>,
+    accepted: (() => void) | undefined,
+  ): Promise<void> {
+    const stop = new AbortController();
+    this.#engineStops.set(run.sessionId, stop);
+    void abandoned.then(() => stop.abort());
+    const stopped = () =>
+      stop.signal.aborted ||
+      this.#stopping.has(run.sessionId) ||
+      this.#stoppedBots.has(run.bot.slug);
+    try {
+      const native = this.#handles.get(run.sessionId);
+      if (native !== undefined) {
+        this.#forgetHandle(run.sessionId);
+        await native.dispose();
+      }
+      if (stopped()) throw new Error('Assignment stopped before Inbox acceptance');
+      run.setExecutionReady?.(true);
+      run.requireContent?.();
+      if (run.acceptNativeInput !== undefined) {
+        if (!run.acceptNativeInput()) return;
+      } else run.beginTurn?.();
+      accepted?.();
+      run.accepted?.();
+      const outcome =
+        (await engines.runTurn({
+          botSlug: run.bot.slug,
+          role: 'assignment',
+          cwd: run.permission.primaryCwd,
+          sessionId: run.sessionId,
+          channelId: undefined,
+          input: `${run.text}\n\n[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}`,
+          instructions: [
+            ASSIGNMENT_REPORT_CONTRACT,
+            engineAssignmentInstructions({
+              name: run.bot.displayName,
+              cwd: run.permission.primaryCwd,
+              fullAccess: run.permission.mode === 'danger-full-access',
+            }),
+          ].join('\n\n'),
+          tools: [ENGINE_REPORT_TOOL],
+          execute: async (name, args, _signal, context) => {
+            if (name !== ENGINE_REPORT_TOOL.name)
+              throw new Error(`refused: ${name} is not available to this Assignment`);
+            const state = typeof args['state'] === 'string' ? args['state'] : '';
+            if (!isReportState(state))
+              throw new Error(
+                'report_to_orchestrator: state must be progress, completed, blocked, waiting-human, or failed',
+              );
+            if (typeof args['summary'] !== 'string')
+              throw new Error('report_to_orchestrator: summary must be a string');
+            const active = this.#runs.get(run.sessionId);
+            if (active?.role !== 'assignment')
+              throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            const start = context.session
+              .snapshotEvents()
+              .findLast((event) => event.type === 'turn/start');
+            if (start === undefined)
+              throw new Error('Assignment Report has no native Turn identity');
+            await active.run.report(
+              {
+                state,
+                summary: args['summary'],
+                ...(args['expects_reply'] === undefined
+                  ? {}
+                  : { expectsReply: args['expects_reply'] === true }),
+              },
+              { turn: start.data.turn },
+            );
+            active.reported = true;
+            return 'Report delivered to the Orchestrator.';
+          },
+          signal: stop.signal,
+        })) ?? {};
+      if (stopped()) return;
+      if (outcome.turn !== undefined && outcome.endSeq !== undefined)
+        run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });
+      if (run.resume === true) return;
+      if (!entry.reported && outcome.text !== undefined && outcome.text.trim() !== '') {
+        await run.report(
+          { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${outcome.text.trim()}` },
+          ...(outcome.turn === undefined ? [] : [{ turn: outcome.turn }]),
+        );
+        entry.reported = true;
+      }
+      if (!entry.reported) throw new Error('Assignment finished without report_to_orchestrator');
+    } finally {
+      if (this.#engineStops.get(run.sessionId) === stop) this.#engineStops.delete(run.sessionId);
     }
   }
 

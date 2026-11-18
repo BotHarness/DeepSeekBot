@@ -1,9 +1,10 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { memberPage } from './member-page.js';
 import { hasChannelBots } from './channel-kind.js';
 import { useScopedState } from './scoped-state.js';
 import { useRef, useState, type Ref, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { AssignmentAccessPresetView, WorkspaceGrantView, WorkspaceOption } from './bridge.js';
 import { errorMessage } from './bridge.js';

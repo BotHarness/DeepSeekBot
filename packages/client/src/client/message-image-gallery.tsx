@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import {
   createContext,
   useContext,
@@ -8,11 +9,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -166,7 +162,7 @@ export function ImageGalleryLightbox({
         onClick={onClose}
         {...stylex.props(styles.control, styles.close)}
       >
-        <IconCloseOutlineRegular size={16} />
+        <Icon name="x" size={16} />
       </button>
       {many ? (
         <>
@@ -177,7 +173,7 @@ export function ImageGalleryLightbox({
             onClick={() => step.current(-1)}
             {...stylex.props(styles.control, styles.previous)}
           >
-            <IconChevronLeftOutlineRegular size={16} />
+            <Icon name="chevron-left" size={16} />
           </button>
           <button
             type="button"
@@ -186,7 +182,7 @@ export function ImageGalleryLightbox({
             onClick={() => step.current(1)}
             {...stylex.props(styles.control, styles.next)}
           >
-            <IconChevronRightOutlineRegular size={16} />
+            <Icon name="chevron-right" size={16} />
           </button>
           <span aria-live="polite" {...stylex.props(styles.counter)}>
             {t('message.image.position', {

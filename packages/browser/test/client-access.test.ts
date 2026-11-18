@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement, useState, type ComponentType, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ComponentType } from 'react';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
-  Switch: () => null,
 }));
 import { ChannelSidebarEntrySection } from '../../client/src/client/channel-sidebar-view.js';
 import { zhTranslate } from '../../client/src/client/locale.js';

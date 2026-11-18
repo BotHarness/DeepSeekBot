@@ -1,7 +1,8 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { useState, type ReactElement } from 'react';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import {
   flexRender,
   getCoreRowModel,

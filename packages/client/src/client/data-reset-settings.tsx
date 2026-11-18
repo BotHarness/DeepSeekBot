@@ -1,6 +1,7 @@
+import { Checkbox } from './ds/checkbox.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { formatBotZipSize } from './bot-zip.js';

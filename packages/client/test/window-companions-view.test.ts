@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -11,42 +11,6 @@ import { companionPosition } from './companion-position.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  Switch: ({
-    checked,
-    onChange,
-    label,
-    disabled,
-  }: {
-    checked: boolean;
-    onChange(value: boolean): void;
-    label: string;
-    disabled: boolean;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-label': label,
-      'aria-checked': checked,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
-  Button: ({
-    children,
-    size: _size,
-    variant: _variant,
-    ...props
-  }: {
-    children: ReactNode;
-    size?: string;
-    variant?: string;
-  }) => createElement('button', props, children),
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
 }));
 
 it('pins independently, exposes right-click controls and applies global bounded card capacity', async () => {

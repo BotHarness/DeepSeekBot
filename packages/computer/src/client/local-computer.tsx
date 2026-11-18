@@ -1,7 +1,9 @@
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { localSetupFailure } from './local-setup-copy.js';
 import { useCallback, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Note } from '../../../client/src/client/ds/note.js';
 import { space } from '../../../client/src/client/ds/tokens.stylex.js';
 import {

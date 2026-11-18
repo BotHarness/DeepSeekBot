@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
+import { type RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+import { type BridgeActions } from '../src/client/actions.js';
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import { type RosterConfig } from '../src/client/roster-config.js';
+import { type RosterSection } from '../src/client/roster.js';
+import { type RosterSnapshot } from '../src/client/roster.js';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { createHumanAvatarCache } from '@botharness/host-client/human-profile';
-import { act, createElement, Profiler, type ReactNode, type InputHTMLAttributes } from 'react';
+import { act, createElement, Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { menuItem, queryMenuItem, hoverTooltip } from './primitive-mocks.js';
+import { menuItem, hoverTooltip } from './primitive-mocks.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
 const environmentProbe = vi.hoisted(
   (): { snapshot: RemoteHostsSnapshot; dock?: boolean | undefined } => ({
     snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
@@ -81,12 +88,6 @@ vi.mock('../src/client/ds/pointer-menu.js', () => ({
   },
 }));
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const icon = (name: string) => (props: { className?: string }) =>
@@ -94,51 +95,30 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-    Button: (props: { children?: ReactNode; disabled?: boolean }) =>
-      createElement('button', { disabled: props.disabled }, props.children),
-    IconAgentPresetOutlineRegular: icon('IconAgentPresetOutlineRegular'),
-    IconCheckOutlineRegular: icon('IconCheckOutlineRegular'),
-    IconChevronDownOutlineRegular: icon('IconChevronDownOutlineRegular'),
-    IconCloseFill14: icon('IconCloseFill14'),
-    IconEditOutlineRegular: icon('IconEditOutlineRegular'),
-    IconEllipsisOutlineRegular: icon('IconEllipsisOutlineRegular'),
-    IconFolderOpenOutlineRegular: icon('IconFolderOpenOutlineRegular'),
-    IconGlobeOutlineRegular: icon('IconGlobeOutlineRegular'),
-    IconNewChatOutlineRegular: icon('IconNewChatOutlineRegular'),
-    IconPinFillRegular: icon('IconPinFillRegular'),
-    IconPinOutlineRegular: icon('IconPinOutlineRegular'),
-    IconPlusOutlineRegular: icon('IconPlusOutlineRegular'),
-    IconSearchOutlineRegular: icon('IconSearchOutlineRegular'),
-    IconSettingsOutlineRegular: icon('IconSettingsOutlineRegular'),
-    IconUserOutlineRegular: icon('IconUserOutlineRegular'),
-    IconShareOutlineRegular: icon('IconShareOutlineRegular'),
-    IconTrashOutlineRegular: icon('IconTrashOutlineRegular'),
-    IconTriangleRightFill14: icon('IconTriangleRightFill14'),
 
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+    IconCloseFill14: icon('IconCloseFill14'),
+
+    IconTriangleRightFill14: icon('IconTriangleRightFill14'),
 
     ShortcutKeys: (props: { keys: readonly string[] }) =>
       createElement('kbd', null, props.keys.join(' ')),
     StateDot: stub,
-    Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
-import type { BridgeActions } from '../src/client/actions.js';
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
 import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launcher.js';
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
-import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+
 import { PINNED_SORT_SCOPE_ID } from '@botharness/host-client/shared/bot-mode-settings';
 import { zh, zhTranslate } from '../src/client/locale.js';
 import { formatChannelListTime } from '../src/client/channel-row-status.js';
-import type { RosterConfig } from '../src/client/roster-config.js';
-import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
+
 import { store } from '../src/client/store.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { WindowCompanions } from '../src/client/window-companions.js';
 import * as hostTabs from '../src/client/host-tabs.js';
 import * as hostLooks from '../src/client/host-looks.js';
@@ -1249,7 +1229,7 @@ describe('bot sidebar rows', () => {
     expect(markup).not.toContain('bh-arrow');
     expect(markup).not.toContain('bh-row-slot');
     expect(markup).toContain('bh-section-name');
-    expect(markup).toContain('data-icon="IconChevronDownOutlineRegular"');
+    expect(markup).toContain('data-icon="chevron-down"');
     expect(markup).toContain('bh-section-chevron');
     expect(markup).not.toContain('bh-chevron-collapsed');
     expect(markup).toContain('bh-row-actions');
@@ -1634,9 +1614,9 @@ describe('bot sidebar rows', () => {
 
   it('orders the header icons search, ellipsis, plus', () => {
     const markup = renderSidebar();
-    const search = markup.indexOf('data-icon="IconSearchOutlineRegular"');
-    const ellipsis = markup.indexOf('data-icon="IconEllipsisOutlineRegular"');
-    const plus = markup.indexOf('data-icon="IconPlusOutlineRegular"');
+    const search = markup.indexOf('data-icon="search"');
+    const ellipsis = markup.indexOf('data-icon="ellipsis"');
+    const plus = markup.indexOf('data-icon="plus"');
 
     expect(search).toBeGreaterThan(-1);
     expect(ellipsis).toBeGreaterThan(search);
@@ -1746,7 +1726,7 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('需要 Git 才能创建 Bot');
     expect(markup).toContain('Git 2.20.1 版本太旧，需要 2.28 或更新版本。');
     expect(markup).toContain('href="https://botharness.ai/zh/docs/installation/#git"');
-    expect(markup).toMatch(/<button disabled="">创建第一个 Bot<\/button>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>创建第一个 Bot<\/button>/);
     expect(createBot.getAttribute('aria-disabled')).toBe('true');
   });
 
@@ -1783,7 +1763,7 @@ describe('bot sidebar rows', () => {
     markup = renderSidebar();
     expect(markup).toContain('正在下载 Git… 12.0 / 62.0 MB');
     expect(markup).toMatch(/<progress[^>]*max="65011712"/);
-    expect(markup).toMatch(/<button disabled="">正在安装…<\/button>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>正在安装…<\/button>/);
     expect(markup).not.toContain('重新检测');
 
     store.setGit({

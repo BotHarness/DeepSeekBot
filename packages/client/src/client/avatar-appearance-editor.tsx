@@ -1,9 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useMemo, useState, type ReactElement } from 'react';
-import {
-  IconSaveOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import {
   AVATAR_COLORS,
   AVATAR_FAMILIES,
@@ -53,7 +52,6 @@ import {
   LINE_SWATCHES,
   seededLineRecipe,
 } from '../../../core/src/bots/avatar-line.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { CustomPartEditor } from './custom-part-editor.js';
@@ -1190,7 +1188,7 @@ export function AvatarAppearanceEditor({
               <Button
                 size="sm"
                 variant="primary"
-                icon={<IconSaveOutlineRegular />}
+                icon={<Icon name="save" />}
                 data-avatar-save
                 type="button"
                 disabled={busy || drawing !== undefined}
@@ -1201,7 +1199,7 @@ export function AvatarAppearanceEditor({
               <Button
                 size="sm"
                 variant="ghost"
-                icon={<IconCloseOutlineRegular />}
+                icon={<Icon name="x" />}
                 data-avatar-cancel
                 type="button"
                 disabled={busy}

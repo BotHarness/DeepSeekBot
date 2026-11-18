@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { PillButton } from './ds/pill-button.js';
 import {
   PersonaBotAvatar,
   personaBotActivityLabel,
@@ -8,7 +10,6 @@ import {
 import { bridgeSourceLabel } from './bridge-source-label.js';
 import type { ReactElement } from 'react';
 
-import { Pill, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { GroupProfileActivity, GroupProfileAuthorActivity } from './bridge.js';
@@ -158,7 +159,7 @@ export function GroupProfileView({
   return (
     <div className="bh-profile-view">
       <button type="button" className="bh-profile-back" onClick={onClose}>
-        <IconChevronLeftOutlineRegular />
+        <Icon name="chevron-left" />
         <span>{t('profile.close')}</span>
       </button>
       <div className="bh-profile-view-identity">
@@ -195,20 +196,20 @@ export function GroupProfileView({
                   tabIndex={0}
                   data-bot-id={item.personaBotId}
                 >
-                  <Pill className="bh-group-activity-pill">
+                  <PillButton as="span" className="bh-group-activity-pill">
                     <PersonaBotAvatar {...item} size={18} indicator={false} t={t} />
                     <span className="bh-group-activity-chip-name">{item.name}</span>
                     <span className="bh-group-activity-chip-state">
                       {personaBotActivityLabel(item.state ?? 'idle', t)}
                     </span>
-                  </Pill>
+                  </PillButton>
                 </span>
               </Tooltip>
             ))}
             {remaining > 0 ? (
-              <Pill className="bh-group-activity-overflow">
+              <PillButton as="span" className="bh-group-activity-overflow">
                 <span aria-label={t('main.activity.more', { count: remaining })}>+{remaining}</span>
-              </Pill>
+              </PillButton>
             ) : null}
           </div>
         </section>

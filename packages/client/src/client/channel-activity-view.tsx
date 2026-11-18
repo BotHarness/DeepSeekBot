@@ -1,11 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-  IconChevronDownOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -14,6 +11,7 @@ import { OverviewUsageView } from './overview-usage-view.js';
 import { ChannelActivityChart } from './channel-activity-chart.js';
 import { defaultStorage, type ConfigStorage } from './roster-config.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 
 export function ChannelActivityView({
   actions,
@@ -71,10 +69,10 @@ export function ChannelActivityView({
     };
     refresh.current = () => void load();
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };
@@ -91,7 +89,8 @@ export function ChannelActivityView({
             aria-label={t('channelActivity.toggle')}
             onClick={toggle}
           >
-            <IconChevronDownOutlineRegular
+            <Icon
+              name="chevron-down"
               size={16}
               className={collapsed ? 'bh-channel-activity-closed' : ''}
             />
@@ -119,7 +118,7 @@ export function ChannelActivityView({
             aria-busy={busy}
             onClick={() => refresh.current()}
           >
-            <IconRefreshOutlineRegular size={16} /> {t('channelActivity.refresh')}
+            <Icon name="refresh-cw" size={16} /> {t('channelActivity.refresh')}
           </Button>
         </header>
         {status === 'loading' ? <p role="status">{t('channelActivity.loading')}</p> : null}
@@ -162,7 +161,8 @@ export function ChannelActivityView({
                           })
                         }
                       >
-                        <IconChevronDownOutlineRegular
+                        <Icon
+                          name="chevron-down"
                           size={16}
                           className={open ? '' : 'bh-channel-activity-closed'}
                         />
@@ -175,7 +175,7 @@ export function ChannelActivityView({
                         aria-label={`${t('channelActivity.open')}: ${row.name}`}
                         onClick={() => void actions.openChannel(row.channelId)}
                       >
-                        <IconRightUpOutlineRegular size={16} />
+                        <Icon name="arrow-up-right" size={16} />
                       </Button>
                     </div>
                     {open ? (

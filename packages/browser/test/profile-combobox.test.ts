@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type BrowserTranslate } from '../src/client/locale.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement, forwardRef } = await import('react');
   return {
-    IconChevronDownOutlineRegular: () => null,
-    Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
-      createElement('div', null, createElement('input', props)),
     MenuSurface: forwardRef<
       HTMLDivElement,
       import('react').HTMLAttributes<HTMLDivElement> & { compact?: boolean }
@@ -19,7 +18,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 });
 
 import { ProfileCombobox } from '../src/client/profile-combobox.js';
-import { en, type BrowserTranslate } from '../src/client/locale.js';
+import { en } from '../src/client/locale.js';
 
 const t: BrowserTranslate = (key, params) => en[key].replace('{name}', String(params?.name ?? ''));
 let host: HTMLDivElement;

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createElement } from 'react';
+import { type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MobileAppsEntry, TESTFLIGHT_URL } from '../src/client/mobile-apps.js';
@@ -8,18 +10,6 @@ import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    children,
-    icon,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    icon?: ReactNode;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', props, icon, children),
-  IconCloseOutlineRegular: () => createElement('svg'),
 }));
 vi.mock('../src/client/ds/tooltip.js', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,

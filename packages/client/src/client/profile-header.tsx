@@ -1,14 +1,10 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
-import {
-  IconEditOutlineRegular,
-  IconEllipsisOutlineRegular,
-  IconShareOutlineRegular,
-  IconTrashOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { type MenuEntry } from './ds/menu.js';
 
 import type { BridgeActions } from './actions.js';
@@ -545,12 +541,12 @@ export function ProfileHeader({
     {
       id: 'share-market',
       label: t('market.share'),
-      icon: <IconShareOutlineRegular size={16} />,
+      icon: <Icon name="share" size={16} />,
     },
     {
       id: 'delete',
       label: t('deletion.title'),
-      icon: <IconTrashOutlineRegular size={16} />,
+      icon: <Icon name="trash" size={16} />,
       danger: true,
     },
   ];
@@ -598,7 +594,7 @@ export function ProfileHeader({
               {viewOnly ? null : (
                 <span aria-hidden="true" className="bh-profile-avatar-overlay">
                   <span className="bh-profile-avatar-overlay-icon">
-                    <IconEditOutlineRegular size={16} />
+                    <Icon name="pencil" size={16} />
                   </span>
                 </span>
               )}
@@ -622,7 +618,7 @@ export function ProfileHeader({
                     aria-label={t('profile.more')}
                     onClick={() => setMenuOpen((value) => !value)}
                   >
-                    <IconEllipsisOutlineRegular size={16} />
+                    <Icon name="ellipsis" size={16} />
                   </button>
                 }
                 items={menuItems}

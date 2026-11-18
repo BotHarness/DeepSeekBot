@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
+import { type ReactElement } from 'react';
+import { type ComputerEntryViewProps } from '../src/client/index.js';
+import { type ComputerKey } from '../src/client/locale.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,37 +10,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement } = await import('react');
   const glyph = () => null;
-  const control = (props: Record<string, unknown>) => {
-    const { children, variant: _variant, size: _size, ...rest } = props;
-    return createElement('button', { type: 'button', ...rest }, children as never);
-  };
+
   const dot = (props: { state?: string }) => createElement('span', { 'data-state': props.state });
-  const toggle = (props: {
-    checked?: boolean;
-    disabled?: boolean;
-    label?: string;
-    onChange?: (next: boolean) => void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': props.checked === true ? 'true' : 'false',
-      'aria-label': props.label,
-      disabled: props.disabled === true,
-      onClick: () => props.onChange?.(props.checked !== true),
-    });
+
   return {
-    IconChevronDownOutlineRegular: glyph,
-    IconCloseFillRegular: glyph,
-    IconFolderOpenOutlineRegular: glyph,
-    IconSettingsOutlineRegular: glyph,
-    IconFullscreenOutlineRegular: glyph,
     Menu: glyph,
-    Button: control,
-    Tag: (props: { children?: unknown }) => createElement('span', null, props.children as never),
-    Pill: control,
+
     StateDot: dot,
-    Switch: toggle,
+
     Tooltip: ({ children }: { children: import('react').ReactNode }) => children,
   };
 });
@@ -49,9 +29,8 @@ import {
   RecentLogsList,
   StreamOverlay,
   ViewerTitleBar,
-  type ComputerEntryViewProps,
 } from '../src/client/index.js';
-import { zh, type ComputerKey, type ComputerTranslate } from '../src/client/locale.js';
+import { zh, type ComputerTranslate } from '../src/client/locale.js';
 
 const t = ((key: ComputerKey, params?: Record<string, unknown>): string => {
   let text: string = zh[key];

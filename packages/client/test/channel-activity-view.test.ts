@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/client/overview-usage-view.js', () => ({ OverviewUsageView: () => null }));
@@ -7,16 +7,6 @@ vi.mock('../src/client/overview-memory-view.js', () => ({ OverviewMemoryView: ()
 vi.mock('../src/client/channel-activity-chart.js', () => ({ ChannelActivityChart: () => null }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => null,
-  IconRightUpOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props, children as ReactNode),
 }));
 import { ChannelActivityView } from '../src/client/channel-activity-view.js';
 import { loadChannelActivityToday, type BridgeCall } from '../src/client/bridge.js';

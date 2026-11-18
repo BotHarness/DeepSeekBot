@@ -1,8 +1,9 @@
+import { Tag } from './ds/tag.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.js';
 import type { BridgeActions } from './actions.js';
 import type { ChannelSummary } from './store.js';

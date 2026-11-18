@@ -1,3 +1,4 @@
+import { Tag } from './ds/tag.js';
 import { Input } from './ds/input.js';
 import { ActionButton } from './ds/action-button.js';
 import { MethodRefused } from '@botharness/host-client/client';
@@ -6,7 +7,7 @@ import { BridgeCallError } from './bridge.js';
 import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';

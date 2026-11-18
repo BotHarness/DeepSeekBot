@@ -1,3 +1,5 @@
+import { Icon } from '../ds/icon.js';
+import { PillButton } from '../ds/pill-button.js';
 import { Button } from '../ds/button.js';
 import {
   Fragment,
@@ -9,11 +11,7 @@ import {
   type ReactNode,
   type RefCallback,
 } from 'react';
-import {
-  IconFullscreenOutlineRegular,
-  Pill,
-  StateDot,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { StateDot } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useMountedResource } from '../mounted-resource.js';
 import { BH, VIDEO_SURFACE } from './tokens.js';
 import {
@@ -195,20 +193,10 @@ export function StreamOverlay(props: StreamOverlayProps): ReactElement | null {
         borderRadius: 8,
       }}
     >
-      <Pill
-        onClick={onOpen}
-        style={{
-          background: BH.businessPrimary,
-          color: BH.labelPrimaryForeground,
-          height: 28,
-          padding: '0 12px',
-          fontSize: 13,
-          gap: 6,
-        }}
-      >
-        <IconFullscreenOutlineRegular size={14} />
+      <PillButton onClick={onOpen} variant="primary">
+        <Icon name="maximize" size={14} />
         {t('entry.openFullscreen')}
-      </Pill>
+      </PillButton>
     </div>
   );
 }

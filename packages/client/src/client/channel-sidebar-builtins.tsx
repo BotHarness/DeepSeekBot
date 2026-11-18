@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
 import { useTeamMode } from './team-state.js';
@@ -9,7 +11,6 @@ import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { IconEllipsisOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
@@ -205,7 +206,7 @@ function GroupManagementHeaderForChannel({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </IconButton>
           </Tooltip>
         }

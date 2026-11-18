@@ -1079,11 +1079,14 @@ deepseekbot engine models codex|claude
 deepseekbot engine use <bot> codex --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
+deepseekbot engine use <bot> codex|claude|none --role assignment [--model <id>] [--effort <level>]
 ```
 
 `engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
 
 `engine models codex|claude` 向已登录的引擎查询订阅可用的模型，返回 `{engine, models: [{id, name, description?, efforts: [{id, name}], defaultEffort?, isDefault?}]}`：Claude Code 来自 Agent SDK 的 `supportedModels()`（`default`、`sonnet`、`opus`、`haiku` 等别名，effort 从 `low` 到 `max`），Codex 来自 app-server 的 `model/list`（不含隐藏模型）。Host 为此启动引擎时不接 Bot 工具网关，和一轮对话一样拒绝非订阅登录，列表缓存五分钟。`engine use <bot> <engine> --model <id> [--effort <level>]` 让 Orchestrator 用该模型和 effort 运行：Claude Code 通过 query 的 `model` 和 `effort` 传入，Codex 通过 `thread/start` 的 `model` 以及 `turn/start` 的 `model` 和 `effort` 传入。Host 先用 `engine models` 核对（`unknown-model`、`unknown-effort`）；只给 `--effort` 时作用于引擎的默认模型。`engine use` 返回这两项，`selections` 也列出 `model` 和 `effort`；不给时 Bot 回到引擎自己的默认。如果正在运行的引擎 Session 用的是另一个引擎、模型或 effort，下一轮前会关闭它，并以新的选择恢复同一段引擎对话。
+
+`engine use <bot> <engine> --role assignment` 让 Bot 的 Assignment 运行在引擎上，与 Orchestrator 分开选择，所以 Claude Code 上的 Orchestrator 可以把工作交给 DSH 模型，DSH 上的 Orchestrator 也可以交给 Claude Code 或 Codex；`none` 让它们回到 DSH 模型。`selections` 会列出角色，`--fallback` 只属于 Orchestrator。每个引擎 Assignment Session 在其 Workspace Grant 的 `primaryCwd` 中打开，并保留原生会话供下一次请求使用。Claude Code 以 `acceptEdits` 模式运行：Grant 内的编辑直接进行，其他操作（命令、Grant 外的文件）通过常规的工具审批卡片询问 Human；Codex 在以 Grant 为根的 `workspace-write` 沙箱中运行。网关只向 Assignment 提供 `report_to_orchestrator`，不绑定任何 Channel，并拒绝任何 Channel 或目标参数。报告和 DSH Assignment 一样送达 Orchestrator；引擎 Assignment 一轮结束时没有报告，其最终文本会作为标记为未报告的完成报告转发。
 
 订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
 
@@ -1793,7 +1796,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 让给排队者的时间，手机每次使用都会往后推。隧道池满时账号报告 `error`，`issue` 为 `relay-full`，
 `recovery` 为 `automatic`，并带 `wait`（`reason` 为 `pool-full`、`zone-full` 或 `queued`，先来先到
 队列里的 `position`、`retryAfter` 秒数和 `since`），Host 会自己重试
-（[ADR-0313](adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md)）。`connect-sign-out` 在 relay 上解除
+（[ADR-0313](decisions/connections.md#adr-0313)）。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 账号出错时，`connect.account.recovery` 区分 `automatic`（已保存的会话能自动重试注册或隧道设置）和 `sign-in`（需要再次主动登录）。所有权校验失败后不会恢复旧账号，界面提供相同的恢复指引。设备授权轮询在网络失败、没有 OAuth 错误的 HTTP 408/429/5xx 后延长间隔，仍在原授权到期时间停止；明确的 OAuth 拒绝仍会终止登录。`authorization_pending` 保留间隔，`slow_down` 增加五秒，遵循 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html#section-3.5)。
@@ -1815,7 +1818,7 @@ Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上�
 `session-unknown`、`relay-unavailable` 都是明确的拒绝，不会只在本机隐藏电脑。
 
 远端退出依赖 relay 会话迁移和 Worker 上线；本地代码与测试不能证明线上行为。参见
-[ADR-0241 补充](adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--linked-computer-sign-out-2026-11-07-3672)。
+[ADR-0241 补充](decisions/connections.md#adr-0241)。
 
 ## 设备本地 DeepSeekBot 外观
 
@@ -1911,7 +1914,7 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
 隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
 
-stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md)。
+stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](decisions/connections.md#adr-0246)。
 `ssh-tunnel` 的本地端口只提供加密 Device Gateway，直接在浏览器打开会返回 403。请在本地 Host 浏览器中使用“添加远端”。载体会丢弃浏览器自动附带的本地登录 Cookie，不会将它发送给远端 Host。
 
 ### 固定 Git 来源并恢复导入
@@ -2063,7 +2066,7 @@ deepseekbot private-route remove custom --confirm
 
 每条命令沿用现有 Host 连接参数。Named Tunnel 令牌只从 stdin 输入。重复添加相同配置不会创建第二条连接；修改已有配置必须使用 Replace。Stop 保留配置并记住停止状态；Host 重启仅恢复已启用的连接。Remove 只移除指定配置，不撤销手机授权。使用既有设备撤销命令可同时撤销两条通道上的访问。多条连接存在时，不指定连接 ID 的旧启停命令会拒绝歧义操作。
 
-邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](adr/0333-bounded-private-route-coexistence.md) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
+邀请只包含已连通的私有地址。新版手机在相同 Host 身份下保存最多两个明确授权的地址，旧版手机使用主地址。Quick Tunnel 重启后地址可能变化，需要重新扫码。私有连接不会自动回退到官方服务。升级已有 Profile 前，按 [ADR-0333](decisions/connections.md#adr-0333) 备份受保护的完整 Profile；降级需要恢复匹配版本的备份，仅回退软件包无法读取迁移后的凭据。
 
 `private-tunnel-enable --quick --confirm` 启动 Quick Tunnel；`private-tunnel-enable --hostname <主机名> --token-stdin --confirm` 用 stdin 传入的连接器令牌运行你自己的 Named Tunnel。两者都通过 Host 内置的 cloudflared 只公开加密设备通道，并持久化开启状态，Host 重启后自动恢复。`devices` 返回 `privateTunnel`（`state`、`mode`、`origin`、`originPort`、编码的 `issue`/`probe`、`addressChanged`）。公网地址确认连到本机之前，配对邀请会以 `private-tunnel-unreachable` 拒绝。`private-tunnel-disable --confirm` 停止隧道并删除令牌和手机准入。见[私有连接](private-connect.zh.md)。
 
@@ -2075,7 +2078,7 @@ deepseekbot private-route remove custom --confirm
 
 手机与 Host 登录同一 Tobs Connect 账号后，连接无需电脑批准或手工核对指纹。此路径信任账号认证和中继来授权新设备；未登录的扫码和私有连接保留现有设备批准。`connect-status` 查看账号及连接状态，`devices` 查看设备授权，`device-revoke` 撤销准确设备。不需要审核专用配置。
 
-退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](adr/0327-connect-account-ownership-authorizes-enrollment.md)。
+退出账号只停止新的账号配对，不撤销已有设备；回退代码也不删除已发出的授权。仍掌握账号访问权的人可以在设备撤销后重新配对，因此应同时保护被盗账号。签名、账号与 Host 归属、时效、手机配对证明和已固定密钥的加密通道校验继续生效。参见 [ADR-0327](decisions/connections.md#adr-0327)。
 
 QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set qq --input-stdin`，输入格式与 Discord 一致。配置 `collection: "all"` 和 `newConversations: "auto"` 后，新群继承全量收件；现有自定义身份与群保留覆盖值，直到显式恢复继承。配置成功不代表 QQ 已实际投递普通消息或未支持的媒体。第 138 代迁移保留历史 QQ 热修复的默认策略；回滚需要升级前新做的完整 Profile 备份。
 

@@ -1,23 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type ChannelMessage } from '../src/client/store.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({
-    children,
-    variant,
-    size,
-    ...props
-  }: {
-    children?: ReactNode;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', { ...props, 'data-variant': variant, 'data-size': size }, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 vi.mock('../src/client/bot-sidebar.js', async () => {
   const { useSyncExternalStore } = await import('react');
@@ -44,7 +37,7 @@ vi.mock('../src/client/modal.js', () => ({
 }));
 import { createActions, type BridgeActions } from '../src/client/actions.js';
 import { ActivityListView } from '../src/client/activity-list-view.js';
-import { store, type ChannelMessage, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const item: HumanAttentionItem = {
   id: 'unread:group',

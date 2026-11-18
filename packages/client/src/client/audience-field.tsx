@@ -1,6 +1,6 @@
+import { Checkbox } from './ds/checkbox.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Select } from './ds/select.js';
 import { space } from './ds/tokens.stylex.js';

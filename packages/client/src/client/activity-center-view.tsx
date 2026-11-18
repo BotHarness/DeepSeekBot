@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { ActivityInboxHeader } from './activity-inbox-menu.js';
 import { useMemo, useRef, useSyncExternalStore, type ReactElement } from 'react';
 import { ALL_HOSTS, THIS_HOST, remoteHosts, type RemoteHosts } from './remote-hosts.js';
@@ -17,10 +18,6 @@ import { ActivityListView, type ActivityListSource } from './activity-list-view.
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { activitySectionActions, useActivityFeed } from './activity-feed.js';
-import {
-  IconChevronDownOutlineMedium,
-  IconChevronRightOutlineMedium,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 const titles = {
   action: 'activityInbox.needsYou',
@@ -196,7 +193,7 @@ export function ActivityCenterView({
                   aria-label={t(titles[section])}
                   onClick={() => feed.toggle(section)}
                 >
-                  {expanded ? <IconChevronDownOutlineMedium /> : <IconChevronRightOutlineMedium />}
+                  {expanded ? <Icon name="chevron-down" /> : <Icon name="chevron-right" />}
                   <span>{t(titles[section])}</span>
                   <span
                     className="bh-activity-section-count"

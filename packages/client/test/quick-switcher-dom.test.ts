@@ -1,18 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type QuickSwitcherEntry } from '../src/client/quick-switcher-rank.js';
+import { type SettingsSearchResult } from '../src/client/settings-search.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconSearchOutlineRegular: () => null,
-  IconSettingsOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
+
   relativeTime: () => ({ unit: 'days', n: 1 }),
-  Input: (props: Record<string, unknown>) => {
-    const { icon: _icon, ...rest } = props;
-    return createElement('input', rest);
-  },
+
   ShortcutKeys: (props: { keys: readonly string[] }) =>
     createElement('kbd', null, props.keys.join(' ')),
 }));
@@ -24,13 +22,9 @@ vi.mock('../src/client/avatar.js', () => ({
 import { webQuickSwitcherBlocked } from '../src/client/channel-shortcuts.js';
 import { QuickSwitcher } from '../src/client/quick-switcher.js';
 import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
-import {
-  quickSwitcherEntries,
-  type QuickSwitcherEntry,
-} from '../src/client/quick-switcher-rank.js';
+import { quickSwitcherEntries } from '../src/client/quick-switcher-rank.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { searchSettings, type SettingsSearchResult } from '../src/client/settings-search.js';
-import type { ChannelSummary } from '../src/client/store.js';
+import { searchSettings } from '../src/client/settings-search.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

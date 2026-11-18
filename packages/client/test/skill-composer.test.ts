@@ -1,42 +1,27 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { type ComposerSkillOption } from '../src/client/channel-composer.js';
+import { type SelectedSkill } from '../src/client/skill-refs.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  IconCheckOutlineRegular: () => null,
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
+
   ImageLightbox: () => null,
 }));
 
-import { ChannelComposer, type ComposerSkillOption } from '../src/client/channel-composer.js';
+import { ChannelComposer } from '../src/client/channel-composer.js';
 import { ComposerDraftStore } from '../src/client/composer-draft-store.js';
 import {
   readRichMentionDraft,
   renderRichMentionDraft,
   setRichSelection,
 } from '../src/client/rich-mention-editor.js';
-import {
-  activeSkillQuery,
-  rebaseSkills,
-  selectSkill,
-  type SelectedSkill,
-} from '../src/client/skill-refs.js';
+import { activeSkillQuery, rebaseSkills, selectSkill } from '../src/client/skill-refs.js';
 
 const ada = {
   slug: 'ada',

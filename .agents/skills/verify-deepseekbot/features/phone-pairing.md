@@ -69,7 +69,7 @@ Reserve the native QA lane before starting a Host, build or device. New native b
 4. Restart both peers; trust and the logical Host remain. Revoke the phone; streams close and reconnect refuses. Disable LAN and verify port release while independent remote access remains.
 5. Wrong Host pins, legacy pairings without keys, reused and expired offers refuse. Denied local-network permission shows recovery guidance. This slice does not add mutation replay or proactive handover.
 
-A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)).
+A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/decisions/connections.md#adr-0199)).
 
 ## Sub-features
 

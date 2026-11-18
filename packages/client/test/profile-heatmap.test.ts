@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type HeatmapPage } from '../src/client/profile-cards-builtins.js';
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
 }));
 
 import { zhTranslate } from '../src/client/locale.js';
@@ -15,12 +16,7 @@ import {
   botChartTones,
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
-import {
-  createProfileCardBuiltins,
-  ProfileHeatmap,
-  type HeatmapPage,
-} from '../src/client/profile-cards-builtins.js';
-import type { BotSummary } from '../src/client/store.js';
+import { createProfileCardBuiltins, ProfileHeatmap } from '../src/client/profile-cards-builtins.js';
 
 const TODAY = '2026-10-08';
 let width = 600;

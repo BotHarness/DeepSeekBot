@@ -59,8 +59,9 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
       const engine = body['engine'];
       if (typeof bot !== 'string' || !deps.botExists(bot))
         return refusal('unknown-bot', 'Unknown PersonaBot', 404);
-      if (body['role'] !== 'orchestrator')
-        return refusal('invalid-input', 'Only the orchestrator role can use an engine now');
+      const role = body['role'];
+      if (role !== 'orchestrator' && role !== 'assignment')
+        return refusal('invalid-input', 'role must be orchestrator or assignment');
       if (engine !== null && !isEngineId(engine))
         return refusal('unknown-engine', 'Unknown engine');
       const fallback = body['fallback'];
@@ -68,6 +69,8 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('invalid-input', 'fallback must be true or false');
       if (engine === null && fallback === true)
         return refusal('invalid-input', 'fallback needs an engine');
+      if (role === 'assignment' && fallback !== undefined)
+        return refusal('invalid-input', 'fallback applies only to the orchestrator role');
       const model = body['model'];
       const effort = body['effort'];
       for (const [name, value] of [
@@ -104,16 +107,20 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
               : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
           );
       }
-      host.use(bot, 'orchestrator', engine ?? undefined, {
+      host.use(bot, role, engine ?? undefined, {
         fallback: fallback === true,
         ...choice,
       });
-      deps.releaseQuotaHold?.(bot);
+      if (role === 'orchestrator') deps.releaseQuotaHold?.(bot);
       return Response.json({
         bot,
-        role: 'orchestrator',
+        role,
         engine,
-        ...(engine === null ? {} : { fallback: fallback === true, ...choice }),
+        ...(engine === null
+          ? {}
+          : role === 'orchestrator'
+            ? { fallback: fallback === true, ...choice }
+            : choice),
       });
     }
     if (body['action'] === 'tools' || body['action'] === 'tool') {

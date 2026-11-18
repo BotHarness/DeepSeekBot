@@ -1,6 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { Switch } from './ds/switch.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import { IconPinFillRegular, IconPinOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { NumberStepper } from './ds/number-stepper.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -44,7 +45,7 @@ export function CompanionPin({
         else companion.select(botId);
       }}
     >
-      {selected ? <IconPinFillRegular size={16} /> : <IconPinOutlineRegular size={16} />}
+      {selected ? <Icon name="pin" filled size={16} /> : <Icon name="pin" size={16} />}
     </button>
   );
 }

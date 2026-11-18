@@ -1,5 +1,6 @@
+import { Tag } from './ds/tag.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { PersonaBotAvatar } from './avatar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Note } from './ds/note.js';

@@ -137,7 +137,7 @@ Tailscale connects directly or through its own relays on most networks. If the n
 
 - A paired phone has the same authority as you on the computer, so pair only your own devices.
 - The phone keeps its credential only in the system keychain (iOS Keychain / Android Keystore); the computer keeps only its hash.
-- DSH itself still listens on the local address only. Phone requests go through the DeepSeekBot device gateway and can be revoked at any time. Details: [ADR-0199](adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md).
+- DSH itself still listens on the local address only. Phone requests go through the DeepSeekBot device gateway and can be revoked at any time. Details: [ADR-0199](decisions/connections.md#adr-0199).
 
 ## Manage linked computers
 

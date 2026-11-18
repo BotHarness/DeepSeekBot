@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { act, createElement } from 'react';
+
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
@@ -9,10 +9,6 @@ import { zhTranslate } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
 }));
 
 it('hands character keyboard focus to the portaled menu and restores it after dismissal', async () => {

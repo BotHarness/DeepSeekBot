@@ -1,10 +1,6 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useMemo, useState, type ReactElement } from 'react';
-
-import {
-  IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MarketplaceFile } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
@@ -52,7 +48,7 @@ function SkillRows({
               {skill.description}
             </span>
             <span className="bh-skill-row-chevron" aria-hidden="true">
-              <IconChevronRightOutlineRegular size={16} />
+              <Icon name="chevron-right" size={16} />
             </span>
           </button>
         </li>
@@ -122,7 +118,7 @@ function SkillDetail({
     <section ref={section} className="bh-skill-detail" data-skill-detail={name}>
       <header className="bh-skill-detail-head">
         <IconButton aria-label={t('skills.back')} onClick={onBack}>
-          <IconChevronLeftOutlineRegular size={16} />
+          <Icon name="chevron-left" size={16} />
         </IconButton>
         <strong className="bh-skill-row-name">/{name}</strong>
         {state.status === 'ready' && state.skill.path !== undefined ? (

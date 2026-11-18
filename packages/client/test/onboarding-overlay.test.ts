@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
+import { type TutorialAction } from '../../core/src/onboarding/types.js';
+import { type ModelCatalogEntryView } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const tour = vi.hoisted(() =>
@@ -8,14 +12,6 @@ const tour = vi.hoisted(() =>
 );
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) =>
-    createElement('button', props),
-  Checkbox: () => null,
-  Tag: ({ children, ...props }: Record<string, unknown> & { children?: unknown }) =>
-    createElement('span', props, children as never),
 }));
 vi.mock('../src/client/model-picker.js', () => ({ ModelPicker: () => null }));
 vi.mock('../src/client/onboarding-memory.js', () => ({ OnboardingMemory: () => null }));
@@ -24,9 +20,8 @@ vi.mock('../src/client/modal.js', () => ({ Modal: () => null }));
 vi.mock('../src/client/bot-settings-open.js', () => ({ openModelsSettings: vi.fn() }));
 vi.mock('../src/client/internal-tour.js', () => ({ startInternalTour: tour }));
 
-import type { OnboardingSnapshot, TutorialAction } from '../../core/src/onboarding/types.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { ModelCatalogEntryView } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import { onboardingFor } from '../src/client/onboarding.js';
 import { OnboardingOverlay } from '../src/client/onboarding-view.js';

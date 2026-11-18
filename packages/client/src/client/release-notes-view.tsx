@@ -1,17 +1,13 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { type TagTone } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { SettingsGroupPart } from './ds/settings-row.js';
 
-import {
-  IconCloseOutlineRegular,
-  IconDownloadOutlineRegular,
-  MarkdownText,
-  Tag,
-  type MarkdownLabels,
-  type TagTone,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { ReleaseNote } from '../../../core/src/release/notes.js';
@@ -373,7 +369,7 @@ function UpdateNotice({
               xstyle={styles.install}
               onClick={start}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </IconButton>
           </Tooltip>
         ) : null}
@@ -384,7 +380,7 @@ function UpdateNotice({
           xstyle={styles.close}
           onClick={close}
         >
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </IconButton>
       </div>
       <div {...stylex.props(styles.body)}>

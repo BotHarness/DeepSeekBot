@@ -1,68 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type BotScheduleView } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
-  const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => element('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Tag,
-
-    Switch: ({
-      checked,
-      label,
-      onChange,
-    }: {
-      checked: boolean;
-      label: string;
-      onChange?(next: boolean): void;
-    }) =>
-      element('input', {
-        type: 'checkbox',
-        checked,
-        'aria-label': label,
-        onChange: (event: { target: HTMLInputElement }) => onChange?.(event.target.checked),
-      }),
-    SegmentedControl: ({
-      label,
-      value,
-      options,
-      onChange,
-    }: {
-      label: string;
-      value: string;
-      options: { value: string; label: string }[];
-      onChange(next: string): void;
-    }) =>
-      element(
-        'div',
-        { role: 'tablist', 'aria-label': label },
-        ...options.map((option) =>
-          element(
-            'button',
-            {
-              key: option.value,
-              type: 'button',
-              role: 'tab',
-              'aria-selected': option.value === value,
-              onClick: () => onChange(option.value),
-            },
-            option.label,
-          ),
-        ),
-      ),
-    IconPlusOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
   };
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { BotScheduleView } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import {
   BotSchedulesEntry,

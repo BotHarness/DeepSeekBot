@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type ChannelMessage } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -7,20 +9,12 @@ import { WindowCompanionsView } from '../src/client/window-companions-view.js';
 import { createActions } from '../src/client/actions.js';
 import { store } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
-import type { ChannelMessage } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
 
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
-  Input: () => null,
   MarkdownText: () => null,
   StateDot: () => null,
 }));

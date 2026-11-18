@@ -5,29 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconChevronDownOutlineRegular: () => null,
-    IconRefreshOutlineRegular: () => null,
-    Checkbox: (props: {
-      checked: boolean;
-      disabled?: boolean;
-      label: string;
-      onChange(next: boolean): void;
-    }) =>
-      element(
-        'label',
-        null,
-        element('input', {
-          type: 'checkbox',
-          checked: props.checked,
-          disabled: props.disabled,
-          onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.checked),
-        }),
-        props.label,
-      ),
   };
 });
 
