@@ -589,7 +589,10 @@ export class EngineHost {
             'engine-not-installed',
             'Claude Code is not installed on this computer',
           );
-        const { version } = await (this.#options.detectClaude ?? detectClaude)(claude);
+        const { version } = await (this.#options.detectClaude ?? detectClaude)({
+          ...claude,
+          command: executable,
+        });
         if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
           throw new EngineRefusal(
             'engine-unavailable',
