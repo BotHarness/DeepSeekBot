@@ -1,5 +1,7 @@
 {
   "jsxCopy": {
+    "apps/mobile/src/ui/widgets/call-activity.tsx": ["Hang Up", "取消静音", "挂断", "静音"],
+    "apps/mobile/src/ui/widgets/request-activity.tsx": ["更新于"],
     "packages/client/src/client/channel-composer.tsx": [
       "Mention a PersonaBot",
       "Reference a Group Channel"
@@ -10,5 +12,29 @@
     "packages/client/src/client/dm-composer-usage.tsx": ["路 {…}%"],
     "packages/client/src/client/external-source-content.tsx": ["Source Event:"],
     "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
+  },
+  "pressableLabel": {
+    "apps/mobile/app/pair/tailscale.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
+    "apps/mobile/src/ui/shell/activity-feed.tsx": ["Pressable"]
+  },
+  "touchTarget": {
+    "apps/mobile/src/ui/chat/activity-glance.tsx": ["Pressable"],
+    "apps/mobile/src/ui/chat/call-audio-menu.android.tsx": ["Pressable"],
+    "apps/mobile/src/ui/chat/channel-media.tsx": ["Pressable"],
+    "apps/mobile/src/ui/chat/message-bubble.tsx": ["Pressable"],
+    "apps/mobile/src/ui/chat/message-selection-ui.tsx": ["Pressable"],
+    "apps/mobile/src/ui/chat/reply-quote.tsx": ["Pressable"],
+    "apps/mobile/src/ui/floating-exit.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/copyable-fingerprint.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/device-alert-banner.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/participant-choice.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/plus-menu-button.android.tsx": ["Pressable"],
+    "apps/mobile/src/ui/primitives/plus-menu-button.tsx": ["Pressable", "Pressable", "Pressable"],
+    "apps/mobile/src/ui/primitives/swipe-row.tsx": ["Pressable", "Pressable"],
+    "apps/mobile/src/ui/question-view.tsx": ["Pressable"],
+    "apps/mobile/src/ui/request-parts.tsx": ["Pressable"],
+    "apps/mobile/src/ui/shell/marketplace-daily-picks.tsx": ["Pressable"],
+    "apps/mobile/src/ui/shell/navigation-action.tsx": ["Pressable"]
   }
 }

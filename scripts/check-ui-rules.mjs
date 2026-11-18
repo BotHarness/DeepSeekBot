@@ -10,7 +10,10 @@ const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 
 export const BASELINE = join(root, 'scripts/ui-rules-baseline.json');
-const SCAN = ['packages/client/src'];
+const SCAN = ['packages/client/src', 'apps/mobile/app', 'apps/mobile/src/ui'];
+const MOBILE = /^apps\/mobile\//u;
+const PRESSABLE = /^(?:Pressable|Touchable\w*)$/u;
+const TOUCH_TOKEN = /\btheme\.touch\b|\btouch\[/u;
 const SKIP = /(?:\.test|\.spec|\.stories)\.tsx$|\/test\/|\/__tests__\//u;
 const COPY_PROPS = new Set([
   'title',
@@ -27,8 +30,16 @@ const FILE_NAME = /^[\w-]+\.[a-z]{1,5}$/iu;
 
 export const RULES = {
   jsxCopy: {
-    help: 'move visible text into locale.ts and read it with t()',
+    help: 'move visible text into locale.ts (Web) or strings.ts (mobile)',
     section: 'docs/agents/ui-copy.md § Where copy lives',
+  },
+  pressableLabel: {
+    help: 'give the pressable an accessibilityLabel from strings.ts',
+    section: 'apps/mobile/DESIGN.md § Code rules 4',
+  },
+  touchTarget: {
+    help: 'size the pressable to theme.touch (44pt iOS, 48dp Android) or add hitSlop',
+    section: 'apps/mobile/DESIGN.md § Code rules 4',
   },
 };
 
@@ -73,7 +84,8 @@ export function jsxCopy(source, file) {
   const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
   const found = [];
   const add = (text, line) => {
-    if (isCopy(text)) found.push({ file, line, text: text.replace(/\s+/gu, ' ').trim() });
+    if (isCopy(text))
+      found.push({ rule: 'jsxCopy', file, line, text: text.replace(/\s+/gu, ' ').trim() });
   };
   const addAll = (node, line) => {
     for (const text of literalTexts(node)) add(text, line);
@@ -91,6 +103,28 @@ export function jsxCopy(source, file) {
   return found.sort((a, b) => a.line - b.line);
 }
 
+export function pressables(source, file) {
+  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+  const sized = TOUCH_TOKEN.test(source);
+  const found = [];
+  walk(ast.program, (node) => {
+    if (node.type !== 'JSXOpeningElement' || node.name.type !== 'JSXIdentifier') return;
+    if (!PRESSABLE.test(node.name.name)) return;
+    const names = new Set(
+      node.attributes.map((attribute) =>
+        attribute.type === 'JSXAttribute' ? attribute.name.name : '...',
+      ),
+    );
+    const line = node.loc.start.line;
+    const text = node.name.name;
+    if (!names.has('...') && !names.has('accessibilityLabel'))
+      found.push({ rule: 'pressableLabel', file, line, text });
+    if (!sized && !names.has('...') && !names.has('hitSlop'))
+      found.push({ rule: 'touchTarget', file, line, text });
+  });
+  return found.sort((a, b) => a.line - b.line);
+}
+
 function files(directory) {
   return readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
@@ -102,16 +136,26 @@ function files(directory) {
 export function scan() {
   return SCAN.flatMap(files)
     .sort()
-    .flatMap((file) => jsxCopy(readFileSync(join(root, file), 'utf8'), file));
+    .flatMap((file) => {
+      const source = readFileSync(join(root, file), 'utf8');
+      return [...jsxCopy(source, file), ...(MOBILE.test(file) ? pressables(source, file) : [])];
+    });
 }
 
 export function findings(found) {
-  const byFile = {};
-  for (const { file, text } of found) (byFile[file] ??= []).push(text);
+  const byRule = {};
+  for (const { rule, file, text } of found) ((byRule[rule] ??= {})[file] ??= []).push(text);
   return Object.fromEntries(
-    Object.keys(byFile)
-      .sort()
-      .map((file) => [file, byFile[file].sort()]),
+    Object.keys(RULES)
+      .filter((rule) => byRule[rule])
+      .map((rule) => [
+        rule,
+        Object.fromEntries(
+          Object.keys(byRule[rule])
+            .sort()
+            .map((file) => [file, byRule[rule][file].sort()]),
+        ),
+      ]),
   );
 }
 
@@ -122,31 +166,32 @@ function counts(list) {
 }
 
 export function compare(found, baseline) {
-  const allowed = new Map(
-    Object.entries(baseline.jsxCopy ?? {}).map(([file, list]) => [file, counts(list)]),
-  );
+  const allowed = new Map();
+  for (const [rule, byFile] of Object.entries(baseline))
+    for (const [file, list] of Object.entries(byFile))
+      for (const [text, count] of counts(list))
+        allowed.set(`${rule}\u0000${file}\u0000${text}`, count);
   const problems = [];
   const seen = new Map();
-  for (const { file, line, text } of found) {
-    const left = allowed.get(file)?.get(text) ?? 0;
-    const key = `${file}\u0000${text}`;
+  for (const { rule, file, line, text } of found) {
+    const key = `${rule}\u0000${file}\u0000${text}`;
     const used = seen.get(key) ?? 0;
     seen.set(key, used + 1);
-    if (used >= left)
-      problems.push(`${file}:${line} "${text}": ${RULES.jsxCopy.help} (${RULES.jsxCopy.section})`);
+    if (used >= (allowed.get(key) ?? 0))
+      problems.push(`${file}:${line} "${text}": ${RULES[rule].help} (${RULES[rule].section})`);
   }
   const stale = [];
-  for (const [file, map] of allowed)
-    for (const [text, count] of map) {
-      const used = seen.get(`${file}\u0000${text}`) ?? 0;
-      if (used < count) stale.push(`${file} "${text}"`);
+  for (const [key, count] of allowed)
+    if ((seen.get(key) ?? 0) < count) {
+      const [rule, file, text] = key.split('\u0000');
+      stale.push(`${rule} ${file} "${text}"`);
     }
   return { problems, stale };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const found = scan();
-  const current = { jsxCopy: findings(found) };
+  const current = findings(found);
   const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
   const { problems, stale } = compare(found, baseline);
   const write = process.argv.includes('--write');
