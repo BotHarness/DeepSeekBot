@@ -3666,6 +3666,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     routingGroups: core.routingGroups,
+    routeRests,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
