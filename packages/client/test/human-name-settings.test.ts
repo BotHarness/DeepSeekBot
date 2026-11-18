@@ -8,7 +8,11 @@ import { zhTranslate } from '../src/client/locale.js';
 import { describe, expect, it, vi } from 'vitest';
 import { installBotNavIcon } from '../src/client/bot-icon-nav.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button', Input: 'input' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+  Button: 'button',
+  Input: 'input',
+}));
 
 describe('Human name settings navigation', () => {
   it('uses the existing roster stream in Bot mode and owns only one while native mode is open', async () => {

@@ -78,8 +78,8 @@ import {
   IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular,
   IconUserOutlineRegular,
-  Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Toast } from './ds/toast.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';

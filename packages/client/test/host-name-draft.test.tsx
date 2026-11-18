@@ -16,7 +16,8 @@ vi.mock('../src/client/host-looks.js', () => ({
 }));
 vi.mock('../src/client/bot-color-scheme.js', () => ({ useBotColorScheme: () => 'light' }));
 vi.mock('../src/client/host-glyph.js', () => ({ HostGlyph: () => null }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) =>
     createElement('button', { onClick }, children),

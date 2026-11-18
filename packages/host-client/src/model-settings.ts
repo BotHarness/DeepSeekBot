@@ -18,7 +18,7 @@ import {
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
-import { modelCatalogGroupFront, serialWrites } from './model-catalog';
+import { modelCatalogGroupFront, modelEffortChoices, serialWrites } from './model-catalog';
 import {
   createModelPreset,
   customizeModelPlan,
@@ -381,12 +381,7 @@ export async function toggleAssignmentModel(
     ? routes.assignmentModels.filter((option) => !sameModel(option, entry))
     : [
         ...routes.assignmentModels,
-        {
-          provider: entry.provider,
-          model: entry.model,
-          allowedEfforts: [entry.defaultEffort ?? ''],
-          defaultEffort: entry.defaultEffort ?? '',
-        },
+        { provider: entry.provider, model: entry.model, ...modelEffortChoices(entry) },
       ];
   await writePlan(client, scope, state, {
     orchestrator: requireRoute(routes.orchestrator),

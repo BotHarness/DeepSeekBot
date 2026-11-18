@@ -1207,7 +1207,16 @@ it('aborts a pending public check when its route closes', async () => {
     fetch: (async (_url, init) =>
       new Promise((_resolve, reject) => {
         signal = init?.signal ?? undefined;
-        signal?.addEventListener('abort', () => reject(signal?.reason), { once: true });
+        signal?.addEventListener(
+          'abort',
+          () =>
+            reject(
+              signal?.reason instanceof Error
+                ? signal.reason
+                : new Error('aborted', { cause: signal?.reason }),
+            ),
+          { once: true },
+        );
       })) as typeof fetch,
   });
   tunnels.push(tunnel);

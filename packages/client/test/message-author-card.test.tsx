@@ -4,17 +4,12 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const hoverCards = vi.hoisted(() => [] as Record<string, unknown>[]);
-
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement: h } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconNewChatOutlineRegular: () => null,
     IconUserOutlineRegular: () => null,
-    HoverCard: (props: { anchor: never; content: never }) => {
-      hoverCards.push(props);
-      return h('span', { 'data-hover-card': 'true' }, props.anchor, props.content);
-    },
   };
 });
 
@@ -162,7 +157,7 @@ describe('MessageAuthorCardContent', () => {
 
 describe('MessageAuthorHoverCard', () => {
   it('opens inline on hover or focus after a short delay and routes Message and Profile', async () => {
-    hoverCards.length = 0;
+    vi.useFakeTimers();
     const openBot = vi.fn();
     const host = document.createElement('div');
     document.body.append(host);
@@ -180,13 +175,19 @@ describe('MessageAuthorHoverCard', () => {
         }),
       );
     });
-    expect(hoverCards.at(-1)).toMatchObject({
-      inline: true,
-      openDelayMs: MESSAGE_AUTHOR_CARD_DELAY_MS,
+    const anchor = host.querySelector<HTMLElement>('.anchor')!.parentElement!;
+    expect(anchor.tagName).toBe('SPAN');
+    expect(document.querySelector('.bh-author-card')).toBeNull();
+    await act(async () => {
+      anchor.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      anchor.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(MESSAGE_AUTHOR_CARD_DELAY_MS - 1);
     });
+    expect(document.querySelector('.bh-author-card')).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(MESSAGE_AUTHOR_CARD_DELAY_MS).toBeLessThan(500);
     expect(host.querySelector('.anchor')).not.toBeNull();
-    const buttons = [...host.querySelectorAll<HTMLButtonElement>('.bh-author-card button')];
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('.bh-author-card button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['Message', 'Profile']);
     await act(async () => {
       buttons[0]!.click();
@@ -194,6 +195,7 @@ describe('MessageAuthorHoverCard', () => {
     });
     expect(openBot.mock.calls).toEqual([['ada'], ['ada', 'profile']]);
     await act(async () => root.unmount());
+    vi.useRealTimers();
   });
 });
 

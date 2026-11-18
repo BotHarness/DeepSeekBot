@@ -44,80 +44,16 @@ vi.mock('../src/client/settings-environment.js', async (importOriginal) => ({
     }),
 }));
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   useModalLayer: () => undefined,
   Input: (props: object) => createElement('input', props),
   Button: ({ children, size: _size, ...rest }: { children?: ReactNode; size?: string }) =>
     createElement('button', { type: 'button', ...rest }, children),
   IconRefreshOutlineRegular: () => null,
-  Modal: ({
-    open,
-    onClose,
-    title,
-    headless,
-    className,
-    children,
-    footer,
-  }: {
-    open: boolean;
-    onClose(): void;
-    title: string;
-    headless?: boolean;
-    className?: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    open
-      ? createElement(
-          'div',
-          { role: 'presentation' },
-          createElement('button', { 'data-testid': 'mask', onClick: onClose }),
-          createElement(
-            'div',
-            {
-              role: 'dialog',
-              'aria-label': title,
-              'data-headless': headless ? 'true' : undefined,
-              className,
-            },
-            children,
-            footer,
-          ),
-        )
-      : null,
+
   IconCloseOutlineRegular: () => null,
   IconChevronDownOutlineRegular: () => null,
-  Menu: ({
-    anchor,
-    open,
-    items,
-    selectedId,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label: string }[];
-    selectedId?: string;
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      { 'data-menu': 'sections', 'data-selected': selectedId },
-      anchor,
-      open
-        ? items.map((item) =>
-            createElement(
-              'button',
-              {
-                key: item.id,
-                role: 'menuitem',
-                onClick: () => onSelect(item.id),
-              },
-              item.label,
-            ),
-          )
-        : null,
-    ),
 }));
 
 import {
@@ -162,6 +98,7 @@ afterEach(() => {
     root.unmount();
   });
   document.body.replaceChildren();
+  vi.unstubAllGlobals();
 });
 
 function mount(
@@ -473,8 +410,8 @@ it('renders only a section dropdown in narrow frames and switches sections from 
       .querySelector('[role="dialog"]')
       ?.contains(document.querySelector('[data-pointer-menu]')),
   ).toBe(true);
-  expect(document.querySelector('[data-menu="sections"]')?.getAttribute('data-selected')).toBe(
-    'models',
+  expect(document.querySelector('[role="menuitem"][data-selected]')?.textContent).toBe(
+    '模型与运行',
   );
   expect(
     [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),

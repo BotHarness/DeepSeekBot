@@ -9,9 +9,10 @@ import {
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     Button: ({
       children,
@@ -52,43 +53,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: ({
-      anchor,
-      open,
-      items = [],
-      onSelect,
-      children,
-    }: {
-      anchor: ReactNode;
-      open: boolean;
-      items?: { id: string; label: string }[];
-      onSelect?: (id: string) => void;
-      children?: ReactNode;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor,
-        open
-          ? createElement(
-              'div',
-              { role: 'menu' },
-              ...items.map((item) =>
-                createElement(
-                  'button',
-                  { key: item.id, role: 'menuitem', onClick: () => onSelect?.(item.id) },
-                  item.label,
-                ),
-              ),
-              children,
-            )
-          : null,
-      ),
+
     MarkdownText: stub,
-    Modal: stub,
+
     StateDot: stub,
     Tag: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });

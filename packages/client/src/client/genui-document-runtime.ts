@@ -8,12 +8,7 @@ export function createGenuiRuntimeLoader(
   let pending: Promise<GenuiDocumentRuntime> | undefined;
   return () => {
     if (pending) return pending;
-    let started: Promise<GenuiDocumentRuntime>;
-    try {
-      started = Promise.resolve(request());
-    } catch (error) {
-      started = Promise.reject(error);
-    }
+    const started = new Promise<GenuiDocumentRuntime>((resolve) => resolve(request()));
     const loading = started.catch((error: unknown) => {
       if (pending === loading) pending = undefined;
       throw error;

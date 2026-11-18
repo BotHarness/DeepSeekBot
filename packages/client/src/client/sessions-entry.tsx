@@ -10,8 +10,8 @@ import {
   IconFolderOpenOutlineRegular,
   IconStopFillRegular,
   Tag,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
 import { Icon } from './ds/icon.js';
 import { modeText } from './bot-mode-settings.js';

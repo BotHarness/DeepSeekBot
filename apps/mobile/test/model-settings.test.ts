@@ -199,7 +199,7 @@ describe('native Model Plans and Presets', () => {
     await toggleAssignmentModel(client, { kind: 'bot', slug: 'qa' }, state, models[1]!);
     expect(fake.calls[0]?.args['assignmentModels']).toEqual([
       ...allowed,
-      { ...pro, allowedEfforts: ['high'], defaultEffort: 'high' },
+      { ...pro, allowedEfforts: ['', 'high'], defaultEffort: 'high' },
     ]);
     await expect(
       toggleAssignmentModel(client, { kind: 'bot', slug: 'qa' }, state, models[0]!),

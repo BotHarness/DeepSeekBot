@@ -8,6 +8,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
@@ -111,7 +112,7 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
   document.body.append(container);
   const root = createRoot(container);
   const button = (text: string) =>
-    [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    [...document.body.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]')].find(
       (node) => node.textContent?.trim() === text,
     );
   store.select(placement === 'panel' ? { kind: 'bot', slug: 'other' } : { kind: 'inbox' });

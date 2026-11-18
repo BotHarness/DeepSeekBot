@@ -142,7 +142,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
     expect(tools.map((item) => [item.tool, item.status])).toEqual([
       ['channel_read', 'done'],
       ['bot_send_message', 'done'],
-      ['shell', 'failed'],
+      ['shell', 'denied'],
     ]);
     expect(transcript.items.at(-1)).toMatchObject({ kind: 'turn-end', state: 'done' });
 
@@ -382,6 +382,7 @@ describe('Engine selection, status and route', () => {
         { engine: 'codex', available: true, installed: true, version: '0.170.0', login: 'chatgpt' },
       ],
       selections: [{ botSlug: 'ada', role: 'orchestrator', engine: 'codex', fallback: false }],
+      approvals: [],
     });
     await post({ action: 'use', bot: 'ada', role: 'orchestrator', engine: null });
     expect(host.engineFor('ada')).toBeUndefined();

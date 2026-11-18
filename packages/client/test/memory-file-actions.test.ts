@@ -4,9 +4,10 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     FileTypeIcon: stub,
     writeClipboard: vi.fn(async () => true),
     fileSizeText: (bytes: number) =>
@@ -29,41 +30,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSettingsOutlineRegular: stub,
     IconFolderCloseRegular: stub,
     IconFolderOpenRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
-    Menu: ({
-      anchor,
-      items,
-      onSelect,
-    }: {
-      anchor: ReactNode;
-      items: {
-        type?: string;
-        id: string;
-        label?: ReactNode;
-        text?: ReactNode;
-        disabled?: boolean;
-      }[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        anchor,
-        items.map((item) =>
-          item.type
-            ? createElement('span', { key: item.id }, item.text)
-            : createElement(
-                'button',
-                {
-                  key: item.id,
-                  role: 'menuitem',
-                  disabled: item.disabled,
-                  onClick: () => onSelect(item.id),
-                },
-                item.label,
-              ),
-        ),
-      ),
   };
 });
 import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -101,7 +67,7 @@ function actions(available = true) {
   };
 }
 const button = (text: string) =>
-  [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+  [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find((b) =>
     b.textContent?.includes(text),
   )!;
 async function click(element: Element) {

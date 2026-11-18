@@ -3,7 +3,7 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const base: Record<string, unknown> = {
     Button: ({
       children,
@@ -19,13 +19,16 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       ),
     Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
   };
-  return new Proxy(base, {
-    get: (target, key) =>
-      typeof key === 'string' && !(key in target) && key !== 'then'
-        ? () => null
-        : target[key as string],
-    has: () => true,
-  });
+  return new Proxy(
+    { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...base },
+    {
+      get: (target, key) =>
+        typeof key === 'string' && !(key in target) && key !== 'then'
+          ? () => null
+          : Reflect.get(target, key),
+      has: () => true,
+    },
+  );
 });
 
 const { BotSkillsCard, marketplaceSkillFiles, skillFrontmatterDescription } =

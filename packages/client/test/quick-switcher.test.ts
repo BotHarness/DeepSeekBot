@@ -1,8 +1,10 @@
+// @vitest-environment jsdom
 import { createElement, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderOverlayMarkup } from './primitive-mocks.js';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconSearchOutlineRegular: () => null,
   IconSettingsOutlineRegular: () => null,
   Input: (props: Record<string, unknown>) =>
@@ -14,8 +16,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     }),
   ShortcutKeys: (props: { keys: readonly string[] }) =>
     createElement('kbd', null, props.keys.join(' ')),
-  Modal: (props: Record<string, unknown>) =>
-    createElement('section', { 'aria-label': props['title'] }, props['children'] as ReactNode),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -159,7 +159,7 @@ describe('quick switcher ranking', () => {
 
 describe('quick switcher dialog', () => {
   const render = (list: readonly QuickSwitcherEntry[], mac = false, t = enTranslate): string =>
-    renderToStaticMarkup(
+    renderOverlayMarkup(
       createElement(QuickSwitcher, {
         entries: list,
         bots: new Map(bots.map((value) => [value.slug, value])),

@@ -124,7 +124,11 @@ export function createChannelMediaAccess(options: {
         const cancel = () => {
           const index = queue.indexOf(ready);
           if (index >= 0) queue.splice(index, 1);
-          reject(signal.reason);
+          reject(
+            signal.reason instanceof Error
+              ? signal.reason
+              : new Error('Channel media transfer cancelled', { cause: signal.reason }),
+          );
         };
         queue.push(ready);
         signal.addEventListener('abort', cancel, { once: true });
@@ -335,7 +339,12 @@ export function createChannelMediaAccess(options: {
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
-    const abort = () => reject(signal.reason);
+    const abort = () =>
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error('Channel media transfer cancelled', { cause: signal.reason }),
+      );
     signal.addEventListener('abort', abort, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
     if (signal.aborted) abort();

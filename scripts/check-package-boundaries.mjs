@@ -91,7 +91,7 @@ export function checkPackageBoundaries(root) {
         try {
           return packageBoundaryErrors(file, readFileSync(resolve(root, file), 'utf8'), workspaces);
         } catch (error) {
-          throw new Error(`${file}: ${error.message}`);
+          throw new Error(`${file}: ${error.message}`, { cause: error });
         }
       })(),
     );

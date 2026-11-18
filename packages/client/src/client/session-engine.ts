@@ -31,6 +31,8 @@ export function engineQuotaText(
 export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate): string {
   if (engine.state === 'starting')
     return t('sessions.detail.engineStarting', { engine: engineName(engine.engine) });
+  if (engine.state === 'waiting-approval')
+    return t('sessions.detail.engineWaitingApproval', { engine: engineName(engine.engine) });
   const base =
     engine.account === undefined
       ? engineName(engine.engine)

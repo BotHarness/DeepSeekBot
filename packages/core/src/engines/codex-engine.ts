@@ -205,6 +205,7 @@ export class CodexEngineSession implements EngineSession {
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
+  readonly #patches = new Map<string, string[]>();
   #initialized: Promise<void> | undefined;
   #threadId: string | undefined;
   #turn: ActiveTurn | undefined;
@@ -429,14 +430,26 @@ export class CodexEngineSession implements EngineSession {
 
   #serverRequest(id: number | string, method: string, params: Json): void {
     if (SERVER_APPROVALS.has(method)) {
-      const approvalId = `${text(params['itemId'])}:${text(params['approvalId']) || String(id)}`;
+      const itemId = text(params['itemId']);
+      const approvalId = `${itemId}:${text(params['approvalId']) || String(id)}`;
       this.#approvals.set(approvalId, id);
       const command = text(params['command']);
+      const reason = text(params['reason']);
+      const patch = method === 'item/fileChange/requestApproval';
+      const input: Record<string, unknown> = patch
+        ? {
+            files: this.#patches.get(itemId) ?? [],
+            ...(text(params['grantRoot']) ? { grantRoot: text(params['grantRoot']) } : {}),
+          }
+        : { command, ...(text(params['cwd']) ? { cwd: text(params['cwd']) } : {}) };
+      if (reason) input['reason'] = reason;
       this.#emit({
         kind: 'approval',
         approvalId,
-        tool: method === 'item/fileChange/requestApproval' ? 'apply_patch' : 'shell',
-        summary: command || text(params['reason']) || 'Codex asks to change files',
+        ...(itemId ? { callId: itemId } : {}),
+        tool: patch ? 'apply_patch' : 'shell',
+        summary: command || reason || 'Codex asks to change files',
+        input,
       });
       if (this.#turn === undefined) this.answer(approvalId, 'decline');
       return;
@@ -466,18 +479,19 @@ export class CodexEngineSession implements EngineSession {
           arguments: JSON.stringify({ command: text(item['command']) }),
         });
         return;
-      case 'fileChange':
+      case 'fileChange': {
+        const files = (Array.isArray(item['changes']) ? item['changes'] : []).map((change) =>
+          text(record(change)['path']),
+        );
+        this.#patches.set(callId, files);
         this.#emit({
           kind: 'tool-call',
           callId,
           name: 'apply_patch',
-          arguments: JSON.stringify({
-            files: (Array.isArray(item['changes']) ? item['changes'] : []).map(
-              (change) => record(change)['path'],
-            ),
-          }),
+          arguments: JSON.stringify({ files }),
         });
         return;
+      }
       case 'mcpToolCall': {
         const server = text(item['server']);
         const tool = text(item['tool']);
@@ -529,6 +543,7 @@ export class CodexEngineSession implements EngineSession {
         return;
       }
       case 'fileChange':
+        this.#patches.delete(callId);
         this.#emit({
           kind: 'tool-result',
           callId,

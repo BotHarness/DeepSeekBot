@@ -18,13 +18,13 @@ export async function traceGenuiOpening(page, path, observe) {
   try {
     result = await observe();
   } catch (error) {
-    failure = error;
+    failure = error instanceof Error ? error : new Error(String(error), { cause: error });
   }
   try {
     await page.tracing.stop();
   } catch (error) {
     if (failure) failure.traceCleanupFailure = String(error);
-    else failure = error;
+    else failure = error instanceof Error ? error : new Error(String(error), { cause: error });
   }
   if (failure) throw failure;
   return result;
@@ -129,13 +129,13 @@ export async function observeGenuiOpening(page, target, open) {
     assert.deepEqual(first.viewport, settled.viewport, 'The opening viewport changed.');
     result = { ...first, stable: true, afterTwoRafMs: settled.readyMs };
   } catch (error) {
-    failure = error;
+    failure = error instanceof Error ? error : new Error(String(error), { cause: error });
   } finally {
     try {
       await page.evaluate(() => window.__bhStopGenuiOpening?.());
     } catch (error) {
       if (failure) failure.cleanupFailure = String(error);
-      else failure = error;
+      else failure = error instanceof Error ? error : new Error(String(error), { cause: error });
     }
   }
   if (failure) throw failure;

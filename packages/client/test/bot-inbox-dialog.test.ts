@@ -3,20 +3,15 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     Button: ({ children, onClick }: PropsWithChildren<{ onClick?(): void }>) =>
       createElement('button', { onClick }, children),
     Input: stub,
     Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Modal: ({ children, title, onClose }: PropsWithChildren<{ title: string; onClose(): void }>) =>
-      createElement(
-        'div',
-        { role: 'dialog', 'aria-label': title },
-        children,
-        createElement('button', { onClick: onClose }, 'Close'),
-      ),
+
     StateDot: stub,
     IconChevronDownOutlineRegular: stub,
     IconCloseOutlineRegular: stub,
@@ -24,8 +19,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSearchOutlineRegular: stub,
     IconPlusOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
-    Menu: ({ anchor }: { anchor: unknown }) => anchor,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });

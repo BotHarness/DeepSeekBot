@@ -31,7 +31,7 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
-为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
+为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 Human 的 CLI，且只对当前已准入的 Human DM 执行有效，Host 保留身份、审批和 revision 校验（[Tob 决策](docs/decisions/tob.md#adr-0314)）。总管身份不等于管理员权限。
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
@@ -257,7 +257,7 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-由 Human 编写、供 Approval Reviewer 使用的共享自然语言审批策略，包含 Always ask、Always allow 与 free text。PersonaBot 通过继承全局或选择特定模板，至多使用一份有效模板，也可关闭 Reviewer（[ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)）。
+由 Human 编写、供 Approval Reviewer 使用的共享自然语言审批策略，包含 Always ask、Always allow 与 free text。PersonaBot 通过继承全局或选择特定模板，至多使用一份有效模板，也可关闭 Reviewer（[ADR-0342](docs/decisions/approvals.md#adr-0342)）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：

@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 
-import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import { IconButton } from './ds/icon-button.js';

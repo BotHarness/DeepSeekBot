@@ -1095,7 +1095,8 @@ export function createRemoteHosts(options: {
       try {
         return await navigator.locks.request(name, signal ? { signal } : {}, locked);
       } catch (error) {
-        if (!entered && !signal?.aborted) throw new Error('connection-operation-lock-unavailable');
+        if (!entered && !signal?.aborted)
+          throw new Error('connection-operation-lock-unavailable', { cause: error });
         throw error;
       }
     },

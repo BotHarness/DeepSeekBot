@@ -1481,7 +1481,7 @@ export interface BridgeMethodsDeps {
     | {
         engine: string;
         account?: string;
-        state: 'starting' | 'running' | 'idle';
+        state: 'starting' | 'running' | 'waiting-approval' | 'idle';
         quota?: SessionEngineQuota;
       }
     | undefined;

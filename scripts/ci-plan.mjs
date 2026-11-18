@@ -126,6 +126,7 @@ export const RULES = [
   related('scripts/product-provider/**', 'Product provider scripts'),
   related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
   related('scripts/ui-visual/**', 'Component gallery, checked by the UI visual job'),
+  related('verification/**', 'TLA+ models, checked by scripts/verify-tla.mjs in the static job'),
   related('scripts/*', 'Repository scripts'),
   none('docs/**', 'Documentation synced into the docs site', true),
   none('{CHANGELOG,CHANGELOG.zh,CONTEXT,CONTEXT.zh}.md', 'Release Ledger and glossary pages', true),

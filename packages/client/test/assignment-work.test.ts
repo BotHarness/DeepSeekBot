@@ -5,13 +5,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
   Tag: ({ children }: { children: unknown }) => createElement('span', null, children as never),
-  Menu: () => null,
+
   IconEllipsisOutlineRegular: () => null,
   IconRefreshOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: unknown }) => children,
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
 

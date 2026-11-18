@@ -17,7 +17,8 @@ vi.mock('../src/client/modal.js', () => ({
   Modal: ({ children, title }: { children: ReactNode; title: string }) =>
     createElement('section', { role: 'dialog', 'aria-label': title }, children),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),

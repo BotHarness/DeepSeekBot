@@ -262,7 +262,11 @@ export class AssignmentApprovalCapacity {
         reject,
         abort: () => {
           this.#removeAcquire(acquire);
-          reject(signal.reason ?? new Error('Assignment capacity wait cancelled'));
+          reject(
+            signal.reason instanceof Error
+              ? signal.reason
+              : new Error('Assignment capacity wait cancelled', { cause: signal.reason }),
+          );
           this.changed();
         },
       };

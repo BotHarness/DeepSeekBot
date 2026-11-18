@@ -36,7 +36,8 @@ vi.mock('../src/client/ds/panel-dialog.js', () => ({
       h('button', { onClick: onClose }, 'close'),
     ),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, size: _size, ...props }: { children: ReactNode; size: string }) =>
     h('button', props, children),
   Switch: ({

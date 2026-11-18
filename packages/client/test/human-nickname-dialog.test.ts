@@ -9,38 +9,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   const { createElement: element } = await import('react');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
     IconCheckOutlineRegular: () => null,
     IconSettingsOutlineRegular: () => null,
     IconTrashOutlineRegular: () => null,
     IconUserOutlineRegular: () => null,
-    Menu: ({
-      open,
-      anchor,
-      items,
-      onSelect,
-    }: {
-      open: boolean;
-      anchor: ReactNode;
-      items: readonly Item[];
-      onSelect(id: string): void;
-    }) =>
-      element(
-        'div',
-        null,
-        anchor,
-        open
-          ? items
-              .filter((item) => item.type === undefined)
-              .map((item) =>
-                element(
-                  'button',
-                  { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-                  item.label,
-                ),
-              )
-          : null,
-      ),
   };
 });
 
@@ -48,7 +22,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { ChannelHeaderMenu } from '../src/client/human-channel-name.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import type { ChannelSummary } from '../src/client/store.js';
-import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
+import { menuItem, buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const GROUP = {
   id: 'g-qa',
@@ -91,7 +65,7 @@ async function openNickname(
     ),
   );
   await act(async () => buttonNamed(t('humanNickname.menu')).click());
-  await act(async () => buttonNamed(t('humanNickname.title')).click());
+  await act(async () => menuItem(t('humanNickname.title')).click());
 }
 
 const nickname = () => fieldNamed(t('humanNickname.title'));

@@ -15,6 +15,16 @@ export interface ModelCatalogEntry {
   restingUntil?: string;
 }
 
+export function modelEffortChoices(entry: Pick<ModelCatalogEntry, 'efforts' | 'defaultEffort'>) {
+  const ids = ['', ...(entry.efforts ?? []).map((effort) => effort.id)];
+  const allowedEfforts = [...new Set(ids)].slice(0, 16);
+  const preferred = entry.defaultEffort ?? '';
+  return {
+    allowedEfforts,
+    defaultEffort: allowedEfforts.includes(preferred) ? preferred : '',
+  };
+}
+
 export interface ModelCatalogGroup {
   id: string;
   name: string;

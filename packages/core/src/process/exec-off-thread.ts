@@ -152,7 +152,7 @@ function direct(
       );
     } catch (error) {
       recordSchedulingDiagnostic({ kind: 'exec-settle', ...diagnostic, outcome: 'error' });
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
     }
   });
 }
@@ -194,7 +194,7 @@ async function run(
       } catch (error) {
         pending.delete(id);
         if (pending.size === 0) runner.unref();
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       }
     });
     const result = settle(reply, encoding);

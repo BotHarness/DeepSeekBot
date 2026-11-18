@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 
 import { BotCreateSourceModal, BotCreateSteps } from '../src/client/bot-create-source.js';
@@ -29,11 +29,13 @@ describe('Bot creation method dialog', () => {
           }),
         ),
       );
-      const cards = node.querySelectorAll<HTMLButtonElement>('.bh-card-list button');
+      const cards = document.body.querySelectorAll<HTMLButtonElement>('.bh-card-list button');
       expect(cards).toHaveLength(3);
       for (const card of cards) await act(() => card.click());
       expect(onSelect.mock.calls).toEqual([['empty'], ['git'], ['zip']]);
-      expect(node.querySelector('[aria-current="step"]')?.textContent).toContain('选择方式');
+      expect(document.body.querySelector('[aria-current="step"]')?.textContent).toContain(
+        '选择方式',
+      );
     } finally {
       await act(() => root.unmount());
       node.remove();
@@ -58,13 +60,13 @@ describe('Bot creation method dialog', () => {
           ),
         );
       await render(false);
-      const zip = node.querySelectorAll<HTMLButtonElement>('.bh-card-list button')[2]!;
+      const zip = document.body.querySelectorAll<HTMLButtonElement>('.bh-card-list button')[2]!;
       expect(zip.disabled).toBe(true);
       await act(() => zip.click());
       expect(onSelect).not.toHaveBeenCalled();
       expect(zip.textContent).toContain('切换到本机后使用');
       await render(true);
-      expect(node.querySelectorAll('.bh-card-list button')).toHaveLength(1);
+      expect(document.body.querySelectorAll('.bh-card-list button')).toHaveLength(1);
     } finally {
       await act(() => root.unmount());
     }

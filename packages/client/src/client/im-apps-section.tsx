@@ -1,7 +1,8 @@
 import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 
-import { closeTopModal, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { closeTopShellLayer } from './ds/shell-layer.js';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
@@ -45,7 +46,7 @@ export function createImApps({
   openDshSettings = (returned, unavailable) =>
     openExternalBindingSettings(document, returned, () => {
       if (document.querySelector('[role="dialog"][aria-modal="true"]') !== null)
-        closeTopModal(document);
+        closeTopShellLayer(document);
       unavailable();
     }),
 }: {

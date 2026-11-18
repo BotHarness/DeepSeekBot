@@ -313,6 +313,7 @@ export function createContainerBrowserExecution(
       );
       throw new Error(
         `Container Bot Browser startup failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
   };

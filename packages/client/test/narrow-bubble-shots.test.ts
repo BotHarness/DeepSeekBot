@@ -4,7 +4,7 @@ import { act, createElement, type PropsWithChildren } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   const CopyArtwork = ({ size = 16 }: { size?: number }) =>
@@ -33,6 +33,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       }),
     );
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
@@ -59,14 +60,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: stub,
-    Menu: stub,
-    MenuItemButton: stub,
+
     MarkdownText: stub,
-    Modal: stub,
+
     SegmentedControl: stub,
     StateDot: stub,
     Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });

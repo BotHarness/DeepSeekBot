@@ -3,8 +3,9 @@ import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren }
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => children,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   Button: ({
     children,
     icon: _icon,

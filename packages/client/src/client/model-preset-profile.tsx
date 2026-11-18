@@ -5,6 +5,7 @@ import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
+import { modelEffortChoices } from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -727,15 +728,9 @@ export function ModelPresetProfile({
                 }
                 const entry = catalog.find((item) => modelKey(item) === key);
                 if (entry === undefined) return;
-                const effort = entry.defaultEffort ?? '';
                 edit({
                   allowed: [
-                    {
-                      provider: entry.provider,
-                      model: entry.model,
-                      allowedEfforts: [effort],
-                      defaultEffort: effort,
-                    },
+                    { provider: entry.provider, model: entry.model, ...modelEffortChoices(entry) },
                     ...draft.allowed,
                   ],
                 });

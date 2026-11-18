@@ -14,12 +14,13 @@ vi.mock('../src/client/host-tabs.js', async (original) => ({
 
 const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     IconPanelLeftOutlineRegular: stub,
     IconSettingsOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     isDarwinDesktop: () => false,
   };
 });

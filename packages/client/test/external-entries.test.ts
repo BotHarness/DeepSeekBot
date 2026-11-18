@@ -12,6 +12,7 @@ import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   Button: ({
     variant: _variant,
@@ -24,14 +25,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     createElement('button', { role: 'switch', 'aria-label': label, 'aria-checked': checked }),
   Checkbox: () => null,
   IconInfoOutlineRegular: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Modal: ({
-    open,
-    title,
-    children,
-    footer,
-  }: PropsWithChildren<{ open: boolean; title: string; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
@@ -151,23 +144,25 @@ const props = {
 
 it('lists Bot identities and pending pairings without a standalone platform guide', async () => {
   await act(async () => root.render(createElement(ExternalIdentitiesEntry, props)));
-  const titles = [...host.querySelectorAll('.bh-card-title')].map((node) => node.textContent);
+  const titles = [...document.body.querySelectorAll('.bh-card-title')].map(
+    (node) => node.textContent,
+  );
   expect(titles).toEqual([
     'Ada on Lark',
     zhTranslate('identity.bind'),
     zhTranslate('pairing.title'),
     zhTranslate('approvalIm.title'),
   ]);
-  expect(host.querySelector('[role="switch"]')?.getAttribute('aria-label')).toBe(
+  expect(document.body.querySelector('[role="switch"]')?.getAttribute('aria-label')).toBe(
     zhTranslate('identity.enableFor', { name: 'Ada on Lark' }),
   );
-  expect(host.textContent).toContain(zhTranslate('pairing.pendingCount', { count: 1 }));
-  expect(host.querySelector('[data-anchor="lark-bind"]')).not.toBeNull();
+  expect(document.body.textContent).toContain(zhTranslate('pairing.pendingCount', { count: 1 }));
+  expect(document.body.querySelector('[data-anchor="lark-bind"]')).not.toBeNull();
 });
 
 it('lists connectors as rows with the conversation authorization row last', async () => {
   await act(async () => root.render(createElement(ExternalConnectorsEntry, props)));
-  const rows = [...host.querySelectorAll('.bh-card-row')];
+  const rows = [...document.body.querySelectorAll('.bh-card-row')];
   expect(rows.map((row) => row.querySelector('.bh-card-title')?.textContent)).toEqual([
     'QA intake',
     zhTranslate('im.authorizeRow'),
@@ -176,7 +171,7 @@ it('lists connectors as rows with the conversation authorization row last', asyn
   expect(rows[0]?.textContent).toContain(zhTranslate('reception.receiving'));
   expect(rows[1]?.getAttribute('data-anchor')).toBe('lark-grant');
   await act(async () => rows[0]!.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
-  expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+  expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
     zhTranslate('bridge.edit'),
   );
 });
@@ -268,9 +263,9 @@ it('clears a failed load after a successful explicit refresh', async () => {
     return createElement('div', { ref: state.mount }, state.failed ? 'failed' : 'ok');
   }
   await act(async () => root.render(createElement(Probe)));
-  expect(host.textContent).toBe('failed');
+  expect(document.body.textContent).toBe('failed');
   await act(async () => refresh());
-  expect(host.textContent).toBe('ok');
+  expect(document.body.textContent).toBe('ok');
 });
 
 it('returns from QR settings to the retained bind dialog with newly paired and occupied apps refreshed', async () => {
@@ -320,14 +315,14 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
     ),
   );
   const button = (text: string) =>
-    [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === text || b.querySelector('.bh-card-title')?.textContent === text,
     )!;
   await act(async () => button(zhTranslate('identity.bind')).click());
-  const refreshButton = host.querySelector<HTMLButtonElement>('[aria-label="刷新应用"]')!;
+  const refreshButton = document.body.querySelector<HTMLButtonElement>('[aria-label="刷新应用"]')!;
   expect(refreshButton.textContent).toBe('');
   expect(refreshButton.parentElement?.querySelector('[role="combobox"]')).not.toBeNull();
-  await chooseOption('应用', 'dsh-im/weixin:existing', host);
+  await chooseOption('应用', 'dsh-im/weixin:existing', document.body);
   expect(messagingSnapshot).toHaveBeenCalledTimes(2);
   await act(async () => button(zhTranslate('identity.manageApps')).click());
   expect(settings.isConnected).toBe(true);
@@ -346,13 +341,13 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
     ],
   };
   await act(async () => settings.remove());
-  expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+  expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
     zhTranslate('identity.bind'),
   );
   expect(messagingSnapshot).toHaveBeenCalledTimes(3);
-  expect(combobox('应用', host).value).toBe('Existing app');
-  expect(host.textContent).toContain('添加新应用');
-  await openCombobox('应用', host);
+  expect(combobox('应用', document.body).value).toBe('Existing app');
+  expect(document.body.textContent).toContain('添加新应用');
+  await openCombobox('应用', document.body);
   expect(comboboxOption('dsh-im/weixin:new-wechat')?.disabled).toBe(false);
   expect(comboboxOption('dsh-im/weixin:occupied')?.textContent).toContain('已绑定其他 Bot');
   expect(comboboxOption('dsh-im/weixin:occupied')?.disabled).toBe(true);
@@ -360,10 +355,10 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
     document.querySelector<HTMLButtonElement>('[role="option"][data-action]')!.click(),
   );
   expect(settings.isConnected).toBe(true);
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"][aria-label]')).toBeNull();
   await act(async () => settings.remove());
   expect(messagingSnapshot).toHaveBeenCalledTimes(4);
-  expect(combobox('应用', host).value).toBe('Existing app');
+  expect(combobox('应用', document.body).value).toBe('Existing app');
 });
 
 it('keeps a failed app refresh recoverable in the same dialog', async () => {
@@ -380,9 +375,9 @@ it('keeps a failed app refresh recoverable in the same dialog', async () => {
   );
   messagingSnapshot.mockRejectedValueOnce(new Error('Provider unavailable'));
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
+    document.body.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
   );
-  expect(host.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe(
+  expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe(
     '刷新应用失败，请重试。',
   );
   messagingSnapshot.mockResolvedValueOnce({
@@ -399,12 +394,12 @@ it('keeps a failed app refresh recoverable in the same dialog', async () => {
     ],
   });
   await act(async () =>
-    [...host.querySelectorAll<HTMLButtonElement>('button')]
+    [...document.body.querySelectorAll<HTMLButtonElement>('button')]
       .find((b) => b.getAttribute('aria-label') === '刷新应用')!
       .click(),
   );
-  expect(host.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
-  await openCombobox('应用', host);
+  expect(document.body.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
+  await openCombobox('应用', document.body);
   expect(comboboxOption('dsh-im/weixin:recovered')?.disabled).toBe(false);
 });
 
@@ -428,20 +423,20 @@ it('does not reopen a closed bind dialog when an app refresh settles later', asy
       }),
   );
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
+    document.body.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
   );
-  expect(host.querySelector('[role="status"]')?.textContent).toBe('正在刷新应用…');
-  const bind = [...host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
-    (b) => b.textContent === '绑定应用',
-  )!;
+  expect(document.body.querySelector('[role="status"]')?.textContent).toBe('正在刷新应用…');
+  const bind = [
+    ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+  ].find((b) => b.textContent === '绑定应用')!;
   expect(bind.disabled).toBe(true);
   await act(async () =>
-    [...host.querySelectorAll<HTMLButtonElement>('button')]
+    [...document.body.querySelectorAll<HTMLButtonElement>('button')]
       .find((b) => b.textContent === '取消')!
       .click(),
   );
   await act(async () => finish(initial));
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 });
 
 it('releases the settings return watcher when the Bot sidebar unmounts', async () => {
@@ -467,10 +462,10 @@ it('releases the settings return watcher when the Bot sidebar unmounts', async (
     ),
   );
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
+    document.body.querySelector<HTMLButtonElement>('[data-anchor="lark-bind"] button')!.click(),
   );
   await act(async () =>
-    [...host.querySelectorAll<HTMLButtonElement>('button')]
+    [...document.body.querySelectorAll<HTMLButtonElement>('button')]
       .find((b) => b.textContent === '添加新应用')!
       .click(),
   );
@@ -479,5 +474,5 @@ it('releases the settings return watcher when the Bot sidebar unmounts', async (
   await act(async () => root.render(createElement('div')));
   await act(async () => settings.remove());
   expect(messagingSnapshot).toHaveBeenCalledTimes(2);
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 });

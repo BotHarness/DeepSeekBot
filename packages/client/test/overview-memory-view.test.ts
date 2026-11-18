@@ -6,7 +6,8 @@ import { createActions } from '../src/client/actions.js';
 import { createStore } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeCall } from '../src/client/bridge.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => createElement('svg'),
   IconRightUpOutlineRegular: () => createElement('svg'),
 }));

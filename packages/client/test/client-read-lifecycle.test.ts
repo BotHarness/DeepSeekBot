@@ -13,16 +13,14 @@ vi.mock('../src/client/ds/switch.js', async () => ({
   Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
   Switch: () => null,
-  Modal: () => null,
+
   Input: (props: import('react').InputHTMLAttributes<HTMLInputElement>) =>
     createElement('span', null, createElement('input', props)),
-  MenuSurface: (await import('react')).forwardRef<
-    HTMLDivElement,
-    import('react').HTMLAttributes<HTMLDivElement> & { compact?: boolean }
-  >(({ compact: _compact, ...props }, ref) => createElement('div', { ...props, ref })),
+
   useAnchoredPosition: () => ({ top: 0, left: 0 }),
   useDismissOnOutsidePointer: () => undefined,
   IconChevronDownOutlineRegular: () => null,
@@ -34,9 +32,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   IconPinOutlineRegular: () => null,
   IconRefreshOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
-  Menu: ({ anchor }: { anchor: ReactNode }) => anchor,
+
   IconBranchOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   IconCloseOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
   IconPlusOutlineRegular: () => null,
@@ -399,7 +397,7 @@ describe('mounted request ownership', () => {
     expect(host.querySelector('form [role="alert"]')?.textContent).toBe(
       zhTranslate('sourcePolicy.saveFailed'),
     );
-    await act(async () => buttonNamed(zhTranslate('sourcePolicy.reset'), host).click());
+    await act(async () => buttonNamed(zhTranslate('sourcePolicy.reset'), document.body).click());
     expect(actions.resetBotSourcePolicy).toHaveBeenCalledWith('dora', 'group-ordinary');
     expect(host.querySelector('form')).toBeNull();
   });

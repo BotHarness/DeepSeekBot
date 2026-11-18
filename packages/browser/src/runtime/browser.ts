@@ -970,7 +970,8 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       try {
         await Promise.race([
           live.send('Target.closeTarget', { targetId }).then((closed) => {
-            if (closed['success'] === false) throw new Error('Navigation cleanup was refused');
+            if (closed['success'] === false)
+              throw new Error('Navigation cleanup was refused', { cause: error });
             sessions.delete(targetId);
           }),
           new Promise<never>((_resolve, reject) => {

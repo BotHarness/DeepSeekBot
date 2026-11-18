@@ -6,7 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const layer = vi.hoisted(() => ({
   calls: [] as { element: HTMLElement | null; open: boolean; onClose: () => void }[],
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   useModalLayer: (element: RefObject<HTMLElement | null>, open: boolean, onClose: () => void) => {
     layer.calls.push({ element: element.current, open, onClose });
   },

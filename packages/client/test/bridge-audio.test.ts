@@ -5,39 +5,19 @@ import { expect, it, vi } from 'vitest';
 import { parseChannelMessage } from '../src/client/bridge.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
-  Modal: () => null,
+
   FileTypeIcon: () => null,
   MarkdownText: () => null,
   StateDot: () => null,
   IconDownloadOutlineRegular: () => null,
   IconPlayOutlineRegular: () => null,
   IconPauseOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({
-    anchor,
-    items,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    items: { id: string; label?: ReactNode }[];
-    onSelect: (id: string) => void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'menu' },
-      anchor,
-      items.map((item) =>
-        createElement(
-          'button',
-          { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
-          item.label,
-        ),
-      ),
-    ),
+
   fileSizeText: (size: number) => `${size} B`,
 }));
 vi.mock('../src/client/messaging-defaults-live.js', () => ({

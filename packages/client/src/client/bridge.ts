@@ -3984,7 +3984,7 @@ export interface SessionEngineQuota {
 export interface SessionEngine {
   engine: string;
   account?: string;
-  state: 'starting' | 'running' | 'idle';
+  state: 'starting' | 'running' | 'waiting-approval' | 'idle';
   quota?: SessionEngineQuota;
 }
 
@@ -4021,7 +4021,8 @@ function parseSessionEngine(value: unknown): SessionEngine | undefined {
   return {
     engine: engine['engine'],
     ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
-    state: state === 'starting' || state === 'running' ? state : 'idle',
+    state:
+      state === 'starting' || state === 'running' || state === 'waiting-approval' ? state : 'idle',
     ...(quota === undefined ? {} : { quota }),
   };
 }

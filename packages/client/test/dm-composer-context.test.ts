@@ -112,7 +112,8 @@ vi.mock('../src/client/model-picker.js', () => ({
   ModelPicker: ({ title, hint }: { title: string; hint: string }) =>
     createElement('div', null, title, hint),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   Button: ({ children, onClick }: { children: ReactNode; onClick(): void }) =>
     createElement('button', { onClick }, children),
   IconPinFillRegular: () => null,
@@ -121,8 +122,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronRightOutlineRegular: () => null,
   IconChevronDownOutlineRegular: () => null,
   useDismissOnOutsidePointer: () => undefined,
-  Modal: ({ children, title }: { children: ReactNode; title: string }) =>
-    createElement('div', { role: 'dialog', 'aria-label': title }, children),
 }));
 
 async function openModelSettings(chip: HTMLButtonElement): Promise<void> {

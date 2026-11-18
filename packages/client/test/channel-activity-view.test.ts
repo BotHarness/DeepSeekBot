@@ -5,7 +5,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/client/overview-usage-view.js', () => ({ OverviewUsageView: () => null }));
 vi.mock('../src/client/overview-memory-view.js', () => ({ OverviewMemoryView: () => null }));
 vi.mock('../src/client/channel-activity-chart.js', () => ({ ChannelActivityChart: () => null }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   IconRefreshOutlineRegular: () => null,
   IconRightUpOutlineRegular: () => null,
   IconChevronDownOutlineRegular: () => null,

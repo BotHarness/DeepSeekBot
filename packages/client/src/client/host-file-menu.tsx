@@ -10,8 +10,8 @@ import {
   IconRefreshOutlineRegular,
   IconSettingsOutlineRegular,
   writeClipboard,
-  type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import {
   fileOpenScope,
@@ -303,7 +303,9 @@ function HostFileMenu({
           if (app === undefined) preferences.clear(scope);
           else preferences.set(scope, { application: app.id, name: app.name });
         } catch (failure) {
-          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }));
+          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }), {
+            cause: failure,
+          });
         }
         onClose(
           app === undefined
