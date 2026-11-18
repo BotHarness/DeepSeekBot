@@ -32,9 +32,10 @@ export interface EngineSelectionView {
   engine: EngineId;
   model?: string;
   effort?: string;
+  fallback?: boolean;
 }
 
-type ModelSelection = Pick<EngineSelectionView, 'model' | 'effort'>;
+type ModelSelection = Pick<EngineSelectionView, 'model' | 'effort' | 'fallback'>;
 type EngineOption = { id: string; name: string };
 type EngineModel = EngineOption & {
   efforts: EngineOption[];
@@ -111,6 +112,7 @@ export function parseEngines(value: unknown): EnginesView {
       const role = entry?.['role'];
       const model = entry?.['model'];
       const effort = entry?.['effort'];
+      const fallback = entry?.['fallback'];
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
         typeof engine === 'string' &&
@@ -124,6 +126,7 @@ export function parseEngines(value: unknown): EnginesView {
               engine: engine as EngineId,
               ...(typeof model === 'string' && model !== '' ? { model } : {}),
               ...(typeof effort === 'string' && effort !== '' ? { effort } : {}),
+              ...(role === 'orchestrator' && typeof fallback === 'boolean' ? { fallback } : {}),
             },
           ]
         : [];
@@ -191,6 +194,7 @@ export const engineApi: EngineApi = {
       engine,
       model: selection?.model,
       effort: selection?.effort,
+      fallback: selection?.fallback,
     });
   },
   async login(engine) {
@@ -528,14 +532,19 @@ export function EngineChoice({
             );
           })}
         </SidebarCardList>
-        {assignment && selected !== undefined && selectedStatus?.available === true ? (
+        {selected !== undefined && selectedStatus?.available === true ? (
           <EngineModelChoice
             key={selected.engine}
             selection={selected}
             api={api}
             t={t}
             disabled={busy !== undefined}
-            onChange={(next) => choose(role, selected.engine, next)}
+            onChange={(next) =>
+              choose(role, selected.engine, {
+                ...next,
+                ...(selected.fallback === undefined ? {} : { fallback: selected.fallback }),
+              })
+            }
           />
         ) : null}
       </div>

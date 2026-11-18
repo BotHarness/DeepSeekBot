@@ -1950,7 +1950,7 @@ export const zh = {
   'engine.title': 'Subscription Engine',
   'engine.orchestratorTitle': '主模型订阅引擎',
   'engine.assignmentTitle': '副模型订阅引擎',
-  'engine.orchestratorHint': '用你自己的订阅运行 Orchestrator，代替主模型',
+  'engine.orchestratorHint': '用你自己的订阅运行 Orchestrator，代替主模型，选择后立即生效',
   'engine.assignmentHint': '用你自己的订阅运行分派任务，选择后立即生效',
   'engine.model': '引擎模型',
   'engine.effort': '推理强度',
@@ -8340,7 +8340,7 @@ export const en = {
   'engine.orchestratorTitle': 'Main subscription engine',
   'engine.assignmentTitle': 'Task subscription engine',
   'engine.orchestratorHint':
-    'Run the Orchestrator on your own subscription instead of the main model',
+    'Run the Orchestrator on your subscription instead of the main model. Changes apply immediately.',
   'engine.assignmentHint': 'Run delegated tasks on your subscription. Changes apply immediately.',
   'engine.model': 'Engine model',
   'engine.effort': 'Reasoning effort',

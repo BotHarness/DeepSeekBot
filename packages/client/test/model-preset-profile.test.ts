@@ -402,13 +402,18 @@ function presetPlan(preset: ModelPresetView, revision: number): ModelPlanView {
 
 describe('Model entry', () => {
   it('sets an Assignment engine, model and effort independently and restores the choice on reopen', async () => {
-    const orchestrator = { botSlug: 'ada', role: 'orchestrator', engine: 'claude', fallback: true };
+    let orchestrator: Record<string, unknown> = {
+      botSlug: 'ada',
+      role: 'orchestrator',
+      engine: 'claude',
+      fallback: true,
+    };
     let assignment: Record<string, unknown> | undefined;
     let reads = 0;
     const writes: Record<string, unknown>[] = [];
-    const models = vi.fn(() =>
+    const models = vi.fn((engine: string) =>
       Response.json({
-        engine: 'codex',
+        engine,
         models: [
           {
             id: 'gpt',
@@ -435,12 +440,10 @@ describe('Model entry', () => {
         });
       }
       const request = JSON.parse(String(init.body));
-      if (request.action === 'models') {
-        expect(request).toEqual({ action: 'models', engine: 'codex' });
-        return models();
-      }
+      if (request.action === 'models') return models(request.engine);
       writes.push(request);
-      assignment = request.engine === null ? undefined : { ...request, botSlug: request.bot };
+      if (request.role === 'orchestrator') orchestrator = { ...request, botSlug: request.bot };
+      else assignment = request.engine === null ? undefined : { ...request, botSlug: request.bot };
       return Response.json({});
     });
     const actions = markOriginActions({
@@ -450,10 +453,14 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     const group = (role: 'orchestrator' | 'assignment') =>
       document.querySelector(`[data-engine-choice="${role}"]`);
-    const select = (label: string) =>
-      document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
-    const pickEngineOption = async (label: string, option: string) => {
-      await act(async () => select(label)!.click());
+    const select = (label: string, role: 'orchestrator' | 'assignment' = 'assignment') =>
+      group(role)?.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) ?? null;
+    const pickEngineOption = async (
+      label: string,
+      option: string,
+      role: 'orchestrator' | 'assignment' = 'assignment',
+    ) => {
+      await act(async () => select(label, role)!.click());
       const item = [
         ...document.querySelectorAll<HTMLElement>(
           '[data-pointer-menu] button, [data-pointer-menu] [role^="menuitem"]',
@@ -466,7 +473,21 @@ describe('Model entry', () => {
       const host = await render(actions);
       await openEditor(host);
       expect(reads).toBe(1);
-      expect(models).not.toHaveBeenCalled();
+      expect(models).toHaveBeenCalledExactlyOnceWith('claude');
+      expect(select('Engine model', 'orchestrator')?.textContent).toBe('Engine default');
+      await pickEngineOption('Engine model', 'GPT', 'orchestrator');
+      expect(writes).toEqual([
+        {
+          action: 'use',
+          bot: 'ada',
+          role: 'orchestrator',
+          engine: 'claude',
+          model: 'gpt',
+          fallback: true,
+        },
+      ]);
+      writes.length = 0;
+      models.mockClear();
       expect(group('orchestrator')?.querySelector('[data-selected]')?.textContent).toContain(
         'Claude Code',
       );
@@ -478,7 +499,7 @@ describe('Model entry', () => {
       await pickEngineOption('Engine model', 'GPT');
       expect(select('Reasoning effort')?.textContent).toBe('Default · Medium');
       await pickEngineOption('Reasoning effort', 'High');
-      expect(models).toHaveBeenCalledOnce();
+      expect(models).toHaveBeenCalledExactlyOnceWith('codex');
       expect(writes).toEqual([
         { action: 'use', bot: 'ada', role: 'assignment', engine: 'codex' },
         { action: 'use', bot: 'ada', role: 'assignment', engine: 'codex', model: 'gpt' },
