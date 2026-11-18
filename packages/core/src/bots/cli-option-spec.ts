@@ -168,6 +168,8 @@ export const MODELS_USAGE_OPTIONS = {
   'members-stdin': { type: 'boolean' },
   'orchestrator-group': { type: 'string' },
   group: { type: 'string' },
+  'assignment-groups': { type: 'string' },
+  'assignment-default-group': { type: 'string' },
   period: { type: 'string' },
   after: { type: 'string' },
   start: { type: 'string' },

@@ -393,6 +393,18 @@ type AdminResult<T, M = BotMetadataResult> = T | M;
 
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
 
+function presetGroupArgs(
+  orchestratorGroupId: string | null | undefined,
+  assignmentGroups: string[] | undefined,
+  assignmentDefaultGroupId: string | null | undefined,
+): Record<string, unknown> {
+  return {
+    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+    ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+    ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+  };
+}
+
 export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
 
@@ -1282,18 +1294,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   modelPresetCreate(
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(orchestratorGroupId, assignmentGroups, assignmentDefaultGroupId),
       }),
     );
   }
@@ -1302,20 +1318,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     id: string,
     expectedRevision: number,
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
         id,
         expectedRevision,
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(orchestratorGroupId, assignmentGroups, assignmentDefaultGroupId),
       }),
     );
   }

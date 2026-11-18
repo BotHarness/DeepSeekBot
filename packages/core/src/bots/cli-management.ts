@@ -19,7 +19,7 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-import { assignmentModelsMode } from './cli-models-usage.js';
+import { assignmentModelsMode, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 import type { PersonaBotDeletionPreview } from './deletion.js';
 
@@ -152,20 +152,32 @@ export async function runOnlineManagement(
   let presetInput:
     | {
         name: string;
-        orchestrator: ModelRoute;
+        orchestrator?: ModelRoute;
         assignmentDefault: ModelRoute;
         assignmentModels?: AssignmentModelOption[];
         openAssignmentModels?: boolean;
+        orchestratorGroupId?: string | null;
+        assignmentGroups?: string[];
+        assignmentDefaultGroupId?: string | null;
       }
     | undefined;
   if (command === 'model-preset-create') {
     const name = values.name?.trim();
     if (!name) usage('--name is required for a Model Preset.');
+    const groups = presetGroupFlags(values);
+    if (groups.orchestratorGroupId && values['orchestrator-provider'] !== undefined)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    if (
+      groups.assignmentDefaultGroupId &&
+      !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
+    )
+      usage('--assignment-default-group must be one of --assignment-groups.');
     presetInput = {
       name,
-      orchestrator: route(values, 'orchestrator'),
+      ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
       assignmentDefault: route(values, 'assignment'),
       ...assignmentModelsMode(values['assignment-models']),
+      ...groups,
     };
     if (values['plan-stdin']) {
       let input: unknown;
