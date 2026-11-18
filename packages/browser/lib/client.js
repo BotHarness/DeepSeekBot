@@ -10460,10 +10460,10 @@ window.__ModuleLoader__.load({
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(TooltipPopup, {
 						id: descriptionId,
 						role: "tooltip",
-						className: [APPEARANCE_CLASS, { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx1e5nl48 bhx1bcthrq bhx7em7do bhxvz6vxc bhx1k5awnc bhxb3z3mx bhx103lb5k bhxh82noc bhx1g71p44 bhxj0a0fe bhxpv5g7k bhx1cbrp87 bhx1u6grsq" }.className].join(" "),
+						className: [APPEARANCE_CLASS, { className: "bhx9f619 bhx3nfvp2 bhx6s0dn4 bhx1e5nl48 bhx1bcthrq bhx7em7do bhxvz6vxc bhxdoljrk bhxwm96u7 bhxh82noc bhx1g71p44 bhxj0a0fe bhxpv5g7k bhx1cbrp87 bhx1u6grsq" }.className].join(" "),
 						style: { maxWidth },
 						children: [text, shortcutKeys === void 0 || shortcutKeys.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "bhx3nfvp2 bhx1axu3v7",
+							className: "bhx3nfvp2 bhxwm96u7 bhxf9vgkq",
 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyCombo, { keys: shortcutKeys })
 						})]
 					})
@@ -13782,8 +13782,8 @@ window.__ModuleLoader__.load({
 			const listClass = [
 				APPEARANCE_CLASS,
 				{
-					0: { className: "bhx9f619 bhx78zum5 bhxdt5ytf bhxfb3i0g bhx74h4c1 bhx8l92br bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1a2a7pz bhxpv5g7k bhx1cbrp87 bhx1u6grsq" },
-					1: { className: "bhx9f619 bhx78zum5 bhxdt5ytf bhx74h4c1 bhx8l92br bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxjb2p0i bhx1a2a7pz bhxpv5g7k bhx1cbrp87 bhx1u6grsq bhxh82noc bhx1g71p44 bhx1d77m7x" }
+					0: { className: "bhx9f619 bhx78zum5 bhxdt5ytf bhx1d77m7x bhx74h4c1 bhx8l92br bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxjb2p0i bhx1779mkw bhxe5wb2f bhx1a2a7pz bhxpv5g7k bhx1cbrp87 bhx1u6grsq" },
+					1: { className: "bhx9f619 bhx78zum5 bhxdt5ytf bhx74h4c1 bhx8l92br bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxjb2p0i bhx1a2a7pz bhxpv5g7k bhx1cbrp87 bhx1u6grsq bhxh82noc bhx1g71p44 bhx1i9suas" }
 				}[!!compact << 0].className,
 				listClassName
 			].filter(Boolean).join(" ");
@@ -13863,7 +13863,7 @@ window.__ModuleLoader__.load({
 					APPEARANCE_CLASS,
 					{
 						0: { className: "bhx9f619 bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhx1779mkw bhxe5wb2f" },
-						1: { className: "bhx9f619 bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxh82noc bhx1g71p44 bhx1d77m7x" }
+						1: { className: "bhx9f619 bhx1bcthrq bhx1i9s7pd bhx1k5awnc bhxb3z3mx bhx103lb5k bhxh82noc bhx1g71p44 bhx1i9suas" }
 					}[!!compact << 0].className,
 					className
 				].filter(Boolean).join(" ")
@@ -14749,6 +14749,7 @@ window.__ModuleLoader__.load({
 .bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}
 .bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
 .bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}
+.bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}
 .bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
 .bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}
 .bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}
@@ -14773,6 +14774,7 @@ window.__ModuleLoader__.load({
 .bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}
 .bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}
 .bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}
+.bhxwm96u7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-layer-canvas)}
 .bhx1btfezm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-state-selected-ink)}
 .bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}
 .bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}
@@ -14812,6 +14814,7 @@ window.__ModuleLoader__.load({
 .bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
+.bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}
 .bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}
 .bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}
 .bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
@@ -14883,8 +14886,8 @@ window.__ModuleLoader__.load({
 .bhx1ty6q3q:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:32px}
 .bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}
 .bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}
+.bhx1i9suas:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:120px}
 .bhx1d77m7x:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:140px}
-.bhxfb3i0g:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:180px}
 .bhx1oslful:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:22px}
 .bhx1odjw0f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){overflow-y:auto}
 .bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}

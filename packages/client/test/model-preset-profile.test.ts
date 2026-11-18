@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { dialog } from './primitive-mocks.js';
 import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -1027,7 +1028,7 @@ describe('Model entry', () => {
       setModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
-    expect(host.textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    expect(dialog().textContent).toContain(translate('modelPreset.groupEffortsStale'));
     await act(async () => button(translate('modelPreset.groupEffortsClear')).click());
     await act(async () => button(translate('modelPreset.save')).click());
     expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
@@ -1065,8 +1066,8 @@ describe('Model entry', () => {
       modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
     } as unknown as BridgeActions);
     await openEditor(host);
-    expect(host.textContent).toContain(translate('modelPreset.groupEffortsStale'));
-    expect(host.textContent).toContain(translate('modelPreset.allowedEfforts'));
+    expect(dialog().textContent).toContain(translate('modelPreset.groupEffortsStale'));
+    expect(dialog().textContent).toContain(translate('modelPreset.allowedEfforts'));
   });
 
   it('saves the current settings as a new preset and links the Bot to it', async () => {
