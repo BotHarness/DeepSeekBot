@@ -84,3 +84,14 @@ Mode templates and Assignment modes follow the same rules:
 - `create_assignment` takes an optional `mode` from that set. The chosen mode is stored with the Assignment (`assignments.agent_preset`) so a restart before the Session exists still starts it in that mode; without a choice the Assignment uses the Bot's mode.
 - When an existing Session is set up again, the application mounts the mode the Session log records (the DSH `agentPreset` projection), not the Bot's current mode, so a later mode change never mounts a different composition into a Session that started under another one.
 - In Team mode a member's Bot follows these same rules (ADR-0336, amended 2026-11-18). The Owner-only `danger-full-access` Assignment preset is a separate check and is unchanged.
+
+## Amendment: scenario modes for Assignments, chosen by the Orchestrator
+
+An A/B on `deepseek-v4.1-flash` (5 tasks, 30 runs per arm) showed that the Orchestrator keeps an Assignment in the default mode unless it sees the alternatives when it starts the Assignment. With the allowed modes only in `list_assignment_models`, which it never called, it chose another mode for 4 of 42 Assignments. A lighter default (`minimal`) for every Assignment cost more on web research than it saved on scripts.
+
+- The product bundle ships three scenario modes beside Tobs: `tobs-research`, `tobs-code` and `tobs-script`. Each copies the generated Tobs preset and keeps a fixed list of its plugins, so timed questions and the disabled native Subagent tools carry over. `scripts/sync-bot-preset.mjs` generates them in the same region and its `--check` fails when a kept plugin disappears from the standard preset.
+- Each mode's description says what work it suits and what it cannot do.
+- When a Bot may use more than one mode, `create_assignment`'s `mode` parameter lists the allowed ids as an enum with each description. They are read when the Orchestrator Session is prepared; the tool's run-time check still refuses a mode the template no longer allows.
+- The default Assignment mode stays the Bot's mode (Tobs by default).
+
+With the list in the parameter, the Orchestrator chose a scenario mode for 31 of 38 Assignments (scripts for data work, research for web comparisons) and the arm cost 7% less than Tobs everywhere with a judge score of 4.93 against 4.83.
