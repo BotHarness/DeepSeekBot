@@ -154,7 +154,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 
 export const CLAUDE_MIN_VERSION = '2.1.326';
 
-function olderThan(version: string, minimum: string): boolean {
+export function olderThan(version: string, minimum: string): boolean {
   const parts = (value: string) => (value.match(/\d+/gu) ?? []).slice(0, 3).map(Number);
   const have = parts(version);
   const need = parts(minimum);

@@ -11,7 +11,13 @@ import {
   spawnCodexTransport,
 } from './codex-engine.js';
 import { type CodexStatus, detectCodex, startCodexLogin } from './codex-status.js';
-import { type ClaudeQueryFactory, ClaudeEngineSession, sdkClaudeQuery } from './claude-engine.js';
+import {
+  CLAUDE_MIN_VERSION,
+  type ClaudeQueryFactory,
+  ClaudeEngineSession,
+  olderThan,
+  sdkClaudeQuery,
+} from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import { resolveEngineCommand } from './engine-launch.js';
 import {
@@ -574,6 +580,12 @@ export class EngineHost {
           throw new EngineRefusal(
             'engine-not-installed',
             'Claude Code is not installed on this computer',
+          );
+        const { version } = await (this.#options.detectClaude ?? detectClaude)(claude);
+        if (version !== undefined && olderThan(version, CLAUDE_MIN_VERSION))
+          throw new EngineRefusal(
+            'engine-unavailable',
+            `Claude Code ${version} is too old for DeepSeekBot. Update it to ${CLAUDE_MIN_VERSION} or newer`,
           );
         opened = new ClaudeEngineSession({
           query: this.#options.openClaude ?? sdkClaudeQuery,

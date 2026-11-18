@@ -55,6 +55,7 @@ function setup(
   recordings: ClaudeRecordedLine[][] = [RECORDING],
   root = createTempRoot('claude-'),
   approve?: ConstructorParameters<typeof EngineHost>[0]['approve'],
+  claudeVersion = '2.1.327',
 ) {
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
@@ -78,7 +79,7 @@ function setup(
     openClaude: replay.factory,
     ...(approve === undefined ? {} : { approve }),
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
-    detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
+    detectClaude: async () => ({ installed: true, version: claudeVersion, login: 'subscription' }),
     startClaudeLogin: async () => ({ url: 'https://claude.ai/oauth/authorize?x=1' }),
   });
   const execute = vi.fn(async (name: string, args: Record<string, unknown>) =>
@@ -266,6 +267,15 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       message: expect.stringContaining('bills per use'),
     });
     expect(replay.prompts).toEqual([]);
+  });
+
+  it('refuses a Claude Code older than 2.1.326 before opening a query', async () => {
+    const { host, request, replay } = setup([RECORDING], undefined, undefined, '2.1.99');
+    await expect(host.runTurn(request)).rejects.toMatchObject({
+      code: 'engine-unavailable',
+      message: expect.stringContaining('Update it to 2.1.326 or newer'),
+    });
+    expect(replay.options).toEqual([]);
   });
 
   it('stops a turn on a Claude Code too old to take the gateway at initialize', async () => {
