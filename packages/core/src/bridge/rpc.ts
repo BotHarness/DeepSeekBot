@@ -23,6 +23,7 @@ import type {
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
 import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
+import type { BotModesView } from './bot-modes.js';
 import type {
   ProviderHealth,
   VoiceDefaults,
@@ -157,8 +158,10 @@ import type { PrivateAccountSummary, PrivateInputStatus } from '../credentials/c
 
 import type { PersonaBotPatch } from '../bots/persona-bot.js';
 import type { ModelCatalogEntry } from '../models/catalog.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type {
+  AssignmentGroupOption,
   AssignmentModelOption,
   ModelPreset,
   ModelRoute,
@@ -391,6 +394,20 @@ export function resolveInvocationHuman(
 type AdminResult<T, M = BotMetadataResult> = T | M;
 
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
+
+function presetGroupArgs(
+  orchestratorGroupId: string | null | undefined,
+  assignmentGroups: string[] | undefined,
+  assignmentDefaultGroupId: string | null | undefined,
+  assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
+): Record<string, unknown> {
+  return {
+    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+    ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+    ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+    ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
+  };
+}
 
 export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
@@ -1135,17 +1152,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRoute,
+    route: ModelRoute | undefined,
     globalDefault: boolean,
     expectedDefaultRevision?: number,
-  ): Promise<{ revision: number }> {
+    groupId?: string,
+  ): Promise<{ revision: number; groupRevision?: number }> {
     return unwrapAsync(
       this.methods.onboardingModel({
         slug,
         expectedRevision,
-        route,
+        ...(route === undefined ? {} : { route }),
         globalDefault,
         expectedDefaultRevision,
+        ...(groupId === undefined ? {} : { groupId }),
       }),
     );
   }
@@ -1264,8 +1283,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     models: ModelCatalogEntry[];
     default?: ModelRoute;
     defaultRevision?: number;
+    favorites?: ModelFavorite[];
   }> {
     return unwrapAsync(this.methods.modelCatalog({}));
+  }
+
+  modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
+    return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
   }
 
   modelPresets(): { presets: ModelPreset[] } {
@@ -1274,18 +1298,28 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   modelPresetCreate(
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1294,20 +1328,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     id: string,
     expectedRevision: number,
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
         id,
         expectedRevision,
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1381,6 +1425,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     openAssignmentModels?: boolean,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1391,6 +1436,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
         ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+        ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
       }),
     );
   }
@@ -1398,19 +1444,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanSet(
     slug: string,
     expectedRevision: number,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
     openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
         slug,
         expectedRevision,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         assignmentModels,
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+        ),
       }),
     );
   }
@@ -1880,6 +1936,32 @@ export class BotharnessBridgeService extends TypertRemoteService {
     language?: string,
   ): { defaults: VoiceDefaults } {
     return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  botModes(slug?: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModes(slug === undefined ? {} : { slug }));
+  }
+
+  botModeDefaultSet(mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeDefaultSet({ mode }));
+  }
+
+  botModeSet(slug: string, mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeSet({ slug, mode }));
+  }
+
+  botModeTemplateSave(name: string, modes: string[], id?: string): Promise<BotModesView> {
+    return unwrapAsync(
+      this.methods.botModeTemplateSave({ name, modes, ...(id === undefined ? {} : { id }) }),
+    );
+  }
+
+  botModeTemplateDelete(id: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateDelete({ id }));
+  }
+
+  botModeTemplateSet(slug: string, template: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateSet({ slug, template }));
   }
 
   voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
@@ -3501,6 +3583,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionMessageSend',
   'botStop',
   'modelCatalog',
+  'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
@@ -3704,6 +3787,12 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'voiceTranscribe',
   'botAsrSet',
   'voiceDefaultSet',
+  'botModes',
+  'botModeDefaultSet',
+  'botModeSet',
+  'botModeTemplateSave',
+  'botModeTemplateDelete',
+  'botModeTemplateSet',
   'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',

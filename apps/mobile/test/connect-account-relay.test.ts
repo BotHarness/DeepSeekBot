@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
 import { expect, it } from 'vitest';
 import { setup, CLIENT_ID } from '../../../packages/connect-relay/test/support';
@@ -26,7 +26,7 @@ it('releases an offline slot through the mobile owner and HTTP relay without cle
   const register = (token: string) =>
     call('POST', '/v1/hosts', { token, body: { name: 'New computer' } });
   expect((await register(phoneToken)).body.error.code).toBe('host-limit');
-  const server = createServer(async (req, res) => {
+  const forward = async (req: IncomingMessage, res: ServerResponse) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
     const body = Buffer.concat(chunks);
@@ -39,6 +39,12 @@ it('releases an offline slot through the mobile owner and HTTP relay without cle
     );
     res.writeHead(result.status, Object.fromEntries(result.headers));
     res.end(Buffer.from(await result.arrayBuffer()));
+  };
+  const server = createServer((req, res) => {
+    forward(req, res).catch((error: unknown) => {
+      if (!res.headersSent) res.writeHead(500);
+      res.end(error instanceof Error ? error.message : 'relay forward failed');
+    });
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

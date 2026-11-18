@@ -658,5 +658,25 @@
   {
     "id": "human-profile-setup",
     "sha256": "b0262ea93b28bc5b54d04c57a7782f2f4f8bc39c025bbf63c02180932cd06f42"
+  },
+  {
+    "id": "human-model-favorites",
+    "sha256": "d96b95f4f809df572d7a0c0ff5b45e9a111f8bb9e0fbffd5afe3edf7546b79ec"
+  },
+  {
+    "id": "routing-group-default",
+    "sha256": "1776f6e5e84570bd5c4b40d7da1488a14147c48609ee06a2769b66f5704179f2"
+  },
+  {
+    "id": "group-fallback-overrides",
+    "sha256": "6281c96f13ba0de4ff33fc083bf7f49c56f9b29df28130ba11d991a832b0bb41"
+  },
+  {
+    "id": "assignment-agent-preset",
+    "sha256": "144837582ece0ca36c27feae9b720c07d660e8aa97e57f01bae83a2a8792eacd"
+  },
+  {
+    "id": "session-agent-preset",
+    "sha256": "8b15fd67839a58fc2c25f36cc286e7fab968b37435a0fd05be41fa6acb3cc5a0"
   }
 ]

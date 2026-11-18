@@ -540,6 +540,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -549,7 +553,48 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
+    expect(parameterNames(service.modelPlanSet)).toEqual([
+      'slug',
+      'expectedRevision',
+      'orchestrator',
+      'assignmentDefault',
+      'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+    ]);
+    const planSet = vi
+      .spyOn(methods, 'modelPlanSet')
+      .mockResolvedValue({ ok: true, value: { plan: {} as never } });
+    await service.modelPlanSet(
+      'ada',
+      3,
+      undefined,
+      route,
+      assignmentModels,
+      undefined,
+      'g',
+      ['h'],
+      'h',
+      null,
+    );
+    expect(planSet).toHaveBeenCalledWith({
+      slug: 'ada',
+      expectedRevision: 3,
+      assignmentDefault: route,
+      assignmentModels,
+      orchestratorGroupId: 'g',
+      assignmentGroups: ['h'],
+      assignmentDefaultGroupId: 'h',
+      assignmentGroupOptions: null,
+    });
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
       name: 'Daily',
@@ -643,6 +688,7 @@ describe('bridge typert service', () => {
       'route',
       'globalDefault',
       'expectedDefaultRevision',
+      'groupId',
     ]);
     expect(parameterNames(service.modelPresetApply)).toEqual([
       'slug',
@@ -656,6 +702,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -665,6 +715,10 @@ describe('bridge typert service', () => {
       'assignmentDefault',
       'assignmentModels',
       'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [
@@ -843,6 +897,7 @@ describe('bridge typert service', () => {
       'sessionMessageSend',
       'botStop',
       'modelCatalog',
+      'modelFavoriteSet',
       'modelPresets',
       'modelPresetCreate',
       'modelPresetUpdate',
@@ -1046,6 +1101,12 @@ describe('bridge typert service', () => {
       'voiceTranscribe',
       'botAsrSet',
       'voiceDefaultSet',
+      'botModes',
+      'botModeDefaultSet',
+      'botModeSet',
+      'botModeTemplateSave',
+      'botModeTemplateDelete',
+      'botModeTemplateSet',
       'voiceSpeechThresholdSet',
       'voiceDictation',
       'idleCompaction',

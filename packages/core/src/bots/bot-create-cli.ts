@@ -164,6 +164,8 @@ Usage:
                                   [--orchestrator-effort <e>] --assignment-provider <p>
                                   --assignment-model <m> [--assignment-effort <e>] [--home <dsh-home>]
                                   [--assignment-models open|listed] [--plan-stdin (online Host only)]
+                                  [--orchestrator-group <id> instead of the Orchestrator route]
+                                  [--assignment-groups <id,id> [--assignment-default-group <id>]]
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
   tobs engine list|status --host <url>
@@ -310,6 +312,8 @@ Usage:
   tobs model-preset-update <preset-id> [--name <n>] [--orchestrator-provider/-model/-effort ...]
                                   [--assignment-provider/-model/-effort ...] [--assignment-models open|listed]
                                   [--plan-stdin] [--expected-revision <n>]
+                                  [--orchestrator-group <id>|''] [--assignment-groups <id,id>|'']
+                                  [--assignment-default-group <id>|'']
   tobs overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
   tobs overview-memory [--after <bot-cursor>]
   tobs activity-overview
@@ -445,6 +449,9 @@ Models:
   --assignment-models open lets Assignments and Subagents use any model the Bot
   owner may use whose provider has an API key; listed (the default) keeps them to
   the Assignment model list. The Assignment default is still required.
+  --plan-stdin may give assignmentGroupOptions for Assignment Routing Groups:
+  [{group, allowedEfforts?, defaultEffort?, note?}]. A group may offer only the
+  effort levels every member supports.
 
 Memory:
   memory-snapshot/file/history/diff read the bot memory store; memory-save
@@ -1301,6 +1308,12 @@ function parseRoute(values: CreateValues, prefix: 'orchestrator' | 'assignment')
 function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { preset: ModelPreset } {
   if (values['plan-stdin'])
     throw usageError('Model Preset plan stdin requires an online Host target.');
+  if (
+    values['orchestrator-group'] !== undefined ||
+    values['assignment-groups'] !== undefined ||
+    values['assignment-default-group'] !== undefined
+  )
+    throw usageError('Model Preset Routing Groups require an online Host target.');
   const name = trimmed(values.name);
   if (name === undefined) throw usageError('--name is required for a model preset.');
   const orchestrator = parseRoute(values, 'orchestrator');

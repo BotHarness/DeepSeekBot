@@ -7,6 +7,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { BotModesDeps } from '../src/bridge/bot-modes.js';
+import { createBotModeSettings } from '../src/runtime/bot-mode-settings.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
@@ -149,6 +151,7 @@ function setup(
   modelCatalog?: ModelCatalog,
   readUsageSessionLog?: DshUsageSessionLogReader,
   describeEngineSession?: BridgeMethodsDeps['describeEngineSession'],
+  botModes?: BotModesDeps,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -203,6 +206,7 @@ function setup(
       ...(describeEngineSession === undefined ? {} : { describeEngineSession }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
+      ...(botModes === undefined ? {} : { botModes }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
     }),
   };
@@ -2628,6 +2632,34 @@ describe('bridge methods', () => {
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
   });
 
+  it('keeps a profile update inside the Bot mode template', () => {
+    const modeHome = mkdtempSync(join(tmpdir(), 'botharness-modes-'));
+    roots.push(modeHome);
+    const settings = createBotModeSettings(modeHome);
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { settings, productDefault: 'deepseekbot', roster: async () => [] },
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    settings.setTemplateOf('ada', settings.saveTemplate({ name: 'Coding', modes: ['ptc'] }).id);
+    expect(methods.update({ slug: 'ada', patch: { preset: 'acp' } })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(methods.update({ slug: 'ada', patch: { preset: 'ptc' } })).toMatchObject({ ok: true });
+    expect(methods.update({ slug: 'ada', patch: { preset: '' } })).toMatchObject({ ok: true });
+  });
+
   it('rejects unknown or malformed updates', () => {
     const { methods } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
@@ -3299,13 +3331,19 @@ describe('bridge methods', () => {
       workspaces: ['/srv/ada/'],
     });
 
+    ownership.recordAgentPreset('session-2', 'minimal');
     const result = methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toEqual([
       expect.objectContaining({ sessionId: 'session-1', role: 'orchestrator' }),
-      expect.objectContaining({ sessionId: 'session-2', role: 'assignment' }),
+      expect.objectContaining({
+        sessionId: 'session-2',
+        role: 'assignment',
+        agentPreset: 'minimal',
+      }),
     ]);
+    expect(result.value.sessions[0]).not.toHaveProperty('agentPreset');
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 

@@ -345,7 +345,7 @@ function SessionFailureNotice({
               icon="archive"
               disabled={busy}
               busy={maintenance.pending === 'compact'}
-              onClick={() => recover('compact')}
+              onClick={() => void recover('compact')}
             >
               {t('composerContext.compactNow')}
             </ActionButton>
@@ -353,7 +353,7 @@ function SessionFailureNotice({
               icon="plus"
               busy={maintenance.pending === 'new-session'}
               disabled={busy}
-              onClick={() => recover('new-session')}
+              onClick={() => void recover('new-session')}
             >
               {t('composerCommand.newSession')}
             </ActionButton>

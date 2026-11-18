@@ -9,6 +9,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { writeZip } from '../src/bots/zip-archive.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 it('uploads through bounded authenticated CLI calls, recovers a lost chunk response and imports one Bot', async () => {
   const home = createTempRoot();
@@ -25,44 +26,46 @@ it('uploads through bounded authenticated CLI calls, recovers a lost chunk respo
   });
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
   let dropped = false;
-  const server = createServer(async (request, response) => {
-    if (request.method === 'GET') {
-      response.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
-      return;
-    }
-    expect(request.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(chunk);
-    const body = Buffer.concat(chunks);
-    expect(body.length).toBeLessThan(360_000);
-    const { method, payload } = JSON.parse(body.toString());
-    let result;
-    switch (method) {
-      case 'botharness/zipUploadBegin':
-        result = bridge.zipUploadBegin(payload.args);
-        break;
-      case 'botharness/zipUploadChunk':
-        result = bridge.zipUploadChunk(payload.args);
-        break;
-      case 'botharness/zipUploadPreview':
-        result = bridge.zipUploadPreview(payload.args);
-        break;
-      case 'botharness/zipImportLookup':
-        result = bridge.zipImportLookup(payload.args);
-        break;
-      case 'botharness/zipImport':
-        result = await bridge.zipImport(payload.args);
-        break;
-      default:
-        throw new Error('Unexpected RPC');
-    }
-    if (method === 'botharness/zipUploadChunk' && !dropped) {
-      dropped = true;
-      response.destroy();
-      return;
-    }
-    response.end(JSON.stringify({ type: 'server-response', result }));
-  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.method === 'GET') {
+        response.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
+        return;
+      }
+      expect(request.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(chunk);
+      const body = Buffer.concat(chunks);
+      expect(body.length).toBeLessThan(360_000);
+      const { method, payload } = JSON.parse(body.toString());
+      let result;
+      switch (method) {
+        case 'botharness/zipUploadBegin':
+          result = bridge.zipUploadBegin(payload.args);
+          break;
+        case 'botharness/zipUploadChunk':
+          result = bridge.zipUploadChunk(payload.args);
+          break;
+        case 'botharness/zipUploadPreview':
+          result = bridge.zipUploadPreview(payload.args);
+          break;
+        case 'botharness/zipImportLookup':
+          result = bridge.zipImportLookup(payload.args);
+          break;
+        case 'botharness/zipImport':
+          result = await bridge.zipImport(payload.args);
+          break;
+        default:
+          throw new Error('Unexpected RPC');
+      }
+      if (method === 'botharness/zipUploadChunk' && !dropped) {
+        dropped = true;
+        response.destroy();
+        return;
+      }
+      response.end(JSON.stringify({ type: 'server-response', result }));
+    }),
+  );
   try {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();

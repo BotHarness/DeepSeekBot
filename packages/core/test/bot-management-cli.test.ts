@@ -6,6 +6,7 @@ import { writeZip } from '../src/bots/zip-archive.js';
 import { readBotZip } from '../src/bots/bot-zip.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 const directories: string[] = [];
@@ -24,47 +25,49 @@ afterEach(async () => {
 
 async function host(handler: (method: string, args: Record<string, unknown>) => unknown) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
-        'private-test-token',
-      );
-      res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    if (req.url?.startsWith('/api/botharness/bot-zip/import')) {
-      const args = {
-        ...Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
-        archive: Buffer.concat(chunks),
-      };
-      calls.push({ method: 'bot-zip/import', args });
-      const result = handler('bot-zip/import', args);
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
+          'private-test-token',
+        );
+        res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      if (req.url?.startsWith('/api/botharness/bot-zip/import')) {
+        const args = {
+          ...Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
+          archive: Buffer.concat(chunks),
+        };
+        calls.push({ method: 'bot-zip/import', args });
+        const result = handler('bot-zip/import', args);
+        if (result === 'lost-response') {
+          res.destroy();
+          return;
+        }
+        const output = typeof result === 'object' && result !== null && 'error' in result;
+        res.statusCode = output ? 500 : 200;
+        res.end(JSON.stringify(result));
+        return;
+      }
+      const input = JSON.parse(Buffer.concat(chunks).toString());
+      const method = input.method.replace('botharness/', '');
+      expect(req.url).toBe(`/api/${input.method}`);
+      calls.push({ method, args: input.payload.args });
+      const result =
+        method === 'channelDm'
+          ? { ok: true, value: { channel: { id: 'dm-' + String(input.payload.args.slug) } } }
+          : handler(method, input.payload.args);
       if (result === 'lost-response') {
         res.destroy();
         return;
       }
-      const output = typeof result === 'object' && result !== null && 'error' in result;
-      res.statusCode = output ? 500 : 200;
-      res.end(JSON.stringify(result));
-      return;
-    }
-    const input = JSON.parse(Buffer.concat(chunks).toString());
-    const method = input.method.replace('botharness/', '');
-    expect(req.url).toBe(`/api/${input.method}`);
-    calls.push({ method, args: input.payload.args });
-    const result =
-      method === 'channelDm'
-        ? { ok: true, value: { channel: { id: 'dm-' + String(input.payload.args.slug) } } }
-        : handler(method, input.payload.args);
-    if (result === 'lost-response') {
-      res.destroy();
-      return;
-    }
-    res.end(JSON.stringify({ type: 'server-response', result }));
-  });
+      res.end(JSON.stringify({ type: 'server-response', result }));
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

@@ -13,7 +13,9 @@ import {
   modelScopeKey,
   modelSettingsResource,
   saveModelPreset,
+  setModelGroup,
   setModelRoute,
+  toggleAssignmentGroup,
   toggleAssignmentModel,
   type ModelScope,
   type ModelSettingsState,
@@ -26,6 +28,7 @@ import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -281,6 +284,20 @@ function Models({
     [hostId, client, resource],
   );
   const routes = value === undefined ? undefined : modelRoutes(value);
+  const catalog = (value?.models ?? []).map((entry) => ({
+    ...entry,
+    efforts: entry.efforts ?? [],
+  }));
+  const catalogGroups = (value?.groups ?? []).map((group) => ({
+    ...group,
+    revision: group.revision ?? 0,
+  }));
+  const pickerGroup = (field: 'orchestrator' | 'assignment') =>
+    field === 'assignment'
+      ? routes?.groups.assignmentDefaultGroupId
+      : scope.kind === 'global'
+        ? value?.defaultGroupId
+        : routes?.groups.orchestratorGroupId;
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
       <ModelPicker
@@ -298,11 +315,16 @@ function Models({
               ? 'modelPreset.orchestratorHint'
               : 'modelPreset.assignmentHint',
         )}
-        choice={{
-          key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
-          effort: route?.reasoningEffort ?? '',
-        }}
-        catalog={value.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] }))}
+        choice={
+          pickerGroup(field) === undefined
+            ? {
+                key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
+                effort: route?.reasoningEffort ?? '',
+              }
+            : { key: groupMenuKey(pickerGroup(field)!), effort: '' }
+        }
+        catalog={catalog}
+        groups={catalogGroups}
         options={value.models.map((entry) => ({
           value: JSON.stringify([entry.provider, entry.model]),
           label: entry.modelName,
@@ -312,6 +334,11 @@ function Models({
         disabled={busy || !available || creation.kind !== 'idle'}
         t={t}
         onChange={({ key, effort }) => {
+          const group = groupMenuId(key);
+          if (group !== undefined) {
+            void run(() => setModelGroup(client, scope, value, group, field));
+            return;
+          }
           const entry = value.models.find(
             (item) => JSON.stringify([item.provider, item.model]) === key,
           );
@@ -378,23 +405,37 @@ function Models({
               <div {...stylex.props(styles.choices)}>
                 <Combobox
                   value=""
-                  options={value.models
-                    .filter(
-                      (entry) =>
-                        entry.credential === undefined &&
-                        !routes?.assignmentModels.some((option) => sameModel(option, entry)),
-                    )
-                    .map((entry) => ({
-                      value: JSON.stringify([entry.provider, entry.model]),
-                      label: entry.modelName,
-                      hint: entry.providerName,
-                    }))}
+                  options={[
+                    ...catalogGroups
+                      .filter((group) => !routes?.groups.assignmentGroups?.includes(group.id))
+                      .map((group) => ({
+                        value: groupMenuKey(group.id),
+                        label: group.name,
+                        hint: t('modelPreset.groupCount', { count: group.routes.length }),
+                      })),
+                    ...value.models
+                      .filter(
+                        (entry) =>
+                          entry.credential === undefined &&
+                          !routes?.assignmentModels.some((option) => sameModel(option, entry)),
+                      )
+                      .map((entry) => ({
+                        value: JSON.stringify([entry.provider, entry.model]),
+                        label: entry.modelName,
+                        hint: entry.providerName,
+                      })),
+                  ]}
                   label={t('modelPreset.allowedTitle')}
                   toggleLabel={t('modelPreset.showModels')}
                   placeholder={t('modelPreset.chooseModel')}
                   emptyLabel={t('modelPreset.noMatch')}
                   disabled={busy || !available || routes?.assignmentDefault === undefined}
                   onSelect={(key) => {
+                    const group = groupMenuId(key);
+                    if (group !== undefined) {
+                      void run(() => toggleAssignmentGroup(client, scope, value, group));
+                      return;
+                    }
                     const entry = value.models.find(
                       (item) => JSON.stringify([item.provider, item.model]) === key,
                     );
@@ -402,6 +443,29 @@ function Models({
                       void run(() => toggleAssignmentModel(client, scope, value, entry));
                   }}
                 />
+                {routes?.groups.assignmentGroups?.map((id) => {
+                  const group = catalogGroups.find((entry) => entry.id === id);
+                  const frontHint = groupFrontHint(group, catalog, t);
+                  const note = routes.groups.assignmentGroupOptions?.find(
+                    (option) => option.group === id,
+                  )?.note;
+                  return (
+                    <Checkbox
+                      key={`group:${id}`}
+                      checked
+                      label={[
+                        group?.name ?? id,
+                        t('modelPreset.groupCount', { count: group?.routes.length ?? 0 }),
+                        ...(frontHint === undefined ? [] : [frontHint]),
+                        ...(note === undefined ? [] : [note]),
+                      ].join(' · ')}
+                      disabled={busy || !available || routes.groups.assignmentDefaultGroupId === id}
+                      onChange={() =>
+                        void run(() => toggleAssignmentGroup(client, scope, value, id))
+                      }
+                    />
+                  );
+                })}
                 {routes?.assignmentModels.map((option) => (
                   <Checkbox
                     key={JSON.stringify([option.provider, option.model])}

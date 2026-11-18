@@ -15,7 +15,7 @@ import { connectAccount } from '../../host/native-connect-account';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { pairHost, type PairingFailure } from '@botharness/host-client/pairing';
+import { pairHost, pairingDeviceKey, type PairingFailure } from '@botharness/host-client/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { hostLookName } from '@botharness/host-client/ui/design/host-look';
@@ -41,6 +41,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>();
+  const [paired, setPaired] = useState(false);
   const [computerName, setComputerName] = useState('');
   const [verification, setVerification] = useState<{
     fingerprint: string;
@@ -54,6 +55,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
   const accountHostId = useRef<string | undefined>(undefined);
+  const deviceKeys = useRef(new Map<string, string>());
 
   const pair = async (
     text: string,
@@ -70,15 +72,24 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     pending.current = operation;
     Keyboard.dismiss();
     setComputerName('');
+    setPaired(false);
     setBusy(true);
     setError(undefined);
     setErrorDetail(undefined);
     lastDetail.current = undefined;
     lastFailure.current = undefined;
     let accountPair:
-      | { accountOwner: AccountOwner; sessionKey: string; routes: string[]; connectHost: string }
+      | {
+          accountOwner: AccountOwner;
+          sessionKey: string;
+          routes: string[];
+          connectHost: string;
+        }
       | undefined;
     const startingHosts = hostSession.getState().hosts;
+    const carrier = nativeCarrier();
+    const deviceKey = deviceKeys.current.get(text) ?? pairingDeviceKey(carrier);
+    deviceKeys.current.set(text, deviceKey);
     const result = await pairHost({
       existing: (id) => startingHosts.find((host) => host.hostId === id),
       text:
@@ -92,7 +103,8 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
             },
       method,
       deviceName: deviceName(),
-      carrier: nativeCarrier(),
+      carrier,
+      deviceKey,
       confirmFingerprint: (fingerprint, hostName) =>
         new Promise<boolean>((resolve) => {
           if (operation.signal.aborted) {
@@ -162,6 +174,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       setFingerprint(undefined);
     }
     if (operation.signal.aborted) return 'cancelled';
+    if (result.ok) deviceKeys.current.delete(text);
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
       setError(result.code);
@@ -169,16 +182,32 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       lastDetail.current = result.detail;
       lastFailure.current =
         result.diagnostic ??
-        connectionDiagnostic({ code: result.code, detail: result.detail, phase: 'pairing' });
+        connectionDiagnostic({
+          code: result.code,
+          detail: result.detail,
+          phase: 'pairing',
+        });
       return result.code;
     }
-    if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
+    if (!options.stayOnPage) {
+      setPaired(true);
+      leave();
+    }
     return undefined;
+  };
+  const leave = () => {
+    let opened = false;
+    try {
+      opened = finishSetup();
+    } catch {}
+    if (!opened) router.dismissTo('/');
   };
 
   return {
     finishSetup,
     busy,
+    paired,
+    leave,
     fingerprint,
     verification,
     computerName,

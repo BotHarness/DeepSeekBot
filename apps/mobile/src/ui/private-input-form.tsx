@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View, type ViewInstance } from 'react-native';
+import { AppState, View, type ViewInstance } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { loadPrivateInput } from '../host/private-input';
 import type { RequestRef } from '@botharness/host-client/requests';
@@ -13,6 +13,8 @@ import { Text } from './primitives/text';
 import { useStrings } from './strings';
 
 type Request = Awaited<ReturnType<typeof loadPrivateInput>>;
+const PRIVATE_INPUT_RESOURCE = 'private-inputs';
+const PRIVATE_INPUT_SAFETY_MS = 15_000;
 export function PrivateInputForm({
   client,
   target,
@@ -35,24 +37,58 @@ export function PrivateInputForm({
     active.current = true;
     terminal.current = false;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async () => {
+    let settled = false;
+    let reading = false;
+    let again = false;
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const read = async (): Promise<void> => {
+      if (cancelled || settled || terminal.current) return;
+      if (reading) {
+        again = true;
+        return;
+      }
+      reading = true;
       try {
         const next = await loadPrivateInput(client, target);
         if (cancelled || terminal.current) return;
         setError(undefined);
         setRequest(next);
-        if (next.status !== 'pending') setValues({});
-        else timer = setTimeout(() => void poll(), 2500);
+        if (next.status !== 'pending') {
+          settled = true;
+          setValues({});
+        }
       } catch {
         if (!cancelled && !terminal.current) setError('refresh');
+      } finally {
+        reading = false;
+        if (again && !cancelled && !settled) {
+          again = false;
+          void read();
+        }
       }
     };
-    void poll();
+    const invalidate = (): void => {
+      if (cancelled || settled || terminal.current || pending !== undefined) return;
+      pending = setTimeout(() => {
+        pending = undefined;
+        void read();
+      }, 25);
+    };
+    const offResource = client.onResource?.((resource) => {
+      if (resource === undefined || resource === PRIVATE_INPUT_RESOURCE) invalidate();
+    });
+    const offApp = AppState.addEventListener('change', (state) => {
+      if (state === 'active') invalidate();
+    });
+    const safety = setInterval(invalidate, PRIVATE_INPUT_SAFETY_MS);
+    void read();
     return () => {
       cancelled = true;
       active.current = false;
-      clearTimeout(timer);
+      clearTimeout(pending);
+      clearInterval(safety);
+      offResource?.();
+      offApp.remove();
     };
   }, [client, target.channelId, target.messageId, retry]);
   const submit = async (cancel: boolean) => {

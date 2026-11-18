@@ -13,6 +13,8 @@ import {
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { Icon } from './ds/icon.js';
+import { modeText } from './bot-mode-settings.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useClientStore } from './use-client-store.js';
@@ -66,7 +68,6 @@ const STATUS_TONE = {
   running: 'success',
   stopping: 'warning',
   attention: 'danger',
-  stopped: 'quiet',
   idle: 'outline',
   unavailable: 'quiet',
 } as const;
@@ -233,7 +234,6 @@ function SessionsPanel({
     running: t('sessions.status.running'),
     stopping: t('sessions.status.stopping'),
     attention: t('sessions.status.attention'),
-    stopped: t('sessions.status.stopped'),
     idle: t('sessions.status.idle'),
     unavailable: t('sessions.status.unavailable'),
   } as const;
@@ -464,6 +464,7 @@ function SessionsPanel({
         {...(showWorkspace ||
         row.modelRoute !== undefined ||
         row.engine !== undefined ||
+        row.mode !== undefined ||
         row.assignmentAccessMode === 'danger-full-access' ||
         rowProgress?.todos !== undefined ||
         rowProgress?.goal !== undefined
@@ -487,6 +488,14 @@ function SessionsPanel({
                       icon={<IconCordisPluginOutlineRegular size={12} />}
                       label={engineName(row.engine.engine)}
                       title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
+                    />
+                  )}
+                  {row.mode === undefined ? null : (
+                    <SessionMetaChip
+                      kind="mode"
+                      icon={<Icon name="sliders-horizontal" />}
+                      label={modeText({ id: row.mode }, t).name}
+                      title={t('sessions.mode', { name: modeText({ id: row.mode }, t).name })}
                     />
                   )}
                   {row.assignmentAccessMode === 'danger-full-access' ? (

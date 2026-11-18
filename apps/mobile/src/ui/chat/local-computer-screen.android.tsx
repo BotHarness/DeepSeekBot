@@ -185,25 +185,28 @@ function ComputerScreen({
       ? Promise.resolve(false)
       : (viewer?.input(input) ?? Promise.resolve(false));
   };
-  const click = async (point: { x: number; y: number }, button: 'left' | 'right') => {
+  const click = (point: { x: number; y: number }, button: 'left' | 'right') => {
     const input = videoPointerClick({ point, frame, button, driving });
-    if (input === undefined) return false;
-    const delivered = await send(input);
-    const current = viewer?.getState();
-    if (
-      delivered &&
-      binding !== undefined &&
-      current?.status === 'controlling' &&
-      current.host?.binding?.attemptId === binding.attemptId &&
-      current.host?.grant?.generation === host?.grant?.generation
-    )
-      clickFeedback.set({
-        sequence: ++clickSequence.current,
-        attemptId: binding.attemptId,
-        point: { x: input.x, y: input.y },
-        button,
-      });
-    return delivered;
+    if (input === undefined) return;
+    send(input).then(
+      (delivered) => {
+        const current = viewer?.getState();
+        if (
+          delivered &&
+          binding !== undefined &&
+          current?.status === 'controlling' &&
+          current.host?.binding?.attemptId === binding.attemptId &&
+          current.host?.grant?.generation === host?.grant?.generation
+        )
+          clickFeedback.set({
+            sequence: ++clickSequence.current,
+            attemptId: binding.attemptId,
+            point: { x: input.x, y: input.y },
+            button,
+          });
+      },
+      () => undefined,
+    );
   };
   const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
     send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
@@ -345,7 +348,7 @@ function ComputerScreen({
               side="left"
               enabled={driving}
               compact={landscape}
-              onClick={() => void click(cursor.get(), 'left')}
+              onClick={() => click(cursor.get(), 'left')}
             />
             <ComputerScrollPad
               key={host?.grant?.generation}
@@ -358,7 +361,7 @@ function ComputerScreen({
               side="right"
               enabled={driving}
               compact={landscape}
-              onClick={() => void click(cursor.get(), 'right')}
+              onClick={() => click(cursor.get(), 'right')}
             />
           </View>
         ) : null}

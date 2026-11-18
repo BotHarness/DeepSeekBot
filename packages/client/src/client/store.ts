@@ -360,6 +360,7 @@ export interface OwnedSessionSummary {
   assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
   engine?: { engine: string; account?: string };
+  agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;

@@ -12,7 +12,9 @@ import type { ConnectionTelemetry } from './telemetry/connection';
 import { ActivitySmoother } from './shared/activity-smoothing';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from '@botharness/host-protocol/carrier';
-import { rosterSortingOf, type RosterSorting } from './roster-sorting';
+import { readRosterSorting, type RosterSorting } from './roster-sorting';
+import { listBots } from './bots';
+import type { HostCall } from './host-answer';
 import { DEVICE_PREFIX } from './pairing';
 import {
   checkRoute,
@@ -27,8 +29,8 @@ import {
   saveListBots,
   syncChannelList,
   type ChannelListChanges,
-  type ChannelListCursor,
 } from './channel-list-store';
+import { loadChannelChangeCursor } from './channel-messages';
 import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
 import {
@@ -63,7 +65,13 @@ export type ConnectionState =
   | { status: 'connecting'; route: string }
   | { status: 'connected'; route: string }
   | { status: 'reconnecting'; route: string; attempt: number }
-  | { status: 'unreachable'; route: string; attempt: number; reason: string; retryDelay?: number }
+  | {
+      status: 'unreachable';
+      route: string;
+      attempt: number;
+      reason: string;
+      retryDelay?: number;
+    }
   | { status: 'refused'; route: string; code: DeviceRefusal; reason: string }
   | { status: 'stopped'; route: string };
 
@@ -205,6 +213,7 @@ export interface HostClient {
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   onPurged?(listener: (placements: unknown) => void): () => void;
   onSkills?(listener: (channelIds: readonly string[]) => void): () => void;
+  onResource?(listener: (resource: string | undefined) => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
 
@@ -454,6 +463,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   const skillListeners = new Set<(channelIds: readonly string[]) => void>();
+  const resourceListeners = new Set<(resource: string | undefined) => void>();
+  const resourceChanged = (resource: string | undefined): void => {
+    for (const listener of [...resourceListeners]) listener(resource);
+  };
   const purgeListeners = new Set<(placements: unknown) => void>();
   let snapshot: HostSnapshot = {
     connection: { status: 'stopped', route },
@@ -518,7 +531,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
       ...(people === undefined
         ? {}
-        : { people: sameList(people, previous?.people) ? previous!.people! : people }),
+        : {
+            people: sameList(people, previous?.people) ? previous!.people! : people,
+          }),
       ...(next.activityChannels === undefined
         ? {}
         : {
@@ -827,6 +842,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       return result['value'] as T;
     });
 
+  const hostVia = (via?: string): HostCall => ({
+    call: (method, args) => call(method, args, via),
+  });
+  const host = hostVia();
+
   const upload = (name: string, data: Blob): Promise<AttachmentRef> =>
     withDeadline(async (signal) => {
       const response = await carrier.request(
@@ -974,7 +994,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       return await syncChannelList(store, {
         channels: fullChannelList,
-        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        cursor: () => unlessRefused(loadChannelChangeCursor({ call })),
         changes: (cursor) =>
           unlessRefused(
             call<ChannelListChanges>('channelListChanges', {
@@ -1041,8 +1061,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const readSorting = (): Promise<RosterSorting | undefined> => {
     fetchedSorting = undefined;
-    return call<unknown>('settings/describe')
-      .then(rosterSortingOf, (error: unknown) => {
+    return readRosterSorting(host)
+      .catch((error: unknown) => {
         if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
         throw error;
       })
@@ -1084,15 +1104,15 @@ export function createHostClient(options: HostClientOptions): HostClient {
     void discoverComputer();
     void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
-      call<{ bots: PersonaBotSummary[] }>('list'),
+      listBots(host),
       loadChannels(),
       reusable(reuse, fetchedArrangement) ? fetchedArrangement.value : readArrangement(),
       reusable(reuse, fetchedSorting) ? fetchedSorting.value : readSorting(),
     ]);
-    bots = list.bots;
+    bots = list;
     channels = new Map(channelList.map((channel) => [channel.id, channel]));
     channelsLoaded = true;
-    keepBots(list.bots);
+    keepBots(list);
     arrangement = rosterArrangement;
     sorting = rosterSorting;
     publish();
@@ -1160,6 +1180,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
       publish();
     } else if (frame.type === 'skills') {
       for (const listener of skillListeners) listener(frame.change.channelIds);
+    } else if (frame.type === 'resource') {
+      resourceChanged(frame.change.resource);
     } else if (frame.type === 'changed' || frame.type === 'purged') {
       reloadInBackground();
     }
@@ -1177,7 +1199,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
     for (const candidate of routePreference === undefined ? routes : [routePreference]) {
       try {
-        await call('list', {}, candidate);
+        await listBots(hostVia(candidate));
         if (revision !== preferenceRevision) throw new Unreachable('The route preference changed.');
         routeChecks.set(candidate, 'verified');
         route = candidate;
@@ -1331,10 +1353,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
             }
             if (frame.type === 'baseline') {
               baselines.roster = true;
+              resourceChanged(undefined);
               if (baselines.activity) resolveReady();
             } else {
               applyRoster(frame);
-              notifyLive('roster');
+              if (frame.type !== 'resource') notifyLive('roster');
             }
           });
           follow('botharness/followActivity', (value) => {
@@ -1382,7 +1405,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       await ready;
     } catch (error) {
       socket?.close();
-      if (!opened) await call('list');
+      if (!opened) await listBots(host);
       throw error;
     } finally {
       clearTimeout(deadline);
@@ -1458,7 +1481,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       const answer = await readCompatibility();
       if (pingAvailable) return answer;
     }
-    return call('list');
+    return listBots(host);
   };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
     const disconnect = disconnectCurrent;
@@ -1500,7 +1523,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       for (const candidate of routes.slice(0, routes.indexOf(previous))) {
         try {
-          await call('list', {}, candidate);
+          await listBots(hostVia(candidate));
           routeChecks.set(candidate, 'verified');
         } catch {
           routeChecks.set(candidate, 'unreachable');
@@ -1708,7 +1731,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     async testRoute(url) {
       if (!routes.includes(url)) return false;
       try {
-        await call('list', {}, url);
+        await listBots(hostVia(url));
         routeChecks.set(url, 'verified');
         publish();
         return true;
@@ -1840,6 +1863,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
     onSkills(listener) {
       skillListeners.add(listener);
       return () => skillListeners.delete(listener);
+    },
+    onResource(listener) {
+      resourceListeners.add(listener);
+      return () => resourceListeners.delete(listener);
     },
     follow(endpoint, args, handlers) {
       const follower: Follower = { endpoint, args, handlers };

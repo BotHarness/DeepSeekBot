@@ -173,8 +173,13 @@ it('preserves legacy counters on upgrade and seeds old receipts without doubling
       ),
     }),
   );
-  const ownership = createSessionOwnership(attachOperationalModule(old, 'session-ownership'));
-  claim(ownership, 'legacy-session');
+  attachOperationalModule(old, 'session-ownership').transaction((db) =>
+    db
+      .prepare(`INSERT INTO session_ownership
+    (session_id, bot_slug, root_role, provenance, created_at)
+    VALUES ('legacy-session', 'ada', 'orchestrator', 'created', ?)`)
+      .run(new Date(TIME - 1000).toISOString()),
+  );
   attachOperationalModule(old, 'usage').transaction((db) =>
     db
       .prepare(`INSERT INTO usage_daily

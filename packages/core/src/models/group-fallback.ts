@@ -1,3 +1,4 @@
+import { createMemoryFallbackOverrides, type FallbackOverrideStore } from './fallback-overrides.js';
 import type { ModelRoute, PersonaBotModelPlan } from './presets.js';
 import type { RestingRoute, RestReason, RouteRests } from './route-rest.js';
 
@@ -7,7 +8,7 @@ export interface ModelSwitch {
   kind: 'switch';
   from: RouteKey;
   to: ModelRoute;
-  reason: RestReason | 'returned';
+  reason: RestReason;
   until?: string;
 }
 
@@ -28,9 +29,9 @@ export interface GroupFallback {
     sessionId: string,
     failed: RestingRoute,
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
-  restore(botSlug: string, sessionId: string): Promise<ModelSwitch | undefined>;
+  start(botSlug: string, sessionId: string): Promise<void>;
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
-  forget(sessionId: string): void;
+  inherited(): string | undefined;
 }
 
 const same = (left: RouteKey, right: RouteKey) =>
@@ -38,14 +39,20 @@ const same = (left: RouteKey, right: RouteKey) =>
 
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
+  inheritedGroup?(): string | undefined;
   routes(groupId: string): ModelRoute[];
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
   validate(route: ModelRoute): Promise<void>;
+  overrides?: FallbackOverrideStore;
 }): GroupFallback {
-  const overrides = new Map<string, { botSlug: string; groupId: string; route: ModelRoute }>();
+  const overrides = options.overrides ?? createMemoryFallbackOverrides();
+  const groupOf = (botSlug: string): string | undefined => {
+    const plan = options.plan(botSlug);
+    return plan === undefined ? options.inheritedGroup?.() : plan.orchestratorGroupId;
+  };
   const routesOf = (botSlug: string): { groupId: string; routes: ModelRoute[] } | undefined => {
-    const groupId = options.plan(botSlug)?.orchestratorGroupId;
+    const groupId = groupOf(botSlug);
     if (groupId === undefined) return undefined;
     try {
       return { groupId, routes: options.routes(groupId) };
@@ -54,10 +61,15 @@ export function createGroupFallback(options: {
     }
   };
   return {
+    inherited: () => options.inheritedGroup?.(),
     route(sessionId) {
       const override = overrides.get(sessionId);
       if (override === undefined) return undefined;
-      if (options.plan(override.botSlug)?.orchestratorGroupId !== override.groupId) {
+      const group = routesOf(override.botSlug);
+      if (
+        group?.groupId !== override.groupId ||
+        !group.routes.some((route) => same(route, override.route))
+      ) {
         overrides.delete(sessionId);
         return undefined;
       }
@@ -91,32 +103,20 @@ export function createGroupFallback(options: {
       }
       return { kind: 'exhausted', rests };
     },
-    async restore(botSlug, sessionId) {
-      const override = overrides.get(sessionId);
-      if (override === undefined || override.botSlug !== botSlug) return undefined;
+    async start(botSlug, sessionId) {
       const group = routesOf(botSlug);
-      if (group === undefined || group.groupId !== override.groupId) {
-        overrides.delete(sessionId);
-        return undefined;
-      }
+      if (group === undefined) return;
       for (const route of group.routes) {
-        if (same(route, override.route)) return undefined;
-        if (options.rests.restingUntil(route) !== undefined) continue;
+        if (options.rests.restingUntil(route) !== undefined) return;
         try {
           options.requireAllowed(botSlug, route);
           await options.validate(route);
         } catch {
           continue;
         }
-        overrides.set(sessionId, { ...override, route: { ...route } });
-        return {
-          kind: 'switch',
-          from: { provider: override.route.provider, model: override.route.model },
-          to: { ...route },
-          reason: 'returned',
-        };
+        overrides.set(sessionId, { botSlug, groupId: group.groupId, route: { ...route } });
+        return;
       }
-      return undefined;
     },
     async pick(botSlug, groupId) {
       let routes: ModelRoute[];
@@ -141,9 +141,6 @@ export function createGroupFallback(options: {
         return { kind: 'route', route: { ...route } };
       }
       return { kind: 'exhausted', rests };
-    },
-    forget(sessionId) {
-      overrides.delete(sessionId);
     },
   };
 }

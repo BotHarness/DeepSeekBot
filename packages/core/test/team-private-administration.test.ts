@@ -37,6 +37,7 @@ import {
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createPersonaBotDeletions } from '../src/bots/deletion.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const alice = humanContext('alice');
 const bob = humanContext('bob');
@@ -151,49 +152,55 @@ async function fixture() {
 }
 
 async function cli(f: Awaited<ReturnType<typeof fixture>>) {
-  const server = createServer(async (request, response) => {
-    if (request.method === 'GET') {
-      response.writeHead(302, { 'set-cookie': 'authority=owner', location: '/' }).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const input = z
-      .object({
-        method: z.string(),
-        args: z.record(z.string(), z.unknown()).optional(),
-        payload: z.object({ args: z.record(z.string(), z.unknown()) }).optional(),
-        username: z.string().optional(),
-        rpcId: z.unknown().optional(),
-      })
-      .parse(JSON.parse(Buffer.concat(chunks).toString()));
-    try {
-      const result =
-        input.username === undefined
-          ? await f.invoke(input.method.replace('botharness/', ''), input.payload?.args ?? {})
-          : await f.team.asMember(input.username, (peer) => {
-              f.team.assertCall(peer.principal, input.method);
-              return f.invoke(input.method, input.args ?? {}, peer);
-            });
-      response.end(
-        JSON.stringify(
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.method === 'GET') {
+        response.writeHead(302, { 'set-cookie': 'authority=owner', location: '/' }).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const input = z
+        .object({
+          method: z.string(),
+          args: z.record(z.string(), z.unknown()).optional(),
+          payload: z.object({ args: z.record(z.string(), z.unknown()) }).optional(),
+          username: z.string().optional(),
+          rpcId: z.unknown().optional(),
+        })
+        .parse(JSON.parse(Buffer.concat(chunks).toString()));
+      try {
+        const result =
           input.username === undefined
-            ? { type: 'server-response', rpcId: input.rpcId, result: { ok: true, value: result } }
-            : { ok: true, value: result },
-        ),
-      );
-    } catch (error) {
-      const parsed = z.object({ code: z.string().optional() }).parse(error);
-      const failure = { code: parsed.code ?? 'internal', message: parsed.code ?? 'internal' };
-      response.end(
-        JSON.stringify(
-          input.username === undefined
-            ? { type: 'server-response', rpcId: input.rpcId, result: { ok: false, error: failure } }
-            : { ok: false, error: failure },
-        ),
-      );
-    }
-  });
+            ? await f.invoke(input.method.replace('botharness/', ''), input.payload?.args ?? {})
+            : await f.team.asMember(input.username, (peer) => {
+                f.team.assertCall(peer.principal, input.method);
+                return f.invoke(input.method, input.args ?? {}, peer);
+              });
+        response.end(
+          JSON.stringify(
+            input.username === undefined
+              ? { type: 'server-response', rpcId: input.rpcId, result: { ok: true, value: result } }
+              : { ok: true, value: result },
+          ),
+        );
+      } catch (error) {
+        const parsed = z.object({ code: z.string().optional() }).parse(error);
+        const failure = { code: parsed.code ?? 'internal', message: parsed.code ?? 'internal' };
+        response.end(
+          JSON.stringify(
+            input.username === undefined
+              ? {
+                  type: 'server-response',
+                  rpcId: input.rpcId,
+                  result: { ok: false, error: failure },
+                }
+              : { ok: false, error: failure },
+          ),
+        );
+      }
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   closes.push(async () => {
     server.closeAllConnections();

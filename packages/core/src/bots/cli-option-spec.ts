@@ -167,6 +167,9 @@ export const MODELS_USAGE_OPTIONS = {
   'assignment-models': { type: 'string' },
   'members-stdin': { type: 'boolean' },
   'orchestrator-group': { type: 'string' },
+  group: { type: 'string' },
+  'assignment-groups': { type: 'string' },
+  'assignment-default-group': { type: 'string' },
   period: { type: 'string' },
   after: { type: 'string' },
   start: { type: 'string' },
@@ -397,6 +400,7 @@ export const LIVE_OPTIONS = {
 
 export const BOT_CLI_OPTIONS = {
   administration: { type: 'boolean' },
+  id: { type: 'string' },
   name: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },

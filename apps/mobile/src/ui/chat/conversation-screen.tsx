@@ -116,6 +116,7 @@ import { ChannelTitle } from './channel-title';
 import { ChatHeaderRow } from './chat-header-row';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
+import { useHeaderModel } from './use-header-model';
 import { runningSessionCount } from '../../host/session-stop';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
@@ -209,6 +210,7 @@ import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { LatestAnchor } from './latest-anchor';
 import { sendJumpPreferences } from '../../host/native-send-jump';
+import { useHeaderModelPreferences } from '../../host/native-header-model';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { createSpeakerRegistry, SpeakerAvatar, SpeakerStageContext } from './speaker-row';
@@ -1709,10 +1711,21 @@ function ChatConversation({
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
+  const showHeaderModel = useHeaderModelPreferences().enabled;
+  const headerModel = useHeaderModel(
+    dm && showHeaderModel && saved !== undefined && !hostRefused && !missing ? client : undefined,
+    slug,
+    focused,
+    bot === undefined
+      ? undefined
+      : `${bot.state}:${bot.latestMessageId ?? ''}:${profileOpen ? 'profile' : 'chat'}`,
+  );
   const title = dm ? (
     <ChatTitle
       bot={bot}
       connectionLabel={connectionLabel}
+      model={headerModel.model}
+      modelMount={headerModel.mount}
       fallback={slug ?? ''}
       onPress={openProfile}
     />
@@ -2496,6 +2509,8 @@ function ChatConversation({
                   subtitle={headerStatus.label}
                   activeBots={headerStatus.bots}
                   connectionLabel={connectionLabel}
+                  model={dm ? headerModel.model : undefined}
+                  modelMount={dm ? headerModel.mount : undefined}
                   onBack={leave}
                   onProfile={canOpenProfile ? openProfile : undefined}
                   onCall={canOpenProfile ? placeCall : undefined}

@@ -252,14 +252,19 @@ export function createRelationshipEnrollments(options: {
       return { revoked: devices.length };
     },
     dueCleanup(): RelationshipEnrollment[] {
-      database.transaction(
-        (db) => {
-          db.prepare(
-            "UPDATE relationship_client_enrollments SET state = 'cleanup-pending', retry_at = ? WHERE direction = 'outgoing' AND state = 'unconfirmed' AND expires_at <= ?",
-          ).run(now(), now());
-        },
-        ['host-relationships'],
+      const expired = this.list().some(
+        (item) =>
+          item.direction === 'outgoing' && item.state === 'unconfirmed' && item.expiresAt <= now(),
       );
+      if (expired)
+        database.transaction(
+          (db) => {
+            db.prepare(
+              "UPDATE relationship_client_enrollments SET state = 'cleanup-pending', retry_at = ? WHERE direction = 'outgoing' AND state = 'unconfirmed' AND expires_at <= ?",
+            ).run(now(), now());
+          },
+          ['host-relationships'],
+        );
       return this.list()
         .filter(
           (item) =>

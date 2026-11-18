@@ -47,6 +47,7 @@ import type { InboxOpenFilter } from './inbox-triage.js';
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import {
+  assignmentGroupOptionOf,
   assignmentModelsOf,
   type ModelRoute,
   type PersonaBotModelPlan,
@@ -77,6 +78,7 @@ import {
   type DirectBotToolSpec,
   type InterruptedToolCall,
   type OrchestratorAgentRun,
+  type OrchestratorAssignmentAccess,
 } from './bot-runtime.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import { ENGINE_GATEWAY_TOOLS, type EngineTurnRequest } from '../engines/engine-host.js';
@@ -86,6 +88,7 @@ export interface AssignmentGroupRoutes {
   pick(botSlug: string, groupId: string): Promise<GroupPick>;
   describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
+  inherited?(): string | undefined;
 }
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
@@ -307,6 +310,43 @@ const TOB_GROUP_PROMPT = `Tob is the Human's private steward, never a Group part
 const BOT_CREATION_PROMPT = `Create a new PersonaBot with bot_create only when the Human asks for one. Fill display_name, description, tags, soul and core_memory from the conversation, and pass avatar_path or memory_location only when the Human gave them. When the name is unclear, ask the Human with ask_user_question first. Report the new Bot in the Channel only from the tool result, with its name and DM; never claim a Bot was created when the tool failed. The new Bot is an independent colleague: reach it with bot_send_message using bot_id or invite it to a Group.`;
 const TOB_DELEGATION_PROMPT = `Tob Delegation: you are the Human's single point of contact for their Bots. Answer a trivial request yourself, such as a greeting, a quick fact or a question about you or your abilities, and handle a management task the scoped deepseekbot CLI covers yourself. Keep your own Memory updates, Bot Schedules and reminders, and MCP or credential setup with you as described below; never delegate them. For any other request in your Human DM, delegate it without asking the Human first: call list_bot_contacts with a query drawn from the request, compare the candidates' descriptions, and choose the one colleague whose description fits best. Send that colleague one bot_send_message with its botId as bot_id, restating the Human's request completely and asking for the result in that Bot-to-Bot DM. Send to one colleague only and never repeat the send; the Host's action notice already shows the Human each send, so no separate confirmation is needed. Keep the Human's request open while you wait. When the colleague's reply arrives in your Inbox, report its result, naming the colleague, with bot_send_message in your Human DM, then resolve both items; do not answer the colleague only to acknowledge. If no colleague's description fits, send nothing to any Bot: tell the Human no current Bot suits the request and offer to create one, creating it only after the Human agrees. Delegation carries no approval authority: never relay, make or promise an approval decision for a colleague; its own approvals still go to the Human.`;
 const TOB_CREATION_PROMPT = `When the Human asks you to create a Bot, use the scoped deepseekbot CLI through your Shell. Discover the installed create command with deepseekbot capabilities, prepare its supported fields from the conversation, and keep the same operation key and payload when recovering a possibly interrupted creation. Report the canonical Bot and DM only after a successful CLI result. Never use bot_create for Tob or bypass the CLI's current authority and approval checks.`;
+export function onlyActiveGrant(access: Pick<OrchestratorAssignmentAccess, 'grants'>): string {
+  const active = access.grants().filter((grant) => grant.revokedAt === undefined);
+  if (active.length === 1) return active[0]!.id;
+  throw new Error(
+    active.length === 0
+      ? 'create_assignment: no Workspace Grant is active; call request_workspace_grant first'
+      : `create_assignment: ${active.length} Workspace Grants are active; pass grant_id (${active.map((grant) => grant.id).join(', ')})`,
+  );
+}
+
+export function hostWorkContext(
+  access: Pick<OrchestratorAssignmentAccess, 'grants' | 'list'>,
+): string {
+  const grants = access
+    .grants()
+    .filter((grant) => grant.revokedAt === undefined)
+    .map(
+      (grant) =>
+        `- Grant ${grant.id}: ${JSON.stringify(grant.workspaceTitle)} at ${grant.workspacePath}${grant.orchestratorWrite === true ? ', Orchestrator may write' : ''}`,
+    );
+  const assignments = access
+    .list()
+    .filter((assignment) => assignment.archivedAt === undefined)
+    .slice(0, 12)
+    .map(
+      (assignment) =>
+        `- Assignment ${assignment.sessionId}: ${JSON.stringify(assignment.title)}${assignment.continuityKey === undefined ? '' : ` key ${assignment.continuityKey}`}, ${assignment.activity}`,
+    );
+  return [
+    '[Host context] Your active Workspace Grants and unarchived Assignments as of this turn. Use them directly; call list_workspace_grants or list_assignments only for details or a search.',
+    grants.length > 0 ? 'Grants:' : 'Grants: none',
+    ...grants,
+    assignments.length > 0 ? 'Assignments:' : 'Assignments: none',
+    ...assignments,
+  ].join('\n');
+}
+
 function orchestratorPrompt(text: PromptText, tob = false): string {
   return `You are the Orchestrator for one PersonaBot, and your working directory is its Memory Repository.
 ## You coordinate work from an inbox
@@ -320,7 +360,7 @@ Only a successful send result proves delivery. Resolve only explicitly completed
 
 Use three complementary sources across Sessions: Channels hold what was said with people and other Bots; your Bot Inbox is your diary of what you did and why, including handled Bot Self-Records, read with inbox_history; your Memory Repository holds distilled long-term memory and its Git history. inbox_history searches only your own admissions, with literal Chinese or English phrases of at least three Unicode characters, kind, Channel, cause and time filters. It returns bounded previews, not full messages, and never observes or changes pending attention. Use channel_read deliberately for full accessible Channel content; unlike history previews, those reads join the current turn. Search pages preserve the first page’s relevance order; keep filters unchanged when using nextCursor, and restart a search after its 10-minute cursor expires or the Host restarts.
 You own the Human conversation and the memory: use the delivery contract above when an answer is called for. ${text('attention')} Do not equate "no reply", "no action needed", or "another colleague owns this" with ignored. inbox_ignore dismisses one specific Channel message by message id, even one this turn has not reached yet; it is the same as inbox_resolve with outcome ignored. Messages returned by channel_read join this turn and count as seen when it succeeds; messages omitted by that read remain pending. Do not report a returned message as still pending after a successful turn. Reading a message never automatically writes long-term memory. The checked-out Git working tree is the current Memory, including staged, unstaged, and untracked files. Git commits and branches are history and organization, not a separate approval gate. Native read/glob can inspect current files immediately; use Git commands only when the Human asks for Git history or a repository operation. Use DSH's native read, write, edit, glob, and grep tools for files. You may read your Memory Repository and active Workspace Grants, and write your Memory Repository or Grants where orchestratorWrite is true. Use absolute paths in a Grant; for your native Shell (bash, or pwsh on Windows) set workdir to that writable Grant's workspacePath. ${text('file-placement')} Tools that installed plugins add, such as another Shell, are yours to use as their own tool guidance describes. Shell and plugin tools run under this Session's DSH sandbox mode with no extra BotHarness approval. When a tool asks DSH for permission, such as a Shell call with sandbox_permissions, the approval card appears in the Channel the task came from. ${text('asking-humans')} Reading an Assignment report never writes memory for you — you decide what to persist.
-Call list_workspace_grants to find a Human-authorized DSH Workspace Grant, then pass its grant_id to create_assignment. If no active Grant fits the Human's requested work, call request_workspace_grant with a concise reason, then end your turn; its card appears in the current inbound Channel, a Group or your Human DM. The Human chooses and authorizes a folder on that card; their action returns to this same Orchestrator Session, where you list Grants again and create the Assignment. create_assignment starts one Assignment immediately and returns its Session id; it does not wait. When you need its next report before continuing, use wait_for_assignment with its Session id; do not poll inspect_assignment repeatedly. A timeout leaves the Assignment running. Delegate bounded independent work that benefits from its own Session or parallel execution, and always pass a short continuity key naming that direction; reuse a key only for the same direction, so an idle keyed Assignment continues with your new instruction instead of a second Session being created. Two independent directions may run at the same time. Before creating one, search list_assignments with query for an Assignment already serving the same goal or deliverable, whoever asked, and continue that one instead. An Assignment stays active until you archive it: keep sending it requests to iterate on the same work in the same context. A Turn that ended with an error, was cancelled or was interrupted does not end the Assignment; its context is kept, so continue it with send_assignment_request (or the same continuity key) instead of creating a replacement, unless the error shows it cannot recover. Archiving resolves an Assignment: when its line of work is finished and no longer useful, archive it with archive_assignment so your default list stays small; nothing is archived automatically. Sending a request to an archived Assignment tries to reactivate it: it is unarchived and the request is retried once, so reuse it rather than creating a duplicate when the same work comes back. Check the result before waiting for a report: only a delivery of steer or followup means the request was delivered; a capacity or refused result delivered nothing, even when it carries unarchived: true, which only says the Assignment is active again. unarchive_assignment restores one without sending anything unless you pass message, which it then delivers as an Assignment Request; a stopped Assignment, whoever stopped it, resumes when you send it a request, so when new work fits a stopped Assignment, send it there; do not resend its old work just because it was stopped. A simple question, a memory update, or a Channel reply stays with you and must not be delegated. When the Human asks to change Memory branches without naming an exact branch, use DSH's native ask_user_question to ask which branch they mean. Offer relevant existing branches, accept a custom answer, and wait for the Human's answer in this Channel before switching. An explicit exact branch name needs no question. When the Human explicitly requests switching to an existing Memory branch, call memory_switch_branch with its exact name, then use the native file tools to read the new branch content and report the result in the Channel. When the Human explicitly asks to continue from a historical Memory commit, call memory_continue_from_commit with the exact commit SHA and requested new branch name; then read from the switched working tree in the same Session. A newly fetched, merged, or checked-out commit is available immediately through the current working tree; no separate acceptance step is needed. If a Memory branch switch is blocked, do not claim success. Your Soul (SOUL.md: who you are, your character, voice and standing instructions) and your Core Memory (MEMORY.md: the memory you always carry, so every new Session starts knowing what you remember) are sections of this system prompt, frozen for this Session's life; if either file on disk differs, yours still applies — the file version reaches new Sessions and the next compaction. Each has a character limit; a truncation note on a section means that file should be consolidated. Use list_assignments and inspect_assignment to identify relevant active work, then send_assignment_request in next-step mode to ask the affected Assignment to pause at a safe point, preserve its own workspace work, and report; Assignments must never edit Memory. Report the target branch and conflict in the Channel. After sending the request, use bot_send_message if the target branch, Assignment id, or coordination progress is useful to the Human. After the report, inspect the Memory Git state, preserve unfinished Memory with a named native Git stash including untracked files when safe, and retry memory_switch_branch. If coordination cannot make the switch safe, report the target and the blocked reason. Do not reset, force-checkout, or discard changes solely to resolve a blocked switch without explicit Human instruction.
+The [Host context] block in a turn lists your active Workspace Grants and unarchived Assignments whenever they changed; pass a listed Grant's id as grant_id to create_assignment, or omit grant_id when exactly one Grant is active. Call list_workspace_grants or list_assignments only when you need details the block leaves out. If no active Grant fits the Human's requested work, call request_workspace_grant with a concise reason, then end your turn; its card appears in the current inbound Channel, a Group or your Human DM. The Human chooses and authorizes a folder on that card; their action returns to this same Orchestrator Session, where you list Grants again and create the Assignment. create_assignment starts one Assignment immediately and returns its Session id; it does not wait. Only when you cannot continue without its next report in this turn, use wait_for_assignment with its Session id; do not poll inspect_assignment repeatedly. A timeout leaves the Assignment running. Always pass a short continuity key naming the direction of each Assignment; reuse a key only for the same direction, so an idle keyed Assignment continues with your new instruction instead of a second Session being created. Independent directions run at the same time, each in its own Assignment. Before creating one, check the listed Assignments, or search list_assignments with query when the list is cut short, for one already serving the same goal or deliverable, whoever asked, and continue that one instead. An Assignment stays active until you archive it: keep sending it requests to iterate on the same work in the same context. A Turn that ended with an error, was cancelled or was interrupted does not end the Assignment; its context is kept, so continue it with send_assignment_request (or the same continuity key) instead of creating a replacement, unless the error shows it cannot recover. Archiving resolves an Assignment: when its line of work is finished and no longer useful, archive it with archive_assignment so your default list stays small; nothing is archived automatically. Sending a request to an archived Assignment tries to reactivate it: it is unarchived and the request is retried once, so reuse it rather than creating a duplicate when the same work comes back. Check the result before waiting for a report: only a delivery of steer or followup means the request was delivered; a capacity or refused result delivered nothing, even when it carries unarchived: true, which only says the Assignment is active again. unarchive_assignment restores one without sending anything unless you pass message, which it then delivers as an Assignment Request; a stopped Assignment, whoever stopped it, resumes when you send it a request, so when new work fits a stopped Assignment, send it there; do not resend its old work just because it was stopped. A simple question, a memory update, or a Channel reply stays with you and must not be delegated. When the Human asks to change Memory branches without naming an exact branch, use DSH's native ask_user_question to ask which branch they mean. Offer relevant existing branches, accept a custom answer, and wait for the Human's answer in this Channel before switching. An explicit exact branch name needs no question. When the Human explicitly requests switching to an existing Memory branch, call memory_switch_branch with its exact name, then use the native file tools to read the new branch content and report the result in the Channel. When the Human explicitly asks to continue from a historical Memory commit, call memory_continue_from_commit with the exact commit SHA and requested new branch name; then read from the switched working tree in the same Session. A newly fetched, merged, or checked-out commit is available immediately through the current working tree; no separate acceptance step is needed. If a Memory branch switch is blocked, do not claim success. Your Soul (SOUL.md: who you are, your character, voice and standing instructions) and your Core Memory (MEMORY.md: the memory you always carry, so every new Session starts knowing what you remember) are sections of this system prompt, frozen for this Session's life; if either file on disk differs, yours still applies — the file version reaches new Sessions and the next compaction. Each has a character limit; a truncation note on a section means that file should be consolidated. Use list_assignments and inspect_assignment to identify relevant active work, then send_assignment_request in next-step mode to ask the affected Assignment to pause at a safe point, preserve its own workspace work, and report; Assignments must never edit Memory. Report the target branch and conflict in the Channel. After sending the request, use bot_send_message if the target branch, Assignment id, or coordination progress is useful to the Human. After the report, inspect the Memory Git state, preserve unfinished Memory with a named native Git stash including untracked files when safe, and retry memory_switch_branch. If coordination cannot make the switch safe, report the target and the blocked reason. Do not reset, force-checkout, or discard changes solely to resolve a blocked switch without explicit Human instruction.
 When the Human explicitly asks to stop an Assignment, inspect it and call stop_assignment with its Session id; wait for the tool to confirm stopped before reporting that fact in the Channel. Do not use a follow-up instruction as a substitute for stopping.
 Assignment reports and questions arrive in the [Bot Inbox] block of your next turn. An item marked WAITING needs your answer: reply with send_assignment_request and its answer_to value, and the Assignment resumes after native Inbox acceptance. A followup result with acceptance=pending only schedules delivery: it is not proof the answer was accepted or the task completed. Do not claim successful delivery from that pending result. A preacceptance failure keeps the ask available; an uncertain acceptance requires inspecting or repairing the native Session, never blind replay. ${text('assignment-acceptance')} Progress items need no reply to the Assignment, but like every report they stay open until you resolve them; use list_assignments and inspect_assignment when you need current facts, and never poll for reports. An oversized report gives a DSH Spill locator and retrieval hint. If your workspace cannot read the locator, inspect_assignment with report_offset=0 reads the accepted report through DSH Session Query in bounded pages; continue with report_source_event_id=reportPage.reportSourceEventId and report_offset=reportPage.nextOffset. A new report does not change this read; missing identity on a nonzero offset is refused. include_recent_events reads a separate bounded Session tail and reports its cost. Give every Assignment a Title and a Description. The Title is a short name of about 40 characters that a Human recognizes in a list: lead with the goal's verb and name the specific feature, bug or question in the Human's words and language, e.g. "Fix Safari export button"; leave out ids, paths and the word Assignment. The Description is one or two self-contained sentences saying what the Assignment sets out to do and what it delivers; it is not the instructions and not a report. Put detailed steps or constraints in instructions.
 An item marked Host lifecycle notice is a runtime fact, not a report authored by the Assignment Agent. Use it to verify settlement and inform the Human when relevant; never attribute its wording to the Assignment Agent.
@@ -406,8 +446,15 @@ export interface DshAgentHost {
   get?(id: ReturnType<typeof SessionId>): Agent | undefined;
 }
 
+export interface AssignmentModeChoices {
+  default: string;
+  allowed: Array<{ id: string; name?: string; description?: string }>;
+  restricted: boolean;
+}
+
 export interface DshAgentPresetHost {
   mount(agentCtx: Context, id?: string): Promise<unknown>;
+  presetForSession?(session: Agent['session']): string | null | undefined;
   serviceFor?(agent: Agent, name: string): unknown;
 }
 
@@ -432,7 +479,11 @@ export interface DshBotAgentAdapterOptions {
 
   resolveAgentPresets?: () => DshAgentPresetHost | undefined;
 
-  defaultAgentPreset?: string;
+  defaultAgentPreset?: string | (() => string | undefined);
+  botModeOf?: (botSlug: string) => string | undefined;
+  ensureBotModes?: () => Promise<void>;
+  recordSessionMode?: (sessionId: string, mode: string) => void;
+  assignmentModes?: (botSlug: string) => Promise<AssignmentModeChoices>;
 
   orchestratorCwd?: (bot: PersonaBotRecord) => string | undefined;
   ensureWorkspace?: (path: string) => void;
@@ -500,8 +551,9 @@ function agentOptions(
   run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
   defaultSelection: ModelSelection,
   plan: PersonaBotModelPlan | undefined,
+  fallback?: ModelRoute,
 ): ModelSelection {
-  const route = 'inboundChannelId' in run ? plan?.orchestrator : run.modelRoute;
+  const route = 'inboundChannelId' in run ? (fallback ?? plan?.orchestrator) : run.modelRoute;
   if (route !== undefined) {
     return {
       provider: route.provider,
@@ -521,10 +573,10 @@ function createMeta(
   run: OrchestratorAgentRun | AssignmentAgentRun,
   cwd: string,
   ensureWorkspace: ((path: string) => void) | undefined,
-  defaultAgentPreset: string | undefined,
+  botMode: string | undefined,
 ) {
   ensureWorkspace?.(cwd);
-  const agentPreset = run.bot.preset ?? defaultAgentPreset;
+  const agentPreset = ('agentPreset' in run ? run.agentPreset : undefined) ?? botMode;
   return {
     cwd,
     ...(agentPreset === undefined ? {} : { agentPreset }),
@@ -662,23 +714,29 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #genuiPreviewBrowserPath: DshBotAgentAdapterOptions['genuiPreviewBrowserPath'];
   readonly #genuiAttachmentContext: DshBotAgentAdapterOptions['genuiAttachmentContext'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
-  readonly #defaultAgentPreset: string | undefined;
+  readonly #defaultAgentPresetOf: () => string | undefined;
+  readonly #currentBotModeOf: ((botSlug: string) => string | undefined) | undefined;
+  readonly #ensureBotModes: (() => Promise<void>) | undefined;
+  readonly #recordSessionMode: ((sessionId: string, mode: string) => void) | undefined;
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
   readonly #admitSession: DshBotAgentAdapterOptions['admitSession'];
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
+  readonly #assignmentModes: ((botSlug: string) => Promise<AssignmentModeChoices>) | undefined;
   readonly #onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
   readonly #onAgentSetup:
     | ((agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void)
     | undefined;
   readonly #ensureWorkspace: (path: string) => void;
   readonly #handles = new Map<string, AgentHandle>();
+  readonly #workContexts = new Map<string, string>();
   readonly #orchestratorBridgeTools = new Map<string, (connected: boolean) => void>();
   readonly #orchestratorSelections = new Map<
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
   >();
+  readonly #orchestratorModeChoices = new Map<string, AssignmentModeChoices>();
   readonly #assignmentSelections = new Map<
     string,
     { current: ModelSelection | undefined; assembled: ModelSelection | undefined }
@@ -721,12 +779,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
-    this.#defaultAgentPreset = options.defaultAgentPreset;
+    this.#currentBotModeOf = options.botModeOf;
+    this.#ensureBotModes = options.ensureBotModes;
+    this.#recordSessionMode = options.recordSessionMode;
+    const defaultAgentPreset = options.defaultAgentPreset;
+    this.#defaultAgentPresetOf =
+      typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
     this.#authorizeBorrow = options.authorizeBorrow;
     this.#admitSession = options.admitSession;
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
     this.#resolveAgentPresets = options.resolveAgentPresets;
+    this.#assignmentModes = options.assignmentModes;
     this.#ensureWorkspace =
       options.ensureWorkspace ?? ((path) => void mkdirSync(path, { recursive: true }));
     this.#drafts = new ChannelDraftTracker(options.publishDraft ?? (() => undefined));
@@ -881,11 +945,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       );
       const selection = this.#orchestratorSelections.get(run.sessionId);
       if (selection !== undefined) {
-        selection.current = agentOptions(
-          run,
-          this.#defaultModel.currentSelection(),
-          this.#orchestratorPlan(run),
-        );
+        selection.current = this.#orchestratorSelection(run);
       }
       selectNativeModel(handle.agent, selection?.current);
       const fromSeq = handle.agent.session.seq;
@@ -935,6 +995,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           createUserMessage({
             content: [
               { type: 'text', text },
+              ...this.#workContext(run.sessionId, run.assignments),
               { type: 'text', text: replyReminder(this.#promptText(run.sessionId)) },
             ],
             source: { kind: 'user' },
@@ -1162,6 +1223,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return undefined;
   }
 
+  #workContext(
+    sessionId: string,
+    access: Pick<OrchestratorAssignmentAccess, 'grants' | 'list'>,
+  ): { type: 'text'; text: string }[] {
+    let context: string;
+    try {
+      context = hostWorkContext(access);
+    } catch {
+      return [];
+    }
+    if (this.#workContexts.get(sessionId) === context) return [];
+    this.#workContexts.set(sessionId, context);
+    return [{ type: 'text', text: context }];
+  }
+
   steerOrchestrator(botSlug: string, text: string): boolean {
     this.#assertOpen();
     for (const [sessionId, active] of this.#runs) {
@@ -1178,6 +1254,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         createUserMessage({
           content: [
             { type: 'text', text },
+            ...this.#workContext(sessionId, active.run.assignments),
             { type: 'text', text: replyReminder(this.#promptText(sessionId)) },
           ],
           source: { kind: 'user' },
@@ -1200,6 +1277,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   #forgetHandle(sessionId: string): void {
     this.#handles.delete(sessionId);
     this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorModeChoices.delete(sessionId);
     this.#orchestratorBridgeTools.delete(sessionId);
     this.#assignmentSelections.delete(sessionId);
   }
@@ -1228,6 +1306,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       { bot, inboundChannelId: '' },
       this.#defaultModel.currentSelection(),
       this.#resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
+      this.#orchestratorRoute?.(sessionId),
     );
     selectNativeModel(this.#handles.get(sessionId)?.agent, selection.current);
   }
@@ -1324,9 +1403,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#stopSeqs.delete(run.sessionId);
     const abandonable = this.#abandonable(run.sessionId);
     try {
-      const handle = await this.#prepare(run.sessionId, async () => {
+      const handle = await this.#prepare(run.sessionId, async (signal) => {
         await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
-        return this.#assignmentHandle(run);
+        return this.#assignmentHandle(run, signal);
       }).catch((error: unknown) => {
         if (error instanceof PreparationStopped)
           throw new Error('Assignment stopped before Inbox acceptance');
@@ -1403,6 +1482,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const handles = [...this.#handles.values()];
     this.#handles.clear();
     this.#orchestratorSelections.clear();
+    this.#orchestratorModeChoices.clear();
     this.#assignmentSelections.clear();
     for (const sessionId of this.#runs.keys()) this.#drafts.end(sessionId);
     for (const controller of this.#preparations.values()) controller.abort();
@@ -1424,23 +1504,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     });
   }
 
-  #orchestratorPlan(run: OrchestratorAgentRun): PersonaBotModelPlan | undefined {
-    const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-    const fallback = this.#orchestratorRoute?.(run.sessionId);
-    return fallback === undefined || plan === undefined
-      ? plan
-      : { ...plan, orchestrator: fallback };
+  #orchestratorSelection(run: OrchestratorAgentRun): ModelSelection {
+    return agentOptions(
+      run,
+      this.#defaultModel.currentSelection(),
+      this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
+      this.#orchestratorRoute?.(run.sessionId),
+    );
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
     signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const resolvedAgentOptions = agentOptions(
-      run,
-      this.#defaultModel.currentSelection(),
-      this.#orchestratorPlan(run),
-    );
+    const resolvedAgentOptions = this.#orchestratorSelection(run);
     const selection = {
       current: resolvedAgentOptions,
       assembled: undefined as ModelSelection | undefined,
@@ -1453,7 +1530,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         rootRole: 'orchestrator',
       });
       if (!borrowed) {
-        await this.#composePreset(agentCtx, run.bot);
+        await this.#composePreset(agentCtx, agent, run);
       }
       const disposeFiles = await this.#onOrchestratorFileSetup?.(agentCtx, agent);
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
@@ -1580,24 +1657,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       setup,
       ...(signal === undefined ? {} : { signal }),
     };
-    const meta = createMeta(
-      run,
-      this.#resolveOrchestratorCwd(run.bot),
-      this.#ensureWorkspace,
-      this.#defaultAgentPreset,
-    );
     const resume =
       run.resume && (this.#hasSession === undefined || (await this.#hasSession(run.sessionId)));
+    const modeChoices = await this.#readAssignmentModes(run.bot.slug, signal);
+    if (modeChoices === undefined) this.#orchestratorModeChoices.delete(run.sessionId);
+    else this.#orchestratorModeChoices.set(run.sessionId, modeChoices);
     const handle = resume
       ? await this.#agents.resume({
           resumeSessionId: SessionId(run.sessionId),
           ...options,
         })
-      : await this.#agents.create({
-          sessionId: SessionId(run.sessionId),
-          ...(meta === undefined ? {} : { meta }),
-          ...options,
-        });
+      : await this.#createOrchestrator(run, options);
     try {
       signal?.throwIfAborted();
       run.tobCliTurn?.signal.throwIfAborted();
@@ -1619,6 +1689,24 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
+  }
+
+  async #createOrchestrator(
+    run: OrchestratorAgentRun,
+    options: Omit<CreateAgentOptions, 'sessionId' | 'meta'>,
+  ): Promise<AgentHandle> {
+    await this.#loadBotModes(options.signal);
+    const meta = createMeta(
+      run,
+      this.#resolveOrchestratorCwd(run.bot),
+      this.#ensureWorkspace,
+      this.#botModeOf(run.bot),
+    );
+    return this.#agents.create({
+      sessionId: SessionId(run.sessionId),
+      ...(meta === undefined ? {} : { meta }),
+      ...options,
+    });
   }
 
   #orchestratorTools(
@@ -1782,7 +1870,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. assignmentModes lists the DSH modes a new Assignment may run in. Call before selecting a non-default route or mode, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1793,36 +1881,69 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          if (plan?.assignmentDefault === undefined)
-            return JSON.stringify({
-              configured: false,
-              message: 'Ask the Human to apply a Model Preset first',
-            });
-          const open = plan.openAssignmentModels === true;
+          const modeChoices = await this.#assignmentModes?.(run.bot.slug).then(
+            (modes) => ({ assignmentModes: { default: modes.default, allowed: modes.allowed } }),
+            (error: unknown) => ({
+              assignmentModesError: `DSH modes could not be read, so new Assignments use this Bot's mode: ${error instanceof Error ? error.message : String(error)}`,
+            }),
+          );
           const groups = this.#assignmentGroups;
           const resting = <T extends { provider: string; model: string }>(route: T) => {
             const rest = groups?.restingUntil(route);
             return rest === undefined ? route : { ...route, restingUntil: rest.until };
           };
-          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) => {
+          const describeGroup = (id: string, isDefault: boolean) => {
             const group = groups?.describe(id);
             if (group === undefined) return [];
             const members = group.routes.map(resting);
             const until = members.map((member) =>
               'restingUntil' in member ? member.restingUntil : undefined,
             );
+            const front = members.find((member) => !('restingUntil' in member));
+            const option = assignmentGroupOptionOf(plan, id);
             return [
               {
                 group: id,
                 name: group.name,
-                ...(id === plan.assignmentDefaultGroupId ? { default: true } : {}),
+                ...(isDefault ? { default: true } : {}),
+                ...(option?.note === undefined ? {} : { note: option.note }),
+                ...(front === undefined
+                  ? {}
+                  : { front: { provider: front.provider, model: front.model } }),
+                ...(option?.allowedEfforts === undefined
+                  ? {}
+                  : { efforts: option.allowedEfforts, defaultEffort: option.defaultEffort }),
                 members,
                 ...(until.length > 0 && until.every((value) => value !== undefined)
                   ? { restingUntil: until.sort()[0] }
                   : {}),
               },
             ];
-          });
+          };
+          if (plan?.assignmentDefault === undefined) {
+            const inherited = groups?.inherited?.();
+            const inheritedGroups = inherited === undefined ? [] : describeGroup(inherited, true);
+            return JSON.stringify(
+              inheritedGroups.length === 0
+                ? {
+                    configured: false,
+                    message: 'Ask the Human to apply a Model Preset first',
+                    ...modeChoices,
+                  }
+                : {
+                    configured: false,
+                    inherited: true,
+                    assignmentGroups: inheritedGroups,
+                    message:
+                      'Assignments follow the Profile default Routing Group; omit provider, model and group to use it',
+                    ...modeChoices,
+                  },
+            );
+          }
+          const open = plan.openAssignmentModels === true;
+          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
+            describeGroup(id, id === plan.assignmentDefaultGroupId),
+          );
           return JSON.stringify({
             configured: true,
             revision: plan.revision,
@@ -1837,6 +1958,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                   ),
                 }
               : {}),
+            ...modeChoices,
           });
         },
       }),
@@ -1845,7 +1967,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'create_assignment',
         description:
-          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+          'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort or mode; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
         parameters: {
           title: {
             type: 'string',
@@ -1866,9 +1988,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           },
           grant_id: {
             type: 'string',
-            required: true,
             description:
-              'Active Workspace Grant id from list_workspace_grants; raw paths are not accepted.',
+              'Active Workspace Grant id from [Host context] or list_workspace_grants; raw paths are not accepted. Omit it when exactly one Grant is active.',
           },
           key: {
             type: 'string',
@@ -1888,13 +2009,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           reasoning_effort: {
             type: 'string',
             description:
-              'Optional allowed effort for the selected model; omitted uses that model’s Human-selected default. Pass an empty string to select the provider default when allowed.',
+              'Optional allowed effort for the selected model, or for the selected Routing Group when list_assignment_models gives it efforts; omitted uses the Human-selected default. Pass an empty string to select the provider default when allowed.',
           },
           group: {
             type: 'string',
             description:
               'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
           },
+          mode: assignmentModeParameter(this.#orchestratorModeChoices.get(run.sessionId)),
         },
         output: {
           schema: { type: 'string' },
@@ -1908,12 +2030,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (args.group !== undefined && args.provider !== undefined)
             throw new Error('create_assignment: pass either group or provider/model');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const inherited =
+            plan?.assignmentDefault === undefined
+              ? this.#assignmentGroups?.inherited?.()
+              : undefined;
           const groupId =
             args.group ??
-            (args.provider === undefined ? plan?.assignmentDefaultGroupId : undefined);
+            (args.provider === undefined
+              ? (plan?.assignmentDefaultGroupId ?? inherited)
+              : undefined);
           let picked: ModelRoute | undefined;
           if (groupId !== undefined) {
-            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+            if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
             const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
             if (pick?.kind !== 'route')
@@ -1929,20 +2057,44 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
-          if (args.reasoning_effort !== undefined && args.provider === undefined)
-            throw new Error('create_assignment: reasoning_effort requires provider and model');
+          if (args.reasoning_effort !== undefined && args.provider === undefined) {
+            if (groupId === undefined)
+              throw new Error('create_assignment: reasoning_effort requires provider and model');
+            const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
+            if (!allowed.includes(args.reasoning_effort))
+              throw new Error(
+                `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+              );
+          }
+          const groupEffort =
+            groupId === undefined
+              ? undefined
+              : (args.reasoning_effort ?? assignmentGroupOptionOf(plan, groupId)?.defaultEffort);
+          if (picked !== undefined && groupEffort !== undefined)
+            picked = { ...picked, reasoningEffort: groupEffort };
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
               provider: args.provider,
               model: args.model!,
               ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
             });
+          if (args.mode !== undefined) {
+            const modes = await this.#assignmentModes?.(run.bot.slug);
+            if (modes === undefined)
+              throw new Error('create_assignment: DSH modes are unavailable on this Host');
+            if (!modes.allowed.some((mode) => mode.id === args.mode))
+              throw new Error(
+                `create_assignment: mode ${args.mode} is not allowed; choose one of ${modes.allowed.map((mode) => mode.id).join(', ')}`,
+              );
+          }
+          const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
           const outcome = active.run.assignments.create({
             title: args.title,
             description: args.description,
             ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
-            grantId: args.grant_id,
+            grantId,
             ...(args.key === undefined ? {} : { key: args.key }),
+            ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
               ? { model: picked, modelGroupId: groupId }
               : args.provider === undefined
@@ -1972,6 +2124,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               ...(outcome.assignment.modelRoute === undefined
                 ? {}
                 : { modelRoute: outcome.assignment.modelRoute }),
+              ...(outcome.assignment.agentPreset === undefined
+                ? {}
+                : { mode: outcome.assignment.agentPreset }),
             });
           }
           if (outcome.outcome === 'capacity') return JSON.stringify(outcome);
@@ -4584,10 +4739,27 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return tools;
   }
 
-  async #composePreset(agentCtx: Context, bot: PersonaBotRecord): Promise<void> {
+  async #composePreset(
+    agentCtx: Context,
+    agent: Agent,
+    run: OrchestratorAgentRun | AssignmentAgentRun,
+  ): Promise<void> {
     const presets = this.#resolveAgentPresets?.();
     if (presets === undefined) return;
-    await presets.mount(agentCtx, bot.preset ?? this.#defaultAgentPreset);
+    let recorded: string | undefined;
+    try {
+      recorded = presets.presetForSession?.(agent.session) ?? undefined;
+    } catch {
+      recorded = undefined;
+    }
+    const mode =
+      recorded ?? ('agentPreset' in run ? run.agentPreset : undefined) ?? this.#botModeOf(run.bot);
+    await presets.mount(agentCtx, mode);
+    if (mode !== undefined) this.#recordSessionMode?.(run.sessionId, mode);
+  }
+
+  #botModeOf(bot: PersonaBotRecord): string | undefined {
+    return this.#currentBotModeOf?.(bot.slug) ?? bot.preset ?? this.#defaultAgentPresetOf();
   }
 
   #resolveOrchestratorCwd(bot: PersonaBotRecord): string {
@@ -4598,10 +4770,39 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return cwd;
   }
 
-  async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
+  async #loadBotModes(signal: AbortSignal | undefined): Promise<void> {
+    signal?.throwIfAborted();
+    const loading = this.#ensureBotModes?.();
+    if (loading !== undefined) await untilAborted(loading, signal);
+  }
+
+  async #readAssignmentModes(
+    botSlug: string,
+    signal: AbortSignal | undefined,
+  ): Promise<AssignmentModeChoices | undefined> {
+    signal?.throwIfAborted();
+    const reading = this.#assignmentModes?.(botSlug).catch(() => undefined);
+    return reading === undefined ? undefined : untilAborted(reading, signal);
+  }
+
+  async #createAssignment(
+    run: AssignmentAgentRun,
+    options: CreateAgentOptions,
+    signal: AbortSignal | undefined,
+  ): Promise<AgentHandle> {
+    await this.#loadBotModes(signal);
+    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#botModeOf(run.bot));
+    return this.#agents.create({
+      ...options,
+      ...(meta === undefined ? {} : { meta }),
+      ...(signal === undefined ? {} : { signal }),
+    });
+  }
+
+  async #assignmentHandle(run: AssignmentAgentRun, signal?: AbortSignal): Promise<AgentHandle> {
+    signal?.throwIfAborted();
     const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
-    const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#defaultAgentPreset);
     const resolvedAgentOptions = agentOptions(
       run,
       this.#defaultModel.currentSelection(),
@@ -4614,7 +4815,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const borrowedDisposers: Array<() => void | Promise<void>> = [];
     const createOptions: CreateAgentOptions = {
       sessionId: SessionId(run.sessionId),
-      ...(meta === undefined ? {} : { meta }),
       agentOptions: resolvedAgentOptions,
       setup: async (agentCtx, agent, borrowed = false) => {
         this.#admitSession?.(agent);
@@ -4634,7 +4834,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           rootRole: 'assignment',
         });
         if (!borrowed) {
-          await this.#composePreset(agentCtx, run.bot);
+          await this.#composePreset(agentCtx, agent, run);
         }
         const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
         if (borrowed) borrowedDisposers.push(disposeSelection);
@@ -4726,6 +4926,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         await (
           createOptions.setup as (ctx: Context, agent: Agent, borrowed: boolean) => Promise<void>
         )(live.ctx, live, true);
+        signal?.throwIfAborted();
       } catch (error) {
         for (const dispose of borrowedDisposers.reverse()) await dispose();
         throw error;
@@ -4748,8 +4949,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           resumeSessionId: SessionId(run.sessionId),
           agentOptions: resolvedAgentOptions,
           setup: createOptions.setup!,
+          ...(signal === undefined ? {} : { signal }),
         })
-      : await this.#agents.create(createOptions);
+      : await this.#createAssignment(run, createOptions, signal);
     const raced = this.#handles.get(run.sessionId);
     if (raced !== undefined || this.#closed) {
       await handle.dispose();
@@ -4790,4 +4992,41 @@ export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): Bo
   ): Promise<boolean>;
 } {
   return new DshBotAgentAdapter(options);
+}
+
+const ASSIGNMENT_MODE_GUIDANCE =
+  'A mode decides the Assignment’s tools, and every tool definition costs input tokens on each step, so choose the lightest allowed mode whose description covers the work. The mode is fixed once the Assignment starts and a continuity key keeps the existing Assignment’s mode: work that needs tools its mode lacks goes to a new Assignment under a new key.';
+
+export function assignmentModeParameter(choices: AssignmentModeChoices | undefined): {
+  type: 'string';
+  description: string;
+  enum?: string[];
+} {
+  if (choices === undefined || choices.allowed.length < 2)
+    return {
+      type: 'string',
+      description: `Optional DSH mode id from assignmentModes.allowed in list_assignment_models; omitted uses this Bot’s mode (${choices?.default ?? 'unknown'}). ${ASSIGNMENT_MODE_GUIDANCE}`,
+    };
+  const modes = choices.allowed
+    .map((mode) => `- ${mode.id}: ${mode.description ?? mode.name ?? 'no description'}`)
+    .join('\n');
+  return {
+    type: 'string',
+    enum: choices.allowed.map((mode) => mode.id),
+    description: `Optional DSH mode for this Assignment; omitted uses this Bot’s mode (${choices.default}). ${ASSIGNMENT_MODE_GUIDANCE} Allowed modes:\n${modes}`,
+  };
+}
+
+async function untilAborted<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  return new Promise<T>((resolve, reject) => {
+    const stop = () =>
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error('Preparation stopped', { cause: signal.reason }),
+      );
+    signal.addEventListener('abort', stop, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', stop));
+  });
 }

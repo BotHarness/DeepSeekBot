@@ -23,6 +23,11 @@ import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
 import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import {
+  createBotModeBridgeMethods,
+  type BotModeBridgeMethods,
+  type BotModesDeps,
+} from './bot-modes.js';
 import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
@@ -383,6 +388,20 @@ import {
   type BotSkill,
 } from '../skills/bot-skills.js';
 
+export interface ModelCatalogGroup {
+  id: string;
+  name: string;
+  revision: number;
+  mode: 'order';
+  members: RoutingGroupMember[];
+  routes: ModelRoute[];
+  restingUntil?: string;
+}
+
+function routeKey(route: { provider: string; model: string }): string {
+  return JSON.stringify([route.provider, route.model]);
+}
+
 export interface SkillDetail {
   name: string;
   description: string;
@@ -428,15 +447,20 @@ import type {
 } from '../usage/usage.js';
 import { usageFilterSchema, type UsageQueryResult } from '../usage/query.js';
 import {
+  isAssignmentGroupOption,
   isAssignmentModelOption,
+  hasPresetGroups,
   isModelRoute,
   validateAssignmentModels,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelRoute,
   type ModelPreset,
+  type ModelPresetGroups,
   type ModelPresetStore,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import { modelFavorite, type ModelFavorite, type ModelFavoriteStore } from '../models/favorites.js';
 import {
   isRoutingGroupMember,
   RoutingGroupError,
@@ -445,7 +469,8 @@ import {
   type RoutingGroupMember,
   type RoutingGroupStore,
 } from '../models/routing-groups.js';
-import type { ModelCatalog, ModelCatalogEntry } from '../models/catalog.js';
+import { sharedEfforts, type ModelCatalog, type ModelCatalogEntry } from '../models/catalog.js';
+
 import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
 import { MemoryPathError } from '../memory/jail.js';
@@ -724,6 +749,7 @@ export interface OwnedSessionSummary {
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
   engine?: { engine: string; account?: string };
+  agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;
@@ -770,7 +796,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
-  onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
+  onboardingModel(
+    payload: unknown,
+  ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
   telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
@@ -855,8 +883,12 @@ export interface BridgeMethods extends TeamBridgeMethods {
       models: ModelCatalogEntry[];
       default?: ModelRoute;
       defaultRevision?: number;
+      defaultGroupId?: string;
+      favorites?: ModelFavorite[];
+      groups?: ModelCatalogGroup[];
     }>
   >;
+  modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
   modelPresets(payload: unknown): BridgeResult<{ presets: ModelPreset[] }>;
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
@@ -1204,6 +1236,12 @@ export interface BridgeMethods extends TeamBridgeMethods {
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
   voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  botModes: BotModeBridgeMethods['botModes'];
+  botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
+  botModeSet: BotModeBridgeMethods['botModeSet'];
+  botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
+  botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
+  botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
   voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
   voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
@@ -1387,6 +1425,7 @@ export interface BridgeMethodsDeps {
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
   approvalReviewer?: ApprovalReviewerSettings;
+  botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
@@ -1401,6 +1440,7 @@ export interface BridgeMethodsDeps {
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
+  modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
   routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
@@ -1752,6 +1792,66 @@ function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
     );
   return { name, members };
 }
+const PRESET_GROUP_KEYS = [
+  'orchestratorGroupId',
+  'assignmentGroups',
+  'assignmentDefaultGroupId',
+  'assignmentGroupOptions',
+] as const;
+function presetGroupsInput(
+  source: Record<string, unknown>,
+):
+  | { given: false }
+  | { given: true; groups: ModelPresetGroups; optionsGiven?: true }
+  | { given: true; invalid: true } {
+  if (!PRESET_GROUP_KEYS.some((key) => key in source)) return { given: false };
+  const orchestrator = source['orchestratorGroupId'] ?? undefined;
+  const ids = source['assignmentGroups'] ?? [];
+  const defaultId = source['assignmentDefaultGroupId'] ?? undefined;
+  const options = assignmentGroupOptionsInput(source['assignmentGroupOptions'], ids);
+  if (
+    (orchestrator !== undefined && (typeof orchestrator !== 'string' || !orchestrator.trim())) ||
+    !Array.isArray(ids) ||
+    !ids.every((id) => typeof id === 'string' && id.trim() !== '') ||
+    new Set(ids).size !== ids.length ||
+    (defaultId !== undefined && (typeof defaultId !== 'string' || !ids.includes(defaultId))) ||
+    options === 'invalid'
+  )
+    return { given: true, invalid: true };
+  return {
+    given: true,
+    groups: {
+      ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() }),
+      ...(ids.length === 0 ? {} : { assignmentGroups: ids as string[] }),
+      ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId }),
+      ...(options === undefined || options.length === 0 ? {} : { assignmentGroupOptions: options }),
+    },
+    ...(options === undefined ? {} : { optionsGiven: true }),
+  };
+}
+function assignmentGroupOptionsInput(
+  value: unknown,
+  ids: unknown,
+): AssignmentGroupOption[] | undefined | 'invalid' {
+  if (value === undefined) return undefined;
+  if (value === null) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every(isAssignmentGroupOption) ||
+    !Array.isArray(ids) ||
+    !value.every((option) => ids.includes(option.group)) ||
+    new Set(value.map((option) => option.group)).size !== value.length
+  )
+    return 'invalid';
+  return value;
+}
+const presetClientOutdated: BridgeResult<never> = {
+  ok: false,
+  error: {
+    code: 'client-update-required',
+    message: 'This Model Preset uses Routing Groups; update the client before editing it',
+  },
+};
 function routingGroupFailure(error: unknown): BridgeResult<never> {
   if (!(error instanceof RoutingGroupError)) return modelFailure(error);
   return {
@@ -2350,6 +2450,50 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
+  const catalogRests = (): Map<string, string> =>
+    new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
+  const catalogEntry = <T extends { provider: string; model: string }>(
+    entry: T,
+    rests: ReadonlyMap<string, string>,
+  ): T & { restingUntil?: string } => {
+    const until = rests.get(routeKey(entry));
+    return until === undefined ? entry : { ...entry, restingUntil: until };
+  };
+  const catalogGroups = (
+    rests: ReadonlyMap<string, string>,
+    allowed: (route: ModelRoute) => boolean,
+  ): { groups?: ModelCatalogGroup[] } => {
+    const store = deps.routingGroups;
+    if (store === undefined) return {};
+    return {
+      groups: store.list().flatMap((group) => {
+        let routes: ModelRoute[];
+        try {
+          routes = store.routes(group.id);
+        } catch {
+          return [];
+        }
+        if (routes.length === 0 || !routes.every(allowed)) return [];
+        const untils = routes.map((route) => rests.get(routeKey(route)));
+        const restingUntil = untils.every((until) => until !== undefined)
+          ? [...(untils as string[])].sort()[0]
+          : undefined;
+        return [
+          {
+            id: group.id,
+            name: group.name,
+            revision: group.revision,
+            mode: group.mode,
+            members: group.members,
+            routes,
+            ...(restingUntil === undefined ? {} : { restingUntil }),
+          },
+        ];
+      }),
+    };
+  };
+  const favoritesOf = (): { favorites?: ModelFavorite[] } =>
+    deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
   const channelSkillBots = (channel: ChannelRecord): string[] => {
@@ -2391,7 +2535,12 @@ function buildBridgeMethods(
   };
   const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
     let failure: Error | undefined;
-    for (const route of routes) {
+    const rests = catalogRests();
+    const ordered = [
+      ...routes.filter((route) => !rests.has(routeKey(route))),
+      ...routes.filter((route) => rests.has(routeKey(route))),
+    ];
+    for (const route of ordered) {
       try {
         await deps.modelCatalog!.validate(route);
         return { ...route };
@@ -2405,6 +2554,42 @@ function buildBridgeMethods(
     requireOwnedBot(slug);
     deps.team?.roles.require(human, 'models.use');
     for (const route of routes) requireBotModel(deps.team, deps.registry.get(slug), route);
+  };
+  const groupRoutes = (id: string): ModelRoute[] => {
+    if (deps.routingGroups?.get(id) === undefined)
+      throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+    return deps.routingGroups.routes(id);
+  };
+  const presetGroupRoutes = (groups: ModelPresetGroups): ModelRoute[] =>
+    [
+      ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
+      ...(groups.assignmentGroups ?? []),
+    ].flatMap(groupRoutes);
+  const validateGroupOptions = async (
+    options: readonly AssignmentGroupOption[] | undefined,
+  ): Promise<void> => {
+    const ranged = (options ?? []).filter((option) => option.allowedEfforts !== undefined);
+    if (ranged.length === 0) return;
+    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
+    const entries = await deps.modelCatalog.list();
+    for (const option of ranged) {
+      const shared = sharedEfforts(groupRoutes(option.group), entries);
+      const outside = option.allowedEfforts!.filter((effort) => !shared.includes(effort));
+      if (outside.length > 0)
+        throw new RoutingGroupError(
+          'invalid-input',
+          `Routing Group ${deps.routingGroups?.get(option.group)?.name ?? option.group}: effort ${outside.join(', ')} is not supported by every member; shared levels: ${shared.join(', ') || 'none'}`,
+        );
+    }
+  };
+  const presetOrchestrator = async (
+    orchestrator: unknown,
+    groups: ModelPresetGroups | undefined,
+  ): Promise<ModelRoute | undefined> => {
+    if (groups?.orchestratorGroupId === undefined)
+      return isModelRoute(orchestrator) ? orchestrator : undefined;
+    if (orchestrator !== undefined) return undefined;
+    return firstUsableRoute(groupRoutes(groups.orchestratorGroupId));
   };
   const allowed = (record: PersonaBotRecord): boolean =>
     botModelAllowed(
@@ -2921,6 +3106,11 @@ function buildBridgeMethods(
       providers: deps.voiceProviders,
       registry: deps.registry,
       log: deps.voiceLog,
+    }),
+    ...createBotModeBridgeMethods({
+      modes: deps.botModes,
+      registry: deps.registry,
+      everyone: globalRegistry,
     }),
     channelBridges(payload) {
       const input = z
@@ -3630,9 +3820,30 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined || deps.defaultModel === undefined) return unavailable();
       const source = asObject(payload);
       const slug = asSlug(payload);
-      const route = source['route'];
+      const groupId = source['groupId'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
+      if (
+        groupId !== undefined &&
+        (typeof groupId !== 'string' ||
+          !groupId.trim() ||
+          source['route'] !== undefined ||
+          source['globalDefault'] !== true ||
+          deps.routingGroups === undefined)
+      )
+        return invalidInput('A default Routing Group replaces the route and needs global scope');
+      let route = source['route'];
+      if (typeof groupId === 'string') {
+        try {
+          if (deps.routingGroups?.get(groupId) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
+          route = await firstUsableRoute(deps.routingGroups.routes(groupId));
+        } catch (error) {
+          return error instanceof RoutingGroupError
+            ? routingGroupFailure(error)
+            : invalidInput(error instanceof Error ? error.message : 'Model unavailable');
+        }
+      }
       if (
         defaultRevision !== undefined &&
         (!Number.isSafeInteger(defaultRevision) ||
@@ -3705,7 +3916,25 @@ function buildBridgeMethods(
             saved.reasoningEffort !== route.reasoningEffort
           )
             return invalidInput('Profile default model was not saved; open native model settings');
-          if (slug === undefined) return { ok: true, value: { revision: savedDefaultRevision } };
+          const groups = deps.routingGroups;
+          const previous = groups?.defaultGroup();
+          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          const groupRevision =
+            groups === undefined || previous === undefined
+              ? undefined
+              : previous.groupId === nextGroup
+                ? nextGroup === undefined
+                  ? undefined
+                  : previous.revision
+                : groups.setDefaultGroup(nextGroup, previous.revision).revision;
+          if (slug === undefined)
+            return {
+              ok: true,
+              value: {
+                revision: savedDefaultRevision,
+                ...(groupRevision === undefined ? {} : { groupRevision }),
+              },
+            };
           return this.modelPlanInherit({ slug, expectedRevision: revision });
         }
         if (slug === undefined) return invalidInput('Choose a Bot for an individual model');
@@ -4000,17 +4229,19 @@ function buildBridgeMethods(
       if (deps.modelCatalog === undefined) return unavailable();
       try {
         const models = await deps.modelCatalog.list();
+        const rests = catalogRests();
         if (deps.team && !deps.team.isOwner(human)) {
           const allowed = deps.team.roles.modelsAllowed(human);
+          const isAllowed = (route: { provider: string; model: string }) =>
+            allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`);
           return {
             ok: true,
             value: {
               models: models
-                .filter(
-                  (route) =>
-                    allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`),
-                )
-                .map(({ credential: _credential, ...route }) => route),
+                .filter(isAllowed)
+                .map(({ credential: _credential, ...route }) => catalogEntry(route, rests)),
+              ...favoritesOf(),
+              ...catalogGroups(rests, isAllowed),
             },
           };
         }
@@ -4020,18 +4251,41 @@ function buildBridgeMethods(
           .defaultModelSettings?.()
           ?.describe({ redactSecrets: true })
           .find((entry) => entry.ns === 'agent-default-model')?.revision;
+        const defaultGroup = deps.routingGroups?.defaultGroup();
         return {
           ok: true,
           value: {
-            models,
+            models: models.map((entry) => catalogEntry(entry, rests)),
             ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
             ...(defaultRevision === undefined ? {} : { defaultRevision }),
+            ...(defaultGroup?.groupId === undefined
+              ? {}
+              : { defaultGroupId: defaultGroup.groupId }),
+            ...favoritesOf(),
+            ...catalogGroups(rests, () => true),
           },
         };
       } catch (error) {
         return !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
+      }
+    },
+    modelFavoriteSet(payload) {
+      if (deps.modelFavorites === undefined) return unavailable();
+      const input = asObject(payload);
+      const favorite = modelFavorite(input['choice']);
+      if (favorite === undefined || typeof input['favorite'] !== 'boolean')
+        return invalidInput(
+          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id} | {kind: 'preset', id}, favorite: boolean}",
+        );
+      try {
+        return {
+          ok: true,
+          value: { favorites: deps.modelFavorites.set(human.humanId, favorite, input['favorite']) },
+        };
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
     modelPresets() {
@@ -4042,20 +4296,30 @@ function buildBridgeMethods(
       if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
       const source = asObject(payload);
       const name = source['name'];
-      const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const groupInput = presetGroupsInput(source);
+      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
+      const groups = groupInput.given ? groupInput.groups : undefined;
+      if (
+        groups?.orchestratorGroupId === undefined
+          ? !isModelRoute(source['orchestrator'])
+          : source['orchestrator'] !== undefined
+      )
+        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
       if (
         typeof name !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
           (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
       )
         return invalidInput('A name and valid Orchestrator and Assignment routes are required');
       try {
+        if (groups !== undefined) presetGroupRoutes(groups);
+        await validateGroupOptions(groups?.assignmentGroupOptions);
+        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
         await deps.modelCatalog.validate(orchestrator);
         await validateAssignmentCatalog(
           assignmentDefault,
@@ -4074,9 +4338,11 @@ function buildBridgeMethods(
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
           ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          ...(groups === undefined ? {} : { groups }),
         });
         return { ok: true, value: { preset } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -4088,10 +4354,18 @@ function buildBridgeMethods(
       const id = source['id'];
       const expectedRevision = source['expectedRevision'];
       const name = source['name'];
-      const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const groupInput = presetGroupsInput(source);
+      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
+      const given = groupInput.given ? groupInput.groups : undefined;
+      if (
+        given?.orchestratorGroupId === undefined
+          ? !isModelRoute(source['orchestrator'])
+          : source['orchestrator'] !== undefined
+      )
+        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
       if (
         typeof id !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
@@ -4099,7 +4373,6 @@ function buildBridgeMethods(
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 1 ||
         typeof name !== 'string' ||
-        !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
           (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
@@ -4109,7 +4382,17 @@ function buildBridgeMethods(
         );
       const current = deps.modelPresets.get(id);
       if (current === undefined) return invalidInput('Model Preset was not found');
+      if (!groupInput.given && hasPresetGroups(current)) return presetClientOutdated;
+      const groups =
+        given === undefined || ('optionsGiven' in groupInput && groupInput.optionsGiven)
+          ? given
+          : current.assignmentGroupOptions === undefined
+            ? given
+            : { ...given, assignmentGroupOptions: current.assignmentGroupOptions };
       try {
+        if (groups !== undefined) presetGroupRoutes(groups);
+        await validateGroupOptions(groups?.assignmentGroupOptions);
+        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
         await deps.modelCatalog.validate(orchestrator);
         await validateAssignmentCatalog(
           assignmentDefault,
@@ -4130,10 +4413,12 @@ function buildBridgeMethods(
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
           ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          ...(groups === undefined ? {} : { groups }),
         });
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -4181,21 +4466,29 @@ function buildBridgeMethods(
           preset.orchestrator,
           preset.assignmentDefault,
           ...(preset.assignmentModels ?? []),
+          ...presetGroupRoutes(preset),
         ]);
-        await deps.modelCatalog.validate(preset.orchestrator);
+        const orchestrator =
+          preset.orchestratorGroupId === undefined
+            ? preset.orchestrator
+            : await firstUsableRoute(groupRoutes(preset.orchestratorGroupId));
+        await deps.modelCatalog.validate(orchestrator);
         await deps.modelCatalog.validate(preset.assignmentDefault);
         if (preset.assignmentModels !== undefined)
           await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
+        await validateGroupOptions(preset.assignmentGroupOptions);
         if (changed()) return stale();
         requireRoutes(slug, [
           preset.orchestrator,
           preset.assignmentDefault,
           ...(preset.assignmentModels ?? []),
+          ...presetGroupRoutes(preset),
         ]);
-        const result = deps.registry.applyModelPreset(slug, preset);
+        const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -4393,8 +4686,13 @@ function buildBridgeMethods(
       const openAssignmentModels = source['openAssignmentModels'];
       const assignmentGroups = source['assignmentGroups'];
       const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
+      const groupOptions = assignmentGroupOptionsInput(
+        source['assignmentGroupOptions'],
+        assignmentGroups ?? deps.registry.get(String(slug))?.modelPlan?.assignmentGroups ?? [],
+      );
       if (
         typeof slug !== 'string' ||
+        groupOptions === 'invalid' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         (assignmentGroups !== undefined &&
           (!Array.isArray(assignmentGroups) ||
@@ -4423,19 +4721,28 @@ function buildBridgeMethods(
             throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
           requireRoutes(slug, deps.routingGroups.routes(id));
         }
+        await validateGroupOptions(groupOptions);
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
           assignmentModels,
           expectedRevision,
           typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
-          assignmentGroups === undefined
+          assignmentGroups === undefined && groupOptions === undefined
             ? undefined
             : {
-                ids: assignmentGroups as string[],
-                ...(typeof assignmentDefaultGroupId === 'string'
-                  ? { defaultId: assignmentDefaultGroupId }
-                  : {}),
+                ids:
+                  (assignmentGroups as string[] | undefined) ??
+                  bot.modelPlan.assignmentGroups ??
+                  [],
+                ...(assignmentGroups === undefined
+                  ? bot.modelPlan.assignmentDefaultGroupId === undefined
+                    ? {}
+                    : { defaultId: bot.modelPlan.assignmentDefaultGroupId }
+                  : typeof assignmentDefaultGroupId === 'string'
+                    ? { defaultId: assignmentDefaultGroupId }
+                    : {}),
+                ...(groupOptions === undefined ? {} : { options: groupOptions }),
               },
         );
         if (!result.ok)
@@ -4446,6 +4753,7 @@ function buildBridgeMethods(
           return invalidInput('Apply a Model Preset first');
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -4543,10 +4851,15 @@ function buildBridgeMethods(
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
       const openAssignmentModels = source['openAssignmentModels'];
+      const groupInput = presetGroupsInput(source);
+      if ('invalid' in groupInput) return invalidInput('Model Plan Routing Groups are invalid');
+      const groups = groupInput.given ? groupInput.groups : undefined;
       if (
         typeof slug !== 'string' ||
         (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(orchestrator) ||
+        (groups?.orchestratorGroupId === undefined
+          ? !isModelRoute(orchestrator)
+          : orchestrator !== undefined) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4559,18 +4872,23 @@ function buildBridgeMethods(
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
       try {
-        requireRoutes(slug, [orchestrator]);
-        await deps.modelCatalog.validate(orchestrator);
+        const grouped = groups === undefined ? [] : presetGroupRoutes(groups);
+        requireRoutes(slug, grouped);
+        await validateGroupOptions(groups?.assignmentGroupOptions);
+        const route = (await presetOrchestrator(orchestrator, groups))!;
+        requireRoutes(slug, [route]);
+        await deps.modelCatalog.validate(route);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
+        requireRoutes(slug, [route, assignmentDefault, ...assignmentModels, ...grouped]);
         const result = deps.registry.setModelPlan(
           slug,
           {
-            orchestrator,
+            orchestrator: route,
             assignmentDefault,
             assignmentModels,
             ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+            ...(groups === undefined ? {} : { groups }),
           },
           expectedRevision,
         );
@@ -4581,6 +4899,7 @@ function buildBridgeMethods(
         if (result.record.modelPlan === undefined) return unknownBot(slug);
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
@@ -5564,6 +5883,29 @@ function buildBridgeMethods(
         ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
         ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
       };
+      const presetSettingsError =
+        preset.value !== undefined && preset.value.trim().length > 0
+          ? deps.botModes?.settings.readError()
+          : undefined;
+      if (presetSettingsError !== undefined)
+        return {
+          ok: false,
+          error: { code: 'settings-unreadable', message: presetSettingsError },
+        };
+      const allowedModes = deps.botModes?.settings.allowedModes(slug);
+      if (
+        preset.value !== undefined &&
+        preset.value.trim().length > 0 &&
+        allowedModes !== undefined &&
+        !allowedModes.includes(preset.value.trim())
+      )
+        return {
+          ok: false,
+          error: {
+            code: 'mode-not-allowed',
+            message: `Mode ${preset.value.trim()} is not in this Bot's mode template; choose one of ${allowedModes.join(', ')} or change the template.`,
+          },
+        };
       const expectedProfile = asObject(payload)['expectedProfile'];
       if (expectedProfile !== undefined) {
         if (typeof expectedProfile !== 'string' || !/^[a-f0-9]{64}$/u.test(expectedProfile))
@@ -10315,6 +10657,7 @@ function buildBridgeMethods(
                   ...(engine.account === undefined ? {} : { account: engine.account }),
                 },
               }),
+          ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });

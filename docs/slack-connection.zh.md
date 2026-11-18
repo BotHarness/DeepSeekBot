@@ -20,7 +20,7 @@ Bot 能在哪里发言由 Slack 决定：应用被邀请进了哪些频道、安
 
 限制按 Bot 生效，默认关闭。之前已为 Lark 启用的限制在此候选中也覆盖 Slack 私聊。配对限定当前 Bot／App／Binding 与经验证的 Workspace 人员，重启后保留，重新绑定不继承。Role／Group 行为文字是 prompt 策略，不是邮件、文件或 Shell 的强制权限。Slack 群配对和原生管理控件仍独立推进；此预览中的 `/pair` 不创建 Slack 管理授权。
 
-隔离源码候选已完成真实 Slack 申请 → Web 选择 Role 并批准 → 通知重问 → 新问题原 App 回复 → 撤销 → 重启检查，来源事件、Admission 和 Outbox 与实际回复一致；Human 已接受这轮交互。下方既有 Provider 收发／反应截图只证明各自原有范围。使用独立 App，并明确协调独占接收窗口；若依赖新限制，回退旧代码前应停用对应 Slack Binding。详见 [ADR-0174](adr/0174-slack-dm-chat-pairing-reuses-current-binding-authority.md)。
+隔离源码候选已完成真实 Slack 申请 → Web 选择 Role 并批准 → 通知重问 → 新问题原 App 回复 → 撤销 → 重启检查，来源事件、Admission 和 Outbox 与实际回复一致；Human 已接受这轮交互。下方既有 Provider 收发／反应截图只证明各自原有范围。使用独立 App，并明确协调独占接收窗口；若依赖新限制，回退旧代码前应停用对应 Slack Binding。详见 [ADR-0174](decisions/im-providers.md#adr-0174)。
 
 ![未知人员的真实 Slack 私聊收到固定等待审核提示](/guides/slack/16-dm-pending-notice.png)
 

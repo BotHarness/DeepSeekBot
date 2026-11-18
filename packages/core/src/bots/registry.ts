@@ -67,8 +67,11 @@ import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import {
   isPersonaBotModelPlan,
+  presetGroups,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
+  type ModelPresetGroups,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -184,7 +187,7 @@ export interface PersonaBotRegistry {
     assignmentModels: AssignmentModelOption[],
     expectedRevision: number,
     openAssignmentModels?: boolean,
-    groups?: { ids: string[]; defaultId?: string },
+    groups?: { ids: string[]; defaultId?: string; options?: AssignmentGroupOption[] },
   ): UpdatePersonaBotResult;
   setModelPlan(
     slug: string,
@@ -193,6 +196,7 @@ export interface PersonaBotRegistry {
       assignmentDefault: ModelRoute;
       assignmentModels: AssignmentModelOption[];
       openAssignmentModels?: boolean;
+      groups?: ModelPresetGroups;
     },
     expectedRevision: number,
   ): UpdatePersonaBotResult;
@@ -314,6 +318,16 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(plan.assignmentDefaultGroupId === undefined
           ? {}
           : { assignmentDefaultGroupId: plan.assignmentDefaultGroupId }),
+        ...(plan.assignmentGroupOptions === undefined
+          ? {}
+          : {
+              assignmentGroupOptions: plan.assignmentGroupOptions.map((option) => ({
+                ...option,
+                ...(option.allowedEfforts === undefined
+                  ? {}
+                  : { allowedEfforts: [...option.allowedEfforts] }),
+              })),
+            }),
         ...(plan.assignmentDefault === undefined
           ? {}
           : { assignmentDefault: route(plan.assignmentDefault) }),
@@ -1150,6 +1164,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
               })),
             }),
         ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...presetGroups(preset),
         appliedAt: now().toISOString(),
       };
       record.modelPlan = plan;
@@ -1209,11 +1224,15 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         openAssignmentModels: currentOpen,
         assignmentGroups: currentGroups,
         assignmentDefaultGroupId: currentDefaultGroup,
+        assignmentGroupOptions: currentOptions,
         ...plan
       } = record.modelPlan;
       const open = openAssignmentModels ?? currentOpen === true;
       const ids = groups === undefined ? (currentGroups ?? []) : groups.ids;
       const defaultGroup = groups === undefined ? currentDefaultGroup : groups.defaultId;
+      const options = (groups?.options ?? currentOptions)?.filter((option) =>
+        ids.includes(option.group),
+      );
       record.modelPlan = {
         ...plan,
         ...(open ? { openAssignmentModels: true } : {}),
@@ -1221,6 +1240,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         ...(ids.length === 0 || defaultGroup === undefined
           ? {}
           : { assignmentDefaultGroupId: defaultGroup }),
+        ...(options === undefined || options.length === 0
+          ? {}
+          : { assignmentGroupOptions: options.map((option) => ({ ...option })) }),
         revision: record.modelPlan.revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
@@ -1250,6 +1272,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           allowedEfforts: [...option.allowedEfforts],
         })),
         ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...(routes.groups === undefined ? {} : presetGroups(routes.groups)),
         appliedAt: now().toISOString(),
       };
       delete record.model;

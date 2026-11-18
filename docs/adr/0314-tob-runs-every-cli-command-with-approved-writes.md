@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-10
 - Supersedes: [ADR-0224](0224-tob-management-uses-scoped-native-shell-cli.md) (the allowlist; its authority, broker and lifecycle rules stay)
-- Related: [ADR-0223](0223-tob-is-a-protected-local-personabot.md), [ADR-0225](0225-bot-creation-receipts-and-reviewed-profile-lifecycle.md), [ADR-0226](0226-group-management-receipts-preserve-channel-authority.md), [#3870](https://github.com/BotHarness/DeepSeekBot/pull/3870)
+- Related: [ADR-0223](0223-tob-is-a-protected-local-personabot.md), [ADR-0225](0225-bot-creation-receipts-and-reviewed-profile-lifecycle.md), [ADR-0226](../decisions/messaging.md#adr-0226), [#3870](https://github.com/BotHarness/DeepSeekBot/pull/3870)
 
 ## Context
 

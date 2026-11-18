@@ -960,7 +960,7 @@ PERFORMANCE OF THIS SOFTWARE.
 - Package: `@lobehub/icons-static-svg` 1.103.0
 - License: MIT
 - Source: <https://github.com/lobehub/lobe-icons>
-- Used for: model family logos in `src/client/model-brand-icons.ts` (SVG paths vendored as source). The logos are trademarks of their owners and identify each model family only.
+- Used for: model family logos in `packages/host-client/src/shared/model-brand-icons.ts` (SVG paths vendored as source, also drawn by the mobile app). The logos are trademarks of their owners and identify each model family only.
 
 ```
 MIT License

@@ -109,3 +109,28 @@ export function applyBotModelRoute(
     return plan;
   });
 }
+
+export function applyBotModelGroup(
+  actions: Pick<BridgeActions, 'chooseModelPlanGroup'>,
+  slug: string,
+  state: ModelPlanStateView,
+  groupId: string,
+): Promise<ModelPlanView> {
+  return actions
+    .chooseModelPlanGroup(slug, groupId, state.plan?.revision ?? state.revision ?? 0)
+    .then((plan) => {
+      rememberModelPlan(slug, plan, actions);
+      return plan;
+    });
+}
+
+export function applyBotModelPreset(
+  actions: Pick<BridgeActions, 'applyModelPreset'>,
+  slug: string,
+  presetId: string,
+): Promise<ModelPlanView> {
+  return actions.applyModelPreset(slug, presetId).then((plan) => {
+    rememberModelPlan(slug, plan, actions);
+    return plan;
+  });
+}

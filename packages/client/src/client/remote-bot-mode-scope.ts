@@ -10,7 +10,8 @@ import {
 } from '@botharness/host-client/shared/bot-mode-settings';
 
 import type { BotModePathOp, BotModeScope, BotModeScopeSnapshot } from './bot-mode-prefs.js';
-import type { BridgeCall } from './bridge.js';
+import { bridgeHost, type BridgeCall } from './bridge.js';
+import { describeHostSettings } from '@botharness/host-client/host-settings';
 
 export interface RemoteBotModeScope extends BotModeScope {
   refresh(): Promise<void>;
@@ -60,7 +61,7 @@ export function remoteBotModeScope(call: BridgeCall): RemoteBotModeScope {
     snapshot = next;
     for (const listener of listeners) listener();
   };
-  const adopt = (found: Record<string, unknown>): void => {
+  const adopt = (found: { revision?: unknown; value?: unknown }): void => {
     revision = found['revision'];
     publish({
       status: 'ready',
@@ -71,15 +72,10 @@ export function remoteBotModeScope(call: BridgeCall): RemoteBotModeScope {
     });
   };
   const refresh = async (): Promise<void> => {
-    const result = await call('settings/describe', {});
-    if (!result.ok) {
-      publish({ ...snapshot, status: 'unavailable', writable: false });
-      return;
-    }
-    const namespaces = record(result.value)['namespaces'];
-    const found = Array.isArray(namespaces)
-      ? namespaces.map(record).find((entry) => entry['ns'] === BOT_MODE_NAMESPACE)
-      : undefined;
+    const found = await describeHostSettings(bridgeHost(call)).then(
+      (namespaces) => namespaces.find((entry) => entry.ns === BOT_MODE_NAMESPACE),
+      () => undefined,
+    );
     if (found === undefined) {
       publish({ ...snapshot, status: 'unavailable', writable: false });
       return;

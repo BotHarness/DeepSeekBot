@@ -14,6 +14,7 @@ import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import type { VoiceCallResult } from '../src/voice/call-contract.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { upgradeListener } from './async-listener.js';
 
 afterEach(() => vi.useRealTimers());
 
@@ -71,7 +72,7 @@ async function gateway(route: 'http' | 'encrypted', delay: number) {
     port: () => port,
     voiceCall: dispatch,
   });
-  server.on('upgrade', (request, socket, head) => encrypted.upgrade(request, socket, head));
+  server.on('upgrade', upgradeListener(encrypted));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const origin = `http://127.0.0.1:${port}`;
