@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import {
+  effortChoices,
+  keptEffort,
+  routeEffortLabel,
   presetDetail,
   presetFront,
   routeLabel,
@@ -13,7 +16,16 @@ const glm = { provider: 'opencode-go', model: 'glm-5.2' };
 const value = {
   revision: 1,
   models: [
-    { ...flash, providerName: 'opencode-go', modelName: 'DeepSeek V4.1 Flash' },
+    {
+      ...flash,
+      providerName: 'opencode-go',
+      modelName: 'DeepSeek V4.1 Flash',
+      efforts: [
+        { id: 'high', name: 'High' },
+        { id: 'max', name: 'Max' },
+      ],
+      defaultEffort: 'high',
+    },
     { ...glm, providerName: 'opencode-go', modelName: 'GLM-5.2' },
   ],
   presets: [],
@@ -48,5 +60,21 @@ describe('phone model rows', () => {
     } as never;
     expect(presetDetail(value, grouped)).toBe('Main: Daily · Assignments: V4.1 Flash');
     expect(presetFront(value, grouped)).toEqual(glm);
+  });
+
+  it('shows model and effort as one choice and keeps the same effort across models', () => {
+    expect(routeEffortLabel(value, { ...flash, reasoningEffort: 'max' })).toBe('V4.1 Flash · Max');
+    expect(routeEffortLabel(value, flash)).toBe('V4.1 Flash');
+    const [flashEntry, glmEntry] = value.models;
+    expect(effortChoices(flashEntry).map((option) => option.label)).toEqual([
+      'Default',
+      'High',
+      'Max',
+    ]);
+    expect(effortChoices(glmEntry)).toEqual([]);
+    expect(keptEffort(flashEntry!, { ...glm, reasoningEffort: 'max' })).toBe('max');
+    expect(keptEffort(flashEntry!, { ...glm, reasoningEffort: 'low' })).toBe('high');
+    expect(keptEffort(flashEntry!, flash)).toBe('');
+    expect(keptEffort(glmEntry!, { ...flash, reasoningEffort: 'max' })).toBe('');
   });
 });

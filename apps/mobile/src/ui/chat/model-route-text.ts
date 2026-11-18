@@ -1,5 +1,8 @@
 import { sameModel, type ModelPreset, type ModelRoute } from '@botharness/host-client/bot-settings';
-import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
+import {
+  modelCatalogGroupFront,
+  type ModelCatalogEntry,
+} from '@botharness/host-client/model-catalog';
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import { t } from '../strings';
 import { modelEntryLabel } from './composer-labels';
@@ -8,6 +11,37 @@ export function routeLabel(value: ModelSettingsState, route: ModelRoute | undefi
   if (route === undefined) return t.modelSettings.inherited;
   const entry = value.models.find((item) => sameModel(item, route));
   return entry === undefined ? route.model : shortModelName(entry);
+}
+
+export function effortLabel(value: ModelSettingsState, route: ModelRoute): string {
+  const effort = route.reasoningEffort ?? '';
+  if (effort === '') return t.modelSettings.effortDefault;
+  const entry = value.models.find((item) => sameModel(item, route));
+  return entry?.efforts?.find((item) => item.id === effort)?.name ?? effort;
+}
+
+export function routeEffortLabel(value: ModelSettingsState, route: ModelRoute | undefined): string {
+  const name = routeLabel(value, route);
+  return route?.reasoningEffort === undefined || route.reasoningEffort === ''
+    ? name
+    : `${name} · ${effortLabel(value, route)}`;
+}
+
+export function effortChoices(entry: ModelCatalogEntry | undefined) {
+  const efforts = (entry?.efforts ?? []).filter((item) => item.id !== '');
+  return efforts.length === 0
+    ? []
+    : [
+        { value: '', label: t.modelSettings.effortDefault },
+        ...efforts.map((item) => ({ value: item.id, label: item.name })),
+      ];
+}
+
+export function keptEffort(entry: ModelCatalogEntry, previous: ModelRoute | undefined) {
+  const wanted = previous?.reasoningEffort ?? '';
+  if (wanted !== '' && entry.efforts?.some((item) => item.id === wanted)) return wanted;
+  if (sameModel(entry, previous ?? { provider: '', model: '' })) return wanted;
+  return entry.defaultEffort ?? '';
 }
 
 export function shortModelName(entry: { provider: string; model: string; modelName: string }) {
