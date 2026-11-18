@@ -6,7 +6,12 @@ import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
-import { isChannelTurnStopTarget, type ChannelTurnStopTarget } from './turn-stop.js';
+import {
+  isChannelTurnStopRests,
+  isChannelTurnStopTarget,
+  type ChannelTurnStopRest,
+  type ChannelTurnStopTarget,
+} from './turn-stop.js';
 import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
 import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
 
@@ -399,8 +404,9 @@ export interface ChannelTurnStop {
   humanName: string;
   sessionId: string;
   held?: true;
-  cause?: 'human-stop' | 'failures';
+  cause?: 'human-stop' | 'failures' | 'quota';
   failures?: number;
+  rests?: ChannelTurnStopRest[];
   target?: ChannelTurnStopTarget;
 }
 
@@ -1281,7 +1287,9 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (stop['held'] !== undefined && stop['held'] !== true) ||
       (stop['cause'] !== undefined &&
         stop['cause'] !== 'human-stop' &&
-        stop['cause'] !== 'failures') ||
+        stop['cause'] !== 'failures' &&
+        stop['cause'] !== 'quota') ||
+      (stop['rests'] !== undefined && !isChannelTurnStopRests(stop['rests'])) ||
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))

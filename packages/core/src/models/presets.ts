@@ -35,6 +35,7 @@ export interface PersonaBotModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
+  orchestratorGroupId?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
   appliedAt: string;
@@ -186,6 +187,9 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['orchestratorGroupId'] === undefined ||
+      (typeof plan['orchestratorGroupId'] === 'string' &&
+        plan['orchestratorGroupId'].trim().length > 0)) &&
     (plan['assignmentDefault'] === undefined
       ? plan['assignmentModels'] === undefined
       : isModelRoute(plan['assignmentDefault']) &&

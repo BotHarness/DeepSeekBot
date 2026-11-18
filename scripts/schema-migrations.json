@@ -636,6 +636,10 @@
     "sha256": "dd021b886ab5da94cee4107b3aaf769ed7e3ffd2b150cc687806a63ac4c469e6"
   },
   {
+    "id": "routing-group-storage",
+    "sha256": "4c436be1c4f473f989a913facfa748906bd7be55ac5c21fb3ad9b51f5e3f4e2c"
+  },
+  {
     "id": "human-avatar",
     "sha256": "d5b46fddbe5a3902ab2d12670eec3bca1626b7cb83cf07f314246d4ba348dc79"
   },

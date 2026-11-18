@@ -100,6 +100,8 @@ export const MEMBER_GLOBAL_METHODS = [
   'createLookup',
   ...MEMBER_BOT_IMPORT_METHODS,
   'modelPresets',
+  'modelGroups',
+  'modelGroup',
   'voiceProviders',
   'promptParts',
   'promptPresets',

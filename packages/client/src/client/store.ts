@@ -275,8 +275,9 @@ export interface ChannelMessage {
       | { scope: 'bot' }
       | { scope: 'session'; role: 'orchestrator' | 'assignment'; title?: string };
     held?: boolean;
-    cause?: 'human-stop' | 'failures';
+    cause?: 'human-stop' | 'failures' | 'quota';
     failures?: number;
+    rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
   };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
