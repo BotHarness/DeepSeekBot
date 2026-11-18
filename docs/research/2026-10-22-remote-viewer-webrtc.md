@@ -113,7 +113,7 @@
 
 2026-10-22 查询时 [#1799](https://github.com/BotHarness/DeepSeekBot/issues/1799) 与 [#1833](https://github.com/BotHarness/DeepSeekBot/issues/1833) 均已关闭，关闭评论引用交付核对。但 [PR #1817](https://github.com/BotHarness/DeepSeekBot/pull/1817) 明确限定 Host 侧、native client 后续；[PR #1836](https://github.com/BotHarness/DeepSeekBot/pull/1836) 明确是 JS-only 截图路径、将 #1833 helper 列为后续。不能把 issue 关闭推导为手机视频和原生 helper 均已完成。本次没有改动 tracker。
 
-[ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md) 为 Accepted，预留未来 WebRTC helper；[ADR-0209](../adr/0209-selkies-webrtc-is-switched-on-per-phone-call-over-the-tailnet.md) 文件仍标 Proposed，虽然有对应 Host 实现。[ADR-0163](../adr/0163-local-browser-takeover-reuses-computer-viewer-family.md) 原文拒绝将 CDP screencast 用于 Human viewer，但当前 viewer-local → frame-feed → runtime 已实际使用它，存在文档／代码漂移。后续应明确修订，而非重复假定其实现仍遵循旧表述。画面采集与 committed-text IME 输入应分别判断。
+[ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md) 为 Accepted，预留未来 WebRTC helper；[ADR-0209](../adr/0209-selkies-webrtc-is-switched-on-per-phone-call-over-the-tailnet.md) 文件仍标 Proposed，虽然有对应 Host 实现。[ADR-0163 原文](https://github.com/BotHarness/DeepSeekBot/blob/4ca078e440ed30ae8a0078e47aa05316794f884c/docs/adr/0163-local-browser-takeover-reuses-computer-viewer-family.md)（现由 [Browser 决策](../decisions/browser.md#adr-0163) 取代）拒绝将 CDP screencast 用于 Human viewer，但当前 viewer-local → frame-feed → runtime 已实际使用它，存在文档／代码漂移。后续应明确修订，而非重复假定其实现仍遵循旧表述。画面采集与 committed-text IME 输入应分别判断。
 
 ### 已有性能证据的适用范围
 

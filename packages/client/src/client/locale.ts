@@ -2833,6 +2833,8 @@ export const zh = {
   'footer.customizeHint': '右键或长按自定义底部栏',
   'footer.moveHint': '拖动调整顺序；← → 移动，Ctrl/⌘ + ← → 切换左右，Esc 完成',
 
+  'composerContext.runner': '由 {engine} 运行，模型由订阅决定',
+  'composerContext.runnerAccount': '由 {engine}（{account}）运行，模型由订阅决定',
   'composerContext.avgPerf.title':
     '本频道最近 200 条消息中，最近 {count} 条 Bot 回复的平均输出速度',
   'message.mention.openDm': '打开与 {bot} 的私聊',
@@ -3950,6 +3952,11 @@ export const zh = {
   'sessions.detail.duration.minutes': '{minutes} 分 {seconds} 秒',
   'sessions.detail.working': '正在工作',
   'sessions.detail.trigger.request': '收到执行请求',
+  'sessions.detail.envelope.human-dm': '私聊消息',
+  'sessions.detail.envelope.group': '群聊消息',
+  'sessions.detail.envelope.bot-dm': 'Bot 私信',
+  'sessions.detail.envelope.inbox': '收件箱',
+  'sessions.detail.envelope.other': '收到的消息',
   'sessions.detail.trigger.skill': '使用了 skill {name}',
   'sessions.detail.trigger.goal': '继续执行目标',
   'sessions.detail.trigger.agent': '收到任务消息',
@@ -9236,6 +9243,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'footer.customizeHint': 'Right-click or long-press to customize footer',
   'footer.moveHint': 'Drag to reorder; ← → to move, Ctrl/⌘ + ← → to change side, Esc to finish',
 
+  'composerContext.runner': 'Runs on {engine}; the subscription picks the model',
+  'composerContext.runnerAccount': 'Runs on {engine} ({account}); the subscription picks the model',
   'composerContext.avgPerf.title':
     "Average output speed of the last {count} Bot replies among this chat's latest 200 messages",
   'main.group.note':
@@ -10432,6 +10441,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sessions.detail.duration.minutes': '{minutes}m {seconds}s',
   'sessions.detail.working': 'Working',
   'sessions.detail.trigger.request': 'Execution requested',
+  'sessions.detail.envelope.human-dm': 'Direct message',
+  'sessions.detail.envelope.group': 'Group message',
+  'sessions.detail.envelope.bot-dm': 'Bot message',
+  'sessions.detail.envelope.inbox': 'Inbox',
+  'sessions.detail.envelope.other': 'Incoming message',
   'sessions.detail.trigger.skill': 'Used skill {name}',
   'sessions.detail.trigger.goal': 'Continuing goal',
   'sessions.detail.trigger.agent': 'Task message received',

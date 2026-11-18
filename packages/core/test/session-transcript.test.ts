@@ -359,4 +359,28 @@ describe('Session transcript', () => {
     });
     expect(transcript.items[0]).not.toHaveProperty('command');
   });
+
+  it('shows an inbound Human DM as its body with the envelope kept as metadata', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'orc-1',
+      events: [
+        event(1, 'turn/start'),
+        event(2, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            {
+              type: 'text',
+              text: '[Human DM]\nSource Event ID: evt-1\nChannel: dm-bot-1\nMessage ID: human-1\nWhat is 17 times 23?',
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items[0]).toMatchObject({
+      kind: 'input',
+      source: 'user',
+      text: 'What is 17 times 23?',
+      envelope: { kind: 'human-dm', channelId: 'dm-bot-1', messageId: 'human-1' },
+    });
+  });
 });

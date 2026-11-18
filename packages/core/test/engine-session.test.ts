@@ -24,6 +24,7 @@ import type {
   EngineSessionStore,
 } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
+import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
@@ -152,6 +153,17 @@ describe('Codex Subscription Engine Session (replay)', () => {
       nativeId: '019a7f10-0000-7000-8000-000000000001',
       account: 'ChatGPT pro',
     });
+    expect(host.orchestratorRunner('ada')).toEqual({
+      engine: 'codex',
+      displayName: 'Codex',
+      account: 'ChatGPT pro',
+      model: 'gpt-6-astra',
+    });
+    expect(host.orchestratorRunner('eve')).toBeUndefined();
+    expect(createEngineStore(engineStorePath(root)).account('ada', 'codex')).toBe('ChatGPT pro');
+    expect(
+      log.filter((event) => event.type === 'session/title').map((event) => event.data.title),
+    ).toEqual(['Hi Ada']);
     expect(host.describe('orchestrator-ada')).toEqual({
       engine: 'codex',
       account: 'ChatGPT pro',
@@ -380,9 +392,17 @@ describe('Engine selection, status and route', () => {
     ).json();
     expect(listed).toEqual({
       engines: [
-        { engine: 'codex', available: true, installed: true, version: '0.170.0', login: 'chatgpt' },
+        {
+          engine: 'codex',
+          displayName: 'Codex',
+          available: true,
+          installed: true,
+          version: '0.170.0',
+          login: 'chatgpt',
+        },
         {
           engine: 'claude',
+          displayName: 'Claude Code',
           available: false,
           reason: 'signed-out',
           installed: true,

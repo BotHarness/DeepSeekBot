@@ -1,3 +1,5 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
+
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,6 +38,7 @@ import type {
 } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
+  ENGINE_DEFINITIONS,
   type EngineAccount,
   type EngineChoice,
   type EngineEvent,
@@ -124,6 +127,7 @@ export interface EngineQuotaView {
 }
 
 export interface EngineStatusReport {
+  displayName: string;
   engine: EngineId;
   available: boolean;
   reason?: 'host-not-local' | 'not-installed' | 'signed-out' | 'not-subscription' | 'login-unknown';
@@ -142,6 +146,8 @@ export interface EngineHostOptions {
   gateway: EngineGateway;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
+  sessionIdsForBot?(botSlug: string): readonly string[];
+  changed?(): void;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
   releaseGraceMs?: number;
@@ -200,6 +206,7 @@ export class EngineHost {
   readonly #openingChoice = new Map<string, string>();
   readonly #models = new Map<EngineId, { at: number; models: Promise<EngineModel[]> }>();
   readonly #states = new Map<string, EngineSessionDescription>();
+  readonly #legacyAccounts = new Map<string, { engine: EngineId; account: string | undefined }>();
   #closed = false;
   readonly #releasing = new Map<string, Promise<void>>();
   readonly #cancels = new Map<string, () => void>();
@@ -254,6 +261,47 @@ export class EngineHost {
         'Subscription Engines run only on a local Host',
       );
     this.store.select(botSlug, role, engine, options);
+    this.#options.changed?.();
+  }
+
+  orchestratorRunner(botSlug: string): OrchestratorRunner | undefined {
+    const engine = this.engineFor(botSlug);
+    if (engine === undefined) return undefined;
+    const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
+    const model = this.store.model(botSlug, engine);
+    return {
+      engine,
+      displayName: ENGINE_DEFINITIONS[engine].displayName,
+      ...(account === undefined ? {} : { account }),
+      ...(model === undefined ? {} : { model }),
+    };
+  }
+
+  #previousAccount(botSlug: string, engine: EngineId): string | undefined {
+    const cached = this.#legacyAccounts.get(botSlug);
+    if (cached?.engine === engine) return cached.account;
+    let account: string | undefined;
+    for (const id of this.#options.sessionIdsForBot?.(botSlug) ?? []) {
+      const session = this.store.nativeSession(id);
+      if (session?.engine === engine && session.account !== undefined) {
+        account = session.account;
+        break;
+      }
+    }
+    this.#legacyAccounts.set(botSlug, { engine, account });
+    return account;
+  }
+
+  #rememberModel(botSlug: string, engine: EngineId, model: string | undefined): void {
+    if (model === undefined || this.store.model(botSlug, engine) === model) return;
+    this.store.rememberModel(botSlug, engine, model);
+    this.#options.changed?.();
+  }
+
+  #rememberAccount(botSlug: string, engine: EngineId, account: string): void {
+    if (this.store.account(botSlug, engine) === account) return;
+    this.store.rememberAccount(botSlug, engine, account);
+    this.#options.changed?.();
   }
 
   fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
@@ -469,6 +517,7 @@ export class EngineHost {
       } else if (!request.signal.aborted) {
         if (!accountChecked) live.account = requireSubscription(await live.engine.account());
         if (request.signal.aborted) return;
+        this.#rememberAccount(request.botSlug, engine, live.account);
         const stop = new AbortController();
         live.stop = stop;
         const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
@@ -506,6 +555,7 @@ export class EngineHost {
               }
             },
           });
+          this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
           } catch (error) {
@@ -757,6 +807,7 @@ export class EngineHost {
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const account = await this.#account(opened);
       const label = requireSubscription(account);
+      this.#rememberAccount(botSlug, opened.engine, label);
       let nativeId: string;
       try {
         nativeId = await opened.start(resume);
@@ -765,6 +816,7 @@ export class EngineHost {
         nativeId = await opened.start();
       }
       this.store.rememberNativeSession(sessionId, engineId, nativeId, label);
+      this.#rememberModel(botSlug, opened.engine, opened.model);
       dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
@@ -874,6 +926,7 @@ function statusReport(
           : 'signed-out';
   return {
     engine,
+    displayName: ENGINE_DEFINITIONS[engine].displayName,
     available: reason === undefined,
     ...(reason === undefined ? {} : { reason }),
     installed: detected.installed,

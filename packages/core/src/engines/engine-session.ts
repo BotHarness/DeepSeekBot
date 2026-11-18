@@ -1,5 +1,10 @@
 export type EngineId = 'codex' | 'claude';
 
+export const ENGINE_DEFINITIONS = {
+  codex: { displayName: 'Codex' },
+  claude: { displayName: 'Claude Code' },
+} satisfies Record<EngineId, { displayName: string }>;
+
 export const ENGINE_IDS: readonly EngineId[] = ['codex', 'claude'];
 
 export function isEngineId(value: unknown): value is EngineId {
@@ -85,6 +90,7 @@ export interface EngineSendOptions {
 export interface EngineSession {
   readonly engine: EngineId;
   readonly ended: boolean;
+  readonly model?: string | undefined;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;

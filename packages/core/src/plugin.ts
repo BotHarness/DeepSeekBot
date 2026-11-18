@@ -1895,6 +1895,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     root: join(dshHome, 'botharness', 'engines'),
     local: subscriptionEnginesAllowed(config, process.env),
     gateway: engineGateway,
+    changed: () => core.live.publishRosterCommitted(),
+    sessionIdsForBot: (slug) =>
+      core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),
     sessions: () => hostSessionStore<EngineSessionStore>(ctx),
     persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
     approve: async (request) =>
@@ -3960,6 +3963,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         result as Parameters<NonNullable<typeof definition.presentResult>>[1],
       );
     },
+    orchestratorRunner: (slug) => engineHost.orchestratorRunner(slug),
     describeEngineSession: (sessionId) => engineHost.describe(sessionId),
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);

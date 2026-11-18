@@ -809,7 +809,28 @@ export function parseBotSummary(value: unknown): BotSummary | undefined {
   const legacyTag = record['tag'];
   const description = record['description'];
   const avatar = record['avatar'];
+  const runner = asRecord(record['orchestratorRunner']);
+  const engine = runner?.['engine'];
+  const runnerName = runner?.['displayName'];
+  const account = runner?.['account'];
+  const runnerModel = runner?.['model'];
   return {
+    ...(typeof engine === 'string' &&
+    engine.trim() &&
+    typeof runnerName === 'string' &&
+    runnerName.trim() &&
+    (account === undefined || typeof account === 'string')
+      ? {
+          orchestratorRunner: {
+            engine,
+            displayName: runnerName,
+            ...(account === undefined ? {} : { account }),
+            ...(typeof runnerModel === 'string' && runnerModel.trim()
+              ? { model: runnerModel }
+              : {}),
+          },
+        }
+      : {}),
     slug,
     displayName,
     ...(typeof asRecord(record['tob'])?.['defaultName'] === 'boolean' &&
@@ -3920,6 +3941,26 @@ export interface SessionToolTargets {
   url?: string;
 }
 
+export interface SessionTranscriptEnvelope {
+  kind: 'human-dm' | 'group' | 'bot-dm' | 'inbox' | 'other';
+  channelId?: string;
+  messageId?: string;
+}
+
+const ENVELOPE_KINDS = ['human-dm', 'group', 'bot-dm', 'inbox', 'other'] as const;
+
+function parseTranscriptEnvelope(value: unknown): SessionTranscriptEnvelope | undefined {
+  const record = asRecord(value);
+  const kind = record?.['kind'];
+  if (record === undefined || !ENVELOPE_KINDS.includes(kind as SessionTranscriptEnvelope['kind']))
+    return undefined;
+  return {
+    kind: kind as SessionTranscriptEnvelope['kind'],
+    ...(typeof record['channelId'] === 'string' ? { channelId: record['channelId'] } : {}),
+    ...(typeof record['messageId'] === 'string' ? { messageId: record['messageId'] } : {}),
+  };
+}
+
 export type SessionTranscriptItem =
   | {
       kind: 'input';
@@ -3928,6 +3969,7 @@ export type SessionTranscriptItem =
       turn: number;
       source: 'user' | 'system';
       trigger?: SessionTranscriptTrigger;
+      envelope?: SessionTranscriptEnvelope;
     }
   | { kind: 'reply'; text: string; at: string; live?: true }
   | {
@@ -4112,6 +4154,9 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             ...(SESSION_TRIGGERS.includes(item['trigger'] as string)
               ? { trigger: item['trigger'] as SessionTranscriptTrigger }
               : {}),
+            ...(parseTranscriptEnvelope(item['envelope']) === undefined
+              ? {}
+              : { envelope: parseTranscriptEnvelope(item['envelope'])! }),
           }
         : undefined;
     case 'reply':

@@ -1,3 +1,4 @@
+import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import type {
   PersonaBotAttention,
   PersonaBotSessionActivity,
@@ -26,6 +27,7 @@ export interface StandingLimitsView {
 export type BotBannerView = { recipe: PixelBannerRecipe } | { image: string };
 
 export interface BotSummary {
+  orchestratorRunner?: OrchestratorRunner;
   sharedBy?: string;
   lastActivityAt?: number;
   slug: string;

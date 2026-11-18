@@ -109,6 +109,11 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
   it('answers a DM through bot_send_message and writes the turn into the DSH Session', async () => {
     const { host, dsh, replay, execute, request, root } = setup();
     await host.runTurn(request);
+    expect(host.orchestratorRunner('ada')).toMatchObject({
+      engine: 'claude',
+      displayName: 'Claude Code',
+      model: 'claude-opus-5-5',
+    });
 
     expect(replay.prompts).toEqual(['Hi Ada']);
     expect(replay.gatewayCalls.map((call) => [call.tool, call.status])).toEqual([
@@ -362,6 +367,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     expect(listed.engines).toEqual([
       {
         engine: 'codex',
+        displayName: 'Codex',
         available: false,
         reason: 'not-installed',
         installed: false,
@@ -369,6 +375,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       },
       {
         engine: 'claude',
+        displayName: 'Claude Code',
         available: true,
         installed: true,
         version: '2.1.327',

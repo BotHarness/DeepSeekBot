@@ -8,6 +8,8 @@ import {
   type ReactElement,
 } from 'react';
 import { Toast } from './ds/toast.js';
+import * as stylex from '@stylexjs/stylex';
+import { space } from './ds/tokens.stylex.js';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogGroupView,
@@ -59,6 +61,10 @@ import {
   presetMenuItems,
 } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
+
+const styles = stylex.create({
+  runnerIcons: { display: 'inline-flex', alignItems: 'center', gap: space.x1 },
+});
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -481,6 +487,30 @@ function DmComposerContextView({
           : 'composerContext.noModel',
     );
   const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
+  const runner = bot.orchestratorRunner;
+  const runnerBrand =
+    runner === undefined
+      ? undefined
+      : modelBrand({
+          provider: runner.engine,
+          model: runner.model ?? runner.engine,
+          name: runner.model ?? runner.displayName,
+        });
+  const runnerChipLabel =
+    runner === undefined
+      ? ''
+      : runner.model === undefined
+        ? runner.displayName
+        : modelShortName(runner.model, runnerBrand);
+  const runnerLabel =
+    runner === undefined
+      ? ''
+      : runner.account === undefined
+        ? t('composerContext.runner', { engine: runner.displayName })
+        : t('composerContext.runnerAccount', {
+            engine: runner.displayName,
+            account: runner.account,
+          });
   const currentEntry = models.find(
     (entry) => entry.provider === route?.provider && entry.model === route?.model,
   );
@@ -550,22 +580,41 @@ function DmComposerContextView({
           />
         }
       >
-        <ChipButton
-          data-composer-chip="model"
-          collapseLabel
-          icon={<ModelBrandIcon brand={brand} />}
-          label={modelChipLabel}
-          title={group === undefined ? modelLabel : `${group.name} · ${modelLabel}`}
-          ref={modelTrigger}
-          onClick={() =>
-            modelStatus === 'unavailable' || models.length === 0
-              ? onOpen('model')
-              : setModelMenuOpen((open) => !open)
-          }
-          aria-haspopup="dialog"
-          aria-expanded={modelMenuOpen}
-          aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
-        />
+        {runner === undefined ? (
+          <ChipButton
+            data-composer-chip="model"
+            collapseLabel
+            icon={<ModelBrandIcon brand={brand} />}
+            label={modelChipLabel}
+            title={group === undefined ? modelLabel : `${group.name} · ${modelLabel}`}
+            ref={modelTrigger}
+            onClick={() =>
+              modelStatus === 'unavailable' || models.length === 0
+                ? onOpen('model')
+                : setModelMenuOpen((open) => !open)
+            }
+            aria-haspopup="dialog"
+            aria-expanded={modelMenuOpen}
+            aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
+          />
+        ) : (
+          <ChipButton
+            data-composer-chip="model"
+            data-runner={runner.engine}
+            collapseLabel
+            icon={
+              <span {...stylex.props(styles.runnerIcons)}>
+                <ChannelSidebarIcon name="plug" size={14} />
+                <ModelBrandIcon brand={runnerBrand} />
+              </span>
+            }
+            label={runnerChipLabel}
+            title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runner.model}`}
+            tabIndex={-1}
+            disabled
+            aria-label={`${t('entry.model')} · ${bot.displayName} · ${runnerLabel}`}
+          />
+        )}
         {avgPerf === undefined ? null : (
           <ChipButton
             data-composer-chip="avg-perf"
