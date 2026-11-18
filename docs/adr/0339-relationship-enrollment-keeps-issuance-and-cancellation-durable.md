@@ -49,3 +49,146 @@ Local **Forget** keeps its existing meaning: erase this Client's saved credentia
 Tentative persistence never clears that choice. A completed manual enrollment clears only its captured choice generation, including a captured absence, in the exact credential transaction. Pending confirmation retains that snapshot across refresh. Each later Forget records a new choice generation; a superseded manual intent refuses completion and cleans up only its own key. Explicit cancellation restores an earlier choice only while its own credential is still current and no newer choice exists. Before attaching a Client, the owner reloads the saved credential and reuses an already attached matching Client rather than overwriting another tab's newer connection.
 
 Readers parse private records individually: legacy SavedHost rows, new pending-confirmation metadata and tagged local choices can coexist, while one malformed row does not discard other credentials. Older readers ignore tagged choices rather than treating them as Hosts. Older whole-array writers cannot preserve the new coordination/choice contract; mixed-version open tabs are not a qualified mode. Reload all Clients after upgrading, and do not claim cross-tab protection for a downgraded writer. The server's pin, relationship and device-grant checks remain authoritative.
+
+## Enforced by
+
+The TLA+ model `verification/enrollment/Enrollment.tla` (`node scripts/verify-tla.mjs enrollment`; the `verify-enrollment` skill) covers the target-side issuance and cancellation above and the source-side cleanup. TLC checks every order of enrollment start, offer requests that may arrive late, redemptions, lost replies, confirmations, deadlines, explicit cancellations, cleanup, record reclamation and a target restart, for two Client keys with up to two live offers each. It confirms four rules:
+
+- one Client key gets at most one device grant;
+- after a cancellation for a key, the key has no active grant, whether the cancellation came before the offer, before redemption or after the grant committed;
+- no grant is issued after the key's deadline;
+- a grant whose reply never reached the Client is eventually revoked (under weak fairness, with cleanup eventually reaching the target).
+
+Five broken variants show what each guard buys:
+
+- If redemption does not require an unconfirmed intent, a retried offer request redeems a second grant for the same key.
+- If redemption ignores the deadline, a grant is issued after the source gave up.
+- If cancellation does not write a tombstone for an intent it has not seen, a late offer request after the cancellation creates the intent and is redeemed.
+- If cancellation does not revoke the key's devices in its transaction, a cancellation after redemption leaves the grant active.
+- If an expired unconfirmed intent does not enter cleanup, a grant whose reply was lost stays active forever.
+
+Generated from the model by `/statechart` (one key, one restart):
+
+```mermaid
+---
+title: "Relationship enrollment"
+config:
+  markdownAutoWrap: false
+  state:
+    useMaxWidth: false
+---
+stateDiagram-v2
+  classDef works fill:#f4f6f7,stroke:#566573,color:#1b2631
+  classDef wrong fill:#fdedec,stroke:#c0392b,color:#7b241c
+  classDef fixed fill:#e9f7ef,stroke:#1e8449,color:#145a32
+  classDef mixed fill:#fdebd0,stroke:#d35400,color:#7e5109
+  classDef after fill:#ffffff,stroke:#808b96,color:#566573
+  classDef worse fill:#f4ecf7,stroke:#7d3c98,color:#4a235a
+  classDef worksPath fill:#f4f6f7,stroke:#1f3a93,stroke-width:4px,color:#1b2631
+  classDef wrongPath fill:#fdedec,stroke:#1f3a93,stroke-width:4px,color:#7b241c
+  classDef fixedPath fill:#e9f7ef,stroke:#1f3a93,stroke-width:4px,color:#145a32
+  classDef mixedPath fill:#fdebd0,stroke:#1f3a93,stroke-width:4px,color:#7e5109
+  classDef afterPath fill:#ffffff,stroke:#1f3a93,stroke-width:4px,color:#566573
+  classDef worsePath fill:#f4ecf7,stroke:#1f3a93,stroke-width:4px,color:#4a235a
+  state "Legend" as legend {
+    state "Works" as legendWorks
+  }
+  class legendWorks works
+  state "Cleaned up, past deadline" as s0
+  state "Cleaned up, reply lost,<br/>past deadline" as s1
+  state "Cleaned up, target<br/>cancelled it" as s2
+  state "Cleaned up, target<br/>cancelled it, past<br/>deadline" as s3
+  state "Cleaned up, target<br/>cancelled it, reply lost" as s4
+  state "Cleaned up, target<br/>cancelled it, reply lost,<br/>past deadline" as s5
+  state "Cleaning up" as s6
+  state "Cleaning up, past deadline" as s7
+  state "Cleaning up, target has<br/>the intent" as s8
+  state "Cleaning up, target has<br/>the intent, past deadline" as s9
+  state "Cleaning up, target<br/>redeemed it, device active" as s10
+  state "Cleaning up, target<br/>redeemed it, device<br/>active, past deadline" as s11
+  state "Cleaning up, target<br/>redeemed it, device<br/>active, reply lost" as s12
+  state "Cleaning up, target<br/>redeemed it, device<br/>active, reply lost, past<br/>deadline" as s13
+  state "Enrolled, target redeemed<br/>it, device active" as s14
+  state "Enrolled, target redeemed<br/>it, device active, past<br/>deadline" as s15
+  state "Enrolling" as s16
+  state "Enrolling, past deadline" as s17
+  state "Enrolling, target has the<br/>intent" as s18
+  state "Enrolling, target has the<br/>intent, past deadline" as s19
+  state "Enrolling, target redeemed<br/>it, device active" as s20
+  state "Enrolling, target redeemed<br/>it, device active, past<br/>deadline" as s21
+  state "Enrolling, target redeemed<br/>it, device active, reply<br/>lost" as s22
+  state "Enrolling, target redeemed<br/>it, device active, reply<br/>lost, past deadline" as s23
+  state "Not started" as s24
+  [*] --> s24
+  s24 --> s16 : the source starts enrolling a<br/>Client
+  s16 --> s18 : the target opens an offer
+  s16 --> s17 : time passes
+  s16 --> s6 : the enrollment is cancelled
+  s18 --> s20 : the Client redeems the offer
+  s18 --> s19 : time passes
+  s18 --> s8 : the enrollment is cancelled
+  s17 --> s7 : the source gives up at the<br/>deadline or the enrollment is<br/>cancelled
+  s6 --> s8 : the target opens an offer
+  s6 --> s7 : time passes
+  s6 --> s2 : the source cancels on the<br/>target
+  s20 --> s22 : the reply is lost
+  s20 --> s21 : time passes
+  s20 --> s10 : the enrollment is cancelled
+  s19 --> s9 : the source gives up at the<br/>deadline or the enrollment is<br/>cancelled
+  s8 --> s10 : the Client redeems the offer
+  s8 --> s9 : time passes
+  s8 --> s2 : the source cancels on the<br/>target
+  s7 --> s0 : the source cancels on the<br/>target
+  s2 --> s3 : time passes
+  s20 --> s14 : the Client confirms
+  s22 --> s23 : time passes
+  s22 --> s12 : the enrollment is cancelled
+  s21 --> s23 : the reply is lost
+  s21 --> s11 : the source gives up at the<br/>deadline or the enrollment is<br/>cancelled
+  s10 --> s12 : the reply is lost
+  s10 --> s11 : time passes
+  s10 --> s2 : the source cancels on the<br/>target
+  s19 --> s17 : the target forgets the record
+  s9 --> s3 : the source cancels on the<br/>target
+  s14 --> s15 : time passes
+  s14 --> s10 : the enrollment is cancelled
+  s23 --> s13 : the source gives up at the<br/>deadline or the enrollment is<br/>cancelled
+  s12 --> s13 : time passes
+  s12 --> s4 : the source cancels on the<br/>target
+  s11 --> s13 : the reply is lost
+  s11 --> s3 : the source cancels on the<br/>target
+  s2 --> s4 : the reply is lost
+  s9 --> s7 : the target forgets the record
+  s3 --> s0 : the target forgets the record
+  s15 --> s11 : the enrollment is cancelled
+  s13 --> s5 : the source cancels on the<br/>target
+  s4 --> s5 : time passes
+  s3 --> s5 : the reply is lost
+  s5 --> s1 : the target forgets the record
+  s0 --> s1 : the reply is lost
+  class s0 works
+  class s1 works
+  class s2 works
+  class s3 works
+  class s4 works
+  class s5 works
+  class s6 works
+  class s7 works
+  class s8 works
+  class s9 works
+  class s10 works
+  class s11 works
+  class s12 works
+  class s13 works
+  class s14 works
+  class s15 works
+  class s16 works
+  class s17 works
+  class s18 works
+  class s19 works
+  class s20 works
+  class s21 works
+  class s22 works
+  class s23 works
+  class s24 works
+```
