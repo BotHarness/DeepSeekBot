@@ -4,7 +4,7 @@ const HEADER = '[Human wrote this directly in your Session detail; no Channel sh
 const FOOTER = '\n[Source Event ID: ';
 const TAIL =
   '. Treat it as the Human steering you. Reply only if you need the Human; bot_send_message with this source_event_id reaches their DM.]';
-const HOST_NOTES = /^(?:\[Host[^\n]*\]\n+)*$/u;
+const HOST_NOTES = /^(?:\[Host[\s\S]*\]\n+)?$/u;
 const SOURCE_EVENT_ID = /^[^\s\]]+$/u;
 
 export function sessionDirectPrompt(body: string, sourceEventId: string): string {

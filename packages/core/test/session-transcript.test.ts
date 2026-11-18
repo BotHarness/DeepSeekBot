@@ -197,11 +197,21 @@ describe('Session transcript', () => {
             },
           ],
         }),
+        event(3, 'user/message', {
+          source: { kind: 'channel' },
+          content: [
+            {
+              type: 'text',
+              text: `[Host: the Human stopped this Session while these tool calls were still running.\n- bash (call c1): {"command":"ls ]"}]\n\n${sessionDirectPrompt('Check the file first.', 'evt-3')}`,
+            },
+          ],
+        }),
       ],
     });
     expect(transcript.items).toMatchObject([
       { text: body, origin: 'session-detail' },
       { text: 'Go on.', origin: 'session-detail' },
+      { text: 'Check the file first.', origin: 'session-detail' },
     ]);
   });
 
