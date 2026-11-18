@@ -620,7 +620,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 printf '{"session_id":"<assignment-session-id>","message":"Human 还是要这个，继续"}' | deepseekbot bot-tool <bot-id> unarchive_assignment --args-stdin
 ```
 
-`link_message_sessions` 把 Bot 自己在 Human 私聊里发出的一条消息，绑定到这条消息所汇报的 Assignment Session 上；每个 Session 在这条消息上显示为一个 Session 链接。Orchestrator 先发回执，再创建 Assignment，最后用新的 Session id 绑定这条回执。再次调用会给同一条消息追加 Session，包括之后的步骤或回合才创建的；已经绑定的 Session 保留第一次的类型。本回合创建或晚于该消息创建的 Session 记为 `created`（新建），其余记为 `sent`。不是该 Bot 在 Human 私聊里发的消息，或不是它的 Assignment 的 Session，会被拒绝。`bot_send_message` 不再接受 `session_ids`。不经过模型：
+`link_message_sessions` 把 Bot 自己在 Human 私聊里发出的一条消息，绑定到这条消息所汇报的 Assignment Session 上；每个 Session 在这条消息上显示为一个 Session 链接。Orchestrator 先发回执，再创建 Assignment，最后用新的 Session id 绑定这条回执。再次调用会给同一条消息追加 Session，包括之后的步骤或回合才创建的；已经绑定的 Session 保留第一次的类型。本回合创建或晚于该消息创建的 Session 记为 `created`（新建），其余记为 `sent`。如果一个回合创建了 Assignment 或给它发了请求、在 Human 私聊里只发了一条消息、却没有调用绑定，Host 会在回合结束时把这些 Session 绑定到那条消息上。不是该 Bot 在 Human 私聊里发的消息，或不是它的 Assignment 的 Session，会被拒绝。`bot_send_message` 不再接受 `session_ids`。不经过模型：
 
 ```bash
 printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}' | deepseekbot bot-tool <bot-id> link_message_sessions --args-stdin
@@ -1164,7 +1164,7 @@ deepseekbot group-activity <group-channel>
 
 `model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的每次请求（不指定模型的 `send_assignment_request`，或恢复的 Session）会先回到休息已结束的前面成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 返回 `assignmentGroups` 及其成员，并给当前正在休息的路由加上 `restingUntil`；`list_bot_subagent_models` 用 `groups` 返回同样的组，`bot_subagent` 接受 `group`，从第一个可用成员启动子 Agent（Subagent 运行期间不会切换模型）。
 
-在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
+在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision，同时带上 `model-catalog.defaultGroupRevision`：若其他客户端在此期间改了默认路由组，会返回 `routing-group-stale-revision`，不会被覆盖。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
 
 `overview-usage`（`--period today|week|month|quarter`，`month` 为近 28 天，`quarter` 为近 84 天，默认 `today`）和 `overview-memory` 返回总览页上每个 Bot 的数据行；把返回的 `nextCursor` 作为 `--after` 传回可以继续读取。`activity-overview` 显示每个 Bot 正在做什么，`channel-activity-today` 显示每个 Channel 今天的消息。`bot-*` 读取命令按 Bot ID 定位，通过它的私聊读取 Profile 面板：`bot-usage` 需要不晚于今天、跨度小于 182 天的 `--start`/`--end`，`bot-session-usage` 按会话和 Assignment 汇总用量，`bot-activity-history` 返回活动日历（`--weeks` 为 1–104）。`group-activity` 接受群组 Channel ID。
 

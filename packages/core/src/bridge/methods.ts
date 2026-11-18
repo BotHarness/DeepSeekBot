@@ -3819,6 +3819,14 @@ function buildBridgeMethods(
       const groupId = source['groupId'];
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
+      const defaultGroupRevision = source['expectedDefaultGroupRevision'];
+      if (
+        defaultGroupRevision !== undefined &&
+        (!Number.isSafeInteger(defaultGroupRevision) ||
+          Number(defaultGroupRevision) < 0 ||
+          source['globalDefault'] !== true)
+      )
+        return invalidInput('A default Routing Group revision needs global scope');
       if (
         groupId !== undefined &&
         (typeof groupId !== 'string' ||
@@ -3864,14 +3872,27 @@ function buildBridgeMethods(
         await deps.modelCatalog.validate(route);
         if (source['globalDefault']) {
           let savedDefaultRevision = 0;
-          if (defaultRevision === undefined) await deps.defaultModel.saveSelection(route);
-          else {
-            const settings = deps.defaultModelSettings?.();
-            if (!settings) return unavailable();
+          const groups = deps.routingGroups;
+          const previous = groups?.defaultGroup();
+          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          if (
+            previous !== undefined &&
+            defaultGroupRevision !== undefined &&
+            previous.revision !== defaultGroupRevision
+          )
+            return routingGroupFailure(
+              new RoutingGroupError(
+                'stale-revision',
+                `The default model changed (revision ${previous.revision}); read it again before saving`,
+              ),
+            );
+          const settings =
+            defaultRevision === undefined ? undefined : deps.defaultModelSettings?.();
+          if (defaultRevision !== undefined) {
             const current = settings
-              .describe({ redactSecrets: true })
+              ?.describe({ redactSecrets: true })
               .find((entry) => entry.ns === 'agent-default-model');
-            if (!current) return unavailable();
+            if (!settings || !current) return unavailable();
             if (current.revision !== defaultRevision)
               return {
                 ok: false,
@@ -3880,17 +3901,39 @@ function buildBridgeMethods(
                   message: 'Host default model changed; read it again before saving',
                 },
               };
-            await settings.replace(
-              'agent-default-model',
-              {
-                provider: route.provider,
-                model: route.model,
-                ...(route.reasoningEffort === undefined
-                  ? {}
-                  : { reasoningEffort: route.reasoningEffort }),
-              },
-              Number(defaultRevision),
-            );
+          }
+          const reserved =
+            groups === undefined ||
+            previous === undefined ||
+            nextGroup === undefined ||
+            previous.groupId === nextGroup
+              ? undefined
+              : groups.setDefaultGroup(nextGroup, previous.revision);
+          const restore = (): void => {
+            if (reserved === undefined || previous === undefined) return;
+            try {
+              groups?.setDefaultGroup(previous.groupId, reserved.revision);
+            } catch {}
+          };
+          try {
+            if (settings === undefined) await deps.defaultModel.saveSelection(route);
+            else
+              await settings.replace(
+                'agent-default-model',
+                {
+                  provider: route.provider,
+                  model: route.model,
+                  ...(route.reasoningEffort === undefined
+                    ? {}
+                    : { reasoningEffort: route.reasoningEffort }),
+                },
+                Number(defaultRevision),
+              );
+          } catch (error) {
+            restore();
+            throw error;
+          }
+          if (settings !== undefined) {
             const saved = settings
               .describe({ redactSecrets: true })
               .find((entry) => entry.ns === 'agent-default-model');
@@ -3910,19 +3953,19 @@ function buildBridgeMethods(
             saved.provider !== route.provider ||
             saved.model !== route.model ||
             saved.reasoningEffort !== route.reasoningEffort
-          )
+          ) {
+            restore();
             return invalidInput('Profile default model was not saved; open native model settings');
-          const groups = deps.routingGroups;
-          const previous = groups?.defaultGroup();
-          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
+          }
           const groupRevision =
-            groups === undefined || previous === undefined
+            reserved?.revision ??
+            (groups === undefined || previous === undefined
               ? undefined
-              : previous.groupId === nextGroup
-                ? nextGroup === undefined
+              : nextGroup !== undefined
+                ? previous.revision
+                : previous.groupId === undefined
                   ? undefined
-                  : previous.revision
-                : groups.setDefaultGroup(nextGroup, previous.revision).revision;
+                  : groups.setDefaultGroup(undefined, previous.revision).revision);
           if (slug === undefined)
             return {
               ok: true,
@@ -3964,6 +4007,7 @@ function buildBridgeMethods(
               message: 'Host default model changed; read it again before saving',
             },
           };
+        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
         return invalidInput(error instanceof Error ? error.message : 'Model unavailable');
       }
     },
@@ -4257,6 +4301,7 @@ function buildBridgeMethods(
             ...(defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
+            ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),
           },
@@ -4328,6 +4373,7 @@ function buildBridgeMethods(
             },
           ],
         );
+        if (groups !== undefined) presetGroupRoutes(groups);
         const preset = deps.modelPresets.create({
           name,
           orchestrator,
@@ -4402,6 +4448,7 @@ function buildBridgeMethods(
               },
             ],
         );
+        if (groups !== undefined) presetGroupRoutes(groups);
         const preset = deps.modelPresets.update(id, {
           expectedRevision,
           name,
@@ -4876,7 +4923,12 @@ function buildBridgeMethods(
         await deps.modelCatalog.validate(route);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [route, assignmentDefault, ...assignmentModels, ...grouped]);
+        requireRoutes(slug, [
+          route,
+          assignmentDefault,
+          ...assignmentModels,
+          ...(groups === undefined ? grouped : presetGroupRoutes(groups)),
+        ]);
         const result = deps.registry.setModelPlan(
           slug,
           {

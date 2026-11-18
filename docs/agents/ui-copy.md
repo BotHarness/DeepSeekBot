@@ -69,4 +69,6 @@ Fix existing text that breaks these rules when you touch it.
 | No "Please" in English                                                                                                 | Please and failures     | No                             |
 | Chinese captions at most two sentences; keys named `*Confirm`, `*Warning`, `*Risk`, `*Danger` or `*Consent` are exempt | Keep it short and plain | No                             |
 
+`node scripts/check-ui-rules.mjs`, also in `pnpm lint`, enforces _Where copy lives_ for the Web client and the mobile app (`apps/mobile/app`, `apps/mobile/src/ui`): JSX text, string children and the `title`, `aria-label`, `aria-description`, `placeholder`, `alt`, `label` and `description` props may not hold Chinese or a phrase of two or more words. Single words, file names and `t()` calls pass. Existing findings sit in `scripts/ui-rules-baseline.json`, which only shrinks.
+
 Internal terms stay out of the copy through `packages/client/test/locale-terms.test.ts`.

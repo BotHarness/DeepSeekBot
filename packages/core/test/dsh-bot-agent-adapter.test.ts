@@ -5234,3 +5234,94 @@ it('links a sent receipt to the Assignments the turn created or sent to', async 
     ],
   });
 });
+
+it.each([
+  { label: 'links forgotten Sessions to the turn’s only Human DM message', sends: 1 },
+  { label: 'leaves Sessions unlinked when the turn sent two Human DM messages', sends: 2 },
+])('$label', async ({ sends }) => {
+  const linked: Record<string, unknown>[] = [];
+  const outcomes: Promise<unknown>[] = [];
+  let next = 0;
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onAgentCreated: () => {
+        const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+        const run = (name: string, args: Record<string, unknown>, id: string) =>
+          tools
+            .find((tool) => tool.name === name)!
+            .execute(args, {
+              callId: ToolCallId(id),
+              signal: new AbortController().signal,
+            } as ToolRunContext);
+        outcomes.push(
+          (async () => {
+            await run(
+              'create_assignment',
+              { title: 'New', description: 'New work', grant_id: 'g' },
+              'a',
+            );
+            for (let index = 0; index < sends; index += 1)
+              await run('bot_send_message', { channel_id: 'dm-test', body: 'On it.' }, `s${index}`);
+          })(),
+        );
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  await adapter.runOrchestrator({
+    sessionId: 'orchestrator-ada',
+    resume: false,
+    bot: BOT,
+    message: 'Start it',
+    inboundChannelId: 'dm-test',
+    inbox: '',
+    channels: {
+      list: () => ({ channels: [{ id: 'dm-test', kind: 'human-dm' }] }),
+      send: async (input: Record<string, unknown>) => {
+        next += 1;
+        return {
+          id: `m${next}`,
+          at: '',
+          author: { kind: 'bot', slug: 'ada' },
+          body: input['body'],
+        };
+      },
+      linkSessions: (input: Record<string, unknown>) => {
+        linked.push(input);
+        return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: 'On it.' };
+      },
+    } as never,
+    assignments: {
+      create: () => ({
+        outcome: 'created',
+        assignment: { sessionId: 'asg-new', title: 'New' },
+      }),
+      inspect: (sessionId: string) =>
+        ({ sessionId, title: 'New', createdAt: '2026-01-01T00:00:00.000Z' }) as never,
+    } as never,
+  } as never);
+  await Promise.all(outcomes);
+  expect(linked).toEqual(
+    sends === 1
+      ? [
+          {
+            messageId: 'm1',
+            links: [
+              {
+                sessionId: 'asg-new',
+                kind: 'created',
+                title: 'New',
+                createdAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ]
+      : [],
+  );
+});

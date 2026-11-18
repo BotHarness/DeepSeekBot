@@ -41,6 +41,7 @@ export interface BotModel {
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
   defaultGroupId?: string;
+  defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -132,10 +133,19 @@ export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotM
     loadModelCatalog(client),
     loadModelPresets(client),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups, defaultGroupId } = catalog;
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupRevision,
+  } = catalog;
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    ...(defaultGroupRevision === undefined ? {} : { defaultGroupRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
     ...(defaultGroupId === undefined ? {} : { defaultGroupId }),

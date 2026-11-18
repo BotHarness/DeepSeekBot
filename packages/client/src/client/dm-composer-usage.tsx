@@ -276,7 +276,7 @@ export function DmComposerUsagePopover({
                         </span>
                         <strong>
                           {sessionCount(row)}
-                          {sessionShare(row) === undefined ? '' : ` 路 ${sessionShare(row)}%`}
+                          {sessionShare(row) === undefined ? '' : ` · ${sessionShare(row)}%`}
                         </strong>
                       </div>
                       {sessionShare(row) === undefined ? null : (

@@ -28,7 +28,10 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function setup(rests: { provider: string; model: string; until: string }[] = []) {
+function setup(
+  rests: { provider: string; model: string; until: string }[] = [],
+  onValidate: () => void = () => undefined,
+) {
   const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
   roots.push(root);
   const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -51,6 +54,7 @@ function setup(rests: { provider: string; model: string; until: string }[] = [])
           efforts: [],
         })),
       validate: async (route) => {
+        onValidate();
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
       },
     },
@@ -62,7 +66,7 @@ function setup(rests: { provider: string; model: string; until: string }[] = [])
     roster: createTestRosterStore(),
   });
   registry.create({ slug: 'ada', displayName: 'Ada' });
-  return { root, database, registry, methods };
+  return { root, database, registry, routingGroups, methods };
 }
 
 async function group(methods: ReturnType<typeof setup>['methods'], name: string) {
@@ -163,6 +167,40 @@ describe('Model Presets with Routing Groups', () => {
         assignmentDefault: ROUTE,
       }),
     ).toMatchObject({ ok: true, value: { preset: { revision: 3 } } });
+  });
+
+  it('refuses a plan or Preset whose Routing Group is deleted while it is saved', async () => {
+    let target: string | undefined;
+    const { methods, routingGroups } = setup([], () => {
+      const group = target === undefined ? undefined : routingGroups.get(target);
+      if (group !== undefined) routingGroups.delete(group.id, group.revision);
+    });
+    const assignmentModels = [{ ...ROUTE, allowedEfforts: [''], defaultEffort: '' }];
+    for (const save of [
+      (id: string) =>
+        methods.modelPlanSet({
+          slug: 'ada',
+          expectedRevision: 0,
+          orchestrator: ROUTE,
+          assignmentDefault: ROUTE,
+          assignmentModels,
+          assignmentGroups: [id],
+        }),
+      (id: string) =>
+        methods.modelPresetCreate({
+          name: 'Grouped',
+          orchestrator: ROUTE,
+          assignmentDefault: ROUTE,
+          assignmentModels,
+          assignmentGroups: [id],
+        }),
+    ]) {
+      target = await group(methods, 'Side');
+      expect(await save(target)).toMatchObject({
+        ok: false,
+        error: { code: 'routing-group-not-found' },
+      });
+    }
   });
 
   it('saves a grouped Orchestrator on a member that is not resting (#4501)', async () => {

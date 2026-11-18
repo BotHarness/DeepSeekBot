@@ -319,8 +319,11 @@ export async function runModelsUsage(
     if (!group && (!values.provider || !values.model))
       usage('home-model-set requires --provider and --model, or --group.');
     const rpc = await connect();
-    const expectedDefaultRevision =
-      expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
+    const catalog =
+      expected === undefined
+        ? await rpc<{ defaultRevision?: number; defaultGroupRevision?: number }>('modelCatalog', {})
+        : {};
+    const expectedDefaultRevision = expected ?? catalog.defaultRevision;
     if (!Number.isSafeInteger(expectedDefaultRevision) || Number(expectedDefaultRevision) < 0)
       throw new CliLiveError(
         'settings-unavailable',
@@ -329,6 +332,9 @@ export async function runModelsUsage(
     return rpc('onboardingModel', {
       expectedRevision: 0,
       expectedDefaultRevision,
+      ...(catalog.defaultGroupRevision === undefined
+        ? {}
+        : { expectedDefaultGroupRevision: catalog.defaultGroupRevision }),
       ...(group
         ? { groupId: group }
         : {

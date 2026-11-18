@@ -610,7 +610,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
    - Follow the [system text and large-text acceptance contract](#system-text-and-large-text-acceptance) for implementation and native QA; source tests do not qualify native geometry.
    - Markdown bodies are the exception: `MarkdownView` renders them as native text with `react-native-enriched-markdown`, styled from the same tokens in `src/ui/markdown-style.ts`.
 3. **A new visual element is added to `primitives/`, `chat/` or `shell/` first.** The PR says why the existing ones do not fit.
-4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android.
+4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android. `node scripts/check-ui-rules.mjs` (in `pnpm lint`) requires an `accessibilityLabel` on every `Pressable` and `Touchable*`, and `theme.touch` or `hitSlop` in any file that renders one; existing gaps sit in `scripts/ui-rules-baseline.json`, which only shrinks.
 5. **Lists virtualize.** The chat is a top-to-bottom `FlatList` that starts at its end.
 6. **Immediate press feedback and semantic haptics are distinct.**
    - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working row glyph, the Host drawer, the image viewer's gestures, Android Computer video's local cursor, click acknowledgement ring, scroll-pad thumb and preview pinch/pan, and the composer growing line by line (up to five lines, then it scrolls). Computer cursor, preview and scroll-pad gestures run on the UI thread; only committed clicks and wheel steps cross to the Host client. The Computer preview has no release-time animation; Reset view applies its default position directly.
@@ -621,7 +621,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 
 - Opening either the composer attachment menu or Chats creation menu produces one light application haptic controlled by the device-local setting. On iOS, the shared UIKit menu adapter emits its semantic menuActionTriggered event; no extra touch or selection recognizer duplicates feedback. Closing the panel, choosing an attachment source, or activating an already-open creation panel adds none; the device-local setting applies. Sending from the compact or expanded composer keeps its existing single acknowledgment. Approval and question-answer feedback still waits for acceptance, including typed answers.
 
-7. **Copy lives in `src/ui/strings.ts`** and follows [UI copy](../../docs/agents/ui-copy.md): say Bot, keep hints and captions short and plain. Internal ids and protocol names stay out of the UI.
+7. **Copy lives in `src/ui/strings.ts`** and follows [UI copy](../../docs/agents/ui-copy.md): say Bot, keep hints and captions short and plain. Internal ids and protocol names stay out of the UI. The same check rejects Chinese or multi-word literals in JSX text and copy props.
 8. **UI PRs show the change.** Follow the [visual evidence rules](../../docs/agents/pr-ui-visual-evidence.md). Font, keyboard, native chrome and native control behavior require native captures and interaction checks; web previews are supplementary. Record source checks, platform-native results and Human QA separately.
 
 ## Message feedback
