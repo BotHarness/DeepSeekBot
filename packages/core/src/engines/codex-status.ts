@@ -53,6 +53,10 @@ function run(
   });
 }
 
+export function codexVersion(output: string): string {
+  return /\b\d+\.\d+\.\d+[\w.-]*/u.exec(output)?.[0] ?? '';
+}
+
 export function parseCodexLoginStatus(output: string): CodexLogin {
   if (/logged in using chatgpt/iu.test(output)) return 'chatgpt';
   if (/logged in using an? api key|api key configured/iu.test(output)) return 'api-key';
@@ -69,7 +73,7 @@ export async function detectCodex(options: CodexCommandOptions): Promise<CodexSt
   const login = parseCodexLoginStatus(status.output);
   return {
     installed: true,
-    version: version.output.trim().split(/\s+/u).pop() ?? '',
+    version: codexVersion(version.output),
     login: status.ok || login === 'signed-out' ? login : 'unknown',
   };
 }

@@ -17,7 +17,7 @@ import {
   codexProcessSpec,
   type CodexProcessOptions,
 } from '../src/engines/codex-engine.js';
-import { parseCodexLoginStatus } from '../src/engines/codex-status.js';
+import { codexVersion, parseCodexLoginStatus } from '../src/engines/codex-status.js';
 import type {
   EngineSessionHandle,
   EngineSessionPersistence,
@@ -338,6 +338,11 @@ describe('Engine selection, status and route', () => {
     expect(parseCodexLoginStatus('Logged in using ChatGPT')).toBe('chatgpt');
     expect(parseCodexLoginStatus('Logged in using an API key - sk-***')).toBe('api-key');
     expect(parseCodexLoginStatus('API key configured - sk-***')).toBe('api-key');
+    expect(
+      codexVersion(
+        'codex-cli 0.169.0\nWARNING: proceeding, even though we could not find a dir that does not exist',
+      ),
+    ).toBe('0.169.0');
     expect(parseCodexLoginStatus('Not logged in')).toBe('signed-out');
   });
 
