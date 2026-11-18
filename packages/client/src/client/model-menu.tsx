@@ -21,6 +21,8 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
   readonly group?: string | undefined;
+  readonly hintBrand?: ModelBrand | undefined;
+  readonly hintLabel?: string | undefined;
 }
 
 export interface ModelMenuEffort {
@@ -122,12 +124,24 @@ export function catalogMenuItems(
               item.credential !== undefined,
           ),
         );
+      const brand =
+        entry === undefined
+          ? undefined
+          : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
       return {
         value: groupMenuKey(group.id),
         label: group.name,
         name: group.name,
         brand: undefined,
         group: group.id,
+        ...(group.restingUntil === undefined && entry !== undefined
+          ? {
+              hintBrand: brand,
+              hintLabel: t('modelMenu.groupFront', {
+                model: `${entry.modelName} · ${entry.providerName}`,
+              }),
+            }
+          : {}),
         hint:
           group.restingUntil !== undefined
             ? restingHint(group.restingUntil, t)
@@ -135,7 +149,7 @@ export function catalogMenuItems(
                 model:
                   entry === undefined
                     ? (front?.model ?? '')
-                    : `${entry.modelName} · ${entry.providerName}`,
+                    : `${modelShortName(entry.modelName, brand)} · ${entry.providerName}`,
               }),
         disabled,
       };
@@ -189,6 +203,12 @@ export function ModelMenu({
         value: item.value,
         label: item.name,
         hint: item.hint,
+        ...(item.hintBrand === undefined
+          ? {}
+          : {
+              hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} />,
+              hintLabel: item.hintLabel,
+            }),
         disabled: item.disabled,
         search: [item.value],
         favorite:

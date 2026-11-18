@@ -48,6 +48,11 @@ export function ModelTrigger({
           )
         }
         hint={current?.hint}
+        hintIcon={
+          current?.hintBrand === undefined ? undefined : (
+            <ModelBrandIcon brand={current.hintBrand} size={12} />
+          )
+        }
         invalid={invalid}
         disabled={disabled}
         expanded={open}

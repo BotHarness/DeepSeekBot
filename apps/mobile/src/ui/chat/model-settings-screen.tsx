@@ -474,12 +474,27 @@ function ModelsView({
                   <SettingsRow
                     on={SHEET_GROUP}
                     testID={`model-group-${group.id}`}
+                    {...(front === undefined || group.restingUntil !== undefined
+                      ? {}
+                      : {
+                          accessibilityLabel: `${group.name}, ${t.modelSettings.groupFront(
+                            `${front.modelName} · ${front.providerName}`,
+                          )}`,
+                        })}
                     leading={
-                      <RowIcon
-                        name="model"
-                        size={theme.type.title.line}
-                        color={usable ? theme.color.fg : theme.color.muted}
-                      />
+                      front === undefined || group.restingUntil !== undefined ? (
+                        <RowIcon
+                          name="model"
+                          size={theme.type.title.line}
+                          color={usable ? theme.color.fg : theme.color.muted}
+                        />
+                      ) : (
+                        <ModelBrandIcon
+                          brand={modelEntryLabel(front).brand}
+                          size={theme.type.title.line}
+                          color={usable ? theme.color.fg : theme.color.muted}
+                        />
+                      )
                     }
                     title={group.name}
                     detail={
@@ -488,7 +503,7 @@ function ModelsView({
                         : t.modelSettings.groupFront(
                             front === undefined
                               ? (group.routes[0]?.model ?? '')
-                              : `${front.modelName} · ${front.providerName}`,
+                              : `${modelEntryLabel(front).short} · ${front.providerName}`,
                           )
                     }
                     tone={usable ? 'fg' : 'muted'}

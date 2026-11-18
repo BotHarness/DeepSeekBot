@@ -22,6 +22,8 @@ export interface FilterPickerOption {
   readonly label: string;
   readonly name?: string | undefined;
   readonly hint?: string | undefined;
+  readonly hintIcon?: ReactNode;
+  readonly hintLabel?: string | undefined;
   readonly icon?: ReactNode;
   readonly disabled?: boolean | undefined;
   readonly filter?: string | undefined;
@@ -145,6 +147,11 @@ const styles = stylex.create({
     color: color.muted,
     fontSize: text.metaSize,
     fontWeight: text.regular,
+  },
+  hintIcon: {
+    display: 'inline-flex',
+    verticalAlign: 'middle',
+    marginInlineEnd: space.x1,
   },
   rowCheck: { display: 'inline-flex', color: color.accentText },
   rowLine: { display: 'flex', alignItems: 'center', gap: space.x1 },
@@ -458,7 +465,11 @@ export function FilterPicker({
                       role="option"
                       tabIndex={-1}
                       aria-selected={selected}
-                      aria-label={option.hint === undefined ? name : `${name} · ${option.hint}`}
+                      aria-label={
+                        option.hint === undefined
+                          ? name
+                          : `${name} · ${option.hintLabel ?? option.hint}`
+                      }
                       title={name}
                       disabled={busy || option.disabled === true}
                       data-picker-option={option.value}
@@ -479,7 +490,12 @@ export function FilterPicker({
                       <span {...stylex.props(styles.rowText)}>
                         <span {...stylex.props(styles.rowName)}>{option.label}</span>
                         {option.hint === undefined ? null : (
-                          <span {...stylex.props(styles.rowHint)}>{option.hint}</span>
+                          <span {...stylex.props(styles.rowHint)}>
+                            {option.hintIcon === undefined ? null : (
+                              <span {...stylex.props(styles.hintIcon)}>{option.hintIcon}</span>
+                            )}
+                            {option.hint}
+                          </span>
                         )}
                       </span>
                       {selected ? check : null}
