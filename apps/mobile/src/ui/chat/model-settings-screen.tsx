@@ -40,7 +40,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
-import { modelEntryLabel, modelFamilyKey } from './composer-labels';
+import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -60,19 +60,6 @@ const GROUPS = 'groups';
 type PickerRow =
   | { kind: 'model'; entry: ModelCatalogEntry }
   | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined };
-
-function restTime(until: string): string {
-  return new Date(until).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function restingText(until: string): string {
-  return t.modelSettings.resting(restTime(until));
-}
 
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
@@ -495,7 +482,7 @@ function ModelsView({
                     title={group.name}
                     detail={
                       group.restingUntil !== undefined
-                        ? restingText(group.restingUntil)
+                        ? restingLabel(group.restingUntil)
                         : t.modelSettings.groupFront(
                             front?.modelName ?? group.routes[0]?.model ?? '',
                           )
@@ -519,14 +506,8 @@ function ModelsView({
                     onPress={
                       models.busy || selected
                         ? undefined
-                        : group.restingUntil !== undefined
-                          ? () =>
-                              setRestNotice(
-                                t.modelSettings.restingTap(
-                                  group.name,
-                                  restTime(group.restingUntil!),
-                                ),
-                              )
+                        : restingNotice(group.name, group) !== undefined
+                          ? () => setRestNotice(restingNotice(group.name, group))
                           : !usable
                             ? undefined
                             : () =>
@@ -573,7 +554,7 @@ function ModelsView({
                       : item.credential === 'invalid'
                         ? t.modelKeyInvalid(item.providerName)
                         : item.restingUntil !== undefined
-                          ? `${item.providerName} · ${restingText(item.restingUntil)}`
+                          ? `${item.providerName} · ${restingLabel(item.restingUntil)}`
                           : item.providerName
                   }
                   tone={usable ? 'fg' : 'muted'}
@@ -595,16 +576,9 @@ function ModelsView({
                   onPress={
                     models.busy || required
                       ? undefined
-                      : item.credential === undefined &&
-                          item.restingUntil !== undefined &&
+                      : restingNotice(item.modelName, item) !== undefined &&
                           !(picker === 'allowed' && selected)
-                        ? () =>
-                            setRestNotice(
-                              t.modelSettings.restingTap(
-                                item.modelName,
-                                restTime(item.restingUntil!),
-                              ),
-                            )
+                        ? () => setRestNotice(restingNotice(item.modelName, item))
                         : !usable && !(picker === 'allowed' && selected)
                           ? undefined
                           : () => {

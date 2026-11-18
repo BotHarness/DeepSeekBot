@@ -19,7 +19,7 @@ import {
   type BotModel,
 } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
-import { modelLabel, workspaceLabel } from '../src/ui/chat/composer-labels';
+import { modelLabel, restingNotice, workspaceLabel } from '../src/ui/chat/composer-labels';
 import { t } from '../src/ui/strings';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
@@ -94,6 +94,22 @@ describe('Bot model from the composer', () => {
     ]);
     expect(currentModel(model).name).toBe('DeepSeek V4 Pro');
     expect(modelLabel({ status: 'ready', value: model })).toBe('DeepSeek V4 Pro');
+  });
+
+  it('explains a tap on a resting model or group, and stays quiet otherwise (#4421)', () => {
+    const until = '2026-11-22T23:23:00.000Z';
+    const notice = restingNotice('DeepSeek V4.1 Flash', { restingUntil: until });
+    expect(notice).toContain('DeepSeek V4.1 Flash');
+    expect(notice).toContain(
+      new Date(until).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    expect(restingNotice('Daily', {})).toBeUndefined();
+    expect(restingNotice('GPT-5', { restingUntil: until, credential: 'missing' })).toBeUndefined();
   });
 
   it('names the Routing Group the Bot runs on beside the model in front (#4421)', () => {

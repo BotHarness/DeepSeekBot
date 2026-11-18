@@ -51,3 +51,24 @@ export function modelEntryLabel(entry: {
 export function modelFamilyKey(entry: { provider: string; model: string; modelName: string }) {
   return modelEntryLabel(entry).brand ?? 'other';
 }
+
+function restTime(until: string): string {
+  return new Date(until).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function restingLabel(until: string): string {
+  return t.modelSettings.resting(restTime(until));
+}
+
+export function restingNotice(
+  name: string,
+  row: { restingUntil?: string | undefined; credential?: string | undefined },
+): string | undefined {
+  if (row.restingUntil === undefined || row.credential !== undefined) return undefined;
+  return t.modelSettings.restingTap(name, restTime(row.restingUntil));
+}
