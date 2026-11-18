@@ -14,7 +14,7 @@ import {
 
 import { APPEARANCE_CLASS } from '../appearance-scope.js';
 import { KeyCombo } from './kbd.js';
-import { elevation, ink, layer, motion, space, style, type } from './tobs.stylex.js';
+import { ink, layer, motion, space, style, type } from './tobs.stylex.js';
 
 const shared = globalThis as typeof globalThis & Record<symbol, Context<boolean> | undefined>;
 const InstantTooltips = (shared[Symbol.for('botharness.instant-tooltips')] ??=
@@ -39,16 +39,15 @@ const styles = stylex.create({
     paddingBlock: space.x1,
     paddingInline: space.x2,
     borderRadius: style.radiusControl,
-    backgroundColor: layer.elevated,
-    boxShadow: elevation.x2,
-    color: ink.primary,
+    backgroundColor: ink.primary,
+    color: layer.canvas,
     fontSize: type.captionSize,
     lineHeight: type.captionLine,
     overflowWrap: 'anywhere',
     animationName: fadeIn,
     animationDuration: { default: motion.fast, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
-  keys: { display: 'inline-flex', color: ink.tertiary },
+  keys: { display: 'inline-flex', color: layer.canvas, opacity: 0.72 },
 });
 
 function clipped(node: HTMLElement | null): boolean {

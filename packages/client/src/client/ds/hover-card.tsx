@@ -75,6 +75,8 @@ export function HoverCard({
       </PreviewCard.Trigger>
       <PreviewCard.Portal>
         <PreviewCard.Positioner
+          side="bottom"
+          align="start"
           sideOffset={6}
           collisionPadding={16}
           {...stylex.props(styles.positioner)}

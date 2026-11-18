@@ -67,7 +67,7 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     display: 'flex',
     flexDirection: 'column',
-    minWidth: '180px',
+    minWidth: '140px',
     maxWidth: 'min(320px, calc(100vw - 32px))',
     maxHeight: 'var(--available-height, 70vh)',
     paddingBlock: space.x1,
@@ -82,7 +82,7 @@ const styles = stylex.create({
     animationName: fadeIn,
     animationDuration: { default: motion.fast, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
-  compact: { fontSize: type.captionSize, lineHeight: type.captionLine, minWidth: '140px' },
+  compact: { fontSize: type.captionSize, lineHeight: type.captionLine, minWidth: '120px' },
   scroll: { overflowY: 'auto', minHeight: 0, flex: '1 1 auto' },
   footer: {
     flex: '0 0 auto',
