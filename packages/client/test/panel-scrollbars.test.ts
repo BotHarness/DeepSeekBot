@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   mountPanelScrollbars,
+  PLUGIN_SCROLLBAR_SCOPE,
   PANEL_SCROLLBAR_IDLE_MS,
   PANEL_SCROLLBAR_FADE_MS,
 } from '../src/client/ds/panel-scrollbars.js';
@@ -113,5 +114,24 @@ describe('Panel scrollbar activity', () => {
     vi.advanceTimersByTime(PANEL_SCROLLBAR_IDLE_MS + 32);
     expect(opacity(node)).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+  it('reveals plugin-wide scrollers inside plugin surfaces and leaves host scrollers alone', () => {
+    release();
+    release = mountPanelScrollbars(document.documentElement, PLUGIN_SCROLLBAR_SCOPE);
+    const dialog = document.createElement('div');
+    dialog.className = 'bh-appearance-scope';
+    document.body.append(dialog);
+    const owned = scroller(dialog);
+    const host = scroller(document.body);
+    scroll(owned);
+    scroll(host);
+    expect(opacity(owned)).toBe(1);
+    expect(host.style.getPropertyValue(property)).toBe('');
+    expect(document.documentElement.hasAttribute('data-panel-scrollbars')).toBe(false);
+    release();
+    expect(owned.style.getPropertyValue(property)).toBe('');
+    release = () => {};
+    dialog.remove();
+    host.remove();
   });
 });
