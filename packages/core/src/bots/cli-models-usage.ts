@@ -103,6 +103,7 @@ export interface ModelsUsageValues {
   'assignment-effort'?: string;
   'expected-revision'?: string;
   'plan-stdin'?: boolean;
+  'assignment-models'?: string;
   'members-stdin'?: boolean;
   'orchestrator-group'?: string;
   period?: string;
@@ -193,6 +194,14 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function assignmentModelsMode(value: string | undefined): {
+  openAssignmentModels?: boolean;
+} {
+  if (value === undefined) return {};
+  if (value !== 'open' && value !== 'listed') usage('--assignment-models must be open or listed.');
+  return { openAssignmentModels: value === 'open' };
 }
 
 function routeOverride(
@@ -378,7 +387,13 @@ export async function runModelsUsage(
     const required = full
       ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
       : ['assignmentDefault', 'assignmentModels'];
-    const plan = await planInput(io, values, required, required);
+    const plan = await planInput(
+      io,
+      values,
+      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      required,
+    );
+    const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
@@ -386,6 +401,7 @@ export async function runModelsUsage(
       slug: target,
       expectedRevision,
       ...plan,
+      ...mode,
     });
   }
   if (command === 'model-plan-inherit') {
@@ -400,6 +416,7 @@ export async function runModelsUsage(
     const plan = values['plan-stdin']
       ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
       : {};
+    const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const { presets } = await rpc<{ presets: ModelPreset[] }>('modelPresets', {});
     const current = presets.find((preset) => preset.id === target);
@@ -415,6 +432,7 @@ export async function runModelsUsage(
       orchestrator: routeOverride(values, 'orchestrator', current.orchestrator),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
       ...plan,
+      ...mode,
     });
   }
   return usage(`Unsupported models or usage command ${command}.`);

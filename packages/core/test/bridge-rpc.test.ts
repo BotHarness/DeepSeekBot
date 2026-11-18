@@ -539,6 +539,7 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -547,6 +548,7 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
     ]);
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
@@ -653,6 +655,7 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -661,6 +664,7 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [
@@ -836,6 +840,7 @@ describe('bridge typert service', () => {
       'botTurnInput',
       'channelBotStop',
       'sessionStop',
+      'sessionMessageSend',
       'botStop',
       'modelCatalog',
       'modelPresets',
@@ -879,6 +884,9 @@ describe('bridge typert service', () => {
       'composerIdentity',
       'composerValidate',
       'humanNameSet',
+      'humanAvatarSet',
+      'humanAvatars',
+      'humanProfileSetupFinish',
       'channelHumanNameSet',
       'channelDm',
       'channelGet',

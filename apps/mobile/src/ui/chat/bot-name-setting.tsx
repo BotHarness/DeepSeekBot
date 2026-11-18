@@ -73,20 +73,16 @@ function RenameBotSheet({
           )}
         </View>
         <SheetActions>
-          <View>
-            <Button label={t.cancel} disabled={busy} on="canvas" onPress={onClose} />
-          </View>
-          <View>
-            <Button
-              testID="bot-name-save"
-              label={t.botNameSave}
-              busy={busy}
-              disabled={next === '' || next === name}
-              tone="primary"
-              on="canvas"
-              onPress={() => void save()}
-            />
-          </View>
+          <Button label={t.cancel} disabled={busy} on="canvas" onPress={onClose} />
+          <Button
+            testID="bot-name-save"
+            label={t.botNameSave}
+            busy={busy}
+            disabled={next === '' || next === name}
+            tone="primary"
+            on="canvas"
+            onPress={() => void save()}
+          />
         </SheetActions>
       </KeyboardFormScroll>
     </Sheet>

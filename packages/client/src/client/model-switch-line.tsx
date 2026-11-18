@@ -37,6 +37,7 @@ const styles = stylex.create({
 const routeOf = (route: ChannelModelSwitch['from']) => `${route.provider}/${route.model}`;
 
 export function modelSwitchReason(record: ChannelModelSwitch, t: BotHarnessTranslate): string {
+  if (record.reason === 'returned') return t('modelSwitch.returned');
   if (record.until === undefined)
     return t(
       record.reason === 'credential'

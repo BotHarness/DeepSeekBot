@@ -77,7 +77,18 @@ const addressInvitation = vi.hoisted(() =>
   })),
 );
 vi.mock('@botharness/host-client/team-sign-in', () => ({ addressInvitation }));
+const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
+vi.mock('../src/host/native-conversation-filter', () => ({
+  conversationFilter: { set: landing.filter },
+}));
+vi.mock('../src/ui/shell/workspace-paging', () => ({
+  closeWorkspacePageWhenShown: landing.closePage,
+}));
+const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async (_text: string) => true) }));
+vi.mock('expo-clipboard', () => clipboard);
 import TeamSignInScreen from '../app/pair/team';
+import { computerEnvironmentKey } from '../src/host/conversation-environments';
+import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 async function signIn(element: HTMLElement) {
@@ -147,6 +158,8 @@ it('signs the same member in again from a saved Host without an invitation or a 
     await signIn(element);
     expect(element.querySelector('[data-testid="team-switch-confirm"]')).toBeNull();
     expect(router.dismissTo).toHaveBeenCalledOnce();
+    expect(landing.filter).toHaveBeenCalledWith(computerEnvironmentKey('h'));
+    expect(landing.closePage).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     element.remove();
@@ -209,8 +222,17 @@ it('signs in with a Host address and username after the fingerprint is confirmed
     expect(addressInvitation).toHaveBeenCalledWith(
       expect.objectContaining({ route: 'https://studio.example', username: 'dana' }),
     );
-    expect(element.querySelector('[data-testid="team-fingerprint"]')?.textContent).toBe(
-      Array(16).fill('bbbb').join(' '),
+    const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
+    expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
+      Array(4).fill('bbbb bbbb bbbb bbbb'),
+    );
+    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
+      t.fingerprintTapToCopy,
+    );
+    await press('team-fingerprint');
+    expect(clipboard.setStringAsync).toHaveBeenCalledWith(Array(16).fill('bbbb').join(' '));
+    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
+      t.fingerprintCopied,
     );
     expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
     await press('team-fingerprint-matches');

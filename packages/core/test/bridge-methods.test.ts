@@ -1337,6 +1337,47 @@ describe('bridge methods', () => {
       revision: 2,
       assignmentModels,
     });
+    expect(
+      await methods.modelPlanAssignmentsSet({
+        slug: 'ada',
+        expectedRevision: 2,
+        assignmentDefault: pro,
+        assignmentModels,
+        openAssignmentModels: 'yes',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await methods.modelPlanAssignmentsSet({
+        slug: 'ada',
+        expectedRevision: 2,
+        assignmentDefault: pro,
+        assignmentModels,
+        openAssignmentModels: true,
+      }),
+    ).toMatchObject({ ok: true, value: { plan: { revision: 3, openAssignmentModels: true } } });
+    expect(
+      await methods.modelPlanAssignmentsSet({
+        slug: 'ada',
+        expectedRevision: 3,
+        assignmentDefault: pro,
+        assignmentModels,
+      }),
+    ).toMatchObject({ ok: true, value: { plan: { revision: 4, openAssignmentModels: true } } });
+    expect(createTestRegistry({ rootDir: root }).get('ada')?.modelPlan).toMatchObject({
+      revision: 4,
+      openAssignmentModels: true,
+    });
+    const closed = await methods.modelPlanAssignmentsSet({
+      slug: 'ada',
+      expectedRevision: 4,
+      assignmentDefault: pro,
+      assignmentModels,
+      openAssignmentModels: false,
+    });
+    expect(closed.ok && closed.value.plan).not.toHaveProperty('openAssignmentModels');
+    expect(createTestRegistry({ rootDir: root }).get('ada')?.modelPlan).not.toHaveProperty(
+      'openAssignmentModels',
+    );
   });
 
   it('sets a Bot Model Plan directly without a preset and rejects stale revisions', async () => {

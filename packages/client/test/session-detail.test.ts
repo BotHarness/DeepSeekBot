@@ -161,13 +161,52 @@ it('shows the full conversation with summary chips that expand in place', async 
   expect(host.querySelector('[data-session-composer]')?.textContent).not.toContain('Inbox');
 });
 
-it('has no composer for the Orchestrator conversation', async () => {
+it('sends a message straight into the Orchestrator Session, not as an Assignment request', async () => {
+  const sendSessionRequest = vi.fn(async () => {});
+  const sendOrchestratorMessage = vi.fn(async () => {});
   const host = await render({
     sessionTranscript: vi.fn(async () => transcript('orchestrator')),
-    sendSessionRequest: vi.fn(async () => {}),
+    sendSessionRequest,
+    sendOrchestratorMessage,
   });
   expect(host.querySelectorAll('[data-transcript]')).toHaveLength(3);
-  expect(host.querySelector('[data-session-composer]')).toBeNull();
+  const input = host.querySelector<HTMLTextAreaElement>('[data-session-composer] textarea')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'Skip the charts this week.',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[data-session-composer] button[aria-label="发送"]')!
+      .click(),
+  );
+  expect(sendOrchestratorMessage).toHaveBeenCalledWith(
+    'tobs',
+    'asg-1',
+    'Skip the charts this week.',
+  );
+  expect(sendSessionRequest).not.toHaveBeenCalled();
+});
+
+it('sends an Orchestrator message through the Session message bridge', async () => {
+  const { sendOrchestratorMessage } = await import('../src/client/bridge.js');
+  const call = vi.fn(async () => ({
+    ok: true as const,
+    value: { sourceEventId: 'evt-1' },
+  }));
+  await sendOrchestratorMessage(call, 'tobs', 'bot-1', 'Skip the charts.');
+  expect(call).toHaveBeenCalledWith(
+    'sessionMessageSend',
+    {
+      botSlug: 'tobs',
+      sessionId: 'bot-1',
+      text: 'Skip the charts.',
+    },
+    undefined,
+  );
 });
 
 it('says when the Session cannot be read', async () => {

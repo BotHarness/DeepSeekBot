@@ -9,7 +9,7 @@ export interface ChannelModelSwitch {
   sessionId: string;
   from: ChannelModelSwitchRoute;
   to: ChannelModelSwitchRoute;
-  reason: 'quota' | 'credential' | 'rate-limit';
+  reason: 'quota' | 'credential' | 'rate-limit' | 'returned';
   until?: string;
 }
 
@@ -32,7 +32,8 @@ export function isChannelModelSwitch(value: unknown): value is ChannelModelSwitc
     isRoute(record['to']) &&
     (record['reason'] === 'quota' ||
       record['reason'] === 'credential' ||
-      record['reason'] === 'rate-limit') &&
+      record['reason'] === 'rate-limit' ||
+      record['reason'] === 'returned') &&
     (record['until'] === undefined ||
       (text(record['until']) && Number.isFinite(Date.parse(record['until']))))
   );

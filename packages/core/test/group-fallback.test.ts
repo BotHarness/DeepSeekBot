@@ -261,3 +261,108 @@ describe('A Bot on a Routing Group keeps working when its route runs out (#4417)
     }
   });
 });
+
+describe('A Session returns to its preferred member once the rest ends (#4418)', () => {
+  it('stays on the fallback while the preferred route rests', async () => {
+    let clock = 0;
+    const { rests, fallback } = fallbackFor({ now: () => clock });
+    rests.rest(SPENT, 10_000, 'quota');
+    await fallback.choose('ada', 's1', rests.restingUntil(SPENT)!);
+    expect(await fallback.restore('ada', 's1')).toBeUndefined();
+    expect(fallback.route('s1')).toEqual(DEEPSEEK);
+    clock = 10_000;
+    expect(await fallback.restore('ada', 's1')).toEqual({
+      kind: 'switch',
+      from: DEEPSEEK,
+      to: SPENT,
+      reason: 'returned',
+    });
+    expect(fallback.route('s1')).toEqual(SPENT);
+    expect(await fallback.restore('ada', 's1')).toBeUndefined();
+  });
+
+  async function scenario(failOnReturn: boolean) {
+    let clock = Date.parse('2026-11-18T00:00:00.000Z');
+    const until = clock + 60_000;
+    const { rests, fallback } = fallbackFor({ now: () => clock });
+    let spentFails = true;
+    const runs: string[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('bh-group-return-'),
+      agents: {
+        async runOrchestrator(run) {
+          const route = fallback.route(run.sessionId) ?? SPENT;
+          runs.push(key(route));
+          if (key(route) !== key(SPENT) || !spentFails) return;
+          rests.rest(SPENT, clock + 60_000, 'quota');
+          throw Object.assign(new Error('QUOTA: OpenCode Go usage limit reached'), {
+            code: 'QUOTA',
+          });
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('No Assignment expected');
+        },
+        async close() {},
+      },
+      routeRests: rests,
+      groupFallback: fallback,
+      sessionRoute: (_slug, sessionId) => fallback.route(sessionId) ?? SPENT,
+      autoContinueDelaysMs: [1],
+    });
+    async function dm(id: string) {
+      const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+        id,
+        at: new Date(clock).toISOString(),
+        author: { kind: 'human' },
+        body: 'Hello',
+      });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: channel.id,
+        messageId: id,
+        body: 'Hello',
+      });
+      for (let index = 0; index < 3; index += 1) {
+        await core.runtime.whenIdle();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    }
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      await dm('ada-1');
+      expect(runs).toEqual([key(SPENT), key(DEEPSEEK)]);
+      clock = until;
+      spentFails = failOnReturn;
+      await dm('ada-2');
+      return {
+        runs,
+        switches: core.channels
+          .readMessages('dm-ada')
+          .flatMap((message) => (message.modelSwitch === undefined ? [] : [message.modelSwitch]))
+          .map((record) => `${record.reason}:${key(record.from)}>${key(record.to)}`),
+        held: core.runtime.heldCause?.('ada'),
+      };
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  }
+
+  it('starts the next turn on the preferred member with one return notice', async () => {
+    const result = await scenario(false);
+    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(SPENT)]);
+    expect([...result.switches].sort()).toEqual(
+      [`quota:${key(SPENT)}>${key(DEEPSEEK)}`, `returned:${key(DEEPSEEK)}>${key(SPENT)}`].sort(),
+    );
+    expect(result.held).toBeUndefined();
+  });
+
+  it('falls back again with a fresh rest when the preferred route fails on return', async () => {
+    const result = await scenario(true);
+    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(SPENT), key(DEEPSEEK)]);
+    expect(result.switches.filter((entry) => entry.startsWith('quota:'))).toHaveLength(2);
+    expect(result.switches.filter((entry) => entry.startsWith('returned:'))).toHaveLength(1);
+    expect(result.held).toBeUndefined();
+  });
+});

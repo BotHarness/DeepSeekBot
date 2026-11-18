@@ -4,7 +4,7 @@ import { createActions } from '../src/client/actions.js';
 import { createStore } from '../src/client/store.js';
 
 describe('current local Human identity Bridge', () => {
-  it('saves and clears a label without supplying or accepting a replacement Human ID', async () => {
+  it('saves and clears a label without supplying a Human ID', async () => {
     const calls: Array<{ endpoint: string; payload: Record<string, unknown> }> = [];
     const call: BridgeCall = async (endpoint, payload) => {
       calls.push({ endpoint, payload });
@@ -27,11 +27,11 @@ describe('current local Human identity Bridge', () => {
       { endpoint: 'humanNameSet', payload: { displayName: null } },
     ]);
     for (const value of [
-      { humanId: 'another', defaultDisplayName: null, displayName: 'Human' },
+      { humanId: '', defaultDisplayName: null, displayName: 'Human' },
       { humanId: 'local-human', displayName: 'Spoof' },
     ]) {
       await expect(loadHumanIdentity(async () => ({ ok: true, value }))).rejects.toThrow(
-        'invalid local Human identity',
+        'invalid Human identity',
       );
     }
   });

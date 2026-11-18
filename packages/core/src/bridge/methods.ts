@@ -283,6 +283,9 @@ import {
   isGroupAvatar,
   isReactionEmoji,
   type LocalHumanIdentity,
+  type HumanAvatar,
+  HUMAN_AVATAR_BATCH,
+  isHumanAvatar,
   type ChannelMention,
   type ChannelMessage,
   type ChannelReaction,
@@ -691,7 +694,7 @@ export interface ChannelListItem extends ChannelRecord {
   memberBots?: Array<{ slug: string; displayName: string; avatar?: string }>;
   remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
-  humanMembers?: Array<{ humanId: string; displayName: string }>;
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
   humanNickname?: string | null;
   latestMessage?: ChannelMessage;
 }
@@ -777,6 +780,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       stopped: { botSlug: string; sessionId: string; messageId: string };
     }>
   >;
+  sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
   sessionStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -855,7 +859,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
   modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{ groups: RoutingGroup[] }>;
+  modelGroups(payload: unknown): BridgeResult<{
+    groups: RoutingGroup[];
+    rests: import('../models/route-rest.js').RestingRoute[];
+  }>;
   modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
   modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
   modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
@@ -919,6 +926,9 @@ export interface BridgeMethods extends TeamBridgeMethods {
     quotes?: Array<ChannelMessage | null>;
   }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
+  humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
@@ -1389,6 +1399,7 @@ export interface BridgeMethodsDeps {
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
   routingGroups?: RoutingGroupStore;
+  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
@@ -3894,6 +3905,34 @@ function buildBridgeMethods(
       }
       return stopBotSessions(source, botSlug, channelId);
     },
+    async sessionMessageSend(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      const text = typeof source['text'] === 'string' ? source['text'] : undefined;
+      if (!botSlug || !sessionId || text === undefined || text.trim() === '')
+        return invalidInput('botSlug, sessionId and a non-blank text are required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      if (deps.runtime?.sendOrchestratorMessage === undefined) return unavailable();
+      const outcome = deps.runtime.sendOrchestratorMessage(human, {
+        botSlug,
+        sessionId,
+        text,
+      });
+      if (!outcome.delivered)
+        return {
+          ok: false,
+          error: {
+            code: outcome.reason === 'not-current-orchestrator' ? 'invalid-input' : 'unavailable',
+            message:
+              outcome.reason === 'not-current-orchestrator'
+                ? "Only the Bot's current Orchestrator Session accepts a direct message"
+                : `The message was not delivered: ${outcome.reason}`,
+          },
+        };
+      void outcome.settled.catch(() => undefined);
+      return { ok: true, value: { sourceEventId: outcome.sourceEventId } };
+    },
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
@@ -4000,8 +4039,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof name !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         (assignmentModels !== undefined &&
@@ -4026,6 +4067,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         return { ok: true, value: { preset } };
       } catch (error) {
@@ -4043,8 +4085,10 @@ function buildBridgeMethods(
       const orchestrator = source['orchestrator'];
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof id !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         typeof expectedRevision !== 'number' ||
         !Number.isSafeInteger(expectedRevision) ||
         expectedRevision < 1 ||
@@ -4079,6 +4123,7 @@ function buildBridgeMethods(
           orchestrator,
           assignmentDefault,
           ...(assignmentModels === undefined ? {} : { assignmentModels }),
+          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         });
         if (preset === undefined) return invalidInput('Model Preset was not found');
         return { ok: true, value: { preset } };
@@ -4152,7 +4197,10 @@ function buildBridgeMethods(
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
-      return { ok: true, value: { groups: deps.routingGroups.list() } };
+      return {
+        ok: true,
+        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+      };
     },
     modelGroup(payload) {
       if (deps.routingGroups === undefined) return unavailable();
@@ -4336,8 +4384,20 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
+      const assignmentGroups = source['assignmentGroups'];
+      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
+        (assignmentGroups !== undefined &&
+          (!Array.isArray(assignmentGroups) ||
+            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
+            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
+        (assignmentDefaultGroupId !== undefined &&
+          (typeof assignmentDefaultGroupId !== 'string' ||
+            !Array.isArray(assignmentGroups) ||
+            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
         !assignmentModels.every(isAssignmentModelOption) ||
@@ -4352,11 +4412,25 @@ function buildBridgeMethods(
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
+        for (const id of (assignmentGroups ?? []) as string[]) {
+          if (deps.routingGroups?.get(id) === undefined)
+            throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+          requireRoutes(slug, deps.routingGroups.routes(id));
+        }
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,
           assignmentModels,
           expectedRevision,
+          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
+          assignmentGroups === undefined
+            ? undefined
+            : {
+                ids: assignmentGroups as string[],
+                ...(typeof assignmentDefaultGroupId === 'string'
+                  ? { defaultId: assignmentDefaultGroupId }
+                  : {}),
+              },
         );
         if (!result.ok)
           return result.reason === 'not-found'
@@ -4462,8 +4536,10 @@ function buildBridgeMethods(
       const assignmentDefault = source['assignmentDefault'];
       const assignmentModels = source['assignmentModels'];
       const expectedRevision = source['expectedRevision'];
+      const openAssignmentModels = source['openAssignmentModels'];
       if (
         typeof slug !== 'string' ||
+        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
         !isModelRoute(orchestrator) ||
         !isModelRoute(assignmentDefault) ||
         !Array.isArray(assignmentModels) ||
@@ -4484,7 +4560,12 @@ function buildBridgeMethods(
         requireRoutes(slug, [orchestrator, assignmentDefault, ...assignmentModels]);
         const result = deps.registry.setModelPlan(
           slug,
-          { orchestrator, assignmentDefault, assignmentModels },
+          {
+            orchestrator,
+            assignmentDefault,
+            assignmentModels,
+            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+          },
           expectedRevision,
         );
         if (!result.ok)
@@ -6299,6 +6380,32 @@ function buildBridgeMethods(
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+    },
+    humanAvatarSet(payload) {
+      const input = z
+        .object({ avatar: z.string().max(131_072).nullable() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
+      return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
+    },
+    humanProfileSetupFinish(payload) {
+      if (!z.object({}).strict().safeParse(payload).success)
+        return invalidInput('humanProfileSetupFinish takes no arguments');
+      return { ok: true, value: deps.channels.finishHumanProfileSetup(human) };
+    },
+    humanAvatars(payload) {
+      const input = z
+        .object({ humanIds: z.array(z.string().min(1).max(128)).max(HUMAN_AVATAR_BATCH) })
+        .strict()
+        .safeParse(payload);
+      if (!input.success)
+        return invalidInput(`humanIds must be up to ${HUMAN_AVATAR_BATCH} Human IDs`);
+      return {
+        ok: true,
+        value: { avatars: deps.channels.humanAvatars(human, input.data.humanIds) },
+      };
     },
     channelHumanNameSet(payload) {
       const input = z

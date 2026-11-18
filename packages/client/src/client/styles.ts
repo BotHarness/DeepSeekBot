@@ -3564,6 +3564,7 @@ button.bh-profile-heat-cell:focus-visible {
 .bh-message-group-human-avatar {
   display: grid;
   place-items: center;
+  overflow: hidden;
   width: 28px;
   height: 28px;
   border-radius: ${radius.round};
@@ -3571,6 +3572,7 @@ button.bh-profile-heat-cell:focus-visible {
   color: var(--tobs-ink-primary);
 }
 .bh-message-group-human-avatar svg { width: 18px; height: 18px; }
+
 /* Header working status: a visually hidden status region in the chat pane
    announces the same Bots, so this copy is hidden from assistive tech. */
 .bh-header-working {
@@ -4382,6 +4384,7 @@ a[href^="https://session.tobs.invalid/"]::before {
 .bh-delivery-human-avatar {
   display: grid;
   place-items: center;
+  overflow: hidden;
   width: 22px;
   height: 22px;
   flex: none;

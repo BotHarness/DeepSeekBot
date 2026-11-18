@@ -167,17 +167,19 @@ export function activityText(
           `${record.to.provider}/${record.to.model}`,
         ),
         detail:
-          record.reason === 'credential'
-            ? until === undefined
-              ? copy.switchCredential
-              : copy.switchCredentialUntil(until)
-            : record.reason === 'rate-limit'
+          record.reason === 'returned'
+            ? copy.switchReturned
+            : record.reason === 'credential'
               ? until === undefined
-                ? copy.switchRateLimit
-                : copy.switchRateLimitUntil(until)
-              : until === undefined
-                ? copy.switchQuota
-                : copy.switchQuotaUntil(until),
+                ? copy.switchCredential
+                : copy.switchCredentialUntil(until)
+              : record.reason === 'rate-limit'
+                ? until === undefined
+                  ? copy.switchRateLimit
+                  : copy.switchRateLimitUntil(until)
+                : until === undefined
+                  ? copy.switchQuota
+                  : copy.switchQuotaUntil(until),
       };
     }
     case 'turn-stop': {

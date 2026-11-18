@@ -380,6 +380,11 @@ describe('Group profile', () => {
     await act(async () => button(view, `${t.groupRename}, Launch`)!.click());
     const field = view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.groupName}"]`)!;
     expect(button(view, t.groupRenameSave)!.disabled).toBe(true);
+    const actionsRow = button(view, t.groupRenameSave)!.parentElement!;
+    expect([...actionsRow.children].map((node) => node.getAttribute('aria-label'))).toEqual([
+      t.cancel,
+      t.groupRenameSave,
+    ]);
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
       setter.call(field, 'Launch crew');

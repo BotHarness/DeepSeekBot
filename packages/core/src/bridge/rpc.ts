@@ -1217,6 +1217,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  sessionMessageSend(
+    botSlug: string,
+    sessionId: string,
+    text: string,
+  ): Promise<{ sourceEventId: string }> {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
+  }
   sessionStop(
     botSlug: string,
     sessionId?: string,
@@ -1270,6 +1277,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
@@ -1277,6 +1285,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1288,6 +1297,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1297,6 +1307,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -1367,6 +1378,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
@@ -1374,6 +1388,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
         expectedRevision,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
       }),
     );
   }
@@ -1384,6 +1401,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestrator: ModelRoute,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
@@ -1392,6 +1410,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         orchestrator,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
       }),
     );
   }
@@ -2154,6 +2173,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   humanNameSet(displayName: string | null) {
     return unwrap(this.methods.humanNameSet({ displayName }));
+  }
+
+  humanAvatarSet(avatar: string | null) {
+    return unwrap(this.methods.humanAvatarSet({ avatar }));
+  }
+
+  humanAvatars(humanIds: string[]) {
+    return unwrap(this.methods.humanAvatars({ humanIds }));
+  }
+
+  humanProfileSetupFinish() {
+    return unwrap(this.methods.humanProfileSetupFinish({}));
   }
 
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
@@ -3460,6 +3491,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botTurnInput',
   'channelBotStop',
   'sessionStop',
+  'sessionMessageSend',
   'botStop',
   'modelCatalog',
   'modelPresets',
@@ -3503,6 +3535,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'composerIdentity',
   'composerValidate',
   'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
+  'humanProfileSetupFinish',
   'channelHumanNameSet',
   'channelDm',
   'channelGet',

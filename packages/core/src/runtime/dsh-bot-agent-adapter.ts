@@ -51,6 +51,10 @@ import {
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../models/presets.js';
+import type { OpenAssignmentRoutes } from '../models/open-assignments.js';
+import type { GroupPick } from '../models/group-fallback.js';
+import type { RestingRoute } from '../models/route-rest.js';
+
 import { MemoryAcceptError } from '../memory/accepted.js';
 import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
@@ -75,6 +79,12 @@ import {
   type OrchestratorAgentRun,
 } from './bot-runtime.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
+
+export interface AssignmentGroupRoutes {
+  pick(botSlug: string, groupId: string): Promise<GroupPick>;
+  describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
+  restingUntil(route: ModelRoute): RestingRoute | undefined;
+}
 
 export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
   'wait_for_assignment',
@@ -299,7 +309,7 @@ function orchestratorPrompt(text: PromptText, tob = false): string {
   return `You are the Orchestrator for one PersonaBot, and your working directory is its Memory Repository.
 ## You coordinate work from an inbox
 Your Bot Inbox collects events from different people, other Bots, external IM, Bot Schedules, Host notices and your own Assignments. ${text('coordination')}
-Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. While open items remain after a turn you are woken again with a [Triage] message until each has a destination; a round that leaves the open count unchanged ends the triage. inbox_history remains the diary of everything past.
+Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. While open items remain after a turn you are woken again with a [Triage] message until each has a destination (a request whose Assignment is still working already has one); a round that leaves the open count unchanged ends the triage. inbox_history remains the diary of everything past.
 ## Reply delivery contract
 Your assistant text is private Session output, not a delivered message. For Channel and external IM messages, use bot_send_message: reply with the trusted source_event_id from your Inbox, or proactively specify channel_id. Never guess a destination from recency or combine different senders' authority. Use the same tool for Group/Bot DM, attachments and external IM. External proactive sends require an authorized grant_id; external file replies require one imported attachment and empty body. Reactions and source sharing remain separate actions.
 ${text('progress-reporting')}
@@ -318,8 +328,32 @@ When the Human asks for a one-time reminder or recurring task, create a Bot Sche
 When the Human asks to set up, connect or configure an MCP server, or to use a service that needs their credential, do it yourself in this conversation with the secret tools. Do not inspect or edit Profile or DSH configuration for it, and never ask them to paste a secret into a Channel. If the server needs a credential, call ask_secret at once, with one field per variable the server documents, then call secret_mcp_connect with the server's usual launcher, for example npx -y <package> or uvx <package>, and those variables as placeholders, each field id wrapped in double braces as the tool describes. Ask a question first only when you cannot tell which server they mean. When it has connected, list its tools in the Channel. For a single HTTP request use secret_http instead, and for a single command-line tool secret_cli.`;
 }
 const ASSIGNMENT_REPORT_CONTRACT = `## Report delivery contract
-Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished.
+Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished. When you need an answer or decision to continue, report with expects_reply true (or state blocked or waiting-human) and say exactly what you need, instead of guessing or ending silently.
 A text-only task, a request for a Markdown final answer, or a prohibition on work tools does not replace this internal reply transport. Keep those work restrictions: do not run commands, inspect files, delegate, or contact a Channel unless the task permits it. Put the requested Markdown in the report tool, not just a final text reply. Never claim delivery until the tool succeeds. 中文：纯文本 final 不会提交报告；只做文字分析或禁止工作工具时，仍须通过 report_to_orchestrator 提交结果。`;
+
+const UNREPORTED_FINAL_PREFIX =
+  '[Host: this Assignment ended its turn without report_to_orchestrator. Its final reply is forwarded below as the result; inspect the Assignment or send it a request if this is not the result you asked for.]';
+
+function finalAssistantText(handle: AgentHandle, fromSeq: SessionLogOffset): string | undefined {
+  const event = handle.agent.session
+    .snapshotEvents(fromSeq)
+    .findLast((candidate) => candidate.type === 'assistant/message');
+  const content = (event?.data as { message?: { content?: unknown } } | undefined)?.message
+    ?.content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .flatMap((block: unknown) =>
+      typeof block === 'object' &&
+      block !== null &&
+      (block as { type?: unknown }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+        ? [(block as { text: string }).text]
+        : [],
+    )
+    .join('\n')
+    .trim();
+  return text.length > 0 ? text : undefined;
+}
 
 function assignmentMessage(text: string) {
   return createUserMessage({
@@ -383,7 +417,9 @@ export interface DshBotAgentAdapterOptions {
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
+  openAssignmentRoutes?: OpenAssignmentRoutes;
   orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
+  assignmentGroups?: AssignmentGroupRoutes;
   subagentTools?: (botSlug: string) => ToolDefinition[];
   hasSession?: (sessionId: string) => Promise<boolean>;
   prepareModelRoute?: (
@@ -603,7 +639,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #defaultModel: DshDefaultModelHost;
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
+  readonly #openAssignmentRoutes: OpenAssignmentRoutes | undefined;
   readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
+  readonly #assignmentGroups: AssignmentGroupRoutes | undefined;
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
   readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
@@ -659,7 +697,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
     this.#subagentTools = options.subagentTools;
+    this.#openAssignmentRoutes = options.openAssignmentRoutes;
     this.#orchestratorRoute = options.orchestratorRoute;
+    this.#assignmentGroups = options.assignmentGroups;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
     this.#turnRefusal = options.turnRefusal;
@@ -1243,6 +1283,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.completedTurn?.(completion);
       if (run.resume === true) return;
       if (!entry.reported) {
+        const text = finalAssistantText(handle, fromSeq);
+        if (text !== undefined) {
+          await run.report(
+            { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${text}` },
+            { turn: completion.turn },
+          );
+          entry.reported = true;
+        }
+      }
+      if (!entry.reported) {
         throw new Error('Assignment finished without report_to_orchestrator');
       }
     } finally {
@@ -1640,7 +1690,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       defineTool({
         name: 'list_assignment_models',
         description:
-          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
+          'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. Call before selecting a non-default route, and follow the notes to pick the cheapest choice that fits the task.',
         parameters: {},
         output: {
           schema: { type: 'string' },
@@ -1651,16 +1701,51 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_assignment_models: Orchestrator run is unavailable');
           const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
-          return JSON.stringify(
-            plan?.assignmentDefault === undefined
-              ? { configured: false, message: 'Ask the Human to apply a Model Preset first' }
-              : {
-                  configured: true,
-                  revision: plan.revision,
-                  assignmentDefault: plan.assignmentDefault,
-                  assignmentModels: assignmentModelsOf(plan),
-                },
-          );
+          if (plan?.assignmentDefault === undefined)
+            return JSON.stringify({
+              configured: false,
+              message: 'Ask the Human to apply a Model Preset first',
+            });
+          const open = plan.openAssignmentModels === true;
+          const groups = this.#assignmentGroups;
+          const resting = <T extends { provider: string; model: string }>(route: T) => {
+            const rest = groups?.restingUntil(route);
+            return rest === undefined ? route : { ...route, restingUntil: rest.until };
+          };
+          const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) => {
+            const group = groups?.describe(id);
+            if (group === undefined) return [];
+            const members = group.routes.map(resting);
+            const until = members.map((member) =>
+              'restingUntil' in member ? member.restingUntil : undefined,
+            );
+            return [
+              {
+                group: id,
+                name: group.name,
+                ...(id === plan.assignmentDefaultGroupId ? { default: true } : {}),
+                members,
+                ...(until.length > 0 && until.every((value) => value !== undefined)
+                  ? { restingUntil: until.sort()[0] }
+                  : {}),
+              },
+            ];
+          });
+          return JSON.stringify({
+            configured: true,
+            revision: plan.revision,
+            assignmentDefault: resting(plan.assignmentDefault),
+            assignmentModels: assignmentModelsOf(plan).map(resting),
+            ...(assignmentGroups.length === 0 ? {} : { assignmentGroups }),
+            ...(open
+              ? {
+                  open: true,
+                  openModels: ((await this.#openAssignmentRoutes?.list(run.bot.slug)) ?? []).map(
+                    resting,
+                  ),
+                }
+              : {}),
+          });
         },
       }),
     );
@@ -1713,6 +1798,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             description:
               'Optional allowed effort for the selected model; omitted uses that model’s Human-selected default. Pass an empty string to select the provider default when allowed.',
           },
+          group: {
+            type: 'string',
+            description:
+              'Optional Routing Group id from list_assignment_models assignmentGroups instead of provider/model; the Assignment runs on its first usable member and falls back to the next one.',
+          },
         },
         output: {
           schema: { type: 'string' },
@@ -1723,27 +1813,57 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator') {
             throw new Error('create_assignment: Orchestrator run is unavailable');
           }
+          if (args.group !== undefined && args.provider !== undefined)
+            throw new Error('create_assignment: pass either group or provider/model');
+          const plan = this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan;
+          const groupId =
+            args.group ??
+            (args.provider === undefined ? plan?.assignmentDefaultGroupId : undefined);
+          let picked: ModelRoute | undefined;
+          if (groupId !== undefined) {
+            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
+            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId);
+            if (pick?.kind !== 'route')
+              return JSON.stringify({
+                outcome: 'refused',
+                retryable: false,
+                message:
+                  pick?.kind === 'exhausted' && pick.rests.length > 0
+                    ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                    : `Routing Group ${groupId} has no usable model`,
+              });
+            picked = pick.route;
+          }
           if ((args.provider === undefined) !== (args.model === undefined))
             throw new Error('create_assignment: provider and model must be specified together');
           if (args.reasoning_effort !== undefined && args.provider === undefined)
             throw new Error('create_assignment: reasoning_effort requires provider and model');
+          if (args.provider !== undefined)
+            await this.#openAssignmentRoutes?.require(run.bot.slug, {
+              provider: args.provider,
+              model: args.model!,
+              ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
+            });
           const outcome = active.run.assignments.create({
             title: args.title,
             description: args.description,
             ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
             grantId: args.grant_id,
             ...(args.key === undefined ? {} : { key: args.key }),
-            ...(args.provider === undefined
-              ? {}
-              : {
-                  model: {
-                    provider: args.provider,
-                    model: args.model!,
-                    ...(args.reasoning_effort === undefined
-                      ? {}
-                      : { reasoningEffort: args.reasoning_effort }),
-                  },
-                }),
+            ...(picked !== undefined && groupId !== undefined
+              ? { model: picked, modelGroupId: groupId }
+              : args.provider === undefined
+                ? {}
+                : {
+                    model: {
+                      provider: args.provider,
+                      model: args.model!,
+                      ...(args.reasoning_effort === undefined
+                        ? {}
+                        : { reasoningEffort: args.reasoning_effort }),
+                    },
+                  }),
           });
           if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
             linkSession(
@@ -2121,6 +2241,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           }
           const assignments = active.run.assignments;
           const input = assignmentRequestInput('send_assignment_request', args);
+          if (input.model !== undefined)
+            await this.#openAssignmentRoutes?.require(run.bot.slug, input.model);
+          else await assignments.refreshRoute?.(input.sessionId);
           let outcome = assignments.request(input);
           let unarchived = false;
           if (

@@ -102,7 +102,7 @@ export function AccountProfileSettings({
     }
   };
 
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const mount = useMountedResource<HTMLElement>(() => {
     mounted.current = true;
     void load();
     return () => {
@@ -179,16 +179,17 @@ export function AccountProfileSettings({
   };
 
   const frame = (children: ReactNode): ReactElement => (
-    <div ref={mount} data-account-profile-settings="">
-      <SettingsSection>
-        <Note tone="muted">{t('accountProfile.description')}</Note>
-        {children}
-      </SettingsSection>
-    </div>
+    <SettingsSection
+      rootRef={mount}
+      data={{ 'data-account-profile-settings': '' }}
+      title={t('accountProfile.tobsTitle')}
+      description={t('accountProfile.description')}
+    >
+      {children}
+    </SettingsSection>
   );
 
-  if (state.status === 'loading')
-    return frame(<Note tone="muted">{t('accountProfile.loading')}</Note>);
+  if (state.status === 'loading') return frame(<SettingsRow title={t('accountProfile.loading')} />);
 
   if (state.status === 'error')
     return frame(

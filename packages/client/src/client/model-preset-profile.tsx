@@ -1,6 +1,7 @@
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { SegmentedControl } from './ds/segmented.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
@@ -76,6 +77,7 @@ interface ModelDraft {
   assignment: ModelChoice;
   allowed: AssignmentModelOptionView[];
   advanced: boolean;
+  open: boolean;
   presetId: string;
 }
 
@@ -100,7 +102,10 @@ function allowedOf(
 }
 
 function draftOf(
-  source: Pick<ModelPlanView, 'orchestrator' | 'assignmentDefault' | 'assignmentModels'>,
+  source: Pick<
+    ModelPlanView,
+    'orchestrator' | 'assignmentDefault' | 'assignmentModels' | 'openAssignmentModels'
+  >,
   presetId: string,
 ): ModelDraft {
   return {
@@ -118,6 +123,7 @@ function draftOf(
       source.assignmentModels?.some(
         (option) => option.note !== undefined || option.allowedEfforts.length > 1,
       ) === true,
+    open: source.openAssignmentModels === true,
     presetId,
   };
 }
@@ -160,6 +166,10 @@ function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
       defaultEffort: reasoningEffort,
     },
   ];
+}
+
+function openArgument(draft: ModelDraft): [] | [true] {
+  return draft.open ? [true] : [];
 }
 
 function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
@@ -369,6 +379,7 @@ export function ModelPresetProfile({
                 routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
                 assignmentRoute(draft),
                 finalAllowed(draft),
+                ...openArgument(draft),
               );
       finish(applied);
     } catch (failure) {
@@ -389,6 +400,7 @@ export function ModelPresetProfile({
         routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
         assignmentRoute(draft),
         finalAllowed(draft),
+        ...openArgument(draft),
       );
       setPresets((current) => [...current, preset]);
       finish(await actions.applyModelPreset(slug, preset.id));
@@ -679,6 +691,20 @@ export function ModelPresetProfile({
             </ul>
           </div>
         )}
+        {draft.assignment.key === '' ? null : (
+          <div className="bh-model-picker-heading-row">
+            <div className="bh-model-picker-heading">
+              <strong>{t('modelPreset.openModels')}</strong>
+              <span>{t('modelPreset.openModelsHint')}</span>
+            </div>
+            <Switch
+              checked={draft.open}
+              label={t('modelPreset.openModels')}
+              disabled={busy}
+              onChange={(open) => edit({ open })}
+            />
+          </div>
+        )}
       </section>
     );
   return (
@@ -724,9 +750,14 @@ export function ModelPresetProfile({
               icon="bot"
               title={t('modelPreset.title')}
               chips={
-                presetLabel === undefined && extraAllowed <= 0 ? undefined : (
+                presetLabel === undefined &&
+                extraAllowed <= 0 &&
+                plan?.openAssignmentModels !== true ? undefined : (
                   <>
                     {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
+                    {plan?.openAssignmentModels === true ? (
+                      <Tag tone="quiet">{t('modelPreset.openTag')}</Tag>
+                    ) : null}
                     {extraAllowed > 0 ? (
                       <Tag tone="quiet">
                         {t('modelPreset.moreAllowed', { count: extraAllowed })}

@@ -7,7 +7,7 @@ export interface ModelSwitch {
   kind: 'switch';
   from: RouteKey;
   to: ModelRoute;
-  reason: RestReason;
+  reason: RestReason | 'returned';
   until?: string;
 }
 
@@ -16,6 +16,11 @@ export interface RoutesExhausted {
   rests: RestingRoute[];
 }
 
+export type GroupPick =
+  | { kind: 'route'; route: ModelRoute }
+  | { kind: 'exhausted'; rests: RestingRoute[] }
+  | { kind: 'missing' };
+
 export interface GroupFallback {
   route(sessionId: string): ModelRoute | undefined;
   choose(
@@ -23,6 +28,8 @@ export interface GroupFallback {
     sessionId: string,
     failed: RestingRoute,
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
+  restore(botSlug: string, sessionId: string): Promise<ModelSwitch | undefined>;
+  pick(botSlug: string, groupId: string): Promise<GroupPick>;
   forget(sessionId: string): void;
 }
 
@@ -81,6 +88,57 @@ export function createGroupFallback(options: {
           reason: failed.reason ?? 'quota',
           until: failed.until,
         };
+      }
+      return { kind: 'exhausted', rests };
+    },
+    async restore(botSlug, sessionId) {
+      const override = overrides.get(sessionId);
+      if (override === undefined || override.botSlug !== botSlug) return undefined;
+      const group = routesOf(botSlug);
+      if (group === undefined || group.groupId !== override.groupId) {
+        overrides.delete(sessionId);
+        return undefined;
+      }
+      for (const route of group.routes) {
+        if (same(route, override.route)) return undefined;
+        if (options.rests.restingUntil(route) !== undefined) continue;
+        try {
+          options.requireAllowed(botSlug, route);
+          await options.validate(route);
+        } catch {
+          continue;
+        }
+        overrides.set(sessionId, { ...override, route: { ...route } });
+        return {
+          kind: 'switch',
+          from: { provider: override.route.provider, model: override.route.model },
+          to: { ...route },
+          reason: 'returned',
+        };
+      }
+      return undefined;
+    },
+    async pick(botSlug, groupId) {
+      let routes: ModelRoute[];
+      try {
+        routes = options.routes(groupId);
+      } catch {
+        return { kind: 'missing' };
+      }
+      const rests: RestingRoute[] = [];
+      for (const route of routes) {
+        const rest = options.rests.restingUntil(route);
+        if (rest !== undefined) {
+          rests.push(rest);
+          continue;
+        }
+        try {
+          options.requireAllowed(botSlug, route);
+          await options.validate(route);
+        } catch {
+          continue;
+        }
+        return { kind: 'route', route: { ...route } };
       }
       return { kind: 'exhausted', rests };
     },
