@@ -2905,6 +2905,7 @@ describe('DSH Bot Agent adapter', () => {
       'unarchive_assignment',
       'inspect_assignment',
       'send_assignment_request',
+      'link_message_sessions',
       'wait_for_assignment',
       'stop_assignment',
       'channel_list',
