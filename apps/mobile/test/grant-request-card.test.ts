@@ -64,7 +64,10 @@ afterEach(() => {
 
 function host(entries: unknown[] = [request()]): FakeHost {
   const fake = new FakeHost();
-  fake.methods.set('channelTimeline', () => ({ page: { entries } }));
+  fake.methods.set('channelTimeline', () => ({
+    revision: 1,
+    page: { olderCursor: null, newerCursor: null, hasOlder: false, hasNewer: false, entries },
+  }));
   fake.methods.set('directoryPicker/list', (args) => {
     const path = typeof args['path'] === 'string' ? args['path'] : '/Users/qa';
     return {
@@ -285,7 +288,14 @@ describe('Folder request card', () => {
       throw new Error('Workspace request is no longer available for this Bot');
     });
     fake.methods.set('channelTimeline', () => ({
-      page: { entries: [request({ grantRequestResolved: true })] },
+      revision: 1,
+      page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
+        entries: [request({ grantRequestResolved: true })],
+      },
     }));
     await press(button(view, t.grantChoose));
     await press(button(view, t.authorizeHere));

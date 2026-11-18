@@ -310,6 +310,7 @@ function StorageSettingsView({
       (failure: unknown) => {
         if (!controller.signal.aborted) {
           const message = storageReadError(failure);
+          setSummary(undefined);
           setSummaryError(message);
           setError(t(message));
         }
@@ -441,6 +442,7 @@ function StorageSettingsView({
           labels={labels}
           submitLabel={t('common.close')}
           showCancel={false}
+          error={error}
           onCancel={close}
           onSubmit={close}
         >

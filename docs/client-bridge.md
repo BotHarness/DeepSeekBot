@@ -208,7 +208,7 @@ Reply to that exact Lark report in its topic, @mentioning the bound Bot. Its eli
 
 ### 外部附近上下文
 
-Bot 使用 `bridge_context` 的 `nearby` 时，默认读取来源前后各五分钟内的可见 Human 文字消息；一侧不足时，补齐最近的前 10／后 5 条（锚点自身不计入）。可使用 `before_count`／`after_count` 调整每侧 0–20 条。窗口密集时不会因为达到条数而截断：继续传回同一来源、范围和条数配置下的 `nextCursor`，直到没有续页；每页仍受返回文字预算限制。每个 Cursor 有效 30 分钟，重启或授权变化可使其失效。Lark 的 Chat 列表可能不包含话题回复，读取话题内容仍使用 `thread`；锚点本身保留在原 Inbox 来源中。只读取现有消息，不等待未来内容；权限、略过消息或历史已尽可使结果不足保底数量。读取的历史不会自动进入 Inbox（[ADR-0125](adr/0125-nearby-context-combines-time-coverage-and-count-minima.md)）。
+Bot 使用 `bridge_context` 的 `nearby` 时，默认读取来源前后各五分钟内的可见 Human 文字消息；一侧不足时，补齐最近的前 10／后 5 条（锚点自身不计入）。可使用 `before_count`／`after_count` 调整每侧 0–20 条。窗口密集时不会因为达到条数而截断：继续传回同一来源、范围和条数配置下的 `nextCursor`，直到没有续页；每页仍受返回文字预算限制。每个 Cursor 有效 30 分钟，重启或授权变化可使其失效。Lark 的 Chat 列表可能不包含话题回复，读取话题内容仍使用 `thread`；锚点本身保留在原 Inbox 来源中。只读取现有消息，不等待未来内容；权限、略过消息或历史已尽可使结果不足保底数量。读取的历史不会自动进入 Inbox（[ADR-0125](decisions/messaging.md#adr-0125)）。
 
 ### Window Companion 的未来消息消费（#1138–#1140）
 

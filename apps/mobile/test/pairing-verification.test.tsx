@@ -47,7 +47,10 @@ vi.mock('../src/host/native-conversation-filter', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
 }));
-vi.mock('@botharness/host-client/pairing', () => ({ pairHost: mocks.pairHost }));
+vi.mock('@botharness/host-client/pairing', () => ({
+  pairHost: mocks.pairHost,
+  pairingDeviceKey: () => '11'.repeat(32),
+}));
 
 import type { pairHost } from '@botharness/host-client/pairing';
 import type { SavedHost } from '@botharness/host-client/hosts';
@@ -129,8 +132,22 @@ it('shows the complete fingerprint and optional explanation without granting tru
   await approve();
   expect(mocks.dismissTo).toHaveBeenCalledWith('/');
   expect(pairing.busy).toBe(true);
+  expect(view.textContent).toContain(t.pairingVerification.paired);
+});
+it('stops asking for approval once the computer approved, even when the page is still open', async () => {
+  const { approve } = await setup();
+  await click('pairing-fingerprint-match');
   expect(view.textContent).toContain(t.pairingVerification.waiting);
-  expect(shownFingerprint()).toBe(fingerprint);
+  const spinner = '[role="progressbar"]';
+  expect(view.querySelector(spinner)).not.toBeNull();
+  await approve();
+  expect(mocks.dismissTo).toHaveBeenCalledTimes(1);
+  expect(view.textContent).toContain(t.pairingVerification.paired);
+  expect(view.textContent).not.toContain(t.pairingVerification.waiting);
+  expect(view.querySelector(spinner)).toBeNull();
+  expect(view.querySelector('[data-testid="pairing-fingerprint-cancel"]')).toBeNull();
+  await click('pairing-done');
+  expect(mocks.dismissTo).toHaveBeenCalledTimes(2);
 });
 it('refuses a mismatch without proceeding to device approval', async () => {
   const { confirmed } = await setup();

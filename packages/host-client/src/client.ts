@@ -29,8 +29,8 @@ import {
   saveListBots,
   syncChannelList,
   type ChannelListChanges,
-  type ChannelListCursor,
 } from './channel-list-store';
+import { loadChannelChangeCursor } from './channel-messages';
 import type { LocalStore } from './local-store';
 import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
 import {
@@ -989,7 +989,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       return await syncChannelList(store, {
         channels: fullChannelList,
-        cursor: () => unlessRefused(call<ChannelListCursor>('channelChangeCursor')),
+        cursor: () => unlessRefused(loadChannelChangeCursor({ call })),
         changes: (cursor) =>
           unlessRefused(
             call<ChannelListChanges>('channelListChanges', {

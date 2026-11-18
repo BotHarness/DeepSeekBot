@@ -25,6 +25,14 @@ import type {
   WireSkillInvocation,
 } from '@botharness/host-protocol/wire';
 import { skillInvocationsOf } from './skill-catalog';
+import {
+  loadChannelChangeCursor,
+  readChannelChanges,
+  reactToMessage,
+  readChannelJournal,
+  sendToChannel,
+  wireMessage,
+} from './channel-messages';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
 
@@ -249,17 +257,6 @@ export interface CachedConversation {
   hasOlder: boolean;
   changes?: ChangeCursor;
 }
-
-type ChangePull =
-  | { reset: true; cursor: ChangeCursor }
-  | {
-      reset?: never;
-      upserts: JournalEntry[];
-      tombstones: string[];
-      removed: string[];
-      cursor: ChangeCursor;
-      hasMore: boolean;
-    };
 
 const MAX_CHANGE_PAGES = 20;
 const CACHE_WAIT_MS = 200;
@@ -903,13 +900,22 @@ export function createConversation(options: ConversationOptions): Conversation {
     window = sorted.slice(start);
   };
 
-  const readPage = (through: number, before?: number, limit?: number): Promise<JournalPage> =>
-    options.host.call<JournalPage>('channelJournalPage', {
-      channelId,
-      through,
-      ...(before === undefined ? {} : { before }),
-      ...(limit === undefined ? {} : { limit }),
-    });
+  const openChannel = (): string => {
+    if (channelId === undefined) throw new Error('The conversation has no Channel yet.');
+    return channelId;
+  };
+
+  const readPage = async (through: number, before?: number, limit?: number): Promise<JournalPage> =>
+    readChannelJournal(
+      options.host,
+      openChannel(),
+      {
+        through,
+        ...(before === undefined ? {} : { before }),
+        ...(limit === undefined ? {} : { limit }),
+      },
+      wireMessage,
+    );
 
   const advance = async (through: number, page: JournalPage | undefined): Promise<void> => {
     const tail = page?.entries ?? [];
@@ -937,13 +943,9 @@ export function createConversation(options: ConversationOptions): Conversation {
     return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
   };
 
-  const changeCall = async <T>(
-    current: number,
-    method: string,
-    args: Record<string, unknown>,
-  ): Promise<T | undefined> => {
+  const changeCall = async <T>(current: number, read: () => Promise<T>): Promise<T | undefined> => {
     try {
-      return await options.host.call<T>(method, args);
+      return await read();
     } catch {
       if (current === session) {
         changesSupported = false;
@@ -965,11 +967,10 @@ export function createConversation(options: ConversationOptions): Conversation {
 
   const pullChanges = async (current: number, through: number): Promise<void> => {
     for (let page = 0; page < MAX_CHANGE_PAGES && changeCursor !== undefined; page += 1) {
-      const pulled = await changeCall<ChangePull>(current, 'channelChanges', {
-        channelId,
-        sinceSeq: changeCursor.seq,
-        epoch: changeCursor.epoch,
-      });
+      const since = changeCursor;
+      const pulled = await changeCall(current, () =>
+        readChannelChanges(options.host, openChannel(), since, wireMessage),
+      );
       if (current !== session) return;
       if (pulled === undefined) {
         await reloadTail(current, through);
@@ -1260,7 +1261,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (current !== session) return;
     bareOpen = changesSupported && changeCursor !== undefined && window.length > 0;
     if (!bareOpen && changesSupported) {
-      const cursor = await changeCall<ChangeCursor>(current, 'channelChangeCursor', {});
+      const cursor = await changeCall(current, () => loadChannelChangeCursor(options.host));
       if (current !== session) return;
       changeCursor = cursor;
     }
@@ -1313,23 +1314,27 @@ export function createConversation(options: ConversationOptions): Conversation {
       for (const [index, file] of item.files.entries())
         item.refs[index] ??= await options.host.upload(file.name, await file.read());
       const attachments = item.refs.filter((ref) => ref !== undefined);
-      await options.host.call('channelSend', {
-        channelId: id,
-        body: item.body,
-        messageId: item.id,
-        ...(attachments.length === 0 ? {} : { attachments }),
-        ...(item.tags.mentions === undefined || item.tags.mentions.length === 0
-          ? {}
-          : { mentions: item.tags.mentions }),
-        ...(item.tags.allBotMention === undefined
-          ? {}
-          : { allBotMention: item.tags.allBotMention }),
-        ...(item.tags.skillInvocations === undefined || item.tags.skillInvocations.length === 0
-          ? {}
-          : { skillInvocations: item.tags.skillInvocations }),
-        ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
-        ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
-      });
+      await sendToChannel(
+        options.host,
+        {
+          channelId: id,
+          body: item.body,
+          messageId: item.id,
+          ...(attachments.length === 0 ? {} : { attachments }),
+          ...(item.tags.mentions === undefined || item.tags.mentions.length === 0
+            ? {}
+            : { mentions: item.tags.mentions }),
+          ...(item.tags.allBotMention === undefined
+            ? {}
+            : { allBotMention: item.tags.allBotMention }),
+          ...(item.tags.skillInvocations === undefined || item.tags.skillInvocations.length === 0
+            ? {}
+            : { skillInvocations: item.tags.skillInvocations }),
+          ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
+          ...(item.tags.genuiReply === undefined ? {} : { genuiReply: item.tags.genuiReply }),
+        },
+        wireMessage,
+      );
       accepted(item);
       if (outgoing.get(item.id) !== item) return;
       item.delivery = 'committed';
@@ -1494,13 +1499,13 @@ export function createConversation(options: ConversationOptions): Conversation {
         return;
       publish();
       try {
-        const result = await options.host.call<{ reactions: WireReaction[] }>('channelReact', {
+        const reactions = await reactToMessage(options.host, {
           channelId: id,
           messageId,
           emoji,
           active,
         });
-        if (id === channelId && setReactions(messageId, result.reactions)) publish();
+        if (id === channelId && setReactions(messageId, reactions)) publish();
         persist();
       } catch (error) {
         if (id === channelId && setReactions(messageId, before ?? [])) publish();
