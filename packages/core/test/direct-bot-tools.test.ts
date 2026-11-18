@@ -457,15 +457,6 @@ describe('direct Bot tool runner', () => {
       );
       const sessionId = (created.result as { sessionId: string }).sessionId;
       await runtime.runDirectBotTool!('ada', 'stop_assignment', { session_id: sessionId }, signal);
-      await expect(
-        runtime.runDirectBotTool!(
-          'ada',
-          'send_assignment_request',
-          { session_id: sessionId, text: 'Keep going.' },
-          signal,
-        ),
-      ).rejects.toThrow('is stopped or stopping');
-
       const resumed = await runtime.runDirectBotTool!(
         'ada',
         'unarchive_assignment',

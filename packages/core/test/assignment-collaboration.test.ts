@@ -2301,9 +2301,6 @@ describe('Assignment collaboration', () => {
     const stopped = await access.stop(sessionId);
     expect(stopped.activity).toBe('stopped');
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(
-      /stopped or stopping/,
-    );
     await expect(
       runningTurn.report({ state: 'completed', summary: '取消之后的迟到报告' }),
     ).rejects.toThrow('unavailable or stopping');
@@ -2330,7 +2327,7 @@ describe('Assignment collaboration', () => {
     await reopened.close();
   });
 
-  it('refuses new requests to a Human-stopped Assignment until unarchive revives it', async () => {
+  it('resumes a Human-stopped Assignment when the Orchestrator sends it a request', async () => {
     const { runtime, agents, admit, close } = await setup();
     await admit('开始调研', 'human-stop-3725');
     const access = agents.access;
@@ -2350,13 +2347,9 @@ describe('Assignment collaboration', () => {
     expect(stopped.stopped).toHaveLength(1);
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
 
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(/stopped/);
-    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-
-    const revived = await access.unarchive!(sessionId);
-    expect(revived).toMatchObject({ outcome: 'unarchived' });
     const resumed = access.request({ sessionId, mode: 'next-turn', text: '继续' });
     expect(resumed.delivery).toBe('followup');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).not.toBe('stopped');
     await close();
   });
 
