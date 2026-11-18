@@ -120,6 +120,16 @@ describe('storage answers', () => {
     );
   });
 
+  it('refuse a usage answer without its parts or chats list', () => {
+    fc.assert(
+      fc.property(usage, (value) => {
+        const valid = Array.isArray(value.parts) && Array.isArray(value.chats);
+        expect(outcome(() => parseStorageUsage(value)) !== undefined).toBe(valid);
+      }),
+      { numRuns: 500 },
+    );
+  });
+
   it('refuse a preview without its token, its cutoff or a valid chat restriction', () => {
     fc.assert(
       fc.property(preview, (value) => {
