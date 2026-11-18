@@ -4,7 +4,7 @@ section: Added
 
 ## en
 
-- The model editor on desktop, the Host model settings for remote Hosts, and the phone's Preset and Bot model screens now pick Routing Groups for the main model, the Assignment default and the allowed list. A group in the allowed list shows its name, how many models it has, the model it runs on now and its note, and on desktop its effort range and note are editable. `deepseekbot model-plan-set` takes `orchestratorGroupId` and the Assignment group fields ([#4501](https://github.com/BotHarness/DeepSeekBot/issues/4501)).
+- The model editor on desktop, the Host model settings for remote Hosts, and the phone's Preset and Bot model screens now pick Routing Groups for the main model, the Assignment default and the allowed list. A Routing Group in the allowed list shows its name, how many models it has, the model it runs on now and its note, and on desktop its effort range and note are editable. `deepseekbot model-plan-set` takes `orchestratorGroupId` and the Assignment Routing Group fields ([#4501](https://github.com/BotHarness/DeepSeekBot/issues/4501)).
 
 ## zh
 
