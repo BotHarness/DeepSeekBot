@@ -288,16 +288,17 @@ export function currentModel(model: BotModel): {
       ? model.fallback
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
-  if (current === undefined) return {};
   const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
   const group =
     groupId === undefined
       ? undefined
       : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
+  const named = group === undefined ? {} : { group };
+  if (current === undefined) return named;
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
-    ...(group === undefined ? {} : { group }),
+    ...named,
   };
 }
 

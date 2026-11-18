@@ -1236,6 +1236,60 @@ it('offers Routing Groups in the onboarding picker and saves one without an effo
   expect(onConfirm).toHaveBeenCalledExactlyOnceWith({ groupId: 'main' }, true, 0);
 });
 
+it('keeps a chosen model over the default Routing Group on refresh, and blocks Save for a missing group', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const onConfirm = vi.fn(async () => {});
+  const main = {
+    id: 'main',
+    name: 'Main',
+    revision: 1,
+    routes: [
+      { provider: 'kimi', model: 'k2' },
+      { provider: 'deepseek', model: 'flash' },
+    ],
+  };
+  let groups = [main];
+  const actions = {
+    modelCatalog: vi.fn(async () => ({
+      models: catalog,
+      default: { provider: 'deepseek', model: 'flash' },
+      defaultGroupId: 'main',
+      groups,
+    })),
+  } as unknown as BridgeActions;
+  const render = async () =>
+    act(async () =>
+      root!.render(
+        createElement(OnboardingModelDialog, {
+          actions,
+          title: 'Default model',
+          globalOnly: true,
+          onClose: vi.fn(),
+          onConfirm,
+          t: translate,
+        }),
+      ),
+    );
+  await render();
+  await choose('Model', 'Flash', 'Flash');
+  await act(async () => button(en['onboarding.refreshModels']).click());
+  expect(trigger('Model')?.textContent).toContain('Flash');
+  await act(async () => button('Save global default model').click());
+  expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ provider: 'deepseek', model: 'flash' }),
+    true,
+    0,
+  );
+  await act(async () => root!.unmount());
+  root = createRoot(container);
+  groups = [];
+  await render();
+  expect(button('Save global default model').disabled).toBe(true);
+});
+
 it('offers general, daily check-in and timed-test requests through the normal welcome send path', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
