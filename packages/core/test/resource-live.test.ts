@@ -65,6 +65,23 @@ describe('resource changes on the live stream', () => {
     }
   });
 
+  it('tells every roster stream when private input requests change', async () => {
+    const live = hub();
+    const request = () => new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`);
+    const guest = live
+      .open({ ...OWNER_HUMAN_CONTEXT, humanId: 'h_guest' }, request())
+      .body!.getReader();
+    try {
+      await readUntil(guest, 'retry:');
+      live.publishResourceChanged('private-inputs');
+      expect(await readUntil(guest, 'private-inputs')).toContain(
+        `event: ${RESOURCE_CHANGED_EVENT}\ndata: {"resource":"private-inputs","revision":1}`,
+      );
+    } finally {
+      await guest.cancel();
+    }
+  });
+
   it('coalesces queued changes of one resource into its latest revision for phones', async () => {
     const live = hub();
     const controller = new AbortController();

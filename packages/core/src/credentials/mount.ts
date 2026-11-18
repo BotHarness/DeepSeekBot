@@ -69,7 +69,10 @@ export function mountPrivateInputs(
     },
     qualified: () => Promise.resolve(true),
     log,
-    changed: (botSlug, count) => core.states.setPrivateInputCount(botSlug, count),
+    changed: (botSlug, count) => {
+      core.states.setPrivateInputCount(botSlug, count);
+      core.live.publishResourceChanged('private-inputs');
+    },
   });
   ctx.inject(['sandbox'], (child) => {
     const sandbox = child.get('sandbox') as unknown as {

@@ -9,6 +9,8 @@ import { showAppDialog } from '../primitives/app-dialog';
 import { t } from '../strings';
 import { creationCopy as copy } from './bot-creation-copy';
 
+const RETRY_AFTER_FAILURE_MS = 10_000;
+
 export function BotCreationNotice() {
   const path = usePathname();
   const visibility = useRef(createCreationVisibility(AppState.currentState === 'active')).current;
@@ -29,12 +31,32 @@ export function BotCreationNotice() {
         return;
       void botCreation.resume();
     };
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const retryAfterFailure = () => {
+      const current = botCreation.getSnapshot();
+      const failed =
+        current.record.kind === 'submitted' &&
+        current.receipt?.status !== 'created' &&
+        !current.busy &&
+        (current.error === 'unreachable' || current.error === 'invalid-receipt');
+      if (!failed) {
+        clearTimeout(retry);
+        retry = undefined;
+        return;
+      }
+      retry ??= setTimeout(() => {
+        retry = undefined;
+        recover();
+      }, RETRY_AFTER_FAILURE_MS);
+    };
     const notice = () => {
       if (botCreation.getSnapshot().notice !== 'avatar-failed') return;
       botCreation.dismissNotice();
       showAppDialog(copy.avatarFailedTitle, copy.avatarFailed, [{ text: t.done }]);
     };
     const offNotice = botCreation.subscribe(notice);
+    const offRetry = botCreation.subscribe(retryAfterFailure);
+    retryAfterFailure();
     recover();
     let live = true;
     void botCreation.ready.then(() => {
@@ -45,14 +67,14 @@ export function BotCreationNotice() {
       visibility.appState(state === 'active');
       recover();
     });
-    const timer = setInterval(recover, 10_000);
     return () => {
       live = false;
       offNotice();
+      offRetry();
+      clearTimeout(retry);
       visibility.blur();
       offHost();
       off.remove();
-      clearInterval(timer);
     };
   }, [path, visibility]);
   return <View ref={mounted} />;

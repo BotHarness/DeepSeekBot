@@ -6,6 +6,7 @@ import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import { referencedIds } from './quotes.js';
 import {
+  OWNER_ONLY_RESOURCES,
   RESOURCE_CHANGED_EVENT,
   type LiveResource,
   type ResourceChange,
@@ -1148,7 +1149,8 @@ export function createChannelLiveHub(
     publishResourceChanged(resource) {
       const change = { resource, revision: ++resourceRevision };
       for (const subscriber of rosterSubscribers)
-        if (isOwner(subscriber.human)) subscriber.resource(change);
+        if (!OWNER_ONLY_RESOURCES.has(resource) || isOwner(subscriber.human))
+          subscriber.resource(change);
     },
     publishHumanIdentityChanged() {
       for (const group of subscribers.values())
