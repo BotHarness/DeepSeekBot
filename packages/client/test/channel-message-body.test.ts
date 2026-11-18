@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,7 +21,7 @@ import {
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import { toolApprovalText } from '../src/client/approval-text.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
@@ -27,10 +31,6 @@ import {
   initialGenuiDocumentState,
   parseGenuiDocument,
 } from '../../core/src/channels/genui-document.js';
-import type {
-  GenuiDocumentMountOptions,
-  GenuiDocumentRuntime,
-} from '../../core/src/channels/genui-document-runtime.js';
 
 const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
 vi.mock('../src/client/genui-document-runtime.js', () => ({
@@ -52,29 +52,18 @@ const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMount
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  FileTypeIcon: ({ path }: { path: string }) =>
-    createElement('span', { 'data-file-type-icon': path }),
   fileSizeText: (bytes: number) =>
     bytes >= 1048576
       ? `${(bytes / 1048576).toFixed(1)}MB`
       : bytes >= 1024
         ? `${(bytes / 1024).toFixed(1)}KB`
         : `${bytes}B`,
-  IconDownloadOutlineRegular: () => null,
-  IconPlayOutlineRegular: () => null,
-  IconPauseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
 
   MarkdownText: vi.fn(() => null),
   MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
   useMarkdownDelegate: () => ({}),
 
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
 }));
 
 describe('GenUI ordinary message integration', () => {

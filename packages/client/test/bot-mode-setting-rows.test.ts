@@ -1,41 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, Fragment, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import { act, createElement, Fragment } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const captured = vi.hoisted(() => ({
-  switches: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const stub = () => null;
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconChevronDownOutlineRegular: stub,
-    Input: stub,
-    Button: stub,
-    Switch: (props: Record<string, unknown>) => {
-      captured.switches.push(props);
-      return null;
-    },
   };
 });
 
-import {
-  BotModePrefs,
-  botModePrefsFace,
-  type BotModePrefsSnapshot,
-} from '../src/client/bot-mode-prefs.js';
+import { BotModePrefs, botModePrefsFace } from '../src/client/bot-mode-prefs.js';
 import {
   AssignmentConcurrencyRow,
   AutoCollapseMessagesSetting,
@@ -47,15 +24,15 @@ import {
   SendKeySetting,
   SortSetting,
 } from '../src/client/bot-mode-setting-rows.js';
-import { menuItem } from './primitive-mocks.js';
+import { buttonNamed, menuItem } from './primitive-mocks.js';
 import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
-import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
+import { zhTranslate } from '../src/client/locale.js';
 
 const t = zhTranslate;
 
 it('offers an off-by-default folding switch that updates the shared message preference', () => {
   const prefs = new BotModePrefs();
-  const markup = renderToStaticMarkup(
+  const markup = renderAndOpenMenus(
     createElement(AutoCollapseMessagesSetting, {
       ...botModePrefsFace(prefs),
       t,
@@ -63,11 +40,9 @@ it('offers an off-by-default folding switch that updates the shared message pref
     }),
   );
   expect(markup).toContain('自动折叠长消息');
-  const toggle = captured.switches.at(-1);
-  expect(toggle?.['checked']).toBe(false);
-  const change = toggle?.['onChange'];
-  if (typeof change !== 'function') throw new Error('folding switch has no change handler');
-  change(true);
+  const toggle = buttonNamed('自动折叠长消息');
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
+  act(() => toggle.click());
   expect(prefs.source.getSnapshot().autoCollapseMessages).toBe(true);
 });
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -160,7 +135,6 @@ function openMenu(label: string): HTMLElement {
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  captured.switches.length = 0;
 });
 
 describe('Bot mode setting rows', () => {
@@ -168,11 +142,9 @@ describe('Bot mode setting rows', () => {
     const setDeveloperMode = vi.fn();
     const markup = renderSection(snapshot(), undefined, undefined, undefined, setDeveloperMode);
     expect(markup).toContain('开发者模式');
-    expect(captured.switches[0]).toMatchObject({
-      checked: false,
-      label: '开发者模式',
-    });
-    (captured.switches[0]?.['onChange'] as (enabled: boolean) => void)(true);
+    const toggle = buttonNamed('开发者模式');
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
     expect(setDeveloperMode).toHaveBeenCalledWith(true);
   });
 
@@ -263,9 +235,10 @@ it('shows default Group auto-accept and writes its native switch', () => {
   const set = vi.fn();
   const markup = renderSection(snapshot(), undefined, undefined, undefined, undefined, set);
   expect(markup).toContain('自动接受入群邀请');
-  const control = captured.switches.find((item) => item['label'] === '自动接受入群邀请')!;
-  expect(control).toMatchObject({ checked: true, disabled: false });
-  (control['onChange'] as (enabled: boolean) => void)(false);
+  const control = buttonNamed('自动接受入群邀请');
+  expect(control.getAttribute('aria-checked')).toBe('true');
+  expect(control.disabled).toBe(false);
+  act(() => control.click());
   expect(set).toHaveBeenCalledWith(false);
 });
 

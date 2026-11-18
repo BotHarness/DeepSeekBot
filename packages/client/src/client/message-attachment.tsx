@@ -1,10 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode } from 'react';
-import {
-  FileTypeIcon,
-  IconDownloadOutlineRegular,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 import { channelAttachmentUrl } from './bridge.js';
 import {
@@ -71,7 +68,7 @@ export function ClearedMessageAttachment({
     <div className="bh-message-file bh-message-file-cleared" data-cleared-attachment="">
       <span className="bh-message-file-main">
         <span className="bh-message-file-icon" aria-hidden="true">
-          <FileTypeIcon path={item.name} size={28} />
+          <Icon name="file" size={28} />
         </span>
         <span className="bh-message-file-copy">
           <span className="bh-message-file-name" title={item.name}>
@@ -95,7 +92,7 @@ function FileTile({ name }: { name: string }): ReactElement {
       data-file-tone={tile.tone}
       aria-hidden="true"
     >
-      {tile.label === '' ? <FileTypeIcon path={name} size={20} /> : tile.label}
+      {tile.label === '' ? <Icon name="file" size={20} /> : tile.label}
     </span>
   );
 }
@@ -322,7 +319,7 @@ function CompactAttachment({
   const contents = (
     <>
       <span className="bh-message-file-icon" aria-hidden="true">
-        <FileTypeIcon path={ref.name} size={16} />
+        <Icon name="file" size={16} />
       </span>
       <span className="bh-message-file-copy">
         <span className="bh-message-file-name" title={ref.name}>
@@ -345,7 +342,7 @@ function CompactAttachment({
               aria-label={`${t('fileAction.download')}: ${ref.name}`}
               onClick={(event) => event.stopPropagation()}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </a>
           ) : (
             <Button
@@ -356,7 +353,7 @@ function CompactAttachment({
               disabled={resource.loading}
               onClick={() => void resource.download(ref.name)}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </Button>
           )}
         </Tooltip>

@@ -1,10 +1,6 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement, ReactNode } from 'react';
-import {
-  IconChevronDownOutlineRegular,
-  IconChevronLeftOutlineRegular,
-  IconRefreshOutlineRegular,
-  IconWrapLinesOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { parseMemoryDiff } from './memory-diff-model.js';
@@ -28,9 +24,9 @@ export function MemoryViewIconButton({
         onClick={onClick}
       >
         {action === 'backToChat' ? (
-          <IconChevronLeftOutlineRegular size={16} />
+          <Icon name="chevron-left" size={16} />
         ) : (
-          <IconRefreshOutlineRegular size={16} />
+          <Icon name="refresh-cw" size={16} />
         )}
       </button>
     </Tooltip>
@@ -56,7 +52,7 @@ export function MemoryDiffWrapButton({
         aria-pressed={wrap}
         onClick={onToggle}
       >
-        <IconWrapLinesOutlineRegular size={16} />
+        <Icon name="wrap-text" size={16} />
       </button>
     </Tooltip>
   );
@@ -97,7 +93,7 @@ export function MemoryDiffFile({
   return (
     <details className="bh-memory-diff-file" open>
       <summary className="bh-memory-diff-file-header">
-        <IconChevronDownOutlineRegular size={16} />
+        <Icon name="chevron-down" size={16} />
         <strong className="bh-memory-diff-file-name" title={path}>
           {path}
         </strong>

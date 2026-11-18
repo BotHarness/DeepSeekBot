@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ApprovalTemplateEntry } from '../src/client/approval-template-entry.js';
 import { zhTranslate as t } from '../src/client/locale.js';
@@ -8,7 +9,6 @@ import { zhTranslate as t } from '../src/client/locale.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 }));
 vi.mock('../src/client/avatar.js', () => ({ PersonaBotAvatar: () => null }));
 vi.mock('../src/client/channel-sidebar-icon.js', () => ({ ChannelSidebarIcon: () => null }));

@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { paintBotName } from './bot-primary-color.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { OverviewUsage } from '@botharness/host-client/usage';
 import {
   usageOverviewPeriods,
@@ -157,7 +155,7 @@ export function OverviewUsageView({
             disabled={busy}
             onClick={() => refresh.current()}
           >
-            <IconRefreshOutlineRegular size={16} />
+            <Icon name="refresh-cw" size={16} />
           </button>
         </div>
       </header>
@@ -240,7 +238,7 @@ export function OverviewUsageView({
                             title={`${t('profile.open')}: ${bot.displayName}`}
                             onClick={() => void actions.openBot?.(bot.slug, 'profile')}
                           >
-                            <IconRightUpOutlineRegular size={16} />
+                            <Icon name="arrow-up-right" size={16} />
                           </button>
                         ) : null}
                       </div>

@@ -1,36 +1,19 @@
-import { createElement, type PropsWithChildren } from 'react';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: stub,
 
     MarkdownText: stub,
 
-    SegmentedControl: stub,
     StateDot: stub,
-    Tag,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };

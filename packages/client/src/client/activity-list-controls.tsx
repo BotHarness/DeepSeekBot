@@ -1,7 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement } from 'react';
-import { IconRightUpOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -65,7 +66,7 @@ export function ActivityListSourceButton({
             t={t}
           />
         )}
-        <IconRightUpOutlineRegular className="bh-activity-list-source-arrow" />
+        <Icon name="arrow-up-right" className="bh-activity-list-source-arrow" />
       </button>
     </Tooltip>
   );

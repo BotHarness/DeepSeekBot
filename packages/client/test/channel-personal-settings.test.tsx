@@ -1,17 +1,14 @@
 // @vitest-environment jsdom
+import { type ChannelSummary } from '../src/client/store.js';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ChannelNicknameSetting } from '../src/client/channel-personal-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { ChannelSummary } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: 'button',
-  Input: 'input',
-  Switch: 'input',
 }));
 vi.mock('../src/client/bot-sidebar.js', () => ({ useClientState: vi.fn() }));
 let host: HTMLDivElement;

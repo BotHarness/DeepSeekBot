@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { type OverviewUsage } from '../../core/src/bridge/methods.js';
 import { botNameColor } from '../src/client/bot-primary-color.js';
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/client/model-usage-charts.js', () => ({
@@ -22,22 +23,13 @@ vi.mock('../src/client/model-usage-charts.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => createElement('svg'),
-  IconRightUpOutlineRegular: () => createElement('svg'),
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props, children as ReactNode),
 }));
 import { OverviewUsageView } from '../src/client/overview-usage-view.js';
 import { createActions } from '../src/client/actions.js';
 import { createStore } from '../src/client/store.js';
 import { loadOverviewUsage, type BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { OverviewUsage } from '../../core/src/bridge/methods.js';
+
 import {
   usageOverviewPeriodDays,
   type UsageOverviewPeriod,

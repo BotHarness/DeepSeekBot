@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { SettingsDialog } from '../src/client/ds/settings-dialog.js';
 
@@ -13,8 +15,6 @@ vi.mock('../src/client/ds/dialog.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
 }));
 let host: HTMLDivElement;
 let root: Root;

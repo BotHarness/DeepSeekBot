@@ -1,6 +1,6 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { hooked } from './ds/hooked.js';
@@ -86,7 +86,7 @@ export function MobileConversationHeader({
         aria-label={t('mobile.back')}
         title={t('mobile.back')}
       >
-        <IconChevronLeftOutlineRegular size={22} />
+        <Icon name="chevron-left" size={22} />
       </button>
       <h1 {...stylex.props(styles.title)} title={title}>
         {title}

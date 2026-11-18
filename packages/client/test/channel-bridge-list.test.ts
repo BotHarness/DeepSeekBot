@@ -1,33 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  IconInfoOutlineRegular: () => createElement('span'),
-
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Switch: ({
-    checked,
-    label,
-    disabled,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': checked,
-      'aria-label': label,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
 }));
 import { ChannelBridgeList } from '../src/client/channel-bridge-list.js';
 import {
@@ -38,7 +17,7 @@ import {
   openCombobox,
 } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
+
 it('Bridge Switch failures refresh committed state and stale edits preserve the draft with exact authority revisions', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const snapshot: ChannelBridgeSnapshot = {

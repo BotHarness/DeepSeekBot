@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSettingsSectionRow } from '../src/client/bot-settings.js';
+import { type SettingsPins } from '../src/client/settings-home.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 let member = false;
@@ -47,13 +50,6 @@ vi.mock('../src/client/settings-environment.js', async (importOriginal) => ({
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   useModalLayer: () => undefined,
-  Input: (props: object) => createElement('input', props),
-  Button: ({ children, size: _size, ...rest }: { children?: ReactNode; size?: string }) =>
-    createElement('button', { type: 'button', ...rest }, children),
-  IconRefreshOutlineRegular: () => null,
-
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
 }));
 
 import {
@@ -61,12 +57,10 @@ import {
   BotSettings,
   BotSettingsView,
   DEVICE_SETTINGS_SECTIONS,
-  type BotSettingsSectionRow,
 } from '../src/client/bot-settings.js';
 import { hostSettingsDrafts } from '../src/client/host-settings-drafts.js';
 import type { SettingsEnvironments } from '../src/client/settings-environment.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { SettingsPins } from '../src/client/settings-home.js';
 
 const ROWS: readonly BotSettingsSectionRow[] = [
   { id: 'about', order: 70, label: '关于' },

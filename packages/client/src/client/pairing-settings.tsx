@@ -1,6 +1,9 @@
+import { Checkbox } from './ds/checkbox.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';
@@ -223,7 +226,9 @@ export function PairingSettings({
           {receiver.name} · {t(`pairing.receiver.${receiver.status}`)}
         </p>
       ))}
-      <SegmentedTabs
+      <SegmentedControl
+        id={id}
+        controlsPanel
         label={t('pairing.title')}
         value={tab}
         onChange={(value) => {
@@ -231,7 +236,7 @@ export function PairingSettings({
           setSelectedId(undefined);
           setCreating(false);
         }}
-        items={[
+        options={[
           {
             value: 'people',
             label: `${t('pairing.people')} (${people.length})`,

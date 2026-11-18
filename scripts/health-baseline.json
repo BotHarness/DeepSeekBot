@@ -58,7 +58,6 @@
     "packages/client/test/market-panel.test.ts",
     "packages/client/test/memory-git-interaction.test.ts",
     "packages/client/test/model-preset-profile.test.ts",
-    "packages/client/test/pairing-settings.test.ts",
     "packages/client/test/remote-hosts.test.ts",
     "packages/client/test/window-companion-view.test.ts",
     "packages/computer/src/index.ts",

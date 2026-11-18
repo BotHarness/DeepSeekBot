@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BotSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { createStore, type BotSummary } from '../src/client/store.js';
+import { createStore } from '../src/client/store.js';
 import type { WorkspaceGrantView } from '../src/client/bridge.js';
 import { useDmComposerContext } from '../src/client/dm-composer-context.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -114,13 +115,7 @@ vi.mock('../src/client/model-picker.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, onClick }: { children: ReactNode; onClick(): void }) =>
-    createElement('button', { onClick }, children),
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
+
   useDismissOnOutsidePointer: () => undefined,
 }));
 

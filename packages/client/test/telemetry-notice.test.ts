@@ -1,18 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ReleaseNote } from '../../core/src/release/notes.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: { children?: ReactNode; onClick?: () => void }) =>
-    createElement('button', { onClick: props.onClick }, props.children),
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
+
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
 }));
 
-import type { ReleaseNote } from '../../core/src/release/notes.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import { ReleaseNotesController } from '../src/client/release-notes.js';

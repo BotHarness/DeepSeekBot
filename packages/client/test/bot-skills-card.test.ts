@@ -1,24 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const base: Record<string, unknown> = {
-    Button: ({
-      children,
-      onClick,
-      disabled,
-      type = 'button',
-      ...rest
-    }: PropsWithChildren<{ onClick?: () => void; disabled?: boolean; type?: 'button' }>) =>
-      createElement(
-        'button',
-        { type, onClick, disabled, 'aria-label': (rest as Record<string, unknown>)['aria-label'] },
-        children,
-      ),
-    Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
-  };
+  const base: Record<string, unknown> = {};
   return new Proxy(
     { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...base },
     {

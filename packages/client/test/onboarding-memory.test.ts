@@ -1,75 +1,54 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type MemoryWorkingChange } from '../src/client/bridge.js';
+import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconCodeOutlineRegular: () => null,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      variant?: string;
-      size?: string;
-    }) => createElement('button', props, children),
+
     IconAgentPresetOutline16: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconInfoOutlineRegular: stub,
-    IconBranchOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
+
     IconChevronDownOutline14: stub,
-    IconChevronDownOutlineRegular: stub,
+
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
-    IconCopyOutlineRegular: stub,
+
     IconCloseOutline16: stub,
     IconEllipsisOutline16: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
+
     IconFolderOpenOutline16: stub,
     IconNewChatOutline16: stub,
     IconPanelLeftOutline16: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
+
     IconPlusOutline16: stub,
-    IconRefreshOutlineRegular: stub,
+
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
-    IconSendOutlineRegular: stub,
+
     IconTrashOutline16: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
 
     MarkdownText: stub,
 
     StateDot: stub,
-    Tag: stub,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
-import type { MemoryWorkingChange } from '../src/client/bridge.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { OnboardingSnapshot } from '../../core/src/onboarding/types.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import { OnboardingMemory, OnboardingMemoryNavigation } from '../src/client/onboarding-memory.js';
 import { onboardingFor } from '../src/client/onboarding.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const channel: ChannelSummary = {
   id: 'dm-memory',

@@ -1,6 +1,6 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useState, type ReactElement } from 'react';
-
-import { IconChevronLeftOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceFile,
@@ -228,7 +228,7 @@ export function MarketplaceFileReader({
     <section ref={section} className="bh-market-reader" data-market-reader={file.path}>
       <header className="bh-market-reader-head">
         <IconButton aria-label={t('market.files.back')} onClick={onBack}>
-          <IconChevronLeftOutlineRegular size={16} />
+          <Icon name="chevron-left" size={16} />
         </IconButton>
         <strong className="bh-market-reader-path" title={file.path}>
           {file.path}

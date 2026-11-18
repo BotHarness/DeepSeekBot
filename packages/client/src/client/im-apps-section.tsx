@@ -1,7 +1,7 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { closeTopShellLayer } from './ds/shell-layer.js';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 

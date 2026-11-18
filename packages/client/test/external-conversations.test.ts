@@ -1,38 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  IconInfoOutlineRegular: () => null,
-
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  Checkbox: ({
-    label,
-    checked,
-    disabled,
-    onChange,
-  }: {
-    label: string;
-    checked: boolean;
-    disabled: boolean;
-    onChange(checked: boolean): void;
-  }) =>
-    createElement(
-      'label',
-      null,
-      label,
-      createElement('input', {
-        type: 'checkbox',
-        checked,
-        disabled,
-        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-      }),
-    ),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 }));
 import { ExternalConversations } from '../src/client/external-conversations.js';
 import { zhTranslate } from '../src/client/locale.js';

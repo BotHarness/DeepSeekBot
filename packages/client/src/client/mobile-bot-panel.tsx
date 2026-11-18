@@ -1,11 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
-import {
-  IconChevronLeftOutlineRegular,
-  IconFlatListOutlineRegular,
-  IconSettingsOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { BotPanel } from './bot-main.js';
 import { BotSidebar } from './bot-sidebar.js';
@@ -228,7 +224,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             onClick={showList}
             aria-label={t('mobile.back')}
           >
-            <IconChevronLeftOutlineRegular size={22} />
+            <Icon name="chevron-left" size={22} />
           </button>
           <strong>{t('activityCenter.title')}</strong>
           {exitButton(true)}
@@ -288,7 +284,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             title={t('mobile.conversations')}
             onClick={showList}
           >
-            <IconFlatListOutlineRegular size={24} />
+            <Icon name="list" size={24} />
           </button>
           <button
             type="button"
@@ -315,7 +311,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             aria-label={t('panel.settings')}
             title={t('panel.settings')}
           >
-            <IconSettingsOutlineRegular size={24} />
+            <Icon name="settings" size={24} />
           </button>
         </nav>
       )}

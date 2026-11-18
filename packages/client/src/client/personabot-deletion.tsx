@@ -1,7 +1,7 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PersonaBotDeletionPreview } from '../../../core/src/bots/deletion.js';
 import type { BridgeActions } from './actions.js';

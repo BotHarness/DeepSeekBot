@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { ReactElement, ReactNode } from 'react';
 
 import { joinClass } from './class-name.js';
-import { accent, edge, ink, layer, line, radius, space, status } from './tobs.stylex.js';
+import { accent, edge, ink, layer, line, radius, space, status, type } from './tobs.stylex.js';
 
 export type TagTone =
   | 'outline'
@@ -19,11 +19,11 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     display: 'inline-flex',
     alignItems: 'center',
-    paddingBlock: '1px',
+    paddingBlock: edge.hairline,
     paddingInline: space.x3,
     borderRadius: radius.full,
-    fontSize: '11px',
-    lineHeight: '17px',
+    fontSize: `calc(${type.captionSize} - ${edge.hairline})`,
+    lineHeight: `calc(${type.captionLine} + ${edge.hairline})`,
     fontWeight: 500,
     whiteSpace: 'nowrap',
   },
@@ -48,7 +48,10 @@ export interface TagProps {
 
 export function Tag({ tone = 'neutral', className, children }: TagProps): ReactElement {
   return (
-    <span data-tone={tone} className={joinClass(stylex.props(styles.tag, styles[tone]).className, className)}>
+    <span
+      data-tone={tone}
+      className={joinClass(stylex.props(styles.tag, styles[tone]).className, className)}
+    >
       {children}
     </span>
   );

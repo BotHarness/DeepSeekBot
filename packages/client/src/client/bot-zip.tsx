@@ -1,12 +1,9 @@
+import { Icon } from './ds/icon.js';
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { BotCreateSteps } from './bot-create-source.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Checkbox,
-  IconChevronDownOutlineRegular,
-  IconChevronRightOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, type BotZipFileListing } from './bridge.js';
@@ -384,9 +381,9 @@ function BotZipTreeRows({
                 onClick={() => onExpand(node.path)}
               >
                 {open ? (
-                  <IconChevronDownOutlineRegular size={14} />
+                  <Icon name="chevron-down" size={14} />
                 ) : (
-                  <IconChevronRightOutlineRegular size={14} />
+                  <Icon name="chevron-right" size={14} />
                 )}
               </button>
               <label {...stylex.props(styles.label)}>

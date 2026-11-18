@@ -8,8 +8,6 @@ import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconRefreshOutlineRegular: () => createElement('svg'),
-  IconRightUpOutlineRegular: () => createElement('svg'),
 }));
 vi.mock('@tanstack/charts/react/tooltip', () => ({ Chart: () => createElement('div') }));
 import { OverviewMemoryView } from '../src/client/overview-memory-view.js';

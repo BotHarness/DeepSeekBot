@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import {
   useId,
@@ -9,7 +10,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { COMMUNITY } from './community-links.js';
 import { CommunityIcon } from './community-icons.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -160,7 +161,7 @@ function MobileAppsHint({
       <div className="bh-mobile-apps-head">
         <strong id={titleId}>{t('mobileApps.hintTitle')}</strong>
         <button type="button" aria-label={t('mobileApps.dismiss')} onClick={onDismiss}>
-          <IconCloseOutlineRegular size={16} />
+          <Icon name="x" size={16} />
         </button>
       </div>
       <p className="bh-mobile-apps-caption">{t('mobileApps.hint')}</p>
@@ -232,7 +233,7 @@ function MobileAppsPopover({
             trigger.current?.focus();
           }}
         >
-          <IconCloseOutlineRegular size={16} />
+          <Icon name="x" size={16} />
         </button>
       </div>
       {onPair ? (

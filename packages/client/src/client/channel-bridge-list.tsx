@@ -1,3 +1,4 @@
+import { Tag } from './ds/tag.js';
 import { Switch } from './ds/switch.js';
 import { ReceptionStatus } from './reception-status.js';
 import { readSavedThenStatus } from './progressive-settings.js';
@@ -7,7 +8,7 @@ import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type {
   ChannelBridgeInput,
   ChannelBridgeRow,

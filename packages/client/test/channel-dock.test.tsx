@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, useContext, useState, type ContextType, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ContextType } from 'react';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type DockPanel } from '../src/client/dock-panels.js';
+import { type DockPanelChannel } from '../src/client/dock-panels.js';
+import { type DockPanelHost } from '../src/client/dock-panels.js';
+import { act, createElement, useContext, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-  IconChevronDownOutlineRegular: () => null,
 }));
 
 import { ChannelDock } from '../src/client/channel-dock.js';
@@ -26,9 +31,6 @@ import { zhTranslate } from '../src/client/locale.js';
 import {
   createDockPanelRegistry,
   dockPanelsFromEntries,
-  type DockPanel,
-  type DockPanelChannel,
-  type DockPanelHost,
   type DockPanelRegistration,
 } from '../src/client/dock-panels.js';
 

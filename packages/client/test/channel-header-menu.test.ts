@@ -1,15 +1,10 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: () => null,
-  Input: () => null,
-  IconCheckOutlineRegular: () => createElement('i', { 'data-check': '' }),
-  IconSettingsOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
-  IconUserOutlineRegular: () => null,
 }));
 vi.mock('../src/client/modal.js', () => ({ Modal: () => null }));
 vi.mock('../src/client/personabot-deletion.js', () => ({
@@ -111,12 +106,12 @@ describe('channel header chip menu', () => {
     render(dm);
     expect(item('dmTrace.menu')?.textContent).toBe('dmTrace.menu');
     await openSubmenu(menuItem('dmTrace.menu'));
-    expect(item('dmTrace.kind.posts')?.querySelector('[data-check]')).not.toBeNull();
+    expect(item('dmTrace.kind.posts')?.querySelector('[data-icon="check"]')).not.toBeNull();
     act(() => item('dmTrace.kind.posts')!.click());
     expect(hiddenDmActionsSnapshot('header-qa')).toEqual(['posts']);
     expect(hiddenDmActionsSnapshot('header-other')).toEqual([]);
-    expect(item('dmTrace.kind.posts')?.querySelector('[data-check]')).toBeNull();
-    expect(item('dmTrace.kind.memory')?.querySelector('[data-check]')).not.toBeNull();
+    expect(item('dmTrace.kind.posts')?.querySelector('[data-icon="check"]')).toBeNull();
+    expect(item('dmTrace.kind.memory')?.querySelector('[data-icon="check"]')).not.toBeNull();
     act(() => item('dmTrace.kind.posts')!.click());
     expect(hiddenDmActionsSnapshot('header-qa')).toEqual([]);
   });

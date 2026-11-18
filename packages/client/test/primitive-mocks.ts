@@ -1,12 +1,7 @@
+import { createElement } from 'react';
 import { vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
-import {
-  act,
-  createElement,
-  forwardRef,
-  type HTMLAttributes,
-  type InputHTMLAttributes,
-} from 'react';
+import { act } from 'react';
 
 export function shellPrimitives() {
   return {
@@ -18,13 +13,6 @@ export function shellPrimitives() {
 export function comboboxPrimitives() {
   return {
     ...shellPrimitives(),
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) =>
-      createElement('span', null, createElement('input', props)),
-    IconChevronDownOutlineRegular: () => null,
-    IconPlusOutlineRegular: () => null,
-    IconRefreshOutlineRegular: () => null,
-    IconRightUpOutlineRegular: () => null,
-
     useAnchoredPosition: () => ({ top: 0, left: 0 }),
     useDismissOnOutsidePointer: () => undefined,
   };
@@ -67,23 +55,6 @@ export async function chooseOption(
 export function dialogPrimitives() {
   return {
     ...shellPrimitives(),
-    Button: forwardRef<
-      HTMLButtonElement,
-      HTMLAttributes<HTMLButtonElement> & {
-        variant?: string;
-        size?: string;
-        icon?: unknown;
-        type?: 'button' | 'submit';
-        form?: string;
-        disabled?: boolean;
-      }
-    >(({ variant, size: _size, icon: _icon, ...props }, ref) =>
-      createElement('button', { ...props, ref, 'data-variant': variant }),
-    ),
-    Input: forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-      ({ className, ...props }, ref) =>
-        createElement('span', { className }, createElement('input', { ...props, ref })),
-    ),
   };
 }
 
@@ -105,7 +76,10 @@ export function fieldNamed(name: string, root: ParentNode = document): HTMLInput
   const label = [...root.querySelectorAll<HTMLLabelElement>('label')].find(
     (candidate) => candidate.textContent?.trim() === name,
   );
-  const input = label === undefined ? null : document.getElementById(label.htmlFor);
+  const input =
+    label === undefined
+      ? null
+      : (label.querySelector('input') ?? document.getElementById(label.htmlFor));
   if (!(input instanceof HTMLInputElement)) throw new Error(`No field named ${name}`);
   return input;
 }

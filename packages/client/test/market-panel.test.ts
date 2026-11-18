@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+import { type MarketplacePage } from '../../core/src/marketplace/client.js';
+import { type BotSummary } from '../src/client/store.js';
 import { queryMenuItem } from './primitive-mocks.js';
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,58 +14,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
     unit: 'days',
     n: Math.floor((now - at) / 86_400_000),
   }),
-  Button: (props: Record<string, unknown> & { children?: ReactNode }) =>
-    createElement(
-      'button',
-      {
-        disabled: props['disabled'],
-        onClick: props['onClick'],
-        'aria-label': props['aria-label'],
-      },
-      props.children,
-    ),
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  Checkbox: (props: { checked: boolean; onChange(checked: boolean): void; label?: ReactNode }) =>
-    createElement(
-      'label',
-      null,
-      createElement('input', {
-        type: 'checkbox',
-        checked: props.checked,
-        onChange: (event: { target: { checked: boolean } }) => props.onChange(event.target.checked),
-      }),
-      props.label,
-    ),
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
 
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
-  SegmentedControl: (props: {
-    value: string;
-    disabled?: boolean;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      props.options.map((option) =>
-        createElement(
-          'button',
-          {
-            key: option.value,
-            role: 'tab',
-            'aria-selected': option.value === props.value,
-            disabled: props.disabled,
-            onClick: () => props.onChange(option.value),
-          },
-          option.label,
-        ),
-      ),
-    ),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -77,7 +29,7 @@ vi.mock('../src/client/avatar.js', () => ({
 }));
 
 import { DEFAULT_ILLUSTRATED_RECIPE } from '../../core/src/bots/avatar-appearance.js';
-import type { MarketplaceEntry, MarketplacePage } from '../../core/src/marketplace/client.js';
+import type { MarketplaceEntry } from '../../core/src/marketplace/client.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import type { DockPanelRegistry } from '../src/client/dock-panels.js';
@@ -91,7 +43,7 @@ import {
 } from '../src/client/market-panel.js';
 import { MyUploadsSettingsRow } from '../src/client/market-mine.js';
 import { MarketUploadDialog } from '../src/client/market-upload.js';
-import { store, type BotSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {

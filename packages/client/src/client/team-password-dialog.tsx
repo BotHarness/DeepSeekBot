@@ -1,6 +1,5 @@
+import { Checkbox } from './ds/checkbox.js';
 import { useState, type ReactElement } from 'react';
-
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';

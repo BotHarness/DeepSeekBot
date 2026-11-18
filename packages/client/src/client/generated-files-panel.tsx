@@ -1,8 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
-import {
-  IconPaperclipOutlineRegular,
-  IconCheckOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -170,9 +168,9 @@ export function ChannelFiles({
                     onClick={() => composer?.toggle(file.ref)}
                   >
                     {selected.has(id) ? (
-                      <IconCheckOutlineRegular size={16} />
+                      <Icon name="check" size={16} />
                     ) : (
-                      <IconPaperclipOutlineRegular size={16} />
+                      <Icon name="paperclip" size={16} />
                     )}
                   </IconButton>
                 </Tooltip>

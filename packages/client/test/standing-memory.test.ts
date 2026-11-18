@@ -1,36 +1,17 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type BotSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const passthrough = ({ children }: { children?: ReactNode }) => children ?? null;
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-      createElement('button', props, children),
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Tag: ({ children }: { children?: ReactNode }) =>
-      createElement('span', { className: 'tag' }, children),
 
     FileTypeIcon: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
   };
 });
 
@@ -40,7 +21,6 @@ import { zhTranslate } from '../src/client/locale.js';
 import { MemoryFileTree } from '../src/client/memory-file-tree.js';
 import { memoryFileTree } from '../src/client/memory-file-tree-model.js';
 import { StandingLimitsRow } from '../src/client/standing-limits.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const bot: BotSummary = {
   slug: 'ada',

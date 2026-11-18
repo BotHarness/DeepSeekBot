@@ -1,8 +1,10 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useAnchoredPanel } from './anchored-panel.js';
 import { useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { MenuSurface } from './ds/menu.js';
 
 import { PersonaBotAvatar } from './avatar.js';
@@ -439,7 +441,7 @@ export function SessionStopPopover({
                   onClick={() => run(bot.slug, setStoppingBots, () => onStopBot(bot.slug))}
                   {...stylex.props(styles.stopAll)}
                 >
-                  <IconStopFillRegular size={10} />
+                  <Icon name="square" filled size={10} />
                   {allStopping ? t('sessions.status.stopping') : t('sessionStop.stopAll')}
                 </button>
               </div>
@@ -491,7 +493,7 @@ export function SessionStopPopover({
                             run(session.id, setStopping, () => onStopSession(bot.slug, session.id))
                           }
                         >
-                          <IconStopFillRegular size={12} />
+                          <Icon name="square" filled size={12} />
                         </IconButton>
                       </Tooltip>
                     </li>

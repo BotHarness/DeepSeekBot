@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement, type ReactNode } from 'react';
+import { type ReactElement } from 'react';
+import { type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import { type BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronLeftOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
-  IconCloseOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
-  IconFlatListOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
-  IconSettingsOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
 }));
 vi.mock('../src/client/bot-icon.js', () => ({
   BotIcon: ({ icon }: { icon: string }) =>
@@ -62,11 +63,11 @@ import {
   useConversationDraft,
   conversationDraftKey,
 } from '../src/client/conversation-draft.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import { store } from '../src/client/store.js';
 import { ComposerDraftStore } from '../src/client/composer-draft-store.js';
-import { BotModePrefs, type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
+import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
+
 import type { BridgeActions } from '../src/client/actions.js';
 
 let container: HTMLDivElement;

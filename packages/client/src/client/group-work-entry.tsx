@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import type { ConversationStateView } from './store.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { personaBotSessionRows } from './session-rows.js';
@@ -5,7 +7,6 @@ import { useRef, useSyncExternalStore } from 'react';
 import { useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -319,7 +320,7 @@ function GroupWorkPanel({
               aria-label={t('sessions.stopNamed', { title: name })}
               onClick={() => stopOrchestrator(slug, turn)}
             >
-              <IconStopFillRegular size={12} />
+              <Icon name="square" filled size={12} />
             </IconButton>
           </Tooltip>
         }

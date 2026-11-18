@@ -1,8 +1,9 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { BotSourcePolicyEdit, BotSourcePolicyView } from './bridge.js';
@@ -356,7 +357,7 @@ export function WakePolicyEntry({
                     title={t('sourcePolicy.detailsFor', { source: name })}
                     onClick={() => setDetailsClass(policy.sourceClass)}
                   >
-                    <IconInfoOutlineRegular size={14} />
+                    <Icon name="info" size={14} />
                   </button>
                 }
               />

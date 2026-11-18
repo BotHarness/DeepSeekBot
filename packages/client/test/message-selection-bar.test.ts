@@ -7,11 +7,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-
-    IconDownloadOutlineRegular: () => null,
-    IconCopyOutlineRegular: () => null,
-    IconInspectOutlineRegular: () => null,
-    IconShareOutlineRegular: () => null,
   };
 });
 import { MessageSelectionBar } from '../src/client/message-selection.js';

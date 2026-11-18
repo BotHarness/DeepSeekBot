@@ -1,26 +1,12 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { type TeamViewer } from '../src/client/team-bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
 }));
 
 import { BridgeCallError, type BridgeCall } from '../src/client/bridge.js';
@@ -31,7 +17,7 @@ import {
 } from '../src/client/channel-add-people.js';
 import { memberHumanName } from '../src/client/group-member-controls.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { TeamViewer } from '../src/client/team-bridge.js';
+
 import {
   addChannelHuman,
   DEFAULT_POLICY,

@@ -1,9 +1,7 @@
+import { Icon } from './ds/icon.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { barY, defineChart } from '@tanstack/charts';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
 import { scalePoint } from '@tanstack/charts/scales/point';
@@ -159,7 +157,7 @@ export function OverviewMemoryView({
           aria-busy={busy}
           onClick={() => refresh.current()}
         >
-          <IconRefreshOutlineRegular size={16} />
+          <Icon name="refresh-cw" size={16} />
         </button>
       </header>
       {busy && !value ? (
@@ -219,7 +217,7 @@ export function OverviewMemoryView({
                     title={`${t('profile.open')}: ${bot.displayName}`}
                     onClick={() => void actions.openBot?.(bot.slug, 'profile')}
                   >
-                    <IconRightUpOutlineRegular size={16} />
+                    <Icon name="arrow-up-right" size={16} />
                   </button>
                 )}
               </li>

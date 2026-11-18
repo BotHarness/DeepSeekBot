@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { type HostLook } from '@botharness/host-client/ui/design/host-look';
+import { type HostDraftChoice } from '../src/client/host-settings-drafts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { DEFAULT_HOST_LOOK, type HostLook } from '@botharness/host-client/ui/design/host-look';
+import { DEFAULT_HOST_LOOK } from '@botharness/host-client/ui/design/host-look';
 
 let look: HostLook = { ...DEFAULT_HOST_LOOK, name: 'Old alias' };
 const update = vi.fn(async (_hostId: string, transform: (value: HostLook) => HostLook) => {
@@ -18,13 +20,10 @@ vi.mock('../src/client/bot-color-scheme.js', () => ({ useBotColorScheme: () => '
 vi.mock('../src/client/host-glyph.js', () => ({ HostGlyph: () => null }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) =>
-    createElement('button', { onClick }, children),
 }));
 import { HostLookSettings } from '../src/client/host-look-settings.js';
 import { hostSettingsDrafts } from '../src/client/host-settings-drafts.js';
-import type { HostDraftChoice } from '../src/client/host-settings-drafts.js';
+
 import { en } from '../src/client/locale.js';
 
 it('follows external alias reset while pristine, keeps a real draft, and cannot save the reset alias back on blur', async () => {

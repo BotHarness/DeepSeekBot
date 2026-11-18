@@ -1,3 +1,4 @@
+import { type ComputerSettingsScope } from '../src/client/settings-rows.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
@@ -6,7 +7,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconChevronDownOutline14: stub,
     IconFolderOpenOutline16: stub,
     Menu: stub,
-    Switch: stub,
   };
 });
 
@@ -15,7 +15,6 @@ import {
   ExportDirRejectedError,
   createComputerSettingsFace,
   displayExportDir,
-  type ComputerSettingsScope,
 } from '../src/client/settings-rows.js';
 import { PHASE_LABEL } from '../src/client/locale.js';
 

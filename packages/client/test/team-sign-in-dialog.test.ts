@@ -1,25 +1,12 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type TeamSignInState } from '@botharness/host-client/team-sign-in';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { TeamSignInState } from '@botharness/host-client/team-sign-in';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
 }));
 
 const fake = vi.hoisted(() => ({ teamSignIn: vi.fn() }));

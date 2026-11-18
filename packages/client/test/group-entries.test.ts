@@ -1,38 +1,23 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type GroupMemberWakePolicy } from '../../core/src/channels/channel.js';
+import { type ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
+import { type ConversationIngestSnapshot } from '../../core/src/messaging/conversation-ingest.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { GroupMemberWakePolicy } from '../../core/src/channels/channel.js';
-import type { ChannelBridgeSnapshot } from '../../core/src/messaging/channel-bridge.js';
-import type { ConversationIngestSnapshot } from '../../core/src/messaging/conversation-ingest.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: ({
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  Switch: ({ label, checked }: { label: string; checked: boolean }) =>
-    createElement('button', { role: 'switch', 'aria-label': label, 'aria-checked': checked }),
-
-  IconEllipsisOutlineRegular: () => null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-builtins.js';
 import { GroupConnectorsEntry, GroupWakePolicyEntry } from '../src/client/group-entries.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const AT = '2026-10-08T00:00:00Z';
 
@@ -154,8 +139,8 @@ it('lists one wake card per member Bot and edits it in a dialog', async () => {
     'Ada',
     'Bob',
   ]);
-  expect(rows[0]?.querySelector('.tag')).toBeNull();
-  expect(rows[1]?.querySelector('.tag')?.textContent).toBe(zhTranslate('groupWake.custom'));
+  expect(rows[0]?.querySelector('[data-tone]')).toBeNull();
+  expect(rows[1]?.querySelector('[data-tone]')?.textContent).toBe(zhTranslate('groupWake.custom'));
   expect(rows[1]?.querySelector('.bh-card-meta-line')?.textContent).toContain(
     zhTranslate('members.wake.all'),
   );

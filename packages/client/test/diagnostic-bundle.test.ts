@@ -5,15 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const icon = () => null;
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCheckCircleOutlineRegular: icon,
-    IconClockOutlineRegular: icon,
-    IconInfoOutlineRegular: icon,
-    IconShieldOutlineRegular: icon,
-    IconWarningTriangleOutlineRegular: icon,
   };
 });
 

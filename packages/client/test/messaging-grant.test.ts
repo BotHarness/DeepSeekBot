@@ -1,70 +1,17 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type MessagingGrant } from '../../core/src/messaging/outbound.js';
+import { type MessagingSnapshot } from '../../core/src/messaging/outbound.js';
 import { openTooltip } from './primitive-mocks.js';
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { MessagingGrant, MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+
 import type { BridgeActions } from '../src/client/actions.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  SegmentedTabs: ({
-    items,
-    value,
-    onChange,
-  }: {
-    items: { value: string; label: ReactNode }[];
-    value: string;
-    onChange(value: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      items.map((item) =>
-        createElement(
-          'button',
-          {
-            key: item.value,
-            role: 'tab',
-            'aria-selected': item.value === value,
-            onClick: () => onChange(item.value),
-          },
-          item.label,
-        ),
-      ),
-    ),
-  IconChevronRightOutlineRegular: () => null,
-  IconInfoOutlineRegular: () => null,
-
-  Switch: () => null,
-  Checkbox: ({
-    checked,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    onChange(value: boolean): void;
-  }) =>
-    createElement(
-      'label',
-      null,
-      createElement('input', {
-        type: 'checkbox',
-        checked,
-        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-      }),
-      label,
-    ),
 }));
 
 import { MessagingGrantRow } from '../src/client/messaging-grant.js';

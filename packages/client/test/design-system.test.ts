@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconChevronDownOutlineRegular: () => null,
 }));
+
+import { Checkbox } from '../src/client/ds/checkbox.js';
+import { SegmentedControl } from '../src/client/ds/segmented.js';
+import { PillButton } from '../src/client/ds/pill-button.js';
+import { Tag } from '../src/client/ds/tag.js';
+import { Icon } from '../src/client/ds/icon.js';
+import { buttonNamed } from './primitive-mocks.js';
 
 import { EmptyState } from '../src/client/ds/empty-state.js';
 import { NumberStepper } from '../src/client/ds/number-stepper.js';
@@ -197,5 +205,107 @@ describe('EmptyState', () => {
     );
     expect(host.textContent).toBe('No apps yetCreate one to start.Create app');
     expect(host.querySelectorAll('button')).toHaveLength(1);
+  });
+});
+
+describe('Tobs control semantics', () => {
+  it('keeps checkbox labels, toggling and disabled behavior', () => {
+    const change = vi.fn();
+    render(createElement(Checkbox, { label: 'Allow replies', checked: false, onChange: change }));
+    const input = host.querySelector<HTMLInputElement>('input')!;
+    expect(input.labels?.[0]?.textContent).toBe('Allow replies');
+    act(() => input.click());
+    expect(change).toHaveBeenLastCalledWith(true);
+    render(
+      createElement(Checkbox, {
+        label: 'Allow replies',
+        checked: true,
+        disabled: true,
+        onChange: change,
+      }),
+    );
+    change.mockClear();
+    act(() => input.click());
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it('preserves rich tab labels, panel relationships and keyboard selection across disabled tabs', () => {
+    const change = vi.fn();
+    const options = [
+      {
+        value: 'first',
+        label: createElement('strong', null, 'First'),
+        id: 'custom-first',
+        panelId: 'first-panel',
+      },
+      { value: 'disabled', label: 'Disabled', disabled: true },
+      { value: 'last', label: 'Last', id: 'custom-last', panelId: 'last-panel' },
+    ];
+    const props = {
+      id: 'tabs',
+      label: 'History',
+      value: 'first',
+      options,
+      controlsPanel: true,
+      onChange: change,
+    };
+    render(createElement(SegmentedControl, props));
+    const first = buttonNamed('First', host);
+    expect(first.id).toBe('custom-first');
+    expect(first.getAttribute('aria-controls')).toBe('first-panel');
+    expect(first.getAttribute('aria-selected')).toBe('true');
+    expect(first.tabIndex).toBe(0);
+    expect(buttonNamed('Last', host).hasAttribute('aria-controls')).toBe(false);
+    act(() => {
+      first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    expect(change).toHaveBeenLastCalledWith('last');
+    expect(document.activeElement).toBe(buttonNamed('Last', host));
+    render(createElement(SegmentedControl, { ...props, value: 'last' }));
+    expect(buttonNamed('Last', host).getAttribute('aria-controls')).toBe('last-panel');
+    act(() => {
+      buttonNamed('Last', host).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Home', bubbles: true }),
+      );
+    });
+    expect(change).toHaveBeenLastCalledWith('first');
+    act(() => first.click());
+    expect(change).toHaveBeenLastCalledWith('first');
+  });
+
+  it('exposes pill selection and leaves status pills non-interactive', () => {
+    const click = vi.fn();
+    render(createElement(PillButton, { active: true, onClick: click, children: 'Pinned' }));
+    const pill = buttonNamed('Pinned', host);
+    expect(pill.type).toBe('button');
+    expect(pill.getAttribute('aria-pressed')).toBe('true');
+    act(() => pill.click());
+    expect(click).toHaveBeenCalledOnce();
+    render(
+      createElement(PillButton, { as: 'span', className: 'status-pill', children: 'Working' }),
+    );
+    expect(host.querySelector('button')).toBeNull();
+    expect(host.querySelector('.status-pill')?.textContent).toBe('Working');
+  });
+
+  it('keeps Tag tones and escaped content', () => {
+    render(createElement(Tag, { tone: 'warning', className: 'status', children: '<unsafe>' }));
+    expect(host.querySelector('.status')?.getAttribute('data-tone')).toBe('warning');
+    expect(host.querySelector('.status')?.textContent).toBe('<unsafe>');
+    expect(host.querySelector('unsafe')).toBeNull();
+  });
+
+  it('keeps explicit icon sizes, decorative semantics and filled stop and pin states', () => {
+    render(createElement(Icon, { name: 'square', size: 14, filled: true, className: 'stop' }));
+    const svg = host.querySelector('svg')!;
+    expect(svg.getAttribute('width')).toBe('14');
+    expect(svg.getAttribute('height')).toBe('14');
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+    expect(svg.getAttribute('fill')).toBe('currentColor');
+    expect(svg.getAttribute('class')).toBe('stop');
+    render(createElement(Icon, { name: 'pin', size: 18, filled: false }));
+    expect(host.querySelector('svg')?.getAttribute('fill')).toBe('none');
+    render(createElement(Icon, { name: 'pin', size: 18, filled: true }));
+    expect(host.querySelector('svg')?.getAttribute('fill')).toBe('currentColor');
   });
 });

@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconCheckOutlineRegular,
-  IconInfoOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
@@ -137,7 +135,7 @@ export function PromptInfo({ info, t }: { info: string; t: BotHarnessTranslate }
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <IconInfoOutlineRegular size={14} />
+          <Icon name="info" size={14} />
         </button>
       </Tooltip>
       {open ? <p {...stylex.props(styles.explain)}>{info}</p> : null}
@@ -898,7 +896,7 @@ export function BotPromptSettingsEntry({
                 trailing={
                   active ? (
                     <span {...stylex.props(styles.check)}>
-                      <IconCheckOutlineRegular size={16} />
+                      <Icon name="check" size={16} />
                     </span>
                   ) : undefined
                 }

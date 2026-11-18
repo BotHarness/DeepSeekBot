@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, forwardRef, type PropsWithChildren } from 'react';
+import { type RemoteConversationTarget } from '../src/client/remote-hosts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { RemoteHosts, RemoteConversationTarget } from '../src/client/remote-hosts.js';
+import type { RemoteHosts } from '../src/client/remote-hosts.js';
 const fixture = vi.hoisted(() => ({ sources: undefined as RemoteHosts | undefined }));
 vi.mock('../src/client/remote-hosts.js', async (original) => ({
   ...(await original<typeof import('../src/client/remote-hosts.js')>()),
@@ -10,62 +11,20 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const { Menu } = await import('./activity-list-test-controls.js');
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
-    IconWarningTriangleOutlineRegular: () => null,
-    IconCodeOutlineRegular: () => null,
-    IconStopFillRegular: () => null,
-    IconPlayOutlineRegular: () => null,
-    IconPauseOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: PropsWithChildren<{ variant?: string; size?: string }>) =>
-      createElement('button', props, children),
 
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
     IconCloseFill14: stub,
-    IconCopyOutlineRegular: stub,
-    IconGoalOutlineRegular: stub,
-    IconChecklistOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
 
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
-    Input: stub,
 
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
 
-    SegmentedControl: stub,
     StateDot: stub,
-    Tag,
 
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };

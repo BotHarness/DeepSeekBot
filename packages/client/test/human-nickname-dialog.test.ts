@@ -1,20 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 type Item = { id: string; type?: string; label?: ReactNode };
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
     ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCheckOutlineRegular: () => null,
-    IconSettingsOutlineRegular: () => null,
-    IconTrashOutlineRegular: () => null,
-    IconUserOutlineRegular: () => null,
   };
 });
 

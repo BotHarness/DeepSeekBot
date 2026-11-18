@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
-import { createElement, type ReactNode } from 'react';
+import { type QuickSwitcherEntry } from '../src/client/quick-switcher-rank.js';
+import { type BotSummary } from '../src/client/store.js';
+import { createElement } from 'react';
 import { renderOverlayMarkup } from './primitive-mocks.js';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  IconSearchOutlineRegular: () => null,
-  IconSettingsOutlineRegular: () => null,
-  Input: (props: Record<string, unknown>) =>
-    createElement('input', {
-      role: props['role'],
-      placeholder: props['placeholder'],
-      value: props['value'],
-      readOnly: true,
-    }),
+
   ShortcutKeys: (props: { keys: readonly string[] }) =>
     createElement('kbd', null, props.keys.join(' ')),
 }));
@@ -25,13 +19,9 @@ vi.mock('../src/client/avatar.js', () => ({
 
 import { QuickSwitcher } from '../src/client/quick-switcher.js';
 import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
-import {
-  quickSwitcherEntries,
-  rankQuickSwitcher,
-  type QuickSwitcherEntry,
-} from '../src/client/quick-switcher-rank.js';
+import { quickSwitcherEntries, rankQuickSwitcher } from '../src/client/quick-switcher-rank.js';
 import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+import type { ChannelSummary } from '../src/client/store.js';
 
 function channel(
   id: string,

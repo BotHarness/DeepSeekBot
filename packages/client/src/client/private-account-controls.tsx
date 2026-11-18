@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { useMessageHost } from './message-host.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store } from './store.js';
@@ -112,7 +110,7 @@ export function PrivateAccountControls({
             type="button"
             variant="primary"
             size="sm"
-            icon={<IconRefreshOutlineRegular size={14} />}
+            icon={<Icon name="refresh-cw" size={14} />}
             disabled={busy}
             onClick={() => void change('replace')}
           >
@@ -122,7 +120,7 @@ export function PrivateAccountControls({
             type="button"
             variant="primary"
             size="sm"
-            icon={<IconCloseOutlineRegular size={14} />}
+            icon={<Icon name="x" size={14} />}
             disabled={busy}
             onClick={() => void change('revoke')}
           >

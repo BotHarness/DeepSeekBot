@@ -1,8 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { useScopedState, useScopedRef } from './scoped-state.js';
 import { type DragEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { IconPaperclipOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -97,7 +96,7 @@ export function ConversationFileDropOverlay({
 }): ReactElement {
   return (
     <div {...stylex.props(styles.overlay)} role="status" aria-live="polite">
-      <IconPaperclipOutlineRegular size={24} />
+      <Icon name="paperclip" size={24} />
       <span>{label}</span>
       <span {...stylex.props(styles.hint)}>{hint}</span>
     </div>

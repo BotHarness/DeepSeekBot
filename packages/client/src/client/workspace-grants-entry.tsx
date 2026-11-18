@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { Switch } from './ds/switch.js';
@@ -10,14 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import {
-  IconChevronDownOutlineRegular,
-  IconCloseOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconPlusOutlineRegular,
-  IconTrashOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -99,7 +94,7 @@ export function FolderSectionSummary({ children }: { children: ReactNode }): Rea
   return (
     <summary className="bh-channel-sidebar-entry-head">
       <span className="bh-channel-sidebar-entry-chevron" aria-hidden="true">
-        <IconChevronDownOutlineRegular size={14} />
+        <Icon name="chevron-down" size={14} />
       </span>
       <span className="bh-channel-sidebar-entry-label">{children}</span>
     </summary>
@@ -214,11 +209,12 @@ export function FolderRow({
               disabled={remove === undefined || disabled}
               onClick={remove}
             >
-              <IconTrashOutlineRegular size={16} />
+              <Icon name="trash" size={16} />
               {removeText}
             </Button>
           )}
-          <IconChevronDownOutlineRegular
+          <Icon
+            name="chevron-down"
             size={14}
             className={
               expanded ? 'bh-workspace-folder-chevron bh-expanded' : 'bh-workspace-folder-chevron'
@@ -255,7 +251,7 @@ export function AddFolderRow({
 }): ReactElement {
   return (
     <SidebarCardRow
-      leading={<IconPlusOutlineRegular size={16} />}
+      leading={<Icon name="plus" size={16} />}
       title={label}
       mainClassName="bh-workspace-folder-add"
       disabled={disabled}
@@ -650,7 +646,7 @@ export function FolderBrowser({
               onBlur={cool}
               {...stylex.props(browserStyles.item)}
             >
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
               <span>{entry.name}</span>
             </button>
           ))}
@@ -1544,7 +1540,7 @@ export function WorkspaceGrantsEntry({
                       mutate(rule.id, () => actions.revokeToolApprovalRule(botSlug, rule.id))
                     }
                   >
-                    <IconCloseOutlineRegular />
+                    <Icon name="x" />
                   </button>
                 </div>
                 <div className="bh-note">{t('approval.cwd', { path: approvalRulePath(rule) })}</div>

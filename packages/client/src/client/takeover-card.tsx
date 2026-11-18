@@ -1,4 +1,5 @@
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag } from './ds/tag.js';
+
 import {
   createContext,
   useContext,

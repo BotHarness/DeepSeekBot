@@ -1,3 +1,4 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import {
@@ -8,7 +9,7 @@ import {
 import type { ApprovalTemplateDeletionPreview } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 import { useClientFields, useStoreSlice } from './use-client-store.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 
 import { templateDescription, templateTitle } from './approval-template-entry.js';

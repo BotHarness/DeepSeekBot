@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MessagingDefaultsSettings } from '../src/client/messaging-defaults-settings.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { BridgeCall } from '../src/client/bridge.js';
 
 const enTranslate: typeof zhTranslate = (key, params) => {
   let message = Object.entries(en).find(([name]) => name === key)?.[1] ?? key;
@@ -13,32 +13,8 @@ const enTranslate: typeof zhTranslate = (key, params) => {
   return message;
 };
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  IconChevronDownOutlineRegular: () => null,
-
-  Switch: ({
-    checked,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    onChange(v: boolean): void;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      checked,
-      'aria-label': label,
-      onChange: () => onChange(!checked),
-    }),
 }));
 
 type Remote = {
@@ -105,7 +81,7 @@ async function mount(call: BridgeCall, t = zhTranslate) {
       );
     },
     stepperValue: (label: string) =>
-      container.querySelector<HTMLInputElement>(`input[role=spinbutton][aria-label="${label}"]`)
+      container.querySelector<HTMLButtonElement>(`input[role=spinbutton][aria-label="${label}"]`)
         ?.value,
     unmount: async () => {
       await act(async () => root.unmount());
@@ -131,11 +107,11 @@ it.each([zhTranslate, enTranslate])(
     expect(ui.container.textContent).toContain(t('defaults.weixinNote'));
     expect(ui.button(t('defaults.collection'))).toBeNull();
     expect(ui.button(t('defaults.wake'))).toBeNull();
-    expect(ui.container.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(ui.container.querySelectorAll('[role="switch"]')).toHaveLength(2);
     expect(ui.container.textContent).not.toMatch(/revision|版本/i);
     await act(async () =>
       ui.container
-        .querySelector<HTMLInputElement>(`[aria-label="${t('defaults.enableTyping')}"]`)!
+        .querySelector<HTMLButtonElement>(`[aria-label="${t('defaults.enableTyping')}"]`)!
         .click(),
     );
     expect(saves).toEqual([

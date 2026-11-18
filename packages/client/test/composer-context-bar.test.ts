@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement as h, createRef, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement as h, createRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   ComposerContextBar,
@@ -38,24 +40,6 @@ vi.mock('../src/client/ds/panel-dialog.js', () => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: ({ children, size: _size, ...props }: { children: ReactNode; size: string }) =>
-    h('button', props, children),
-  Switch: ({
-    checked,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    onChange(value: boolean): void;
-  }) =>
-    h('input', {
-      type: 'checkbox',
-      role: 'switch',
-      'aria-label': label,
-      checked,
-      onChange: () => onChange(!checked),
-    }),
 }));
 let host: HTMLDivElement;
 let root: Root;

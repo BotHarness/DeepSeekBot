@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
-  Button: () => null,
-  IconCloseOutlineRegular: () => null,
 }));
 
 vi.mock('../src/client/ds/tooltip.js', () => ({

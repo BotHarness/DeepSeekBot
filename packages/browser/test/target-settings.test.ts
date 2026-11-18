@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('../../client/test/primitive-mocks.js')).shellPrimitives(),
-    IconChevronDownOutlineRegular: () => null,
   };
 });
 import type { BrowserClientContext } from '../src/client/index.js';

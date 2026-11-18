@@ -1,3 +1,7 @@
+import { Icon } from '../../../client/src/client/ds/icon.js';
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Switch } from '../../../client/src/client/ds/switch.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { RemoteViewer } from '../../../client/src/client/remote-viewer/index.js';
 import type { ViewerTranslate } from '../../../client/src/client/remote-viewer/locale.js';
@@ -10,12 +14,7 @@ import {
   type ComponentType,
   type ReactElement,
 } from 'react';
-import {
-  Button,
-  IconFullscreenOutlineRegular,
-  Switch,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { ChannelSidebarIcon } from '../../../client/src/client/channel-sidebar-icon.js';
 import { useMountedResource } from '../../../client/src/client/mounted-resource.js';
@@ -771,7 +770,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
                     }}
                   >
                     <span className="bh-viewer-btn-content">
-                      <IconFullscreenOutlineRegular size={14} />
+                      <Icon name="maximize" size={14} />
                       <span data-bh-viewer-btn-label>{t('entry.view.fullscreen')}</span>
                     </span>
                   </Button>

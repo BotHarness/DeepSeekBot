@@ -1,6 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { useMessageHost } from './message-host.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { FileTypeIcon, IconFolderOpenOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
 import { createBridgeFileResource } from './bridge-file-resource.js';
@@ -75,7 +76,7 @@ export function BridgeFile({
           }}
         >
           <span className="bh-message-file-icon" aria-hidden="true">
-            <FileTypeIcon path={name} size={28} />
+            <Icon name="file" size={28} />
           </span>
           <span className="bh-message-file-copy">
             <span className="bh-message-file-name" title={name}>
@@ -100,7 +101,7 @@ export function BridgeFile({
               aria-expanded={menu.isOpen}
               onClick={(event) => menu.open(attachmentId, event)}
             >
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
             </button>
           </>
         ) : null}

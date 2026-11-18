@@ -1,10 +1,12 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { Switch } from './ds/switch.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconPlusOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -382,7 +384,7 @@ export function BotSchedulesHeaderAction({ botSlug, t }: ChannelSidebarEntryProp
         aria-haspopup="dialog"
         onClick={() => requestCreate(botSlug)}
       >
-        <IconPlusOutlineRegular size={16} />
+        <Icon name="plus" size={16} />
       </IconButton>
     </Tooltip>
   );

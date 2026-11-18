@@ -1,6 +1,6 @@
+import { Checkbox } from './ds/checkbox.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { loadModelCatalog, type BridgeCall } from './bridge.js';
 import { Note } from './ds/note.js';

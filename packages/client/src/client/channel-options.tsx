@@ -1,10 +1,7 @@
+import { Icon } from './ds/icon.js';
 import { useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconCheckOutlineRegular,
-  IconSettingsOutlineRegular,
-  IconUserOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { type MenuItem } from './ds/menu.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
@@ -61,7 +58,7 @@ export function ChannelAttentionDot({
 export function channelSettingsItem(t: BotHarnessTranslate, attention: boolean): MenuItem {
   return {
     id: CHANNEL_SETTINGS_ITEM,
-    icon: <IconSettingsOutlineRegular size={16} />,
+    icon: <Icon name="settings" size={16} />,
     label: attention ? (
       <span {...stylex.props(styles.label)}>
         {t('channelSettings.open')}
@@ -77,7 +74,7 @@ export function channelNicknameItem(t: BotHarnessTranslate): MenuItem {
   return {
     id: CHANNEL_NICKNAME_ITEM,
     label: t('humanNickname.title'),
-    icon: <IconUserOutlineRegular size={16} />,
+    icon: <Icon name="user" size={16} />,
   };
 }
 
@@ -99,7 +96,7 @@ export function dmActionsItem(
         icon: hidden.includes(kind) ? (
           <span aria-hidden="true" {...stylex.props(styles.checkSlot)} />
         ) : (
-          <IconCheckOutlineRegular size={16} />
+          <Icon name="check" size={16} />
         ),
       })),
       ...DM_MEMORY_DISPLAYS.map((value) => ({
@@ -108,7 +105,7 @@ export function dmActionsItem(
         disabled: hidden.includes('memory'),
         icon:
           display === value ? (
-            <IconCheckOutlineRegular size={16} />
+            <Icon name="check" size={16} />
           ) : (
             <span aria-hidden="true" {...stylex.props(styles.checkSlot)} />
           ),

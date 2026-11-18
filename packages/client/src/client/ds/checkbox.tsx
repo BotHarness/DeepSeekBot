@@ -2,13 +2,13 @@ import * as stylex from '@stylexjs/stylex';
 import type { ReactElement } from 'react';
 
 import { joinClass } from './class-name.js';
-import { accent, edge, ink, size, style } from './tobs.stylex.js';
+import { accent, edge, ink, size, space, style } from './tobs.stylex.js';
 
 const styles = stylex.create({
   label: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: `calc(${space.x2} + ${space.x1})`,
     minWidth: 0,
     color: ink.primary,
     fontSize: style.textUiSize,
