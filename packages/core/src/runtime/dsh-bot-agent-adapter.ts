@@ -560,6 +560,7 @@ export interface DshBotEngines {
   engineFor(botSlug: string, role?: 'orchestrator' | 'assignment'): string | undefined;
   runsOnEngine?(botSlug: string, role?: 'orchestrator' | 'assignment'): boolean;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
+  steerAssignment?(sessionId: string, text: string): boolean;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
 }
@@ -1476,6 +1477,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       }
       return { delivery: 'steer' };
     }
+    if (active?.role === 'assignment' && this.#engines?.steerAssignment?.(run.sessionId, run.text))
+      return { delivery: 'steer' };
     let accept!: () => void;
     let refuse!: (error: unknown) => void;
     const accepted = new Promise<void>((resolve, reject) => {
@@ -1642,6 +1645,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       stop.signal.aborted ||
       this.#stopping.has(run.sessionId) ||
       this.#stoppedBots.has(run.bot.slug);
+    let terminalReport: ReturnType<AssignmentAgentRun['report']> | undefined;
     try {
       const native = this.#handles.get(run.sessionId);
       if (native !== undefined) {
@@ -1673,7 +1677,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             }),
           ].join('\n\n'),
           tools: [ENGINE_REPORT_TOOL],
-          execute: async (name, args, _signal, context) => {
+          execute: async (name, args, signal, context) => {
             if (name !== ENGINE_REPORT_TOOL.name)
               throw new Error(`refused: ${name} is not available to this Assignment`);
             const state = typeof args['state'] === 'string' ? args['state'] : '';
@@ -1683,15 +1687,19 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               );
             if (typeof args['summary'] !== 'string')
               throw new Error('report_to_orchestrator: summary must be a string');
-            const active = this.#runs.get(run.sessionId);
-            if (active?.role !== 'assignment')
+            if (signal.aborted || this.#runs.get(run.sessionId) !== entry)
               throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            const terminal = state === 'completed' || state === 'failed';
+            if (terminal && terminalReport !== undefined) {
+              await terminalReport;
+              return 'Terminal report already delivered to the Orchestrator.';
+            }
             const start = context.session
               .snapshotEvents()
               .findLast((event) => event.type === 'turn/start');
             if (start === undefined)
               throw new Error('Assignment Report has no native Turn identity');
-            await active.run.report(
+            const report = run.report(
               {
                 state,
                 summary: args['summary'],
@@ -1701,11 +1709,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               },
               { turn: start.data.turn },
             );
-            active.reported = true;
+            if (terminal) terminalReport = report;
+            try {
+              await report;
+            } catch (error) {
+              if (terminalReport === report) terminalReport = undefined;
+              throw error;
+            }
+            entry.reported = true;
             return 'Report delivered to the Orchestrator.';
           },
           signal: stop.signal,
         })) ?? {};
+      if (stopped()) return;
+      await terminalReport?.catch(() => undefined);
       if (stopped()) return;
       if (outcome.turn !== undefined && outcome.endSeq !== undefined)
         run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });

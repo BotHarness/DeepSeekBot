@@ -50,11 +50,7 @@ export class EngineTurnLog {
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
-    const message = session.append(
-      'user/message',
-      createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'user' } }),
-      { surfaceOp: 'append' },
-    );
+    const message = this.input(input);
     const current = events.findLast((event) => event.type === 'session/title');
     if (
       current === undefined ||
@@ -73,6 +69,14 @@ export class EngineTurnLog {
 
   get turn(): number {
     return this.#turn;
+  }
+
+  input(text: string) {
+    return this.#target.session.append(
+      'user/message',
+      createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
+      { surfaceOp: 'append' },
+    );
   }
 
   accept(event: EngineEvent): void {

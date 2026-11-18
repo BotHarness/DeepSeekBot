@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
+import { AssignmentSteering } from './assignment-steering.js';
 import {
   type CodexProcessOptions,
   type CodexTransport,
@@ -30,11 +31,11 @@ import {
   type OpenedEngineDshSession,
   openEngineDshSession,
 } from './engine-dsh-session.js';
-import type {
-  EngineGateway,
-  EngineGatewayCallResult,
-  EngineGatewayTool,
-  EngineGrant,
+import {
+  type EngineGateway,
+  type EngineGatewayTool,
+  type EngineGrant,
+  engineGatewayResult,
 } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
@@ -173,6 +174,7 @@ interface TurnScope {
   channelId: string | undefined;
   execute: EngineTurnRequest['execute'];
   context?: EngineToolContext;
+  signal: AbortSignal;
 }
 
 interface LiveEngineSession {
@@ -214,6 +216,7 @@ export class EngineHost {
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
   readonly #openingChoice = new Map<string, string>();
   readonly #roles = new Map<string, EngineRole>();
+  readonly #assignmentSteering = new Map<string, AssignmentSteering>();
   readonly #models = new Map<EngineId, { at: number; models: Promise<EngineModel[]> }>();
   readonly #states = new Map<string, EngineSessionDescription>();
   readonly #legacyAccounts = new Map<string, { engine: EngineId; account: string | undefined }>();
@@ -494,7 +497,29 @@ export class EngineHost {
     });
   }
 
+  steerAssignment(sessionId: string, text: string): boolean {
+    return this.#assignmentSteering.get(sessionId)?.offer(text) ?? false;
+  }
+
   async runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome> {
+    if (request.role !== 'assignment') return this.#runTurn(request);
+    const { sessionId, signal } = request;
+    if (this.#assignmentSteering.has(sessionId))
+      throw new EngineRefusal('engine-unavailable', 'This engine Assignment is already running');
+    const steering = new AssignmentSteering(() => !signal.aborted && !this.#closed);
+    this.#assignmentSteering.set(sessionId, steering);
+    return steering.run(
+      request.input,
+      (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
+      () => this.#assignmentSteering.delete(sessionId),
+    );
+  }
+
+  async #runTurn(
+    request: EngineTurnRequest,
+    steering?: AssignmentSteering,
+    continuation = false,
+  ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
     const selected = this.engineFor(request.botSlug, role);
@@ -533,19 +558,20 @@ export class EngineHost {
         if (!accountChecked) live.account = requireSubscription(await live.engine.account());
         if (request.signal.aborted) return outcome;
         if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
+        const input = steering?.takeInput(request.input) ?? request.input;
         const stop = new AbortController();
         live.stop = stop;
-        const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
+        const signal = AbortSignal.any([request.signal, stop.signal]);
+        const scope: TurnScope = { channelId: request.channelId, execute: request.execute, signal };
         live.turn = scope;
         this.#setState(
           request.sessionId,
           { engine, account: live.account, state: 'running' },
           live.botSlug,
         );
-        const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
+        const log = new EngineTurnLog(live.dsh, engine, live.account, input);
         outcome.turn = log.turn;
         let limitedNow = false;
-        const signal = AbortSignal.any([request.signal, stop.signal]);
         scope.context = {
           session: live.dsh.session,
           ask: (approval) =>
@@ -559,8 +585,9 @@ export class EngineHost {
             ),
         };
         try {
-          const end = await live.engine.send(request.input, {
+          const sending = live.engine.send(input, {
             signal,
+            verbatimInput: continuation,
             onEvent: (event) => {
               log.accept(event);
               if (event.kind === 'text') outcome.text = event.text;
@@ -573,6 +600,11 @@ export class EngineHost {
               }
             },
           });
+          const steered =
+            steering === undefined
+              ? undefined
+              : await steering.duringTurn({ sending, engine: live.engine, signal, stop, log });
+          const end = steered?.end ?? (await sending);
           if (role === 'orchestrator')
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
@@ -581,6 +613,7 @@ export class EngineHost {
             broken = true;
             throw error;
           }
+          if (steered?.failure !== undefined) throw steered.failure.error;
           const last = live.dsh.session.snapshotEvents().at(-1);
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
@@ -589,6 +622,7 @@ export class EngineHost {
             throw new EngineRefusal('engine-failed', end.message);
           }
         } finally {
+          if (!current()) steering?.discard();
           if (live.turn === scope) live.turn = undefined;
           if (live.stop === stop) live.stop = undefined;
         }
@@ -606,7 +640,7 @@ export class EngineHost {
         void this.release(request.sessionId);
       }
     }
-    if (reopen) return this.runTurn(request);
+    if (reopen) return this.#runTurn(request, steering, continuation);
     return outcome;
   }
 
@@ -806,7 +840,9 @@ export class EngineHost {
           const turn = holder.live?.turn;
           if (turn?.context === undefined)
             return { text: 'refused: session-not-running', isError: true };
-          return engineGatewayResult(await turn.execute(name, args, signal, turn.context));
+          const callSignal =
+            request.role === 'assignment' ? AbortSignal.any([signal, turn.signal]) : signal;
+          return engineGatewayResult(await turn.execute(name, args, callSignal, turn.context));
         },
       });
       const stored = this.store.nativeSession(sessionId);
@@ -880,32 +916,6 @@ export class EngineHost {
 }
 
 const RELEASE_GRACE_MS = 10_000;
-
-export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
-  if (typeof value === 'string') return { text: value, isError: false };
-  const content =
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as { content?: unknown }).content)
-      ? ((value as { content: unknown[] }).content.filter(
-          (part) =>
-            typeof part === 'object' &&
-            part !== null &&
-            (((part as { type?: unknown }).type === 'text' &&
-              typeof (part as { text?: unknown }).text === 'string') ||
-              ((part as { type?: unknown }).type === 'image' &&
-                typeof (part as { data?: unknown }).data === 'string' &&
-                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
-        ) as EngineGatewayCallResult['content'])
-      : undefined;
-  if (content !== undefined && content.length > 0)
-    return {
-      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
-      content,
-      isError: (value as { isError?: unknown }).isError === true,
-    };
-  return { text: JSON.stringify(value) ?? 'null', isError: false };
-}
 
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;

@@ -227,9 +227,12 @@ const SERVER_APPROVALS = new Set([
 interface ActiveTurn {
   options: EngineSendOptions;
   resolve(end: EngineTurnEnd): void;
+  started?: Promise<string>;
   failure?: string;
   stopping?: boolean;
 }
+
+class CodexRequestRefused extends Error {}
 
 const REQUEST_TIMEOUT_MS = 60_000;
 const THREAD_GONE =
@@ -349,15 +352,13 @@ export class CodexEngineSession implements EngineSession {
     };
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
-      const started = record(
-        await this.#request('turn/start', {
-          threadId,
-          input: [{ type: 'text', text: input, text_elements: [] }],
-          sandboxPolicy: CODEX_TURN_SANDBOX,
-          ...this.#choice,
-        }),
-      );
-      turnId = text(record(started['turn'])['id']) || undefined;
+      active.started = this.#request('turn/start', {
+        threadId,
+        input: [{ type: 'text', text: input, text_elements: [] }],
+        sandboxPolicy: CODEX_TURN_SANDBOX,
+        ...this.#choice,
+      }).then((response) => text(record(record(response)['turn'])['id']));
+      turnId = (await active.started) || undefined;
       acknowledged = true;
       if (active.stopping === true) interrupt();
       return await ended;
@@ -367,6 +368,25 @@ export class CodexEngineSession implements EngineSession {
       return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
     } finally {
       options.signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  async steer(input: string): Promise<boolean> {
+    const turn = this.#turn;
+    if (turn?.started === undefined || turn.stopping === true) return false;
+    const expectedTurnId = await turn.started;
+    if (expectedTurnId === '' || this.#turn !== turn || turn.options.signal?.aborted === true)
+      return false;
+    try {
+      await this.#request('turn/steer', {
+        threadId: this.#threadId,
+        expectedTurnId,
+        input: [{ type: 'text', text: input, text_elements: [] }],
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof CodexRequestRefused) return false;
+      throw error;
     }
   }
 
@@ -450,7 +470,7 @@ export class CodexEngineSession implements EngineSession {
       if (pending === undefined) return;
       const error = record(message['error']);
       if (message['error'] !== undefined)
-        pending.reject(new Error(text(error['message']) || 'Codex request failed'));
+        pending.reject(new CodexRequestRefused(text(error['message']) || 'Codex request failed'));
       else pending.resolve(message['result']);
       return;
     }

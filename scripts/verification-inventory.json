@@ -106,6 +106,14 @@
       "task": 3245
     },
     {
+      "id": "engine-assignment-steering",
+      "label": "Steer a running Subscription Engine Assignment and deliver its terminal report",
+      "source": "packages/core/src/engines/engine-host.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/engine-assignment-steering.md",
+      "task": 4623,
+      "gap": "Protocol replay covers both engines and the Bot Inbox. Signed-in subscription runs qualify live model behavior."
+    },
+    {
       "id": "profile.backup-compatibility",
       "label": "Export across compatible DSH versions and restore historical Profile Backups into a cold Profile",
       "source": "packages/core/src/portability/package.ts",
