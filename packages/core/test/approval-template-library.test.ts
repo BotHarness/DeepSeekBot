@@ -23,6 +23,7 @@ import {
   approvalTemplateInUse,
   requiresHumanToolApproval,
 } from '../src/workspaces/grant-execution.js';
+import { requestListener } from './async-listener.js';
 
 const dirs: string[] = [];
 const servers: ReturnType<typeof createServer>[] = [];
@@ -732,45 +733,47 @@ describe('Approval Template bridge methods', () => {
 describe('deepseekbot approval-template', () => {
   async function host() {
     const calls: { method: string; args: unknown }[] = [];
-    const server = createServer(async (req, res) => {
-      const url = new URL(req.url!, 'http://localhost');
-      if (req.method === 'GET' && url.searchParams.has('token')) {
-        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-        res.writeHead(302, { location: '/' }).end();
-        return;
-      }
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const envelope = JSON.parse(Buffer.concat(chunks).toString()) as {
-        method: string;
-        rpcId: string;
-        payload: { args: unknown };
-      };
-      const method = envelope.method.replace('botharness/', '');
-      calls.push({ method, args: envelope.payload.args });
-      const value =
-        method === 'approvalTemplates'
-          ? {
-              templates: [
-                {
-                  name: 'night-shift',
-                  title: 'Night shift',
-                  builtIn: false,
-                  usedBy: [],
-                  text: MINE,
-                },
-              ],
-            }
-          : { echo: envelope.payload.args };
-      res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: envelope.rpcId,
-          result: { ok: true, value },
-        }),
-      );
-    });
+    const server = createServer(
+      requestListener(async (req, res) => {
+        const url = new URL(req.url!, 'http://localhost');
+        if (req.method === 'GET' && url.searchParams.has('token')) {
+          res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+          res.writeHead(302, { location: '/' }).end();
+          return;
+        }
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const envelope = JSON.parse(Buffer.concat(chunks).toString()) as {
+          method: string;
+          rpcId: string;
+          payload: { args: unknown };
+        };
+        const method = envelope.method.replace('botharness/', '');
+        calls.push({ method, args: envelope.payload.args });
+        const value =
+          method === 'approvalTemplates'
+            ? {
+                templates: [
+                  {
+                    name: 'night-shift',
+                    title: 'Night shift',
+                    builtIn: false,
+                    usedBy: [],
+                    text: MINE,
+                  },
+                ],
+              }
+            : { echo: envelope.payload.args };
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId: envelope.rpcId,
+            result: { ok: true, value },
+          }),
+        );
+      }),
+    );
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();

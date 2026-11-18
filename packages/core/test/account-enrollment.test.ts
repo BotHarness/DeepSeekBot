@@ -10,6 +10,7 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { upgradeListener } from './async-listener.js';
 
 it.each(['account', 'manual', 'wrong-verifier', 'unsigned', 'lan'] as const)(
   'encrypted fresh device enrollment: %s',
@@ -47,7 +48,7 @@ it.each(['account', 'manual', 'wrong-verifier', 'unsigned', 'lan'] as const)(
       verifyEnrollment: verify,
       log,
     });
-    server.on('upgrade', (request, socket, head) => gateway.upgrade(request, socket, head));
+    server.on('upgrade', upgradeListener(gateway));
     const channel = new ConnectChannel({
       role: 'initiator',
       route,

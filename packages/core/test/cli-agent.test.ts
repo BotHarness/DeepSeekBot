@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -21,17 +22,19 @@ async function broker(
   },
 ) {
   const calls: unknown[] = [];
-  const server = createServer(async (req, res) => {
-    expect(req.method).toBe('POST');
-    expect(req.url).toBe('/invoke');
-    expect(req.headers.authorization).toBe('Bearer scoped-secret');
-    expect(req.headers.cookie).toBeUndefined();
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    calls.push(JSON.parse(Buffer.concat(chunks).toString()));
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify(result));
-  });
+  const server = createServer(
+    requestListener(async (req, res) => {
+      expect(req.method).toBe('POST');
+      expect(req.url).toBe('/invoke');
+      expect(req.headers.authorization).toBe('Bearer scoped-secret');
+      expect(req.headers.cookie).toBeUndefined();
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      calls.push(JSON.parse(Buffer.concat(chunks).toString()));
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(result));
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

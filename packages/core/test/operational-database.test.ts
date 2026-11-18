@@ -818,7 +818,7 @@ describe('operational database owner', () => {
         id: 'test-step-7',
         module: 'async-owner',
         description: 'invalid asynchronous migration',
-        async migrate() {},
+        migrate: (async () => {}) as () => void,
       },
     ]);
     const migration = mountOperationalDatabase({ dshHome: migrationHome, schemaPlan: asyncPlan });
