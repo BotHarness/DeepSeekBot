@@ -759,7 +759,7 @@ function ThemeStep({
         <ThemePresetPicker
           config={theme.config}
           onSelect={(preset) => {
-            applyPreset(appearance, preset, wallpaper);
+            applyPreset(appearance, preset);
             track('preset');
           }}
           t={t}

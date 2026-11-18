@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
 import { type Root } from 'react-dom/client';
 import { type BotSummary } from '../src/client/store.js';
 import { act, createElement, createRef } from 'react';
@@ -23,17 +24,19 @@ const LIGHT = REFERENCE_SURFACES.light.background;
 const DARK = REFERENCE_SURFACES.dark.background;
 let root: Root;
 let host: HTMLDivElement;
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
 });
 afterEach(async () => {
-  document.body.removeAttribute('data-ds-dark-theme');
   await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  appearance.dispose();
 });
 
 const usage = {
@@ -108,12 +111,12 @@ it('shows the Bot name and session share meters in the saved Bot Primary Color',
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', LIGHT));
 
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
   expect(name().dataset['botNameColor']).toBe(botNameColor('#e2b04a', DARK));
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', DARK));
-  document.body.removeAttribute('data-ds-dark-theme');
+  appearance.owner.update({ preference: 'light' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
 
   await show(bot({ mode: 'custom', color: '#1d1b22' }));

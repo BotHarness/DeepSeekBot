@@ -66,7 +66,7 @@ it('marks the chosen scheme and applies a palette to both modes', () => {
   expect(checked()).toContain('appearance.forestGreen');
 });
 
-it('keeps the wallpaper material when a palette changes under a shown wallpaper', () => {
+it('keeps wallpaper materials while selecting either palette', () => {
   let raw: string | null = null;
   let n = 0;
   const appearance = new Appearance(
@@ -79,12 +79,12 @@ it('keeps the wallpaper material when a palette changes under a shown wallpaper'
       mode,
       materials: { header: { opacity: 80 }, body: { opacity: 50, blur: 2 } },
     });
-  applyPreset(appearance, 'classic-blue', { getSnapshot: () => ({ current: {} }) as never });
+  applyPreset(appearance, 'classic-blue');
   for (const mode of ['light', 'dark'] as const) {
     const materials = appearance.getSnapshot().config.modes[mode].materials;
     expect(materials?.header?.opacity).toBe(80);
     expect(materials?.body).toMatchObject({ opacity: 50, blur: 2 });
   }
-  applyPreset(appearance, 'mist-purple', { getSnapshot: () => ({}) as never });
-  expect(appearance.getSnapshot().config.modes.light.materials?.body?.opacity).toBeUndefined();
+  applyPreset(appearance, 'mist-purple');
+  expect(appearance.getSnapshot().config.modes.light.materials?.body?.opacity).toBe(50);
 });

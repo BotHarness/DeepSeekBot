@@ -143,8 +143,8 @@ function scheduleSurfaceNotification(): void {
   });
 }
 
-const THEME_ROOT_ATTRIBUTES = new Set(['class', 'style']);
-const THEME_BODY_ATTRIBUTES = new Set(['data-ds-dark-theme']);
+const PAINT_ATTRIBUTES = ['class', 'style'];
+const THEME_ROOT_ATTRIBUTES = [...PAINT_ATTRIBUTES, 'data-bh-appearance', 'data-tobs-style'];
 const SCOPE_ATTRIBUTES = ['data-workspace-enabled', 'data-wallpaper-active'];
 
 function isStylesheet(node: Node): boolean {
@@ -156,8 +156,8 @@ function changesStyles(record: MutationRecord): boolean {
     const name = record.attributeName ?? '';
     if (SCOPE_ATTRIBUTES.includes(name)) return true;
     return record.target === document.documentElement
-      ? THEME_ROOT_ATTRIBUTES.has(name)
-      : THEME_BODY_ATTRIBUTES.has(name);
+      ? THEME_ROOT_ATTRIBUTES.includes(name)
+      : PAINT_ATTRIBUTES.includes(name);
   }
   if (record.type === 'characterData') return record.target.parentNode?.nodeName === 'STYLE';
   return (
@@ -188,8 +188,8 @@ function watchSurfaces(): void {
     }
   };
   watcher = new MutationObserver(changed);
-  watcher.observe(document.body, { attributes: true });
-  watcher.observe(document.documentElement, { attributes: true });
+  watcher.observe(document.body, { attributeFilter: PAINT_ATTRIBUTES });
+  watcher.observe(document.documentElement, { attributeFilter: THEME_ROOT_ATTRIBUTES });
   watcher.observe(document.head, {
     childList: true,
     subtree: true,

@@ -68,12 +68,12 @@ const scoped = `:is(${PLUGIN_SCROLLBAR_SCOPE})`;
 export const PANEL_SCROLLBAR_CSS = `
 ${scoped}, ${scoped} * { --bh-panel-scrollbar-opacity:0; }
 ${scoped}::-webkit-scrollbar-thumb,
-${scoped} *::-webkit-scrollbar-thumb { background-color:color-mix(in srgb, var(--dsh-scrollbar-thumb) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
+${scoped} *::-webkit-scrollbar-thumb { background-color:color-mix(in srgb, var(--tobs-line-strong) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
 ${scoped}::-webkit-scrollbar-thumb:hover,
-${scoped} *::-webkit-scrollbar-thumb:hover { background-color:var(--dsh-scrollbar-thumb-hover); }
+${scoped} *::-webkit-scrollbar-thumb:hover { background-color:var(--tobs-ink-quiet); }
 ${scoped}::-webkit-scrollbar-thumb:active,
-${scoped} *::-webkit-scrollbar-thumb:active { background-color:var(--dsh-scrollbar-thumb-hover); }
+${scoped} *::-webkit-scrollbar-thumb:active { background-color:var(--tobs-ink-quiet); }
 @supports not selector(::-webkit-scrollbar) {
-  ${scoped}, ${scoped} * { scrollbar-color:color-mix(in srgb, var(--dsh-scrollbar-thumb) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent) transparent; }
+  ${scoped}, ${scoped} * { scrollbar-color:color-mix(in srgb, var(--tobs-line-strong) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent) transparent; }
 }
 `;

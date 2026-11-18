@@ -29,6 +29,10 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
+  it('uses Tobs colours and body type in Bot-mode styles', () => {
+    expect(CSS).not.toMatch(/--dsw-|--dsh-content-font-size/);
+    expect(source).toMatch(/\.bh-question-source \{[^}]*var\(--tobs-style-text-ui-size\)/);
+  });
   it('keeps the working indicators static while Bots stream', () => {
     expect(source).toContain(
       ".bh-row-glyph[data-status='working'] { color: var(--tobs-status-success-base); }",

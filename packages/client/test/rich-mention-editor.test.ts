@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
 import { act, createElement, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
@@ -323,6 +324,7 @@ describe('rich mention editor', () => {
       container.querySelector<HTMLElement>(
         `.bh-composer-inline-mention[data-bot-id="${slug}"] > span:last-child`,
       )!;
+    const appearance = mountAppearanceFixture();
     try {
       await show('@Ada @Ada hi #Team', candidate('ada', '#ffffff'));
       expect(token('ada').dataset['botNameColor']).toBe(botNameColor('#ffffff', '#ffffff'));
@@ -330,11 +332,11 @@ describe('rich mention editor', () => {
       expect(token('bea').dataset['botNameColor']).toBe('#000000');
       expect(token('bea').style.color).not.toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(token('ada').dataset['botNameColor']).toBe('#ffffff');
       expect(token('bea').dataset['botNameColor']).not.toBe('#000000');
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show('@Ada @Ada hi #Team', candidate('ada', '#d9475a'));
@@ -362,7 +364,7 @@ describe('rich mention editor', () => {
         '#000000',
       ]);
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }

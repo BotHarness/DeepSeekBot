@@ -18,7 +18,9 @@ Each mode selects Classic Blue or Mist Purple and can override Primary. Selectin
 
 A disposable stylesheet applies palette variables only to DeepSeekBot roots, the enabled workspace mount, and explicitly marked owned modal/menu surfaces. It never mutates `body[data-ds-dark-theme]`, native theme services or native preference storage. Existing native primitives retain focus, dismissal and positioning behavior. Scope removal restores inherited native values. PersonaBot source colors and error/warning/success roles retain their own semantics.
 
-The pinned native baseline in `appearance-native-tokens.ts` is derived from `@deepseek-ai/dsh-client-ui-theme@0.2.1-rc.2`, MIT licensed by DeepSeek. Its license is retained in `packages/client/appearance-palette.LICENSE`. It flattens the upstream design-platform, gradient/shadow and Shiki token declarations into local light/dark maps, not global selectors. Recheck this adapter when the pinned DSH palette changes. Feature styles continue to consume the existing semantic token aliases; this is not a new global theme registration.
+The original pinned native baseline in `appearance-native-tokens.ts` was derived from `@deepseek-ai/dsh-client-ui-theme@0.2.1-rc.2`, MIT licensed by DeepSeek. Its license is retained in `packages/client/appearance-palette.LICENSE`. The original adapter flattened design-platform, gradient, shadow and Shiki declarations into scoped light and dark maps.
+
+[Tobs tokens](0348-tobs-owns-its-design-tokens.md) replace the pinned palette in TB2. Header and Body default to the resolved raised and canvas layers. Accent preset changes retain global and per-panel colors, opacity and blur. Style C may tint those default layers as specified in [ADR-0351](0351-tobs-style-themes.md).
 
 ## Direct Client control
 

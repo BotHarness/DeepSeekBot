@@ -27,16 +27,12 @@
   "packages/client/src/client/anchored-panel.ts": {
     "dshImport": 1
   },
-  "packages/client/src/client/appearance-native-tokens.ts": {
-    "dshToken": 809
-  },
   "packages/client/src/client/appearance-pickers.tsx": {
     "rawControl": 1,
     "inlineStyle": 2,
     "lineBorder": 3
   },
   "packages/client/src/client/appearance-scope.ts": {
-    "dshToken": 8,
     "legacyCss": 8
   },
   "packages/client/src/client/appearance-settings.tsx": {

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
 import { type ReactNode } from 'react';
 import { type BotHarnessTranslate } from '../src/client/locale.js';
 import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
@@ -608,6 +609,7 @@ describe('Channel message body', () => {
       ]!;
     const contrast = (color: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(color)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    const appearance = mountAppearanceFixture();
     try {
       await show(bot('ada', { mode: 'custom', color: '#ffffff' }));
       expect(name('ada')).not.toBe('#ffffff');
@@ -624,12 +626,12 @@ describe('Channel message body', () => {
       for (const chip of container.querySelectorAll<HTMLElement>('[data-bot-id]'))
         expect(chip.style.color).toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(name('ada')).toBe('#ffffff');
       expect(name('bea')).not.toBe('#000000');
       expect(contrast(name('bea'), 'dark')).toBeGreaterThanOrEqual(4.5);
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show(bot('ada'));
@@ -643,7 +645,7 @@ describe('Channel message body', () => {
       );
       expect(openBot).toHaveBeenCalledExactlyOnceWith('bea');
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }

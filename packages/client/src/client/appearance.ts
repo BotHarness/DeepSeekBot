@@ -1,8 +1,4 @@
-import {
-  clearMaterialAdjustments,
-  validMaterials,
-  type AppearanceMaterialOverrides,
-} from './appearance-materials.js';
+import { validMaterials, type AppearanceMaterialOverrides } from './appearance-materials.js';
 import {
   applyPanelPatch,
   validPanelOverrides,
@@ -11,19 +7,14 @@ import {
   type AppearanceTarget,
   type AppearancePanelPatch,
 } from './appearance-panels.js';
-import { TOBS_STYLES } from './ds/tobs-tokens.generated.js';
+import { TOBS_ACCENTS, TOBS_STYLES } from './ds/tobs-tokens.generated.js';
 export const APPEARANCE_KEY = 'botharness:appearance:v1';
 export type AppearanceStyle = keyof typeof TOBS_STYLES;
 export const APPEARANCE_STYLES = Object.keys(TOBS_STYLES) as AppearanceStyle[];
 export type AppearanceMode = 'light' | 'dark';
 export type AppearancePreference = AppearanceMode | 'system';
-export type AppearancePreset = 'classic-blue' | 'mist-purple' | 'forest-green' | 'warm-amber';
-export const APPEARANCE_PRIMARY = {
-  'classic-blue': { light: '#4176e6', dark: '#7aaaff' },
-  'mist-purple': { light: '#7957c9', dark: '#b19af0' },
-  'forest-green': { light: '#287454', dark: '#7cc7a0' },
-  'warm-amber': { light: '#94600d', dark: '#e6b75c' },
-} as const;
+export type AppearancePreset = keyof typeof TOBS_ACCENTS;
+export const APPEARANCE_PRIMARY = TOBS_ACCENTS;
 export interface AppearanceModeConfig extends Record<string, unknown> {
   preset: AppearancePreset;
   primary?: string;
@@ -57,10 +48,7 @@ export function object(value: unknown): Record<string, unknown> {
     : {};
 }
 const preset = (value: unknown): value is AppearancePreset =>
-  value === 'classic-blue' ||
-  value === 'mist-purple' ||
-  value === 'forest-green' ||
-  value === 'warm-amber';
+  typeof value === 'string' && Object.hasOwn(APPEARANCE_PRIMARY, value);
 const styleName = (value: unknown): value is AppearanceStyle =>
   typeof value === 'string' && Object.hasOwn(TOBS_STYLES, value);
 const preference = (value: unknown): value is AppearancePreference =>
@@ -259,7 +247,6 @@ export class Appearance {
         if (patch.preset !== undefined) {
           mode.preset = patch.preset;
           delete mode.primary;
-          clearMaterialAdjustments(mode);
         }
         if (patch.primary !== undefined) mode.primary = patch.primary.toLowerCase();
         if (patch.materials !== undefined) {
