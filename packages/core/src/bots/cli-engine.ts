@@ -9,7 +9,7 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-status',
     description:
-      'show each engine with install and sign-in state and which Bots run on it (engine status)',
+      'show each engine with install, sign-in and subscription quota, and which Bots run on it (engine status)',
   },
   {
     command: 'engine-approvals',
@@ -34,7 +34,7 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-use',
     description:
-      'run a Bot Orchestrator on an engine, or none for the DSH model (engine use <bot> codex --role orchestrator)',
+      'run a Bot Orchestrator on an engine, or none for its API model, and resume a Bot paused by the limit (engine use <bot> codex --role orchestrator [--fallback on])',
   },
 ] as const;
 
@@ -76,7 +76,7 @@ async function call(
 export async function runEngineCommand(
   command: string,
   rest: string[],
-  values: { role?: string[]; query?: string; 'args-stdin'?: boolean },
+  values: { role?: string[]; fallback?: string; query?: string; 'args-stdin'?: boolean },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
@@ -145,11 +145,17 @@ export async function runEngineCommand(
     if (role.length !== 1 || role[0] !== 'orchestrator')
       throw new CliLiveError('usage', 'engine use needs --role orchestrator.');
     const [bot, engine] = rest as [string, string];
+    const fallback = values.fallback;
+    if (fallback !== undefined && fallback !== 'on' && fallback !== 'off')
+      throw new CliLiveError('usage', 'engine use --fallback takes on or off.');
+    if (fallback !== undefined && engine === 'none')
+      throw new CliLiveError('usage', 'engine use none takes no --fallback.');
     const value = await call(connect, {
       action: 'use',
       bot,
       role: 'orchestrator',
       engine: engine === 'none' ? null : engine,
+      ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
     });
     if (value['bot'] !== bot || value['role'] !== 'orchestrator') throw protocolError();
     return value;

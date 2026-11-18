@@ -728,6 +728,7 @@ export function createCore(
     routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
     groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
     sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
+    engineFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['engineFallback'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1455,6 +1456,7 @@ function initializeCore(
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
     ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
+    ...(options.engineFallback === undefined ? {} : { engineFallback: options.engineFallback }),
     ...(team.bots.available ? { team } : {}),
     voiceMessages,
     callFrames: {
@@ -2281,6 +2283,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentAdapter.modelSelection(sessionId) ??
       core.registry.get(botSlug)?.modelPlan?.orchestrator ??
       modelCatalog.defaultRoute?.(),
+    engineFallback: (botSlug, limit) => {
+      if (!engineHost.fallsBack(botSlug)) return undefined;
+      const to =
+        core.registry.get(botSlug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (to === undefined) return undefined;
+      return {
+        kind: 'switch',
+        from: { provider: limit.engine, model: limit.account },
+        to: { ...to },
+        reason: 'quota',
+        until: limit.until,
+      };
+    },
     startupDiagnostic: diagnosticEvents,
     databaseDiagnostic: (snapshot) => {
       recordDatabaseStartup(diagnosticEvents, snapshot);
@@ -4430,6 +4445,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   );
                 return found.run(args, AbortSignal.timeout(120_000));
               },
+              releaseQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
               approvals: () =>
                 core.registry
                   .list()

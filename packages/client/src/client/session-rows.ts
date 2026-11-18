@@ -21,7 +21,11 @@ export interface PersonaBotSessionRow {
   archived?: true;
   triageOpenCount?: number;
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
-  engine?: { engine: string; account?: string };
+  engine?: {
+    engine: string;
+    account?: string;
+    quota?: import('./bridge.js').SessionEngineQuota;
+  };
   mode?: string;
   subagentCount?: number;
 }
@@ -116,6 +120,7 @@ export function personaBotSessionRows(
               engine: {
                 engine: item.engine.engine,
                 ...(item.engine.account === undefined ? {} : { account: item.engine.account }),
+                ...(item.engine.quota === undefined ? {} : { quota: item.engine.quota }),
               },
             }),
         ...(item.agentPreset === undefined ? {} : { mode: item.agentPreset }),

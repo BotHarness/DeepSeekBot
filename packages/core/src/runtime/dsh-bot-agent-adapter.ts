@@ -527,6 +527,7 @@ export interface DshBotAgentAdapterOptions {
 
 export interface DshBotEngines {
   engineFor(botSlug: string): string | undefined;
+  runsOnEngine?(botSlug: string): boolean;
   runTurn(request: EngineTurnRequest): Promise<void>;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
@@ -946,8 +947,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       });
     try {
-      if (run.tobCliTurn === undefined && this.#engines?.engineFor(run.bot.slug) !== undefined) {
-        await this.#runEngineTurn(run, this.#engines, abandonable.abandoned);
+      const engines = this.#engines;
+      if (
+        run.tobCliTurn === undefined &&
+        engines !== undefined &&
+        this.#runsOnEngine(run.bot.slug)
+      ) {
+        await this.#runEngineTurn(run, engines, abandonable.abandoned);
         return;
       }
       if (this.#engines?.isLive(run.sessionId)) await this.#engines.release(run.sessionId);
@@ -1072,6 +1078,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         run.setExecutionReady?.(false);
       }
     }
+  }
+
+  #runsOnEngine(botSlug: string): boolean {
+    const engines = this.#engines;
+    if (engines === undefined) return false;
+    return engines.runsOnEngine?.(botSlug) ?? engines.engineFor(botSlug) !== undefined;
   }
 
   async #runEngineTurn(

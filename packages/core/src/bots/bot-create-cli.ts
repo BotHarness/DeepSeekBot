@@ -172,7 +172,7 @@ Usage:
   tobs engine tools <id> [--query memory] --host <url>
   tobs engine tool <id> memory_read --args-stdin --host <url>
   tobs engine login codex --host <url>
-  tobs engine use <id> codex|none --role orchestrator --host <url>
+  tobs engine use <id> codex|none --role orchestrator [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]

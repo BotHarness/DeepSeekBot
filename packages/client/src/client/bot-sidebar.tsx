@@ -223,6 +223,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
 import { useClientFields, useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+import { reportFailure } from './diagnostic-log.js';
 
 const SIDEBAR_FIELDS = [
   'activitySync',
@@ -1627,7 +1628,7 @@ export function BotSidebar({
     }
     if (id === 'mark-all-read') {
       void actions.markAllRead().catch((error: unknown) => {
-        console.warn('botharness: mark all read failed', error);
+        reportFailure('mark-all-read-failed', 'mark all read failed', error);
       });
       return;
     }
@@ -3382,7 +3383,7 @@ export function BotSidebar({
                   label: t('roster.markRead'),
                   run: () => {
                     void actions.markChannelRead(channelMenu.channelId).catch((error: unknown) => {
-                      console.warn('botharness: mark read failed', error);
+                      reportFailure('mark-read-failed', 'mark read failed', error);
                     });
                     setChannelMenu(undefined);
                   },

@@ -734,6 +734,13 @@ export type ChannelListChanges =
       cursor: ChannelChangeCursor;
     };
 
+export interface SessionEngineQuota {
+  usedPercent?: number;
+  resetsAt?: string;
+  limitedUntil?: string;
+  observedAt: string;
+}
+
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
@@ -748,7 +755,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
-  engine?: { engine: string; account?: string };
+  engine?: { engine: string; account?: string; quota?: SessionEngineQuota };
   agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
@@ -1475,6 +1482,7 @@ export interface BridgeMethodsDeps {
         engine: string;
         account?: string;
         state: 'starting' | 'running' | 'waiting-approval' | 'idle';
+        quota?: SessionEngineQuota;
       }
     | undefined;
   presentToolResult?: PresentToolResult;
@@ -10711,6 +10719,7 @@ function buildBridgeMethods(
                 engine: {
                   engine: engine.engine,
                   ...(engine.account === undefined ? {} : { account: engine.account }),
+                  ...(engine.quota === undefined ? {} : { quota: engine.quota }),
                 },
               }),
           ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),
