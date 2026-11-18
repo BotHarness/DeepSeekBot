@@ -56,3 +56,17 @@ Copy is shared by iOS and Android. It differs only where the platforms' own conv
 - Web and desktop: `packages/client/src/client/locale.ts` (English and Chinese) in the client plugin. See the `dsh-ui` skill.
 
 Fix existing text that breaks these rules when you touch it.
+
+## Enforced by
+
+`node scripts/check-ui-copy.mjs` runs in `pnpm lint` over every string in `zh` and `en` of the two copy files above. Existing findings sit in `scripts/ui-copy-baseline.json`, which only shrinks: new copy must pass, and fixing a baselined string means running `--write` to drop it.
+
+| Rule                                                                                                                   | Section                 | Autofix                        |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------ |
+| Full-width punctuation next to Chinese text                                                                            | Chinese                 | `--fix` (also `pnpm lint:fix`) |
+| One space between Chinese and Latin words                                                                              | Chinese                 | `--fix`                        |
+| No 「请」 unless the reader must leave the app                                                                         | Please and failures     | No                             |
+| No "Please" in English                                                                                                 | Please and failures     | No                             |
+| Chinese captions at most two sentences; keys named `*Confirm`, `*Warning`, `*Risk`, `*Danger` or `*Consent` are exempt | Keep it short and plain | No                             |
+
+Internal terms stay out of the copy through `packages/client/test/locale-terms.test.ts`.
