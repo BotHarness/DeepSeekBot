@@ -138,9 +138,9 @@ Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连
 
 - 新增默认关闭、有容量上限的本地 Host 调度诊断，可关联消息转向交付、Memory 扫描、工作线程或直接命令完成及准入后的心跳处理，不记录消息或命令内容（[#3638](https://github.com/BotHarness/BotHarness/issues/3638)）。
 
-- Web Bot 私聊新增 GenUI 文档候选：组合自包含 HTML、图表和关系图，通过 direct Tool 预览，由 Host 恢复已注册个人视图，并以普通消息续问或刷新；版本 1 比较报告保持可读。脚本资源硬隔离、性能、桌面及已安装原生端验收仍是未关闭的发布门槛（[#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685)、[CLI 指南](docs/bot-cli.md#genui-documents-in-a-bot-dm)、[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+- Web Bot 私聊新增 GenUI 文档候选：组合自包含 HTML、图表和关系图，通过 direct Tool 预览，由 Host 恢复已注册个人视图，并以普通消息续问或刷新；版本 1 比较报告保持可读。脚本资源硬隔离、性能、桌面及已安装原生端验收仍是未关闭的发布门槛（[#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685)、[CLI 指南](docs/bot-cli.md#genui-documents-in-a-bot-dm)、[ADR-0301](docs/decisions/genui.md#adr-0301)）。
 
-- GenUI 新增无边框色块默认样式、八色分类色板，以及采用固定版本 Pele 的离线 `genui_diagram` 创作工具。Agent 可将有界 Mermaid 编译为 SVG，预览完整 HTML 后通过既有消息 owner 显式发布；Web／桌面／原生发布与执行资源隔离仍分别验收（[#3691](https://github.com/BotHarness/DeepSeekBot/issues/3691)、[ADR-0302](docs/adr/0302-genui-diagrams-compile-before-publication.md)）。
+- GenUI 新增无边框色块默认样式、八色分类色板，以及采用固定版本 Pele 的离线 `genui_diagram` 创作工具。Agent 可将有界 Mermaid 编译为 SVG，预览完整 HTML 后通过既有消息 owner 显式发布；Web／桌面／原生发布与执行资源隔离仍分别验收（[#3691](https://github.com/BotHarness/DeepSeekBot/issues/3691)、[ADR-0302](docs/decisions/genui.md#adr-0302)）。
 
 - 可以问 Bot 之前任意一通电话里的某个时刻：Bot 按通话标识和该通话内的时间（如 00:13 到 00:40，或第 5 分钟）读取，按时间顺序拿到你说的话、它的回复和摄像头/屏幕记录，多通电话互不串。`deepseekbot call-list` 列出 DM 里的通话，`deepseekbot call-read` 用同样方式读取一通（[#3693](https://github.com/BotHarness/DeepSeekBot/issues/3693)）。
 
@@ -872,7 +872,7 @@ Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连
 
 - 记录机器直调 Assignment 的拟议契约，区分创建、持久投递准入、处理结果与生命周期；运行时实现及协议参数仍待完成（[ADR-0297](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/sessions.md#adr-0297)、[#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578)）。
 
-- GenUI 架构目标调整为 T3 Code 式隔离 HTML 文档，以支持更丰富的可视化与交互内容，同时保留普通消息归属和受控操作边界。现有 Web 比较报告候选不代表 HTML 或原生验收已通过（[#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)、[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+- GenUI 架构目标调整为 T3 Code 式隔离 HTML 文档，以支持更丰富的可视化与交互内容，同时保留普通消息归属和受控操作边界。现有 Web 比较报告候选不代表 HTML 或原生验收已通过（[#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)、[ADR-0301](docs/decisions/genui.md#adr-0301)）。
 
 - 商店隐私指南区分系统听写、Bot 通话音频与共享摄像头画面，补充待审查的密码数据路径，并明确旧答卷需要按准确候选包重新核对后才能提交（[#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)）。
 
@@ -2594,7 +2594,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - 将 DM 与 group Channel composer 重构为响应式 floating island，支持多行输入，并提供可访问、仅消费投影的 PersonaBot activity region（[#129](https://github.com/BotHarness/BotHarness/issues/129)）。
 - 为独立的 DeepSeekBot 与 DSH Skill release train 新增确定性、只读的 GitHub Release draft 准备流程（[指南](docs/agents/changelog.md#preparing-a-github-release-draft)、[#103](https://github.com/BotHarness/BotHarness/issues/103)）。
 - 新增 Computer 导出与迁移指南，覆盖跨机器单文件迁移、必须随迁移保留的文件所遵循的持久 `~/workspace` 约定，以及体积/耗时预期（[#154](https://github.com/BotHarness/BotHarness/issues/154)）。
-- 侧栏 **+** 菜单新增 Bot 市场：贴入带 `botharness-bot` 话题的公开 GitHub 仓库即可收录，可浏览已收录的 Bot，并在显示最新提交与第三方风险提示的确认后安装为新的 PersonaBot（[#916](https://github.com/BotHarness/BotHarness/issues/916)，[ADR-0131](docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)）。
+- 侧栏 **+** 菜单新增 Bot 市场：贴入带 `botharness-bot` 话题的公开 GitHub 仓库即可收录，可浏览已收录的 Bot，并在显示最新提交与第三方风险提示的确认后安装为新的 PersonaBot（[#916](https://github.com/BotHarness/BotHarness/issues/916)，[ADR-0131](docs/decisions/marketplace.md#adr-0131)）。
 - 给仓库加上 `botharness-bot` 话题后，无需贴链接，下一次每日定时发现就会把它收录进 Bot 市场；已收录条目每小时刷新，移除话题、归档、删除或改为私有会隐藏条目，仓库改名或转移仍保留同一条目（[#917](https://github.com/BotHarness/BotHarness/issues/917)）。
 - Bot 市场支持按最近更新或 Star 数排序，可按相关度搜索名称、描述、话题和 README（支持中文），并可点话题标签筛选（[#918](https://github.com/BotHarness/BotHarness/issues/918)）。
 - 在 Bot 市场点开条目会显示详情：README 按 GitHub 的样子渲染（相对路径的图片和链接按收录时的提交解析，脚本、事件属性和不安全链接会被移除），并显示 Star、更新时间、话题、GitHub 链接和安装按钮（[#919](https://github.com/BotHarness/BotHarness/issues/919)）。
@@ -2868,7 +2868,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 
 ### Documentation
 
-- 记录已接受的 Bot Marketplace 顺序，先作为 GitHub 索引目录上线：仓库通过 `botharness-bot` topic 加入，Cloudflare Worker/D1 抓取后在 harness modal 中搜索，安装复用 Git URL 创建 Bot；账号、上传、收藏与导入计数放到第二阶段（[#18](https://github.com/BotHarness/BotHarness/issues/18)、[ADR-0131](docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)）。
+- 记录已接受的 Bot Marketplace 顺序，先作为 GitHub 索引目录上线：仓库通过 `botharness-bot` topic 加入，Cloudflare Worker/D1 抓取后在 harness modal 中搜索，安装复用 Git URL 创建 Bot；账号、上传、收藏与导入计数放到第二阶段（[#18](https://github.com/BotHarness/BotHarness/issues/18)、[ADR-0131](docs/decisions/marketplace.md#adr-0131)）。
 
 - README 与 npm 页面与像素风官网保持一致：分享卡片、桌面端与命令行安装、已支持的 IM 平台、像素头像与社区入口（[#895](https://github.com/BotHarness/BotHarness/pull/895)、[官网](https://deepseekbot.botharness.ai)）。
 

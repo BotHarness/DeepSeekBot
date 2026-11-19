@@ -1,6 +1,6 @@
 # @botharness/market
 
-The Bot Marketplace Worker ([ADR-0131](../../docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)). It indexes public GitHub repositories that carry the `botharness-bot` topic into its own D1 database and serves the catalog to the BotHarness Host.
+The Bot Marketplace Worker ([ADR-0131](../../docs/decisions/marketplace.md#adr-0131)). It indexes public GitHub repositories that carry the `botharness-bot` topic into its own D1 database and serves the catalog to the BotHarness Host.
 
 ## API
 
