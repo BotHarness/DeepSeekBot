@@ -9,6 +9,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
+import { createEngineStore } from '../src/engines/engine-store.js';
 import type { BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createModelPresetStore } from '../src/models/presets.js';
@@ -33,7 +34,7 @@ afterEach(() => {
 function setup(
   rests: { provider: string; model: string; until: string }[] = [],
   onValidate: () => void = () => undefined,
-  subscriptionEngines?: BridgeMethodsDeps['subscriptionEngines'],
+  engineDeps: Pick<BridgeMethodsDeps, 'subscriptionEngines' | 'releaseEngineQuotaHold'> = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), 'bh-preset-groups-'));
   roots.push(root);
@@ -46,7 +47,7 @@ function setup(
   const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     modelPresets,
-    ...(subscriptionEngines === undefined ? {} : { subscriptionEngines }),
+    ...engineDeps,
     routingGroups,
     modelCatalog: {
       list: async () =>
@@ -323,9 +324,12 @@ describe('Model Presets with subscription models', () => {
     const validateChoice = vi.fn(async () => {});
     const use = vi.fn();
     const { methods, registry, root, database } = setup([], undefined, {
-      validateChoice,
-      use,
-      fallsBack: () => false,
+      subscriptionEngines: {
+        validateChoice,
+        use,
+        fallsBack: () => false,
+        store: { selection: () => undefined },
+      },
     });
     const created = await methods.modelPresetCreate({
       name: 'Subscriptions',
@@ -361,13 +365,78 @@ describe('Model Presets with subscription models', () => {
     expect(updated.value.preset.assignmentEngine).toBeUndefined();
   });
 
+  it('clears both engine selections and the Main model quota hold when applying a DSH preset', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'bh-preset-engines-'));
+    roots.push(root);
+    const store = createEngineStore(join(root, 'engines.json'));
+    store.select('ada', 'orchestrator', 'codex', { fallback: true, model: 'gpt-6' });
+    store.select('ada', 'assignment', 'claude', { model: 'opus' });
+    const validateChoice = vi.fn();
+    const use = vi.fn(store.select);
+    const releaseEngineQuotaHold = vi.fn();
+    const { methods } = setup([], undefined, {
+      subscriptionEngines: {
+        validateChoice,
+        use,
+        fallsBack: (slug) => store.fallback(slug, 'orchestrator'),
+        store,
+      },
+      releaseEngineQuotaHold,
+    });
+    const created = await methods.modelPresetCreate({
+      name: 'DSH',
+      orchestrator: ROUTE,
+      assignmentDefault: ROUTE,
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const payload = { slug: 'ada', presetId: created.value.preset.id };
+
+    expect(await methods.modelPresetApply(payload)).toMatchObject({ ok: true });
+    expect(store.selections()).toEqual([]);
+    expect(store.fallback('ada', 'orchestrator')).toBe(false);
+    expect(releaseEngineQuotaHold).toHaveBeenCalledExactlyOnceWith('ada');
+
+    expect(await methods.modelPresetApply(payload)).toMatchObject({ ok: true });
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', undefined, { fallback: false }],
+      ['ada', 'assignment', undefined, {}],
+    ]);
+    expect(validateChoice).not.toHaveBeenCalled();
+  });
+
+  it('applies a DSH preset on a Host without subscription engines', async () => {
+    const { methods } = setup();
+    const created = await methods.modelPresetCreate({
+      name: 'DSH',
+      orchestrator: ROUTE,
+      assignmentDefault: { provider: PRO.provider, model: PRO.model },
+    });
+    if (!created.ok) throw new Error(created.error.message);
+
+    expect(
+      await methods.modelPresetApply({ slug: 'ada', presetId: created.value.preset.id }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        plan: {
+          sourcePresetId: created.value.preset.id,
+          orchestrator: ROUTE,
+          assignmentDefault: { provider: PRO.provider, model: PRO.model },
+        },
+      },
+    });
+  });
+
   it('validates both choices before writing the Bot plan or either role', async () => {
     const validateChoice = vi.fn(async () => {});
     const use = vi.fn();
     const { methods, registry } = setup([], undefined, {
-      validateChoice,
-      use,
-      fallsBack: () => false,
+      subscriptionEngines: {
+        validateChoice,
+        use,
+        fallsBack: () => false,
+        store: { selection: () => undefined },
+      },
     });
     const created = await methods.modelPresetCreate({
       name: 'Subscriptions',

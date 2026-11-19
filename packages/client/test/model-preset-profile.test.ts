@@ -1701,7 +1701,7 @@ describe('Subscription models in the model dialog', () => {
     sourcePresetName: '',
   };
 
-  function fixture(selections: EngineSelectionView[] = []) {
+  function fixture(selections: EngineSelectionView[] = [], presets: ModelPresetView[] = []) {
     const read = vi.spyOn(engineApi, 'read').mockImplementation(async () => ({
       engines: [{ engine: 'codex', available: true, installed: true }],
       selections,
@@ -1736,7 +1736,7 @@ describe('Subscription models in the model dialog', () => {
     const actions = {
       modelPlanState: async () => ({ plan }),
       modelCatalog: async () => ({ models: catalog }),
-      modelPresets: async () => [],
+      modelPresets: async () => presets,
       setModelPlan: set,
       createModelPreset: create,
       applyModelPreset: apply,
@@ -1814,6 +1814,42 @@ describe('Subscription models in the model dialog', () => {
       { orchestratorEngine: { engine: 'codex', model: 'gpt-6', effort: 'medium' } },
     );
     expect(apply).toHaveBeenCalledExactlyOnceWith('ada', 'engine-preset');
+  });
+
+  it('previews both DSH models and enables Save when staging a DSH preset over live engines', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const preset: ModelPresetView = {
+      id: 'dsh-preset',
+      name: 'DSH setup',
+      revision: 1,
+      orchestrator: route,
+      assignmentDefault: { provider: 'deepseek', model: 'pro' },
+    };
+    const { actions, apply, use } = fixture(
+      [
+        { ...choice, role: 'orchestrator' },
+        { ...choice, role: 'assignment' },
+      ],
+      [preset],
+    );
+    await render(markOriginActions(actions), vi.fn());
+    expect(picked('Main model')).toBe('GPT-6 Subscription');
+    expect(picked('Task model')).toBe('GPT-6 Subscription');
+
+    await act(async () => button('Choose preset').click());
+    const row = [
+      ...document.querySelectorAll<HTMLButtonElement>('[data-model-preset-source] button'),
+    ].find((candidate) => candidate.querySelector('.bh-card-title')?.textContent === preset.name)!;
+    await act(async () => row.click());
+    await act(async () => button('Specific models').click());
+    expect(picked('Main model')).toBe('Flash');
+    expect(picked('Task model')).toBe('Pro');
+    expect(button('Save').disabled).toBe(false);
+    expect(apply).not.toHaveBeenCalled();
+
+    await act(async () => button('Save').click());
+    expect(apply).toHaveBeenCalledExactlyOnceWith('ada', preset.id);
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('keeps the remote picker on the remote DSH catalog', async () => {

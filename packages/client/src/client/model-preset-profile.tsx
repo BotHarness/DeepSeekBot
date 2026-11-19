@@ -249,10 +249,8 @@ export function ModelPresetProfile({
   const stagePreset = (preset: ModelPresetView) => {
     setDraft(draftOf(preset, preset.id));
     setEngineDraft({
-      ...(preset.orchestratorEngine === undefined
-        ? {}
-        : { orchestrator: preset.orchestratorEngine }),
-      ...(preset.assignmentEngine === undefined ? {} : { assignment: preset.assignmentEngine }),
+      orchestrator: preset.orchestratorEngine ?? null,
+      assignment: preset.assignmentEngine ?? null,
     });
   };
   const presetEngines = (): ModelPresetEngines => {
@@ -418,9 +416,6 @@ export function ModelPresetProfile({
       acceptPlan(applied);
       setRevision(applied.revision);
       setInitialDraft(draft);
-      for (const role of pendingEngines) {
-        if (desiredEngine(role) === null) await engines.saveSelection(slug, role, null);
-      }
       finish(applied);
     } catch (failure) {
       setError(errorMessage(failure));

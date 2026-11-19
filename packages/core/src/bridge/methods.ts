@@ -1459,7 +1459,9 @@ export interface BridgeMethodsDeps {
   dataReset?: DataReset;
   attachments?: AttachmentStore;
   modelPresets?: ModelPresetStore;
-  subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'>;
+  subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
+    store: Pick<EngineHost['store'], 'selection'>;
+  };
   releaseEngineQuotaHold?(slug: string): void;
   modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
@@ -2608,11 +2610,8 @@ function buildBridgeMethods(
       throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
     return deps.routingGroups.routes(id);
   };
-  const checkPresetEngines = async (
-    choices: ModelPresetEngineInput,
-  ): Promise<BridgeMethodsDeps['subscriptionEngines']> => {
-    if (choices.orchestratorEngine === undefined && choices.assignmentEngine === undefined)
-      return undefined;
+  const checkPresetEngines = async (choices: ModelPresetEngineInput): Promise<void> => {
+    if (choices.orchestratorEngine === undefined && choices.assignmentEngine === undefined) return;
     const engines = deps.subscriptionEngines;
     if (engines === undefined || (deps.team !== undefined && !deps.team.isOwner(human)))
       throw new EngineRefusal(
@@ -2624,7 +2623,6 @@ function buildBridgeMethods(
         choice == null ? [] : [engines.validateChoice(choice.engine, choice)],
       ),
     );
-    return engines;
   };
 
   const presetGroupRoutes = (groups: ModelPresetGroups): ModelRoute[] =>
@@ -4623,7 +4621,7 @@ function buildBridgeMethods(
         await deps.modelCatalog.validate(preset.assignmentDefault);
         if (preset.assignmentModels !== undefined)
           await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
-        const engines = hasPresetEngines(preset) ? await checkPresetEngines(preset) : undefined;
+        if (hasPresetEngines(preset)) await checkPresetEngines(preset);
         await validateGroupOptions(preset.assignmentGroupOptions);
         await validateGroupEffort(preset);
         if (changed()) return stale();
@@ -4635,18 +4633,24 @@ function buildBridgeMethods(
         ]);
         const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
+        const engines = deps.subscriptionEngines;
         if (engines !== undefined) {
-          if (preset.orchestratorEngine !== undefined) {
-            const { engine, ...choice } = preset.orchestratorEngine;
-            engines.use(slug, 'orchestrator', engine, {
-              ...choice,
-              fallback: engines.fallsBack(slug),
-            });
-            deps.releaseEngineQuotaHold?.(slug);
-          }
-          if (preset.assignmentEngine !== undefined) {
-            const { engine, ...choice } = preset.assignmentEngine;
-            engines.use(slug, 'assignment', engine, choice);
+          for (const [role, selection] of [
+            ['orchestrator', preset.orchestratorEngine],
+            ['assignment', preset.assignmentEngine],
+          ] as const) {
+            if (selection === undefined && engines.store.selection(slug, role) === undefined)
+              continue;
+            const { engine, ...choice } = selection ?? {};
+            engines.use(
+              slug,
+              role,
+              engine,
+              role === 'orchestrator'
+                ? { ...choice, fallback: engine !== undefined && engines.fallsBack(slug) }
+                : choice,
+            );
+            if (role === 'orchestrator') deps.releaseEngineQuotaHold?.(slug);
           }
         }
         return { ok: true, value: { plan: result.record.modelPlan } };
