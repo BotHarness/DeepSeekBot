@@ -1,3 +1,4 @@
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -906,6 +907,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       defaultGroupId?: string;
       favorites?: ModelFavorite[];
       groups?: ModelCatalogGroup[];
+      routingGroupEngines?: RoutingGroupEngineOptions[];
     }>
   >;
   modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
@@ -1463,6 +1465,7 @@ export interface BridgeMethodsDeps {
   subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
     store: Pick<EngineHost['store'], 'selection'>;
   };
+  routingGroupEngineOptions?(): Promise<RoutingGroupEngineOptions[]>;
   releaseEngineQuotaHold?(slug: string): void;
   modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
@@ -4357,7 +4360,7 @@ function buildBridgeMethods(
         },
       };
     },
-    async modelCatalog() {
+    async modelCatalog(payload) {
       if (deps.modelCatalog === undefined) return unavailable();
       try {
         const models = await deps.modelCatalog.list();
@@ -4399,6 +4402,10 @@ function buildBridgeMethods(
             ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),
+            ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
+            deps.routingGroupEngineOptions !== undefined
+              ? { routingGroupEngines: await deps.routingGroupEngineOptions() }
+              : {}),
           },
         };
       } catch (error) {

@@ -9,11 +9,12 @@ import {
 } from '@botharness/host-client/bot-settings';
 import { MethodRefused } from '@botharness/host-client/client';
 import {
-  routingGroupEngineLabel,
+  routingGroupEnginePresentation,
   type ModelCatalogAnswer,
   type RoutingGroup,
   type RoutingGroupMember,
 } from '@botharness/host-client/model-catalog';
+import { modelBrand } from '@botharness/host-client/shared/model-brand';
 import { loadModelCatalog } from '@botharness/host-client/model-plans';
 import {
   createModelGroup,
@@ -235,40 +236,44 @@ function RoutingGroupEditor({
                 />
               </View>
               <SettingsHeading>{copy.members}</SettingsHeading>
+              {message === undefined &&
+              members.length > 0 &&
+              members.every((member) => member.kind === 'engine') ? (
+                <SheetCallout tone="warning">{copy.empty}</SheetCallout>
+              ) : null}
             </View>
           </>
         }
         renderItem={({ item, index }) => {
-          if (item.kind === 'engine') {
-            return (
-              <SettingsGroupItem first={index === 0} last={false} on={SHEET_GROUP}>
-                <SettingsRow
-                  on={SHEET_GROUP}
-                  title={`${index + 1}. ${routingGroupEngineLabel(item)}`}
-                />
-              </SettingsGroupItem>
-            );
-          }
+          const engineRow =
+            item.kind === 'engine'
+              ? routingGroupEnginePresentation(item, copy.engineRow)
+              : undefined;
           const entry =
             item.kind === 'model'
               ? catalog.models.find((model) => sameModel(model, item))
               : undefined;
           const name =
-            item.kind === 'group'
+            engineRow?.name ??
+            (item.kind === 'group'
               ? (catalog.groups?.find((group) => group.id === item.id)?.name ?? item.id)
-              : (entry?.modelName ?? item.model);
+              : (entry?.modelName ?? item.model ?? ''));
           const detail =
             item.kind === 'group'
               ? copy.group
-              : [entry?.providerName ?? item.provider, item.reasoningEffort]
-                  .filter(Boolean)
-                  .join(' · ');
+              : item.kind === 'model'
+                ? [entry?.providerName ?? item.provider, item.reasoningEffort]
+                    .filter(Boolean)
+                    .join(' · ')
+                : undefined;
           return (
             <SettingsGroupItem first={index === 0} last={false} on={SHEET_GROUP}>
               <RoutingGroupMemberRow
                 index={index}
                 name={name}
                 detail={detail}
+                brand={item.kind === 'model' ? modelBrand({ ...item, name }) : undefined}
+                engineRow={engineRow}
                 moveUp={busy || index === 0 ? undefined : () => move(item, -1)}
                 moveDown={busy || index === members.length - 1 ? undefined : () => move(item, 1)}
                 remove={
@@ -329,6 +334,7 @@ function RoutingGroupEditor({
       />
       {picking ? (
         <RoutingGroupMemberPicker
+          client={client}
           catalog={catalog}
           selfId={group?.id}
           members={members}

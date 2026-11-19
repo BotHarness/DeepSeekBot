@@ -20,10 +20,12 @@ export function RoutingGroupLink({
   item,
   first,
   models,
+  groups,
 }: {
   item: RoutingGroupLinkItem;
   first: boolean;
   models: readonly ModelCatalogEntry[];
+  groups: readonly ModelCatalogGroup[];
 }) {
   const t = useStrings();
   const router = useRouter();
@@ -48,6 +50,8 @@ export function RoutingGroupLink({
           <ModelGroupPickerRow
             group={group}
             front={groupFront(group, models)}
+            models={models}
+            groups={groups}
             usable={groupUsable(group, models)}
             showCount
             testID={`routing-group-edit-${group.id}`}

@@ -315,6 +315,7 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected IM send');
     }),
     modelCatalog: vi.fn(async () => ({ models: [] })),
+    routingGroupEngines: vi.fn(async () => []),
     modelPresets: vi.fn(async () => []),
     routingGroups: vi.fn(async () => ({ groups: [], rests: [] })),
     createRoutingGroup: vi.fn(),

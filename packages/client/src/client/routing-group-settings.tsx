@@ -1,4 +1,4 @@
-import { routingGroupEngineLabel } from '@botharness/host-client/model-catalog';
+import { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
@@ -10,7 +10,6 @@ import {
   type RoutingGroupMemberView,
   type RoutingGroupView,
 } from './bridge.js';
-import { Combobox, type ComboboxOption } from './combobox.js';
 import { Button } from './ds/button.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, DangerTextButton, FormDialog } from './ds/form-dialog.js';
@@ -18,15 +17,19 @@ import { Icon } from './ds/icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { font } from './ds/tobs.stylex.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { modelBrand, ModelBrandIcon, modelShortName, type ModelBrand } from './model-brand.js';
+import { routingGroupEngineCopy } from './model-menu.js';
+import { ENGINE_MARKER_ICON } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
+import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker.js';
 
 type GroupActions = Pick<
   BridgeActions,
   | 'modelCatalog'
   | 'routingGroups'
+  | 'routingGroupEngines'
   | 'createRoutingGroup'
   | 'updateRoutingGroup'
   | 'deleteRoutingGroup'
@@ -90,7 +93,6 @@ const styles = stylex.create({
   route: {
     overflow: 'hidden',
     color: color.muted,
-    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -116,20 +118,6 @@ function Badge({ children, warning = false }: { children: string; warning?: bool
   return <span {...stylex.props(styles.badge, warning && styles.warning)}>{children}</span>;
 }
 
-function memberKey(member: RoutingGroupMemberView): string {
-  switch (member.kind) {
-    case 'group':
-      return `group:${member.id}`;
-    case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
-    case 'model':
-      return `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
-  }
-}
-
-const optionKey = (entry: ModelCatalogEntryView): string =>
-  memberKey({ kind: 'model', provider: entry.provider, model: entry.model });
-
 function restOf(
   member: RoutingGroupMemberView,
   rests: readonly RestingRouteView[],
@@ -153,20 +141,27 @@ function memberName(
   member: RoutingGroupMemberView,
   library: Library,
   t: BotHarnessTranslate,
-): { name: string; route?: string } {
-  if (member.kind === 'engine') return { name: routingGroupEngineLabel(member) };
-  if (member.kind === 'group')
-    return {
-      name:
-        library.groups.find((group) => group.id === member.id)?.name ??
-        t('routingGroups.missingGroup'),
-    };
+): { name: string; title: string; detail?: string; brand?: ModelBrand | undefined } {
+  if (member.kind === 'engine')
+    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t));
+  if (member.kind === 'group') {
+    const name =
+      library.groups.find((group) => group.id === member.id)?.name ??
+      t('routingGroups.missingGroup');
+    return { name, title: name };
+  }
   const entry = library.models.find(
     (model) => model.provider === member.provider && model.model === member.model,
   );
+  const name = entry?.modelName ?? member.model;
+  const brand = modelBrand({ ...member, name });
   return {
-    name: entry?.modelName ?? member.model,
-    route: `${member.provider}/${member.model}${member.reasoningEffort ? ` · ${member.reasoningEffort}` : ''}`,
+    name,
+    title: modelShortName(name, brand),
+    brand,
+    detail: [entry?.providerName ?? member.provider, member.reasoningEffort]
+      .filter(Boolean)
+      .join(' · '),
   };
 }
 
@@ -188,10 +183,22 @@ function MemberChain({
     <span {...stylex.props(styles.chain)}>
       {group.members.map((member, index) => {
         const rest = restOf(member, library.rests);
+        const row = memberName(member, library, t);
         return (
-          <span key={`${memberKey(member)}-${index}`} {...stylex.props(styles.chain)}>
+          <span key={`${routingGroupMemberKey(member)}-${index}`} {...stylex.props(styles.chain)}>
             {index === 0 ? null : <span aria-hidden="true">→</span>}
-            <span>{memberName(member, library, t).name}</span>
+            {member.kind === 'engine' ? (
+              <>
+                <ModelBrandIcon brand={row.brand} size={16} />
+                <span {...stylex.props(styles.label)}>
+                  <span>{row.title}</span>
+                  <span {...stylex.props(styles.route)}>{row.detail}</span>
+                </span>
+                <Icon name={ENGINE_MARKER_ICON} size={12} />
+              </>
+            ) : (
+              <span>{row.name}</span>
+            )}
             {member.kind === 'group' ? <Badge>{t('routingGroups.groupTag')}</Badge> : null}
             {rest === undefined ? null : <Badge warning>{restingLabel(rest, t)}</Badge>}
           </span>
@@ -204,33 +211,17 @@ function MemberChain({
 function MemberEditor({
   editor,
   library,
+  loadEngines,
   onChange,
   t,
 }: {
   editor: Editor;
   library: Library;
+  loadEngines: GroupActions['routingGroupEngines'];
   onChange(members: RoutingGroupMemberView[]): void;
   t: BotHarnessTranslate;
 }): ReactElement {
   const members = editor.members;
-  const taken = new Set(members.map(memberKey));
-  const selfId = editor.mode === 'edit' ? editor.group.id : undefined;
-  const options: ComboboxOption[] = [
-    ...library.models
-      .filter((entry) => !taken.has(optionKey(entry)))
-      .map((entry) => ({
-        value: optionKey(entry),
-        label: entry.modelName,
-        hint: entry.providerName,
-      })),
-    ...library.groups
-      .filter((group) => group.id !== selfId && !taken.has(`group:${group.id}`))
-      .map((group) => ({
-        value: `group:${group.id}`,
-        label: group.name,
-        hint: t('routingGroups.groupTag'),
-      })),
-  ];
   const move = (index: number, by: number): void => {
     const next = [...members];
     const [member] = next.splice(index, 1);
@@ -244,21 +235,27 @@ function MemberEditor({
       ) : (
         <ol {...stylex.props(styles.members)} aria-label={t('routingGroups.members')}>
           {members.map((member, index) => {
-            const { name, route } = memberName(member, library, t);
+            const { name, title, detail, brand } = memberName(member, library, t);
             const rest = restOf(member, library.rests);
             return (
               <li
-                key={memberKey(member)}
+                key={routingGroupMemberKey(member)}
                 {...stylex.props(styles.member)}
-                data-routing-group-member={memberKey(member)}
+                data-routing-group-member={routingGroupMemberKey(member)}
               >
                 <span {...stylex.props(styles.order)}>{index + 1}</span>
+                {member.kind === 'group' ? (
+                  <Icon name="git-branch" size={16} />
+                ) : (
+                  <ModelBrandIcon brand={brand} size={16} />
+                )}
                 <span {...stylex.props(styles.label)}>
-                  <span {...stylex.props(styles.name)}>{name}</span>
-                  {route === undefined ? null : (
-                    <span {...stylex.props(styles.route)}>{route}</span>
+                  <span {...stylex.props(styles.name)}>{title}</span>
+                  {detail === undefined ? null : (
+                    <span {...stylex.props(styles.route)}>{detail}</span>
                   )}
                 </span>
+                {member.kind === 'engine' ? <Icon name={ENGINE_MARKER_ICON} size={12} /> : null}
                 {member.kind === 'group' ? <Badge>{t('routingGroups.groupTag')}</Badge> : null}
                 {rest === undefined ? null : <Badge warning>{restingLabel(rest, t)}</Badge>}
                 <span {...stylex.props(styles.tools)}>
@@ -294,22 +291,14 @@ function MemberEditor({
           })}
         </ol>
       )}
-      <Combobox
-        value=""
-        options={options}
-        onSelect={(key) => {
-          if (key.startsWith('group:')) {
-            onChange([...members, { kind: 'group', id: key.slice('group:'.length) }]);
-            return;
-          }
-          const entry = library.models.find((model) => optionKey(model) === key);
-          if (entry !== undefined)
-            onChange([...members, { kind: 'model', provider: entry.provider, model: entry.model }]);
-        }}
-        label={t('routingGroups.add')}
-        toggleLabel={t('modelPreset.showModels')}
-        placeholder={t('routingGroups.add')}
-        emptyLabel={t('modelPreset.noMatch')}
+      <RoutingGroupMemberPicker
+        models={library.models}
+        groups={library.groups}
+        members={members}
+        selfId={editor.mode === 'edit' ? editor.group.id : undefined}
+        loadEngines={loadEngines}
+        onSelect={(member) => onChange([...members, member])}
+        t={t}
       />
     </>
   );
@@ -435,9 +424,18 @@ export function RoutingGroupSettings({
           <MemberEditor
             editor={editor}
             library={library}
-            onChange={(members) => setEditor({ ...editor, members })}
+            loadEngines={actions.routingGroupEngines}
+            onChange={(members) => {
+              setError(undefined);
+              setEditor({ ...editor, members });
+            }}
             t={t}
           />
+          {editor.members.length > 0 &&
+          editor.members.every((member) => member.kind === 'engine') &&
+          error === undefined ? (
+            <Note>{t('routingGroups.requiresModel')}</Note>
+          ) : null}
         </FieldStack>
       </FormDialog>
     );

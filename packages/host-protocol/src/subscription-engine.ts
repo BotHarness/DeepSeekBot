@@ -28,3 +28,19 @@ export function isRoutingGroupEngineMember(value: unknown): value is RoutingGrou
     Object.keys(member).every((key) => key === 'kind' || key === 'engine' || key === 'model')
   );
 }
+
+export const ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS = [
+  'host-not-local',
+  'not-installed',
+  'signed-out',
+  'not-subscription',
+  'login-unknown',
+] as const;
+
+export type RoutingGroupEngineUnavailable =
+  (typeof ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS)[number];
+
+export type RoutingGroupEngineOptions = { engine: EngineId } & (
+  | { available: true; models: { id: string; name: string }[] }
+  | { available: false; reason: RoutingGroupEngineUnavailable }
+);

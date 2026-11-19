@@ -145,6 +145,7 @@ import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { routingGroupEngineOptions } from './models/routing-group-engine-options.js';
 import { createEngineGateway } from './engines/engine-gateway.js';
 import { EngineHost } from './engines/engine-host.js';
 import {
@@ -3934,6 +3935,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     subscriptionEngines: engineHost,
+    routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,

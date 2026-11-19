@@ -1,6 +1,8 @@
 import type { SessionEngine, SessionEngineQuota } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
+export const ENGINE_MARKER_ICON = 'puzzle';
+
 export function shortTime(at: string): string {
   return new Date(at).toLocaleString(undefined, {
     month: 'short',

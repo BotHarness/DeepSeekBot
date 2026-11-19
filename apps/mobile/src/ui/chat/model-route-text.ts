@@ -16,15 +16,6 @@ export function routeLabel(value: ModelSettingsState, route: ModelRoute | undefi
   return entry === undefined ? route.model : shortModelName(entry);
 }
 
-export function groupPickerLabel(
-  name: string,
-  front: ModelCatalogEntry,
-  engineLabels: readonly string[],
-): string {
-  const route = t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`);
-  return [name, route, ...engineLabels].join(', ');
-}
-
 export function effortLabel(value: ModelSettingsState, route: ModelRoute): string {
   const effort = route.reasoningEffort ?? '';
   if (effort === '') return t.modelSettings.effortDefault;

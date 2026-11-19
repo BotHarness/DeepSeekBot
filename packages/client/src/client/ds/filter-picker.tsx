@@ -25,6 +25,7 @@ export interface FilterPickerOption {
   readonly hintIcon?: ReactNode;
   readonly hintLabel?: string | undefined;
   readonly icon?: ReactNode;
+  readonly marker?: ReactNode;
   readonly disabled?: boolean | undefined;
   readonly filter?: string | undefined;
   readonly search?: readonly string[] | undefined;
@@ -247,6 +248,7 @@ export function FilterPicker({
   favorites,
   notice,
   anchorRef,
+  portalContainer,
   onClose,
 }: {
   label: string;
@@ -265,6 +267,7 @@ export function FilterPicker({
   favorites?: FilterPickerFavorites | undefined;
   notice?: string | undefined;
   anchorRef: RefObject<HTMLElement | null>;
+  portalContainer?: Element | null;
   onClose(): void;
 }): ReactElement {
   const listId = useId();
@@ -500,6 +503,7 @@ export function FilterPicker({
                           </span>
                         )}
                       </span>
+                      {option.marker}
                       {selected ? check : null}
                       {jump >= 0 && jump < 9 ? (
                         <span aria-hidden {...stylex.props(styles.shortcut)}>
@@ -596,6 +600,6 @@ export function FilterPicker({
         </div>
       )}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }
