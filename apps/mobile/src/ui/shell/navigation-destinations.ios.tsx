@@ -68,7 +68,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 spacing={space.x1}
                 modifiers={[
                   padding({ horizontal: space.x2, vertical: space.x1 }),
-                  frame({ maxWidth: Infinity, minHeight: theme.touch }),
+                  frame({ maxWidth: Infinity, maxHeight: Infinity, minHeight: theme.touch }),
                 ]}
               >
                 {item.activity && !item.focused && item.count > 0 ? (

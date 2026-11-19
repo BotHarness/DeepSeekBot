@@ -66,7 +66,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/bot-sidebar.tsx": {
-    "rawControl": 11,
+    "rawControl": 6,
     "legacyCss": 2
   },
   "packages/client/src/client/bot-skills-card.tsx": {
@@ -227,9 +227,6 @@
     "rawControl": 7,
     "lineBorder": 1
   },
-  "packages/client/src/client/group-profile.tsx": {
-    "rawControl": 1
-  },
   "packages/client/src/client/header-session-stop.tsx": {
     "rawControl": 4,
     "literalColor": 1,
@@ -372,14 +369,8 @@
   "packages/client/src/client/panel-menu.tsx": {
     "lineBorder": 1
   },
-  "packages/client/src/client/personabot-profile.tsx": {
-    "rawControl": 1
-  },
   "packages/client/src/client/phone-route-steps.tsx": {
     "dshImport": 1
-  },
-  "packages/client/src/client/pinned-panel-cards.tsx": {
-    "lineBorder": 1
   },
   "packages/client/src/client/primary-color-editor.tsx": {
     "rawControl": 3,
@@ -394,15 +385,6 @@
   },
   "packages/client/src/client/profile-cards-builtins.tsx": {
     "rawControl": 1
-  },
-  "packages/client/src/client/profile-header.tsx": {
-    "rawControl": 7,
-    "literalColor": 1,
-    "lineBorder": 5
-  },
-  "packages/client/src/client/quick-switcher.tsx": {
-    "dshImport": 1,
-    "lineBorder": 2
   },
   "packages/client/src/client/reachable-post.tsx": {
     "rawControl": 1
@@ -426,8 +408,8 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1803,
-    "lineBorder": 100
+    "legacyCss": 1720,
+    "lineBorder": 95
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1

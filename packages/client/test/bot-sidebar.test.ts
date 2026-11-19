@@ -1223,21 +1223,27 @@ describe('bot sidebar rows', () => {
     store.setRoster([BOT], [SECTION_CHANNEL, FLAT_CHANNEL]);
     const markup = renderSidebar();
 
-    expect(markup).toContain('bh-section-head');
-    expect(markup).toContain('role="button"');
-    expect(markup).toContain('aria-expanded="true"');
+    const renderedSection = new DOMParser()
+      .parseFromString(markup, 'text/html')
+      .querySelector('[data-section-id="s1"]');
+    const toggle = renderedSection?.querySelector<HTMLButtonElement>('button[data-group-heading]');
+    expect(toggle?.classList.contains('bh-section-head')).toBe(true);
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle?.querySelector('button')).toBeNull();
     expect(markup).not.toContain('IconTriangleRightFill14');
     expect(markup).not.toContain('bh-arrow');
     expect(markup).not.toContain('bh-row-slot');
     expect(markup).toContain('bh-section-name');
     expect(markup).toContain('data-icon="chevron-down"');
-    expect(markup).toContain('bh-section-chevron');
+    expect(markup).toContain('data-panel-chevron');
     expect(markup).not.toContain('bh-chevron-collapsed');
     expect(markup).toContain('bh-row-actions');
     expect(markup).toContain('aria-label="「工作流」排序方式"');
     expect(markup).toContain('aria-label="在「工作流」中新建"');
-    expect(markup.match(/class="bh-row-action"/g)).toHaveLength(2);
-    expect(markup).not.toMatch(/class="bh-row-action"[^>]*disabled/);
+    const menuButtons =
+      renderedSection?.querySelectorAll<HTMLButtonElement>('button.bh-row-action');
+    expect(menuButtons).toHaveLength(2);
+    expect(Array.from(menuButtons ?? []).every((button) => !button.disabled)).toBe(true);
     const createMenu = captured.menus.find(
       (menu) =>
         menu.items.some((item) => item['id'] === 'bot') &&
@@ -1425,7 +1431,10 @@ describe('bot sidebar rows', () => {
 
     expect(markup).toContain('bh-pin-zone bh-pin-zone-filled');
     expect(markup).toContain('bh-pinned-grid');
-    expect(markup).toMatch(/class="bh-pinned[^"]*"[^>]*draggable="true"/);
+    const pin = new DOMParser()
+      .parseFromString(markup, 'text/html')
+      .querySelector<HTMLButtonElement>('button.bh-pinned');
+    expect(pin?.draggable).toBe(true);
     expect(markup).not.toContain('拖到此处置顶');
     expect(markup).toContain('bh-unpin-zone bh-unpin-zone-hidden');
   });
@@ -1486,7 +1495,7 @@ describe('bot sidebar rows', () => {
     expect(pinnedRail.match(/class="bh-group-avatar-stack"/g)).toHaveLength(2);
   });
 
-  it('projects every ordered Channel into the collapsed rail with a pin divider and previews', async () => {
+  it('projects every ordered Channel into the collapsed rail with separate pinned and unpinned groups and previews', async () => {
     setRoster({
       pins: [DM_CHANNEL.id],
       sections: [section('s1', '工作流', [SECTION_CHANNEL.id])],
@@ -1523,9 +1532,10 @@ describe('bot sidebar rows', () => {
     const markup = await renderRailPreviews();
 
     expect(markup).toContain('bh-region-rail');
-    expect(markup.match(/class="bh-rail-channel(?: bh-selected)?"/g) ?? []).toHaveLength(3);
-    expect(markup).toContain('bh-rail-divider');
-    expect(markup.indexOf('Atlas')).toBeLessThan(markup.indexOf('bh-rail-divider'));
+    const rail = new DOMParser().parseFromString(markup, 'text/html');
+    expect(rail.querySelectorAll('button.bh-rail-channel')).toHaveLength(3);
+    expect(markup).toContain('data-rail-unpinned');
+    expect(markup.indexOf('Atlas')).toBeLessThan(markup.indexOf('data-rail-unpinned'));
     expect(markup.indexOf('一级渠道')).toBeLessThan(markup.indexOf('散装渠道'));
     expect(markup).toContain('Atlas：已完成调研');
     expect(markup).toContain('你：继续处理');
@@ -1608,7 +1618,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
 
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).toContain('bh-chevron-collapsed');
+    expect(markup).toMatch(/<button(?=[^>]*data-group-heading="")(?=[^>]*aria-expanded="false")/);
     expect(markup).not.toContain('一级渠道');
     expect(markup).toContain('bh-row-actions');
   });
@@ -2587,7 +2597,7 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
     expect(top).not.toContain('bh-row-glyph');
     expect(bottom).toContain('class="bh-row-glyph" data-status="needs-you"');
     expect(bottom).toContain('aria-label="正在等待你"');
-    expect(markup).toContain('<span class="bh-section-needs">1 个需要你</span>');
+    expect(container.querySelector('.bh-section-needs')?.textContent).toBe('1 个需要你');
   } finally {
     store.applyActivity({
       generation: 'row-status-host',
