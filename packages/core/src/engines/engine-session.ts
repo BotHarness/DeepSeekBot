@@ -31,6 +31,30 @@ export interface EngineChoice {
   effort?: string;
 }
 
+export function requireOfferedEngineChoice(
+  engine: EngineId,
+  choice: EngineChoice,
+  models: readonly EngineModel[],
+): void {
+  if (choice.model === undefined && choice.effort === undefined) return;
+  const picked =
+    choice.model === undefined
+      ? (models.find((entry) => entry.isDefault === true) ?? models[0])
+      : models.find((entry) => entry.id === choice.model);
+  if (picked === undefined)
+    throw new EngineRefusal(
+      'unknown-model',
+      `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
+    );
+  if (choice.effort !== undefined && !picked.efforts.some((option) => option.id === choice.effort))
+    throw new EngineRefusal(
+      'unknown-effort',
+      picked.efforts.length === 0
+        ? `${picked.id} takes no effort level`
+        : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
+    );
+}
+
 const EFFORT_NAMES: Record<string, string> = {
   none: 'None',
   minimal: 'Minimal',
@@ -82,6 +106,7 @@ export interface EngineStartOptions {
 export interface EngineSendOptions {
   onEvent(event: EngineEvent): void;
   signal?: AbortSignal;
+  verbatimInput?: boolean;
 }
 
 export interface EngineSession {
@@ -91,6 +116,7 @@ export interface EngineSession {
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
+  steer?(input: string): Promise<boolean>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;
   models(): Promise<EngineModel[]>;
   close(): Promise<void>;
