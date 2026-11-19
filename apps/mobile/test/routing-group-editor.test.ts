@@ -74,7 +74,7 @@ describe('phone Routing Group editor', () => {
     { method: 'modelGroupUpdate', code: 'routing-group-stale-revision', operation: 'update' },
     { method: 'modelGroupDelete', code: 'routing-group-in-use', operation: 'delete' },
     { method: 'modelGroupDelete', code: 'routing-group-stale-revision', operation: 'delete' },
-  ])('preserves the $code refusal from $method', async ({ method, code, operation }) => {
+  ] as const)('preserves the $code refusal from $method', async ({ method, code, operation }) => {
     const { client, fake } = setup();
     const references = ['Routing Group Backup', 'Model Preset Work', 'the default model'];
     const details = code === 'routing-group-in-use' ? { references } : {};
