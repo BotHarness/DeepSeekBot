@@ -91,6 +91,7 @@ export function RoutingGroupMemberPicker({
       onClose={close}
     >
       <SearchField
+        testID="routing-group-member-search"
         value={query}
         onChangeText={setQuery}
         placeholder={t.routingGroup.searchMembers}

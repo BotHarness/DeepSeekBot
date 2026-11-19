@@ -133,6 +133,7 @@ function RoutingGroupEditor({
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const list = useRef<FlatList<RoutingGroupMember>>(null);
   const pending = useRef(false);
   const finished = useRef(false);
   const trimmed = name.trim();
@@ -162,6 +163,7 @@ function RoutingGroupEditor({
       router.back();
     } catch (cause) {
       setError(refusalMessage(cause, t));
+      list.current?.scrollToOffset({ offset: 0, animated: false });
     } finally {
       pending.current = false;
       setBusy(false);
@@ -205,32 +207,35 @@ function RoutingGroupEditor({
           ),
         }}
       />
-      {message === undefined ? null : <SheetCallout tone="danger">{message}</SheetCallout>}
       <FlatList
+        ref={list}
         style={{ flex: 1 }}
         data={members}
         keyExtractor={routingGroupMemberKey}
         renderScrollComponent={renderKeyboardFormScroll}
-        contentContainerStyle={{ paddingVertical: space.x4 }}
+        contentContainerStyle={{ paddingBottom: space.x4 }}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          <View style={{ gap: space.x3, paddingBottom: space.x3 }}>
-            <SettingsHeading>{copy.name}</SettingsHeading>
-            <View style={{ paddingHorizontal: space.x5 }}>
-              <TextField
-                testID="routing-group-name"
-                accessibilityLabel={copy.name}
-                value={name}
-                editable={!busy}
-                maxLength={100}
-                onChangeText={(next) => {
-                  setError(undefined);
-                  setName(next);
-                }}
-              />
+          <>
+            {message === undefined ? null : <SheetCallout tone="danger">{message}</SheetCallout>}
+            <View style={{ gap: space.x3, paddingTop: space.x4, paddingBottom: space.x3 }}>
+              <SettingsHeading>{copy.name}</SettingsHeading>
+              <View style={{ paddingHorizontal: space.x5 }}>
+                <TextField
+                  testID="routing-group-name"
+                  accessibilityLabel={copy.name}
+                  value={name}
+                  editable={!busy}
+                  maxLength={100}
+                  onChangeText={(next) => {
+                    setError(undefined);
+                    setName(next);
+                  }}
+                />
+              </View>
+              <SettingsHeading>{copy.members}</SettingsHeading>
             </View>
-            <SettingsHeading>{copy.members}</SettingsHeading>
-          </View>
+          </>
         }
         renderItem={({ item, index }) => {
           const entry =
