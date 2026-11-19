@@ -46,7 +46,7 @@ export const compose = {
   LoadingIndicator: node('LoadingIndicator'),
   Checkbox: node('Checkbox'),
   RadioButton: node('RadioButton'),
-  Shape: { RoundedCorner: node('RoundedCorner') },
+  Shape: { RoundedCorner: (props: object) => ({ type: 'roundedCorner', ...props }) },
   Badge: node('Badge'),
   BadgedBox: Object.assign(node('BadgedBox'), { Badge: slot('badge') }),
   TextField: Object.assign(

@@ -1,5 +1,6 @@
 import { useState, type ComponentProps } from 'react';
 import {
+  Box,
   Button as FilledButton,
   CircularProgressIndicator,
   FilledTonalButton,
@@ -11,9 +12,11 @@ import {
   TextButton,
 } from '@expo/ui/jetpack-compose';
 import {
-  border,
+  background,
+  clip,
   defaultMinSize,
   fillMaxWidth,
+  paddingAll,
   semantics,
   Shapes,
   size,
@@ -107,6 +110,7 @@ export function Button({
                 : {}),
             }
           : undefined;
+  const fullWidth = tree?.fill !== false && !fit;
   const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
@@ -115,24 +119,19 @@ export function Button({
       {...(colors ? { colors } : {})}
       {...(solid
         ? {
-            shape: (
-              <Shape.RoundedCorner
-                cornerRadii={{
-                  topStart: radius.md,
-                  topEnd: radius.md,
-                  bottomStart: radius.md,
-                  bottomEnd: radius.md,
-                }}
-              />
-            ),
+            shape: Shape.RoundedCorner({
+              cornerRadii: {
+                topStart: radius.md - edge.hairline,
+                topEnd: radius.md - edge.hairline,
+                bottomStart: radius.md - edge.hairline,
+                bottomEnd: radius.md - edge.hairline,
+              },
+            }),
           }
         : {})}
       modifiers={[
-        ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
+        ...(fullWidth ? [fillMaxWidth()] : []),
         defaultMinSize({ ...(solid ? { minWidth: theme.touch } : {}), minHeight: theme.touch }),
-        ...(paint === undefined
-          ? []
-          : [border(edge.hairline, paint.outline, Shapes.RoundedCorner(radius.md))]),
         ...(id ? [testID(id)] : []),
         ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}
@@ -154,7 +153,22 @@ export function Button({
       </Row>
     </Control>
   );
-  if (tree !== undefined) return control;
+  const content =
+    paint === undefined ? (
+      control
+    ) : (
+      <Box
+        modifiers={[
+          ...(fullWidth ? [fillMaxWidth()] : []),
+          clip(Shapes.RoundedCorner(radius.md)),
+          background(paint.outline),
+          paddingAll(edge.hairline),
+        ]}
+      >
+        {control}
+      </Box>
+    );
+  if (tree !== undefined) return content;
   if (fit)
     return (
       <Host
@@ -163,7 +177,7 @@ export function Button({
         seedColor={theme.color.accent}
         ignoreSafeAreaKeyboardInsets
       >
-        {control}
+        {content}
       </Host>
     );
   return (
@@ -175,7 +189,7 @@ export function Button({
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
       onLayoutContent={(event) => setHeight(event.nativeEvent.height)}
     >
-      {control}
+      {content}
     </Host>
   );
 }

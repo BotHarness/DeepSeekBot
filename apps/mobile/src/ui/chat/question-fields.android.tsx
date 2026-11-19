@@ -7,6 +7,7 @@ import {
   defaultMinSize,
   fillMaxWidth,
   padding,
+  paddingAll,
   selectableGroup,
   semantics,
   Shapes,
@@ -84,7 +85,6 @@ export function QuestionFields({
               chosen ? 'primary' : 'secondary',
               disabled ? 'disabled' : 'rest',
             );
-            const shape = Shapes.RoundedCorner(radius.md);
             const press = () =>
               onPick === undefined
                 ? onChange(toggleOption(question, draft, option.label))
@@ -97,9 +97,11 @@ export function QuestionFields({
                 modifiers={[
                   fillMaxWidth(),
                   defaultMinSize({ minHeight: theme.touch }),
-                  clip(shape),
+                  clip(Shapes.RoundedCorner(radius.md)),
+                  background(outline),
+                  paddingAll(edge.hairline),
+                  clip(Shapes.RoundedCorner(radius.md - edge.hairline)),
                   background(fill),
-                  border(edge.hairline, outline, shape),
                   toggleable(chosen, press, {
                     role: multiple ? 'checkbox' : 'radioButton',
                     enabled: !disabled,
