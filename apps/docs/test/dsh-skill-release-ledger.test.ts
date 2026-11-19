@@ -139,13 +139,19 @@ describe("DSH Skill release ledger", () => {
   });
 
   it("gives agents distinct DeepSeekBot and DSH Skill release-train pointers", () => {
-    const instructions = readFileSync(resolve(ROOT, "AGENTS.md"), "utf8");
+    const router = readFileSync(resolve(ROOT, "AGENTS.md"), "utf8");
+    const instructions = readFileSync(
+      resolve(ROOT, "docs/agents/changelog.md"),
+      "utf8",
+    );
 
-    expect(instructions).toContain("CHANGELOG.md` and `CHANGELOG.zh.md`");
+    expect(router).toContain("(docs/agents/changelog.md)");
+    expect(instructions).toContain("`CHANGELOG.md` and");
+    expect(instructions).toContain("CHANGELOG.zh.md");
     expect(instructions).toContain(
       ".agents/skills/dsh-plugin-dev/CHANGELOG.md",
     );
-    expect(instructions).toMatch(/independent Skill\s+SemVer/);
+    expect(instructions).toMatch(/Skill SemVer is independent/);
     expect(instructions).toContain("pnpm skill:changelog:check");
   });
 });
