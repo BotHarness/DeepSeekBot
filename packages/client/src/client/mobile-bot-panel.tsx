@@ -1,33 +1,22 @@
-import { Icon } from './ds/icon.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 
 import { BotPanel } from './bot-main.js';
-import { BotSidebar } from './bot-sidebar.js';
-import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
-import type { BotModeSortMode } from '@botharness/host-client/shared/bot-mode-settings';
-import { useMountedResource } from './mounted-resource.js';
-import { store } from './store.js';
-import { MOBILE_BOT_CSS } from './mobile-bot-styles.js';
-import { useMobileBotViewport } from './mobile-viewport.js';
-import { InboxIcon } from './inbox-icon.js';
-import { OnboardingLauncher } from './onboarding-checklist-view.js';
-import { BotIcon } from './bot-icon.js';
+import { BotModeSidebar, type BotModeSidebarProps } from './bot-mode-sidebar.js';
+import { Dialog } from './ds/dialog.js';
 import { hooked } from './ds/hooked.js';
-import type { QuickSwitcherSettings } from './quick-switcher.js';
-import { border, color, radius, space } from './ds/tokens.stylex.js';
-
-const TOUCH = '44px';
-const SAFE_LEFT = 'env(safe-area-inset-left)';
-const SAFE_RIGHT = 'env(safe-area-inset-right)';
+import { layer, size, space } from './ds/tobs.stylex.js';
+import { useWindowClass } from './ds/window-class.js';
+import { MOBILE_BOT_CSS } from './mobile-bot-styles.js';
+import { useMountedResource } from './mounted-resource.js';
+import { claimSidebarCommand } from './workspace-shell.js';
 
 const styles = stylex.create({
-  shell: {
+  inline: { display: 'contents' },
+  narrow: {
     position: 'fixed',
     top: 'var(--bh-mobile-top, 0px)',
     right: 0,
-    bottom: 'auto',
     left: 0,
     height: 'var(--bh-mobile-height, 100dvh)',
     zIndex: 10,
@@ -35,90 +24,32 @@ const styles = stylex.create({
     flexDirection: 'column',
     minWidth: 0,
     overflow: 'hidden',
-    backgroundColor: color.base,
-    paddingLeft: SAFE_LEFT,
-    paddingRight: SAFE_RIGHT,
+    paddingLeft: 'env(safe-area-inset-left)',
+    paddingRight: 'env(safe-area-inset-right)',
+    backgroundColor: layer.canvas,
   },
-  header: {
+  medium: { flexDirection: 'row', gap: space.x2 },
+  sidebar: { width: 'min(280px, 40%)', flexShrink: 0, backgroundColor: layer.nav },
+  rail: { width: `calc(${size.rowLarge} + ${space.x3})` },
+  content: {
+    flex: '1 1 0',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 'auto',
-    paddingTop: `max(${space.x2}, env(safe-area-inset-top))`,
-    paddingInline: space.x3,
-    paddingBottom: space.x2,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: color.divider,
-  },
-  pane: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
+    flexDirection: 'column',
     minHeight: 0,
     minWidth: 0,
     overflow: 'hidden',
-  },
-  nav: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: space.x2,
-    paddingTop: space.x2,
-    paddingInline: space.x3,
-    paddingBottom: `max(${space.x2}, env(safe-area-inset-bottom))`,
-    borderTopWidth: border.hairline,
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
-  },
-  touch: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.x2,
-    minHeight: TOUCH,
-    minWidth: TOUCH,
-    borderWidth: 0,
-    borderRadius: radius.sm,
-    backgroundColor: 'transparent',
-    color: color.fg,
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '-2px',
-  },
-  hover: {
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-  },
-  headerButton: {
-    paddingBlock: space.x2,
-    paddingInline: space.x3,
-  },
-  navButton: {
-    paddingBlock: space.x2,
-    paddingInline: space.x2,
-    overflowWrap: 'anywhere',
-  },
-  current: {
-    backgroundColor: color.hover,
-  },
-  exit: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 'auto',
   },
 });
 
 export function mountMobileBotShell(node: HTMLElement): () => void {
   let frame = node.parentElement;
-  while (frame !== null && !frame.querySelector('nav:not(.bh-mobile-nav)'))
+  while (frame !== null && !frame.querySelector('[data-slot="sidebar"]'))
     frame = frame.parentElement;
   const sidebar =
     frame === null
       ? undefined
       : [...frame.children].find(
-          (child) =>
-            !child.contains(node) && child.querySelector('nav:not(.bh-mobile-nav)') !== null,
+          (child) => !child.contains(node) && child.querySelector('[data-slot="sidebar"]') !== null,
         );
   const previousSidebar = sidebar?.getAttribute('data-bh-mobile-sidebar');
   sidebar?.setAttribute('data-bh-mobile-sidebar', 'true');
@@ -142,178 +73,90 @@ export function mountMobileBotShell(node: HTMLElement): () => void {
   };
 }
 
-type MobileBotPanelProps = Parameters<typeof BotPanel>[0] & {
-  useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
-  exitBotMode?: (() => void) | undefined;
-  openBotSettings(): void;
-  quickSwitcherSettings?: QuickSwitcherSettings | undefined;
-  setSortMode(mode: BotModeSortMode): void;
-  setSectionSortMode(sectionId: string, mode: BotModeSortMode | undefined): void;
-};
+type MobileBotPanelProps = Parameters<typeof BotPanel>[0] &
+  Pick<
+    BotModeSidebarProps,
+    | 'exitBotMode'
+    | 'openBotSettings'
+    | 'quickSwitcherSettings'
+    | 'setSortMode'
+    | 'setSectionSortMode'
+    | 'shortcutBindings'
+    | 'useBotModePrefs'
+  >;
 
 export function MobileBotPanel(props: MobileBotPanelProps): ReactElement {
-  const mobile = useMobileBotViewport();
-  return mobile ? <MobileNavigation {...props} /> : <BotPanel {...props} />;
-}
+  const windowClass = useWindowClass();
+  const compact = windowClass === 'compact';
+  const medium = windowClass === 'medium';
+  const narrow = compact || medium;
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [rail, setRail] = useState(false);
+  const layout = props.workspace?.layout;
+  const shellMount = useMountedResource<HTMLDivElement>(
+    (node) => {
+      if (!compact) setDrawerOpen(false);
+      if (!narrow) return;
+      const releaseShell = mountMobileBotShell(node);
+      const releaseCommand = layout
+        ? claimSidebarCommand(layout, () => {
+            if (compact) setDrawerOpen((open) => !open);
+            else setRail((collapsed) => !collapsed);
+          })
+        : undefined;
+      return () => {
+        releaseCommand?.();
+        releaseShell();
+      };
+    },
+    [compact, narrow, layout],
+  );
+  const closeDrawer = () => setDrawerOpen(false);
 
-let landingIntent = false;
-
-export function expectMobileConversation(): void {
-  landingIntent = true;
-}
-
-function MobileNavigation(props: MobileBotPanelProps): ReactElement {
-  const { prefs, actions, companion, useBotModePrefs, t } = props;
-  const botIcon = useBotModePrefs((value) => value.botIcon);
-  const [page, setPage] = useState<'list' | 'conversation' | 'inbox'>('list');
-  const navigationIntent = useRef(false);
-  const shellMount = useMountedResource<HTMLDivElement>((node) => {
-    store.setMode('bot');
-    const releaseShell = mountMobileBotShell(node);
-    let selection = store.getSnapshot().selection;
-    const follow = (next: typeof selection): void => {
-      if (next === undefined || (!navigationIntent.current && !landingIntent)) return;
-      navigationIntent.current = false;
-      landingIntent = false;
-      setPage(next.kind === 'inbox' ? 'inbox' : 'conversation');
-    };
-    const unsubscribe = store.subscribe(() => {
-      const next = store.getSnapshot().selection;
-      if (next === selection) return;
-      selection = next;
-      follow(next);
-    });
-    follow(selection);
-    return () => {
-      unsubscribe();
-      releaseShell();
-      store.setMode('dsh');
-    };
-  }, []);
-  const showList = (): void => {
-    navigationIntent.current = false;
-    store.select(undefined);
-    setPage('list');
-  };
-  const exitButton = (inHeader: boolean): ReactElement | null =>
-    props.exitBotMode === undefined ? null : (
-      <button
-        type="button"
-        {...hooked(
-          'bh-mobile-exit',
-          styles.touch,
-          styles.exit,
-          inHeader && styles.hover,
-          inHeader && styles.headerButton,
-        )}
-        onClick={props.exitBotMode}
-        aria-label={t('mobile.host')}
-        title={t('mobile.host')}
-      >
-        <BotIcon icon={botIcon} size={24} />
-      </button>
-    );
   return (
-    <div ref={shellMount} {...hooked('bh-root bh-mobile-shell', styles.shell)} data-page={page}>
-      <style>{MOBILE_BOT_CSS}</style>
-      {page === 'inbox' ? (
-        <header {...hooked('bh-mobile-header', styles.header)}>
-          <button
-            type="button"
-            {...stylex.props(styles.touch, styles.hover, styles.headerButton)}
-            onClick={showList}
-            aria-label={t('mobile.back')}
-          >
-            <Icon name="chevron-left" size={22} />
-          </button>
-          <strong>{t('activityCenter.title')}</strong>
-          {exitButton(true)}
-        </header>
-      ) : null}
-      <div
-        {...hooked('bh-mobile-list', styles.pane)}
-        hidden={page !== 'list'}
-        onClickCapture={(event) => {
-          navigationIntent.current = true;
-          if (
-            event.target instanceof Element &&
-            event.target.closest('button.bh-contact, button.bh-channel-row') !== null
-          )
-            setPage('conversation');
-        }}
-      >
-        {prefs === undefined ? null : (
-          <BotSidebar
-            wide
-            headerEnd={
-              <>
-                <OnboardingLauncher actions={actions} t={t} placement="header" />
-                {exitButton(false)}
-              </>
-            }
-            actions={actions}
-            companion={companion}
-            useBotModePrefs={useBotModePrefs}
-            channelSidebar={props.channelSidebar}
-            quickSwitcherSettings={props.quickSwitcherSettings}
-            setSortMode={props.setSortMode}
-            setSectionSortMode={props.setSectionSortMode}
-            t={t}
+    <div
+      ref={shellMount}
+      data-bot-window-class={windowClass}
+      {...(narrow
+        ? hooked('bh-root bh-mobile-shell', styles.narrow, medium && styles.medium)
+        : stylex.props(styles.inline))}
+    >
+      {narrow && <style>{MOBILE_BOT_CSS}</style>}
+      {medium && (
+        <div {...stylex.props(styles.sidebar, rail && styles.rail)}>
+          <BotModeSidebar
+            {...props}
+            collapsed={rail}
+            width={0}
+            dockPanels={undefined}
+            toggleSidebar={() => setRail(!rail)}
           />
-        )}
+        </div>
+      )}
+      <div
+        {...(compact
+          ? hooked('bh-mobile-content', styles.content)
+          : stylex.props(narrow ? styles.content : styles.inline))}
+      >
+        <BotPanel {...props} openCompactSidebar={compact ? () => setDrawerOpen(true) : undefined} />
       </div>
-      <div {...hooked('bh-mobile-content', styles.pane)} hidden={page === 'list'}>
-        <BotPanel {...props} onMobileBack={showList} />
-      </div>
-      {page === 'conversation' ? null : (
-        <nav
-          {...hooked('bh-mobile-nav', styles.nav)}
-          aria-label={t('mobile.navigation')}
-          data-companion-avoid
+      {compact && (
+        <Dialog
+          open={drawerOpen}
+          title={props.t('mobile.navigation')}
+          presentation="drawer"
+          unsized
+          onClose={closeDrawer}
         >
-          <button
-            type="button"
-            {...stylex.props(
-              styles.touch,
-              styles.hover,
-              styles.navButton,
-              page === 'list' && styles.current,
-            )}
-            aria-current={page === 'list' ? 'page' : undefined}
-            aria-label={t('mobile.conversations')}
-            title={t('mobile.conversations')}
-            onClick={showList}
-          >
-            <Icon name="list" size={24} />
-          </button>
-          <button
-            type="button"
-            {...stylex.props(
-              styles.touch,
-              styles.hover,
-              styles.navButton,
-              page === 'inbox' && styles.current,
-            )}
-            aria-current={page === 'inbox' ? 'page' : undefined}
-            aria-label={t('activityCenter.title')}
-            title={t('activityCenter.title')}
-            onClick={() => {
-              setPage('inbox');
-              void actions.openActivityCenter();
-            }}
-          >
-            <InboxIcon size={24} />
-          </button>
-          <button
-            type="button"
-            {...stylex.props(styles.touch, styles.hover, styles.navButton)}
-            onClick={() => props.openBotSettings()}
-            aria-label={t('panel.settings')}
-            title={t('panel.settings')}
-          >
-            <Icon name="settings" size={24} />
-          </button>
-        </nav>
+          <BotModeSidebar
+            {...props}
+            collapsed={false}
+            width={0}
+            dockPanels={undefined}
+            closeDrawer={closeDrawer}
+            toggleSidebar={closeDrawer}
+          />
+        </Dialog>
       )}
     </div>
   );
