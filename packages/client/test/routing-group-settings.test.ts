@@ -262,12 +262,15 @@ it('shows a successful empty catalog without a retry action', async () => {
 
 it('refreshes availability when the picker and engine filter reopen and keeps the last choices visible', async () => {
   const actions = harness([group]);
-  const fresh = Promise.withResolvers<RoutingGroupEngineOptions[]>();
+  let resolveFresh: ((options: RoutingGroupEngineOptions[]) => void) | undefined;
+  const fresh = new Promise<RoutingGroupEngineOptions[]>((resolve) => {
+    resolveFresh = resolve;
+  });
   const signedOut = { engine: 'claude', available: false, reason: 'signed-out' } as const;
   actions.routingGroupEngines
     .mockResolvedValueOnce([signedOut])
     .mockResolvedValueOnce([signedOut])
-    .mockReturnValueOnce(fresh.promise);
+    .mockReturnValueOnce(fresh);
   await render(actions);
   await act(async () => buttonNamed(t('routingGroups.editTitle', { name: group.name })).click());
   const name = fieldNamed(t('routingGroups.name'), dialog());
@@ -285,7 +288,7 @@ it('refreshes availability when the picker and engine filter reopen and keeps th
   await act(async () => buttonNamed(t('routingGroups.engines')).click());
   expect(actions.routingGroupEngines).toHaveBeenCalledTimes(3);
   expect(option(engine)?.disabled).toBe(true);
-  await act(async () => fresh.resolve([{ engine: 'claude', available: true, models: [] }]));
+  await act(async () => resolveFresh?.([{ engine: 'claude', available: true, models: [] }]));
   expect(option(engine)?.disabled).toBe(false);
   expect(option(engine)?.textContent).not.toContain(
     t('engine.signInLabel', { engine: 'Claude Code' }),

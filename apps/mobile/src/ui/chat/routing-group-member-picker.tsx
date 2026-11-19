@@ -62,6 +62,7 @@ export function RoutingGroupMemberPicker({
   const t = useStrings();
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<'models' | 'engines'>('models');
+  const showEngineError = source === 'engines' && engineReadFailed;
   const data = useMemo((): Choice[] => {
     const taken = new Set(members.map(routingGroupMemberKey));
     const needle = query.trim().toLocaleLowerCase();
@@ -163,6 +164,13 @@ export function RoutingGroupMemberPicker({
           }}
         />
       </View>
+      {showEngineError ? (
+        <SheetFailed
+          message={t.routingGroup.enginesUnavailable}
+          onRetry={refreshEngines}
+          on={SHEET_GROUP}
+        />
+      ) : null}
       <FlatList
         nestedScrollEnabled
         data={data}
@@ -171,18 +179,10 @@ export function RoutingGroupMemberPicker({
         contentContainerStyle={{ paddingTop: space.x3 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ListHeaderComponent={
-          source === 'engines' && engineReadFailed ? (
-            <SheetFailed
-              message={t.routingGroup.enginesUnavailable}
-              onRetry={refreshEngines}
-              on={SHEET_GROUP}
-            />
-          ) : null
-        }
         ListEmptyComponent={
-          source === 'engines' && engineReadFailed ? null : source === 'engines' &&
-            engines === undefined ? (
+          showEngineError ? (
+            <></>
+          ) : source === 'engines' && engines === undefined ? (
             <SheetLoading />
           ) : (
             <SheetNote>
