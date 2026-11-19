@@ -10,7 +10,7 @@ export const zh = {
   'modelProviders.edit': '编辑',
   'modelProviders.addKey': '填写 key',
   'modelProviders.editTitle': '编辑 {name}',
-  'modelProviders.empty': '还没有提供商。添加 API key 后即可选择模型。',
+  'modelProviders.empty': '还没有提供商。添加 API key 后，它的模型路由会出现在模型选择器里。',
   'modelProviders.endpoint': '服务地址',
   'modelProviders.forbidden': '你没有管理模型提供商的权限。',
   'modelProviders.inherited': '此提供商由 Host 配置，无法移除。',
@@ -70,7 +70,7 @@ export const en = {
   'modelProviders.edit': 'Edit',
   'modelProviders.addKey': 'Add key',
   'modelProviders.editTitle': 'Edit {name}',
-  'modelProviders.empty': 'Add a provider to start choosing models.',
+  'modelProviders.empty': 'Add a provider to make its model routes available as Model Choices.',
   'modelProviders.endpoint': 'Base URL',
   'modelProviders.forbidden': 'You don’t have permission to manage model providers.',
   'modelProviders.inherited':
