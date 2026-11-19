@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import { AssignmentSteering } from './assignment-steering.js';
@@ -24,12 +23,6 @@ import {
   sdkClaudeQuery,
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
-import {
-  type EngineQuotaView,
-  type EngineStatusReport,
-  requireSubscription,
-  statusReport,
-} from './engine-account.js';
 import { resolveEngineCommand } from './engine-launch.js';
 import { buildEngineContextSeed } from './engine-context.js';
 import {
@@ -64,80 +57,32 @@ import {
   engineStorePath,
 } from './engine-store.js';
 
-export { type EngineQuotaView, type EngineStatusReport, requireSubscription };
+import {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTurnRequest,
+  type EngineTurnOutcome,
+  type EngineToolApproval,
+  type EngineToolContext,
+  type EngineSessionState,
+  type EngineApprovalRequest,
+  type EngineSessionDescription,
+  type EngineQuotaView,
+  type EngineStatusReport,
+} from './engine-host-types.js';
 
-export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
-  'bot_send_message',
-  'channel_read',
-  'inbox_resolve',
-  'tool_search',
-  'tool_call',
-  'report_to_orchestrator',
-]);
-
-export interface EngineTool {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}
-
-export interface EngineTurnRequest {
-  botSlug: string;
-  role?: EngineRole;
-  cwd?: string;
-  sessionId: string;
-  channelId: string | undefined;
-  input: string;
-  instructions: string;
-  tools: readonly EngineTool[];
-  execute(
-    name: string,
-    args: Record<string, unknown>,
-    signal: AbortSignal,
-    context: EngineToolContext,
-  ): Promise<unknown>;
-  signal: AbortSignal;
-}
-
-export interface EngineTurnOutcome {
-  turn?: number;
-  endSeq?: number;
-  text?: string;
-}
-
-export interface EngineToolApproval {
-  toolName: string;
-  input: Record<string, unknown>;
-  reason?: string;
-  device?: { kind: 'computer' | 'browser'; authorizationScope?: () => string };
-}
-
-export interface EngineToolContext {
-  session: Session;
-  readonly assignmentInputRevision?: number | undefined;
-  ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
-}
-
-export type EngineSessionState = 'starting' | 'running' | 'waiting-approval' | 'idle';
-
-export interface EngineApprovalRequest {
-  botSlug: string;
-  sessionId: string;
-  session: Session;
-  callId: string;
-  toolName: string;
-  input: Record<string, unknown>;
-  reason?: string;
-  device?: EngineToolApproval['device'];
-  signal: AbortSignal;
-}
-
-export interface EngineSessionDescription {
-  engine: EngineId;
-  account?: string;
-  state: EngineSessionState;
-  quota?: EngineQuotaView;
-}
+export {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTool,
+  type EngineTurnRequest,
+  type EngineTurnOutcome,
+  type EngineToolApproval,
+  type EngineToolContext,
+  type EngineSessionState,
+  type EngineApprovalRequest,
+  type EngineSessionDescription,
+  type EngineQuotaView,
+  type EngineStatusReport,
+} from './engine-host-types.js';
 
 export interface EngineHostOptions {
   root: string;
@@ -193,6 +138,15 @@ const MODELS_TTL_MS = 5 * 60_000;
 function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
   return engine === undefined ? undefined : JSON.stringify([engine, choice.model, choice.effort]);
 }
+
+const SIGN_IN_HINTS: Record<EngineId, string> = {
+  codex:
+    'Sign the Bot in with your ChatGPT subscription: run `deepseekbot engine login codex` on this computer.',
+  claude:
+    'Sign the Bot in with your Claude subscription: run `deepseekbot engine login claude` on this computer.',
+};
+
+const ENGINE_LABELS: Record<EngineId, string> = { codex: 'Codex', claude: 'Claude Code' };
 
 export class EngineHost {
   readonly store: EngineStore;
@@ -466,7 +420,7 @@ export class EngineHost {
   }
 
   async #account(session: EngineSession): Promise<EngineAccount> {
-    const name = ENGINE_DEFINITIONS[session.engine].displayName;
+    const name = ENGINE_LABELS[session.engine];
     return session.account().catch((error: unknown) => {
       if (error instanceof EngineRefusal) throw error;
       const message = error instanceof Error ? error.message : String(error);
@@ -967,4 +921,48 @@ async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boo
   ]);
   clearTimeout(timer);
   return settled;
+}
+
+export function requireSubscription(account: EngineAccount): string {
+  const hint = SIGN_IN_HINTS[account.engine];
+  if (account.kind === 'subscription')
+    return account.engine === 'codex'
+      ? `ChatGPT ${account.plan}`
+      : `Claude ${account.plan.replace(/^claude\s+/iu, '')}`;
+  if (account.kind === 'metered')
+    throw new EngineRefusal(
+      'engine-not-subscription',
+      `${account.detail}, which bills per use. ${hint}`,
+    );
+  throw new EngineRefusal(
+    'engine-signed-out',
+    `${ENGINE_LABELS[account.engine]} is not signed in. ${hint}`,
+  );
+}
+
+function statusReport(
+  engine: EngineId,
+  detected: CodexStatus | ClaudeStatus,
+  subscription: string,
+  quota: EngineQuotaView | undefined,
+): EngineStatusReport {
+  const reason: EngineStatusReport['reason'] = !detected.installed
+    ? 'not-installed'
+    : detected.login === subscription
+      ? undefined
+      : detected.login === 'api-key'
+        ? 'not-subscription'
+        : detected.login === 'unknown'
+          ? 'login-unknown'
+          : 'signed-out';
+  return {
+    engine,
+    displayName: ENGINE_DEFINITIONS[engine].displayName,
+    available: reason === undefined,
+    ...(reason === undefined ? {} : { reason }),
+    installed: detected.installed,
+    ...(detected.version === undefined ? {} : { version: detected.version }),
+    login: detected.login,
+    ...(quota === undefined ? {} : { quota }),
+  };
 }
