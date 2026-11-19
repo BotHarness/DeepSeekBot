@@ -82,6 +82,7 @@ export interface EngineStartOptions {
 export interface EngineSendOptions {
   onEvent(event: EngineEvent): void;
   signal?: AbortSignal;
+  verbatimInput?: boolean;
 }
 
 export interface EngineSession {
@@ -91,6 +92,7 @@ export interface EngineSession {
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
+  steer?(input: string): Promise<boolean>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;
   models(): Promise<EngineModel[]>;
   close(): Promise<void>;
