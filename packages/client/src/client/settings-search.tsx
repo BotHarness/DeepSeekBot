@@ -67,7 +67,11 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'workspace.gap',
     'dock.reset',
   ],
-  'model-providers': ['modelProviders.apiKey', 'modelProviders.subscriptions'],
+  'model-providers': [
+    'modelProviders.apiKey',
+    'modelProviders.subscriptions',
+    'modelProviders.accountEngine',
+  ],
   models: [
     'models.section.default',
     'models.section.context',
