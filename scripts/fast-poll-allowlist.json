@@ -1,23 +1,11 @@
 {
-  "packages/client/src/client/account-environments.ts": {
-    "count": 1,
-    "reason": "Host relationship enrollment poll; moves to the relationships resource event in #4609."
-  },
   "packages/client/src/client/connection-progress-log.tsx": {
     "count": 1,
-    "reason": "Diagnostic log tail while the connection panel is open and visible; #4609 decides between a stream and a kept poll."
+    "reason": "Tails the local diagnostic collector, including connection failures while the live stream is down. The collector exposes a cursor read and has no append notification. Runs only while the panel is open and visible."
   },
   "packages/client/src/client/create-app-form.tsx": {
     "count": 1,
     "reason": "WeChat QR setup attempt: the scan happens on the external platform, which has no event source we can follow; stops once the attempt settles."
-  },
-  "packages/client/src/client/device-requests-notice.tsx": {
-    "count": 1,
-    "reason": "Pending device keys; moves to the devices resource event in #4609."
-  },
-  "packages/client/src/client/dm-composer-context.tsx": {
-    "count": 1,
-    "reason": "Bot context in the DM composer; moves to turn-end and context-change refresh in #4609."
   },
   "packages/client/src/client/engine-choice.tsx": {
     "count": 1,
@@ -27,25 +15,9 @@
     "count": 1,
     "reason": "Waits 5 s to reconnect when the live snapshot stream fails."
   },
-  "packages/client/src/client/private-account-controls.tsx": {
-    "count": 1,
-    "reason": "Private account status while configuring; moves to the private-inputs resource event in #4609."
-  },
-  "packages/client/src/client/private-input-card.tsx": {
-    "count": 1,
-    "reason": "Private input status while pending; moves to the private-inputs resource event in #4609."
-  },
   "packages/client/src/client/remote-viewer/index.tsx": {
     "count": 1,
     "reason": "Samples the remote viewer iframe DOM to detect a frozen stream; local page state, no Host read."
-  },
-  "packages/client/src/client/tool-approval-card.tsx": {
-    "count": 2,
-    "reason": "Tool approval execution state while waiting; moves to an execution-state event in #4609."
-  },
-  "packages/client/src/client/user-question-card.tsx": {
-    "count": 1,
-    "reason": "User question status right after submit; moves to a status event in #4609."
   },
   "packages/host-client/src/client.ts": {
     "count": 1,

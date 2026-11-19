@@ -5301,17 +5301,23 @@ export async function loadToolApprovalState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<{ status: ToolApprovalStatus; expiresAt?: string }> {
+): Promise<{
+  status: ToolApprovalStatus;
+  expiresAt?: string;
+  execution?: ToolApprovalExecutionState;
+}> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
   if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
+  const execution = parseToolApprovalExecution(response?.['execution']);
+  const state = { status, ...(execution === undefined ? {} : { execution }) };
   const expiresAt = response?.['expiresAt'];
-  if (expiresAt === undefined || status !== 'pending') return { status };
+  if (expiresAt === undefined || status !== 'pending') return state;
   if (typeof expiresAt !== 'string' || Number.isNaN(Date.parse(expiresAt)))
     throw new Error('invalid toolApprovalStatus expiry');
-  return { status, expiresAt };
+  return { ...state, expiresAt };
 }
 
 export type ToolApprovalExecutionState =
@@ -5327,7 +5333,10 @@ export async function loadToolApprovalExecutionState(
   messageId: string,
 ): Promise<ToolApprovalExecutionState | undefined> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
-  const execution = response?.['execution'];
+  return parseToolApprovalExecution(response?.['execution']);
+}
+
+function parseToolApprovalExecution(execution: unknown): ToolApprovalExecutionState | undefined {
   if (
     execution !== undefined &&
     execution !== 'waiting-human' &&

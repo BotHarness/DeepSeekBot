@@ -8,7 +8,9 @@ import { referencedIds } from './quotes.js';
 import {
   OWNER_ONLY_RESOURCES,
   RESOURCE_CHANGED_EVENT,
-  type LiveResource,
+  sameResource,
+  type ScopedResource,
+  type UnscopedResource,
   type ResourceChange,
 } from './resource-events.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
@@ -227,7 +229,11 @@ export interface ChannelLiveHub {
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishSkillCatalogChanged(change: SkillCatalogChange): void;
-  publishResourceChanged(resource: LiveResource): void;
+  publishResourceChanged(resource: UnscopedResource): void;
+  publishScopedResourceChanged(
+    change: ScopedResource,
+    visible: (human: HumanContext) => boolean,
+  ): void;
   refreshAccess(): void;
   publishContentPurged(): void;
   publishHumanIdentityChanged(): void;
@@ -437,6 +443,8 @@ export function createChannelLiveHub(
   }
   const rosterSubscribers = new Set<RosterSubscriber>();
   let resourceRevision = 0;
+  const resourceVisibility = new WeakMap<ResourceChange, (human: HumanContext) => boolean>();
+  const scopedRevisions = new WeakMap<RosterSubscriber, number>();
   const offAttention = watchAttention?.(() => {
     for (const subscriber of rosterSubscribers) subscriber.attention();
   });
@@ -610,7 +618,7 @@ export function createChannelLiveHub(
       resource(change) {
         if (ended) return;
         const stale = queue.findIndex(
-          (frame) => frame.type === 'resource' && frame.change.resource === change.resource,
+          (frame) => frame.type === 'resource' && sameResource(frame.change, change),
         );
         if (stale !== -1) queue.splice(stale, 1);
         queue.push({ type: 'resource', change });
@@ -674,6 +682,8 @@ export function createChannelLiveHub(
                   botSlugs: frame.change.botSlugs.filter((slug) => members.has(slug)),
                 },
               };
+          } else if (frame.type === 'resource') {
+            if (resourceVisibility.get(frame.change)?.(human) !== false) yield frame;
           } else if (frame.type === 'latest') {
             if (visibleChannel(human, frame.channelId)) yield project(human, frame);
           } else if (frame.type === 'purged') {
@@ -1179,6 +1189,16 @@ export function createChannelLiveHub(
       for (const subscriber of rosterSubscribers)
         if (!OWNER_ONLY_RESOURCES.has(resource) || isOwner(subscriber.human))
           subscriber.resource(change);
+    },
+    publishScopedResourceChanged(change, visible) {
+      for (const subscriber of rosterSubscribers) {
+        if (!visible(subscriber.human)) continue;
+        const revision = (scopedRevisions.get(subscriber) ?? 0) + 1;
+        scopedRevisions.set(subscriber, revision);
+        const frame = { ...change, revision };
+        resourceVisibility.set(frame, visible);
+        subscriber.resource(frame);
+      }
     },
     publishHumanIdentityChanged() {
       for (const group of subscribers.values())

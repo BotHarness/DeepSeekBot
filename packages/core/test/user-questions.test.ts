@@ -575,11 +575,17 @@ describe('native timed question card continuation', () => {
     const state = await continued();
     const discard = vi.fn();
     state.port.discardAnswer = discard;
+    const changes: string[] = [];
+    const off = state.answerer.subscribeStatus((card) => {
+      expect(card).toEqual({ channelId, messageId: state.id });
+      changes.push(state.answerer.status('ada', state.id));
+    });
     expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
       true,
     );
     state.answerer.discardReply(sessionId, 'other-call');
     expect(state.answerer.status('ada', state.id)).toBe('submitted');
+    expect(changes).toEqual(['submitted']);
     state.answerer.discardReply(sessionId, 'original');
     expect(discard).toHaveBeenCalledWith(sessionId, 'original');
     expect(state.answerer.status('ada', state.id)).toBe('pending');
@@ -592,6 +598,8 @@ describe('native timed question card continuation', () => {
     expect(
       state.channels.readMessages(channelId)[0]?.userQuestionResolution?.decidedBy?.humanId,
     ).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(changes).toEqual(['submitted', 'pending', 'submitted', 'answered']);
+    off();
     state.answerer.close();
   });
 

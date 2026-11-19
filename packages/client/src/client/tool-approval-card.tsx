@@ -1,3 +1,5 @@
+import { observeHostResource } from './messaging-defaults-live.js';
+import { useMessageHost } from './message-host.js';
 import { ActionButton } from './ds/action-button.js';
 import {
   useId,
@@ -34,7 +36,11 @@ export function ToolApprovalCard({
   message: ChannelMessage;
   actions: Pick<
     BridgeActions,
-    'toolApprovalStatus' | 'toolApprovalState' | 'toolApprovalExecutionState' | 'decideToolApproval'
+    | 'requestHost'
+    | 'toolApprovalStatus'
+    | 'toolApprovalState'
+    | 'toolApprovalExecutionState'
+    | 'decideToolApproval'
   >;
   hostScoped?: boolean;
   channelId?: string | undefined;
@@ -49,6 +55,7 @@ export function ToolApprovalCard({
   companionTarget?: (CompanionRequestTarget & { callId: string }) | undefined;
 }): ReactElement {
   const store = useConversationStore();
+  const host = useMessageHost()?.client;
   const request = message.toolApprovalRequest!;
   const secretCli = request.toolName === 'secret_cli';
   const canAlwaysAllow = request.allowAlways ?? false;
@@ -86,72 +93,75 @@ export function ToolApprovalCard({
   const approvalMount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     if (effectiveDecision !== undefined) setStatus('decided');
-    if (botSlug === undefined) return;
     let active = true;
-    let poll: ReturnType<typeof setTimeout> | undefined;
+    let loaded = false;
+    const assignment = request.role === 'assignment';
     if (effectiveDecision === undefined) {
       setStatus('loading');
       setError(undefined);
     }
-    const refreshExecution = (): void => {
-      if (request.role !== 'assignment' || actions.toolApprovalExecutionState === undefined) return;
-      void actions.toolApprovalExecutionState(cardChannelId, message.id).then(
-        (value) => {
-          if (!active) return;
-          setExecutionState(value);
-          if (
-            value === 'waiting-human' ||
-            value === 'waiting-capacity' ||
-            (value === 'running' && effectiveDecision === undefined)
-          )
-            poll = setTimeout(refreshExecution, 1000);
-        },
-        () => {
-          if (!active) return;
-          setExecutionState(undefined);
-          poll = setTimeout(refreshExecution, 2000);
-        },
-      );
+    const refresh = async () => {
+      try {
+        if (
+          actions.toolApprovalState === undefined &&
+          assignment &&
+          actions.toolApprovalExecutionState !== undefined
+        ) {
+          const value = await actions.toolApprovalExecutionState(cardChannelId, message.id);
+          if (active) setExecutionState(value);
+        }
+        if (effectiveDecision !== undefined && actions.toolApprovalState === undefined) return;
+        const snapshot = await (actions.toolApprovalState?.(cardChannelId, message.id) ??
+          actions.toolApprovalStatus(cardChannelId, message.id).then((status) => ({
+            status,
+            expiresAt: undefined,
+            execution: undefined,
+          })));
+        if (!active) return;
+        loaded = true;
+        if (assignment && actions.toolApprovalState !== undefined)
+          setExecutionState(snapshot.execution);
+        if (effectiveDecision === undefined) {
+          setStatus((current) =>
+            current === 'expired' || current === 'stopped' || current === 'decided'
+              ? current
+              : snapshot.status,
+          );
+          setExpiresAt(snapshot.expiresAt);
+        }
+        if (
+          snapshot.status !== 'pending' &&
+          (!assignment || snapshot.execution === 'settled' || snapshot.execution === 'needs-repair')
+        )
+          stop();
+      } catch {
+        if (active && !loaded && effectiveDecision === undefined)
+          setStatus((current) => (current === 'loading' ? 'unavailable' : current));
+      }
     };
-    const refreshStatus = (): void => {
-      void (
-        actions.toolApprovalState?.(cardChannelId, message.id) ??
-        actions.toolApprovalStatus(cardChannelId, message.id).then((value) => ({ status: value }))
-      ).then(
-        ({
-          status: value,
-          expiresAt: expiry,
-        }: {
-          status: 'pending' | 'expired' | 'stopped';
-          expiresAt?: string;
-        }) => {
-          if (active) {
-            setStatus((current) =>
-              current === 'expired' || current === 'stopped' || current === 'decided'
-                ? current
-                : value,
-            );
-            setExpiresAt(expiry);
-          }
-        },
-        () => {
-          if (active) setStatus('unavailable');
-        },
-      );
-    };
-    if (effectiveDecision === undefined) refreshStatus();
-    refreshExecution();
-    const stopGrants = subscribeWorkspaceGrantChanges(botSlug, refreshStatus, actions);
+    const watching = botSlug !== undefined && (assignment || effectiveDecision === undefined);
+    const stop = watching
+      ? observeHostResource(
+          (change) =>
+            change.resource === 'tool-approval' &&
+            change.channelId === cardChannelId &&
+            change.messageId === message.id,
+          refresh,
+          host ?? actions.requestHost?.(),
+          (invalidate) => subscribeWorkspaceGrantChanges(botSlug, invalidate, actions),
+        )
+      : () => {};
     return () => {
       active = false;
       mounted.current = false;
-      clearTimeout(poll);
-      stopGrants();
+      stop();
     };
   }, [
     actions,
     botSlug,
+    cardChannelId,
     effectiveDecision,
+    host,
     message.id,
     request.role,
     companionTarget?.live,
