@@ -1,3 +1,4 @@
+import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
@@ -2235,12 +2236,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
-  const { modelProviders, routeRests } = createHostModelProviders(ctx, {
-    registry: core.registry,
-    routingGroups: core.routingGroups,
-    modelPresets: core.modelPresets,
-    defaultRoute: () => defaultModel.currentSelection(),
-  });
+  const routeRests = createRouteRests();
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
@@ -2376,6 +2372,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     sessionArchive: () =>
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
+  });
+  const modelProviders = createHostModelProviders(ctx, {
+    routeRests,
+    registry: core.registry,
+    routingGroups: core.routingGroups,
+    modelPresets: core.modelPresets,
+    defaultRoute: () => defaultModel.currentSelection(),
   });
   publishDraft = (event) => {
     core.live.publishDraft(event);

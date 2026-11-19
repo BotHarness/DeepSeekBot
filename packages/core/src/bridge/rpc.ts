@@ -3,7 +3,7 @@ import type {
   ModelProvidersView,
   ModelProviderSave,
   ModelProviderRemoval,
-} from '../models/providers.js';
+} from '@botharness/host-client/model-providers';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 
 import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';

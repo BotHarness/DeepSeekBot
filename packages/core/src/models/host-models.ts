@@ -10,7 +10,7 @@ import {
   setOpenCodeGoSessionHeader,
   testProviderReply,
 } from './providers.js';
-import { createRouteRests } from './route-rest.js';
+import type { RouteRests } from './route-rest.js';
 import type { RoutingGroupStore } from './routing-groups.js';
 
 export function createHostModelCatalog(
@@ -76,55 +76,53 @@ export function createHostModelProviders(
     routingGroups: RoutingGroupStore;
     modelPresets: ModelPresetStore;
     defaultRoute(): ModelRoute;
+    routeRests: Pick<RouteRests, 'list'>;
   },
 ) {
-  const routeRests = createRouteRests();
   const nativeSettings = ctx.get('settings');
   const nativeCredentials = ctx.get('credentials');
-  const modelProviders =
-    nativeSettings && nativeCredentials
-      ? createModelProviders({
-          settings: nativeSettings,
-          credentials: nativeCredentials,
-          directory: () => ctx.llm.listConfigurableProviders(),
-          activeProviders: () => ctx.llm.listProviders(),
-          models: (id) => ctx.llm.listModels(id),
-          rests: () => routeRests.list(),
-          uses: (id) => {
-            const applies = (
-              plan:
-                | {
-                    orchestrator?: { provider: string };
-                    assignmentDefault?: { provider: string };
-                    assignmentModels?: readonly { provider: string }[];
-                  }
-                | undefined,
-            ) =>
-              plan?.orchestrator?.provider === id ||
-              plan?.assignmentDefault?.provider === id ||
-              plan?.assignmentModels?.some((model) => model.provider === id) === true;
-            return [
-              ...(options.defaultRoute().provider === id ? ['default-model'] : []),
-              ...(options.routingGroups
-                .list()
-                .some(({ members }) =>
-                  members.some((member) => member.kind === 'model' && member.provider === id),
-                )
-                ? ['routing-group']
-                : []),
-              ...(options.modelPresets.list().some(applies) ? ['model-preset'] : []),
-              ...(options.registry
-                .list()
-                .some((bot) => applies(bot.modelPlan) || bot.model?.startsWith(id + '/') === true)
-                ? ['bot']
-                : []),
-            ];
-          },
-          probe: (id, model) =>
-            testProviderReply(ctx.llm, id, model, (outcome) => {
-              ctx.logger.info('model-provider-probe outcome=%s', outcome);
-            }),
-        })
-      : undefined;
-  return { modelProviders, routeRests };
+  return nativeSettings && nativeCredentials
+    ? createModelProviders({
+        settings: nativeSettings,
+        credentials: nativeCredentials,
+        directory: () => ctx.llm.listConfigurableProviders(),
+        activeProviders: () => ctx.llm.listProviders(),
+        models: (id) => ctx.llm.listModels(id),
+        rests: () => options.routeRests.list(),
+        uses: (id) => {
+          const applies = (
+            plan:
+              | {
+                  orchestrator?: { provider: string };
+                  assignmentDefault?: { provider: string };
+                  assignmentModels?: readonly { provider: string }[];
+                }
+              | undefined,
+          ) =>
+            plan?.orchestrator?.provider === id ||
+            plan?.assignmentDefault?.provider === id ||
+            plan?.assignmentModels?.some((model) => model.provider === id) === true;
+          return [
+            ...(options.defaultRoute().provider === id ? ['default-model'] : []),
+            ...(options.routingGroups
+              .list()
+              .some(({ members }) =>
+                members.some((member) => member.kind === 'model' && member.provider === id),
+              )
+              ? ['routing-group']
+              : []),
+            ...(options.modelPresets.list().some(applies) ? ['model-preset'] : []),
+            ...(options.registry
+              .list()
+              .some((bot) => applies(bot.modelPlan) || bot.model?.startsWith(id + '/') === true)
+              ? ['bot']
+              : []),
+          ];
+        },
+        probe: (id, model) =>
+          testProviderReply(ctx.llm, id, model, (outcome) => {
+            ctx.logger.info('model-provider-probe outcome=%s', outcome);
+          }),
+      })
+    : undefined;
 }

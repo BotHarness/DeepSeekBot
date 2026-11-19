@@ -6,7 +6,7 @@ import type {
   ModelProviderSave,
   ModelProviderView,
   ModelProvidersView,
-} from '../../../core/src/models/providers.js';
+} from '@botharness/host-client/model-providers';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
 import { ConfirmDialog, FormDialog, DangerTextButton } from './ds/form-dialog.js';

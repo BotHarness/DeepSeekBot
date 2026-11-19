@@ -1,3 +1,8 @@
+import type {
+  ModelProviderRemoval,
+  ModelProviderSave,
+  ModelProvidersView,
+} from '@botharness/host-client/model-providers';
 import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
@@ -8,9 +13,6 @@ import {
   removeModelProviderInput,
   ModelProviderError,
   type ModelProviders,
-  type ModelProvidersView,
-  type ModelProviderSave,
-  type ModelProviderRemoval,
 } from './providers.js';
 
 export interface ModelProviderBridgeMethods {
