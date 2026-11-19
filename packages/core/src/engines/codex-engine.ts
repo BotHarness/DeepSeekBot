@@ -240,6 +240,7 @@ export class CodexEngineSession implements EngineSession {
   readonly #transport: CodexTransport;
   readonly #cwd: string;
   readonly #instructions: string;
+  readonly #contextSeed: EngineStartOptions['contextSeed'];
   readonly #choice: EngineChoice;
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
@@ -254,12 +255,13 @@ export class CodexEngineSession implements EngineSession {
 
   constructor(
     transport: CodexTransport,
-    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> &
+    options: Pick<EngineStartOptions, 'cwd' | 'instructions' | 'contextSeed'> &
       EngineChoice & { requestTimeoutMs?: number },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
+    this.#contextSeed = options.contextSeed;
     this.#choice = {
       ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.effort === undefined ? {} : { effort: options.effort }),
@@ -322,10 +324,11 @@ export class CodexEngineSession implements EngineSession {
     return id;
   }
 
-  async send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
+  async send(currentInput: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
     if (this.#threadId === undefined) throw new Error('Codex thread is not started');
     if (this.#turn !== undefined) throw new Error('A Codex turn is already running');
     if (options.signal?.aborted === true) return { status: 'interrupted' };
+    const input = (this.#contextSeed?.() ?? '') + currentInput;
     const threadId = this.#threadId;
     let active!: ActiveTurn;
     const ended = new Promise<EngineTurnEnd>((resolve) => {

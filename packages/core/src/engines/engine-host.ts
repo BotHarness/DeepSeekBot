@@ -24,6 +24,7 @@ import {
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import { resolveEngineCommand } from './engine-launch.js';
+import { buildEngineContextSeed } from './engine-context.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
@@ -182,6 +183,8 @@ interface LiveEngineSession {
   account: string;
   grant: EngineGrant;
   dsh: OpenedEngineDshSession;
+  nativeId: string;
+  seed: string | undefined;
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
@@ -466,7 +469,7 @@ export class EngineHost {
   async #claudeSession(
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode'
+      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed'
     >,
   ): Promise<ClaudeEngineSession> {
     const claude = this.#claude;
@@ -577,6 +580,17 @@ export class EngineHost {
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
+            broken = live.seed !== undefined && end.status !== 'completed';
+            if (!broken) {
+              this.store.rememberNativeSession(
+                request.sessionId,
+                engine,
+                live.nativeId,
+                live.account,
+                log.turn,
+              );
+              live.seed = undefined;
+            }
           } catch (error) {
             broken = true;
             throw error;
@@ -726,7 +740,9 @@ export class EngineHost {
   }
 
   isLive(sessionId: string): boolean {
-    return this.#live.has(sessionId) || this.#opening.has(sessionId);
+    return (
+      this.#live.has(sessionId) || this.#opening.has(sessionId) || this.#releasing.has(sessionId)
+    );
   }
 
   #role(sessionId: string): EngineRole {
@@ -810,8 +826,14 @@ export class EngineHost {
         },
       });
       const stored = this.store.nativeSession(sessionId);
-      const resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      let resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      if (resume !== undefined && stored?.lastTurn !== undefined) {
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
+        if (last?.data.turn !== stored.lastTurn) resume = undefined;
+      }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
+      const contextSeed = () => holder.live?.seed;
       let opened: EngineSession;
       if (engineId === 'codex') {
         const options: CodexProcessOptions = { ...this.#codex, cwd, gateway: gatewayEndpoint };
@@ -819,12 +841,14 @@ export class EngineHost {
         opened = new CodexEngineSession(transport, {
           cwd,
           instructions: request.instructions,
+          contextSeed,
           ...choice,
         });
       } else {
         opened = await this.#claudeSession({
           cwd,
           instructions: request.instructions,
+          contextSeed,
           gateway: gatewayEndpoint,
           ...(request.role === 'assignment' ? { permissionMode: 'acceptEdits' as const } : {}),
           ...choice,
@@ -843,11 +867,11 @@ export class EngineHost {
         nativeId = await opened.start(resume);
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
+        resume = undefined;
         nativeId = await opened.start();
       }
-      this.store.rememberNativeSession(sessionId, engineId, nativeId, label);
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
@@ -856,6 +880,8 @@ export class EngineHost {
         account: label,
         grant,
         dsh,
+        nativeId,
+        seed: resume === undefined ? buildEngineContextSeed(dsh.session) : undefined,
         turn: undefined,
         stop: undefined,
         closing: false,

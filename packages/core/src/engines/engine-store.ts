@@ -13,8 +13,15 @@ export type EngineRole = 'orchestrator' | 'assignment';
 interface EngineFile {
   version: 1;
   bots: Record<string, BotEngine>;
-  sessions: Record<string, { engine: EngineId; nativeId: string; account?: string }>;
+  sessions: Record<string, EngineThread>;
   quota?: Partial<Record<EngineId, EngineQuota>>;
+}
+
+interface EngineThread {
+  engine: EngineId;
+  nativeId: string;
+  account?: string;
+  lastTurn?: number;
 }
 
 interface AssignmentEngine extends EngineChoice {
@@ -53,14 +60,13 @@ export interface EngineStore {
   selections(): EngineSelection[];
   quota(engine: EngineId): EngineQuota | undefined;
   rememberQuota(engine: EngineId, quota: EngineQuota): void;
-  nativeSession(
-    sessionId: string,
-  ): { engine: EngineId; nativeId: string; account?: string } | undefined;
+  nativeSession(sessionId: string): EngineThread | undefined;
   rememberNativeSession(
     sessionId: string,
     engine: EngineId,
     nativeId: string,
     account: string,
+    lastTurn?: number,
   ): void;
 }
 
@@ -116,8 +122,16 @@ function parse(text: string, path: string): EngineFile {
     const engine = entry?.['engine'];
     const nativeId = entry?.['nativeId'];
     const account = entry?.['account'];
+    const lastTurn = entry?.['lastTurn'];
     if (isEngineId(engine) && typeof nativeId === 'string')
-      file.sessions[id] = { engine, nativeId, ...(typeof account === 'string' ? { account } : {}) };
+      file.sessions[id] = {
+        engine,
+        nativeId,
+        ...(typeof account === 'string' ? { account } : {}),
+        ...(typeof lastTurn === 'number' && Number.isSafeInteger(lastTurn) && lastTurn > 0
+          ? { lastTurn }
+          : {}),
+      };
   }
   return file;
 }
@@ -239,9 +253,14 @@ export function createEngineStore(path: string): EngineStore {
       write(file);
     },
     nativeSession: (sessionId) => read().sessions[sessionId],
-    rememberNativeSession: (sessionId, engine, nativeId, account) => {
+    rememberNativeSession: (sessionId, engine, nativeId, account, lastTurn) => {
       const file = structuredClone(read());
-      file.sessions[sessionId] = { engine, nativeId, account };
+      file.sessions[sessionId] = {
+        engine,
+        nativeId,
+        account,
+        ...(lastTurn === undefined ? {} : { lastTurn }),
+      };
       write(file);
     },
   };
