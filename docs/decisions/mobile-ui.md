@@ -1,3 +1,7 @@
+---
+Publish: true
+---
+
 # Mobile app UI: navigation, design system, motion and native timelines
 
 How the phone app presents Chats, Activity, Settings, and Workspaces, and how each platform renders and moves through a Channel's conversation. The [BotHarness architecture](../architecture/botharness-architecture.md) explains how these surfaces fit together. [Messaging](messaging.md) covers Channel authority, and [Connections](connections.md) covers Host transport and pairing. See [the mobile design guide](../../apps/mobile/DESIGN.md) for screen and component rules and [GLOSSARY.md](../../GLOSSARY.md) for product and native component terms.
