@@ -1,4 +1,4 @@
-import type { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
+import type { routingGroupEngineMemberRow } from '@botharness/host-client/model-catalog';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { Pressable, View } from 'react-native';
 
@@ -30,7 +30,7 @@ export function RoutingGroupMemberRow({
   title: string;
   detail: string | undefined;
   brand: ModelBrand | undefined;
-  engineRow: ReturnType<typeof routingGroupEnginePresentation> | undefined;
+  engineRow: ReturnType<typeof routingGroupEngineMemberRow> | undefined;
   engineReason: string | undefined;
   usable: boolean;
   moveUp: (() => void) | undefined;
@@ -112,7 +112,12 @@ export function RoutingGroupMemberRow({
       ) : (
         <ModelEnginePickerRow
           row={engineRow}
-          reason={engineReason}
+          reason={
+            engineReason === undefined
+              ? undefined
+              : `${t.routingGroup.unavailable} · ${engineReason}`
+          }
+          isDefault={engineRow.isDefault}
           position={index + 1}
           accessory={accessory}
         />

@@ -18,7 +18,7 @@ export type ModelChoice =
 export type RoutingGroupMember = ModelChoice | RoutingGroupEngineMember;
 
 export const ROUTING_GROUP_MEMBER_SHAPES =
-  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?}';
+  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,reasoningEffort?}';
 
 export interface RoutingGroup {
   id: string;
@@ -115,6 +115,9 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
       kind: 'engine',
       engine: member.engine,
       ...(member.model === undefined ? {} : { model: member.model.trim() }),
+      ...(member.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: member.reasoningEffort.trim() }),
     };
   return {
     kind: 'model',
@@ -128,7 +131,9 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
 
 export function memberLabel(member: RoutingGroupMember): string {
   if (member.kind === 'engine')
-    return member.model === undefined ? member.engine : `${member.engine}/${member.model}`;
+    return member.model === undefined
+      ? member.engine
+      : `${member.engine}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
   return member.kind === 'group'
     ? `group ${member.id}`
     : `${member.provider}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;

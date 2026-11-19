@@ -1197,9 +1197,14 @@ deepseekbot group-activity <group-channel>
 
 ### 路由组
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model` 和 `reasoningEffort`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 列出已登录引擎的模型和支持的推理强度。Claude Code 提供解析后的模型 ID 时，使用该 ID。已保存但未指定模型的成员跟随订阅当前的默认模型。
 
-`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
+```bash
+printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","reasoningEffort":"high"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |
+  deepseekbot model-group-create --name "Daily routing" --members-stdin
+```
+
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎成员指定推理强度时必须提供模型 ID。Host 根据已登录引擎的模型目录校验新设的强度，拒绝模型不支持的档位。已下架的模型成员仍可编辑。启用引擎运行后，成员明确设置的推理强度优先于路由组的共享强度。仅当引擎模型支持共享档位时才会使用该档位。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
 
 `model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。`model-plan-customize --orchestrator-group <id>` 会将该组设为 Bot 的 Orchestrator 选择。Host 按 Bot 所有者的角色校验 DSH 路由，再选择第一条已就绪的路由。方案中 `orchestrator` 显示该路由，`orchestratorGroupId` 显示所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 

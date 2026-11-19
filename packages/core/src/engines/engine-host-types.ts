@@ -1,3 +1,5 @@
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
+
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
@@ -24,6 +26,7 @@ export interface EngineTool {
 export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
+  target?: RoutingGroupEngineMember;
   cwd?: string;
   sessionId: string;
   channelId: string | undefined;

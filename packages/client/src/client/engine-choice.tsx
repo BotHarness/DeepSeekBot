@@ -1,5 +1,9 @@
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
-import { isEngineId, type EngineId } from '@botharness/host-protocol/subscription-engine';
+import {
+  isEngineId,
+  type EngineId,
+  type EngineModelView,
+} from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
 import { useMountedResource } from './mounted-resource.js';
@@ -31,13 +35,7 @@ export interface EnginesView {
   selections: EngineSelectionView[];
 }
 
-export interface EngineModelView {
-  id: string;
-  name: string;
-  efforts: { id: string; name: string }[];
-  defaultEffort?: string;
-  isDefault?: boolean;
-}
+export type { EngineModelView } from '@botharness/host-protocol/subscription-engine';
 
 export interface EngineApi {
   read(): Promise<EnginesView>;

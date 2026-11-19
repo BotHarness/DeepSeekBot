@@ -2569,8 +2569,48 @@ function buildBridgeMethods(
     )
       throw new TeamError('bot-not-found');
   };
-  const validateGroupMembers = async (members: RoutingGroupMember[]): Promise<void> => {
+  const validateGroupMembers = async (
+    members: RoutingGroupMember[],
+    previous: readonly RoutingGroupMember[] = [],
+  ): Promise<void> => {
     deps.team?.roles.require(human, 'models.use');
+    const engineEfforts = members.flatMap((member) =>
+      member.kind === 'engine' &&
+      member.model !== undefined &&
+      member.reasoningEffort !== undefined &&
+      !previous.some(
+        (saved) =>
+          saved.kind === 'engine' &&
+          saved.engine === member.engine &&
+          saved.model === member.model?.trim() &&
+          saved.reasoningEffort === member.reasoningEffort?.trim(),
+      )
+        ? [
+            {
+              engine: member.engine,
+              model: member.model.trim(),
+              effort: member.reasoningEffort.trim(),
+            },
+          ]
+        : [],
+    );
+    if (engineEfforts.length > 0) {
+      const engines = deps.subscriptionEngines;
+      if (engines === undefined || (deps.team !== undefined && !deps.team.isOwner(human)))
+        throw new RoutingGroupError(
+          'invalid-input',
+          'Subscription Engines require the local Host owner',
+        );
+      try {
+        await Promise.all(
+          engineEfforts.map(({ engine, ...choice }) => engines.validateChoice(engine, choice)),
+        );
+      } catch (error) {
+        if (error instanceof EngineRefusal)
+          throw new RoutingGroupError('invalid-input', error.message);
+        throw error;
+      }
+    }
     const routes = members.filter((member) => member.kind === 'model');
     if (routes.length === 0) return;
     const known = new Set(
@@ -4714,7 +4754,11 @@ function buildBridgeMethods(
         return invalidInput('A Routing Group id and expected revision are required');
       try {
         const input = routingGroupInput(source);
-        await validateGroupMembers(input.members);
+        const current = deps.routingGroups.get(id);
+        await validateGroupMembers(
+          input.members,
+          current?.revision === expectedRevision ? current?.members : undefined,
+        );
         const group = deps.routingGroups.update(id, {
           ...input,
           expectedRevision: expectedRevision as number,

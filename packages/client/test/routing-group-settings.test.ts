@@ -30,6 +30,17 @@ afterEach(async () => {
 
 const FLASH = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const PRO = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
+const codexModel = {
+  id: 'gpt-5.4',
+  name: 'GPT-5.4',
+  efforts: [
+    { id: 'high', name: 'High' },
+    { id: 'medium', name: 'Medium' },
+  ],
+  defaultEffort: 'medium',
+  isDefault: true,
+};
+const claudeModel = { id: 'claude-sonnet-5-5', name: 'Sonnet', efforts: [], isDefault: true };
 const models = [
   { ...FLASH, providerName: 'OpenCode Go', modelName: 'DeepSeek V4.1 Flash', efforts: [] },
   { ...PRO, providerName: 'DeepSeek', modelName: 'V4 Pro', efforts: [] },
@@ -39,7 +50,7 @@ function harness(initial: RoutingGroupView[]) {
   let groups = [...initial];
   const actions = {
     routingGroupEngines: vi.fn(async (): Promise<RoutingGroupEngineOptions[]> => [
-      { engine: 'codex', available: true, models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }] },
+      { engine: 'codex', available: true, models: [codexModel] },
       { engine: 'claude', available: false, reason: 'signed-out' },
     ]),
     modelCatalog: vi.fn(async () => ({ models })),
@@ -108,8 +119,8 @@ it('creates a group from models picked in order', async () => {
   await render(actions);
   await act(async () => buttonNamed(t('routingGroups.create')).click());
   await typeInto(fieldNamed(t('routingGroups.name'), dialog()), 'Fast first');
-  await addMember(`model:${JSON.stringify([PRO.provider, PRO.model, ''])}`);
-  await addMember(`model:${JSON.stringify([FLASH.provider, FLASH.model, ''])}`);
+  await addMember(JSON.stringify([PRO.provider, PRO.model]));
+  await addMember(JSON.stringify([FLASH.provider, FLASH.model]));
   await act(async () =>
     dialog().querySelector<HTMLButtonElement>('[data-routing-group-submit="create"]')!.click(),
   );
@@ -153,35 +164,55 @@ function option(value: string) {
   );
 }
 
-async function addMember(value: string, engine = false) {
+async function addMember(value: string) {
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
-  if (engine) {
-    await act(async () => buttonNamed(t('routingGroups.engines')).click());
-    expect(option('engine:["claude",""]')).toMatchObject({ disabled: true });
-  }
   await act(async () => option(value)!.click());
 }
 
-it('adds an available engine model, reorders it and removes a different engine member', async () => {
+const filter = (key: string) =>
+  document.querySelector<HTMLButtonElement>(`[data-picker-filter="${key}"]`)!.click();
+const effortOption = (value: string) =>
+  document.querySelector<HTMLButtonElement>(`[data-picker-side="${value}"]`)!;
+const codexKey = 'engine:codex:gpt-5.4';
+const claudeKey = 'engine:claude:claude-sonnet-5-5';
+
+it('filters subscription sources independently, searches across sources and saves a concrete model with effort', async () => {
   const actions = harness([{ ...group, members: [...group.members, claude] }]);
+  actions.routingGroupEngines.mockResolvedValue([
+    { engine: 'codex', available: true, models: [codexModel] },
+    { engine: 'claude', available: true, models: [claudeModel] },
+  ]);
   await render(actions);
   await act(async () => buttonNamed(t('routingGroups.editTitle', { name: 'DeepSeek' })).click());
-  await addMember('engine:["codex","gpt-5.4"]', true);
-  expect(
-    dialog().querySelector(
-      `[data-routing-group-member='engine:["codex","gpt-5.4"]'] [data-model-brand="openai"]`,
-    ),
-  ).not.toBeNull();
+  expect(dialog().textContent).toMatch(/Sonnet.*默认/u);
+  await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
+  await act(async () => filter('engine:codex'));
+  expect(option(codexKey)?.textContent).toContain(t('routingGroups.defaultTag'));
+  expect(option(claudeKey)).toBeUndefined();
+  await act(async () => filter('engine:claude'));
+  expect(option(claudeKey)?.textContent).toContain('Sonnet');
+  expect(option(codexKey)).toBeUndefined();
+  await act(async () => filter('all'));
+  await typeInto(
+    document.querySelector<HTMLInputElement>('[data-filter-picker] input')!,
+    'Codex GPT-5.4',
+  );
+  expect(option(claudeKey)).toBeUndefined();
+  expect(option('engine:codex:')).toBeUndefined();
+  await act(async () => option(codexKey)!.click());
+  expect(effortOption('medium').getAttribute('aria-checked')).toBe('true');
+  await act(async () => effortOption('high').click());
+  expect(dialog().textContent).toMatch(/GPT-5.4.*High/u);
   await act(async () =>
     buttonNamed(t('routingGroups.moveUp', { name: 'GPT-5.4' }), dialog()).click(),
   );
   await act(async () =>
-    buttonNamed(t('routingGroups.remove', { name: 'Claude Code 默认模型' }), dialog()).click(),
+    buttonNamed(t('routingGroups.remove', { name: 'Sonnet' }), dialog()).click(),
   );
   await act(async () => buttonNamed(t('routingGroups.save'), dialog()).click());
   expect(actions.updateRoutingGroup).toHaveBeenCalledWith('g-1', 3, 'DeepSeek', [
     ...group.members,
-    codex,
+    { ...codex, reasoningEffort: 'high' },
   ]);
 });
 
@@ -222,7 +253,7 @@ it('retries the engine catalog in place, searches across fields and keeps the dr
   await act(async () => buttonNamed(t('routingGroups.editTitle', { name: group.name })).click());
   await typeInto(fieldNamed(t('routingGroups.name'), dialog()), 'Renamed draft');
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  await act(async () => filter('engine:codex'));
   const search = document.querySelector('[data-filter-picker] input[role="combobox"]');
   if (!(search instanceof HTMLInputElement)) throw new Error('Missing picker search');
   await typeInto(search, 'Codex GPT-5.4');
@@ -232,12 +263,13 @@ it('retries the engine catalog in place, searches across fields and keeps the dr
   await act(async () => buttonNamed(t('routingGroups.retryEngines')).click());
   expect(actions.routingGroupEngines).toHaveBeenCalledTimes(2);
   expect(search.value).toBe('Codex GPT-5.4');
-  const modelKey = 'engine:["codex","gpt-5.4"]';
+  const modelKey = codexKey;
   expect(option(modelKey)?.disabled).toBe(false);
   expect(option('engine:["codex",""]')).toBeUndefined();
   await typeInto(search, 'gpt-5.4');
   expect(option(modelKey)?.disabled).toBe(false);
   await act(async () => option(modelKey)!.click());
+  await act(async () => effortOption('').click());
   await act(async () => buttonNamed(t('routingGroups.save'), dialog()).click());
   expect(actions.updateRoutingGroup).toHaveBeenCalledWith(
     group.id,
@@ -253,7 +285,7 @@ it('shows a successful empty catalog without a retry action', async () => {
   await render(actions);
   await act(async () => buttonNamed(t('routingGroups.editTitle', { name: group.name })).click());
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  await act(async () => filter('engine:codex'));
   const picker = document.querySelector('[data-filter-picker]');
   expect(picker?.textContent).toContain(t('routingGroups.noEngines'));
   expect(picker?.querySelector('[role="alert"]')).toBeNull();
@@ -277,22 +309,22 @@ it('refreshes availability when the picker and engine filter reopen and keeps th
   await typeInto(name, 'Renamed draft');
   const add = buttonNamed(t('routingGroups.add'), dialog());
   await act(async () => add.click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
-  const engine = 'engine:["claude",""]';
-  expect(option(engine)?.disabled).toBe(true);
+  await act(async () => filter('engine:claude'));
+  const signedOutText = t('engine.signInLabel', { engine: 'Claude Code' });
+  expect(document.querySelector('[data-filter-picker]')?.textContent).toContain(signedOutText);
   await act(async () => add.click());
   await act(async () => add.click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  await act(async () => filter('engine:claude'));
   expect(actions.routingGroupEngines).toHaveBeenCalledTimes(2);
-  await act(async () => buttonNamed(t('routingGroups.models')).click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  await act(async () => filter('all'));
+  await act(async () => filter('engine:claude'));
   expect(actions.routingGroupEngines).toHaveBeenCalledTimes(3);
-  expect(option(engine)?.disabled).toBe(true);
-  await act(async () => resolveFresh?.([{ engine: 'claude', available: true, models: [] }]));
-  expect(option(engine)?.disabled).toBe(false);
-  expect(option(engine)?.textContent).not.toContain(
-    t('engine.signInLabel', { engine: 'Claude Code' }),
+  expect(document.querySelector('[data-filter-picker]')?.textContent).toContain(signedOutText);
+  await act(async () =>
+    resolveFresh?.([{ engine: 'claude', available: true, models: [claudeModel] }]),
   );
+  expect(option(claudeKey)?.disabled).toBe(false);
+  expect(document.querySelector('[data-filter-picker]')?.textContent).not.toContain(signedOutText);
   expect(name.value).toBe('Renamed draft');
 });
 
@@ -302,17 +334,17 @@ it('shows disabled Subscription Engines and the Host refusal for an engine-only 
   await act(async () => buttonNamed(t('routingGroups.create')).click());
   await typeInto(fieldNamed(t('routingGroups.name'), dialog()), 'Engine only');
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
-  await act(async () => buttonNamed(t('routingGroups.engines')).click());
-  expect(option('engine:["claude",""]')).toMatchObject({ disabled: true });
-  expect(option('engine:["claude",""]')?.textContent).toContain('登录 Claude Code');
-  await act(async () => option('engine:["codex",""]')!.click());
+  await act(async () => filter('engine:codex'));
+  await act(async () => filter('engine:claude'));
+  expect(document.querySelector('[data-filter-picker]')?.textContent).toContain('登录 Claude Code');
+  await act(async () => filter('engine:codex'));
+  await act(async () => option(codexKey)!.click());
+  await act(async () => effortOption('').click());
   expect(dialog().textContent).toContain(t('routingGroups.requiresModel'));
   await act(async () =>
     dialog().querySelector<HTMLButtonElement>('[data-routing-group-submit]')!.click(),
   );
-  expect(actions.createRoutingGroup).toHaveBeenCalledWith('Engine only', [
-    { kind: 'engine', engine: 'codex' },
-  ]);
+  expect(actions.createRoutingGroup).toHaveBeenCalledWith('Engine only', [codex]);
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
     'This Routing Group would have no model to run on',
   );

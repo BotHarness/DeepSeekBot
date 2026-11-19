@@ -1,4 +1,8 @@
-import type { EngineId } from '@botharness/host-protocol/subscription-engine';
+import type {
+  EngineId,
+  EngineModelView,
+  RoutingGroupEngineMember,
+} from '@botharness/host-protocol/subscription-engine';
 
 export {
   ENGINE_DEFINITIONS,
@@ -17,18 +21,35 @@ export interface EngineEffort {
   name: string;
 }
 
-export interface EngineModel {
-  id: string;
-  name: string;
+export interface EngineModel extends EngineModelView {
   description?: string;
-  efforts: EngineEffort[];
-  defaultEffort?: string;
-  isDefault?: boolean;
+  resolvedModel?: string;
+}
+
+export function findEngineModel(models: readonly EngineModel[], id: string | undefined) {
+  return id === undefined
+    ? (models.find((entry) => entry.isDefault) ?? models[0])
+    : (models.find((entry) => entry.id === id) ??
+        models.find((entry) => entry.resolvedModel === id));
 }
 
 export interface EngineChoice {
   model?: string;
   effort?: string;
+}
+
+export function routingGroupEngineChoice(
+  target: RoutingGroupEngineMember,
+  sharedEffort: string | undefined,
+  models: readonly EngineModel[],
+): EngineChoice {
+  const offered = findEngineModel(models, target.model);
+  const inherited = offered?.efforts.find((effort) => effort.id === sharedEffort)?.id;
+  const effort = target.reasoningEffort ?? inherited;
+  return {
+    ...(target.model === undefined ? {} : { model: target.model }),
+    ...(effort === undefined ? {} : { effort }),
+  };
 }
 
 const EFFORT_NAMES: Record<string, string> = {

@@ -1231,14 +1231,14 @@ deepseekbot group-activity <group-channel>
 
 ### Routing Groups
 
-A **Routing Group** is a named, Host-wide, ordered list of members. Use a DSH route `{"kind":"model","provider":"<provider>","model":"<id>"}` with optional `reasoningEffort`, a nested Routing Group `{"kind":"group","id":"<id>"}`, or a [Subscription Engine](#subscription-engines) `{"kind":"engine","engine":"codex"}` with optional `model`. Use `codex` or `claude` for `engine`. `engine models codex|claude` lists model IDs for the signed-in engine.
+A **Routing Group** is a named, Host-wide, ordered list of members. Use a DSH route `{"kind":"model","provider":"<provider>","model":"<id>"}` with optional `reasoningEffort`, a nested Routing Group `{"kind":"group","id":"<id>"}`, or a [Subscription Engine](#subscription-engines) `{"kind":"engine","engine":"codex"}` with optional `model` and `reasoningEffort`. Use `codex` or `claude` for `engine`. `engine models codex|claude` lists models and their supported effort levels. Use the resolved model ID for Claude Code when the list reports one. A saved member with no model follows the subscription’s current default.
 
 ```bash
-printf '%s\n' '{"members":[{"kind":"engine","engine":"codex"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |
+printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","reasoningEffort":"high"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |
   deepseekbot model-group-create --name "Daily routing" --members-stdin
 ```
 
-`model-group-create` and `model-group-update` read `{"members":[...]}` from `--members-stdin`. The Host checks unique names and members, registered DSH models, known engine IDs and nested Routing Groups. A Routing Group with a cycle or with no expanded DSH model is refused (`routing-group-cycle`, `routing-group-empty-group`). Engine model IDs are stored as configuration. The runtime continues to select DSH models from the group. Engine execution through Routing Groups is tracked in [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574).
+`model-group-create` and `model-group-update` read `{"members":[...]}` from `--members-stdin`. The Host checks unique names and members, registered DSH models, known engine IDs and nested Routing Groups. A Routing Group with a cycle or with no expanded DSH model is refused (`routing-group-cycle`, `routing-group-empty-group`). An engine member’s explicit reasoning effort requires a model ID. The Host validates a new effort against the signed-in engine’s catalog and refuses unsupported levels. A saved member whose model was removed remains editable. When engine execution is enabled, an explicit member effort takes precedence over the group’s shared effort. The shared effort applies only if the engine model offers that level. Engine execution through Routing Groups is tracked in [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574).
 
 `model-groups` lists the saved members and current DSH route rests. `model-group <id>` returns the saved `group.members` in order and the deduplicated DSH `routes` it expands to. `model-group-delete` refuses in-use groups (`routing-group-in-use`). `model-plan-customize --orchestrator-group <id>` makes a group the Bot's Orchestrator choice. The Host checks the DSH routes against the owner's role and selects the first ready route. The plan shows that route in `orchestrator` and the group in `orchestratorGroupId`. Selecting a single route clears the group. Group writes check the revision like presets do.
 

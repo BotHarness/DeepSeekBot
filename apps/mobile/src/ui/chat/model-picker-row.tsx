@@ -5,10 +5,14 @@ import {
   type ModelCatalogGroup,
 } from '@botharness/host-client/model-catalog';
 
+import { View } from 'react-native';
+
+import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, type SettingsRowProps } from '../primitives/settings-row';
 import { SystemSymbol } from '../primitives/system-symbol';
+import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
@@ -68,34 +72,67 @@ export function ModelPickerRow({
 export function ModelEnginePickerRow({
   row,
   reason,
+  isDefault = false,
   position,
+  selected,
   ...actions
 }: RowActions & {
   row: ReturnType<typeof routingGroupEnginePresentation>;
   reason?: string | undefined;
   position?: number;
+  isDefault?: boolean;
 }) {
   const theme = useDesignTheme();
+  const t = useStrings();
   const tone = reason === undefined ? 'fg' : 'muted';
   const detail = reason === undefined ? row.detail : `${row.detail} · ${reason}`;
   const order = position === undefined ? '' : `${position}. `;
   return (
     <SettingsRow
       {...actions}
+      selected={selected}
       on={SHEET_GROUP}
       leading={
         <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color[tone]} />
       }
       trailing={
-        <SystemSymbol
-          name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
-          size={theme.type.meta.line}
-          color={theme.color.muted}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          {isDefault ? (
+            <View
+              style={{
+                backgroundColor: theme.layer[SHEET_GROUP].inset,
+                borderRadius: radius.round,
+                paddingHorizontal: space.x2,
+              }}
+            >
+              <Text tone="muted" variant="meta">
+                {t.routingGroup.defaultTag}
+              </Text>
+            </View>
+          ) : null}
+          <SystemSymbol
+            name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
+            size={theme.type.meta.line}
+            color={theme.color.muted}
+          />
+          {selected ? (
+            <SystemSymbol
+              name={{ ios: 'checkmark', android: 'check' }}
+              size={theme.type.title.line}
+              color={theme.color.accent}
+            />
+          ) : null}
+        </View>
       }
       title={order + row.title}
       detail={detail}
-      accessibilityLabel={`${order}${row.name}, ${detail}`}
+      accessibilityLabel={[
+        order + row.name,
+        isDefault ? t.routingGroup.defaultTag : undefined,
+        detail,
+      ]
+        .filter(Boolean)
+        .join(', ')}
       tone={tone}
     />
   );

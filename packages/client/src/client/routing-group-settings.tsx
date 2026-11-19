@@ -1,4 +1,7 @@
-import { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
+import {
+  routingGroupEngineMemberRow,
+  routingGroupEnginePresentation,
+} from '@botharness/host-client/model-catalog';
 import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
@@ -7,6 +10,7 @@ import type { BridgeActions } from './actions.js';
 import {
   errorMessage,
   type ModelCatalogEntryView,
+  type ModelCatalogGroupView,
   type RestingRouteView,
   type RoutingGroupMemberView,
   type RoutingGroupView,
@@ -38,6 +42,7 @@ type GroupActions = Pick<
 
 interface Library {
   groups: RoutingGroupView[];
+  catalogGroups: ModelCatalogGroupView[];
   rests: RestingRouteView[];
   models: ModelCatalogEntryView[];
 }
@@ -144,10 +149,9 @@ function memberName(
   member: RoutingGroupMemberView,
   library: Library,
   t: BotHarnessTranslate,
-  engineModelName?: string,
 ): { name: string; title: string; detail?: string; brand?: ModelBrand | undefined } {
   if (member.kind === 'engine')
-    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t), engineModelName);
+    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t));
   if (member.kind === 'group') {
     const name =
       library.groups.find((group) => group.id === member.id)?.name ??
@@ -171,7 +175,7 @@ function memberName(
 
 async function loadLibrary(actions: GroupActions): Promise<Library> {
   const [groups, catalog] = await Promise.all([actions.routingGroups(), actions.modelCatalog()]);
-  return { ...groups, models: catalog.models };
+  return { ...groups, models: catalog.models, catalogGroups: catalog.groups ?? [] };
 }
 
 function MemberChain({
@@ -269,15 +273,17 @@ function MemberEditor({
               member.kind === 'engine'
                 ? engines?.find((option) => option.engine === member.engine)
                 : undefined;
-            const engineModelName =
-              engine?.available === true && member.kind === 'engine'
-                ? engine.models.find((model) => model.id === member.model)?.name
+            const engineRow =
+              member.kind === 'engine'
+                ? routingGroupEngineMemberRow(member, engine, routingGroupEngineCopy(t))
                 : undefined;
             const engineReason =
               engine?.available === false
                 ? routingGroupEngineReason(engine.engine, engine.reason, t)
-                : undefined;
-            const { name, title, detail, brand } = memberName(member, library, t, engineModelName);
+                : engineRow?.unavailable
+                  ? t('routingGroups.engineModelUnavailable')
+                  : undefined;
+            const { name, title, detail, brand } = engineRow ?? memberName(member, library, t);
             const rest = restOf(member, library.rests);
             const unavailable = rest !== undefined || engineReason !== undefined;
             return (
@@ -298,10 +304,13 @@ function MemberEditor({
                   </span>
                   {detail === undefined ? null : (
                     <span {...stylex.props(styles.route)}>
-                      {engineReason === undefined ? detail : `${detail} · ${engineReason}`}
+                      {engineReason === undefined
+                        ? detail
+                        : `${detail} · ${t('routingGroups.unavailable')} · ${engineReason}`}
                     </span>
                   )}
                 </span>
+                {engineRow?.isDefault ? <Badge>{t('routingGroups.defaultTag')}</Badge> : null}
                 {member.kind === 'engine' ? <Icon name={ENGINE_MARKER_ICON} size={12} /> : null}
                 {member.kind === 'group' ? <Badge>{t('routingGroups.groupTag')}</Badge> : null}
                 {rest === undefined ? null : <Badge warning>{restingLabel(rest, t)}</Badge>}
@@ -340,7 +349,7 @@ function MemberEditor({
       )}
       <RoutingGroupMemberPicker
         models={library.models}
-        groups={library.groups}
+        groups={library.catalogGroups}
         members={members}
         selfId={editor.mode === 'edit' ? editor.group.id : undefined}
         engines={engines}
