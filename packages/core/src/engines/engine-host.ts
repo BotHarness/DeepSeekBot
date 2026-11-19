@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
-import { DEFAULT_REST_MS } from '../models/route-rest.js';
 import {
   type CodexProcessOptions,
   type CodexTransport,
@@ -41,13 +40,18 @@ import type {
 } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
+  engineQuotaLimit,
+  engineQuotaView,
+  recordEngineQuota,
+  type EngineQuotaView,
+} from './engine-quota.js';
+import {
   ENGINE_DEFINITIONS,
   type EngineAccount,
   type EngineChoice,
   type EngineEvent,
   type EngineId,
   type EngineModel,
-  type EngineQuota,
   type EngineSession,
   EngineLimitError,
   EngineRefusal,
@@ -133,12 +137,7 @@ export interface EngineSessionDescription {
   quota?: EngineQuotaView;
 }
 
-export interface EngineQuotaView {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
+export type { EngineQuotaView } from './engine-quota.js';
 
 export interface EngineStatusReport {
   displayName: string;
@@ -344,30 +343,11 @@ export class EngineHost {
   }
 
   limit(engine: EngineId): { account: string; until: string } | undefined {
-    const quota = this.store.quota(engine);
-    if (quota?.limited !== true) return undefined;
-    const until =
-      quota.resetsAt !== undefined && Number.isFinite(Date.parse(quota.resetsAt))
-        ? Date.parse(quota.resetsAt)
-        : Date.parse(quota.observedAt) + DEFAULT_REST_MS;
-    if (!(until > this.#now())) return undefined;
-    return { account: quota.account ?? engine, until: new Date(until).toISOString() };
+    return engineQuotaLimit(engine, this.store.quota(engine), this.#now());
   }
 
   quota(engine: EngineId): EngineQuotaView | undefined {
-    const quota = this.store.quota(engine);
-    if (quota === undefined) return undefined;
-    const limit = this.limit(engine);
-    const current =
-      quota.resetsAt === undefined || Date.parse(quota.resetsAt) > this.#now()
-        ? quota.usedPercent
-        : undefined;
-    return {
-      ...(current === undefined ? {} : { usedPercent: current }),
-      ...(quota.resetsAt === undefined ? {} : { resetsAt: quota.resetsAt }),
-      ...(limit === undefined ? {} : { limitedUntil: limit.until }),
-      observedAt: quota.observedAt,
-    };
+    return engineQuotaView(engine, this.store.quota(engine), this.#now());
   }
 
   describe(sessionId: string): EngineSessionDescription | undefined {
@@ -392,32 +372,10 @@ export class EngineHost {
   }
 
   #record(engine: EngineId, account: string, event: Extract<EngineEvent, { kind: 'rate-limit' }>) {
-    const previous = this.store.quota(engine);
-    const now = this.#now();
-    const reset = event.resetsAt === undefined ? undefined : new Date(event.resetsAt * 1000);
-    const previousReset = previous?.resetsAt;
-    const resetsAt =
-      reset !== undefined &&
-      Number.isFinite(reset.getTime()) &&
-      (!event.limited || reset.getTime() > now)
-        ? reset.toISOString()
-        : event.limited &&
-            previous?.limited === true &&
-            previous.account === account &&
-            previousReset !== undefined &&
-            Date.parse(previousReset) > now
-          ? previousReset
-          : undefined;
-    const usedPercent =
-      event.usedPercent ?? (event.limited ? 100 : undefined) ?? previous?.usedPercent;
-    const quota: EngineQuota = {
-      account,
-      ...(usedPercent === undefined ? {} : { usedPercent }),
-      ...(resetsAt === undefined ? {} : { resetsAt }),
-      limited: event.limited,
-      observedAt: new Date(now).toISOString(),
-    };
-    this.store.rememberQuota(engine, quota);
+    this.store.rememberQuota(
+      engine,
+      recordEngineQuota(account, event, this.store.quota(engine), this.#now()),
+    );
   }
 
   async status(): Promise<EngineStatusReport[]> {
@@ -929,6 +887,7 @@ export class EngineHost {
     }
   }
 }
+
 const RELEASE_GRACE_MS = 10_000;
 
 export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
