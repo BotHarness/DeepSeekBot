@@ -2643,7 +2643,7 @@ const en = {
   fullAccessDetail: 'When off, it writes only within its workspace and asks before each command.',
   fullAccessConfirmTitle: 'Enable dangerous file access?',
   fullAccessConfirmRisk:
-    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Existing Assignments keep this access.',
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Assignments created with full access keep it after you turn this off.',
   fullAccessConfirm: 'I understand, enable',
   fullAccessScope: 'Scope of full access',
   fullAccessScopeChat: 'Chat and new Assignments',
@@ -5277,7 +5277,7 @@ const zh: typeof en = {
   fullAccessDetail: '关闭时只能写入工作区，执行命令前逐次询问。',
   fullAccessConfirmTitle: '开启危险文件权限？',
   fullAccessConfirmRisk:
-    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。已创建的事项会保留此权限。',
+    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。开启期间创建的事项，关闭后仍保留完全访问。',
   fullAccessConfirm: '我了解风险，开启',
   fullAccessScope: '完全访问的范围',
   fullAccessScopeChat: '聊天会话和新事项',

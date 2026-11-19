@@ -4870,7 +4870,7 @@ export const zh = {
     '普通操作可访问所有文件，无需逐次确认；权限变更仍需确认。关闭后，聊天和新事项恢复工作区权限；已有事项保留原权限。',
   'access.confirmTitle': '开启危险文件权限？',
   'access.confirmRisk':
-    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。已创建的事项会保留此权限。',
+    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。开启期间创建的事项，关闭后仍保留完全访问。',
   'access.confirmEnable': '我了解风险，开启',
   'access.scopeTitle': '完全访问的范围',
   'access.scopeChat': '聊天会话和新事项',
@@ -11408,7 +11408,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Ordinary work can access all files without repeated prompts. Permission changes still need confirmation. Turning this off restores workspace permissions for chat and new Assignments; existing Assignments keep their permissions.',
   'access.confirmTitle': 'Enable dangerous file access?',
   'access.confirmRisk':
-    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Existing Assignments keep this access.',
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Assignments created with full access keep it after you turn this off.',
   'access.confirmEnable': 'I understand, enable',
   'access.scopeTitle': 'Scope of full access',
   'access.scopeChat': 'Chat and new Assignments',
