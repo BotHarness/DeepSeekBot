@@ -5,19 +5,15 @@ import { classify } from './ci-plan.mjs';
 const LABEL = 'needs-human';
 const MARKER = '<!-- botharness:pr-needs-human -->';
 const SOURCE = 'https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915324149';
-const INTERNAL = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 const WRITERS = new Set(['admin', 'maintain', 'write']);
 const PAGE_SIZE = 100;
 const MAX_FILES = 3000;
 
-export function planNeedsHuman({ association, permission, fork, labels, changes, incomplete }) {
+export function planNeedsHuman({ permission, fork, labels, changes, incomplete }) {
   const reasons = [];
   if (fork) reasons.push({ rule: 'Head repository is a fork', paths: [] });
-  if (!INTERNAL.has(association) || !WRITERS.has(permission))
-    reasons.push({
-      rule: 'Author lacks write access as an organization member or collaborator',
-      paths: [],
-    });
+  if (!WRITERS.has(permission))
+    reasons.push({ rule: 'Author lacks write access to this repository', paths: [] });
   if (incomplete) reasons.push({ rule: 'GitHub did not provide the complete diff', paths: [] });
 
   const areas = new Map();
@@ -87,7 +83,6 @@ async function github(path, method = 'GET', body) {
 }
 
 async function authorPermission(repo, pr) {
-  if (!INTERNAL.has(pr.author_association)) return 'none';
   try {
     const result = await github(
       `${repo}/collaborators/${encodeURIComponent(pr.user.login)}/permission`,
@@ -178,7 +173,6 @@ async function main() {
   if (!snapshot) return;
   const { pr, changes, permission } = snapshot;
   const { action, reasons } = planNeedsHuman({
-    association: pr.author_association,
     permission,
     fork: pr.head.repo?.id !== pr.base.repo.id,
     labels: pr.labels.map(({ name }) => name),
@@ -190,7 +184,9 @@ async function main() {
     await github(`${issue}/labels`, 'POST', { labels: [LABEL] });
   }
   if (action !== 'none') await updateComment(repo, issue, commentBody(reasons));
-  console.log(`needs-human: ${action}`);
+  console.log(
+    `needs-human: ${action} (association ${pr.author_association}, permission ${permission})`,
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

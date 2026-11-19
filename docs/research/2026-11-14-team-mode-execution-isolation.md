@@ -1,7 +1,7 @@
 # Team mode：Bot 执行与数据隔离（VPS 与 macOS）
 
 日期：2026-11-14 · 读者：Vain、架构师 · 状态：调研建议，不是已接受的决定
-关联：spec #4137、hub #4138、[ADR-0336](../adr/0336-hosts-have-members.md)、[ADR-0205](../decisions/sessions.md#adr-0205)、[ADR-0067](../decisions/workspaces.md#adr-0067)、M5 #4144、M6 #4145、M7 #4150
+关联：spec #4137、hub #4138、[ADR-0336 原文](https://github.com/BotHarness/DeepSeekBot/blob/b9fbfc4f85e2f53577cea22fb90429b5e59579f1/docs/adr/0336-hosts-have-members.md)（现由 [Team mode 决策](../decisions/team-mode.md#adr-0336) 取代）、[ADR-0205](../decisions/sessions.md#adr-0205)、[ADR-0067](../decisions/workspaces.md#adr-0067)、M5 #4144、M6 #4145、M7 #4150
 
 ## 已敲定的范围（2026-11-14，Vain 确认）
 

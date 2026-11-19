@@ -1,6 +1,6 @@
 # Design-token best practices for a dense desktop/Web app (2025–2026 survey)
 
-Issue: [#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) · ADR: [0348 Tobs owns its design tokens](../adr/0348-tobs-owns-its-design-tokens.md) · Researched 2026-11-16.
+Issue: [#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) · ADR: [0348 Tobs owns its design tokens](../decisions/desktop-ui.md#adr-0348) · Researched 2026-11-16.
 
 **Question.** What do current design systems do about token tiers, scales, dark mode, density, focus, accent theming and component tokens? Where do the values in `design/tokens/tobs.tokens.json` sit against them? How should Tobs support three switchable style themes (A quiet, B native, C tonal) on top of light/dark and the accent presets?
 

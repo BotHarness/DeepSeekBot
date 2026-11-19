@@ -27,7 +27,7 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode each Host Member has their own private Tob, limited to what that member may read and do.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
@@ -562,7 +562,7 @@ A Human or PersonaBot that can participate in Channels and author messages; a Br
 _Avoid_: client, connector, bridge identity, caller-supplied sender
 
 **Human ID**:
-The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The Host Owner keeps the original `local-human` ID; each Host Member has their own (ADR-0336).
+The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The initial Host Owner has the original `local-human` ID. Each Host Member keeps their own ID across Owner transfer. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: display name, nickname, browser tab
 
 **Human display name**:
@@ -570,7 +570,7 @@ The editable default name of one Human within one Host (DSH Profile). A Human Ch
 _Avoid_: Human ID, login name
 
 **Host Owner**:
-The one Human who owns a Host: the original local Human, holding every Host Permission without a Host Role. Ownership is transferable but never deleted; local Desktop, loopback and CLI access act as the Host Owner by default (ADR-0336).
+The one Human who owns a Host and holds every Host Permission without a Host Role. Ownership starts with the original local Human and is transferable. Local Desktop, loopback and CLI access act as the current Host Owner by default. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: admin, root, super user
 
 **Host Member**:
@@ -598,7 +598,7 @@ The Behavior permission items attached to a Host Role and given to a Bot answeri
 _Avoid_: permission, ACL, enforced rule
 
 **Audience containment**:
-The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is no larger than the content's own audience.
+The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is a subset of the content's own audience.
 _Avoid_: best-effort filtering, prompt rule
 
 **Workspace root**:
@@ -1181,7 +1181,7 @@ Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. On
 _Avoid_: Telemetry, multi-message export, automatic error reporting
 
 **Mobile Telemetry**:
-Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
+Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers ([ADR-0214](docs/decisions/mobile.md#adr-0214)).
 
 **Mobile Install ID**:
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
@@ -1268,7 +1268,7 @@ _Avoid_: login, setup wizard
 
 The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
 
-Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
+Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and [ADR-0266](docs/decisions/mobile-ui.md#adr-0266).
 
 **Component term**:
 The exact name a platform's design system gives a component: the Material 3 name on Android, the HIG name on iOS, written in English in both languages of this glossary. Code uses the API name (`ModalBottomSheet`, `.sheet`), prose uses the design name (modal bottom sheet, sheet).
@@ -1287,7 +1287,7 @@ A React Native view drawn to imitate a native component. It is migration debt, n
 _Avoid_: native component, custom component
 
 **Custom surface**:
-App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island ([ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 _Avoid_: look-alike (for a recorded custom surface)
 
 **Navigation bar**:
@@ -1299,7 +1299,7 @@ The `@expo/ui` view that hosts Compose or SwiftUI content inside React Native an
 _Avoid_: Host (alone, for the Expo UI view)
 
 **Platform design language**:
-Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of ADR-0266: Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
+Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of [ADR-0266](docs/decisions/mobile-ui.md#adr-0266): Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
 _Avoid_: Material You (for anything but dynamic colour), glassmorphism, frosted glass, iOS style on Android, Material style on iOS
 
 Counterparts by job. The Android column uses Material 3 names, the iOS column HIG names; code names follow in each API column. "—" means the platform has no component for that job.
@@ -1356,6 +1356,6 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
 - A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
-- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
+- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, [ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
 - Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

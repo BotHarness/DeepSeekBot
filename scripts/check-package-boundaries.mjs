@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, posix, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -7,7 +7,9 @@ import { parse } from '@babel/parser';
 const cliAdapter = /^packages\/core\/src\/bots\/cli-[^/]+\.[cm]?[jt]s$/u;
 const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlite-store\.)/u;
 
-export function packageBoundaryErrors(file, source, workspaces = new Map()) {
+const CLIENT_HOST_BASELINE = 'scripts/client-host-import-baseline.json';
+
+export function packageBoundaryErrors(file, source, workspaces = new Map(), existingImports = {}) {
   if (!file.startsWith('packages/')) return [];
   const ast = parse(source, {
     createImportExpressions: true,
@@ -19,11 +21,13 @@ export function packageBoundaryErrors(file, source, workspaces = new Map()) {
     ],
   });
   const errors = [];
+  const clientHostImports = new Map();
   const queue = [ast];
   while (queue.length) {
     const node = queue.pop();
     let input;
     if (node.type === 'TSExternalModuleReference') input = node.expression;
+    if (node.type === 'TSImportType') input = node.argument;
     if (
       [
         'ImportDeclaration',
@@ -72,16 +76,62 @@ export function packageBoundaryErrors(file, source, workspaces = new Map()) {
         errors.push(
           `${file}:${input.loc.start.line}: CLI adapters must use the Host for operational database access (${specifier})`,
         );
+      if (
+        file.startsWith('packages/client/src/') &&
+        (target === 'packages/core' ||
+          target?.startsWith('packages/core/') ||
+          name === '@botharness/core')
+      ) {
+        const count = (clientHostImports.get(specifier) ?? 0) + 1;
+        clientHostImports.set(specifier, count);
+        if (count > (existingImports[specifier] ?? 0))
+          errors.push(
+            `${file}:${input.loc.start.line}: client source must use Host RPC or shared contracts (${specifier}); see docs/decisions/desktop-ui.md#adr-0023`,
+          );
+      }
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) queue.push(...value.filter((child) => child?.type));
       else if (value?.type) queue.push(value);
     }
   }
+  for (const [specifier, allowed] of Object.entries(existingImports)) {
+    if ((clientHostImports.get(specifier) ?? 0) < allowed)
+      errors.push(`${file}: shrink ${CLIENT_HOST_BASELINE} for ${specifier}`);
+  }
+  return errors;
+}
+
+function clientHostBaselineErrors(root, files, baseline) {
+  const errors = Object.keys(baseline)
+    .filter((file) => !files.includes(file))
+    .map((file) => `${file}: remove the retired entry from ${CLIENT_HOST_BASELINE}`);
+  const requested = process.env.BASELINE_BASE;
+  const base = !requested ? 'origin/main' : /^0+$/u.test(requested) ? 'HEAD^' : requested;
+  const prior = spawnSync('git', ['show', `${base}:${CLIENT_HOST_BASELINE}`], {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (prior.status !== 0 && !/does not exist in|exists on disk, but not in/u.test(prior.stderr)) {
+    const message = `${CLIENT_HOST_BASELINE}: cannot read the baseline at ${base} to check that it only shrinks; fetch it or set BASELINE_BASE to the PR base commit`;
+    if (requested) errors.push(message);
+    else console.warn(`warning: ${message}`);
+  }
+  if (prior.status === 0) {
+    const previous = JSON.parse(prior.stdout);
+    for (const [file, specifiers] of Object.entries(baseline)) {
+      for (const [specifier, count] of Object.entries(specifiers)) {
+        if (count > (previous[file]?.[specifier] ?? 0))
+          errors.push(`${file}: ${CLIENT_HOST_BASELINE} may only shrink (${specifier})`);
+      }
+    }
+  }
   return errors;
 }
 
 export function checkPackageBoundaries(root) {
+  const baseline = JSON.parse(readFileSync(resolve(root, CLIENT_HOST_BASELINE), 'utf8'));
   const files = execFileSync(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
@@ -96,17 +146,23 @@ export function checkPackageBoundaries(root) {
     const manifest = JSON.parse(readFileSync(resolve(root, file), 'utf8'));
     workspaces.set(manifest.name, posix.dirname(file));
   }
-  return files
+  const boundaryErrors = files
     .filter((file) => /^packages\/.*\.[cm]?[jt]sx?$/u.test(file))
     .flatMap((file) =>
       (() => {
         try {
-          return packageBoundaryErrors(file, readFileSync(resolve(root, file), 'utf8'), workspaces);
+          return packageBoundaryErrors(
+            file,
+            readFileSync(resolve(root, file), 'utf8'),
+            workspaces,
+            baseline[file],
+          );
         } catch (error) {
           throw new Error(`${file}: ${error.message}`, { cause: error });
         }
       })(),
     );
+  return [...boundaryErrors, ...clientHostBaselineErrors(root, files, baseline)];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
@@ -114,5 +170,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (errors.length) {
     console.error(errors.join('\n'));
     process.exitCode = 1;
-  } else console.log('package boundaries: apps, core/client and CLI database boundaries hold');
+  } else console.log('package boundaries: app, core/client and CLI database boundaries hold');
 }

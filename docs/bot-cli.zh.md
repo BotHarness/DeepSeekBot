@@ -832,7 +832,7 @@ Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `
 
 ### 待办示例插件
 
-这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
+这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](decisions/desktop-ui.md#adr-0203)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
 
 ```bash
 deepseekbot todos

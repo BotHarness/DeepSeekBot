@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { ActionButton } from './ds/action-button.js';
+import { ColorInput } from './ds/input.js';
 import type { Appearance } from './appearance.js';
 import { panelMaterials, type PanelMaterialPatch } from './appearance-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -46,7 +47,6 @@ export function PanelAppearanceSettings({
       actions={
         <ActionButton
           icon="refresh"
-
           onClick={() => {
             try {
               owner.update({ mode, panel: { id, reset: true } });
@@ -108,13 +108,10 @@ export function PanelAppearanceSettings({
                   control={
                     <>
                       {field === 'color' ? (
-                        <input
-                          type="color"
-                          aria-label={label}
+                        <ColorInput
+                          label={label}
                           value={materials[part].color}
-                          onChange={(event) =>
-                            change({ [part]: { color: event.currentTarget.value } })
-                          }
+                          onChange={(color) => change({ [part]: { color } })}
                         />
                       ) : (
                         <NumberStepper

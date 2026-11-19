@@ -241,10 +241,17 @@ it('every row and heading registered Bot settings sections render is searchable'
     'devices.connection.unchecked',
     'devices.list.empty',
     'devices.list.loading',
+    'group.avatarCrop.zoom',
     'im.loading',
     'imApps.empty',
     'imApps.loadFailed',
     'plugins.restart.title',
+    'wallpaper.zoom',
+  ]);
+  const connectionSetupOnly = new Set([
+    'remoteHosts.look.color',
+    'remoteHosts.look.emoji',
+    'remoteHosts.look.symbols',
   ]);
   const missing: string[] = [];
   const sections = registeredSections();
@@ -255,7 +262,10 @@ it('every row and heading registered Bot settings sections render is searchable'
     const rows = scanSettingsRows(section.entry, section.component);
     const plugin = PLUGIN_LOCALES[section.id];
     for (const row of rows) {
-      const keys = row.keys.filter((key) => !notSettings.has(key));
+      const keys = row.keys.filter(
+        (key) =>
+          !notSettings.has(key) && !(section.id === 'devices' && connectionSetupOnly.has(key)),
+      );
       if (plugin) {
         const items = PLUGIN_INDEX[section.id] ?? [];
         for (const key of keys) {

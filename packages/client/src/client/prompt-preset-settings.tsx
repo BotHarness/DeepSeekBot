@@ -11,11 +11,12 @@ import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { Callout } from './ds/callout.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { ConfirmDialog, DangerTextButton, FormDialog } from './ds/form-dialog.js';
+import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { ink, layer, space, style, type as text } from './ds/tobs.stylex.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -55,7 +56,7 @@ const styles = stylex.create({
     gap: space.x4,
     minWidth: 0,
   },
-  check: { display: 'inline-flex', color: color.fg },
+  check: { display: 'inline-flex', color: ink.primary },
   meta: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -68,31 +69,20 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
   },
-  info: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: color.muted,
-    cursor: 'pointer',
-  },
   explain: {
     flexBasis: '100%',
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
   },
   part: {
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.sm,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
     padding: space.x3,
   },
   summary: {
@@ -101,8 +91,8 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
     cursor: 'pointer',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
   body: {
     display: 'flex',
@@ -114,10 +104,10 @@ const styles = stylex.create({
   block: {
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
@@ -128,15 +118,14 @@ export function PromptInfo({ info, t }: { info: string; t: BotHarnessTranslate }
   return (
     <>
       <Tooltip label={info} side="bottom">
-        <button
-          type="button"
-          {...stylex.props(styles.info)}
+        <IconButton
+          size="inline"
           aria-label={t('promptInspect.howItWorks')}
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <Icon name="info" size={14} />
-        </button>
+          <Icon name="info" />
+        </IconButton>
       </Tooltip>
       {open ? <p {...stylex.props(styles.explain)}>{info}</p> : null}
     </>

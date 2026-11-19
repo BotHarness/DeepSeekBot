@@ -6,7 +6,8 @@ import type { Appearance } from './appearance.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { space, style } from './ds/tobs.stylex.js';
+import { Slider } from './ds/slider.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { type Wallpaper, type WallpaperPreview } from './wallpaper.js';
@@ -21,15 +22,21 @@ const styles = stylex.create({
     gap: space.x3,
     paddingTop: space.x3,
   },
-  zoom: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+  preview: (aspectRatio: string) => ({
+    position: 'relative',
+    width: '100%',
+    aspectRatio,
+    overflow: 'hidden',
+    touchAction: 'none',
+    cursor: 'move',
+    borderRadius: style.radiusContainer,
+  }),
+  media: {
+    position: 'absolute',
+    maxWidth: 'none',
+    maxHeight: 'none',
+    pointerEvents: 'none',
   },
-  preview: { borderRadius: radius.md, cornerShape: 'round' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: space.x3 },
 });
 
@@ -220,17 +227,13 @@ function WallpaperCropEditor({
             data-wallpaper-preview=""
             role="img"
             aria-label={t('wallpaper.preview')}
-            style={{
-              position: 'relative',
-              width: '100%',
-              aspectRatio:
+            {...stylex.props(
+              styles.preview(
                 typeof window === 'undefined'
                   ? '1.6'
                   : String(window.innerWidth / window.innerHeight),
-              overflow: 'hidden',
-              touchAction: 'none',
-              cursor: 'move',
-            }}
+              ),
+            )}
             onPointerDown={(event) => {
               if (event.button !== 0 || busy) return;
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -275,40 +278,26 @@ function WallpaperCropEditor({
                 controls={false}
                 aria-hidden="true"
                 tabIndex={-1}
-                style={{
-                  position: 'absolute',
-                  maxWidth: 'none',
-                  maxHeight: 'none',
-                  pointerEvents: 'none',
-                }}
+                {...stylex.props(styles.media)}
               />
             ) : (
-              <img
-                src={preview.url}
-                alt=""
-                draggable={false}
-                style={{
-                  position: 'absolute',
-                  maxWidth: 'none',
-                  maxHeight: 'none',
-                  pointerEvents: 'none',
-                }}
-              />
+              <img src={preview.url} alt="" draggable={false} {...stylex.props(styles.media)} />
             )}
           </div>
-          <label {...stylex.props(styles.zoom)}>
-            {t('wallpaper.zoom')}
-            <input
-              aria-label={t('wallpaper.zoom')}
-              type="range"
-              min="1"
-              max="5"
-              step="0.05"
-              value={crop.zoom}
-              disabled={busy}
-              onChange={(e) => setCrop({ ...crop, zoom: Number(e.currentTarget.value) })}
-            />
-          </label>
+          <SettingsRow
+            title={t('wallpaper.zoom')}
+            control={
+              <Slider
+                label={t('wallpaper.zoom')}
+                min={1}
+                max={5}
+                step={0.05}
+                value={crop.zoom}
+                disabled={busy}
+                onChange={(zoom) => setCrop({ ...crop, zoom })}
+              />
+            }
+          />
           <div {...stylex.props(styles.actions)}>
             <Button variant="outline" disabled={busy} onClick={onDone}>
               {t('common.cancel')}

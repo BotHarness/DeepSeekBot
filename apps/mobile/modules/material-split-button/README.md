@@ -6,7 +6,7 @@ chevron and opens an anchored `DropdownMenuPopup` with one Expressive `DropdownM
 menu closes on a pick, a tap outside or Back.
 
 The Memory file screen uses it for Edit plus Copy and History. Colours come from the Host's
-Material theme seeded by the accent (ADR-0266), with no colour props; shape, motion, ripple and
+Material theme seeded by the accent ([ADR-0266](../../../../docs/decisions/mobile-ui.md#adr-0266)), with no colour props; shape, motion, ripple and
 menu placement come from Material 3. The view reports its measured size, which React Native gives
 the Host. Icons are 24-unit SVG path strings.
 

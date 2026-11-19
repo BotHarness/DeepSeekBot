@@ -71,6 +71,7 @@ let container: HTMLDivElement | undefined;
 const remoteCores: ReturnType<typeof createCore>[] = [];
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   if (root !== undefined) await act(async () => root!.unmount());
   container?.remove();
   root = undefined;
@@ -1286,7 +1287,8 @@ describe('Model entry', () => {
   });
 });
 
-it('uses the shared model picker for onboarding and waits for an explicit model save after route and effort changes', async () => {
+it.each([400, 1280])('saves the selected model and effort at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
   document.body.append(container);
@@ -1312,7 +1314,7 @@ it('uses the shared model picker for onboarding and waits for an explicit model 
       }),
     ),
   );
-  expect(document.querySelector('.bh-onboarding-request')?.textContent).toContain(
+  expect(document.querySelector('[data-onboarding-request]')?.textContent).toContain(
     'My own question',
   );
   expect(document.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(true);

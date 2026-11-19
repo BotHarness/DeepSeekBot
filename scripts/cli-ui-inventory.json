@@ -1121,6 +1121,7 @@
       "surfaces": [
         "setting:packages/client/src/client/appearance-settings.tsx:{t('appearance.primary')}",
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.interval')}",
+        "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.zoom')}",
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.shuffle')}",
         "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
         "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
@@ -1152,7 +1153,10 @@
       "scope": "Client / Host",
       "surfaces": [
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)",
-        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}"
+        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.symbols')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.emoji')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.color')}"
       ],
       "commands": ["appearance-clients", "host-look"]
     },
@@ -1245,6 +1249,16 @@
         "setting:packages/client/src/client/bot-access-entry.tsx:{t('botAccess.allowProactive')}"
       ],
       "commands": ["bot-access"]
+    },
+    {
+      "id": "avatar-crop-preview",
+      "description": "The avatar crop zoom is a temporary image-editing value.",
+      "scope": "Client draft",
+      "surfaces": [
+        "setting:packages/client/src/client/group-avatar-crop.tsx:{t('group.avatarCrop.zoom')}"
+      ],
+      "exemption": "The Client only submits the finished image. Existing avatar commands take the finished image directly.",
+      "configurable": false
     },
     {
       "id": "settings-status-rows",

@@ -1,8 +1,4 @@
 {
-  "packages/client/src/client/account-profile-settings.tsx": {
-    "dshImport": 1,
-    "rawControl": 1
-  },
   "packages/client/src/client/activity-approval.tsx": {
     "rawControl": 2
   },
@@ -62,9 +58,7 @@
     "rawControl": 8
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
-    "dshImport": 1,
-    "rawControl": 1,
-    "lineBorder": 1
+    "dshImport": 1
   },
   "packages/client/src/client/bot-mode-sidebar.tsx": {
     "dshImport": 1
@@ -210,9 +204,6 @@
   "packages/client/src/client/custom-part-editor.tsx": {
     "rawControl": 4
   },
-  "packages/client/src/client/data-reset-settings.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/diagnostic-bundle.tsx": {
     "rawControl": 1
   },
@@ -238,9 +229,6 @@
     "rawControl": 2,
     "lineBorder": 1
   },
-  "packages/client/src/client/git-settings.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/group-channel-header.tsx": {
     "rawControl": 2
   },
@@ -263,20 +251,10 @@
     "dshImport": 1,
     "rawControl": 3
   },
-  "packages/client/src/client/host-look-settings.tsx": {
-    "rawControl": 4,
-    "lineBorder": 1
-  },
   "packages/client/src/client/host-tabs.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/human-name-settings.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/idle-compaction-setting.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/im-apps-section.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/internal-tour-styles.ts": {
@@ -373,7 +351,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/mobile-apps-styles.ts": {
-    "legacyCss": 25,
+    "legacyCss": 21,
     "lineBorder": 3
   },
   "packages/client/src/client/mobile-bot-panel.tsx": {
@@ -407,8 +385,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/paired-devices.tsx": {
-    "dshImport": 1,
-    "rawControl": 1
+    "dshImport": 1
   },
   "packages/client/src/client/pairing-table.tsx": {
     "rawControl": 2
@@ -425,9 +402,6 @@
   "packages/client/src/client/pinned-panel-cards.tsx": {
     "lineBorder": 1
   },
-  "packages/client/src/client/plugin-updates-view.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/primary-color-editor.tsx": {
     "rawControl": 3,
     "literalColor": 9,
@@ -439,10 +413,6 @@
   "packages/client/src/client/private-tunnel-settings.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/profile-backup.tsx": {
-    "dshImport": 1,
-    "lineBorder": 1
-  },
   "packages/client/src/client/profile-cards-builtins.tsx": {
     "rawControl": 1
   },
@@ -450,10 +420,6 @@
     "rawControl": 7,
     "literalColor": 1,
     "lineBorder": 5
-  },
-  "packages/client/src/client/prompt-preset-settings.tsx": {
-    "rawControl": 1,
-    "lineBorder": 1
   },
   "packages/client/src/client/quick-switcher.tsx": {
     "dshImport": 1,
@@ -463,7 +429,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/release-notes-view.tsx": {
-    "dshImport": 2
+    "dshImport": 1
   },
   "packages/client/src/client/remote-viewer/index.tsx": {
     "dshImport": 1,
@@ -480,21 +446,11 @@
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/storage-settings.tsx": {
-    "dshImport": 1,
-    "lineBorder": 2
-  },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1924,
-    "lineBorder": 107
-  },
-  "packages/client/src/client/team-settings.tsx": {
-    "dshImport": 1
+    "legacyCss": 1899,
+    "lineBorder": 103
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/telemetry-settings.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/timeline-unread-divider.tsx": {
@@ -507,10 +463,6 @@
   "packages/client/src/client/update-run-view.tsx": {
     "lineBorder": 1
   },
-  "packages/client/src/client/voice-mic-test.tsx": {
-    "rawControl": 1,
-    "lineBorder": 1
-  },
   "packages/client/src/client/voice-ripple-styles.ts": {
     "legacyCss": 4
   },
@@ -519,10 +471,6 @@
   },
   "packages/client/src/client/wallpaper-layer.ts": {
     "legacyCss": 4
-  },
-  "packages/client/src/client/wallpaper-library.tsx": {
-    "rawControl": 5,
-    "lineBorder": 1
   },
   "packages/client/src/client/window-companion-styles.ts": {
     "legacyCss": 42,

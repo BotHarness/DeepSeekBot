@@ -1,6 +1,6 @@
 # Team mode implementation handoff
 
-The Human approved implementing [spec #4137](https://github.com/BotHarness/DeepSeekBot/issues/4137) through [hub #4138](https://github.com/BotHarness/DeepSeekBot/issues/4138), slices M0–M11 (#4139–#4150). Design: [ADR-0336](../adr/0336-hosts-have-members.md), [Team mode design](../architecture/team-mode.md), and the bilingual glossary. This handoff is a starting point. Before relying on any dependency, read the latest issues, claims, PRs, repository guidance and source; do not assume a dependency has merged.
+The Human approved implementing [spec #4137](https://github.com/BotHarness/DeepSeekBot/issues/4137) through [hub #4138](https://github.com/BotHarness/DeepSeekBot/issues/4138), slices M0–M11 (#4139–#4150). Design: [Team mode decisions](../decisions/team-mode.md#adr-0336), [Team mode design](../architecture/team-mode.md), and the bilingual glossary. This handoff is a starting point. Before relying on any dependency, read the latest issues, claims, PRs, repository guidance and source; do not assume a dependency has merged.
 
 ## Goal
 
