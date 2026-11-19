@@ -519,3 +519,24 @@ describe('Local Human viewer', () => {
     expect(host.querySelector('iframe')!.getAttribute('src')).toContain('mode=direct');
   });
 });
+
+describe('Browser observation without a Host event', () => {
+  it('keeps the shown frame when a refresh times out', async () => {
+    expect(host.querySelector('img')?.getAttribute('src')).toBe('frame:work');
+    vi.mocked(fetch).mockImplementationOnce(async () => {
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    await observationChanged();
+    expect(host.querySelector('img')?.getAttribute('src')).toBe('frame:work');
+  });
+
+  it('re-reads the observation while shown so the Browser stays active', async () => {
+    const before = urls.filter((url) => url.startsWith('./api/browser/observation')).length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(
+      urls.filter((url) => url.startsWith('./api/browser/observation')).length,
+    ).toBeGreaterThan(before);
+  });
+});

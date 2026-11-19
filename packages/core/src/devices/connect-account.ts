@@ -317,7 +317,10 @@ export function createConnectAccount(options: {
       next.state !== status.state ||
       next.email !== status.email ||
       next.hostId !== status.hostId ||
-      next.issue !== status.issue;
+      next.issue !== status.issue ||
+      next.protectedUntil !== status.protectedUntil ||
+      JSON.stringify(next.wait) !== JSON.stringify(status.wait) ||
+      JSON.stringify(next.pool) !== JSON.stringify(status.pool);
     status = next;
     if (changed) options.onAccountChanged?.();
   };
@@ -668,11 +671,11 @@ export function createConnectAccount(options: {
             .datetime()
             .safeParse((own as { protectedUntil?: unknown } | undefined)?.protectedUntil);
           const { protectedUntil: _previous, ...rest } = status;
-          status = {
+          setStatus({
             ...rest,
             ...(pool.success ? { pool: pool.data } : {}),
             ...(until.success ? { protectedUntil: until.data } : {}),
-          };
+          });
         }
       } catch (error) {
         if (

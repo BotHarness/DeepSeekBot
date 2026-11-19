@@ -1835,7 +1835,10 @@ describe('Connect account deletion', () => {
       relayFull: { reason: 'pool-full', position: 3, retryAfter: 60, pool },
     };
     const services = fakeServices(options);
-    const { account, tunnel } = setup(services, 41001, 10);
+    let changes = 0;
+    const { account, tunnel } = setup(services, 41001, 10, undefined, undefined, () => {
+      changes += 1;
+    });
     await account.signIn();
     await settle(account);
     await until(() => account.status().issue === 'relay-full');
@@ -1855,6 +1858,7 @@ describe('Connect account deletion', () => {
     expect(tunnel.enabled).toHaveLength(1);
     expect(account.status()).not.toHaveProperty('wait');
     await until(() => account.status().pool?.inUse === 899);
+    const beforePoolChange = changes;
     options.pool = {
       capacity: 900,
       inUse: 900,
@@ -1869,6 +1873,7 @@ describe('Connect account deletion', () => {
       nextFreeAt: '2026-11-09T20:10:00.000Z',
       guaranteedMinutes: 30,
     });
+    expect(changes).toBeGreaterThan(beforePoolChange);
     await account.close();
   });
 

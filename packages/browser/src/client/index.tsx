@@ -278,8 +278,9 @@ export function createObservationStore(
         signal: AbortSignal.timeout(10_000),
       });
       if (tab === requestedTab && revision === requestedRevision) value = next;
-    } catch {
-      if (tab === requestedTab && revision === requestedRevision) value = undefined;
+    } catch (cause) {
+      const timedOut = (cause as { name?: unknown } | undefined)?.name === 'TimeoutError';
+      if (!timedOut && tab === requestedTab && revision === requestedRevision) value = undefined;
     } finally {
       refreshing = false;
     }
@@ -293,11 +294,10 @@ export function createObservationStore(
     subscribe(listener) {
       listeners.add(listener);
       if (listeners.size === 1) {
-        stopObserving = observeResource?.('browser', refresh);
-        if (stopObserving === undefined) {
-          void refresh();
-          stopObserving = visibleInterval(() => void refresh(), 15_000);
-        }
+        const stopEvents = observeResource?.('browser', refresh);
+        if (stopEvents === undefined) void refresh();
+        const stopKeepAlive = visibleInterval(() => void refresh(), 20_000);
+        stopObserving = () => (stopEvents?.(), stopKeepAlive());
       }
       return () => {
         listeners.delete(listener);

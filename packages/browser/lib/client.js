@@ -15103,8 +15103,8 @@ window.__ModuleLoader__.load({
 				try {
 					const next = await requestJson(observationUrl(botSlug, requestedTab), { signal: AbortSignal.timeout(1e4) });
 					if (tab === requestedTab && revision === requestedRevision) value = next;
-				} catch {
-					if (tab === requestedTab && revision === requestedRevision) value = void 0;
+				} catch (cause) {
+					if (!(cause?.name === "TimeoutError") && tab === requestedTab && revision === requestedRevision) value = void 0;
 				} finally {
 					refreshing = false;
 				}
@@ -15118,11 +15118,10 @@ window.__ModuleLoader__.load({
 				subscribe(listener) {
 					listeners.add(listener);
 					if (listeners.size === 1) {
-						stopObserving = observeResource?.("browser", refresh);
-						if (stopObserving === void 0) {
-							refresh();
-							stopObserving = visibleInterval(() => void refresh(), 15e3);
-						}
+						const stopEvents = observeResource?.("browser", refresh);
+						if (stopEvents === void 0) refresh();
+						const stopKeepAlive = visibleInterval(() => void refresh(), 2e4);
+						stopObserving = () => (stopEvents?.(), stopKeepAlive());
 					}
 					return () => {
 						listeners.delete(listener);

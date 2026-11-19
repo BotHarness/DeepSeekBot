@@ -1,5 +1,5 @@
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
-import { watchComputerStatus } from './status-live.js';
+import { cancelled, watchComputerStatus } from './status-live.js';
 import { Button } from '../../../client/src/client/ds/button.js';
 import { Tag } from '../../../client/src/client/ds/tag.js';
 import { localSetupFailure } from './local-setup-copy.js';
@@ -74,7 +74,7 @@ export function LocalComputerStatus({
         try {
           await refresh(signal);
         } catch {
-          if (!signal.aborted) setError('request-failed');
+          if (!cancelled(signal)) setError('request-failed');
         }
       }),
     [observeResource, refresh],

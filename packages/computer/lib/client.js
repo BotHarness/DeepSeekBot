@@ -57,6 +57,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/computer/src/client/status-live.ts
+		const cancelled = (signal) => signal?.aborted === true && signal.reason?.name !== "TimeoutError";
 		function watchComputerStatus(observe, refresh) {
 			const controller = new AbortController();
 			let reading = false;
@@ -13828,7 +13829,7 @@ window.__ModuleLoader__.load({
 				try {
 					await refresh(signal);
 				} catch {
-					if (!signal.aborted) setError("request-failed");
+					if (!cancelled(signal)) setError("request-failed");
 				}
 			}), [observeResource, refresh]);
 			const installing = payload?.install?.state === "installing";
@@ -15100,7 +15101,7 @@ window.__ModuleLoader__.load({
 					setPayload(next);
 					setError(void 0);
 				} catch (cause) {
-					if (!signal?.aborted) setError(String(cause));
+					if (!cancelled(signal)) setError(String(cause));
 				}
 			}, []);
 			const statusResource = useMountedResource(() => {

@@ -1,5 +1,5 @@
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
-import { watchComputerStatus } from './status-live.js';
+import { cancelled, watchComputerStatus } from './status-live.js';
 import { Button } from '../../../client/src/client/ds/button.js';
 import { Tag } from '../../../client/src/client/ds/tag.js';
 import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
@@ -712,7 +712,7 @@ function ComputerEntry({
       setPayload(next);
       setError(undefined);
     } catch (cause) {
-      if (!signal?.aborted) setError(String(cause));
+      if (!cancelled(signal)) setError(String(cause));
     }
   }, []);
 

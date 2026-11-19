@@ -1,6 +1,10 @@
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
 import { visibleInterval } from '../../../client/src/client/visible-interval.js';
 
+export const cancelled = (signal: AbortSignal | undefined): boolean =>
+  signal?.aborted === true &&
+  (signal.reason as { name?: unknown } | undefined)?.name !== 'TimeoutError';
+
 export function watchComputerStatus(
   observe: ObserveResource | undefined,
   refresh: (signal: AbortSignal) => Promise<void>,
