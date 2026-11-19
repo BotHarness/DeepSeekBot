@@ -31,19 +31,14 @@ export function createHostModelCatalog(
     { global: true },
   );
 
-  const forgetCredentialFailures = (): void => providerCredentials.reset();
-  const events = ctx as unknown as {
-    on(event: string, listener: () => void): () => void;
+  const refreshProviders = () => {
+    providerCredentials.reset();
+    options.signalProviderChange();
   };
-  for (const event of [
-    'credentials/reference-updated',
-    'credentials/record-updated',
-    'settings/document-updated',
-    'llm/adapters-updated',
-  ]) {
-    events.on(event, forgetCredentialFailures);
-    events.on(event, options.signalProviderChange);
-  }
+  ctx.on('credentials/reference-updated', refreshProviders);
+  ctx.on('credentials/record-updated', refreshProviders);
+  ctx.on('settings/document-updated', refreshProviders);
+  ctx.on('llm/adapters-updated', refreshProviders);
   const modelCatalog = createModelCatalog(ctx.llm, {
     credentials: providerCredentials,
     credentialReadiness: createCredentialReadiness({
