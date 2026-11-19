@@ -16,6 +16,7 @@ import {
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
+import { cardDecisionInk } from '../design/controls';
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator, materialButton } from '../design/tokens';
@@ -62,12 +63,13 @@ export function Button({
   const tree = useComposeTree();
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
-  const Control =
-    variant === 'text'
-      ? TextButton
-      : tone === 'primary' || danger
-        ? FilledButton
-        : FilledTonalButton;
+  const text = variant !== 'filled';
+  const textInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
+  const Control = text
+    ? TextButton
+    : tone === 'primary' || danger
+      ? FilledButton
+      : FilledTonalButton;
   const chosenFill = danger
     ? roles.error
     : tone === 'primary'
@@ -78,22 +80,19 @@ export function Button({
     : tone === 'primary'
       ? roles.onPrimary
       : roles.onSecondaryContainer;
-  const colors =
-    variant === 'text'
-      ? danger || selected
-        ? {
-            contentColor: danger ? roles.error : roles.primary,
-            ...(selected ? { disabledContentColor: danger ? roles.error : roles.primary } : {}),
-          }
-        : undefined
-      : danger || selected
-        ? {
-            ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
-            ...(selected
-              ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
-              : {}),
-          }
-        : undefined;
+  const contentColor = textInk ?? (danger ? roles.error : roles.primary);
+  const colors = text
+    ? textInk !== undefined || danger || selected
+      ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
+      : undefined
+    : danger || selected
+      ? {
+          ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+          ...(selected
+            ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+            : {}),
+        }
+      : undefined;
   const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control

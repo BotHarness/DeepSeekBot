@@ -1,5 +1,159 @@
 {
-  "$description": "Tobs primitives shared by every mode, style and accent. Semantic tokens in web.tokens.json and the style sets alias these.",
+  "$description": "Tobs primitives shared across platforms. The mode sets supply accent and status seeds, and the platform families map these primitives to semantic roles.",
+  "palette": {
+    "brand": {
+      "$type": "color",
+      "$value": "{palette.accent.classic-blue}"
+    },
+    "neutral": {
+      "0": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000"
+        }
+      },
+      "7": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0667, 0.0745, 0.0941],
+          "hex": "#111318"
+        }
+      },
+      "9": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0863, 0.0902, 0.102],
+          "hex": "#16171a"
+        }
+      },
+      "10": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0902, 0.0941, 0.102],
+          "hex": "#17181a"
+        }
+      },
+      "11": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1059, 0.1098, 0.1216],
+          "hex": "#1b1c1f"
+        }
+      },
+      "13": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1255, 0.1373],
+          "hex": "#1f2023"
+        }
+      },
+      "15": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1412, 0.1451, 0.1608],
+          "hex": "#242529"
+        }
+      },
+      "18": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1725, 0.1765, 0.1961],
+          "hex": "#2c2d32"
+        }
+      },
+      "20": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1882, 0.1961, 0.2157],
+          "hex": "#303237"
+        }
+      },
+      "38": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3608, 0.3843, 0.4157],
+          "hex": "#5c626a"
+        }
+      },
+      "42": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4039, 0.4235, 0.4549],
+          "hex": "#676c74"
+        },
+        "$description": "Lowest text ink; still 4.5:1 on every surface."
+      },
+      "61": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5922, 0.6118, 0.6471],
+          "hex": "#979ca5"
+        },
+        "$description": "Lowest text ink; still 4.5:1 on every surface."
+      },
+      "68": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6588, 0.6784, 0.7098],
+          "hex": "#a8adb5"
+        }
+      },
+      "94": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9255, 0.9333, 0.9451],
+          "hex": "#eceef1"
+        }
+      },
+      "96": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.949, 0.9529, 0.9608],
+          "hex": "#f2f3f5"
+        }
+      },
+      "97": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9569, 0.9608, 0.9686],
+          "hex": "#f4f5f7"
+        }
+      },
+      "98": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9725, 0.9765, 0.9804],
+          "hex": "#f8f9fa"
+        }
+      },
+      "100": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        }
+      }
+    }
+  },
   "core": {
     "breakpoint": {
       "medium": {
