@@ -63,7 +63,7 @@ Enforced by: [engine range and build pins](https://github.com/BotHarness/BotHarn
 
 <a id="adr-0132"></a>
 
-The Host sends bounded product usage events through a first-party PostHog proxy using an independently generated random Install ID. Configuration, the Human's preference and standard environment opt-outs control sending. The event properties exclude conversation and Memory content, credentials and local paths. Mobile statistics have [their own consent and identity](/dev/adr/0214-mobile-statistics-use-explicit-consent-and-an-independent-install-id).
+The Host sends bounded product usage events through a first-party PostHog proxy using an independently generated random Install ID. Configuration, the Human's preference and standard environment opt-outs control sending. The event properties exclude conversation and Memory content, credentials and local paths. Mobile statistics have [their own consent and identity](/dev/adr/mobile#adr-0214).
 
 A Campaign owns Campaign Links. The dedicated link Worker redirects active links to the fixed product site with Campaign UTMs, counts eligible clicks in D1 and emits a server-side event without a person profile. The Worker shares operations across the admin UI, the documented API and its MCP tools. Admin access and scoped, expiring, revocable tokens authorize these operations. The `bh-links` CLI calls the same API.
 
