@@ -28,7 +28,7 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
     model,
   ];
   const createGroup = ['model-group-create', '--name', `M15 routes ${tag}`, '--members-stdin'];
-  const members = JSON.stringify([{ kind: 'model', provider, model }]);
+  const members = JSON.stringify({ members: [{ kind: 'model', provider, model }] });
   const { preset } = s.cli(create, { as: operator });
   const { group } = s.cli(createGroup, { as: operator, input: members });
   check(
