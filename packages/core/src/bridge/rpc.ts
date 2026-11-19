@@ -164,6 +164,7 @@ import type {
   AssignmentGroupOption,
   AssignmentModelOption,
   ModelPreset,
+  ModelPresetEngine,
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -1313,12 +1314,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
         name,
         ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
+        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         ...presetGroupArgs(
@@ -1345,6 +1350,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
@@ -1353,6 +1360,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
         name,
         ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
+        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
         ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
         ...presetGroupArgs(

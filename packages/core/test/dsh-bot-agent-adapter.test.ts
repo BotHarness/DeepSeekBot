@@ -4272,7 +4272,10 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
       assignmentGroups: {
         pick: async (_slug, _group, effort) => {
           picks.push(effort);
-          return { kind: 'route', route: { ...pro, reasoningEffort: effort ?? 'medium' } };
+          return {
+            kind: 'route',
+            route: effort === 'high' ? { ...pro, reasoningEffort: 'high' } : pro,
+          };
         },
         describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
         restingUntil: (route) =>
@@ -4303,8 +4306,13 @@ describe('Effort range for Assignment Routing Groups (#4502)', () => {
       ]);
       expect(parsed[3].error).toContain('Routing Group g allows efforts low, high');
       expect(created).toMatchObject([
-        { title: 'Default effort', model: { ...pro, reasoningEffort: 'high' }, modelGroupId: 'g' },
-        { title: 'Chosen effort', model: { ...pro, reasoningEffort: 'low' }, modelGroupId: 'g' },
+        {
+          title: 'Default effort',
+          model: { ...pro, reasoningEffort: 'high' },
+          modelGroupId: 'g',
+          modelGroupEffort: 'high',
+        },
+        { title: 'Chosen effort', model: pro, modelGroupId: 'g', modelGroupEffort: 'low' },
       ]);
       expect(created).toHaveLength(2);
       expect(picks).toEqual(['high', 'low']);
@@ -4369,7 +4377,11 @@ describe('An Assignment on the inherited default Routing Group', () => {
       await Promise.all(calls);
       expect(picks).toEqual(['high']);
       expect(created).toMatchObject([
-        { model: { ...pro, reasoningEffort: 'high' }, modelGroupId: 'daily' },
+        {
+          model: { ...pro, reasoningEffort: 'high' },
+          modelGroupId: 'daily',
+          modelGroupEffort: 'high',
+        },
       ]);
     } finally {
       await adapter.close();

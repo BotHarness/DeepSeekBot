@@ -545,6 +545,8 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -559,6 +561,8 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     expect(parameterNames(service.modelPlanSet)).toEqual([
       'slug',
@@ -605,7 +609,46 @@ describe('bridge typert service', () => {
       assignmentDefault: route,
       assignmentModels,
     });
-    await service.modelPresetUpdate('p', 1, 'Daily', route, route, assignmentModels);
+    const orchestratorEngine = { engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const assignmentEngine = { engine: 'claude' as const, model: 'opus' };
+    await service.modelPresetCreate(
+      'Daily',
+      route,
+      route,
+      assignmentModels,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      orchestratorEngine,
+      assignmentEngine,
+    );
+    expect(create).toHaveBeenLastCalledWith({
+      name: 'Daily',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels,
+      orchestratorEngine,
+      assignmentEngine,
+    });
+    await service.modelPresetUpdate(
+      'p',
+      1,
+      'Daily',
+      route,
+      route,
+      assignmentModels,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      orchestratorEngine,
+      null,
+    );
     expect(update).toHaveBeenCalledWith({
       id: 'p',
       expectedRevision: 1,
@@ -613,6 +656,8 @@ describe('bridge typert service', () => {
       orchestrator: route,
       assignmentDefault: route,
       assignmentModels,
+      orchestratorEngine,
+      assignmentEngine: null,
     });
   });
   it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
@@ -712,6 +757,8 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -726,6 +773,8 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [

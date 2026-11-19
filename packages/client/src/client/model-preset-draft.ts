@@ -63,9 +63,11 @@ export function allowedOf(
 }
 
 export function draftOf(
-  source: Pick<
-    ModelPlanView,
-    'orchestrator' | 'assignmentDefault' | 'assignmentModels' | 'openAssignmentModels'
+  source: Partial<
+    Pick<
+      ModelPlanView,
+      'orchestrator' | 'assignmentDefault' | 'assignmentModels' | 'openAssignmentModels'
+    >
   > &
     ModelPlanGroupsView,
   presetId: string,
@@ -78,8 +80,8 @@ export function draftOf(
     orchestrator:
       source.orchestratorGroupId === undefined
         ? {
-            key: modelKey(source.orchestrator),
-            effort: source.orchestrator.reasoningEffort ?? '',
+            key: source.orchestrator === undefined ? '' : modelKey(source.orchestrator),
+            effort: source.orchestrator?.reasoningEffort ?? '',
           }
         : {
             key: groupMenuKey(source.orchestratorGroupId),

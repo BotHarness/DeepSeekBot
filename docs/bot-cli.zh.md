@@ -1092,6 +1092,8 @@ deepseekbot engine use <bot> codex|claude|none --role assignment [--model <id>] 
 
 `engine use <bot> <engine> --role assignment` 让 Bot 的 Assignment 运行在引擎上，与 Orchestrator 分开选择，所以 Claude Code 上的 Orchestrator 可以把工作交给 DSH 模型，DSH 上的 Orchestrator 也可以交给 Claude Code 或 Codex；`none` 让它们回到 DSH 模型。`selections` 会列出角色，`--fallback` 只属于 Orchestrator。每个引擎 Assignment Session 在其 Workspace Grant 的 `primaryCwd` 中打开，并保留原生会话供下一次请求使用。Claude Code 以 `acceptEdits` 模式运行：Grant 内的编辑直接进行，其他操作（命令、Grant 外的文件）通过常规的工具审批卡片询问 Human；Codex 在以 Grant 为根的 `workspace-write` 沙箱中运行。网关只向 Assignment 提供 `report_to_orchestrator`，不绑定任何 Channel，并拒绝任何 Channel 或目标参数。报告和 DSH Assignment 一样送达 Orchestrator；引擎 Assignment 一轮结束时没有报告，其最终文本会作为标记为未报告的完成报告转发。
 
+连接本机 Host 后，`model-preset-create` 和 `model-preset-update` 支持 `--orchestrator-engine codex|claude`，可选 `--orchestrator-engine-model` 和 `--orchestrator-engine-effort`。任务模型使用对应的 `--assignment-engine`、`--assignment-engine-model` 和 `--assignment-engine-effort`。预设保留相应角色在 DSH 上运行时使用的路由。`model-preset-update --<role>-engine none` 可移除该角色的引擎设置。`model-preset-apply` 在同一 Host 上恢复预设保存的选择，未保存引擎选择的角色切回预设中的 DSH 路由。用 `engine status` 查看应用后的模型及推理强度。
+
 订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
 
 `list` 的 Bot 摘要通过 `orchestratorRunner: {engine, displayName, account?, model?}` 返回选中的 Orchestrator 引擎；Host 提供名称和最近已知的账号标签和引擎最近报告的模型，使用 DSH 模型时省略此字段。
@@ -1195,9 +1197,9 @@ deepseekbot group-activity <group-channel>
 
 ### 路由组
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
 
-`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套组关系。包含循环或展开后没有任何 DSH 模型的组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
 
 `model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。`model-plan-customize --orchestrator-group <id>` 会将该组设为 Bot 的 Orchestrator 选择。Host 按 Bot 所有者的角色校验 DSH 路由，再选择第一条已就绪的路由。方案中 `orchestrator` 显示该路由，`orchestratorGroupId` 显示所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 

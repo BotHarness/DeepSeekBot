@@ -6,6 +6,8 @@ As of 2026-11-16. Measured by giving each model the same one-paragraph task in i
 
 ## Merge gate by task tier
 
+Agents never merge a PR that carries `needs-human`.
+
 | Tier                                                                                                                           | Example used                                          | Who can take it                                                                                         | Merge gate                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | S: one localized bug with a clear symptom and expected result                                                                  | Call keyframe grid rows (7 frames must be 3+2+2)      | Every model tested, including the cheapest flash and haiku tiers                                        | CI green and repository rules pass: merge                                               |

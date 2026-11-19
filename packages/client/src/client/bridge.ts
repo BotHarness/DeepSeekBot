@@ -1,3 +1,4 @@
+import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
   approvalTemplateDeletionPreviewSchema,
@@ -472,9 +473,11 @@ export async function createModelPreset(
   assignmentModels?: AssignmentModelOptionView[],
   openAssignmentModels?: boolean,
   groups?: ModelPlanGroupsView,
+  engines?: ModelPresetEngines,
 ): Promise<ModelPresetView> {
   return createHostModelPreset(bridgeHost(call), {
     name,
+    ...engines,
     ...groupPayload(orchestrator, groups),
     assignmentDefault,
     ...(assignmentModels === undefined ? {} : { assignmentModels }),

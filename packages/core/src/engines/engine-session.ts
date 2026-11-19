@@ -128,7 +128,9 @@ export class EngineRefusal extends Error {
       | 'engine-signed-out'
       | 'engine-not-subscription'
       | 'engine-thread-gone'
-      | 'engine-failed',
+      | 'engine-failed'
+      | 'unknown-model'
+      | 'unknown-effort',
     message: string,
   ) {
     super(message);
