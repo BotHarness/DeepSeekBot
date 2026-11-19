@@ -56,6 +56,18 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  labelWithDescription: {
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    paddingBlock: space.x2,
+  },
+  description: {
+    display: 'block',
+    color: ink.secondary,
+    fontSize: type.captionSize,
+    lineHeight: type.captionLine,
+    fontWeight: type.captionWeight,
+  },
   trailing: {
     flexShrink: 0,
     display: 'inline-flex',
@@ -94,9 +106,11 @@ const styles = stylex.create({
 export interface NavItemProps {
   readonly icon?: ReactNode;
   readonly label: string;
+  readonly description?: string | undefined;
   readonly current?: boolean;
   readonly attention?: string | undefined;
   readonly trailing?: ReactNode;
+  readonly xstyle?: stylex.StyleXStyles;
   readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
   readonly onSelect: () => void;
 }
@@ -104,9 +118,11 @@ export interface NavItemProps {
 export function NavItem({
   icon,
   label,
+  description,
   current = false,
   attention,
   trailing,
+  xstyle,
   data,
   onSelect,
 }: NavItemProps): ReactElement {
@@ -116,12 +132,19 @@ export function NavItem({
       type="button"
       aria-current={current ? 'page' : undefined}
       onClick={onSelect}
-      {...stylex.props(styles.item, current && styles.current)}
+      {...stylex.props(styles.item, current && styles.current, xstyle)}
     >
       <span aria-hidden="true" {...stylex.props(styles.slot, current && styles.slotCurrent)}>
         {icon}
       </span>
-      <span {...stylex.props(styles.label)}>{label}</span>
+      <span
+        {...stylex.props(styles.label, description !== undefined && styles.labelWithDescription)}
+      >
+        {label}
+        {description === undefined ? null : (
+          <span {...stylex.props(styles.description)}>{description}</span>
+        )}
+      </span>
       {attention === undefined && trailing === undefined ? null : (
         <span {...stylex.props(styles.trailing, current && styles.trailingCurrent)}>
           {trailing}

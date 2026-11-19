@@ -27,16 +27,8 @@
   "packages/client/src/client/anchored-panel.ts": {
     "dshImport": 1
   },
-  "packages/client/src/client/appearance-pickers.tsx": {
-    "rawControl": 1,
-    "inlineStyle": 2,
-    "lineBorder": 3
-  },
   "packages/client/src/client/appearance-scope.ts": {
     "legacyCss": 8
-  },
-  "packages/client/src/client/appearance-settings.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/approval-input.tsx": {
     "rawControl": 1
@@ -86,9 +78,6 @@
     "rawControl": 1
   },
   "packages/client/src/client/bot-settings-sections.tsx": {
-    "dshImport": 1
-  },
-  "packages/client/src/client/bot-settings.tsx": {
     "dshImport": 1
   },
   "packages/client/src/client/bot-sidebar.tsx": {
@@ -236,9 +225,6 @@
   "packages/client/src/client/dm-composer-usage.tsx": {
     "rawControl": 1
   },
-  "packages/client/src/client/ds/settings-dialog.tsx": {
-    "legacyCss": 2
-  },
   "packages/client/src/client/dsh-bot-settings-item.tsx": {
     "dshImport": 1
   },
@@ -296,9 +282,6 @@
   "packages/client/src/client/internal-tour-styles.ts": {
     "legacyCss": 13,
     "lineBorder": 2
-  },
-  "packages/client/src/client/keyboard-settings.tsx": {
-    "dshImport": 1
   },
   "packages/client/src/client/labels.ts": {
     "dshImport": 1
@@ -494,9 +477,6 @@
   "packages/client/src/client/session-return-action.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/shortcut-help.tsx": {
-    "lineBorder": 1
-  },
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
   },
@@ -505,7 +485,7 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1930,
+    "legacyCss": 1924,
     "lineBorder": 107
   },
   "packages/client/src/client/team-settings.tsx": {

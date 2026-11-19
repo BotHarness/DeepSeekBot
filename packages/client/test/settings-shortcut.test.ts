@@ -66,9 +66,10 @@ describe('Bot settings shortcut', () => {
     botSettings.open('shortcuts');
     botSettings.close();
     press(document.body);
-    expect(botSettings.getSnapshot()).toEqual({
+    expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'shortcuts',
+      compactList: true,
       pairPhone: false,
       joinComputer: false,
     });

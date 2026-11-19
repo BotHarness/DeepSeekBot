@@ -1,5 +1,6 @@
 import type { ClaudeStatus } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
+import type { EngineQuotaView, EngineStatusReport } from './engine-host-types.js';
 import {
   ENGINE_DEFINITIONS,
   type EngineAccount,
@@ -7,24 +8,6 @@ import {
   type EngineSession,
   EngineRefusal,
 } from './engine-session.js';
-
-export interface EngineQuotaView {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
-
-export interface EngineStatusReport {
-  displayName: string;
-  engine: EngineId;
-  available: boolean;
-  reason?: 'host-not-local' | 'not-installed' | 'signed-out' | 'not-subscription' | 'login-unknown';
-  installed: boolean;
-  version?: string;
-  login: CodexStatus['login'] | ClaudeStatus['login'];
-  quota?: EngineQuotaView;
-}
 
 const SIGN_IN_HINTS: Record<EngineId, string> = {
   codex:

@@ -10,7 +10,7 @@ Turning statistics off clears the phone identifier and unsent events. Turning it
 
 Events go through our first-party proxy to PostHog Cloud US. Network services receive an IP address while handling the connection; PostHog's project is configured to discard it, and these events disable GeoIP. We use these statistics to improve pairing, connection reliability, first-chat usability and Bot creation/import reliability, and to see which features are used. They describe **anonymous installations with statistics enabled**, not all Humans or task success.
 
-Source: [Mobile Telemetry](../apps/mobile/src/telemetry/) · [decision and qualification limits](adr/0214-mobile-statistics-use-explicit-consent-and-an-independent-install-id.md).
+Source: [Mobile Telemetry](../apps/mobile/src/telemetry/) · [decision and qualification limits](decisions/mobile.md#adr-0214).
 
 Every new event also includes OS major.minor, phone/tablet/unknown class, a public iOS model ID (Android is `unknown`), total RAM band and device year class. RAM bands use upper bounds of 4, 8, 16 and 32 GiB; `64plus` means above 32 GiB. Missing or invalid native facts become `unknown`; exact RAM bytes, device names, serials and advertising/Android IDs are excluded. The sanitizer validates each new field. Previously queued schema-v1 events without device context remain valid and are not relabelled with the current device or app version. SDK 58 already includes `expo-device`; this change adds no native dependency. Public API reference: [Expo Device](https://docs.expo.dev/versions/v58.0.0/sdk/device/).
 

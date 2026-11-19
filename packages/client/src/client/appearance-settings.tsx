@@ -2,12 +2,11 @@ import { AppearanceRecoverySettings } from './appearance-recovery-settings.js';
 import { WallpaperSettings } from './wallpaper-settings.js';
 import type { Wallpaper } from './wallpaper.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
-import { useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import type { Appearance, AppearancePatch } from './appearance.js';
-import type { PropsLocale, PropsRenderSlots, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
-import type { BotModePrefsFace } from './bot-mode-prefs.js';
-import { BotIconSetting } from './bot-mode-setting-rows.js';
-import { SettingsRows, SettingsRow, SettingsSection } from './ds/settings-row.js';
+import type { SettingsLayoutSlots } from './bot-settings-slot.js';
+import { BotIconSetting, type BotModeSettingRowProps } from './bot-mode-setting-rows.js';
+import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import {
   ColorSchemePicker,
   PrimaryColorPicker,
@@ -15,17 +14,16 @@ import {
   ThemePresetPicker,
   applyPreset,
 } from './appearance-pickers.js';
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 
-export interface AppearanceFace extends BotModePrefsFace {
+interface AppearanceOwners {
   appearance: Appearance;
   wallpaper: Wallpaper;
 }
 
 export function AppearanceSection(
-  props: PropsLocale<'botharness'> &
-    InjectFace<AppearanceFace> &
-    PropsRenderSlots<'botharness.settings.layout'> & { clientOnly?: boolean },
+  props: BotModeSettingRowProps & AppearanceOwners & SettingsLayoutSlots & { clientOnly?: boolean },
 ): ReactElement {
   const { t, appearance, wallpaper, renderSlot } = props;
   const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
@@ -35,7 +33,7 @@ export function AppearanceSection(
     } catch {}
   };
   return (
-    <SettingsRows>
+    <div>
       <Note>{t('appearance.local')}</Note>
       {theme.error && <Note tone="danger">{t('appearance.saveFailed')}</Note>}
       <SettingsSection title={t('settings.theme')}>
@@ -56,6 +54,7 @@ export function AppearanceSection(
       <SettingsSection title={t('appearance.palette')}>
         <SettingsRow
           title={t('appearance.primary')}
+          icon={<Icon name="palette" />}
           control={(['light', 'dark'] as const).map((mode) => (
             <PrimaryColorPicker
               key={mode}
@@ -91,6 +90,6 @@ export function AppearanceSection(
       {props.clientOnly
         ? null
         : (renderSlot('botharness.settings.layout', {}) as unknown as ReactNode)}
-    </SettingsRows>
+    </div>
   );
 }
