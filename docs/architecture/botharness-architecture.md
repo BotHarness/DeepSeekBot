@@ -191,7 +191,7 @@ N6 的可选配置入口留在通知设置中，不阻断聊天；明确选择�
 
 ## 1 · 系统上下文
 
-新附件已遵循 [ADR-0100](../adr/0100-file-open-actions-target-real-host-files.md)：独立上传彼此独立，显式复用身份才共享编辑结果。原生打开指向真实目标；后续消息读取、预览和下载使用当前内容，上传源独立。保存不保留附件历史，不生成 Source Revision、Inbox Admission、通知或 Bot wake。目标缺失则报告不可用，不自动重建。旧 CAS 迁移（#577）按 Source Event 附件出现位置预留可重启恢复的身份，仅在保留依赖未转换时继续保护旧对象；其他 CAS 数据与 Memory Git 行为保持各自语义。
+新附件已遵循 [ADR-0100](../decisions/workspaces.md#adr-0100)：独立上传彼此独立，显式复用身份才共享编辑结果。原生打开指向真实目标；后续消息读取、预览和下载使用当前内容，上传源独立。保存不保留附件历史，不生成 Source Revision、Inbox Admission、通知或 Bot wake。目标缺失则报告不可用，不自动重建。旧 CAS 迁移（#577）按 Source Event 附件出现位置预留可重启恢复的身份，仅在保留依赖未转换时继续保护旧对象；其他 CAS 数据与 Memory Git 行为保持各自语义。
 
 ```mermaid
 flowchart LR
@@ -342,7 +342,7 @@ Memory Service 拥有 repository identity 和 lifecycle、可信 Session ownersh
 
 Memory 外部打开沿用 ADR-0100 的交互，#574 实现当前 Memory 首片：显示路径的区域可点击弹出菜单，密集文件树提供右键菜单和键盘／触屏可到达的入口，合适位置提供带 Tooltip 的图标按钮。普通文件选择仍进内置阅读，目录选择仍展开。首片覆盖 Workspace 的 Memory Repository 路径及当前 Memory 文件／目录，#575 扩展已授权的普通 Workspace 路径，后续扩展 PR #435 的消息附件 chips，不识别任意正文路径。Memory Service 在 Host 从 PersonaBot 仓库根解析相对路径，沿用 `.git`、越界与符号链接检查；其他来源由各自 owning module 解析，不开放通用任意路径 authority。Client 沿用 DSH Typert／API Gateway seam 消费原生打开能力，不运行拼接 Shell 命令。目录菜单取 DSH 探测到的应用，文件菜单取默认和注册关联应用，首片不加自定义程序或持久默认应用设置。
 
-默认打开遵循 [ADR-0178](../adr/0178-file-open-defaults-are-explicit-client-preferences.md)（#1461）：Memory 当前文件阅读器、聊天普通文件卡及 Workspace 的 Memory Repository／已授权目录行共用一个 application-defined split button——应用图标与「打开」主按钮加独立下拉，下拉即原文件菜单。主动作优先 Human 的显式偏好，其次 DSH 报告的系统默认；pinned DSH 只为文件关联报告系统默认，目录在 Human 设置前没有可信默认项，此时主按钮说明原因并展开选择，不使用列表首项。下拉里的一次性选择不修改偏好；「设为默认」「恢复系统默认」写入同一个 Client 偏好 owner（`file-open-preferences`），文件按扩展名、目录单独，存于浏览器 `localStorage`，并以 Host 提供的 Profile 身份作键；身份未就绪时不读取任何偏好，写入失败如实报错。偏好只保存 Host 曾报告的应用标识，不授予路径权限、不修改 OS 关联、不跨设备同步。每次手势都由对应 file owner 重新解析目标并重新查询可用应用，已卸载或不再报告的应用不会被启动，也不会被静默替换。派发成功只表示请求已发送到 Host，不代表窗口已出现。记忆演化的 commit diff 与未提交差异在每个文件行提供「打开当前文件」（#1462），复用同一 split button 与偏好 owner，提交 PersonaBot slug 与该行路径，由 Memory Service 按现在的仓库状态重新解析；它不读取所选 commit 的内容，也不暂存、提交或修改仓库。Host 的变更列表不做 rename 检测，rename 表现为旧路径删除加新路径新增，因此新路径行打开新文件、旧路径行只检查该路径当前是否存在。历史上标为删除但后来重建的同路径文件可正常打开；当前不存在时提示「这个路径现在没有文件」，仅当该行本身带删除标记时附上「此提交／当前工作区变更将该路径标记为删除」，不从历史内容重建，也不追猜后续 rename。点击按钮不折叠／展开 diff。
+默认打开遵循 [ADR-0178](../decisions/workspaces.md#adr-0178)（#1461）：Memory 当前文件阅读器、聊天普通文件卡及 Workspace 的 Memory Repository／已授权目录行共用一个 application-defined split button——应用图标与「打开」主按钮加独立下拉，下拉即原文件菜单。主动作优先 Human 的显式偏好，其次 DSH 报告的系统默认；pinned DSH 只为文件关联报告系统默认，目录在 Human 设置前没有可信默认项，此时主按钮说明原因并展开选择，不使用列表首项。下拉里的一次性选择不修改偏好；「设为默认」「恢复系统默认」写入同一个 Client 偏好 owner（`file-open-preferences`），文件按扩展名、目录单独，存于浏览器 `localStorage`，并以 Host 提供的 Profile 身份作键；身份未就绪时不读取任何偏好，写入失败如实报错。偏好只保存 Host 曾报告的应用标识，不授予路径权限、不修改 OS 关联、不跨设备同步。每次手势都由对应 file owner 重新解析目标并重新查询可用应用，已卸载或不再报告的应用不会被启动，也不会被静默替换。派发成功只表示请求已发送到 Host，不代表窗口已出现。记忆演化的 commit diff 与未提交差异在每个文件行提供「打开当前文件」（#1462），复用同一 split button 与偏好 owner，提交 PersonaBot slug 与该行路径，由 Memory Service 按现在的仓库状态重新解析；它不读取所选 commit 的内容，也不暂存、提交或修改仓库。Host 的变更列表不做 rename 检测，rename 表现为旧路径删除加新路径新增，因此新路径行打开新文件、旧路径行只检查该路径当前是否存在。历史上标为删除但后来重建的同路径文件可正常打开；当前不存在时提示「这个路径现在没有文件」，仅当该行本身带删除标记时附上「此提交／当前工作区变更将该路径标记为删除」，不从历史内容重建，也不追猜后续 rename。点击按钮不折叠／展开 diff。
 
 普通 Workspace 路径复用同一 Client 菜单，但提交 PersonaBot slug 与 Grant ID，由 application-defined Workspace Grant Store 的 `requireActive` 在 Host 检查拥有者、撤销状态和当前 DSH Workspace Registry 身份，重新解析 canonical 目录。显示路径不承担 authority；失效、移动、未注册或缺失目录会拒绝。打开前再次校验，菜单只列 Host 探测到的目录应用，能力不可用时只保留复制 Host 路径。打开不修改 Grant、Session cwd 或访问权限，也不创建 Session；不提供目录下载（#575）。
 
@@ -991,7 +991,7 @@ Zip 使用既有已认证 RPC 上传 256 KiB 原始数据块，避免整包超�
 
 ### Skill catalog live refresh（#4234）
 
-Skill 文件仍由 [ADR-0345](../adr/0345-project-skills-travel-with-their-directory.md) 与 [ADR-0346](../adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md) 定义。Host 的 `SkillCatalog` 按 Bot 分开缓存 Project 与 Host 目录：Memory Repository 下 `.agents/skills`、`.dsh/skills` 的原生文件事件只清该 Bot 的 Project 部分；DSH-native `skills/change` 是不区分 Host 与 Project 的通知：先核对已缓存 Host 目录的摘要及文件版本，只有 Host 部分确有变化才清所有 Bot 的 Host 部分并广播，避免把 Project 文件通知扩散到无关会话。监听器只递归 Skill 目录，缺失目录的创建由浅层父目录监听接续；Registry 提交后协调新增、删除与 Memory 移动，Host Plugin/Fiber dispose 关闭所有监听器及合并通知定时器。没有轮询或第二份持久化目录。
+Skill 文件仍由 [ADR-0345](../decisions/workspaces.md#adr-0345) 与 [ADR-0346](../adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md) 定义。Host 的 `SkillCatalog` 按 Bot 分开缓存 Project 与 Host 目录：Memory Repository 下 `.agents/skills`、`.dsh/skills` 的原生文件事件只清该 Bot 的 Project 部分；DSH-native `skills/change` 是不区分 Host 与 Project 的通知：先核对已缓存 Host 目录的摘要及文件版本，只有 Host 部分确有变化才清所有 Bot 的 Host 部分并广播，避免把 Project 文件通知扩散到无关会话。监听器只递归 Skill 目录，缺失目录的创建由浅层父目录监听接续；Registry 提交后协调新增、删除与 Memory 移动，Host Plugin/Fiber dispose 关闭所有监听器及合并通知定时器。没有轮询或第二份持久化目录。
 
 Memory 文件事件通过兼容层持有的 DSH-native Provider registration control 使原 Registry 的 cwd/scope 缓存失效；该生命周期适配 Provider 不提供 Skill 候选项，目录仍只来自 DSH 的原 Provider，查询保留原 Agent Scope。这样无需跨运行时模块实例创建 Scope 继承关系，也不调用私有缓存方法。应用定义的 `skills/catalog-changed` 通知携带 `{botSlugs, channelIds}`，复用既有 roster SSE 与 typed live stream，并按 Human 的 Channel 访问权过滤。Client action `subscribeSkillCatalog(channelId, invalidate)` 只通知相关会话，在重连 baseline 时补读；`skillCatalog(channelId)` 与 CLI `skills-list` 共用 `channelSkillCatalog`。React composer 的订阅接线由 UI 切片完成。
 
