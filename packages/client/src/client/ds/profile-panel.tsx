@@ -87,7 +87,7 @@ export const profileStyles = stylex.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: space.x2,
-    marginInlineStart: 'auto',
+    flexGrow: 1,
     paddingBlockEnd: space.x2,
   },
   title: {
