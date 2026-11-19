@@ -42,4 +42,4 @@ Archive retains a static companion and archived label; deletion removes selectio
 - [Documentation handoff #1132](https://github.com/BotHarness/BotHarness/issues/1132)
 - [Implementation specification #1135](https://github.com/BotHarness/BotHarness/issues/1135)
 - [ADR-0049: shared Activity Projection](../decisions/release.md#adr-0049)
-- [ADR-0118: appearance vs presentation](0118-editable-avatar-appearance-is-independent-of-activity.md)
+- [ADR-0118: appearance vs presentation](../decisions/bots.md#adr-0118)
