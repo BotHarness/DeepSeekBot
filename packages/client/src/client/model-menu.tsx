@@ -229,6 +229,7 @@ export function engineMenuItems(
           value: engineMenuKey(engine, model.id),
           name: model.name,
           label: model.name,
+          hint: t('engine.subscription', { engine: name }),
           model: model.id,
         }));
       const label = t(entries === undefined ? 'modelPreset.loading' : 'engine.noModels');
@@ -267,6 +268,7 @@ export function engineMenuItems(
 export function selectedEngineMenuItem(
   choice: { engine: EngineId; model?: string },
   model: EngineModelView | undefined,
+  t: BotHarnessTranslate,
 ): ModelMenuItem {
   const id = choice.model ?? model?.id ?? '';
   const name = model?.name ?? (id || engineName(choice.engine));
@@ -274,6 +276,7 @@ export function selectedEngineMenuItem(
     value: engineMenuKey(choice.engine, id),
     name,
     label: name,
+    hint: t('engine.subscription', { engine: engineName(choice.engine) }),
     model: id,
     engine: choice.engine,
     brand: ENGINE_BRAND[choice.engine],

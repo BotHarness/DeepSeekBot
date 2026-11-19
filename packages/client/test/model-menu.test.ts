@@ -406,7 +406,12 @@ it('filters subscription models by engine and exposes only applicable actions', 
   const models = { codex: [{ id: 'gpt-6', name: 'GPT-6 Subscription', efforts: [] }] };
   const items = engineMenuItems(engines, models, undefined, zhTranslate);
   expect(items).toMatchObject([
-    { value: 'engine:codex:gpt-6', engine: 'codex', brand: 'openai' },
+    {
+      value: 'engine:codex:gpt-6',
+      engine: 'codex',
+      brand: 'openai',
+      hint: zhTranslate('engine.subscription', { engine: 'Codex' }),
+    },
     { value: 'engine-signin:claude', engine: 'claude', brand: 'claude', disabled: false },
   ]);
   expect(
@@ -430,7 +435,7 @@ it('filters subscription models by engine and exposes only applicable actions', 
   const rail = document.querySelector<HTMLButtonElement>('[data-picker-filter="engine:codex"]')!;
   expect(rail.getAttribute('aria-label')).toBe('Codex 订阅');
   await act(async () => rail.click());
-  expect(rows()).toEqual(['GPT-6 SubscriptionCtrl+1']);
+  expect(rows()).toEqual(['GPT-6 SubscriptionCodex 订阅Ctrl+1']);
   const signInFilter = document.querySelector<HTMLButtonElement>(
     '[data-picker-filter="engine:claude"]',
   )!;

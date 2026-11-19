@@ -65,7 +65,7 @@ export function ModelPicker({
       ? (models.find((model) => model.isDefault) ?? models[0])
       : models.find((model) => model.id === engine.model);
   const selectedEngine =
-    engine === null ? undefined : selectedEngineMenuItem(engine, selectedModel);
+    engine === null ? undefined : selectedEngineMenuItem(engine, selectedModel, t);
   const shown =
     selectedEngine === undefined
       ? choice
