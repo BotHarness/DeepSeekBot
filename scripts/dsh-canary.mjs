@@ -80,6 +80,10 @@ export function degradedCapabilities(entries) {
   ];
 }
 
+export function canaryPassed(outcome, degraded) {
+  return outcome.state === 'pass' && degraded.length === 0;
+}
+
 function diagnosticEntries(home) {
   const result = spawnSync(
     process.execPath,
@@ -231,7 +235,7 @@ async function run(options) {
     await stopAndWait(instance.pid);
     instance = undefined;
     report.degraded = degradedCapabilities(diagnosticEntries(home));
-    report.ok = outcome.state === 'pass' && report.degraded.length === 0;
+    report.ok = canaryPassed(outcome, report.degraded);
   } catch (error) {
     report.ok = false;
     report.error = error instanceof Error ? error.message : String(error);

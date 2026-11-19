@@ -39,11 +39,11 @@ export function subscribeLayoutViewport(
   };
 }
 
-const subscribe = (onChange: () => void): (() => void) =>
+export const subscribeWindowClass = (onChange: () => void): (() => void) =>
   subscribeLayoutViewport([medium, expanded], onChange);
 
 const serverWindowClass = (): WindowClass => 'expanded';
 
 export function useWindowClass(): WindowClass {
-  return useSyncExternalStore(subscribe, getWindowClass, serverWindowClass);
+  return useSyncExternalStore(subscribeWindowClass, getWindowClass, serverWindowClass);
 }

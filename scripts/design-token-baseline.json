@@ -60,9 +60,6 @@
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/bot-mode-sidebar.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/bot-prompt-viewer.tsx": {
     "rawControl": 1,
     "lineBorder": 1
@@ -354,17 +351,8 @@
     "legacyCss": 21,
     "lineBorder": 3
   },
-  "packages/client/src/client/mobile-bot-panel.tsx": {
-    "rawControl": 4,
-    "lineBorder": 2
-  },
   "packages/client/src/client/mobile-bot-styles.ts": {
-    "legacyCss": 22,
-    "lineBorder": 1
-  },
-  "packages/client/src/client/mobile-conversation-header.tsx": {
-    "rawControl": 4,
-    "lineBorder": 1
+    "legacyCss": 10
   },
   "packages/client/src/client/model-preset-profile.tsx": {
     "lineBorder": 1

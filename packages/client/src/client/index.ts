@@ -107,15 +107,11 @@ import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
-import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js';
-import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
+import { MobileBotPanel } from './mobile-bot-panel.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
 import { BotModeSidebar } from './bot-mode-sidebar.js';
-import {
-  botModeSidebarViewport,
-  subscribeBotModeSidebarViewport,
-} from './bot-mode-sidebar-viewport.js';
+import { getWindowClass, subscribeWindowClass } from './ds/window-class.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
 import { HostAcknowledgements, installHostAcknowledgements } from './host-acknowledgements.js';
 import {
@@ -1308,6 +1304,7 @@ export function apply(ctx: ClientContext): void {
           exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
+          shortcutBindings,
         }),
       },
       MobileBotPanel,
@@ -1404,9 +1401,9 @@ export function apply(ctx: ClientContext): void {
       ),
     store,
     {
-      enabled: () => botModeSidebarViewport() && !nativeSettingsNavigation.getSnapshot(),
+      enabled: () => getWindowClass() === 'expanded' && !nativeSettingsNavigation.getSnapshot(),
       subscribe: (listener) => {
-        const viewport = subscribeBotModeSidebarViewport(listener);
+        const viewport = subscribeWindowClass(listener);
         const navigation = nativeSettingsNavigation.subscribe(listener);
         return () => {
           viewport();
@@ -1438,8 +1435,8 @@ export function apply(ctx: ClientContext): void {
       ),
     store,
     {
-      enabled: () => !mobileBotViewport(),
-      subscribe: subscribeMobileBotViewport,
+      enabled: () => getWindowClass() === 'expanded',
+      subscribe: subscribeWindowClass,
     },
   );
   registerModeShadow(
@@ -1506,7 +1503,6 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(
       () =>
         watchPrivateInputNavigation(store, privateLocator, (channelId, messageId) => {
-          expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openChannelAtMessage(channelId, messageId).catch(() => {
             ctx.logger.warn('botharness: private input card locator unavailable');
@@ -1528,7 +1524,6 @@ export function apply(ctx: ClientContext): void {
             requestCreation(target.kind === 'new-bot' ? 'bot' : 'channel');
             return;
           }
-          if (target.kind !== 'home') expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           if (target.kind === 'home') return;
           const opening =

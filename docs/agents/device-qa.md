@@ -251,3 +251,26 @@ for final release checks; existing runner output locations remain intact.
 - One Maestro run at a time on the Mac.
 - Keep other builds off the Mac while you profile (see [Profiling](../../apps/mobile/AGENTS.md#profiling)).
 - Secrets, push tokens and tailnet addresses never enter the repo, a PR comment or a log line.
+
+## Mobile app verification and read-only diagnostics
+
+- **First reserve the shared device lane** through [shared device QA](./device-qa.md). Do not start a separate Simulator, Metro, Host or build outside the assigned batch. The runner may use `node scripts/e2e-mobile-sim.mjs` only when its Simulator/build/Host lifecycle fits the assigned window; it is not a bypass of the queue.
+- On a Mac, verify native UI with Callstack's `agent-device` on the iOS Simulator: open the development build, read its accessibility snapshot, act by ref, and save a screenshot. The commands are in [the mobile README](../../apps/mobile/README.md) ("Drive it on the iOS Simulator").
+- Regression flows live in [`apps/mobile/.maestro/`](../../apps/mobile/.maestro/) and run with `pnpm --filter @botharness/mobile e2e:ios`. Target elements by their visible text from the snapshot, not by coordinates.
+- For a read-only health check of the running dev build, run Expo's experimental agent CLI as `npx --yes @expo/agent-cli@1.0.20 <command>` from `apps/mobile` with `EXPO_NO_TELEMETRY=1`. It assumes it owns the worktree's devices and builds, so on the shared Simulator name both targets explicitly: `status` takes `--device <udid>`, and the `runtime:*` commands and `smoke` take `--dev-server-url http://127.0.0.1:<port>` (`smoke` also accepts `--port <port>`). Without them it reports no device and misses Metro outside 8081–8085.
+  - `status --device <udid> --json`: whether the installed build is stale (`rebuild-required` / `hash-mismatch`).
+  - `runtime:errors --dev-server-url http://127.0.0.1:<port> --json` and the same flags on `runtime:tree`: runtime errors and the interactive nodes on screen, with their `testID`s.
+  - `smoke --ios --no-start --no-reload --port <port> --json`: one exit code for "the app is connected and threw nothing". `--no-start` keeps it from starting Metro, a Simulator or Expo Go.
+  - Never run `agents:setup`, `new`, `install`, `deploy` or anything with `--eas`: they rewrite `AGENTS.md`/`CLAUDE.md`, change dependencies or spend EAS credits.
+- Native devices and QA Hosts are shared by every agent. Read [shared device QA](./device-qa.md) before builds or device interaction; it routes Mac/iOS and Windows/Android to their own batch queues. Windows emulator/USB phone control and scrcpy evidence use `scripts/android-qa.mjs` from the repo root.
+- Screenshots, recordings and release image retention follow [local QA evidence](./qa-evidence.md): index each platform's actual source/build and results in the main checkout, and retain accepted evidence outside disposable worktrees.
+- Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.
+
+## Mobile check commands
+
+```bash
+pnpm --filter @botharness/mobile typecheck
+pnpm vitest run apps/mobile
+pnpm --filter @botharness/mobile expo:doctor          # expo-doctor; two checks need the Expo API
+EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export
+```

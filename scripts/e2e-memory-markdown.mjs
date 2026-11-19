@@ -292,10 +292,20 @@ try {
   } else await page.waitForSelector('.bh-memory-diff-table');
   await capture('history-dark');
   stage = 'narrow';
-  await page.setViewport({ width: 700, height: 1000 });
-  await page.waitForSelector('.bh-mobile-shell[data-page="list"]', { visible: true });
-  await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
-  await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  await page.setViewport({ width: 550, height: 1000 });
+  await page.waitForSelector('.bh-mobile-shell', { visible: true });
+  if (await page.$('[data-bot-window-class="compact"]')) {
+    await page
+      .locator('[data-bot-window-class="compact"] button[aria-label="Open sidebar"]')
+      .click();
+    await page.locator(`[role="dialog"] button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('[data-tobs-dialog-viewport][data-presentation="drawer"]', {
+      hidden: true,
+    });
+  } else {
+    await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  }
   await click('Conversation settings');
   await click('Memory');
   await selectWorking();
