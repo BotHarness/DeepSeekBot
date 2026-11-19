@@ -8,7 +8,10 @@ import { desktopStyles, fixDesktopStyles } from '../ui-rule-styles.mjs';
 const file = 'packages/client/src/client/example.tsx';
 const stylex = "import * as stylex from '@stylexjs/stylex';";
 const inspect = (source) => desktopStyles(source, file, parseSource(source, file), walk);
-const fix = (source) => fixDesktopStyles(source, file, parseSource(source, file), inspect(source));
+const fix = (source) => {
+  const ast = parseSource(source, file);
+  return fixDesktopStyles(source, file, ast, desktopStyles(source, file, ast, walk));
+};
 
 describe('G1 rule 1', () => {
   it('finds CSS literals in StyleX and inline styles and snaps nearby dimensions', () => {
@@ -28,6 +31,55 @@ const view = <div style={inline} data-note="84px" />;
     expect(fix(source)).toContain('borderRadius: radius.lg');
     expect(fix(source)).toContain('marginLeft: space.x2');
     expect(inspect(fix(source)).map(({ text }) => text)).toEqual(['color: #f00', 'width: 51px']);
+  });
+
+  it('checks CSS template declarations and ignores unrelated template text', () => {
+    const source = `
+const sheet = css\`.tile { padding: 9px; color: #f00; content: '24px'; }\`;
+const note = \`padding: 12px; color: #0f0;\`;
+`;
+    expect(inspect(source)).toMatchObject([
+      { rule: 'styleLiteral', text: 'padding: 9px', line: 2 },
+      { rule: 'styleLiteral', text: 'color: #f00', line: 2 },
+    ]);
+  });
+
+  it('checks style values under computed media token keys', () => {
+    const source = `${stylex}
+const styles = stylex.create({
+  tile: {
+    padding: { default: space.x2, [media.minMedium]: '9px' },
+    transitionDuration: { default: motion.fast, [media.minMedium]: '149ms' },
+    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0ms' },
+  },
+});
+`;
+    expect(inspect(source)).toMatchObject([
+      { rule: 'styleLiteral', text: 'padding: 9px' },
+      { rule: 'motionToken', text: 'transitionDuration: 149ms' },
+    ]);
+  });
+
+  it('does not reuse a shadowed token import for autofixes', () => {
+    const source = `import { space } from './ds/tobs.stylex.js';
+function Tile({ space }) {
+  return <div style={{ padding: '9px' }} data-gap={space} />;
+}
+const view = <div style={{ padding: '9px' }} />;
+`;
+    const result = fix(source);
+    expect(result).toContain("return <div style={{ padding: '9px' }} data-gap={space} />");
+    expect(result).toContain('const view = <div style={{ padding: space.x3 }} />');
+    expect(inspect(result)).toMatchObject([{ rule: 'styleLiteral', text: 'padding: 9px' }]);
+  });
+
+  it('reports signed numeric lengths and preserves their sign', () => {
+    const source = 'const view = <div style={{ marginTop: -8, marginBottom: -0, padding: +9 }} />;';
+    expect(inspect(source)).toMatchObject([
+      { rule: 'styleLiteral', text: 'marginTop: -8' },
+      { rule: 'styleLiteral', text: 'padding: 9' },
+    ]);
+    expect(fix(source)).toContain('marginTop: -8, marginBottom: -0, padding: space.x3');
   });
 
   it('accepts token expressions, relative values, and zero', () => {
@@ -94,6 +146,38 @@ const css = \`.tile {animation: pulse .2s steps(2);}
     expect(result).toContain('${tobsMotion1.fast}');
     expect(result).toContain('${tobsMotion1.base}');
     expect(inspect(result).map(({ text }) => text)).toEqual(['transition', 'animation: steps(2)']);
+  });
+
+  it('accepts both quoted forms of the reduced-motion selector', () => {
+    const source = `const css = \`
+.single { animation: pulse \${motion.base}; }
+.double { animation: pulse \${motion.base}; }
+html[data-botharness-motion='reduce'] .single { animation: none; }
+html[data-botharness-motion="reduce"] .double { animation: none; }
+\`;`;
+    expect(inspect(source)).toEqual([]);
+  });
+
+  it('requires a reduced-motion override that changes the active motion', () => {
+    const source = `${stylex}
+const styles = stylex.create({
+  tile: {
+    transitionProperty: 'transform',
+    transitionDuration: motion.fast,
+    '@media (prefers-reduced-motion: reduce)': { transitionDelay: '0ms' },
+  },
+  card: {
+    animationName: { default: pulse, '@media (prefers-reduced-motion: reduce)': pulse },
+  },
+});
+const css = \`.tile { transition: transform \${motion.fast}; }
+@media (prefers-reduced-motion: reduce) { .tile { transition-delay: 0ms; } }\`;
+`;
+    expect(inspect(source)).toMatchObject([
+      { rule: 'reducedMotion', text: 'transitionDuration' },
+      { rule: 'reducedMotion', text: 'animationName' },
+      { rule: 'reducedMotion', text: '.tile transition' },
+    ]);
   });
 
   it('accepts a tokenized transition or animation with its own reduced-motion override', () => {

@@ -1,6 +1,9 @@
 import { posix } from 'node:path';
+import traverseModule from '@babel/traverse';
 import postcss from 'postcss';
 import { camel, webTokens } from './generate-tokens.mjs';
+
+const traverse = typeof traverseModule === 'function' ? traverseModule : traverseModule.default;
 
 const DS = 'packages/client/src/client/ds';
 const STYLE_X = `${DS}/tobs.stylex.ts`;
@@ -13,14 +16,15 @@ const COLOR_LITERAL = /#[\da-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|
 const CSS_KEYWORD =
   /^(?:none|transparent|currentcolor|inherit|initial|unset|revert(?:-layer)?|context-fill|context-stroke)$/iu;
 const PIXELS = /(?<![\w.])-?(?:\d*\.)?\d+px\b/gu;
+const CSS_TEXT = /\/\*[\s\S]*?\*\/|url\([^)]*\)|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu;
 const CSS_VAR = /var\(\s*--[\w-]+(?:,[^()]*)?\)/gu;
 const TIME = /(?<![\w.-])-?(?:\d*\.)?\d+m?s\b/gu;
 const EASING =
   /(?<![\w-])(?:cubic-bezier\([^)]*\)|ease(?:-in-out|-in|-out)?|linear(?:\([^)]*\))?|step-(?:start|end)|steps\([^)]*\))(?![\w-])/gu;
-const MOTION =
-  /^(?:animation(?:Name|Duration|Delay|TimingFunction)?|transition(?:Property|Duration|Delay|TimingFunction)?)$/u;
+const ACTIVE_MOTION = /^(?:animation(?:Name|Duration)?|transition(?:Duration)?)$/u;
 const MOTION_VALUE = /^(?:animation|transition)(?:Duration|Delay|TimingFunction)?$/u;
 const REDUCE = /prefers-reduced-motion\s*:\s*reduce/u;
+const REDUCED_SELECTOR = /^html\[data-botharness-motion=(["'])reduce\1\]\s*/u;
 const REDUCED_VALUE = /^(?:none|0(?:ms|s)?)$/u;
 const BREAKPOINT = /\((?=[^()]*\b(?:min-|max-)?(?:device-)?width\b)([^()]*?)(?=\))/gu;
 const DIMENSION = /(?<![\w.])(?:\d*\.)?\d+(?:px|r?em|vw|vh|ch)\b/gu;
@@ -65,6 +69,7 @@ function nearest(group, distance, limit = Infinity, filter = () => true) {
 }
 
 function lengthToken(property, px) {
+  if (px < 0) return undefined;
   if (SPACE.test(property)) return nearest('space', (v) => Math.abs(px - parseFloat(v)), 2);
   if (/radius/iu.test(property)) return nearest('radius', (v) => Math.abs(px - parseFloat(v)), 2);
   if (/^(?:border|outline)/u.test(property))
@@ -113,12 +118,15 @@ function literalParts(node) {
       text: part.value.raw,
       start: part.start,
       end: part.end,
+      node: part,
     }));
   return [];
 }
 
 function cssProperty(name) {
-  return name.replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase());
+  return name.startsWith('--')
+    ? name
+    : name.replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase());
 }
 
 function objectValue(node) {
@@ -127,18 +135,77 @@ function objectValue(node) {
   return node;
 }
 
-function reducedStyle(block, family) {
-  return block.properties.some((property) => {
-    const key = nameOf(property);
-    if (!key) return false;
-    if (REDUCE.test(key) && property.value?.type === 'ObjectExpression')
-      return property.value.properties.some((entry) => nameOf(entry)?.startsWith(family));
-    return (
-      key.startsWith(family) &&
-      property.value?.type === 'ObjectExpression' &&
-      property.value.properties.some((entry) => REDUCE.test(nameOf(entry) ?? ''))
+function numberValue(node) {
+  if (node.type === 'NumericLiteral') return node.value;
+  if (
+    node.type === 'UnaryExpression' &&
+    (node.operator === '-' || node.operator === '+') &&
+    node.argument.type === 'NumericLiteral'
+  )
+    return node.operator === '-' ? -node.argument.value : node.argument.value;
+  return undefined;
+}
+
+function canReduceMotion(property) {
+  return ACTIVE_MOTION.test(property) || property === 'transitionProperty';
+}
+
+function hasReducedMotion(base, overrides, family) {
+  return [...overrides].some(
+    ([property, value]) => property.startsWith(family) && value !== base.get(property),
+  );
+}
+
+function reducedStyle(block, family, source) {
+  const base = new Map();
+  const overrides = new Map();
+  const record = (map, property, expression) => {
+    const value = objectValue(expression);
+    if (value && canReduceMotion(property))
+      map.set(
+        property,
+        value.type === 'StringLiteral' ? value.value : source.slice(value.start, value.end),
+      );
+  };
+  for (const entry of block.properties) {
+    const key = nameOf(entry);
+    const value = objectValue(entry.value);
+    if (!key || !value) continue;
+    if (value.type !== 'ObjectExpression') record(base, key, value);
+    else if (REDUCE.test(key)) {
+      for (const override of value.properties) record(overrides, nameOf(override), override.value);
+    } else if (canReduceMotion(key)) {
+      for (const condition of value.properties) {
+        const name = nameOf(condition);
+        if (name === 'default') record(base, key, condition.value);
+        else if (REDUCE.test(name ?? '')) record(overrides, key, condition.value);
+      }
+    }
+  }
+  return hasReducedMotion(base, overrides, family);
+}
+
+function addStyleLiterals(property, part, add, namedColor) {
+  if (
+    COLOR.test(property) &&
+    (COLOR_LITERAL.test(part.text) ||
+      (namedColor &&
+        COLOR_PROPERTY.test(property) &&
+        /^[a-z]+$/iu.test(part.text) &&
+        !CSS_KEYWORD.test(part.text)))
+  )
+    add('styleLiteral', `${property}: ${part.text}`, part.start);
+  for (const match of part.text.matchAll(PIXELS)) {
+    const px = parseFloat(match[0]);
+    if (px === 0) continue;
+    const plain = part.quoted && part.text === match[0] && LENGTH.test(property);
+    add(
+      'styleLiteral',
+      `${property}: ${match[0]}`,
+      part.start + match.index,
+      plain ? { token: lengthToken(property, px), direct: part.quoted } : undefined,
     );
-  });
+  }
 }
 
 function addMotionTokens(property, part, add) {
@@ -183,39 +250,33 @@ function cssTemplate(node, source) {
   }
 }
 
-function inspectCss({ css, start }, add) {
-  const reductions = new Map();
-  const declarations = [];
+function inspectCss({ css, start }, node, source, add) {
+  const selectors = new Map();
+  const active = [];
   css.walkDecls((decl) => {
     const property = cssProperty(decl.prop);
-    if (!MOTION.test(property) || decl.parent.type !== 'rule') return;
-    const family = property.startsWith('animation') ? 'animation' : 'transition';
+    const offset = start + decl.source.start.offset;
+    const begin = offset + decl.prop.length + decl.raws.between.length;
+    const value = decl.raws.value?.raw ?? decl.value;
+    const plain = value.replace(CSS_TEXT, (match) => ' '.repeat(match.length));
+    addStyleLiterals(property, { text: plain, start: begin }, add, true);
+    if (decl.parent.type !== 'rule') return;
+    addMotionTokens(property, { text: value, start: begin, node }, add);
+    if (!canReduceMotion(property)) return;
     const selector = decl.parent.selector;
     const isReduced =
-      REDUCE.test(decl.parent.parent.params ?? '') ||
-      selector.includes("[data-botharness-motion='reduce']");
-    const reducedSelector = selector.replace(
-      /^html\[data-botharness-motion=['"]reduce['"]\]\s*/u,
-      '',
-    );
-    if (isReduced) {
-      if (!reductions.has(family)) reductions.set(family, new Set());
-      reductions.get(family).add(reducedSelector);
-    }
-    declarations.push({ decl, property, selector, family, isReduced });
+      REDUCE.test(decl.parent.parent.params ?? '') || REDUCED_SELECTOR.test(selector);
+    const key = selector.replace(REDUCED_SELECTOR, '');
+    const style = selectors.get(key) ?? { base: new Map(), overrides: new Map() };
+    selectors.set(key, style);
+    const values = isReduced ? style.overrides : style.base;
+    values.set(property, source.slice(begin, begin + value.length));
+    if (!isReduced && ACTIVE_MOTION.test(property) && !REDUCED_VALUE.test(value))
+      active.push({ selector, style, property, offset });
   });
-  for (const { decl, property, selector, family, isReduced } of declarations) {
-    const offset = start + decl.source.start.offset;
-    if (REDUCED_VALUE.test(decl.value)) continue;
-    const begin = offset + decl.prop.length + decl.raws.between.length;
-    addMotionTokens(property, { text: decl.value, start: begin }, add);
-    if (
-      !isReduced &&
-      !reductions.get(family)?.has(selector) &&
-      /^(?:animation|animationName|animationDuration|transition|transitionDuration)$/u.test(
-        property,
-      )
-    )
+  for (const { selector, style, property, offset } of active) {
+    const family = property.startsWith('animation') ? 'animation' : 'transition';
+    if (!hasReducedMotion(style.base, style.overrides, family))
       add('reducedMotion', `${selector} ${property}`, offset);
   }
 }
@@ -250,72 +311,50 @@ export function desktopStyles(source, file, ast, walk) {
       else styleNamespaces.add(specifier.local.name);
     }
   }
-  function inspectValue(property, expression, block) {
+  function inspectValue(property, expression, block, isReduced) {
     const value = objectValue(expression);
     if (value.type === 'ConditionalExpression') {
-      inspectValue(property, value.consequent, block);
-      inspectValue(property, value.alternate, block);
+      inspectValue(property, value.consequent, block, isReduced);
+      inspectValue(property, value.alternate, block, isReduced);
       return;
     }
-    const nonzero = value.type === 'NumericLiteral' && value.value !== 0;
-    const numeric = nonzero && LENGTH.test(property) && property !== 'lineHeight';
-    if (numeric)
-      add('styleLiteral', `${property}: ${value.value}`, value.start, {
-        token: lengthToken(property, value.value),
+    const number = numberValue(value);
+    if (number !== undefined && number !== 0 && LENGTH.test(property) && property !== 'lineHeight')
+      add('styleLiteral', `${property}: ${number}`, value.start, {
+        token: lengthToken(property, number),
         direct: value,
       });
     for (const part of literalParts(value)) {
-      if (
-        COLOR.test(property) &&
-        (COLOR_LITERAL.test(part.text) ||
-          (value.type === 'StringLiteral' &&
-            COLOR_PROPERTY.test(property) &&
-            /^[a-z]+$/iu.test(part.text) &&
-            !CSS_KEYWORD.test(part.text)))
-      )
-        add('styleLiteral', `${property}: ${part.text}`, part.start);
-      for (const match of part.text.matchAll(PIXELS)) {
-        const px = parseFloat(match[0]);
-        if (px === 0) continue;
-        const plain = part.quoted && part.text === match[0] && LENGTH.test(property);
-        add(
-          'styleLiteral',
-          `${property}: ${match[0]}`,
-          part.start + match.index,
-          plain
-            ? {
-                token: lengthToken(property, px),
-                direct: part.quoted,
-              }
-            : undefined,
-        );
-      }
+      addStyleLiterals(property, part, add, value.type === 'StringLiteral');
       addMotionTokens(property, part, add);
     }
     if (
-      !MOTION.test(property) ||
-      !/^(?:animation|animationName|animationDuration|transition|transitionDuration)$/u.test(
-        property,
-      )
+      !isReduced &&
+      ACTIVE_MOTION.test(property) &&
+      !REDUCED_VALUE.test(String(value.value)) &&
+      !reducedStyle(block, property.startsWith('animation') ? 'animation' : 'transition', source)
     )
-      return;
-    const family = property.startsWith('animation') ? 'animation' : 'transition';
-    const text = value.type === 'StringLiteral' ? value.value : String(value.value);
-    if (!REDUCED_VALUE.test(text) && !reducedStyle(block, family))
       add('reducedMotion', property, value.start);
   }
-  function inspectBlock(block, owner = block) {
+  function inspectBlock(block, owner = block, isReduced = false) {
     if (inspectedStyles.has(block)) return;
     inspectedStyles.add(block);
     for (const property of block.properties) {
       const name = nameOf(property);
       if (!name || !property.value) continue;
       const value = objectValue(property.value);
-      if (value.type !== 'ObjectExpression') inspectValue(name, value, owner);
-      else if (name.startsWith('@') || name.startsWith(':')) inspectBlock(value, owner);
+      if (value.type !== 'ObjectExpression') inspectValue(name, value, owner, isReduced);
+      else if (name.startsWith('@') || name.startsWith(':'))
+        inspectBlock(value, owner, isReduced || REDUCE.test(name));
       else
         for (const condition of value.properties) {
-          if (nameOf(condition) && condition.value) inspectValue(name, condition.value, owner);
+          if (condition.type === 'ObjectProperty')
+            inspectValue(
+              name,
+              condition.value,
+              owner,
+              isReduced || REDUCE.test(nameOf(condition) ?? ''),
+            );
         }
     }
   }
@@ -362,7 +401,7 @@ export function desktopStyles(source, file, ast, walk) {
     }
     if (node.type === 'TemplateLiteral') {
       const parsed = cssTemplate(node, source);
-      if (parsed) inspectCss(parsed, add);
+      if (parsed) inspectCss(parsed, node, source, add);
     }
     for (const part of literalParts(node)) {
       if (
@@ -409,7 +448,7 @@ export function fixDesktopStyles(source, file, ast, found) {
       !node.specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier'),
   );
   function binding(group) {
-    if (bindings.has(group)) return bindings.get(group).name;
+    if (bindings.has(group)) return bindings.get(group);
     const existing = declaration?.specifiers.find(
       (item) =>
         item.type === 'ImportSpecifier' &&
@@ -422,13 +461,31 @@ export function fixDesktopStyles(source, file, ast, found) {
       for (let suffix = 1; used(name); suffix += 1)
         name = `tobs${group[0].toUpperCase()}${group.slice(1)}${suffix}`;
     }
-    bindings.set(group, { name, existing });
-    return name;
+    const entry = { name, existing };
+    bindings.set(group, entry);
+    return entry;
   }
+  const scopes = new Map();
+  for (const { edit } of found) {
+    if (edit && binding(edit.token.group).existing)
+      scopes.set(edit.direct ?? edit.part.quoted ?? edit.part.node, undefined);
+  }
+  if (scopes.size)
+    traverse(ast, {
+      enter(path) {
+        if (scopes.has(path.node)) scopes.set(path.node, path.scope);
+      },
+    });
   for (const { edit } of found) {
     if (!edit) continue;
     const { token, direct, part, match, computedKey } = edit;
-    const reference = `${binding(token.group)}.${token.key}`;
+    const { name, existing } = binding(token.group);
+    if (
+      existing &&
+      scopes.get(direct ?? part.quoted ?? part.node)?.getBinding(name)?.path.node !== existing
+    )
+      continue;
+    const reference = `${name}.${token.key}`;
     if (direct)
       edits.push({
         start: direct.start,
