@@ -10,7 +10,6 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
-import type { RoutingGroupMember } from '../../../core/src/models/routing-groups.js';
 import {
   humanAvatarVersionOf,
   parseHumanAvatars,
@@ -34,7 +33,11 @@ import {
   loadWorkspaceOptions as loadHostWorkspaceOptions,
   setModelFavorite as setHostModelFavorite,
 } from '@botharness/host-client/bot-settings';
-import type { ModelCatalogGroup, ModelChoice } from '@botharness/host-client/model-catalog';
+import type {
+  ModelCatalogGroup,
+  ModelChoice,
+  RoutingGroupMember,
+} from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {

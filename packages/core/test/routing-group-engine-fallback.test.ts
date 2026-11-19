@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { dmChannelId } from '../src/channels/channel.js';
@@ -48,7 +49,8 @@ const CLAUDE_LIMIT: typeof CLAUDE_REPLY = [
 function limitAfter(tool: 'channel_read' | 'bot_send_message'): typeof LIMIT {
   const lines = CODEX_DM.flatMap((line) => {
     const params = line.msg['params'];
-    const item = params && typeof params === 'object' && 'item' in params ? params.item : null;
+    if (params === null || typeof params !== 'object' || !('item' in params)) return [];
+    const item = params.item;
     if (item === null || typeof item !== 'object' || !('tool' in item) || item.tool !== tool)
       return [];
     return tool === 'bot_send_message'
@@ -105,7 +107,7 @@ function setup(options: {
           {
             name: 'bot_send_message',
             arguments: { body: options.nativeReply, channel_id: dmChannelId('ada') },
-            callId: 'native-reply',
+            callId: ToolCallId('native-reply'),
             signal: new AbortController().signal,
           },
           tools,
