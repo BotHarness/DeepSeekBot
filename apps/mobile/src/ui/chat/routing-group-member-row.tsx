@@ -57,7 +57,7 @@ export function RoutingGroupMemberRow({
     engineRow !== undefined ? (
       <SystemSymbol
         name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
-        size={theme.type.title.line}
+        size={theme.type.meta.size}
         color={theme.color[tone]}
       />
     ) : brand === undefined ? undefined : (
