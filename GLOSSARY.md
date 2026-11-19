@@ -1268,7 +1268,7 @@ _Avoid_: login, setup wizard
 
 The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
 
-Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
+Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and [ADR-0266](docs/decisions/mobile-ui.md#adr-0266).
 
 **Component term**:
 The exact name a platform's design system gives a component: the Material 3 name on Android, the HIG name on iOS, written in English in both languages of this glossary. Code uses the API name (`ModalBottomSheet`, `.sheet`), prose uses the design name (modal bottom sheet, sheet).
@@ -1287,7 +1287,7 @@ A React Native view drawn to imitate a native component. It is migration debt, n
 _Avoid_: native component, custom component
 
 **Custom surface**:
-App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island ([ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 _Avoid_: look-alike (for a recorded custom surface)
 
 **Navigation bar**:
@@ -1299,7 +1299,7 @@ The `@expo/ui` view that hosts Compose or SwiftUI content inside React Native an
 _Avoid_: Host (alone, for the Expo UI view)
 
 **Platform design language**:
-Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of ADR-0266: Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
+Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of [ADR-0266](docs/decisions/mobile-ui.md#adr-0266): Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
 _Avoid_: Material You (for anything but dynamic colour), glassmorphism, frosted glass, iOS style on Android, Material style on iOS
 
 Counterparts by job. The Android column uses Material 3 names, the iOS column HIG names; code names follow in each API column. "—" means the platform has no component for that job.
@@ -1356,6 +1356,6 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
 - A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
-- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
+- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, [ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
 - Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

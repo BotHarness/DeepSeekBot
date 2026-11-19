@@ -1267,7 +1267,7 @@ _避免使用_：登录、设置向导
 
 iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
 
-讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
+讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 [ADR-0266](docs/decisions/mobile-ui.md#adr-0266) 决定。
 
 **Component term**：
 平台设计系统给组件起的确切名称：Android 用 Material 3 名称，iOS 用 HIG 名称；中英文术语表里都写英文原名。代码中用 API 名（`ModalBottomSheet`、`.sheet`），行文中用设计名（modal bottom sheet、sheet）。
@@ -1286,7 +1286,7 @@ _避免使用_：看起来像原生的 view、RN 仿制品（指原生组件时�
 _避免使用_：原生组件、自定义组件
 
 **Custom surface**：
-没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（ADR-0235）。
+没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（[ADR-0235](docs/decisions/mobile-ui.md#adr-0235)）。
 _避免使用_：仿制品（指已记录的自定义界面时）
 
 **Navigation bar**：
@@ -1298,7 +1298,7 @@ _避免使用_：底栏、顶栏 / header（平台讨论中）、不带平台的
 _避免使用_：单独的 Host（指 Expo UI view 时）
 
 **Platform design language**：
-Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 ADR-0266 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
+Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 [ADR-0266](docs/decisions/mobile-ui.md#adr-0266) 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
 _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态、Android 上的 iOS 风格、iOS 上的 Material 风格
 
 按职能列出的对应组件。Android 列用 Material 3 名称，iOS 列用 HIG 名称，API 列给出代码名。「—」表示该平台没有承担此职能的组件。
@@ -1355,6 +1355,6 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
 - 应用外的 Bot 通话：Android ongoing call notification（`Notification.CallStyle`）加上显示在其他应用上层的自定义通话悬浮球 ↔ iOS Live Activity（ADR-0305）。
 - Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
-- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
+- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，[ADR-0235](docs/decisions/mobile-ui.md#adr-0235)）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。
