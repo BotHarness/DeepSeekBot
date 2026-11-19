@@ -25,6 +25,14 @@ const DEEPSEEK = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 const key = (route: ModelRoute | undefined) =>
   route === undefined ? 'none' : `${route.provider}/${route.model}`;
 
+function deferred() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 const options = [{ ...DEEPSEEK, allowedEfforts: [''], defaultEffort: '' }];
 
 const basePlan: PersonaBotModelPlan = {
@@ -66,21 +74,45 @@ describe('Assignment Routing Groups in the plan (#4420)', () => {
 });
 
 describe('An Assignment on a Routing Group keeps working when its route runs out (#4420)', () => {
-  it('does not resume an Assignment stopped while its next model is being chosen', async () => {
+  it.each([
+    {
+      action: 'stopped',
+      expected: 'stopped',
+      turns: [],
+    },
+    {
+      action: 'switched with a new execution in flight',
+      expected: 'working',
+      turns: [DEEPSEEK],
+      delivery: 'followup',
+    },
+    {
+      action: 'switched with a new execution already finished',
+      expected: 'idle',
+      turns: [DEEPSEEK],
+      delivery: 'followup',
+    },
+    {
+      action: 'switched without a new execution',
+      expected: 'idle',
+      turns: [DEEPSEEK],
+      delivery: 'steer',
+    },
+  ])('$action during the pick', async ({ expected, turns, delivery }) => {
     const clock = Date.parse('2026-11-18T00:00:00.000Z');
     const rests = createRouteRests({ now: () => clock });
-    let picking: (() => void) | undefined;
-    let release: () => void = () => undefined;
+    const choosing = deferred();
+    const pick = deferred();
+    const finishRequest = deferred();
     const fallback = createGroupFallback({
       plan: () => undefined,
       routes: () => [SPENT, DEEPSEEK],
       rests,
       requireAllowed: () => undefined,
-      validate: () =>
-        new Promise<void>((resolve) => {
-          release = resolve;
-          picking?.();
-        }),
+      validate: () => {
+        choosing.resolve();
+        return pick.promise;
+      },
     });
     const workspace = {
       id: 'project',
@@ -89,9 +121,11 @@ describe('An Assignment on a Routing Group keeps working when its route runs out
       status: async () => 'ok' as const,
     };
     let orchestrator: OrchestratorAgentRun | undefined;
-    const runs: string[] = [];
+    const runs: { route: ModelRoute | undefined; text: string }[] = [];
+    const switchText = 'Continue on a single model';
     const drive = async (run: AssignmentAgentRun) => {
-      runs.push(key(run.modelRoute));
+      runs.push({ route: run.modelRoute, text: run.text });
+      if (run.text === switchText) await finishRequest.promise;
       if (key(run.modelRoute) !== key(SPENT)) return;
       rests.rest(SPENT, clock + 3_600_000, 'quota');
       run.failedTurn?.({ turn: runs.length, endSeq: runs.length });
@@ -103,6 +137,7 @@ describe('An Assignment on a Routing Group keeps working when its route runs out
       },
       runAssignment: drive,
       requestAssignment(run) {
+        if (delivery === 'steer' && run.text === switchText) return { delivery: 'steer' };
         return { delivery: 'followup', accepted: Promise.resolve(), done: drive(run) };
       },
       async stopAssignment() {},
@@ -149,9 +184,6 @@ describe('An Assignment on a Routing Group keeps working when its route runs out
       });
       await core.runtime.whenIdle();
       const grant = await core.grants.create('ada', workspace.id);
-      const choosing = new Promise<void>((resolve) => {
-        picking = resolve;
-      });
       const created = orchestrator!.assignments.create({
         title: 'Research',
         grantId: grant.id,
@@ -161,17 +193,40 @@ describe('An Assignment on a Routing Group keeps working when its route runs out
       });
       if (created.outcome !== 'created') throw new Error('Assignment missing');
       const sessionId = created.assignment.sessionId;
-      await choosing;
-      await orchestrator!.assignments.stop(sessionId);
-      release();
-      for (let index = 0; index < 4; index += 1) {
-        await core.runtime.whenIdle();
-        await new Promise((resolve) => setTimeout(resolve, 10));
+      await choosing.promise;
+      if (delivery === undefined) {
+        await orchestrator!.assignments.stop(sessionId);
+      } else {
+        const request = orchestrator!.assignments.request({
+          sessionId,
+          mode: 'next-turn',
+          text: switchText,
+          model: DEEPSEEK,
+        });
+        expect(request.delivery).toBe(delivery);
+        await Promise.resolve();
+        expect(core.runtime.getAssignment('ada', sessionId)?.modelRoute).toEqual(DEEPSEEK);
+        if (expected === 'idle') {
+          finishRequest.resolve();
+          await core.runtime.whenIdle();
+        }
       }
+      pick.resolve();
+      await new Promise<void>((resolve) => setImmediate(resolve));
 
-      expect(runs).toEqual([key(SPENT)]);
-      expect(core.runtime.getAssignment('ada', sessionId)).toMatchObject({ activity: 'stopped' });
+      expect(core.runtime.getAssignment('ada', sessionId)?.activity).toBe(expected);
+      expect(runs.map((run) => run.route)).toEqual([SPENT, ...turns]);
+      expect(runs.map((run) => run.text).join('\n')).not.toContain(
+        'next model in its Routing Group',
+      );
+      expect(
+        core.channels
+          .readMessages('dm-ada')
+          .filter((message) => message.modelSwitch || message.sessionFailure),
+      ).toEqual([]);
     } finally {
+      pick.resolve();
+      finishRequest.resolve();
       await core.runtime.close();
       core.operationalDatabase.close();
     }
