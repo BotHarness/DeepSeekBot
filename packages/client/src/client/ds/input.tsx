@@ -42,6 +42,14 @@ const styles = stylex.create({
     outline: { default: 'none', ':has(:focus-visible)': `${edge.focus} solid ${accent.focus}` },
     outlineOffset: edge.focusOffset,
   }),
+  hiddenInput: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    clipPath: 'inset(50%)',
+    whiteSpace: 'nowrap',
+  },
   colorInput: {
     position: 'absolute',
     inset: 0,
@@ -105,3 +113,15 @@ export function ColorInput({
     </span>
   );
 }
+
+export const HiddenFileInput = forwardRef<
+  HTMLInputElement,
+  Pick<
+    InputHTMLAttributes<HTMLInputElement>,
+    'aria-label' | 'aria-hidden' | 'accept' | 'multiple' | 'disabled' | 'onChange'
+  >
+>(function HiddenFileInput(props, ref) {
+  return (
+    <input ref={ref} {...props} type="file" tabIndex={-1} {...stylex.props(styles.hiddenInput)} />
+  );
+});

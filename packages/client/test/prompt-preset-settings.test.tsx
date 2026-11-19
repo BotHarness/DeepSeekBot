@@ -47,6 +47,7 @@ beforeEach(() => {
   root = createRoot(host);
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => root.unmount());
   host.remove();
   globalPresetId = 'concise';
@@ -54,7 +55,8 @@ afterEach(() => {
 
 const row = (id: string) => host.querySelector(`[data-prompt-preset="${id}"]`)!;
 
-it('shows untouched presets as having no edits and rereads the global preset on return', async () => {
+it.each([400, 1280])('reopens Presets with the active global selection at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   await act(async () =>
     root.render(<PromptPresetSettings actions={actions as never} t={zhTranslate} />),
   );

@@ -4,6 +4,7 @@ import type { BridgeActions } from './actions.js';
 import type { ApprovalReviewerModelView, ModelCatalogEntryView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { Callout } from './ds/callout.js';
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -82,6 +83,7 @@ export function ApprovalReviewerModelSetting({
         rootRef={mount}
         data={{ 'data-approval-reviewer-model': '' }}
         title={t('autoApproval.reviewerModel.title')}
+        icon={<Icon name="shield-check" />}
         description={t('autoApproval.reviewerModel.description')}
         control={
           <ModelTrigger

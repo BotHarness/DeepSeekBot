@@ -246,9 +246,9 @@ export function CompanionsSection({
   t,
 }: SectionProps<{ companion: WindowCompanions }>): ReactElement {
   return (
-    <Rows>
+    <SettingsSection>
       <CompanionSettings companion={companion} t={t} />
-    </Rows>
+    </SettingsSection>
   );
 }
 

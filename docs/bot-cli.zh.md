@@ -832,7 +832,7 @@ Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `
 
 ### 待办示例插件
 
-这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
+这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](decisions/desktop-ui.md#adr-0203)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
 
 ```bash
 deepseekbot todos
@@ -1065,6 +1065,8 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### 订阅引擎
 
+如需在同一组中保存订阅引擎和 DSH 模型，参见[路由组](#路由组)。
+
 PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。目前有两个引擎：Codex 运行用 ChatGPT 登录的 `codex app-server`；Claude Code 通过 Claude Agent SDK 运行 Human 安装的 `claude`，用 Claude 订阅登录。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录和 Claude 配置目录，不共用 Human 自己的登录、CLAUDE.md、设置、MCP 服务器和 hooks。
 
 ```bash
@@ -1193,7 +1195,13 @@ deepseekbot group-activity <group-channel>
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表；成员可以是路由 `{"kind":"model","provider","model","reasoningEffort"?}`，也可以是另一个组 `{"kind":"group","id"}`。`model-groups` 列出所有组，并在 `rests` 中返回当前正在休息的路由及其结束时间（设置 → 模型 → 路由组显示同样内容），`model-group` 还会按顺序、去重返回组展开后的路由。`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`；每个模型成员都必须在 `model-catalog` 中，名称不能重复，会包含自身或没有任何模型的组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。被 Bot 或其他组使用的组不能用 `model-group-delete` 删除，返回 `routing-group-in-use` 并列出使用者。`model-plan-customize --orchestrator-group <id>` 把组设为 Bot 的 Orchestrator 选择：每个成员都必须是 Bot 所有者角色允许的模型（`model-not-allowed` 会指出第一个不允许的），Bot 使用第一个供应商已就绪的成员。方案里的 `orchestrator` 显示当前路由，`orchestratorGroupId` 显示所选组；重新选择单个路由会清除组。组的写入和预设一样核对 revision。
+### 路由组
+
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
+
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
+
+`model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。`model-plan-customize --orchestrator-group <id>` 会将该组设为 Bot 的 Orchestrator 选择。Host 按 Bot 所有者的角色校验 DSH 路由，再选择第一条已就绪的路由。方案中 `orchestrator` 显示该路由，`orchestratorGroupId` 显示所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 
 当 Orchestrator 选择为 Routing Group 的 Bot 遇到额度用完、凭据被拒，或限流超过重试等待时，失败的请求结束，Host 把该 Session 切到组内下一个未在休息、所有者角色允许、且凭据就绪的成员，然后继续这一轮。失败的路由在整个 Host 上休息（额度用完则休息到重置，凭据和限流失败休息几分钟），因此使用同一组的其他 Bot 会直接从下一个成员开始，不会先失败一次。Channel 中会出现一条系统消息，带有 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}`；它是通知，不计入未读，也不会通知任何人。只有当所有成员都在休息时 Bot 才会暂停，暂停通知的 `turnStop.rests` 列出每条路由及其重置时间。已切换的 Session 在这一轮剩下的部分继续使用备用路由；前面成员的休息结束后，下一轮开始时会回到该成员，并记录一条 `reason: "returned"` 的 `modelSwitch`。如果该成员再次失败，它会重新开始休息，Session 再次切换。
 

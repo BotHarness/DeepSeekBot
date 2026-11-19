@@ -2,7 +2,7 @@
 
 日期：2026-10-08。问题：Coopanion 的角色为何有丰富动作、表情与消息气泡；这些机制能否用于 BotHarness 的像素角色，以及 DSH Desktop 的桌宠显示。
 
-设计状态：Human 已于 2026-10-08 在 Q23 确认完整共识与第二档默认范围。§1–10 保留最初桌宠调研，§11 是收敛后的窗口内方案；最终权威见 [ADR-0144](../adr/0144-window-companions-consume-owned-activity-and-scoped-output.md)、[实现规格 #1135](https://github.com/BotHarness/BotHarness/issues/1135) 与 [已确认 HTML](evidence/coopanion-animation/window-companion-design.html)。本文不表示运行功能已交付。
+设计状态：Human 已于 2026-10-08 在 Q23 确认完整共识与第二档默认范围。§1–10 保留最初桌宠调研，§11 是收敛后的窗口内方案；最终权威见 [ADR-0144](../decisions/desktop-ui.md#adr-0144)、[实现规格 #1135](https://github.com/BotHarness/BotHarness/issues/1135) 与 [已确认 HTML](evidence/coopanion-animation/window-companion-design.html)。本文不表示运行功能已交付。
 
 ## 证据范围
 

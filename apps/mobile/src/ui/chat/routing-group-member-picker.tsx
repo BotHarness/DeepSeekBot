@@ -22,10 +22,17 @@ type Choice =
   | { kind: 'model'; entry: ModelCatalogEntry }
   | { kind: 'group'; group: ModelCatalogGroup };
 
+type PickableMember = Exclude<RoutingGroupMember, { kind: 'engine' }>;
+
 export function routingGroupMemberKey(member: RoutingGroupMember): string {
-  return member.kind === 'group'
-    ? `group:${member.id}`
-    : JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
+  switch (member.kind) {
+    case 'group':
+      return `group:${member.id}`;
+    case 'engine':
+      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
+    case 'model':
+      return JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
+  }
 }
 
 export function RoutingGroupMemberPicker({
@@ -38,7 +45,7 @@ export function RoutingGroupMemberPicker({
   catalog: ModelCatalogAnswer;
   selfId: string | undefined;
   members: RoutingGroupMember[];
-  onSelect(member: RoutingGroupMember): void;
+  onSelect(member: PickableMember): void;
   onClose(): void;
 }) {
   const t = useStrings();
@@ -69,7 +76,7 @@ export function RoutingGroupMemberPicker({
         .map((entry): Choice => ({ kind: 'model', entry })),
     ];
   }, [catalog, members, query, selfId]);
-  const select = (member: RoutingGroupMember) => {
+  const select = (member: PickableMember) => {
     Keyboard.dismiss();
     onSelect(member);
   };

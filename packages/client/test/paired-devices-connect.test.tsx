@@ -77,7 +77,8 @@ it('hides the Connect section when the Host has no account support', async () =>
   expect(host.querySelector('[data-pair-route-steps]')).not.toBeNull();
 });
 
-it('signs in, shows the code to confirm, then the connected address', async () => {
+it.each([400, 1280])('shows sign-in confirmation and connected address at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   snapshot = devices({ state: 'off', account: { state: 'signed-out' } });
   await render();
   expect(host.querySelector('[data-connect-account]')?.getAttribute('data-connect-account')).toBe(

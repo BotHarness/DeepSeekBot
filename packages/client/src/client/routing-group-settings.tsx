@@ -1,3 +1,4 @@
+import { routingGroupEngineLabel } from '@botharness/host-client/model-catalog';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
@@ -115,10 +116,16 @@ function Badge({ children, warning = false }: { children: string; warning?: bool
   return <span {...stylex.props(styles.badge, warning && styles.warning)}>{children}</span>;
 }
 
-const memberKey = (member: RoutingGroupMemberView): string =>
-  member.kind === 'group'
-    ? `group:${member.id}`
-    : `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
+function memberKey(member: RoutingGroupMemberView): string {
+  switch (member.kind) {
+    case 'group':
+      return `group:${member.id}`;
+    case 'engine':
+      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
+    case 'model':
+      return `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
+  }
+}
 
 const optionKey = (entry: ModelCatalogEntryView): string =>
   memberKey({ kind: 'model', provider: entry.provider, model: entry.model });
@@ -147,6 +154,7 @@ function memberName(
   library: Library,
   t: BotHarnessTranslate,
 ): { name: string; route?: string } {
+  if (member.kind === 'engine') return { name: routingGroupEngineLabel(member) };
   if (member.kind === 'group')
     return {
       name:

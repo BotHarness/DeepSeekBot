@@ -865,7 +865,7 @@ Credential writes validate actual YAML before and after disk writes and restore 
 
 ### To-do example plugin
 
-These commands reach the to-do example plugin (`@botharness/todo`, [ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)). They work only on a Host where that plugin is installed; elsewhere they fail `todo-plugin-missing`.
+These commands reach the to-do example plugin (`@botharness/todo`, [ADR-0203](decisions/desktop-ui.md#adr-0203)). They work only on a Host where that plugin is installed; elsewhere they fail `todo-plugin-missing`.
 
 ```bash
 deepseekbot todos
@@ -1098,6 +1098,8 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### Subscription Engines
 
+To store an engine alongside DSH models, see [Routing Groups](#routing-groups).
+
 A PersonaBot's Orchestrator can run on a Subscription Engine instead of a DSH model: the Host drives the engine with the Human's own subscription on this computer (ADR-0353). Two engines are offered: Codex runs `codex app-server` signed in with ChatGPT, and Claude Code runs the Human's installed `claude` through the Claude Agent SDK signed in with a Claude subscription. The Bot signs in to its own Codex home and its own Claude config directory under `$DSH_HOME/botharness/engines`, so it never shares the Human's own login, CLAUDE.md, settings, MCP servers or hooks.
 
 ```bash
@@ -1227,7 +1229,18 @@ deepseekbot group-activity <group-channel>
 
 `model-catalog` lists the models the Host can run and the Profile default, as the model pickers do. `model-plan-set` replaces a Bot's whole plan with stdin `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}`; `model-plan-assignments-set` takes the same object without `orchestrator`, and needs a Bot that already has its own plan: for a Bot that follows the Profile default it fails with `Apply a Model Preset first`, so use `model-plan-set` or apply a preset first. Both also take `assignmentGroups`, `assignmentDefaultGroupId` and `assignmentGroupOptions` for Routing Groups, and `model-plan-set` takes `orchestratorGroupId` in place of `orchestrator`. A route is `{"provider","model","reasoningEffort"?}` and an Assignment model is `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`. `model-plan-customize` changes only the Bot’s Orchestrator, creating an independent override if necessary while preserving fixed or inherited Assignment settings. `model-plan-inherit` drops the Bot's own model so it follows the Profile default. `model-preset-update` changes a preset's name or routes; flags you leave out keep the current values, except that any `--orchestrator-provider`, `--orchestrator-model` or `--orchestrator-effort` flag replaces an Orchestrator Routing Group with that single route (a name-only update keeps the group), and an optional `--plan-stdin` `{"assignmentModels":[...]}` replaces its Assignment models. The Host validates every route against its catalog. Plan and preset writes check a revision: `--expected-revision` makes that check explicit; without it the command reads the current revision first, like `memory-save` does with `--expected-head`. A plan changed meanwhile fails with the Host's `invalid-input`.
 
-A **Routing Group** is a named, Host-wide, ordered list of members; each member is a route `{"kind":"model","provider","model","reasoningEffort"?}` or another group `{"kind":"group","id"}`. `model-groups` lists them with `rests`, the routes resting now and until when (Settings → Models → Routing Groups shows the same), `model-group` also returns the routes a group expands to, in order and without repeats. `model-group-create` and `model-group-update` read `{"members":[...]}` from `--members-stdin`; every model member must be in `model-catalog`, names are unique, and a group that would contain itself or have no model is refused (`routing-group-cycle`, `routing-group-empty-group`). `model-group-delete` refuses a group that a Bot or another group uses and names them (`routing-group-in-use`). `model-plan-customize --orchestrator-group <id>` makes the group a Bot's Orchestrator choice: every member must be allowed for the Bot owner's role (`model-not-allowed` names the first that is not), and the Bot runs on the first member whose provider is ready. The plan's `orchestrator` shows that route and `orchestratorGroupId` the group; choosing a single route again clears the group. Group writes check the group revision like presets do.
+### Routing Groups
+
+A **Routing Group** is a named, Host-wide, ordered list of members. Use a DSH route `{"kind":"model","provider":"<provider>","model":"<id>"}` with optional `reasoningEffort`, a nested Routing Group `{"kind":"group","id":"<id>"}`, or a [Subscription Engine](#subscription-engines) `{"kind":"engine","engine":"codex"}` with optional `model`. Use `codex` or `claude` for `engine`. `engine models codex|claude` lists model IDs for the signed-in engine.
+
+```bash
+printf '%s\n' '{"members":[{"kind":"engine","engine":"codex"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |
+  deepseekbot model-group-create --name "Daily routing" --members-stdin
+```
+
+`model-group-create` and `model-group-update` read `{"members":[...]}` from `--members-stdin`. The Host checks unique names and members, registered DSH models, known engine IDs and nested Routing Groups. A Routing Group with a cycle or with no expanded DSH model is refused (`routing-group-cycle`, `routing-group-empty-group`). Engine model IDs are stored as configuration. The runtime continues to select DSH models from the group. Engine execution through Routing Groups is tracked in [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574).
+
+`model-groups` lists the saved members and current DSH route rests. `model-group <id>` returns the saved `group.members` in order and the deduplicated DSH `routes` it expands to. `model-group-delete` refuses in-use groups (`routing-group-in-use`). `model-plan-customize --orchestrator-group <id>` makes a group the Bot's Orchestrator choice. The Host checks the DSH routes against the owner's role and selects the first ready route. The plan shows that route in `orchestrator` and the group in `orchestratorGroupId`. Selecting a single route clears the group. Group writes check the revision like presets do.
 
 When a Bot whose Orchestrator choice is a Routing Group hits a spent quota, a refused credential or a rate limit that outlasts the retry wait, the failed request closes and the Host moves that Session to the next group member that is not resting, is allowed for the owner's role and has a ready credential, then continues the turn. The route that failed rests Host-wide (quota until its reset, credential and rate-limit failures for a few minutes), so other Bots on the group start on the next member without a failed request. The Channel gets one system message with `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}`; it is a notice, so it never counts as unread or notifies anyone. Only when every member is resting is the Bot held, and the hold's `turnStop.rests` lists every route with its reset. A Session that fell back stays on its fallback for the rest of that turn; the first turn that starts after an earlier member's rest has ended returns to that member and records a `modelSwitch` with `reason: "returned"`. If that member fails again, it rests afresh and the Session falls back again.
 

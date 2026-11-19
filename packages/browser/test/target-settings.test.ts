@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...(await import('../../client/test/primitive-mocks.js')).shellPrimitives(),
@@ -79,7 +79,8 @@ describe('Browser Target native settings seam', () => {
     }
     expect(scope.listeners.size).toBe(0);
   });
-  it('saves the Container choice without changing the independent Local choice', async () => {
+  it.each([400, 1280])('updates the Container driver at %i px', async (width) => {
+    vi.stubGlobal('innerWidth', width);
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     let snapshot = {
       status: 'ready',
@@ -200,3 +201,5 @@ describe('Browser Target native settings seam', () => {
     expect(registration.inject().scope).toBe(scope);
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());

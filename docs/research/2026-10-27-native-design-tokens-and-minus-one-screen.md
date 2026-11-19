@@ -2,7 +2,7 @@
 
 Date: 2026-10-27. Scope: `apps/mobile` (Expo SDK 58, React Native 0.88, `@expo/ui` 58.0.23). This is source and documentation research. Nothing below has been run on a device.
 
-Context read first: [DESIGN.md › Native first](../../apps/mobile/DESIGN.md#native-first), [ADR-0201](../adr/0201-the-mobile-design-system-maps-web-roles-onto-native-components.md), `src/ui/design/tokens.ts`, `theme.tsx` and `resolve-theme.ts`. Today one TypeScript source serves both platforms. Its colours come from the Web DSH theme (`scripts/generate-palette.mjs` → `palette.generated.ts`), and only type and touch size are split per platform (`typeScale`, `touch`). Many Material component sizes are copied in by hand as constants (`materialMenu`, `fab`, `materialDrawer`, `radius`, …).
+Context read first: [DESIGN.md › Native first](../../apps/mobile/DESIGN.md#native-first), [ADR-0201 original text](https://github.com/BotHarness/DeepSeekBot/blob/b1fde0107de17abbb007414f53db89ba9b0e540c/docs/adr/0201-the-mobile-design-system-maps-web-roles-onto-native-components.md) (now covered by [mobile design decisions](../decisions/mobile-ui.md#adr-0201)), `src/ui/design/tokens.ts`, `theme.tsx` and `resolve-theme.ts`. Today one TypeScript source serves both platforms. Its colours come from the Web DSH theme (`scripts/generate-palette.mjs` → `palette.generated.ts`), and only type and touch size are split per platform (`typeScale`, `touch`). Many Material component sizes are copied in by hand as constants (`materialMenu`, `fab`, `materialDrawer`, `radius`, …).
 
 Local paths below point at the installed package: `EXPO_UI` = `node_modules/.pnpm/@expo+ui@58.0.23_*/node_modules/@expo/ui`.
 
@@ -120,7 +120,7 @@ Should RN read platform-native values? **Yes, for chrome and secondary text:** o
 - Limit the Web-parity tests to the shared layer. Platform layers are tested against platform names, not Web values.
 - **Android -1 screen:** spike a local `DismissibleNavigationDrawer` Expo UI extension with two `RNHostView` slots and `DismissibleDrawerSheet(drawerState)` for predictive back. Record why it is used even though M3 Expressive deprecates the drawer: no scrim, pushed content. The documented fallback is `ModalWideNavigationRail(hideOnCollapse = true)`. Check horizontal-gesture conflicts and the `holdBack` handoff before shipping.
 - **iOS -1 screen:** make the workspace panel the root of the Chats stack (Expo Router `anchor`), with Chats pushed above it. iOS 26's content pop gesture then gives "swipe right into the panel" natively, as in Mail. Then retire the custom left-edge sidebar on iOS 26 and record the change in DESIGN.md.
-- Before either change ships, write the decision into DESIGN.md (Native first requires that for any custom surface) and amend ADR-0201's "one token source" bullet.
+- Before either change ships, write the decision into DESIGN.md (Native first requires that for any custom surface) and amend the "one token source" bullet in the [ADR-0201 original text](https://github.com/BotHarness/DeepSeekBot/blob/b1fde0107de17abbb007414f53db89ba9b0e540c/docs/adr/0201-the-mobile-design-system-maps-web-roles-onto-native-components.md) (now covered by [mobile design decisions](../decisions/mobile-ui.md#adr-0201)).
 
 [m3-compose]: https://developer.android.com/develop/ui/compose/designsystems/material3
 [mcu-variant]: https://github.com/material-foundation/material-color-utilities/blob/main/typescript/dynamiccolor/variant.ts

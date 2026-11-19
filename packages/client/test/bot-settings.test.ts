@@ -835,7 +835,8 @@ it('opens on Pinned, which leads the sidebar and opens each pinned page from its
   expect(shownSection()).toBe('appearance');
 });
 
-it('pins the open page from the header star and unpins it from its card', async () => {
+it.each([400, 1280])('pins and unpins a settings section at %i px', async (width) => {
+  frameWidth(width < 600);
   const settings = new BotSettings();
   const pins = memoryPins(['models']);
   mount(settings, fullRows(), undefined, pins);
@@ -848,6 +849,7 @@ it('pins the open page from the header star and unpins it from its card', async 
   expect(pins.saved).toEqual([['models', 'about']]);
   expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
 
+  if (width < 600) await click('[aria-label="返回设置列表"]');
   await click('[data-settings-section="home"]');
   await click('[data-settings-pin="models"] [aria-label="从常用移除models"]');
   expect(pins.saved.at(-1)).toEqual(['about']);

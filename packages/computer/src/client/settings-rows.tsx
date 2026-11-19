@@ -7,7 +7,7 @@ import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement 
 import { useMountedResource } from './mounted-resource.js';
 
 import * as stylex from '@stylexjs/stylex';
-import { Menu } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Menu } from '../../../client/src/client/ds/menu.js';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
@@ -21,7 +21,7 @@ import { Note } from '../../../client/src/client/ds/note.js';
 import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
 import { Select } from '../../../client/src/client/ds/select.js';
 import { SettingsGroupPart, SettingsRow } from '../../../client/src/client/ds/settings-row.js';
-import { border, color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { ink, space, type as text } from '../../../client/src/client/ds/tobs.stylex.js';
 import { LocalComputerStatus } from './local-computer.js';
 import type { ComputerTarget } from '../target.js';
 
@@ -171,7 +171,7 @@ const styles = stylex.create({
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
-    color: color.muted,
+    color: ink.secondary,
   },
   manual: {
     display: 'flex',
@@ -179,9 +179,7 @@ const styles = stylex.create({
     gap: space.x4,
     minWidth: 0,
     paddingBlock: space.x4,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: color.divider,
+    flexWrap: 'wrap',
   },
   manualInput: {
     flexGrow: 1,
@@ -194,9 +192,9 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
   },
 });
 
@@ -354,7 +352,6 @@ export function ComputerSettingsRows({
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);
   const [targetError, setTargetError] = useState<string>();
   const [targetSaving, setTargetSaving] = useState(false);
-  const [idleOpen, setIdleOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [archives, setArchives] = useState<readonly string[] | undefined>(undefined);
   const [busy, setBusy] = useState<'export' | 'import' | 'upload' | undefined>(undefined);
@@ -370,6 +367,7 @@ export function ComputerSettingsRows({
   );
   const [uploadName, setUploadName] = useState<string | undefined>(undefined);
   const uploadFile = useRef<File | null>(null);
+  const settingsPart = useRef<HTMLDivElement>(null);
   const [pickerBroken, setPickerBroken] = useState(false);
   const [hostDir, setHostDir] = useState<string | undefined>(undefined);
   const [livePhase, setLivePhase] = useState<string | undefined>(undefined);
@@ -569,7 +567,7 @@ export function ComputerSettingsRows({
   const selectedFile = uploadName ?? (confirming === 'import' ? archives?.[0] : undefined);
 
   return (
-    <SettingsGroupPart>
+    <SettingsGroupPart rootRef={settingsPart}>
       <span hidden ref={hostDirResource} />
       {busy === undefined ? null : <span hidden ref={busyResource} />}
       <SettingsRow
@@ -668,33 +666,15 @@ export function ComputerSettingsRows({
             title={t('rows.idle.title')}
             description={t('rows.idle.description')}
             control={
-              <Menu
-                listClassName="bh-appearance-scope"
-                open={idleOpen}
-                portal
-                align="end"
-                items={IDLE_OPTIONS.map((minutes) => ({
-                  id: String(minutes),
+              <Select
+                label={t('rows.idle.title')}
+                value={String(snapshot.idleStopMinutes)}
+                options={IDLE_OPTIONS.map((minutes) => ({
+                  value: String(minutes),
                   label: t('rows.idle.minutes', { minutes }),
                 }))}
-                selectedId={String(snapshot.idleStopMinutes)}
-                onSelect={(id) => {
-                  setIdleOpen(false);
-                  prefs.setIdleStopMinutes(Number(id));
-                }}
-                onClose={() => {
-                  setIdleOpen(false);
-                }}
-                anchor={
-                  <Selector
-                    label={t('rows.idle.minutes', { minutes: snapshot.idleStopMinutes })}
-                    open={idleOpen}
-                    disabled={!writable}
-                    onToggle={() => {
-                      setIdleOpen((value) => !value);
-                    }}
-                  />
-                }
+                disabled={!writable}
+                onChange={(value) => prefs.setIdleStopMinutes(Number(value))}
               />
             }
           />
@@ -759,9 +739,10 @@ export function ComputerSettingsRows({
                   </PillButton>
                 ) : (
                   <Menu
-                    listClassName="bh-appearance-scope"
                     open={importOpen}
                     portal
+                    autoFocus
+                    container={settingsPart.current?.closest('[role="dialog"]') ?? undefined}
                     align="end"
                     items={(archives ?? []).map((file) => ({ id: file, label: file }))}
                     onSelect={(id) => {

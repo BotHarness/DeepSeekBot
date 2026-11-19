@@ -1,4 +1,8 @@
-import type { ModelCatalogEntry, ModelCatalogGroup } from '@botharness/host-client/model-catalog';
+import {
+  routingGroupEngineLabel,
+  type ModelCatalogEntry,
+  type ModelCatalogGroup,
+} from '@botharness/host-client/model-catalog';
 
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
@@ -6,7 +10,7 @@ import { SettingsRow, type SettingsRowProps } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
-import { shortModelName } from './model-route-text';
+import { groupPickerLabel, shortModelName } from './model-route-text';
 import { SHEET_GROUP } from './sheet';
 
 type RowActions = Pick<
@@ -64,6 +68,7 @@ export function ModelGroupPickerRow({
   const theme = useDesignTheme();
   const restful = group.restingUntil;
   const color = usable ? theme.color.fg : theme.color.muted;
+  const engineLabels = group.engineMembers?.map(routingGroupEngineLabel) ?? [];
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
@@ -74,7 +79,7 @@ export function ModelGroupPickerRow({
       accessibilityLabel={
         front === undefined || restful !== undefined
           ? undefined
-          : `${group.name}, ${t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`)}`
+          : groupPickerLabel(group.name, front, engineLabels)
       }
       leading={
         front === undefined || restful !== undefined ? (
@@ -91,6 +96,7 @@ export function ModelGroupPickerRow({
       detail={[
         ...(showCount ? [t.modelSettings.count(group.routes.length)] : []),
         restful === undefined ? frontLabel : restingLabel(restful),
+        ...engineLabels,
         ...(note === undefined ? [] : [note]),
       ].join(' · ')}
       tone={usable ? 'fg' : 'muted'}

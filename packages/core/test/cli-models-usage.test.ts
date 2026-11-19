@@ -513,7 +513,9 @@ describe('Model commands', () => {
 describe('Routing Group commands', () => {
   const go = { kind: 'model', provider: 'opencode-go', model: 'flash' };
   const deepseek = { kind: 'model', provider: 'deepseek', model: 'flash' };
-  const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [go] };
+  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4' };
+  const claude = { kind: 'engine', engine: 'claude' };
+  const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [codex, go] };
 
   it('lists, reads, creates, updates and deletes groups at the read revision', async () => {
     const live = await host((method) =>
@@ -522,8 +524,8 @@ describe('Routing Group commands', () => {
         : { ok: true, value: { group } },
     );
     expect((await invoke(['model-groups'], live.url)).json).toEqual({ groups: [group] });
-    await invoke(['model-group', 'g1'], live.url);
-    const members = JSON.stringify({ members: [go, deepseek] });
+    expect((await invoke(['model-group', 'g1'], live.url)).json).toEqual({ group });
+    const members = JSON.stringify({ members: [codex, go, claude, deepseek] });
     await invoke(['model-group-create', '--name', 'Flash', '--members-stdin'], live.url, members);
     await invoke(['model-group-update', 'g1', '--members-stdin'], live.url, members);
     await invoke(
@@ -534,16 +536,24 @@ describe('Routing Group commands', () => {
     expect(live.calls).toEqual([
       { method: 'modelGroups', args: {} },
       { method: 'modelGroup', args: { id: 'g1' } },
-      { method: 'modelGroupCreate', args: { name: 'Flash', members: [go, deepseek] } },
-      { method: 'modelGroup', args: { id: 'g1' } },
       {
-        method: 'modelGroupUpdate',
-        args: { id: 'g1', expectedRevision: 2, name: 'Flash', members: [go, deepseek] },
+        method: 'modelGroupCreate',
+        args: { name: 'Flash', members: [codex, go, claude, deepseek] },
       },
       { method: 'modelGroup', args: { id: 'g1' } },
       {
         method: 'modelGroupUpdate',
-        args: { id: 'g1', expectedRevision: 9, name: 'Fast', members: [go] },
+        args: {
+          id: 'g1',
+          expectedRevision: 2,
+          name: 'Flash',
+          members: [codex, go, claude, deepseek],
+        },
+      },
+      { method: 'modelGroup', args: { id: 'g1' } },
+      {
+        method: 'modelGroupUpdate',
+        args: { id: 'g1', expectedRevision: 9, name: 'Fast', members: [codex, go] },
       },
       { method: 'modelGroup', args: { id: 'g1' } },
       { method: 'modelGroupDelete', args: { id: 'g1', expectedRevision: 2 } },

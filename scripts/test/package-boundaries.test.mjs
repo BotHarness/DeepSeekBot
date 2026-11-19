@@ -27,6 +27,35 @@ describe('workspace dependency boundaries', () => {
       1,
     );
   });
+  it.each([
+    "import { value } from '../../core/src/example';",
+    "import { value } from '../../core';",
+    "export * from '@botharness/core';",
+    "type Host = import('@botharness/core').Host",
+    "const host = import('@botharness/core');",
+  ])('rejects Host imports from Client source: %s', (source) => {
+    expect(packageBoundaryErrors('packages/client/src/example.ts', source, workspaces)).toEqual([
+      expect.stringContaining('client source must use Host RPC or shared contracts'),
+    ]);
+    expect(packageBoundaryErrors('packages/client/test/example.ts', source, workspaces)).toEqual(
+      [],
+    );
+  });
+
+  it('counts legacy imports and requires removing a stale allowance', () => {
+    const file = 'packages/client/src/example.ts';
+    const source = "import { one } from '@botharness/core';";
+    const baseline = { '@botharness/core': 1 };
+
+    expect(packageBoundaryErrors(file, source, workspaces, baseline)).toEqual([]);
+    expect(
+      packageBoundaryErrors(file, source + source.replace('one', 'two'), workspaces, baseline),
+    ).toEqual([expect.stringContaining('client source must use Host RPC or shared contracts')]);
+    expect(packageBoundaryErrors(file, '', workspaces, baseline)).toEqual([
+      expect.stringContaining('shrink scripts/client-host-import-baseline.json'),
+    ]);
+  });
+
   it('permits both apps and packages to consume shared logic', () => {
     expect(
       packageBoundaryErrors(

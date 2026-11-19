@@ -2,7 +2,7 @@ import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { DEFAULT_SETTINGS_PINS } from '@botharness/host-client/shared/bot-mode-settings';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { ActionButton } from './ds/action-button.js';
 import { IconButton } from './ds/icon-button.js';
 import { ShortcutTile } from './ds/shortcut-tile.js';
@@ -114,7 +114,7 @@ export function SettingsHome({
                 }}
                 xstyle={styles.unpin}
               >
-                <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled />
+                <Icon name="star" filled />
               </IconButton>
             }
           />
@@ -149,7 +149,7 @@ export function PinToggle({
       }}
       xstyle={on ? styles.pinned : undefined}
     >
-      <ChannelSidebarIcon name="star" size={14} strokeWidth={1.75} filled={on} />
+      <Icon name="star" filled={on} />
     </IconButton>
   );
 }

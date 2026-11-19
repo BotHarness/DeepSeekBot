@@ -56,7 +56,7 @@ Static inspection, not runtime verification:
 - Desktop already has a Select action and reply-reference navigation in `packages/client/src/client/bot-main.tsx`. `message-selection.tsx` groups screenshot, conversation copy and diagnostics under Export.
 - Native mobile `apps/mobile/src/ui/chat/message-sheet.ts` has copy/share/open actions; selection and diagnostic export are not provided there.
 - Existing diagnostics collect and redact evidence through `packages/core/src/diagnostics/bundle.ts`; the client preview in `packages/client/src/client/diagnostic-bundle.tsx` shows aggregate counts rather than selectable evidence categories.
-- [ADR-0185](../adr/0185-diagnostic-bundles-are-local-redacted-read-only-exports.md) explicitly requires local-only diagnostic bundles. Deliberate online feedback changes that boundary in ADR-0249; ADR-0185 remains the historical rationale and describes the existing implementation.
+- [ADR-0185](../decisions/desktop-ui.md#adr-0185) explicitly requires local-only diagnostic bundles. Deliberate online feedback changes that boundary in ADR-0249; ADR-0185 remains the historical rationale and describes the existing implementation.
 - Anonymous Telemetry excludes conversation content. Message Feedback is a separate, deliberate submission, not an expansion of automatic telemetry.
 
 ## Final confirmation

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
@@ -62,7 +62,8 @@ async function render(call: BridgeCall) {
 }
 
 describe('DataResetSettings', () => {
-  it('previews what is deleted and kept, then clears only after a second confirmation', async () => {
+  it.each([400, 1280])('previews and confirms a data reset at %i px', async (width) => {
+    vi.stubGlobal('innerWidth', width);
     const call = vi.fn<BridgeCall>(async (endpoint) =>
       endpoint === 'dataResetPreview'
         ? { ok: true, value: { preview } }
@@ -136,3 +137,5 @@ describe('DataResetSettings', () => {
     }
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());

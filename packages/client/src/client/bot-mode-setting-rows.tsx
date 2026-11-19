@@ -27,7 +27,18 @@ import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, type ShortcutKey } from './ds/kbd.js';
 import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { PreviewChoices } from './ds/preview-choice.js';
+import {
+  accent,
+  ink,
+  layer,
+  motion,
+  radius,
+  size,
+  space,
+  style,
+  type as text,
+} from './ds/tobs.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -63,93 +74,51 @@ const SEND_KEY_OPTIONS: readonly {
   { id: 'mod-enter', send: ['Mod', 'Enter'], newline: ['Enter'] },
 ];
 
+const motionSample = stylex.keyframes({
+  '0%, 70%, 100%': { opacity: 0.4, transform: 'translateY(0)' },
+  '35%': { opacity: 1, transform: `translateY(-${space.x1})` },
+});
+
 const styles = stylex.create({
+  motionPreview: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x3,
+    width: 'fit-content',
+    minHeight: size.controlSmall,
+    marginTop: space.x2,
+    paddingBlock: space.x1,
+    paddingInline: space.x3,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+  },
+  motionSample: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
+  motionDot: {
+    width: space.x2,
+    height: space.x2,
+    borderRadius: radius.full,
+    backgroundColor: accent.solid,
+    opacity: 0.45,
+  },
+  animatedDot: (index: number) => ({
+    animationName: motionSample,
+    animationDuration: '1100ms',
+    animationTimingFunction: motion.standard,
+    animationIterationCount: 'infinite',
+    animationDelay: `${index * 130}ms`,
+  }),
   sendKey: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-    whiteSpace: 'nowrap',
+    flexWrap: 'wrap',
   },
   sendKeySeparator: {
-    color: color.muted,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))',
-    gap: space.x3,
-    marginTop: space.x3,
-  },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: space.x2,
-    minWidth: 0,
-    paddingBlock: space.x3,
-    paddingInline: space.x2,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.md,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-      ':is([aria-checked=true])': color.selected,
-    },
-    color: {
-      default: color.muted,
-      ':hover': color.fg,
-      ':is([aria-checked=true])': color.fg,
-    },
-    fontFamily: 'inherit',
-    fontWeight: { default: 400, ':is([aria-checked=true])': 500 },
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    cursor: 'pointer',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-  },
-  art: {
-    pointerEvents: 'none',
-  },
-  cardLabel: {
-    maxWidth: '100%',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    color: ink.secondary,
   },
 });
-
-export function BotIconCard({
-  option,
-  label,
-  selected,
-  onSelect,
-}: {
-  readonly option: BotModeIcon;
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onSelect: (icon: BotModeIcon) => void;
-}): ReactElement {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={() => {
-        onSelect(option);
-      }}
-      {...stylex.props(styles.card)}
-    >
-      <span {...stylex.props(styles.art)}>
-        <BotIcon icon={option} size={28} />
-      </span>
-      <span {...stylex.props(styles.cardLabel)}>{label}</span>
-    </button>
-  );
-}
 
 export function BotIconSetting({
   t,
@@ -159,17 +128,17 @@ export function BotIconSetting({
   const botIcon = useBotModePrefs((value) => value.botIcon);
   return (
     <SettingsRow title={t('icon.row.title')} description={t('icon.row.description')}>
-      <div role="radiogroup" aria-label={t('icon.row.title')} {...stylex.props(styles.grid)}>
-        {ICON_OPTIONS.map((option) => (
-          <BotIconCard
-            key={option.id}
-            option={option.id}
-            label={t(option.label)}
-            selected={botIcon === option.id}
-            onSelect={setBotIcon}
-          />
-        ))}
-      </div>
+      <PreviewChoices
+        label={t('icon.row.title')}
+        variant="icon"
+        value={botIcon}
+        onChange={setBotIcon}
+        options={ICON_OPTIONS.map((option) => ({
+          id: option.id,
+          label: t(option.label),
+          preview: <BotIcon icon={option.id} size={28} />,
+        }))}
+      />
     </SettingsRow>
   );
 }
@@ -203,11 +172,17 @@ export function MotionSetting({
         />
       }
     >
-      <div className="bh-motion-preview" role="status" aria-live="polite">
-        <span className="bh-motion-preview-sample" aria-hidden="true">
-          <i />
-          <i />
-          <i />
+      <div role="status" aria-live="polite" {...stylex.props(styles.motionPreview)}>
+        <span aria-hidden="true" {...stylex.props(styles.motionSample)}>
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.motionDot,
+                prefs.effectiveMotion === 'full' && styles.animatedDot(index),
+              )}
+            />
+          ))}
         </span>
         <span>
           {t('motion.preview.label')} · {t(effectiveLabel)}

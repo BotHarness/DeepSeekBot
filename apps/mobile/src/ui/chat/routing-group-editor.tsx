@@ -8,10 +8,11 @@ import {
   type ModelSettingsClient,
 } from '@botharness/host-client/bot-settings';
 import { MethodRefused } from '@botharness/host-client/client';
-import type {
-  ModelCatalogAnswer,
-  RoutingGroup,
-  RoutingGroupMember,
+import {
+  routingGroupEngineLabel,
+  type ModelCatalogAnswer,
+  type RoutingGroup,
+  type RoutingGroupMember,
 } from '@botharness/host-client/model-catalog';
 import { loadModelCatalog } from '@botharness/host-client/model-plans';
 import {
@@ -238,6 +239,16 @@ function RoutingGroupEditor({
           </>
         }
         renderItem={({ item, index }) => {
+          if (item.kind === 'engine') {
+            return (
+              <SettingsGroupItem first={index === 0} last={false} on={SHEET_GROUP}>
+                <SettingsRow
+                  on={SHEET_GROUP}
+                  title={`${index + 1}. ${routingGroupEngineLabel(item)}`}
+                />
+              </SettingsGroupItem>
+            );
+          }
           const entry =
             item.kind === 'model'
               ? catalog.models.find((model) => sameModel(model, item))

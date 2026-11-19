@@ -848,6 +848,13 @@
       "guide": ".agents/skills/verify-deepseekbot/features/orchestrator-model-switch.md"
     },
     {
+      "id": "routing-group.engine-members",
+      "label": "Save Subscription Engines alongside DSH models and show their labels in model settings",
+      "source": "packages/core/src/models/routing-groups.ts",
+      "task": 4574,
+      "guide": ".agents/skills/verify-deepseekbot/features/routing-group-engine-members.md"
+    },
+    {
       "id": "desktop.activity-center.inline-tool-approval",
       "label": "Decide Tool approvals inline on the full page and Dock, with below-card context and retry",
       "source": "packages/client/src/client/activity-approval.tsx",
@@ -1810,7 +1817,7 @@
       "behaviors": ["desktop.group.manage"],
       "reason": "Task cookie profile with optional restart/join phases; group name/avatar, membership decisions and refresh persistence.",
       "task": 1967,
-      "sha256": "424ca27bf88a299440ca73d7c916eeb1c4444f4616c2d7c86ea4cd14c77dc881"
+      "sha256": "82e3b11bb21be5a68de1f28cd9af7ed349ba6d7681d4a87b02058dfe30a778ae"
     },
     {
       "path": "scripts/e2e-group-motion-matrix.mjs",
