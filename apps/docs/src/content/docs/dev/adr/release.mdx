@@ -95,7 +95,7 @@ Enforced by: [live adapter import boundary](https://github.com/BotHarness/BotHar
 
 <a id="adr-0160"></a>
 
-The `deepseekbot` Bundle composes Core, Client, Browser, Computer with its native seam, and the qualified IM Provider in the product patch. Umbrella members do not declare standalone Bundles. The product ships headless Browser defaults, while Bot access and IM account setup follow their respective permissions. Packaged installs use the verified artifacts and the Profile's build policy. Workers and standalone CLI packages are separate deployables.
+The `deepseekbot` Bundle composes Core, Client, Browser, Computer with its native seam, and the qualified IM Provider in the product patch. Umbrella members do not declare standalone Bundles. The product ships the Bot Browser with headless defaults, while Bot access and IM account setup follow their respective permissions. Packaged installs use the verified artifacts and the Profile's build policy. Workers and standalone CLI packages are separate deployables.
 
 Why: Installing the umbrella yields one coherent Profile composition. A single loader entry for each member prevents duplicate registration and preserves product defaults.
 
