@@ -27,7 +27,7 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。团队模式下每个 Host Member 有自己的私有 Tob，权限不超过该成员。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。Team mode 下，只有当前 Host Owner 拥有 Tob。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
@@ -561,7 +561,7 @@ _避免使用_：upload、push、submit
 _避免使用_：client、connector、bridge identity、caller-supplied sender
 
 **Human ID**：
-一个 Human 在一台 Host（DSH Profile）内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。Host Owner 沿用原有的 `local-human` ID，每个 Host Member 有自己的 ID（ADR-0336）。
+一个 Human 在一台 Host（DSH Profile）内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。初始 Host Owner 沿用原有的 `local-human` ID。转让 Host 所有权不改变 Host Member 的 ID。见 [Team mode 决策](docs/decisions/team-mode.md#adr-0336)。
 _避免使用_：display name、nickname、browser tab
 
 **Human display name**：
@@ -569,7 +569,7 @@ _避免使用_：display name、nickname、browser tab
 _避免使用_：Human ID、login name
 
 **Host Owner**：
-拥有一台 Host 的唯一 Human，即原来的本地 Human；不经 Host Role 即拥有全部 Host Permission。所有权可以转让，但不能删除；本机 Desktop、loopback 与 CLI 默认以 Host Owner 身份访问（ADR-0336）。
+拥有一台 Host 的唯一 Human，无需 Host Role 即拥有全部 Host Permission。原来的本地 Human 是初始 Host Owner，所有权可以转让。本机 Desktop、loopback 与 CLI 默认以当前 Host Owner 的身份访问。见 [Team mode 决策](docs/decisions/team-mode.md#adr-0336)。
 _避免使用_：admin、root、超级用户
 
 **Host Member**：
@@ -597,7 +597,7 @@ _避免使用_：Behavior permission item、自然语言权限、scope
 _避免使用_：权限、ACL、强制规则
 
 **Audience containment**：
-中文为"受众包含"。团队模式规则：内容只能流向受众不大于其自身受众的 Bot、Channel 或 Workspace Grant。
+中文为"受众包含"。团队模式规则：内容只能流向受众为其自身受众的子集的 Bot、Channel 或 Workspace Grant。
 _避免使用_：尽力过滤、提示词规则
 
 **Workspace root**：

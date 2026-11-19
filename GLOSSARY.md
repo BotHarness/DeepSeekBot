@@ -27,7 +27,7 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode each Host Member has their own private Tob, limited to what that member may read and do.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
@@ -562,7 +562,7 @@ A Human or PersonaBot that can participate in Channels and author messages; a Br
 _Avoid_: client, connector, bridge identity, caller-supplied sender
 
 **Human ID**:
-The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The Host Owner keeps the original `local-human` ID; each Host Member has their own (ADR-0336).
+The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The initial Host Owner has the original `local-human` ID. Each Host Member keeps their own ID across Owner transfer. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: display name, nickname, browser tab
 
 **Human display name**:
@@ -570,7 +570,7 @@ The editable default name of one Human within one Host (DSH Profile). A Human Ch
 _Avoid_: Human ID, login name
 
 **Host Owner**:
-The one Human who owns a Host: the original local Human, holding every Host Permission without a Host Role. Ownership is transferable but never deleted; local Desktop, loopback and CLI access act as the Host Owner by default (ADR-0336).
+The one Human who owns a Host and holds every Host Permission without a Host Role. Ownership starts with the original local Human and is transferable. Local Desktop, loopback and CLI access act as the current Host Owner by default. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: admin, root, super user
 
 **Host Member**:
@@ -598,7 +598,7 @@ The Behavior permission items attached to a Host Role and given to a Bot answeri
 _Avoid_: permission, ACL, enforced rule
 
 **Audience containment**:
-The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is no larger than the content's own audience.
+The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is a subset of the content's own audience.
 _Avoid_: best-effort filtering, prompt rule
 
 **Workspace root**:

@@ -1,6 +1,6 @@
 # Team mode: one Host, many Host Members
 
-Accepted target design, confirmed by the Human on 2026-11-13 after Q1–Q35; not a description of shipped behavior or completed acceptance. Normative decisions live in [ADR-0336](../adr/0336-hosts-have-members.md). Orthogonal to the [Environment panel design](environment-panel.md) (one Human, many Hosts). [中文](team-mode.zh.md).
+Design log confirmed by the Human on 2026-11-13 after Q1–Q35, with later rollout amendments. The [Team mode decisions](../decisions/team-mode.md#adr-0336) describe the current Host implementation and its checks. The [Environment panel design](environment-panel.md) covers one Human across many Hosts. [中文](team-mode.zh.md).
 
 ## Why
 

@@ -1,6 +1,6 @@
 # Team mode M11 runtime boundaries
 
-This is the application-defined Host/CLI half of #4149 under ADR-0336. The existing BotHarness Typert Service and API Gateway carry every invocation. `TeamPrivateContent`, owned by `TeamService`, enforces current Human permissions; `PrivateAudit` owns the durable SQLite access chain. No native DSH API or second authentication authority is introduced.
+This is the application-defined Host/CLI half of #4149 under the [Team mode decisions](../decisions/team-mode.md#adr-0336). The existing BotHarness Typert Service and API Gateway carry every invocation. `TeamPrivateContent`, owned by `TeamService`, enforces current Human permissions; `PrivateAudit` owns the durable SQLite access chain. No native DSH API or second authentication authority is introduced.
 
 ## Wire contract
 
