@@ -77,13 +77,9 @@ describe('client styles', () => {
     expect(entries.length).toBeLessThanOrEqual(3);
   });
 
-  it('wires the measured native row geometry and spacing', () => {
-    expect(source).toMatch(/\.bh-section-head \{[^}]*height: 24px/);
-    expect(source).toMatch(/\.bh-section-head \{[^}]*gap: 6px/);
-    expect(source).toMatch(/\.bh-section-head \{[^}]*padding: 0 8px/);
+  it('keeps spacing between roster rows and blocks', () => {
     expect(source).toMatch(/\.bh-list-area > \* \+ \* \{\s*margin-top: 2px/);
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
-    expect(source).toMatch(/\.bh-section-head:hover \.bh-row-actions,[^}]*display: inline-flex/);
   });
   it('fades only timeline alpha while keeping the channel island and composer outside the mask', () => {
     expect(source).toMatch(/\.bh-topbar \{[^}]*position: absolute/);
@@ -104,23 +100,11 @@ describe('client styles', () => {
     expect(source).not.toMatch(/\.bh-channel-sidebar-head \{[^}]*border-bottom:/);
   });
 
-  it('keeps the glyph-free section header muted with a 12px block break', () => {
+  it('keeps the section block spacing in the roster and retires the section control overrides', () => {
     expect(source).not.toContain('bh-arrow');
     expect(source).not.toContain('bh-row-slot');
-    expect(source).toMatch(/\.bh-section-name \{[^}]*color: var\(--tobs-ink-tertiary\)/);
+    expect(source).not.toContain('.bh-section-head {');
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
-  });
-
-  it('brightens the Discord header on hover instead of filling it', () => {
-    expect(source).not.toMatch(/\.bh-section-head:hover[^}]*background/);
-    expect(source).toMatch(/\.bh-section-head:hover \.bh-section-name/);
-    expect(source).toMatch(/\.bh-section-chevron \{\s*[^}]*color: var\(--tobs-ink-tertiary\)/);
-    expect(source).toMatch(
-      /\.bh-section-chevron\.bh-chevron-collapsed \{\s*transform: rotate\(-90deg\)/,
-    );
-    expect(source).toMatch(
-      /\.bh-section-chevron \{\s*[^}]*transition: transform 150ms var\(--ds-ease-in-out\)/,
-    );
   });
 
   it('carries the native channel drag insert-line recipe', () => {
@@ -166,12 +150,11 @@ describe('client styles', () => {
     );
     expect(source).toMatch(/\.bh-unpin-zone-active \{[^}]*background: var\(--bh-hover\)/);
     expect(source).not.toContain('.bh-roster-list-unpin-target');
-    expect(source).toMatch(/\.bh-pinned\.bh-drag-source \{\s*opacity: 0\.4/);
+    expect(source).not.toContain('.bh-pinned.bh-drag-source {');
   });
 
   it('keeps context-menu positioning out of feature CSS', () => {
     expect(source).not.toContain('.bh-menu-anchor');
-    expect(source).toMatch(/\.bh-move-checked \{\s*display: flex/);
   });
 
   it('moves bubble copy/reply actions into the long-press menu on narrow screens', () => {
@@ -191,26 +174,15 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-bubble-toolbar:has\(\[aria-expanded='true'\]\) \{\s*opacity: 1;/);
   });
 
-  it('fits ordered Channels into the native 36px collapsed rail and separates pins', () => {
-    expect(source).toMatch(/\.bh-rail-group \{[^}]*width: 36px/);
-    expect(source).toMatch(/\.bh-rail-channel \{[^}]*width: 36px;[^}]*height: 36px/);
-    expect(source).toMatch(
-      /\.bh-rail-divider \{[^}]*border-top: 0\.5px solid var\(--tobs-line-strong\)/,
-    );
-    expect(source).toMatch(/\.bh-rail-preview \{[^}]*display: flex/);
-    expect(source).toMatch(
-      /\.bh-rail-preview-meta,[^{]*\.bh-rail-preview-description \{[^}]*color: var\(--tobs-ink-tertiary\)/,
-    );
-    expect(source).toMatch(/\.bh-rail-preview-summary \{[^}]*color: var\(--tobs-ink-secondary\)/);
+  it('keeps the retired rail divider and row rules out of legacy CSS', () => {
+    expect(source).not.toContain('.bh-rail-channel {');
+    expect(source).not.toContain('.bh-rail-divider');
   });
 
-  it('keeps hidden-channel rows inside the shared dialog body', () => {
+  it('leaves hidden Channel layout to the shared dialog and its token styles', () => {
     expect(source).not.toContain('.bh-hidden-manager');
-    expect(source).toMatch(/\.bh-hidden-search \{[^}]*box-sizing: border-box;[^}]*width: 100%/);
-    expect(source).toMatch(
-      /\.bh-hidden-row \{[^}]*box-sizing: border-box;[^}]*gap: 8px;[^}]*min-height: 40px;[^}]*padding: 2px 4px/,
-    );
-    expect(source).not.toContain('min-width: min(420px, calc(100vw - 48px))');
+    expect(source).not.toContain('.bh-hidden-search');
+    expect(source).not.toContain('.bh-hidden-row');
   });
 
   it('copies the native rename input box model without portaled overrides', () => {

@@ -195,55 +195,6 @@ html[data-botharness-motion='reduce'] .bh-onboarding-enter-dot { animation: none
 .bh-region-rail::-webkit-scrollbar {
   display: none;
 }
-.bh-rail-group {
-  display: flex;
-  width: 36px;
-  flex: none;
-  flex-direction: column;
-  gap: ${space.x3};
-}
-.bh-rail-channel {
-  position: relative;
-  display: flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  padding: ${space.x1};
-  border: 0;
-  border-radius: ${radius.md};
-  background: transparent;
-  color: var(--tobs-ink-secondary);
-  cursor: pointer;
-}
-.bh-rail-channel:hover {
-  background: var(--tobs-state-hover);
-}
-.bh-rail-channel.bh-selected {
-  background: var(--tobs-state-selected);
-  color: var(--tobs-ink-primary);
-}
-.bh-rail-channel:focus-visible {
-  outline: ${border.focus} solid var(--tobs-ink-primary);
-  outline-offset: -2px;
-}
-.bh-rail-channel-icon {
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${radius.round};
-  background: var(--tobs-layer-elevated);
-}
-.bh-rail-channel-icon.bh-group-channel-icon { border-radius: ${radius.sm}; overflow: hidden; }
-.bh-rail-divider {
-  width: 28px;
-  flex: none;
-  margin: ${space.x3} ${space.x2};
-  border-top: 0.5px solid var(--tobs-line-strong);
-}
-
 /* HoverCard portals this preview to body, so these rules intentionally do
    not depend on the bh-root ancestor or its three local brand aliases. */
 .bh-rail-preview {
@@ -739,92 +690,6 @@ button:has(.bh-panel-glyph):focus-within .bh-panel-gear,
   text-align: center;
   pointer-events: none;
 }
-.bh-pinned-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
-  gap: ${space.x2} ${space.x3};
-}
-.bh-pinned-header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 20px;
-  padding: 0 ${space.x2};
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  font-weight: ${text.strong};
-}
-.bh-pinned-header .bh-row-action {
-  width: 20px;
-  height: 20px;
-}
-
-.bh-pinned {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: ${space.x2};
-  padding: ${space.x3} ${space.x2};
-  border: 0;
-  border-radius: ${radius.md};
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  position: relative;
-  font: inherit;
-}
-.bh-pinned:hover {
-  background: var(--bh-hover);
-}
-.bh-pinned.bh-selected {
-  background: var(--bh-selected);
-}
-.bh-pinned.bh-drag-source {
-  opacity: 0.4;
-}
-.bh-pinned.bh-pin-drop-before::before,
-.bh-pinned.bh-pin-drop-after::after {
-  content: '';
-  position: absolute;
-  z-index: 1;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  border-radius: ${radius.xs};
-  background: var(--bh-accent);
-  pointer-events: none;
-}
-.bh-pinned.bh-pin-drop-before::before {
-  left: 0;
-}
-.bh-pinned.bh-pin-drop-after::after {
-  right: 0;
-}
-
-.bh-pinned .bh-name {
-  font-size: ${text.metaSize};
-  font-weight: ${text.strong};
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bh-pinned-channel-icon {
-  display: inline-flex;
-  width: 54px;
-  height: 54px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${radius.round};
-  background: var(--tobs-layer-elevated);
-  color: var(--tobs-ink-secondary);
-}
-.bh-pinned-channel-icon.bh-group-pinned-channel-icon {
-  border-radius: ${radius.lg};
-  overflow: hidden;
-}
 /* The native row-leading seat is shared with DSH's active Schedule mark. */
 span:has(> [data-session-schedule-mark]) > .bh-native-session-owner {
   display: none;
@@ -1048,25 +913,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   margin-top: ${space.x4};
 }
 
-/* 原生 .projectRow/.sessionRow 共同几何：8px 圆角、0 8px 内衬、悬停 alias
-   token。行盒落在 root 内容右缘（280px 侧栏 = x12..268），与原生行同表一致。 */
-/* .bh-root 前缀压过表单控件的 font: inherit 重置，让行盒与原生行同为
-   14px/20px（可见文本各自声明字号）。 */
-.bh-root .bh-section-head {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  width: 100%;
-  border: 0;
-  border-radius: ${radius.sm};
-  background: transparent;
-  color: var(--tobs-ink-primary);
-  cursor: pointer;
-  text-align: left;
-  font-size: ${text.titleSize};
-  line-height: ${text.bodyLine};
-  user-select: none;
-}
 .bh-root .bh-multi-selected {
   background: var(--bh-selected);
   box-shadow: inset 0 0 0 1px var(--tobs-line-edge);
@@ -1253,13 +1099,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
 .bh-row-glyph[data-status='blocked'] { color: var(--tobs-status-danger-base); }
 .bh-row-glyph[data-status='done'],
 .bh-row-glyph[data-status='paused'] { color: var(--tobs-ink-tertiary); }
-.bh-section-needs {
-  flex: none;
-  margin-left: ${space.x2};
-  color: var(--tobs-status-warning-base);
-  font-size: ${text.metaSize};
-  line-height: ${text.bodyLine};
-}
 .bh-unread-count-muted {
   background: var(--tobs-layer-elevated);
   color: var(--tobs-ink-secondary);
@@ -1438,104 +1277,10 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   pointer-events: none;
 }
 
-/* Section 头（Discord 式 PM 定稿）：24px 紧凑条、gap 6、padding 0 8px；
-   无背景 fill（与 channel 行悬停区分）；标签默认 tertiary、悬停提亮到
-   primary（原生 projectRow 悬停不提亮，此处按 PM 走 Discord 语言）；
-   右侧 chevron 随标签同色、150ms 旋转指示折叠；整行可点击折叠
-   （aria-expanded 留在行上）。未分组沿用同一标签色（无折叠态，不带
-   chevron、不跟随提亮）。 */
-.bh-section-head {
-  height: 24px;
-  gap: 6px;
-  padding: 0 ${space.x3};
-}
-.bh-section-name {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: ${text.titleSize};
-  line-height: ${text.bodyLine};
-  color: var(--tobs-ink-tertiary);
-}
-.bh-section-head:hover .bh-section-name,
-.bh-section-head:hover .bh-section-chevron {
-  color: var(--tobs-ink-primary);
-}
-.bh-section-chevron {
-  flex: none;
-  color: var(--tobs-ink-tertiary);
-  transition: transform 150ms var(--ds-ease-in-out);
-}
-.bh-section-chevron.bh-chevron-collapsed {
-  transform: rotate(-90deg);
-}
-.bh-section-count {
-  flex: none;
-  margin-left: auto;
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  line-height: ${text.bodyLine};
-}
-
-/* 原生 .rowActions：16px 字形、gap 12、仅悬停显示（菜单打开时的常显由
-   row 组件的 menu-open 变体在交互接线时补上）。 */
-.bh-row-actions {
-  flex: none;
-  display: none;
-  align-items: center;
-  gap: ${space.x4};
-  height: 20px;
-}
-.bh-section-head:hover .bh-row-actions,
-.bh-section-head:focus-within .bh-row-actions,
-.bh-section-head.bh-menu-open .bh-row-actions {
-  display: inline-flex;
-}
-.bh-row-action {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border: none;
-  border-radius: ${radius.xs};
-  padding: 0;
-  background: transparent;
-  color: var(--tobs-ink-tertiary);
-  cursor: pointer;
-}
-.bh-row-action:not(:disabled):hover {
-  color: var(--tobs-ink-primary);
-}
-.bh-row-action:disabled {
-  cursor: default;
-}
-
 html[data-botharness-motion='reduce'] .bh-pin-zone,
-html[data-botharness-motion='reduce'] .bh-unpin-zone,
-html[data-botharness-motion='reduce'] .bh-section-chevron {
+html[data-botharness-motion='reduce'] .bh-unpin-zone {
   transition: none;
 }
-
-/* 子菜单当前 scope 的尾部对勾：primitives 的 Menu 只为主行渲染 check，
-   子菜单的选中标记因此放在 label 内（菜单 portal 到 body，类不依赖 .bh-root）。 */
-.bh-move-checked {
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  width: 100%;
-}
-.bh-move-checked-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 
 /* 原生 WorkspaceBrowser 的 .renameInput（shipped dialog 用的是 feature-local
    普通 input，不是 primitives Input）：类自身拥有完整盒模型，Modal 在 body
@@ -2381,68 +2126,6 @@ html[data-botharness-motion='reduce'] .bh-market-review-pulse { animation: none;
   font-family: ${font.familyMono};
   color: var(--tobs-ink-tertiary);
   overflow-wrap: anywhere;
-}
-
-/* Hidden Channel recovery is portaled under body; never depend on .bh-root. */
-.bh-hidden-search {
-  box-sizing: border-box;
-  width: 100%;
-}
-.bh-hidden-list {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x1};
-  max-height: min(360px, 55vh);
-  overflow-y: auto;
-}
-.bh-hidden-row {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  min-height: 40px;
-  padding: ${space.x1} ${space.x2};
-  border-radius: ${radius.sm};
-}
-.bh-hidden-row:hover {
-  background: var(--tobs-state-hover);
-}
-.bh-hidden-channel-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  color: var(--tobs-ink-secondary);
-}
-.bh-hidden-copy {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-.bh-hidden-name,
-.bh-hidden-meta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bh-hidden-name {
-  color: var(--tobs-ink-primary);
-  font-size: ${text.titleSize};
-  line-height: ${text.bodyLine};
-}
-.bh-hidden-meta {
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
-}
-.bh-hidden-empty {
-  padding: 28px ${space.x3};
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.bodySize};
-  text-align: center;
 }
 
 .bh-note {

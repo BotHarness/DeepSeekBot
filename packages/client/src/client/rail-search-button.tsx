@@ -1,3 +1,4 @@
+import { IconButton } from './ds/icon-button.js';
 import { useSyncExternalStore, type ReactElement } from 'react';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -29,9 +30,9 @@ export function RailSearchButton({
       side="right"
       portal
     >
-      <button type="button" aria-label={label} onClick={() => launcher.open('rail')}>
+      <IconButton size="row" type="button" aria-label={label} onClick={() => launcher.open('rail')}>
         <ChannelSidebarIcon name="search" />
-      </button>
+      </IconButton>
     </Tooltip>
   );
 }

@@ -1,3 +1,8 @@
+import * as stylex from '@stylexjs/stylex';
+import { GroupHeading } from './ds/group-heading.js';
+import { IconButton } from './ds/icon-button.js';
+import { hooked } from './ds/hooked.js';
+import { rosterStyles } from './ds/roster-styles.js';
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
@@ -942,8 +947,9 @@ function RailChannel({
       copyLabel={t('rail.copy')}
       copiedLabel={t('rail.copied')}
       anchor={
-        <button
+        <Button
           type="button"
+          xstyle={[rosterStyles.railRow, selected && rosterStyles.selected]}
           className={`bh-rail-channel${selected ? ' bh-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}`}
           data-channel-id={channel.id}
           aria-label={
@@ -956,15 +962,17 @@ function RailChannel({
           onClick={open}
         >
           {bot === undefined ? (
-            <GroupChannelIcon
-              channel={channel}
-              bots={bots}
-              className="bh-rail-channel-icon"
-              groupClassName="bh-group-channel-icon"
-              size={32}
-              hashSize={18}
-              t={t}
-            />
+            <span {...stylex.props(rosterStyles.railIcon)}>
+              <GroupChannelIcon
+                channel={channel}
+                bots={bots}
+                className="bh-rail-channel-icon"
+                groupClassName="bh-group-channel-icon"
+                size={32}
+                hashSize={18}
+                t={t}
+              />
+            </span>
           ) : (
             <PersonaBotAvatar
               t={t}
@@ -985,7 +993,7 @@ function RailChannel({
               {shortcut.slice(4)}
             </kbd>
           ) : null}
-        </button>
+        </Button>
       }
       content={
         <div className="bh-rail-preview">
@@ -2154,14 +2162,17 @@ export function BotSidebar({
         aria-label={t('rail.label')}
         data-bh-tour="roster"
       >
-        <div className="bh-rail-group">
+        <div {...hooked('bh-rail-group', rosterStyles.railGroup)}>
           {railPinnedChannels.map((channel) => renderRailChannel(channel))}
         </div>
-        {railPinnedChannels.length > 0 && railChannels.length > 0 ? (
-          <span className="bh-rail-divider" aria-hidden="true" />
-        ) : null}
-
-        <div className="bh-rail-group">
+        <div
+          {...hooked(
+            'bh-rail-group',
+            rosterStyles.railGroup,
+            railPinnedChannels.length > 0 && railChannels.length > 0 && rosterStyles.railUnpinned,
+          )}
+          data-rail-unpinned=""
+        >
           {railChannels.map((channel) => renderRailChannel(channel))}
         </div>
       </div>
@@ -2601,8 +2612,8 @@ export function BotSidebar({
           {!hasPinnedChannels ? (
             <span className="bh-pin-zone-hint">{t('pin.drop')}</span>
           ) : (
-            <div className="bh-pinned-grid">
-              <div className="bh-pinned-header">
+            <div {...hooked('bh-pinned-grid', rosterStyles.pinnedGrid)}>
+              <div {...stylex.props(rosterStyles.pinnedHeading)}>
                 <span>{t('pin.title')}</span>
                 <Menu
                   open={pinSortMenuOpen}
@@ -2610,14 +2621,15 @@ export function BotSidebar({
                   dense
                   align="end"
                   anchor={
-                    <button
+                    <IconButton
+                      size="inline"
                       type="button"
-                      className="bh-row-action"
                       aria-label={t('pin.sort')}
+                      aria-expanded={pinSortMenuOpen}
                       onClick={() => setPinSortMenuOpen((value) => !value)}
                     >
                       <Icon name="ellipsis" />
-                    </button>
+                    </IconButton>
                   }
                   items={pinnedSortMenuItems(t)}
                   selectedId={sectionSortMode(prefs, PINNED_SORT_SCOPE_ID)}
@@ -2645,8 +2657,13 @@ export function BotSidebar({
                     side="right"
                     delayMs={350}
                   >
-                    <button
+                    <Button
                       type="button"
+                      xstyle={[
+                        rosterStyles.pinnedTile,
+                        (selected || selectedChannelSet.has(channel.id)) && rosterStyles.selected,
+                        dragSource && rosterStyles.dragging,
+                      ]}
                       data-channel-id={channel.id}
                       className={`bh-pinned${selected ? ' bh-selected' : ''}${selectedChannelSet.has(channel.id) ? ' bh-multi-selected' : ''}${showShortcutHints && shortcutFor(channel.id) !== undefined ? ' bh-shortcut-active' : ''}${dragSource ? ' bh-drag-source' : ''}${pinMarker === null ? '' : ` bh-pin-drop-${pinMarker}`}`}
                       aria-pressed={selectedChannelSet.has(channel.id)}
@@ -2728,16 +2745,29 @@ export function BotSidebar({
                         });
                       }}
                     >
-                      {bot === undefined ? (
-                        <GroupChannelIcon
-                          channel={channel}
-                          bots={botBySlug}
-                          className="bh-pinned-channel-icon"
-                          groupClassName="bh-group-pinned-channel-icon"
-                          size={54}
-                          hashSize={24}
-                          t={t}
+                      {pinMarker === null ? null : (
+                        <span
+                          aria-hidden="true"
+                          {...stylex.props(
+                            rosterStyles.insertion,
+                            pinMarker === 'before'
+                              ? rosterStyles.insertionBefore
+                              : rosterStyles.insertionAfter,
+                          )}
                         />
+                      )}
+                      {bot === undefined ? (
+                        <span {...stylex.props(rosterStyles.pinnedIcon)}>
+                          <GroupChannelIcon
+                            channel={channel}
+                            bots={botBySlug}
+                            className="bh-pinned-channel-icon"
+                            groupClassName="bh-group-pinned-channel-icon"
+                            size={54}
+                            hashSize={24}
+                            t={t}
+                          />
+                        </span>
                       ) : (
                         <PersonaBotAvatar
                           t={t}
@@ -2753,7 +2783,7 @@ export function BotSidebar({
                           indicator={false}
                         />
                       )}
-                      <span className="bh-name">
+                      <span {...hooked('bh-name', rosterStyles.pinnedLabel)}>
                         {bot?.displayName ?? channel.name}
                         {bot === undefined ? null : (
                           <ChannelRowStatusGlyph
@@ -2781,7 +2811,7 @@ export function BotSidebar({
                           {shortcutFor(channel.id)?.slice(4)}
                         </kbd>
                       ) : null}
-                    </button>
+                    </Button>
                   </Tooltip>
                 );
               })}
@@ -3011,53 +3041,43 @@ export function BotSidebar({
                   }}
                 >
                   <div className="bh-list-area">
-                    <div
-                      className={`bh-section-head${menuOpenForSection || createMenuOpenForSection || sectionContextMenu?.sectionId === section.id ? ' bh-menu-open' : ''}`}
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={!collapsed}
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = 'move';
-                        event.dataTransfer.setData('text/plain', section.id);
-                        sectionDrag.start();
-                      }}
-                      onDragEnd={sectionDrag.end}
-                      onClick={() => toggleSection(section.id)}
-                      onKeyDown={(event) => {
-                        const keyboardMenu =
-                          event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10');
-                        if (keyboardMenu) {
-                          event.preventDefault();
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          openSectionContextMenu(rect.left + 8, rect.bottom);
-                          return;
-                        }
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          toggleSection(section.id);
-                        }
-                      }}
-                    >
-                      <span className="bh-section-name">{section.name}</span>
-                      <Icon
-                        name="chevron-down"
-                        size={14}
-                        className={
-                          collapsed
-                            ? 'bh-section-chevron bh-chevron-collapsed'
-                            : 'bh-section-chevron'
-                        }
+                    <div {...stylex.props(rosterStyles.section)}>
+                      <GroupHeading
+                        xstyle={rosterStyles.sectionToggle}
+                        label={<span className="bh-section-name">{section.name}</span>}
+                        count={sectionChannels.length}
+                        expanded={!collapsed}
+                        quiet
+                        animateChevron={false}
+                        onToggle={() => toggleSection(section.id)}
+                        button={{
+                          className: 'bh-section-head',
+                          draggable: true,
+                          onDragStart: (event) => {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', section.id);
+                            sectionDrag.start();
+                          },
+                          onDragEnd: sectionDrag.end,
+                          onKeyDown: (event) => {
+                            const keyboardMenu =
+                              event.key === 'ContextMenu' ||
+                              (event.shiftKey && event.key === 'F10');
+                            if (!keyboardMenu) return;
+                            event.preventDefault();
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            openSectionContextMenu(rect.left + 8, rect.bottom);
+                          },
+                        }}
                       />
-                      <span className="bh-section-count">{sectionChannels.length}</span>
                       {needCount > 0 ? (
-                        <span className="bh-section-needs">
+                        <span {...stylex.props(rosterStyles.sectionAttention)}>
                           {t(needCount === 1 ? 'roster.needsYouCountOne' : 'roster.needsYouCount', {
                             count: needCount,
                           })}
                         </span>
                       ) : null}
-                      <span className="bh-row-actions">
+                      <span {...hooked('bh-row-actions', rosterStyles.sectionControls)}>
                         <Menu
                           open={menuOpenForSection}
                           portal
@@ -3065,8 +3085,9 @@ export function BotSidebar({
                           align="end"
                           closeOnPointerLeave
                           anchor={
-                            <button
+                            <IconButton
                               type="button"
+                              size="inline"
                               className="bh-row-action"
                               aria-label={t('roster.section.sort', {
                                 name: section.name,
@@ -3080,7 +3101,7 @@ export function BotSidebar({
                               }}
                             >
                               <Icon name="ellipsis" />
-                            </button>
+                            </IconButton>
                           }
                           items={sectionMenuItems(t, {
                             canMoveUp: sectionIndex > 0,
@@ -3099,8 +3120,9 @@ export function BotSidebar({
                           align="end"
                           closeOnPointerLeave
                           anchor={
-                            <button
+                            <IconButton
                               type="button"
+                              size="inline"
                               className="bh-row-action"
                               aria-label={t('roster.section.create', {
                                 name: section.name,
@@ -3114,7 +3136,7 @@ export function BotSidebar({
                               }}
                             >
                               <Icon name="plus" />
-                            </button>
+                            </IconButton>
                           }
                           items={sectionCreateMenuItems(t, gitReady(state.git), member)}
                           onSelect={(id) => {
@@ -3800,12 +3822,12 @@ function BotModelMenu({
             ref={(node) => {
               anchor.current = node?.closest('button') ?? null;
             }}
-            className="bh-move-checked"
+            {...stylex.props(rosterStyles.menuLabel)}
             onMouseEnter={() => {
               if (!disabled) setOpen(true);
             }}
           >
-            <span className="bh-move-checked-text">{label}</span>
+            <span {...stylex.props(rosterStyles.truncate)}>{label}</span>
             <Icon name="chevron-right" size={16} />
           </span>
         }
@@ -3836,8 +3858,8 @@ function BotModelMenu({
                 onFocus={() => setActive(group.key)}
                 onClick={() => setActive(group.key)}
               >
-                <span className="bh-move-checked">
-                  <span className="bh-move-checked-text">{group.label}</span>
+                <span {...stylex.props(rosterStyles.menuLabel)}>
+                  <span {...stylex.props(rosterStyles.truncate)}>{group.label}</span>
                   {group.current ? <Icon name="check" size={16} /> : null}
                 </span>
                 <Icon name="chevron-right" size={16} />
@@ -3851,8 +3873,8 @@ function BotModelMenu({
                 disabled={disabled}
                 onSelect={() => apply(effort.route)}
               >
-                <span className="bh-move-checked">
-                  <span className="bh-move-checked-text">{effort.label}</span>
+                <span {...stylex.props(rosterStyles.menuLabel)}>
+                  <span {...stylex.props(rosterStyles.truncate)}>{effort.label}</span>
                   {effort.current ? <Icon name="check" size={16} /> : null}
                 </span>
               </MenuItemButton>

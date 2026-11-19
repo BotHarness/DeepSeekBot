@@ -8,5 +8,8 @@ export const dimension = stylex.defineConsts({
   profileBannerMaxHeight: '200px',
   profileAvatarSize: '80px',
   profileAvatarOverlap: '40px',
+  pinnedTileMinWidth: '76px',
+  pinnedTileAvatar: '54px',
+  hiddenChannelListMaxHeight: '360px',
   questionCardWidth: '380px',
 });

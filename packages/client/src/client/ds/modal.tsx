@@ -5,7 +5,7 @@ import { useMountedResource } from '../mounted-resource.js';
 import { Dialog } from './dialog.js';
 import { Icon } from './icon.js';
 import { IconButton } from './icon-button.js';
-import { edge, ink, line, space, type } from './tobs.stylex.js';
+import { ink, space, type } from './tobs.stylex.js';
 
 const styles = stylex.create({
   header: {
@@ -52,9 +52,6 @@ const styles = stylex.create({
     gap: space.x2,
     paddingBlock: space.x4,
     paddingInline: space.x5,
-    borderTopWidth: edge.hairline,
-    borderTopStyle: 'solid',
-    borderTopColor: line.divider,
   },
 });
 
