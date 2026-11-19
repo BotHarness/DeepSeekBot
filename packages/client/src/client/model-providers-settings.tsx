@@ -485,7 +485,7 @@ export function ModelProvidersSettings({
                         setDialog({ kind: 'edit', provider });
                       }}
                     >
-                      {t('modelProviders.edit')}
+                      {t(provider.keyStored ? 'modelProviders.edit' : 'modelProviders.addKey')}
                     </Button>
                   ) : undefined
                 }
