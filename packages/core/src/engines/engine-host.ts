@@ -25,7 +25,11 @@ import {
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import { resolveEngineCommand } from './engine-launch.js';
-import { buildEngineContextSeed } from './engine-context.js';
+import {
+  buildEngineContextSeed,
+  type EngineContextRecord,
+  savedAssignmentRequest,
+} from './engine-context.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
@@ -98,6 +102,7 @@ export interface EngineHostOptions {
   changed?(): void;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
+  idleMs?: number;
   releaseGraceMs?: number;
   now?: () => number;
   openCodex?(options: CodexProcessOptions): CodexTransport;
@@ -125,6 +130,7 @@ interface LiveEngineSession {
   dsh: OpenedEngineDshSession;
   nativeId: string;
   seed: string | undefined;
+  rebuilt: boolean;
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
@@ -132,10 +138,12 @@ interface LiveEngineSession {
   recover: boolean;
   accountChecked: boolean;
   running: Promise<void>;
+  idleTimer?: NodeJS.Timeout | undefined;
 }
 
 const LIMIT_REST_MS = 60 * 60_000;
 const MODELS_TTL_MS = 5 * 60_000;
+const ORCHESTRATOR_IDLE_MS = 30_000;
 
 function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
   return engine === undefined ? undefined : JSON.stringify([engine, choice.model, choice.effort]);
@@ -468,11 +476,15 @@ export class EngineHost {
       throw new EngineRefusal('engine-unavailable', 'This engine Assignment is already running');
     const steering = new AssignmentSteering(() => !signal.aborted && !this.#closed);
     this.#assignmentSteering.set(sessionId, steering);
-    return steering.run(
-      request.input,
-      (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
-      () => this.#assignmentSteering.delete(sessionId),
-    );
+    try {
+      return await steering.run(
+        request.input,
+        (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
+        () => this.#assignmentSteering.delete(sessionId),
+      );
+    } finally {
+      await this.release(sessionId);
+    }
   }
 
   async #runTurn(
@@ -494,6 +506,8 @@ export class EngineHost {
     const limited = this.limit(selected);
     if (limited !== undefined) throw new EngineLimitError(selected, limited.account, limited.until);
     const live = await this.#open(request);
+    clearTimeout(live.idleTimer);
+    live.idleTimer = undefined;
     const engine = live.engine.engine;
     if (engine !== selected) {
       const opened = this.limit(engine);
@@ -503,7 +517,8 @@ export class EngineHost {
     live.accountChecked = false;
     const previous = live.running;
     let finish!: () => void;
-    live.running = new Promise((resolve) => (finish = resolve));
+    const running = new Promise<void>((resolve) => (finish = resolve));
+    live.running = running;
     const current = () => !live.closing && this.#live.get(request.sessionId) === live;
     let broken = false;
     let reopen = false;
@@ -540,6 +555,10 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, input);
+        if (live.rebuilt) {
+          log.rebuilt();
+          live.rebuilt = false;
+        }
         outcome.turn = log.turn;
         let limitedNow = false;
         scope.context = {
@@ -613,7 +632,7 @@ export class EngineHost {
         }
       }
     } finally {
-      if (current())
+      if (current() && live.running === running)
         this.#setState(
           request.sessionId,
           { engine, account: live.account, state: 'idle' },
@@ -623,6 +642,11 @@ export class EngineHost {
       if (current() && (broken || live.engine.ended)) {
         live.recover = true;
         void this.release(request.sessionId);
+      } else if (current() && role === 'orchestrator' && live.running === running) {
+        live.idleTimer = setTimeout(
+          () => void this.release(request.sessionId),
+          this.#options.idleMs ?? ORCHESTRATOR_IDLE_MS,
+        ).unref();
       }
     }
     if (reopen) return this.#runTurn(request, steering, continuation);
@@ -722,6 +746,7 @@ export class EngineHost {
 
   async #dispose(sessionId: string, live: LiveEngineSession): Promise<void> {
     live.closing = true;
+    clearTimeout(live.idleTimer);
     this.#live.delete(sessionId);
     this.#states.delete(sessionId);
     this.#options.observe?.(live.botSlug, sessionId, 'idle', this.#role(sessionId));
@@ -844,10 +869,24 @@ export class EngineHost {
       });
       const stored = this.store.nativeSession(sessionId);
       let resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      let recovery: readonly EngineContextRecord[] | undefined;
+      const restore = async () => {
+        dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        const records = request.readRecoveryContext?.();
+        if (request.role !== 'assignment') return records ?? [];
+        const priorRequest = savedAssignmentRequest(dsh.session, stored?.lastTurn);
+        if (records === undefined || priorRequest === undefined)
+          throw new EngineRefusal(
+            'engine-recovery-unavailable',
+            'The engine session was lost and the saved Assignment records are incomplete.',
+          );
+        return [...records, { label: 'Latest saved Assignment Request', text: priorRequest }];
+      };
       if (resume !== undefined && stored?.lastTurn !== undefined) {
         dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
         const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
         if (last?.data.turn !== stored.lastTurn) resume = undefined;
+        if (last === undefined || last.data.turn < stored.lastTurn) recovery = await restore();
       }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
       const contextSeed = () => holder.live?.seed;
@@ -889,6 +928,7 @@ export class EngineHost {
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
         resume = undefined;
+        recovery = await restore();
         nativeId = await opened.start();
       }
       this.#rememberModel(botSlug, opened.engine, opened.model);
@@ -903,7 +943,11 @@ export class EngineHost {
         grant,
         dsh,
         nativeId,
-        seed: resume === undefined ? buildEngineContextSeed(dsh.session) : undefined,
+        seed:
+          resume === undefined
+            ? buildEngineContextSeed(dsh.session, undefined, recovery)
+            : undefined,
+        rebuilt: recovery !== undefined,
         turn: undefined,
         stop: undefined,
         closing: false,

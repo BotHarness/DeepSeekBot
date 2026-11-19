@@ -15,6 +15,12 @@ import { type ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-a
 
 import type { EngineEvent, EngineId, EngineTurnEnd } from './engine-session.js';
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'botharness-engine-rebuild': { kind: 'botharness-engine-rebuild' };
+  }
+}
+
 type AssistantBlock = Extract<ContentBlock, { type: 'text' | 'reasoning' | 'tool-call' }>;
 
 export interface EngineLogTarget {
@@ -69,6 +75,17 @@ export class EngineTurnLog {
 
   get turn(): number {
     return this.#turn;
+  }
+
+  rebuilt(): void {
+    this.#target.session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: 'Engine session rebuilt from saved context.' }],
+        source: { kind: 'botharness-engine-rebuild' },
+      }),
+      { surfaceOp: 'append' },
+    );
   }
 
   input(text: string) {

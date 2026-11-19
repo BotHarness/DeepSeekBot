@@ -1820,8 +1820,8 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 或明确拒绝 steer 的 Codex 中断当前轮次后在同一 Session 继续。原运行实例对当前工作只提交一次终态报告。
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。
 - **文件写入权限**：Host 在每轮开始时按 Assignment 的权限快照和当前 Grant，或 Orchestrator 当前的聊天权限设置，计算引擎的执行模式。受限 Orchestrator 如有任何生效的只读 Grant，则使用只读工具。只读不开放写入或升级审批；工作区模式保留审批；完全访问使用引擎的完整权限。模式变化时，Host 用新权限恢复原引擎会话。
-- **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。每个 Session 一个引擎进程，原生会话是工作记忆。Host 记录是权威：Orchestrator 从 Bot Inbox、Channel 记录与 Memory 重建；Assignment 从 Assignment Directory、Assignment Request 与持久化的 Session 事件重建，缺失时以失败结束并报告 Orchestrator。
-- **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照，面板不改。
+- **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。Orchestrator 的引擎进程空闲 30 秒后关闭，Assignment 在工作完成后关闭引擎进程，再释放共用的 Assignment 并发名额。下一批 Inbox 或 Assignment Request 按已保存的原生 ID 恢复。原生会话丢失时，Orchestrator 从 Bot Inbox、当前 Channel 的近期记录、Memory 与已保存的 Session 事件重建。Assignment 从 Assignment Directory、已接受的 Request 与持久化的 Session 事件重建，缺失时由 Host 向所属 Orchestrator 提交失败报告。
+- **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照。重建在同一个 DSH Session 中留下系统消息，现有 Session detail 与 CLI 从同一条记录读取。
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

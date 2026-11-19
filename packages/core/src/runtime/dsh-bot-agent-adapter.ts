@@ -88,7 +88,7 @@ import {
   type EngineTurnRequest,
 } from '../engines/engine-host.js';
 import { engineAssignmentInstructions, engineInstructions } from '../engines/engine-persona.js';
-import type { EngineWorkspaceMode } from '../engines/engine-session.js';
+import { EngineRefusal, type EngineWorkspaceMode } from '../engines/engine-session.js';
 import {
   ENGINE_LISTED_TOOLS,
   ENGINE_UNSUPPORTED_TOOLS,
@@ -1162,6 +1162,21 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
+        readRecoveryContext: () => {
+          run.requireContent?.();
+          if (run.inboundChannelId === undefined) return [];
+          return run.channels
+            .read({ channelId: run.inboundChannelId, limit: 8 })
+            .toReversed()
+            .map(({ message }) => ({
+              label: 'Channel message',
+              text: JSON.stringify({
+                author: message.author,
+                at: message.at,
+                body: message.body.slice(0, 600),
+              }),
+            }));
+        },
         instructions: engineInstructions({
           name: run.bot.displayName,
           ...persona,
@@ -1680,6 +1695,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           sessionId: run.sessionId,
           channelId: undefined,
           input: `${run.text}\n\n[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}`,
+          readRecoveryContext: () => {
+            const entry = run.recoveryEntry?.();
+            return entry === undefined
+              ? undefined
+              : [
+                  {
+                    label: 'Assignment Directory',
+                    text: JSON.stringify({ title: entry.title, description: entry.description }),
+                  },
+                ];
+          },
           instructions: [
             ASSIGNMENT_REPORT_CONTRACT,
             engineAssignmentInstructions({
@@ -1759,6 +1785,15 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         entry.reported = true;
       }
       if (!entry.reported) throw new Error('Assignment finished without report_to_orchestrator');
+    } catch (error) {
+      if (
+        !stopped() &&
+        error instanceof EngineRefusal &&
+        error.code === 'engine-recovery-unavailable'
+      )
+        await (run.failEngineRecovery?.(error.message) ??
+          run.report({ state: 'failed', summary: error.message }));
+      throw error;
     } finally {
       if (this.#engineStops.get(run.sessionId) === stop) this.#engineStops.delete(run.sessionId);
     }

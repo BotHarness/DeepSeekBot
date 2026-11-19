@@ -12,6 +12,7 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
+import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 import { inboxFixture } from './inbox-fixture.js';
@@ -93,7 +94,7 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function hostWith(next: () => FakeCodex) {
+function hostWith(next: () => FakeCodex, idleMs?: number) {
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
   gateways.push(gateway);
@@ -106,6 +107,7 @@ function hostWith(next: () => FakeCodex) {
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
     releaseGraceMs: 50,
+    ...(idleMs === undefined ? {} : { idleMs }),
     observe: (_bot, _session, state) => states.push(state),
     openCodex: () => {
       const codex = next();
@@ -211,6 +213,21 @@ describe('Codex Engine Session stop and timeouts', () => {
 });
 
 describe('Engine Host recovery', () => {
+  it('closes the idle engine and resumes the same native ID on the next Inbox batch', async () => {
+    const { host, opened, request } = hostWith(() => fakeCodex(), 20);
+    try {
+      await host.runTurn(request());
+      await vi.waitFor(() => expect(opened[0]?.closed).toBe(true));
+
+      await host.runTurn({ ...request(), input: 'Second Inbox batch' });
+      expect(
+        opened[1]?.sent.find((frame) => frame['method'] === 'thread/resume')?.['params'],
+      ).toMatchObject({ threadId: 'thread-new' });
+    } finally {
+      await host.close();
+    }
+  });
+
   it('seeds only a new thread and gives the returning native Session the engine messages', async () => {
     let starts = 0;
     const { host, opened, request, dsh } = hostWith(() =>
@@ -321,6 +338,58 @@ describe('Engine Host recovery', () => {
     await host.runTurn(request());
     expect(host.store.nativeSession('orchestrator-ada')?.nativeId).toBe('thread-new');
     await host.close();
+  });
+
+  it('rebuilds an Orchestrator thread with saved history and announces it in Session detail', async () => {
+    const { host, opened, request, dsh } = hostWith(() =>
+      fakeCodex({ 'thread/resume': () => ({ error: 'thread not found' }) }),
+    );
+    const readRecoveryContext = vi.fn(() => [
+      { label: 'Channel records', text: 'A recent Channel message said coral.' },
+    ]);
+    const run = {
+      ...request(),
+      instructions: 'Core Memory says the number is 37.',
+      readRecoveryContext,
+    };
+    try {
+      await host.runTurn({ ...run, input: 'The previous Inbox batch said orchid.' });
+      expect(readRecoveryContext).not.toHaveBeenCalled();
+      await host.release(run.sessionId);
+      await host.runTurn({ ...run, input: 'Current Inbox batch: what do you remember?' });
+
+      expect(readRecoveryContext).toHaveBeenCalledOnce();
+      const second = opened[1];
+      expect(second?.methods().filter((method) => /^thread\//u.test(method))).toEqual([
+        'thread/resume',
+        'thread/start',
+      ]);
+      expect(
+        second?.sent.find((frame) => frame['method'] === 'thread/start')?.['params'],
+      ).toMatchObject({ developerInstructions: 'Core Memory says the number is 37.' });
+      expect(
+        second?.sent.find((frame) => frame['method'] === 'turn/start')?.['params'],
+      ).toMatchObject({
+        input: [
+          {
+            text: expect.stringMatching(/coral[\s\S]*orchid[\s\S]*Current Inbox batch/u),
+          },
+        ],
+      });
+      const transcript = summarizeSessionTranscript({
+        sessionId: run.sessionId,
+        events: dsh.stored.get(run.sessionId)!.events,
+      });
+      expect(transcript.items).toContainEqual(
+        expect.objectContaining({
+          kind: 'input',
+          source: 'system',
+          text: 'Engine session rebuilt from saved context.',
+        }),
+      );
+    } finally {
+      await host.close();
+    }
   });
 
   it('reopens and resumes the thread after Codex exits between turns', async () => {

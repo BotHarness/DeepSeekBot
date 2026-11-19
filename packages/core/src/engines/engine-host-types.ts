@@ -3,6 +3,7 @@ import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import type { ClaudeStatus } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
+import type { EngineContextRecord } from './engine-context.js';
 import type { EngineId, EngineWorkspaceMode } from './engine-session.js';
 import type { EngineRole } from './engine-store.js';
 
@@ -30,6 +31,7 @@ export interface EngineTurnRequest {
   channelId: string | undefined;
   input: string;
   instructions: string;
+  readRecoveryContext?(): readonly EngineContextRecord[] | undefined;
   tools: readonly EngineTool[];
   execute(
     name: string,
