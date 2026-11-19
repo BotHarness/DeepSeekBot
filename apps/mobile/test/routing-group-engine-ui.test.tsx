@@ -23,6 +23,7 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-router', async () => {
   const { useEffect } = await import('react');
   return {
@@ -212,8 +213,11 @@ it('gives the editor engine title and details the trailing space at default text
     `${engineRow.detail} · ${t.routingGroup.defaultTag}`,
   );
   expect(
-    row?.querySelector('[data-row-slot="leading"] [data-symbol]')?.getAttribute('data-symbol'),
-  ).toBe('puzzlepiece.extension');
+    row
+      ?.querySelector('[data-row-slot="leading"] [data-model-brand="openai"]')
+      ?.parentElement?.querySelector('[data-testid="external-engine-badge"]')
+      ?.getAttribute('aria-label'),
+  ).toBe(t.routingGroup.externalEngine);
   expect(row?.querySelector('[data-row-slot="trailing"]')).toBeNull();
   expect(
     button('routing-group-member-1-remove')
@@ -314,16 +318,32 @@ it('uses separate source chips, searches both engines and saves a model with eff
   });
   await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
   expect(view.textContent).toMatch(/Sonnet.*Default/u);
+  expect(
+    view.querySelector(
+      '[data-member-row] [data-row-slot="leading"] [data-model-brand="claude"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
   await click('routing-group-add-member');
   await click('routing-member-filter-claude');
-  expect(button('routing-member-engine-claude-claude-sonnet-5-5').textContent).toContain(
-    t.routingGroup.defaultTag,
-  );
+  const claudeOption = button('routing-member-engine-claude-claude-sonnet-5-5');
+  expect(claudeOption.textContent).toContain(t.routingGroup.defaultTag);
+  expect(claudeOption.getAttribute('aria-label')).toContain(t.routingGroup.externalEngine);
+  expect(
+    claudeOption.querySelector(
+      '[data-row-slot="leading"] [data-model-brand="claude"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
   expect(view.querySelector('[data-testid="routing-member-engine-codex-gpt-5.4"]')).toBeNull();
   await click('routing-member-filter-codex');
-  expect(button('routing-member-engine-codex-gpt-5.4').textContent).toContain(
-    t.routingGroup.defaultTag,
-  );
+  const codexOption = button('routing-member-engine-codex-gpt-5.4');
+  expect(codexOption.textContent).toContain(t.routingGroup.defaultTag);
+  expect(codexOption.getAttribute('aria-label')).toContain(t.routingGroup.externalEngine);
+  expect(
+    codexOption.querySelector(
+      '[data-row-slot="leading"] [data-model-brand="openai"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
+  expect(codexOption.querySelector('[data-row-slot="trailing"] [data-symbol]')).toBeNull();
   expect(
     view.querySelector('[data-testid="routing-member-engine-claude-claude-sonnet-5-5"]'),
   ).toBeNull();

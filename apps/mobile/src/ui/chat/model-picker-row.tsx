@@ -15,6 +15,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
+import { EngineBrandIcon } from './engine-brand-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { shortModelName } from './model-route-text';
 import { SHEET_GROUP } from './sheet';
@@ -85,47 +86,47 @@ export function ModelEnginePickerRow({
       {...actions}
       selected={selected}
       on={SHEET_GROUP}
-      leading={
-        <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color.fg} />
-      }
+      leading={<EngineBrandIcon brand={row.brand} color={theme.color.fg} />}
       trailing={
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x2,
-          }}
-        >
-          {isDefault ? (
-            <View
-              style={{
-                backgroundColor: theme.layer[SHEET_GROUP].inset,
-                borderRadius: radius.round,
-                paddingHorizontal: space.x2,
-              }}
-            >
-              <Text tone="muted" variant="meta">
-                {t.routingGroup.defaultTag}
-              </Text>
-            </View>
-          ) : null}
-          <SystemSymbol
-            name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
-            size={theme.type.meta.line}
-            color={theme.color.muted}
-          />
-          {selected ? (
-            <SystemSymbol
-              name={{ ios: 'checkmark', android: 'check' }}
-              size={theme.type.title.line}
-              color={theme.color.accent}
-            />
-          ) : null}
-        </View>
+        isDefault || selected ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x2,
+            }}
+          >
+            {isDefault ? (
+              <View
+                style={{
+                  backgroundColor: theme.layer[SHEET_GROUP].inset,
+                  borderRadius: radius.round,
+                  paddingHorizontal: space.x2,
+                }}
+              >
+                <Text tone="muted" variant="meta">
+                  {t.routingGroup.defaultTag}
+                </Text>
+              </View>
+            ) : null}
+            {selected ? (
+              <SystemSymbol
+                name={{ ios: 'checkmark', android: 'check' }}
+                size={theme.type.title.line}
+                color={theme.color.accent}
+              />
+            ) : null}
+          </View>
+        ) : undefined
       }
       title={row.title}
       detail={row.detail}
-      accessibilityLabel={[row.name, isDefault ? t.routingGroup.defaultTag : undefined, row.detail]
+      accessibilityLabel={[
+        row.name,
+        isDefault ? t.routingGroup.defaultTag : undefined,
+        row.detail,
+        t.routingGroup.externalEngine,
+      ]
         .filter(Boolean)
         .join(', ')}
     />

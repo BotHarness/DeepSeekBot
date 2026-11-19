@@ -185,12 +185,31 @@ it('filters subscription sources independently, searches across sources and save
   await render(actions);
   await act(async () => buttonNamed(t('routingGroups.editTitle', { name: 'DeepSeek' })).click());
   expect(dialog().textContent).toMatch(/Sonnet.*默认/u);
+  expect(
+    dialog()
+      .querySelector(
+        '[data-routing-group-member] [data-model-brand="claude"] + [data-external-engine-badge]',
+      )
+      ?.getAttribute('aria-label'),
+  ).toBe(t('engine.externalLabel'));
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
   await act(async () => filter('engine:codex'));
   expect(option(codexKey)?.textContent).toContain(t('routingGroups.defaultTag'));
+  expect(option(codexKey)?.getAttribute('aria-label')).toContain(t('engine.externalLabel'));
+  expect(
+    option(codexKey)?.querySelector(
+      '[data-model-brand="openai"] + [data-external-engine-badge] svg',
+    ),
+  ).not.toBeNull();
   expect(option(claudeKey)).toBeUndefined();
   await act(async () => filter('engine:claude'));
   expect(option(claudeKey)?.textContent).toContain('Sonnet');
+  expect(option(claudeKey)?.getAttribute('aria-label')).toContain(t('engine.externalLabel'));
+  expect(
+    option(claudeKey)?.querySelector(
+      '[data-model-brand="claude"] + [data-external-engine-badge] svg',
+    ),
+  ).not.toBeNull();
   expect(option(codexKey)).toBeUndefined();
   await act(async () => filter('all'));
   await typeInto(
@@ -235,6 +254,11 @@ it.each(['signed-out', 'not-installed'] as const)(
     expect(rows[0]?.textContent).toMatch(/^1V4\.1 FlashOpenCode Go/u);
     expect(rows[1]?.textContent).toContain(nested.name);
     expect(rows[2]?.textContent).toContain('GPT-5.4');
+    expect(
+      rows[2]
+        ?.querySelector('[data-model-brand="openai"] + [data-external-engine-badge]')
+        ?.getAttribute('aria-label'),
+    ).toBe(t('engine.externalLabel'));
     expect(rows[3]?.textContent).toContain(
       t(reason === 'signed-out' ? 'engine.signInLabel' : 'engine.notInstalled', {
         engine: 'Claude Code',

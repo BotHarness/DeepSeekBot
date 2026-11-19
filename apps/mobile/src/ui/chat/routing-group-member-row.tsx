@@ -6,9 +6,9 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { SettingsRow } from '../primitives/settings-row';
 import { SwipeRow } from '../primitives/swipe-row';
-import { SystemSymbol } from '../primitives/system-symbol';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { EngineBrandIcon } from './engine-brand-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { SHEET_GROUP } from './sheet';
 
@@ -57,10 +57,10 @@ export function RoutingGroupMemberRow({
           .join(' · ');
   const leading =
     engineRow !== undefined ? (
-      <SystemSymbol
-        name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
-        size={theme.type.meta.size}
+      <EngineBrandIcon
+        brand={engineRow.brand}
         color={theme.color[tone]}
+        label={t.routingGroup.externalEngine}
       />
     ) : brand === undefined ? undefined : (
       <ModelBrandIcon brand={brand} color={theme.color[tone]} size={theme.type.title.line} />
@@ -119,7 +119,11 @@ export function RoutingGroupMemberRow({
       <SettingsRow
         on={SHEET_GROUP}
         title={position + (engineRow?.title ?? title)}
-        accessibilityLabel={[position + name, memberDetail?.replaceAll('\u2060', '')]
+        accessibilityLabel={[
+          position + name,
+          memberDetail?.replaceAll('\u2060', ''),
+          engineRow === undefined ? undefined : t.routingGroup.externalEngine,
+        ]
           .filter(Boolean)
           .join(', ')}
         detail={memberDetail}

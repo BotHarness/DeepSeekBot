@@ -55,14 +55,22 @@ const engineStyles = stylex.create({
 export function EngineBrandIcon({
   brand,
   size = 14,
+  label,
 }: {
   brand: ModelBrand | undefined;
   size?: number;
+  label?: string;
 }): ReactElement {
   return (
     <span data-engine-brand={brand ?? ''} {...stylex.props(engineStyles.wrap)}>
       <ModelBrandIcon brand={brand} size={size} />
-      <span {...stylex.props(engineStyles.badge)}>
+      <span
+        data-external-engine-badge=""
+        role={label === undefined ? undefined : 'img'}
+        aria-label={label}
+        aria-hidden={label === undefined ? true : undefined}
+        {...stylex.props(engineStyles.badge)}
+      >
         <ChannelSidebarIcon name="plug" size={Math.round(size * 0.55)} strokeWidth={2.5} />
       </span>
     </span>

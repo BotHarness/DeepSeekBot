@@ -408,7 +408,10 @@ export function ModelMenu({
           value: item.value,
           label: item.name,
           hint: item.hint,
-          ...(item.hintLabel === undefined ? {} : { hintLabel: item.hintLabel }),
+          hintLabel:
+            item.engine === undefined || item.hint === undefined
+              ? item.hintLabel
+              : `${item.hintLabel ?? item.hint} · ${t('engine.externalLabel')}`,
           ...(item.hintBrand === undefined
             ? {}
             : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
@@ -436,7 +439,7 @@ export function ModelMenu({
               ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
               : item.engine !== undefined
                 ? {
-                    icon: <EngineBrandIcon brand={ENGINE_BRAND[item.engine]} size={16} />,
+                    icon: <EngineBrandIcon brand={item.brand} size={16} />,
                     filter: `engine:${item.engine}`,
                   }
                 : item.model === undefined

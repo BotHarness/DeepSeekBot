@@ -24,9 +24,15 @@ import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { modelBrand, ModelBrandIcon, modelShortName, type ModelBrand } from './model-brand.js';
+import {
+  EngineBrandIcon,
+  modelBrand,
+  ModelBrandIcon,
+  modelShortName,
+  type ModelBrand,
+} from './model-brand.js';
 import { routingGroupEngineCopy } from './model-menu.js';
-import { ENGINE_MARKER_ICON, routingGroupEngineReason } from './session-engine.js';
+import { routingGroupEngineReason } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker.js';
 
@@ -197,12 +203,11 @@ function MemberChain({
             {index === 0 ? null : <span aria-hidden="true">→</span>}
             {member.kind === 'engine' ? (
               <>
-                <ModelBrandIcon brand={row.brand} size={16} />
+                <EngineBrandIcon brand={row.brand} size={16} label={t('engine.externalLabel')} />
                 <span {...stylex.props(styles.label)}>
                   <span>{row.title}</span>
                   <span {...stylex.props(styles.route)}>{row.detail}</span>
                 </span>
-                <Icon name={ENGINE_MARKER_ICON} size={12} />
               </>
             ) : (
               <span>{row.name}</span>
@@ -295,6 +300,8 @@ function MemberEditor({
                 <span {...stylex.props(styles.order)}>{index + 1}</span>
                 {member.kind === 'group' ? (
                   <Icon name="git-branch" size={16} />
+                ) : member.kind === 'engine' ? (
+                  <EngineBrandIcon brand={brand} size={16} label={t('engine.externalLabel')} />
                 ) : (
                   <ModelBrandIcon brand={brand} size={16} />
                 )}
@@ -311,7 +318,6 @@ function MemberEditor({
                   )}
                 </span>
                 {engineRow?.isDefault ? <Badge>{t('routingGroups.defaultTag')}</Badge> : null}
-                {member.kind === 'engine' ? <Icon name={ENGINE_MARKER_ICON} size={12} /> : null}
                 {member.kind === 'group' ? <Badge>{t('routingGroups.groupTag')}</Badge> : null}
                 {rest === undefined ? null : <Badge warning>{restingLabel(rest, t)}</Badge>}
                 <span {...stylex.props(styles.tools)}>
