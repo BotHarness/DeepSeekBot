@@ -119,7 +119,7 @@ Bot 模式首次体验由 application-defined Onboarding owner 在现有 operati
 
 历史欢迎消息保留兼容显示，提供能力介绍、每日晚间问候与十分钟定时测试示例，点击后沿用正常 Human DM 请求与现有执行能力。新闻选项由 Host 在 onboarding 查询中投影当前 native 搜索配置和所选 Bot preset 的 `web_search` 可见性，只返回就绪布尔值，不保存第二份配置或凭据。固定 RC1 的已知 DeepSeek 搜索 Provider 与其独立凭据已配置时提供带真实来源链接的今日 AI 新闻；未配置、无法确认或不支持的搜索组合显示通用工作规划示例。配置就绪不保证网络请求成功，实际搜索失败、空结果和不可用必须如实说明。模型保存和问题发送是两次独立操作：单独选择模型不创建问题；因配置受阻的请求保存模型后进入单独的发送确认，关闭或恢复均不自动发送。引导模型配置复用 native model／credential Services，经 Typert/API Gateway 保存并读回 Profile 默认模型；默认勾选后当前 Bot 继承全局，取消勾选则写独立 Model Plan。新 Bot 无独立 plan 时继承全局；保留 model-plan revision 以校验返回继承的编辑。全局修改只影响之后的继承请求，不覆盖固定计划或运行中的 Assignment。模型失败后的“重试这条消息”沿用原 Human 消息与 Admission，经既有 retryability／side-effect gate 拒绝不安全重放，不再追加 Human 消息。
 
-当前 Client UI 由独立 `@botharness/ui` Bundle 挂载，源码仍在 `packages/client`；RC2 的插件图把结尾 `/client` 解释为导出子路径，因此包身份依 [ADR-0066](../adr/0066-rc2-client-bundle-identity.md) 避开该后缀。Client HMR 只暂存当前 Bot/Channel 选择以恢复视图，不复制 Host 中的 PersonaBot、Channel 或消息权威。
+当前 Client UI 由独立 `@botharness/ui` Bundle 挂载，源码仍在 `packages/client`；RC2 的插件图把结尾 `/client` 解释为导出子路径，因此包身份依 [ADR-0066](../decisions/release.md#adr-0066) 避开该后缀。Client HMR 只暂存当前 Bot/Channel 选择以恢复视图，不复制 Host 中的 PersonaBot、Channel 或消息权威。
 
 产品术语以根目录 [`GLOSSARY.md`](/zh/dev/design/context) 为唯一词表；[BotHarness Runtime 架构](/zh/dev/design/bot-runtime) 单独展开 PersonaBot、Bot Inbox、Orchestrator、Assignment 与 DSH execution 的关系。DSH/Cordis 本身的术语和 Plugin 开发决策位于 `/zh/dsh`，不在这里重复定义。
 
@@ -438,7 +438,7 @@ Application-defined IM DM commands (`/commands`, `/help`, `/status`, `/model`, `
 
 产品品牌迁移保留这一分发身份：[ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 的 `tobs` npm 入口精确依赖同版本 `deepseekbot`，使用相同组件版本和逐字节相同的 Bundle Patch。两个包分别拥有 `tobs` 与 `deepseekbot` 命令，既有 Profile 无需添加第二个 Bundle，也不迁移存储。发布顺序为组件、旧入口、新入口；发布前分别验证两个 Bundle 的全新 Profile 安装及重启，并在 Windows/Linux 验证命令共存和独立卸载。
 
-[ADR-0127](../decisions/im-providers.md#adr-0127) 提议在开发用 fork 政策之外增加产品分发路径：打包的 `deepseekbot` 固定 Core、Client、Browser、Computer 和独立版本的 `@botharness/im-provider`，通过同一 Bundle Patch 激活全部六个组件（[ADR-0160](../adr/0160-deepseekbot-default-bundles-browser-computer-and-im-provider.md)）。Provider 保留 SDK、凭据、存储身份及公开 Service；Core 保留所有 application-defined authority。构建校验不可变输入、重建运行时来源和 tarball 完整性。原生优先从 CLI 安装位置解析 Bundle，因此产物验收使用独立安装的官方 CLI，避免误用开发链接。初始不连接账号；重复的 standalone Bundle 在启动前被拒绝。Provider 随产品更新。此构建路径不发布 npm、不自动资格验证其他平台，也不免除 Human QA 和生产启用门槛。参见[打包验收指南](../product-im-installation.md)。 产品 Provider 的来源、DSH 版本和运行时摘要独立于开发版固定值；改变产品输入需要递增自身版本并重做实际安装验收（[#868](https://github.com/BotHarness/BotHarness/issues/868)）。
+[ADR-0127](../decisions/im-providers.md#adr-0127) 提议在开发用 fork 政策之外增加产品分发路径：打包的 `deepseekbot` 固定 Core、Client、Browser、Computer 和独立版本的 `@botharness/im-provider`，通过同一 Bundle Patch 激活全部六个组件（[ADR-0160](../decisions/release.md#adr-0160)）。Provider 保留 SDK、凭据、存储身份及公开 Service；Core 保留所有 application-defined authority。构建校验不可变输入、重建运行时来源和 tarball 完整性。原生优先从 CLI 安装位置解析 Bundle，因此产物验收使用独立安装的官方 CLI，避免误用开发链接。初始不连接账号；重复的 standalone Bundle 在启动前被拒绝。Provider 随产品更新。此构建路径不发布 npm、不自动资格验证其他平台，也不免除 Human QA 和生产启用门槛。参见[打包验收指南](../product-im-installation.md)。 产品 Provider 的来源、DSH 版本和运行时摘要独立于开发版固定值；改变产品输入需要递增自身版本并重做实际安装验收（[#868](https://github.com/BotHarness/BotHarness/issues/868)）。
 
 [#1115](https://github.com/BotHarness/DeepSeekBot/issues/1115) 经 application-defined Messaging Provider 的可选可达群查询／checked first-post 契约扩展同一主动发送路径。Host 保留 Binding、会话屏蔽和 Outbox authority；首次发帖只创建既有 implicit 会话条目，不生成 Source Event、Inbox 或本地 DM。Generation 89 在 Binding 保存每小时发帖限额（默认 60，可关闭），以既有 Outbox attempt-start 计数，未知结果不重试。可选契约覆盖 Lark、Slack、Discord；实际平台权限、版本绑定的原生验收及 #1111 Provider 发布仍独立。详见 [ADR-0197](../decisions/im-providers.md#adr-0197)。
 
@@ -636,11 +636,11 @@ Under [ADR-0302](../adr/0302-genui-diagrams-compile-before-publication.md), the 
 
 应用定义的在线 CLI 依照 ADR-0159，每次从当前 Host 启动令牌换取内存 cookie，经既有 DSH HTTP unary carrier 调用 Typert Bridge；不另设监听器、凭据缓存或数据库旁路。发送先由 Registry 查询确认 Bot，再由 Channel owner 建立 DM，使用 `human-UUID` 消息 ID 提交；重试去重仍归 Host。新增 `channelSendStatus` 只读查询复用 `source_events`、`inbox_admissions`、`channel_output_origins` 和 `session_ownership`，按原请求 Source Event、同一 DM 与 Bot 所有的 Session 返回已提交回复和当前处理状态，不以时间窗口或最新一条消息猜测对应关系。问题／审批卡片、通知及失败不算回复；超时保留回执供查询，不自动重发。工具审批、正式问题、工作区授权和发布状态沿用各自 Host owner；无新增耐久表或权限权威。见 [CLI 指南](../bot-cli.zh.md) 与 [#1317](https://github.com/BotHarness/DeepSeekBot/issues/1317)。
 
-依照 [ADR-0162](../adr/0162-online-cli-management-keeps-explicit-host-authority.md)，显式 Host 选择扩展到 Registry 创建／查询、Model Preset／Plan 与 Channel 发现。Zip／目录由 CLI 上传调用者本地字节，经已有 authenticated Bot Zip import owner 验证和创建；Git 获取仍在 Host 执行。创建和模型应用是分阶段 owner 操作，部分失败保留已知身份，未知结果不自动重试；连接失败不切换到离线 Profile。attention、Session 与 activity 查询只读既有投影，提供有界调试摘要；测试脚本经同一业务 CLI 驱动精确请求与持久回复，并可显式调用删除 owner 的 preview/confirm/retry 清理本轮身份，保留 Memory。writer lease 不构成 RPC 全局串行锁，各 owner 的版本／HEAD 与幂等契约保持独立。见 [#1363](https://github.com/BotHarness/DeepSeekBot/issues/1363)。
+依照 [ADR-0162](../decisions/release.md#adr-0162)，显式 Host 选择扩展到 Registry 创建／查询、Model Preset／Plan 与 Channel 发现。Zip／目录由 CLI 上传调用者本地字节，经已有 authenticated Bot Zip import owner 验证和创建；Git 获取仍在 Host 执行。创建和模型应用是分阶段 owner 操作，部分失败保留已知身份，未知结果不自动重试；连接失败不切换到离线 Profile。attention、Session 与 activity 查询只读既有投影，提供有界调试摘要；测试脚本经同一业务 CLI 驱动精确请求与持久回复，并可显式调用删除 owner 的 preview/confirm/retry 清理本轮身份，保留 Memory。writer lease 不构成 RPC 全局串行锁，各 owner 的版本／HEAD 与幂等契约保持独立。见 [#1363](https://github.com/BotHarness/DeepSeekBot/issues/1363)。
 
 ### CLI 的 IM 应用授权
 
-应用定义的 CLI Consumer 通过既有 Messaging Service 的 `messagingApps` 发现已资格验证的 Provider setup descriptor，再经同一个已认证 DSH HTTP carrier 调用原生 Connection Fetch Registry 的 `dsh-im/app-setup` endpoint。该 Provider 拥有授权 attempt、过期和原生账号／凭据持久化；CLI 只保留一次调用的内存 cookie，不创建额外 store 或生命周期。飞书凭据和微信验证码仅从 stdin 进入目的明确的 `setup.credentials`／`setup.verify` payload；stdout 只投影经过校验的非敏感状态、二维码、账号引用与指纹。微信扫码由 Human 在手机确认，再用同一 attempt 查询；IM 应用授权不选择 PersonaBot 或建立 Messaging Grant。见 [ADR-0161](../adr/0161-cli-im-authorization-keeps-provider-attempt-authority.md) 与 [#1318](https://github.com/BotHarness/DeepSeekBot/issues/1318)。
+应用定义的 CLI Consumer 通过既有 Messaging Service 的 `messagingApps` 发现已资格验证的 Provider setup descriptor，再经同一个已认证 DSH HTTP carrier 调用原生 Connection Fetch Registry 的 `dsh-im/app-setup` endpoint。该 Provider 拥有授权 attempt、过期和原生账号／凭据持久化；CLI 只保留一次调用的内存 cookie，不创建额外 store 或生命周期。飞书凭据和微信验证码仅从 stdin 进入目的明确的 `setup.credentials`／`setup.verify` payload；stdout 只投影经过校验的非敏感状态、二维码、账号引用与指纹。微信扫码由 Human 在手机确认，再用同一 attempt 查询；IM 应用授权不选择 PersonaBot 或建立 Messaging Grant。见 [ADR-0161](../decisions/release.md#adr-0161) 与 [#1318](https://github.com/BotHarness/DeepSeekBot/issues/1318)。
 
 ### 配对设备的远程访问
 
@@ -927,7 +927,7 @@ flowchart TB
 | Session transcript / execution    | DSH SessionPersistence                                                           | only through a verified DSH export adapter; otherwise declared omitted |
 | credentials and DSH settings      | DSH services                                                                     | never copied; restore creates suspended rebind requests                |
 
-application-defined 诊断日志 owner 在 `logs.db` 之外，以 `$DSH_HOME/botharness/diagnostic-health.json` 保留容量受限且仅含元数据的健康证据（[ADR-0331](../adr/0331-diagnostic-log-health-is-independent-bounded-evidence.md)）。现有在线／离线日志列表、日志导出和问题报告 ZIP 明确标出不可用的主日志、丢失数量下界、省略项及未知覆盖范围。实时 writer 负责重试与恢复；离线 reader 不修复或修改任何来源。备用文件失败时仅保留明确标记为 process-local 的证据，不影响正常运行。
+application-defined 诊断日志 owner 在 `logs.db` 之外，以 `$DSH_HOME/botharness/diagnostic-health.json` 保留容量受限且仅含元数据的健康证据（[ADR-0331](../decisions/release.md#adr-0331)）。现有在线／离线日志列表、日志导出和问题报告 ZIP 明确标出不可用的主日志、丢失数量下界、省略项及未知覆盖范围。实时 writer 负责重试与恢复；离线 reader 不修复或修改任何来源。备用文件失败时仅保留明确标记为 process-local 的证据，不影响正常运行。
 
 v1 只有两个备份动作：Export Profile 生成一个 self-contained `.botharness-backup`，Import Profile 选择一个文件。没有自动备份、scheduler、catalog、retention 或 incremental chain。Restore 总是在隔离 staging 中验证；成功后 PersonaBot 仍为 cold，provider authority suspended，Workspace/model/plugin dependencies 必须在目标机重新解析并由 Human 明确激活。
 
@@ -1010,13 +1010,13 @@ Memory 文件事件通过兼容层持有的 DSH-native Provider registration con
 
 ### 产品发布身份（已接受设计，执行门禁待交付）
 
-[ADR-0216](../adr/0216-dsb-product-versions-identify-immutable-package-sets.md) 将电脑端 DSB 软件身份与 npm 产品包身份统一；Core／UI／Browser／Computer 同号，DSH／独立 Provider／手机保持各自版本。既有准备流程的冻结 Release Plan 绑定源码与完整产物，而不是新增版本服务。交付 QA 后版本与字节不可替换；Beta 转正式须验证新的正式包集合。Host 的现有 Release Service 投影实际运行身份和独立的待生效版本，经既有认证 bridge 同时提供 CLI／Web；缺失发布元数据不能伪装源码构建。发布按依赖核验后推进产品入口，失败恢复同一计划／字节，不宣称多包原子性。规则详见[版本规范](../agents/version-policy.zh.md)，实施由 [#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979) 的三个切片负责；本节不表示全部发布门禁已实现，也不授予标签迁移、发布或共享设备使用权限。
+[ADR-0216](../decisions/release.md#adr-0216) 将电脑端 DSB 软件身份与 npm 产品包身份统一；Core／UI／Browser／Computer 同号，DSH／独立 Provider／手机保持各自版本。既有准备流程的冻结 Release Plan 绑定源码与完整产物，而不是新增版本服务。交付 QA 后版本与字节不可替换；Beta 转正式须验证新的正式包集合。Host 的现有 Release Service 投影实际运行身份和独立的待生效版本，经既有认证 bridge 同时提供 CLI／Web；缺失发布元数据不能伪装源码构建。发布按依赖核验后推进产品入口，失败恢复同一计划／字节，不宣称多包原子性。规则详见[版本规范](../agents/version-policy.zh.md)，实施由 [#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979) 的三个切片负责；本节不表示全部发布门禁已实现，也不授予标签迁移、发布或共享设备使用权限。
 
 #1980 的运行身份沿用 Release Service：四个第一方 Plugin 在模块加载时将不可变包名、版本与真实目录快照附在各自 callback 上。Core 捕获产品依赖组合，随后从原生 Registry 的 ACTIVE Fiber 读取实际 callback 快照并比对；等待组件启动时返回 `composition-unverified`，关于页面允许重新读取身份，不能只凭已安装清单宣布发布身份。运行版本和待生效状态在当前 Service 内保留；后续请求继续校验实际 callback，组件被替换后身份可失效，但不提前宣布新版本。配置重新应用复用同一 Core 模块捕获的组合；磁盘安装不能提前改变运行版本。该快照是应用定义的进程诊断，不是新持久化版本库，也不是对任意可执行 Plugin 的安全认证。源码构建使用编译时 Git／dirty 身份；具体安装、重启与 Human QA 证据仍由 issue／PR 记录。
 
 #2173 的应用定义升级发现仍由同一个 Release Service 负责。Bot 模式进入时通过认证 bridge 查询运行身份、真实 DSH 版本及 registry 版本清单；兼容性复用当前 Host 的原生检查器，覆盖产品与精确依赖组件。绝对最新版本不兼容时继续寻找最新兼容版本；元数据缺失、搜索超时或网络失败保持未知并短期重试，不宣称没有更新。客户端按本地 Profile、发布通道和精确目标保存提醒关闭记录，与已安装版本更新说明分开。确认安装前再次核验兼容性，再进入既有原生安装和权限边界；已暂存版本仍独立提示重启，不提前改变运行身份。CLI `release-check --force` 与 UI 共用该 Service 并绕过查询缓存。
 
-[ADR-0311](../adr/0311-in-app-updates-are-host-owned-runs.md)：应用内安装（Tobs 本身与 `@botharness/*` 插件）统一由 Host 的 Update Runs 模块记录。每次安装带一个 request id 交给原生 Plugin Manager，Host 订阅 `plugin-manager/install-log` 与 `install-state`，把命令、输出尾部、退出码与阶段折叠进同一条有界、仅存于内存的运行记录，并通过 `cancelInstall` 负责终止。Web 的更新提醒、关于页与插件页共用一个 Client 控制器与进度面板，经既有 bridge 轮询 `updateRun`、调用 `updateCancel`；CLI `update-status`／`update-cancel` 读写同一记录。
+[ADR-0311](../decisions/release.md#adr-0311)：应用内安装（Tobs 本身与 `@botharness/*` 插件）统一由 Host 的 Update Runs 模块记录。每次安装带一个 request id 交给原生 Plugin Manager，Host 订阅 `plugin-manager/install-log` 与 `install-state`，把命令、输出尾部、退出码与阶段折叠进同一条有界、仅存于内存的运行记录，并通过 `cancelInstall` 负责终止。Web 的更新提醒、关于页与插件页共用一个 Client 控制器与进度面板，经既有 bridge 轮询 `updateRun`、调用 `updateCancel`；CLI `update-status`／`update-cancel` 读写同一记录。
 
 ## 8 · 实现顺序与可并发范围
 
@@ -1282,7 +1282,7 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 ### Message Feedback
 
-[ADR-0256](../adr/0256-message-feedback-sends-ratings-and-keeps-diagnostics-local.md) replaces the remote-evidence design in ADR-0254. Human-initiated feedback sends only rating, fixed tags, a redacted short comment, version and random feedback ID to the existing PostHog ingest proxy. It never sends conversation, Session, Bot Inbox, delivery records or archive bytes. A stable event UUID supports retries without creating a user profile. Anonymous Telemetry remains independent.
+[Message Feedback](../decisions/release.md#adr-0256) sends a rating, fixed tags, a redacted short comment, version and random feedback ID to the existing PostHog ingest proxy. The Human can explicitly include bounded, redacted evidence from one eligible failed turn. Full diagnostic archives stay local. A stable event UUID supports retries without creating a user profile. Anonymous Telemetry remains independent.
 
 The application-defined Host diagnostics owner still collects a frozen, bounded preview from canonical Channel and DSH Session Persistence under existing permissions. Desktop, paired mobile and CLI use the same preview/download routes. Selected diagnostics download to the Human's device for optional manual sharing; the feedback ID appears in the filename. No dedicated feedback service, private storage, admin page or server-side evidence retention is needed. Multi-selection remains copy/screenshot only and scoped to the current Host and Channel.
 
@@ -1299,7 +1299,7 @@ Update Run 的阶段变化和 Release Service 已批准的重启请求，仅用�
 标记将安全的 ID／版本／阶段摘要带过进程替换。下一次数据库启动观测将摘要关联到 `mountId`；就绪和
 恢复结论仍由数据库／Core 所有者负责，未观测的安装／重启结果和前一进程退出情况保持未知。既有在线、
 离线诊断导出和问题报告读取同一批记录。标记不控制安装、版本身份或重启资格。见
-[ADR-0330](../adr/0330-update-restart-correlation-is-bounded-process-evidence.md)。
+[ADR-0330](../decisions/release.md#adr-0330)。
 
 应用定义的 Client 诊断 collector 扩展既有 ADR-0063／0064 开发者日志边界。在明确启用的 Host 中（隔离 AX launcher 只为自己的子进程启用），Host Cordis Fiber 通过原生 `webServer.tapIndex` 在 Client 导入前安装 observer，并在 `/api/botharness/client-diagnostics` 注册精确、经过认证的 Connection Fetch route。浏览器报告白名单错误／生命周期 code、顺序化文档 attempt、固定保留的首次失败与 shell 挂载记录及有界遗漏；Host 保留有界实时 read model，并将同一过程证据写入既有 `logs.db`。它不创建 SessionEvent、产品状态、额外 SSE 或操作权威。API 健康、已提交且可见的 shell 观测、新鲜度、真实浏览器 console／DOM 核验分别成立；未知、后台延后及失败证据不能隐式变成成功。见 [agent 核验流程](../dev/guides/client-startup-diagnostics.zh.md) 与 [#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184)。
 
@@ -1383,7 +1383,7 @@ Version 7 retains the old per-panel open/hidden-control records and migrates leg
 
 ## DSH compatibility admission
 
-First-party packaging declares `>=0.2.0-0` with no future-release ceiling. DSH-native Bundle/Profile preflight includes prereleases and owns the API floor. Host-provided native modules remain external and omit npm peers, whose default SemVer matching would otherwise exclude future rc tuples. Build and patch source pins remain reproducible; qualification versions are evidence, not launch allowlists. The development launcher accepts the installed CLI or an isolated `--dsh-version` selection and retains actual patch, catalog and API checks. The application-defined compatibility adapter chooses native legacy or activation-based Subagent APIs before execution, keeps native delivery/cancellation ownership, and validates Owner identity using that Host’s trusted invocation. Native shell Plugins come from the running Host; the bundled scoped file Plugin retains its read_image fix and adapts the older Session cwd locally when the workingDirectory service is absent. The preset uses the common native baseline and the native ComputerUseRegistry child Plugin owned by the product Computer Plugin; its pinned implementation is identical across both qualified releases, without a second incompatible native-package installation. Forward admission does not establish future runtime compatibility. See [ADR-0087's current correction](../adr/0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md) and the [1.4.0 qualification plan](../agents/dsh-1.4-release-qualification.md).
+First-party packaging declares `>=0.2.0-0` with no future-release ceiling. DSH-native Bundle/Profile preflight includes prereleases and owns the API floor. Host-provided native modules remain external and omit npm peers, whose default SemVer matching would otherwise exclude future rc tuples. Build and patch source pins remain reproducible; qualification versions are evidence, not launch allowlists. The development launcher accepts the installed CLI or an isolated `--dsh-version` selection and retains actual patch, catalog and API checks. The application-defined compatibility adapter chooses native legacy or activation-based Subagent APIs before execution, keeps native delivery/cancellation ownership, and validates Owner identity using that Host’s trusted invocation. Native shell Plugins come from the running Host; the bundled scoped file Plugin retains its read_image fix and adapts the older Session cwd locally when the workingDirectory service is absent. The preset uses the common native baseline and the native ComputerUseRegistry child Plugin owned by the product Computer Plugin; its pinned implementation is identical across both qualified releases, without a second incompatible native-package installation. Forward admission does not establish future runtime compatibility. See [ADR-0087's current correction](../decisions/release.md#adr-0087) and the [1.4.0 qualification plan](../agents/dsh-1.4-release-qualification.md).
 
 ### Mobile cloud service sessions (T1 UAT)
 

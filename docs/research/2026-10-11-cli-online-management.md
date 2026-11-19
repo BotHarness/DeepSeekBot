@@ -89,7 +89,7 @@ credentials, paths, queries or fragments. Tokens come from environment/private
 token-file input and cookies remain in memory. Host restarts rotate the launch
 token; auth failures are coded and do not trigger a database fallback.
 [`cli-live.ts:75`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/cli-live.ts#L75),
-[ADR-0159](../adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md),
+[ADR-0159](../decisions/release.md#adr-0159),
 [native browser auth](https://github.com/deepseek-ai/deepseek-harness/blob/4878cdabd87d4041bdaff61d04c966883b9fd07a/packages/client/connection/src/browser-auth.ts).
 
 **Do not interpret ADR-0159's “Host serializes RPC” as a global command lock.**
@@ -122,7 +122,7 @@ Catalog validation checks provider availability, credential health, model catalo
 and call configuration; the selected model must actually answer a real DM to
 prove that runtime path. [Model catalog](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/models/catalog.ts),
 [readiness inspection](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/models/readiness.ts),
-[ADR-0157](../adr/0157-cli-model-validation-is-tiered-key-validity-stays-host-side.md).
+[ADR-0157](../decisions/release.md#adr-0157).
 
 ## Recommendations: target selection
 
@@ -145,7 +145,7 @@ carrier does not imply every Provider setup endpoint accepts remote management.
 Caller-local `--from-dir` uploads bytes; returned Host data/workspace paths are
 Host locators, not guaranteed paths on the caller's machine. Secrets remain
 stdin/environment inputs; IM credentials have only the purpose-bound exception
-in [ADR-0161](../adr/0161-cli-im-authorization-keeps-provider-attempt-authority.md),
+in [ADR-0161](../decisions/release.md#adr-0161),
 not a generic permission to send credentials in arbitrary RPC arguments.
 
 ## Findings and recommendations: CLI as a debug/test Consumer
