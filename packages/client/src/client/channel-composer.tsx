@@ -1,6 +1,10 @@
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
+import { ComposerControl, ComposerTextarea, composer } from './ds/chat-chrome.js';
+import { IconButton } from './ds/icon-button.js';
+import { HiddenFileInput } from './ds/input.js';
+import { hooked } from './ds/hooked.js';
 import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
@@ -1431,7 +1435,10 @@ export function ChannelComposer({
         </div>
       ) : null}
       <div
-        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
+        {...hooked(
+          `bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`,
+          composer.surface,
+        )}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
         data-dictation={voice.snapshot.status}
         style={
@@ -1443,20 +1450,20 @@ export function ChannelComposer({
       >
         {reply === undefined ? null : (
           <div className="bh-composer-reply">
-            <div className="bh-composer-reply-copy">
+            <div {...hooked('bh-composer-reply-copy', composer.quote)}>
               <span className="bh-composer-reply-author">
                 {t('message.replyingTo', { author: reply.author })}
               </span>
               <span className="bh-composer-reply-body">{reply.body}</span>
             </div>
-            <button
-              type="button"
+            <IconButton
               className="bh-composer-reply-cancel"
+              size="inline"
               aria-label={t('message.replyCancel')}
               onClick={onCancelReply}
             >
-              &times;
-            </button>
+              <Icon name="x" size={16} />
+            </IconButton>
           </div>
         )}
         {quotes.length === 0 ? null : (
@@ -1596,9 +1603,8 @@ export function ChannelComposer({
               onKeyDown={handleKeyDown}
             />
           ) : (
-            <textarea
+            <ComposerTextarea
               ref={textareaMount}
-              className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
               aria-label={label ?? basePlaceholder}
@@ -1666,10 +1672,10 @@ export function ChannelComposer({
             `attachment-${index}`,
           ),
         )}
-        <input
+        <HiddenFileInput
           ref={fileInputRef}
           className="bh-composer-file-input"
-          type="file"
+          aria-hidden
           multiple
           aria-label={t('composer.addAttachment')}
           onChange={(event) => {
@@ -1680,9 +1686,9 @@ export function ChannelComposer({
             savedFileSelection.current = undefined;
           }}
         />
-        <button
-          type="button"
+        <ComposerControl
           className="bh-composer-add-file"
+          xstyle={composer.attachment}
           aria-label={t('composer.addAttachment')}
           disabled={locked || voice.active || attachments.length >= 10}
           onMouseDown={() => {
@@ -1694,7 +1700,7 @@ export function ChannelComposer({
           }}
         >
           <Icon name="paperclip" size={16} />
-        </button>
+        </ComposerControl>
         {voice.mounts.map((mount, index) => (
           <span key={index} ref={mount} hidden />
         ))}
@@ -1702,22 +1708,20 @@ export function ChannelComposer({
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (
-            <Button
+            <ComposerControl
               className="bh-send-btn"
-              variant="primary"
-              size="sm"
+              primary
               data-composer-stop=""
-              icon={<Icon name="square" filled size={12} />}
               aria-label={t('sessions.stop')}
               disabled={disabled}
               onClick={onStop}
-            />
+            >
+              <Icon name="square" filled size={12} />
+            </ComposerControl>
           ) : (
-            <Button
+            <ComposerControl
               className="bh-send-btn"
-              variant="primary"
-              size="sm"
-              icon={<Icon name="arrow-up" size={16} />}
+              primary
               aria-label={sending ? t('message.sending') : t('composer.send')}
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||
@@ -1735,7 +1739,9 @@ export function ChannelComposer({
                   if (shortcut !== undefined) chooseShortcut(shortcut);
                 } else if (!hasShortcutArgument) void onSubmit();
               }}
-            />
+            >
+              <Icon name="arrow-up" size={16} />
+            </ComposerControl>
           )}
         </div>
       </div>

@@ -2648,7 +2648,7 @@ const en = {
   fullAccessDetail: 'When off, it writes only within its workspace and asks before each command.',
   fullAccessConfirmTitle: 'Enable dangerous file access?',
   fullAccessConfirmRisk:
-    "This Bot's chat Session and its new Assignments may access any file outside their workspace and will not ask for each command. Content other people send in a Group or IM could steer it into acting. Running a command-line tool with a secret still asks every time. Turning this off confines the chat Session again but does not downgrade existing dangerous Assignments.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Assignments created with full access keep it after you turn this off.',
   fullAccessConfirm: 'I understand, enable',
   fullAccessScope: 'Scope of full access',
   fullAccessScopeChat: 'Chat and new Assignments',
@@ -2656,9 +2656,9 @@ const en = {
   fullAccessScopeAssignments: 'New Assignments only',
   fullAccessScopeAssignmentsDetail: 'The chat Session stays confined and asks',
   fullAccessOn:
-    "Full access is on: this Bot's chat Session and its new Assignments may access any file without asking.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval.',
   fullAccessOnAssignments:
-    'Full access is on for new Assignments only: they may access any file without asking; the chat Session stays confined.',
+    'New Assignments can run commands that change or delete files outside the workspace without approval. Chat keeps workspace permissions.',
   autoApproval: 'Auto approval template',
   autoApprovalOff: 'Off',
   autoApprovalInherit: 'Inherit global',
@@ -5287,16 +5287,16 @@ const zh: typeof en = {
   fullAccessDetail: '关闭时只能写入工作区，执行命令前逐次询问。',
   fullAccessConfirmTitle: '开启危险文件权限？',
   fullAccessConfirmRisk:
-    '此 Bot 的聊天会话和之后新建的事项可访问工作区外的任何文件，命令不再逐次提问。别人在群聊或 IM 里发来的内容也可能诱导它执行操作。带密钥运行命令行工具仍然每次询问。开启后可以把范围改成“仅新事项”。关闭开关会让聊天会话恢复受限，但不会降低已有危险事项的权限。',
+    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。开启期间创建的事项，关闭后仍保留完全访问。',
   fullAccessConfirm: '我了解风险，开启',
   fullAccessScope: '完全访问的范围',
   fullAccessScopeChat: '聊天会话和新事项',
   fullAccessScopeChatDetail: '默认',
   fullAccessScopeAssignments: '仅新事项',
   fullAccessScopeAssignmentsDetail: '聊天会话保持受限并逐次询问',
-  fullAccessOn: '完全访问已开启：此 Bot 的聊天会话和之后新建的事项可访问任何文件，且不再逐次提问。',
+  fullAccessOn: '聊天会话和新事项可运行命令，修改或删除工作区外的文件，无需审批。',
   fullAccessOnAssignments:
-    '完全访问已开启（仅新事项）：之后新建的事项可访问任何文件且不再逐次提问；聊天会话仍然受限。',
+    '新事项可运行命令，修改或删除工作区外的文件，无需审批。聊天会话仍使用工作区权限。',
   autoApproval: '自动审批模板',
   autoApprovalOff: '关闭',
   autoApprovalInherit: '继承全局',

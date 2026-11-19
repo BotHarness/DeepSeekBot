@@ -4047,7 +4047,7 @@ export const zh = {
   'sessions.access.danger': '完整文件访问',
   'sessions.mode': '模式：{name}。会话开始后不能更换。',
   'sessions.access.dangerDetails':
-    '此事项会话可访问授权工作区之外的文件；关闭 Bot 默认设置不会降低此会话的权限。',
+    '此事项的命令可修改或删除工作区外的文件，无需审批。关闭 Bot 的完全访问开关后，此事项仍保留该权限。',
   'sessions.status.running': '运行中',
   'sessions.status.stopping': '正在停止…',
   'sessions.status.attention': '需要关注',
@@ -4874,15 +4874,14 @@ export const zh = {
     '普通操作可访问所有文件，无需逐次确认；权限变更仍需确认。关闭后，聊天和新事项恢复工作区权限；已有事项保留原权限。',
   'access.confirmTitle': '开启危险文件权限？',
   'access.confirmRisk':
-    '此 Bot 的聊天会话和之后新建的事项可访问工作区外的任何文件，命令不再逐次提问。别人在群聊或 IM 里发来的内容也可能诱导它执行操作。修改持续权限或审批策略仍需单独确认。开启后可以把范围改成“仅新事项”。关闭开关会让聊天会话恢复受限，但不会降低已有危险事项的权限。',
+    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。开启期间创建的事项，关闭后仍保留完全访问。',
   'access.confirmEnable': '我了解风险，开启',
   'access.scopeTitle': '完全访问的范围',
   'access.scopeChat': '聊天会话和新事项',
   'access.scopeAssignments': '仅新事项',
   'access.activeWarningAssignments':
-    '完全访问已开启（仅新事项）：之后新建的事项可访问任何文件，普通操作不再逐次提问；权限变更仍需确认。聊天会话仍然受限。',
-  'access.activeWarning':
-    '完全访问已开启：此 Bot 的聊天会话和之后新建的事项可访问任何文件，普通操作不再逐次提问；权限变更仍需确认。',
+    '新事项可运行命令，修改或删除工作区外的文件，无需审批。聊天会话仍使用工作区权限。',
+  'access.activeWarning': '聊天会话和新事项可运行命令，修改或删除工作区外的文件，无需审批。',
   'access.sessionWarning': '此事项以危险文件权限创建；关闭 Bot 开关不会改变它。',
   'approval.revokeRule': '撤销规则',
   'approval.exactRule': '相同调用：{tool}',
@@ -10551,7 +10550,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sessions.access.danger': 'Full file access',
   'sessions.mode': 'Mode: {name}. It stays fixed once the Session starts.',
   'sessions.access.dangerDetails':
-    'This Assignment Session can access files outside its workspace. Turning off the Bot default does not downgrade this Session.',
+    'This Assignment can run commands that change or delete files outside its workspace without approval. It keeps that access if you turn off Full access for the Bot.',
   'sessions.status.running': 'Running',
   'sessions.status.stopping': 'Stopping…',
   'sessions.status.attention': 'Needs attention',
@@ -11417,15 +11416,15 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Ordinary work can access all files without repeated prompts. Permission changes still need confirmation. Turning this off restores workspace permissions for chat and new Assignments; existing Assignments keep their permissions.',
   'access.confirmTitle': 'Enable dangerous file access?',
   'access.confirmRisk':
-    "This Bot's chat Session and its new Assignments may access any file outside their workspace and will not ask for each command. Content other people send in a Group or IM could steer it into acting. Persistent permission and approval-policy changes still need individual confirmation. Turning this off confines the chat Session again but does not downgrade existing dangerous Assignments.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Assignments created with full access keep it after you turn this off.',
   'access.confirmEnable': 'I understand, enable',
   'access.scopeTitle': 'Scope of full access',
   'access.scopeChat': 'Chat and new Assignments',
   'access.scopeAssignments': 'New Assignments only',
   'access.activeWarningAssignments':
-    'Full access is on for new Assignments only: ordinary work may access any file without repeated prompts; permission changes still need confirmation. The chat Session stays confined.',
+    'New Assignments can run commands that change or delete files outside the workspace without approval. Chat keeps workspace permissions.',
   'access.activeWarning':
-    "Full access is on: this Bot's chat Session and its new Assignments may access any file for ordinary work without repeated prompts. Permission changes still need confirmation.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval.',
   'access.sessionWarning':
     'This Assignment was created with dangerous file access; turning off the Bot setting will not change it.',
   'approval.revokeRule': 'Revoke rule',

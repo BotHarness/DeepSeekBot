@@ -96,22 +96,22 @@ export type ButtonProps = {
   readonly variant?: ButtonVariant;
   readonly size?: 'md' | 'sm';
   readonly icon?: ReactNode;
+  readonly xstyle?: stylex.StyleXStyles;
   readonly className?: string | undefined;
   readonly children?: ReactNode;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'ghost', size = 'md', icon, className, children, ...rest },
+  { variant = 'ghost', size = 'md', icon, className, xstyle, children, style, ...rest },
   ref,
 ) {
+  const styled = stylex.props(styles.base, styles[size], styles[variant], xstyle);
   return (
     <button
       ref={ref}
       {...rest}
-      className={joinClass(
-        stylex.props(styles.base, styles[size], styles[variant]).className,
-        className,
-      )}
+      className={joinClass(styled.className, className)}
+      style={styled.style === undefined ? style : { ...styled.style, ...style }}
     >
       {icon == null ? null : <span {...stylex.props(styles.icon)}>{icon}</span>}
       {children}

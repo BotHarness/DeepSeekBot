@@ -88,6 +88,7 @@ import {
   type EngineTurnRequest,
 } from '../engines/engine-host.js';
 import { engineAssignmentInstructions, engineInstructions } from '../engines/engine-persona.js';
+import type { EngineWorkspaceMode } from '../engines/engine-session.js';
 import {
   ENGINE_LISTED_TOOLS,
   ENGINE_UNSUPPORTED_TOOLS,
@@ -551,6 +552,10 @@ export interface DshBotAgentAdapterOptions {
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
   engines?: DshBotEngines;
+  engineWorkspaceMode?(
+    slug: string,
+    permission?: AssignmentAgentRun['permission'],
+  ): EngineWorkspaceMode;
   enginePersona?: (bot: PersonaBotRecord) => { soul?: string; coreMemory?: string };
   engineTools?: EngineToolSource;
   engineToolGate?: EngineToolGate;
@@ -821,6 +826,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
   readonly #engines: DshBotEngines | undefined;
   readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
+  readonly #engineWorkspaceMode: DshBotAgentAdapterOptions['engineWorkspaceMode'];
   readonly #engineTools: EngineToolSource | undefined;
   readonly #engineToolGate: EngineToolGate | undefined;
   readonly #engineStops = new Map<string, AbortController>();
@@ -868,6 +874,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.#engines = options.engines;
     this.#enginePersona = options.enginePersona;
+    this.#engineWorkspaceMode = options.engineWorkspaceMode;
     this.#engineTools = options.engineTools;
     this.#engineToolGate = options.engineToolGate;
   }
@@ -1151,6 +1158,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.inputAccepted?.();
       await engines.runTurn({
         botSlug: run.bot.slug,
+        workspaceMode: () => this.#engineWorkspaceMode?.(run.bot.slug) ?? 'workspace-write',
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
@@ -1667,6 +1675,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           botSlug: run.bot.slug,
           role: 'assignment',
           cwd: run.permission.primaryCwd,
+          workspaceMode: () =>
+            this.#engineWorkspaceMode?.(run.bot.slug, run.permission) ?? 'read-only',
           sessionId: run.sessionId,
           channelId: undefined,
           input: `${run.text}\n\n[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}`,

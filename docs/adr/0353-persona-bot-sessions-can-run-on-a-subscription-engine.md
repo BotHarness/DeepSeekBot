@@ -73,3 +73,15 @@ So before an engine Session starts, the Host reads the engine's account report (
 Claude reports subscription limits through rate-limit events, including whether paid overage is enabled and in use. A report that the run is using paid overage counts as metered billing and stops the Bot like an exhausted limit, unless the Human chose a fallback beforehand.
 
 Claude Code does not ask `canUseTool` for commands it treats as read-only (the probe's `ls` ran without a request), so approval cards cover only what the engine itself asks about; #4487 tests the deny path with a writing command.
+
+## Amendment: engine file access follows Host authority ([#4655](https://github.com/BotHarness/DeepSeekBot/issues/4655))
+
+The Host resolves file access before each engine turn. An Assignment uses its frozen access preset and the current, active Workspace Grant, including its write switch (ADR-0356). An Orchestrator keeps its private working directory and uses the current chat access preset. A restricted Orchestrator with any active read-only Grant gets read-only engine tools. Its session spans all Grants, and the engine cannot apply a different shell escalation rule to each one.
+
+| Effective access   | Codex                                            | Claude Code                                                                                                                 |
+| ------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Read-only          | Read-only sandbox with escalation disabled       | Read, Glob and Grep, with file writers and shells disabled                                                                  |
+| Workspace-write    | Working-directory sandbox with approval requests | In-grant Assignment edits are auto-approved. Orchestrator edits use the default policy. Shell requests go through approval. |
+| Danger-full-access | Full-access sandbox                              | Bypass native engine approvals                                                                                              |
+
+If the effective mode changes, the Host closes the existing engine process and opens its recorded native session with the new settings before delivering the next turn. The Host still validates Assignment Grant identity and applies its own controls to Bot tools called through MCP.

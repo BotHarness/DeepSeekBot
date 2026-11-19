@@ -5,7 +5,7 @@ import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import type { ClaudeStatus } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
-import type { EngineId } from './engine-session.js';
+import type { EngineId, EngineWorkspaceMode } from './engine-session.js';
 import type { EngineRole } from './engine-store.js';
 
 export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
@@ -28,6 +28,7 @@ export interface EngineTurnRequest {
   role?: EngineRole;
   target?: RoutingGroupEngineMember;
   cwd?: string;
+  workspaceMode?(): EngineWorkspaceMode;
   sessionId: string;
   channelId: string | undefined;
   input: string;

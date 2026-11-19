@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { MouseEventHandler, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { hooked } from './ds/hooked.js';
@@ -44,7 +44,7 @@ export function CompactNavigationHeader({
   t,
 }: {
   title: string;
-  openSidebar(): void;
+  openSidebar: MouseEventHandler<HTMLButtonElement>;
   children?: ReactNode;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -78,7 +78,7 @@ export function MobileConversationHeader({
   t,
 }: {
   title: string;
-  openSidebar(): void;
+  openSidebar: MouseEventHandler<HTMLButtonElement>;
   onSettings(): void;
   settingsOpen: boolean;
   onFiles?: (() => void) | undefined;
