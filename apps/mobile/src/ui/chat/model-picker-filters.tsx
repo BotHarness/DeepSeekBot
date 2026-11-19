@@ -13,7 +13,7 @@ export function ModelPickerFilters({ children }: { children: ReactNode }) {
       accessibilityLabel={t.modelSettings.families}
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={{ flexGrow: 0 }}
+      style={{ flexGrow: 0, flexShrink: 0 }}
       contentContainerStyle={{
         gap: space.x2,
         paddingHorizontal: space.x5,

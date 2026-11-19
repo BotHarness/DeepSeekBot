@@ -96,7 +96,13 @@ export function ModelEnginePickerRow({
         <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color[tone]} />
       }
       trailing={
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+        <View
+          style={{
+            flexDirection: position === undefined ? 'row' : 'column',
+            alignItems: 'center',
+            gap: space.x2,
+          }}
+        >
           {isDefault ? (
             <View
               style={{
