@@ -224,6 +224,12 @@ describe('Tool approval card layout', () => {
     expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
     expect(preview.textContent).toContain('translator');
     expect(preview.textContent).toContain('zh-en');
+    expect(Array.from(preview.querySelectorAll('dl dt'), (item) => item.textContent)).toEqual([
+      'SOUL.md',
+      'MEMORY.md',
+      zhTranslate('approval.botCreate.memoryFolder'),
+    ]);
+    expect(preview.querySelectorAll('dl dt + dd')).toHaveLength(3);
     const excerpts = [...preview.querySelectorAll('.bh-bot-create-excerpt')];
     expect(excerpts.map((item) => item.textContent)).toEqual(['# Tim\n冷静\n准确\n…']);
     expect(preview.textContent).toContain('使用默认的核心记忆模板');

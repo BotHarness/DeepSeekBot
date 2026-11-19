@@ -26,7 +26,7 @@ import type { ShortcutBindings } from './shortcut-bindings.js';
 import { useMountedResource } from './mounted-resource.js';
 import { rankQuickSwitcher, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import type { SettingsSearchResult } from './settings-search.js';
-import type { QuickSwitcherLauncher } from './quick-switcher-launcher.js';
+import type { QuickSwitcherLauncher, QuickSwitcherSource } from './quick-switcher-launcher.js';
 import type { BotSummary, ChannelMessage } from './store.js';
 
 const styles = stylex.create({
@@ -199,6 +199,7 @@ interface MessageResults {
 const NO_MESSAGES: MessageResults = { query: '', hits: [], loading: false };
 
 export interface QuickSwitcherProps {
+  source?: QuickSwitcherSource;
   entries: readonly QuickSwitcherEntry[];
   settings?: QuickSwitcherSettings | undefined;
   messages?: QuickSwitcherMessages | undefined;
@@ -211,6 +212,7 @@ export interface QuickSwitcherProps {
 }
 
 export function QuickSwitcher({
+  source,
   entries,
   settings,
   messages,
@@ -406,6 +408,7 @@ export function QuickSwitcher({
   return (
     <Modal
       open
+      animate={source === 'shortcut' ? false : undefined}
       headless
       title={t('quickSwitcher.title')}
       onClose={onClose}

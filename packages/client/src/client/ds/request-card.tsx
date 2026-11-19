@@ -84,6 +84,32 @@ export const requestCardStyles = stylex.create({
   removed: { color: status.dangerInk },
 });
 
+const detailStyles = stylex.create({
+  list: { display: 'grid', gap: space.x3, margin: 0 },
+  pair: { display: 'grid', gap: space.x1, minWidth: 0 },
+  label: { color: ink.primary, fontWeight: type.labelWeight },
+  value: { margin: 0, minWidth: 0 },
+});
+
+export function RequestDetails({ children }: { children: ReactNode }): ReactElement {
+  return <dl {...stylex.props(detailStyles.list)}>{children}</dl>;
+}
+
+export function RequestDetail({
+  label,
+  children,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <div {...stylex.props(detailStyles.pair)}>
+      <dt {...stylex.props(requestCardStyles.caption, detailStyles.label)}>{label}</dt>
+      <dd {...stylex.props(requestCardStyles.caption, detailStyles.value)}>{children}</dd>
+    </div>
+  );
+}
+
 export function RequestHeading({
   children,
   pending,
