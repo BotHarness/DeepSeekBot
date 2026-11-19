@@ -1193,7 +1193,7 @@
       "behaviors": ["desktop.activity.live"],
       "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "880752ed8ac0d41986e3cd26ddf9281b213dd0db69832619ecf2fb5942ec86e6"
+      "sha256": "d3607b2265e6e9223d9a8c0b9be7528a5f340b43dae0b5f3fee50b46a138c635"
     },
     {
       "path": "scripts/e2e-all-bot-mention.mjs",
@@ -1713,7 +1713,7 @@
       "behaviors": ["desktop.activity.live"],
       "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "79d7a8b288861c16d1ad8647a909ee4162c9132d3fdfe72070c4b010f3a296d8"
+      "sha256": "06d6cc4961546ed7a5a59a74036bf99adad97b2e784455384f671d33a45fd44f"
     },
     {
       "path": "scripts/e2e-dm-scroll.mjs",
@@ -1721,7 +1721,7 @@
       "behaviors": ["desktop.timeline.read-position"],
       "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4c41748f6c08dd2cde2b7187ef102c949971b4425665b51e12320fbc7f299985"
+      "sha256": "27e3d291a5809110689647ceb85238a9cb1c2aefc571ef4f00779ad1d20d12b9"
     },
     {
       "path": "scripts/e2e-filtered-usage.mjs",
@@ -2254,7 +2254,7 @@
       "behaviors": ["desktop.activity.tool-details"],
       "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "27f0e950f5358f88ec87dccd240505a1ceafee39215599a8ecfc8d9da60db928"
+      "sha256": "c640be25ceaff41b12f5760f83304a99c472305a4e5c42e7159950b77e0b67bd"
     },
     {
       "path": "scripts/e2e-sidebar-preview.mjs",

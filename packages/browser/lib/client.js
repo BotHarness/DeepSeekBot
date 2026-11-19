@@ -1363,11 +1363,16 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, ...rest }, ref) {
+		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
+			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
-				className: joinClass(props(styles$4.base, styles$4[size], styles$4[variant], xstyle).className, className),
+				className: joinClass(styled.className, className),
+				style: styled.style === void 0 ? style : {
+					...styled.style,
+					...style
+				},
 				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
 					children: icon
