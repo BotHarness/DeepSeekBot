@@ -883,16 +883,20 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#engineToolGate = options.engineToolGate;
   }
 
-  async #prepare<T>(
-    sessionId: string,
-    work: (signal: AbortSignal) => Promise<T>,
-    signal?: AbortSignal,
-  ): Promise<T> {
+  #requireNoPreparation(sessionId: string): void {
     if (this.#preparations.has(sessionId))
       throw new DirectBotToolError(
         'bot-busy',
         'The previous native preparation is still being cleaned up',
       );
+  }
+
+  async #prepare<T>(
+    sessionId: string,
+    work: (signal: AbortSignal) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    this.#requireNoPreparation(sessionId);
     const controller = new AbortController();
     this.#preparations.set(sessionId, controller);
     const abort = () => controller.abort();
@@ -956,7 +960,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
-    if (this.#runs.has(run.sessionId) || this.#preparations.has(run.sessionId))
+    this.#requireNoPreparation(run.sessionId);
+    if (this.#runs.has(run.sessionId))
       throw new DirectBotToolError('bot-busy', 'The Orchestrator Session already has active work');
     const entry: ActiveRun = {
       role: 'orchestrator',
