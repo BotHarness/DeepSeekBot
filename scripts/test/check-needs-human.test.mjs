@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { planNeedsHuman } from '../check-needs-human.mjs';
 
 const internal = {
-  association: 'MEMBER',
   permission: 'write',
   fork: false,
   labels: [],
@@ -11,17 +10,10 @@ const internal = {
 };
 
 describe('needs-human merge policy', () => {
-  it.each([
-    ['CONTRIBUTOR', 'none'],
-    ['MEMBER', 'read'],
-    ['COLLABORATOR', 'read'],
-    ['COLLABORATOR', 'none'],
-  ])('holds a %s with %s access', (association, permission) => {
-    expect(planNeedsHuman({ ...internal, association, permission })).toEqual({
+  it.each(['none', 'read', 'triage'])('holds an author with %s access', (permission) => {
+    expect(planNeedsHuman({ ...internal, permission })).toEqual({
       action: 'add',
-      reasons: [
-        { rule: 'Author lacks write access as an organization member or collaborator', paths: [] },
-      ],
+      reasons: [{ rule: 'Author lacks write access to this repository', paths: [] }],
     });
   });
 
@@ -88,16 +80,15 @@ describe('needs-human merge policy', () => {
     });
   });
 
-  it.each([
-    ['MEMBER', 'write'],
-    ['COLLABORATOR', 'maintain'],
-    ['OWNER', 'admin'],
-  ])('leaves an ordinary PR from a %s with %s access alone', (association, permission) => {
-    expect(planNeedsHuman({ ...internal, association, permission })).toEqual({
-      action: 'none',
-      reasons: [],
-    });
-  });
+  it.each(['write', 'maintain', 'admin'])(
+    'leaves an ordinary PR from an author with %s access alone',
+    (permission) => {
+      expect(planNeedsHuman({ ...internal, permission })).toEqual({
+        action: 'none',
+        reasons: [],
+      });
+    },
+  );
 
   it('keeps an existing label after all triggers disappear', () => {
     expect(planNeedsHuman({ ...internal, labels: ['needs-human'] })).toEqual({
