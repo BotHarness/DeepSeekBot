@@ -10,6 +10,7 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import {
   humanAvatarVersionOf,
   parseHumanAvatars,
@@ -33,7 +34,7 @@ import {
   loadWorkspaceOptions as loadHostWorkspaceOptions,
   setModelFavorite as setHostModelFavorite,
 } from '@botharness/host-client/bot-settings';
-import type { ModelChoice } from '@botharness/host-client/model-catalog';
+import type { ModelCatalogGroup, ModelChoice } from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {
@@ -302,13 +303,7 @@ export interface ModelCatalogEntryView {
   restingUntil?: string;
 }
 
-export interface ModelCatalogGroupView {
-  id: string;
-  name: string;
-  revision: number;
-  routes: ModelRouteView[];
-  restingUntil?: string;
-}
+export type ModelCatalogGroupView = ModelCatalogGroup;
 
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
@@ -403,7 +398,8 @@ export async function loadModelPlanState(
 
 export type RoutingGroupMemberView =
   | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
-  | { kind: 'group'; id: string };
+  | { kind: 'group'; id: string }
+  | RoutingGroupEngineMember;
 
 export interface RoutingGroupView {
   id: string;

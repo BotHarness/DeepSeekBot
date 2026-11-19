@@ -68,6 +68,31 @@ describe('phone Routing Group editor', () => {
     ]);
   });
 
+  it('saves the loaded engine between the same members when renaming a mixed group', async () => {
+    const { client, fake } = setup();
+    const mixed = {
+      ...group,
+      members: [flash, { kind: 'engine', engine: 'codex', model: 'gpt-5.4' }, nested],
+    };
+    fake.methods.set('modelGroup', () => ({ group: mixed, routes: [flash] }));
+
+    const loaded = await loadModelGroup(client, mixed.id);
+    await updateModelGroup(client, loaded.id, loaded.revision, {
+      name: 'Work',
+      members: loaded.members,
+    });
+
+    expect(fake.calls.at(-1)).toEqual({
+      method: 'modelGroupUpdate',
+      args: {
+        id: mixed.id,
+        expectedRevision: mixed.revision,
+        name: 'Work',
+        members: mixed.members,
+      },
+    });
+  });
+
   it.each([
     { method: 'modelGroupCreate', code: 'routing-group-empty-group', operation: 'create' },
     { method: 'modelGroupUpdate', code: 'routing-group-cycle', operation: 'update' },

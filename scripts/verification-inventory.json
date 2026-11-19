@@ -848,6 +848,13 @@
       "guide": ".agents/skills/verify-deepseekbot/features/orchestrator-model-switch.md"
     },
     {
+      "id": "routing-group.engine-members",
+      "label": "Save Subscription Engines alongside DSH models and show their labels in model settings",
+      "source": "packages/core/src/models/routing-groups.ts",
+      "task": 4574,
+      "guide": ".agents/skills/verify-deepseekbot/features/routing-group-engine-members.md"
+    },
+    {
       "id": "desktop.activity-center.inline-tool-approval",
       "label": "Decide Tool approvals inline on the full page and Dock, with below-card context and retry",
       "source": "packages/client/src/client/activity-approval.tsx",

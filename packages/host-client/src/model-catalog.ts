@@ -1,3 +1,9 @@
+import {
+  ENGINE_DEFINITIONS,
+  isRoutingGroupEngineMember,
+  type RoutingGroupEngineMember,
+} from '@botharness/host-protocol/subscription-engine';
+
 export interface ModelCatalogRoute {
   provider: string;
   model: string;
@@ -30,12 +36,19 @@ export interface ModelCatalogGroup {
   name: string;
   revision: number;
   routes: ModelCatalogRoute[];
+  engineMembers?: RoutingGroupEngineMember[];
   restingUntil?: string;
+}
+
+export function routingGroupEngineLabel(member: RoutingGroupEngineMember): string {
+  const name = ENGINE_DEFINITIONS[member.engine].displayName;
+  return member.model === undefined ? name : `${name} (${member.model})`;
 }
 
 export type RoutingGroupMember =
   | ({ kind: 'model' } & ModelCatalogRoute)
-  | { kind: 'group'; id: string };
+  | { kind: 'group'; id: string }
+  | RoutingGroupEngineMember;
 
 export type RoutingGroup = Pick<ModelCatalogGroup, 'id' | 'name' | 'revision'> & {
   members: RoutingGroupMember[];
@@ -58,6 +71,10 @@ export function parseRoutingGroup(value: unknown): RoutingGroup | undefined {
     return undefined;
   const members: RoutingGroupMember[] = [];
   for (const value of rows) {
+    if (isRoutingGroupEngineMember(value)) {
+      members.push(value);
+      continue;
+    }
     const member = record(value);
     if (member?.['kind'] === 'group' && filled(member['id'])) {
       members.push({ kind: 'group', id: member['id'] });
@@ -182,11 +199,14 @@ export function modelCatalogGroup(value: unknown): ModelCatalogGroup | undefined
     return parsed === undefined ? [] : [parsed];
   });
   if (routes.length === 0) return undefined;
+  const members = row['members'];
+  const engineMembers = Array.isArray(members) ? members.filter(isRoutingGroupEngineMember) : [];
   return {
     id,
     name: filled(row['name']) ? row['name'] : id,
     revision: typeof revision === 'number' && Number.isSafeInteger(revision) ? revision : 0,
     routes,
+    ...(engineMembers.length === 0 ? {} : { engineMembers }),
     ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
   };
 }

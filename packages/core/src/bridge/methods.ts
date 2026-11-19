@@ -469,6 +469,7 @@ import {
 import { modelFavorite, type ModelFavorite, type ModelFavoriteStore } from '../models/favorites.js';
 import {
   isRoutingGroupMember,
+  ROUTING_GROUP_MEMBER_SHAPES,
   RoutingGroupError,
   type RoutingGroup,
   type RoutingGroupInput,
@@ -1817,7 +1818,7 @@ function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
   if (typeof name !== 'string' || !Array.isArray(members) || !members.every(isRoutingGroupMember))
     throw new RoutingGroupError(
       'invalid-input',
-      'A name and members ({kind:"model",provider,model,reasoningEffort?} or {kind:"group",id}) are required',
+      `A name and members are required. Member shapes: ${ROUTING_GROUP_MEMBER_SHAPES}`,
     );
   return { name, members };
 }

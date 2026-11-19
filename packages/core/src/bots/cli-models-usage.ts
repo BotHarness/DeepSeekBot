@@ -58,11 +58,12 @@ export const MODELS_USAGE_COMMANDS = [
   },
   {
     command: 'model-groups',
-    description: 'list Routing Groups: named, ordered model routes a Bot can run on',
+    description:
+      'list Routing Groups and their ordered model, Routing Group and Subscription Engine members',
   },
   {
     command: 'model-group',
-    description: 'read one Routing Group and the routes it expands to, in order',
+    description: 'read one Routing Group and the DSH model routes it expands to, in order',
   },
   {
     command: 'model-group-create',
@@ -213,7 +214,7 @@ async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Prom
       : undefined;
   if (!Array.isArray(members) || Object.keys(input as object).length !== 1)
     usage(
-      'Members stdin must be {"members":[{"kind":"model","provider","model","reasoningEffort"?} or {"kind":"group","id"}]}.',
+      'Members stdin must be {"members":[...]} with model, Routing Group or engine member objects.',
     );
   return members;
 }

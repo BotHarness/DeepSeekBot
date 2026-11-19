@@ -1,15 +1,11 @@
-export type EngineId = 'codex' | 'claude';
+import type { EngineId } from '@botharness/host-protocol/subscription-engine';
 
-export const ENGINE_DEFINITIONS = {
-  codex: { displayName: 'Codex' },
-  claude: { displayName: 'Claude Code' },
-} satisfies Record<EngineId, { displayName: string }>;
-
-export const ENGINE_IDS: readonly EngineId[] = ['codex', 'claude'];
-
-export function isEngineId(value: unknown): value is EngineId {
-  return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
-}
+export {
+  ENGINE_DEFINITIONS,
+  ENGINE_IDS,
+  isEngineId,
+  type EngineId,
+} from '@botharness/host-protocol/subscription-engine';
 
 export type EngineAccount =
   | { kind: 'subscription'; engine: EngineId; plan: string }
