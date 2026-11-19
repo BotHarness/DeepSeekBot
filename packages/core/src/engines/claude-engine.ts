@@ -25,6 +25,7 @@ export interface ClaudeUserMessage {
   type: 'user';
   message: { role: 'user'; content: string };
   parent_tool_use_id: null;
+  client_composed?: true;
 }
 
 export interface ClaudePermissionContext {
@@ -386,6 +387,7 @@ export class ClaudeEngineSession implements EngineSession {
         type: 'user',
         message: { role: 'user', content: input },
         parent_tool_use_id: null,
+        ...(options.verbatimInput === true ? { client_composed: true } : {}),
       });
       return await ended;
     } finally {

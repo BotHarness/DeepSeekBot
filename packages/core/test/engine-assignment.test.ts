@@ -11,11 +11,14 @@ import {
 } from '../src/engines/engine-gateway.js';
 import {
   EngineHost,
+  type EngineHostOptions,
   type EngineToolContext,
   type EngineTurnRequest,
 } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
-import type { AssignmentAgentRun } from '../src/runtime/bot-runtime.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { createCore } from '../src/plugin.js';
+import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import {
   createDshBotAgentAdapter,
   type DshBotEngines,
@@ -27,10 +30,17 @@ import {
   readClaudeRecording,
 } from './fixtures/claude-replay.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';
+import { codexReplay, readCodexRecording, type CodexReplay } from './fixtures/codex-replay.js';
 import { FAKE_BOT as BOT, FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 const DM = readClaudeRecording(join(import.meta.dirname, 'fixtures', 'claude-dm-turn.jsonl'));
+const CODEX_DM = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-dm-turn.jsonl'));
 
 type Block = Record<string, unknown>;
 const blocks = (line: ClaudeRecordedLine): Block[] => {
@@ -71,7 +81,10 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function hostSetup(recordings: ClaudeRecordedLine[][]) {
+function hostSetup(
+  recordings: ClaudeRecordedLine[][],
+  options?: Pick<EngineHostOptions, 'openCodex'>,
+) {
   const root = createTempRoot('engine-assignment-');
   const grant = join(root, 'project');
   mkdirSync(grant, { recursive: true });
@@ -94,6 +107,8 @@ function hostSetup(recordings: ClaudeRecordedLine[][]) {
     observe: (_slug, _id, state, role) => observed.push([state, role]),
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
+    releaseGraceMs: 100,
+    ...options,
   });
   return { host, replay, dsh, grant, observed, approve };
 }
@@ -245,6 +260,55 @@ function adapterWith(engines: DshBotEngines, host = new FakeAgentHost({ kind: 'c
 }
 
 describe('Engine Assignment at the adapter seam', () => {
+  it('interrupts a running Claude Assignment for a steer and delivers one terminal report', async () => {
+    const recording = assignmentRecording(true);
+    const { host, replay, grant, dsh } = hostSetup([
+      [
+        ...recording.filter((line) => line.kind === 'account'),
+        { kind: 'await-input' },
+        { kind: 'await-interrupt' },
+        { kind: 'message', msg: { type: 'result', subtype: 'success' } },
+        ...recording.filter((line) => line.kind !== 'account'),
+      ],
+    ]);
+    host.use('ada', 'assignment', 'claude', {});
+    const { adapter } = adapterWith(host);
+    const run = { ...adapterRun(), permission: { ...PERMISSION, primaryCwd: grant } };
+    const running = adapter.runAssignment(run);
+    void running.catch(() => undefined);
+    const text = 'Keep the existing export format.';
+    try {
+      await vi.waitFor(() => expect(replay.prompts).toHaveLength(1));
+      expect(replay.interrupts).toBe(0);
+      const delivery = adapter.requestAssignment({ ...run, text, resume: true });
+      if (delivery.delivery === 'followup') void delivery.done.catch(() => undefined);
+      await vi.waitFor(() => expect(replay.prompts[1]).toBe(text));
+      expect(delivery).toEqual({ delivery: 'steer' });
+      await running;
+
+      expect(replay.interrupts).toBe(1);
+      expect(replay.options).toHaveLength(1);
+      expect(run.report).toHaveBeenCalledExactlyOnceWith(
+        { state: 'completed', summary: 'Fixed the export button' },
+        { turn: 2 },
+      );
+      expect(run.completedTurn).toHaveBeenCalledExactlyOnceWith({
+        turn: 2,
+        endSeq: expect.any(Number),
+      });
+      expect(
+        dsh.stored.get(run.sessionId)?.events.filter((event) => event.type === 'turn/end'),
+      ).toMatchObject([
+        { data: { reason: { kind: 'aborted' } } },
+        { data: { reason: { kind: 'completed' } } },
+      ]);
+    } finally {
+      await host.close();
+      await adapter.close();
+      await running.catch(() => undefined);
+    }
+  });
+
   it('delivers report_to_orchestrator from the engine and completes the turn', async () => {
     const requests: EngineTurnRequest[] = [];
     const { host, adapter } = adapterWith({
@@ -253,21 +317,24 @@ describe('Engine Assignment at the adapter seam', () => {
       release: async () => undefined,
       runTurn: async (request) => {
         requests.push(request);
-        expect(
-          await request.execute(
+        const sendReport = () =>
+          request.execute(
             'report_to_orchestrator',
             { state: 'completed', summary: 'Fixed', expects_reply: false },
             request.signal,
             contextAt(3),
-          ),
-        ).toBe('Report delivered to the Orchestrator.');
+          );
+        expect(await Promise.all([sendReport(), sendReport()])).toEqual([
+          'Report delivered to the Orchestrator.',
+          'Terminal report already delivered to the Orchestrator.',
+        ]);
         await expect(
           request.execute('bot_send_message', {}, request.signal, contextAt(3)),
         ).rejects.toThrow('refused');
         return { turn: 3, endSeq: 12, text: 'Done.' };
       },
     });
-    const run = adapterRun();
+    const run = adapterRun(vi.fn(async () => undefined));
     try {
       await adapter.runAssignment(run);
     } finally {
@@ -363,6 +430,177 @@ describe('Engine Assignment at the adapter seam', () => {
     expect(roles).toEqual(['assignment']);
     expect(engineAssignment.host.createOptions).toHaveLength(0);
   });
+});
+
+describe('Codex Assignment steering through the Bot Inbox', () => {
+  it.each([
+    { name: 'native steer', native: true, previousReport: false, interruptedStatus: 'interrupted' },
+    {
+      name: 'codex refusal',
+      native: false,
+      previousReport: false,
+      interruptedStatus: 'interrupted',
+    },
+    {
+      name: 'failed interruption',
+      native: false,
+      previousReport: false,
+      interruptedStatus: 'failed',
+    },
+    {
+      name: 'steer after a report',
+      native: true,
+      previousReport: true,
+      interruptedStatus: 'interrupted',
+    },
+  ])(
+    'delivers one report for the request after $name',
+    async ({ native, previousReport, interruptedStatus }) => {
+      const text = 'Keep the existing export format.';
+      const summary = 'Kept the existing export format';
+      const preceding = 'Reported before the new request';
+      const beforeSteer = 'I am checking the export button.';
+      const originalTurnId = '019a7f10-0000-7000-8000-000000000002';
+      const end = (id: string, status: string) => ({
+        method: 'turn/completed',
+        params: { turn: { id, status } },
+      });
+      const report = (id: string, reportSummary = summary) => ({
+        method: 'item/started',
+        params: {
+          item: {
+            type: 'mcpToolCall',
+            id,
+            server: 'deepseekbot',
+            tool: 'report_to_orchestrator',
+            arguments: { state: 'completed', summary: reportSummary },
+          },
+        },
+      });
+      const continuation: typeof CODEX_DM = native
+        ? [{ dir: 'in', msg: { id: 5, result: { turnId: originalTurnId } } }]
+        : [
+            { dir: 'in', msg: { id: 5, error: { code: -32601, message: 'Method not found' } } },
+            { dir: 'out', msg: { id: 6, method: 'turn/interrupt' } },
+            { dir: 'in', msg: { id: 6, result: {} } },
+            { dir: 'in', msg: end(originalTurnId, interruptedStatus) },
+            ...CODEX_DM.slice(3, 5),
+            { dir: 'out', msg: { id: 7, method: 'turn/start' } },
+            { dir: 'in', msg: { id: 7, result: { turn: { id: 'continued' } } } },
+          ];
+      let start!: (replay: CodexReplay) => void;
+      const started = new Promise<CodexReplay>((resolve) => (start = resolve));
+      const { host, dsh } = hostSetup([], {
+        openCodex(options) {
+          const replay = codexReplay(
+            [
+              ...CODEX_DM.slice(0, 11),
+              {
+                dir: 'in',
+                msg: {
+                  method: 'item/completed',
+                  params: { item: { type: 'agentMessage', id: 'before-steer', text: beforeSteer } },
+                },
+              },
+              ...(previousReport
+                ? [{ dir: 'in' as const, msg: report('prior-report', preceding) }]
+                : []),
+              { dir: 'out', msg: { id: 5, method: 'turn/steer' } },
+              ...continuation,
+              { dir: 'in', msg: report('report-1') },
+              { dir: 'in', msg: report('report-2') },
+              {
+                dir: 'in',
+                msg: end(native ? originalTurnId : 'continued', 'completed'),
+              },
+            ],
+            options,
+          );
+          start(replay);
+          return replay.transport;
+        },
+      });
+      host.use('ada', 'assignment', 'codex', {});
+      const { adapter } = adapterWith(host);
+      const home = createTempRoot('engine-assignment-inbox-');
+      const workspace = createTestNativeWorkspace(home);
+      const orchestratorRuns: OrchestratorAgentRun[] = [];
+      const core = createCore({
+        dshHome: home,
+        workspaces: () => workspace.lookup,
+        agents: {
+          runOrchestrator: async (run) => void orchestratorRuns.push(run),
+          runAssignment: (run) => adapter.runAssignment(run),
+          requestAssignment: (run) => adapter.requestAssignment(run),
+          close: () => adapter.close(),
+        },
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+        if (dm === undefined) throw new Error('Missing DM');
+        const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: 'start-export',
+          body: 'Fix the export button',
+        });
+        if (!admission.admitted) throw new Error('DM was not admitted');
+        await admission.settled;
+        const access = orchestratorRuns[0]?.assignments;
+        if (access === undefined) throw new Error('Missing Orchestrator Assignment access');
+        const created = access.create({
+          title: 'Fix export',
+          description: 'Fix the export button',
+          grantId: TEST_GRANT_ID,
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment was not created');
+        const { sessionId } = created.assignment;
+        const replay = await started;
+        await vi.waitFor(() => expect(replay.sent.at(-1)?.['method']).toBe('turn/start'));
+        if (previousReport) {
+          await vi.waitFor(() =>
+            expect(orchestratorRuns.some((run) => run.inbox.includes(preceding))).toBe(true),
+          );
+        }
+
+        const delivery = access.request({ sessionId, mode: 'next-step', text });
+        await vi.waitFor(() => expect(replay.gatewayCalls).toHaveLength(previousReport ? 3 : 2));
+        await core.runtime.whenIdle();
+        expect(delivery).toMatchObject({ delivery: 'steer', acceptance: 'accepted' });
+        expect(replay.mismatches).toEqual([]);
+        expect(
+          replay.sent.find((frame) => frame['method'] === 'turn/steer')?.['params'],
+        ).toMatchObject({ expectedTurnId: originalTurnId, input: [{ type: 'text', text }] });
+        const turns = replay.sent.filter((frame) => frame['method'] === 'turn/start');
+        expect(turns).toHaveLength(native ? 1 : 2);
+        if (!native)
+          expect(turns[1]?.['params']).toMatchObject({ input: [{ type: 'text', text }] });
+        const reports = core.attention
+          .list({ botSlug: 'ada', limit: 100 })
+          .items.filter((item) => item.reason === 'assignment-report');
+        expect(reports).toHaveLength(previousReport ? 2 : 1);
+        expect(orchestratorRuns.slice(1).filter((run) => run.inbox.includes(summary))).toHaveLength(
+          1,
+        );
+        const events = dsh.stored.get(sessionId)?.events ?? [];
+        const transcript = summarizeSessionTranscript({ sessionId, events });
+        const before = transcript.items.findIndex(
+          (item) => item.kind === 'reply' && item.text === beforeSteer,
+        );
+        const after = transcript.items.findIndex(
+          (item) => item.kind === 'input' && item.text === text,
+        );
+        expect(before).toBeGreaterThan(-1);
+        expect(after).toBeGreaterThan(before);
+      } finally {
+        await host.close();
+        await core.runtime.whenIdle();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
 });
 
 it('keeps a channelless Assignment grant away from every Channel and destination', () => {
