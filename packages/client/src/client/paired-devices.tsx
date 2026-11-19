@@ -1,4 +1,5 @@
 import { Button } from './ds/button.js';
+import { Icon } from './ds/icon.js';
 import { Switch } from './ds/switch.js';
 import { ConnectHealthCard } from './connect-health-card.js';
 import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
@@ -991,9 +992,10 @@ export function PairedDevicesSettings({
             ) : null}
             {setup === 'app' ? (
               <div data-phone-app-guide="">
-                <button
+                <Button
                   type="button"
-                  className="bh-mobile-apps-link bh-mobile-apps-connect"
+                  variant="primary"
+                  icon={<Icon name="smartphone" />}
                   data-modal-autofocus
                   disabled={!freshSnapshot || busy !== undefined}
                   onClick={() => {
@@ -1007,10 +1009,8 @@ export function PairedDevicesSettings({
                     } else setSetup('method');
                   }}
                 >
-                  <ChannelSidebarIcon name="smartphone" size={16} />
-                  <span>{t('connections.phoneApp.ready')}</span>
-                  <ChannelSidebarIcon name="chevron-right" size={14} />
-                </button>
+                  {t('connections.phoneApp.ready')}
+                </Button>
                 <MobileAppDownloads t={t} />
               </div>
             ) : setup === 'direction' ? (

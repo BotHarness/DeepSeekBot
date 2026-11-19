@@ -4,7 +4,6 @@ import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { SettingsGroupPart } from './ds/settings-row.js';
 
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 import { MethodRefused } from '@botharness/host-client/client';
 import {
   STORAGE_MEDIA_KINDS,
@@ -30,8 +29,8 @@ import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { StatusBlock } from './ds/status-block.js';
 import { useMountedResource } from './mounted-resource.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
-import type { BotHarnessKey } from './locale.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
   content: {
@@ -101,10 +100,7 @@ const styles = stylex.create({
     margin: 0,
     padding: 0,
     listStyle: 'none',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.sm,
+    gap: space.x2,
   },
   chat: {
     display: 'flex',
@@ -114,9 +110,8 @@ const styles = stylex.create({
     minWidth: 0,
     paddingBlock: space.x2,
     paddingInline: space.x3,
-    borderTopWidth: { default: border.hairline, ':first-child': 0 },
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
+    backgroundColor: color.well,
+    borderRadius: radius.sm,
   },
   chatMeta: {
     flexShrink: 0,
@@ -191,7 +186,8 @@ export interface StorageSettingsSource {
   confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
 }
 
-export type StorageSettingsProps = PropsLocale<'botharness'> & {
+export type StorageSettingsProps = {
+  t: BotHarnessTranslate;
   title?: string;
 } & ({ call: BridgeCall; source?: never } | { source: StorageSettingsSource; call?: never });
 

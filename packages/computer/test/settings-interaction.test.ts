@@ -149,34 +149,38 @@ describe('Computer Settings transfer interaction', () => {
     expect(view.container.textContent).toContain('type a path or use the current directory');
   });
 
-  it('names each setting row and its picker, and announces notes and failures', async () => {
-    const view = await mount(async () => '/picked');
-    const groups = [...view.container.querySelectorAll<HTMLElement>('[role="group"]')].map(
-      (group) => labelOf(group),
-    );
-    expect(groups).toEqual(
-      expect.arrayContaining([
-        'Computer Target',
-        'Auto-allow Computer actions',
-        'Computer export directory',
-        'Idle stop',
-      ]),
-    );
-    const target = view.container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Computer Target"]',
-    );
-    expect(target?.textContent).toBe('Docker Computer');
-    expect(target?.getAttribute('aria-haspopup')).toBe('menu');
-    const idle = [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(
-      (button) => button.textContent === '30 min',
-    );
-    expect(idle?.getAttribute('aria-expanded')).toBe('false');
-    expect(view.container.querySelector('[role="alert"]')).toBeNull();
-    await view.click('Export to…');
-    const status = view.container.querySelector('[role="status"]');
-    expect(status?.textContent).toBe('Export to: /picked');
-    expect(view.container.querySelector('[class*="bh-settings-"]')).toBeNull();
-  });
+  it.each([400, 1280])(
+    'keeps Computer controls named and announces results at %i px',
+    async (width) => {
+      vi.stubGlobal('innerWidth', width);
+      const view = await mount(async () => '/picked');
+      const groups = [...view.container.querySelectorAll<HTMLElement>('[role="group"]')].map(
+        (group) => labelOf(group),
+      );
+      expect(groups).toEqual(
+        expect.arrayContaining([
+          'Computer Target',
+          'Auto-allow Computer actions',
+          'Computer export directory',
+          'Idle stop',
+        ]),
+      );
+      const target = view.container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Computer Target"]',
+      );
+      expect(target?.textContent).toBe('Docker Computer');
+      expect(target?.getAttribute('aria-haspopup')).toBe('menu');
+      const idle = [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === '30 min',
+      );
+      expect(idle?.getAttribute('aria-expanded')).toBe('false');
+      expect(view.container.querySelector('[role="alert"]')).toBeNull();
+      await view.click('Export to…');
+      const status = view.container.querySelector('[role="status"]');
+      expect(status?.textContent).toBe('Export to: /picked');
+      expect(view.container.querySelector('[class*="bh-settings-"]')).toBeNull();
+    },
+  );
 });
 
 function labelOf(element: HTMLElement): string {

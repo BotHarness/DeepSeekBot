@@ -1,7 +1,7 @@
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Note } from '../../../client/src/client/ds/note.js';
 import { Select } from '../../../client/src/client/ds/select.js';
-import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
+import { SettingsGroupPart, SettingsRow } from '../../../client/src/client/ds/settings-row.js';
 import type { BrowserClientContext } from './index.js';
 import { LOCALE_NS, type BrowserTranslate } from './locale.js';
 
@@ -85,7 +85,7 @@ export function BrowserTargetSettings({
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const target = snapshot.value?.target ?? 'local';
   return (
-    <SettingsRows>
+    <SettingsGroupPart>
       <ConfigChoice
         scope={scope}
         field="target"
@@ -113,7 +113,7 @@ export function BrowserTargetSettings({
           }))}
         />
       )}
-    </SettingsRows>
+    </SettingsGroupPart>
   );
 }
 

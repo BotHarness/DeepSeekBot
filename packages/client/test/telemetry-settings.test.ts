@@ -2,7 +2,7 @@
 import { type BotHarnessKey } from '../src/client/locale.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
@@ -53,7 +53,8 @@ async function render(call: BridgeCall, t: BotHarnessTranslate = zhTranslate) {
 }
 
 describe('TelemetrySettings', () => {
-  it('shows the Host state and turns usage statistics off and on through the bridge', async () => {
+  it.each([400, 1280])('writes the usage statistics choice at %i px', async (width) => {
+    vi.stubGlobal('innerWidth', width);
     let state = { enabled: true, preference: true };
     const call = vi.fn<BridgeCall>(async (endpoint, payload) => {
       if (endpoint === 'telemetrySet') {
@@ -117,3 +118,5 @@ describe('TelemetrySettings', () => {
     view.unmount();
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());

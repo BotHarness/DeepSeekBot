@@ -1153,7 +1153,10 @@
       "scope": "Client / Host",
       "surfaces": [
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)",
-        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}"
+        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.symbols')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.emoji')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.color')}"
       ],
       "commands": ["appearance-clients", "host-look"]
     },

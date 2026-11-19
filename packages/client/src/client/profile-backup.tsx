@@ -1,13 +1,14 @@
 import { Checkbox } from './ds/checkbox.js';
+import { HiddenFileInput } from './ds/input.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import type { BotHarnessTranslate } from './locale.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { border, color, space, text } from './ds/tokens.stylex.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
   CopyChip,
@@ -29,9 +30,6 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
     paddingTop: space.x4,
-    borderTopWidth: border.hairline,
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
   },
   heading: {
     margin: 0,
@@ -131,7 +129,7 @@ async function result<T>(response: Response): Promise<T> {
   if (!response.ok) throw new Error(value.error?.code ?? 'operation-failed');
   return value as T;
 }
-export type ProfileBackupSettingsProps = PropsLocale<'botharness'>;
+export type ProfileBackupSettingsProps = { t: BotHarnessTranslate };
 function BackupCounts({
   bots,
   files,
@@ -412,10 +410,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
             </StatusDisclosure>
           </StatusStack>
           <StatusStack>
-            <input
+            <HiddenFileInput
               ref={file}
-              hidden
-              type="file"
               accept=".botharness-backup"
               aria-label={t('backup.select')}
               onChange={(event) => {
