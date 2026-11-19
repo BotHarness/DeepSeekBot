@@ -22,7 +22,7 @@
 
 未完成传输的清理保持独立。引用感知清理从所有保留的 Source Event envelope（含已移除 Channel）标记身份，保护仍可达文件，之后才删除过期孤儿目标与记录；不启用自动保留期。后续 Profile Backup、选定 Export 与显式 Purge 必须覆盖当前引用文件及记录，保留共享身份，不能删除仍被保留事实引用的文件；明确导出捕获当时字节，不建立持续版本档案。本切片不新增这些产品。
 
-设计见 [ADR-0100](adr/0100-file-open-actions-target-real-host-files.md)。可运行验收入口是 `scripts/e2e-real-attachment-files.mjs`：通过真实 composer 准备，在外部编辑器保存，验证原消息、独立上传和共享引用，重启同一 Profile，再验证缺失文件拒绝。登录地址与私有 fixture 留在 Git 外，只发布合成测试数据的截图。
+设计见 [ADR-0100](decisions/workspaces.md#adr-0100)。可运行验收入口是 `scripts/e2e-real-attachment-files.mjs`：通过真实 composer 准备，在外部编辑器保存，验证原消息、独立上传和共享引用，重启同一 Profile，再验证缺失文件拒绝。登录地址与私有 fixture 留在 Git 外，只发布合成测试数据的截图。
 
 ## 旧消息迁移
 

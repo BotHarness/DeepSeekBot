@@ -33,6 +33,51 @@ window.__ModuleLoader__.load({
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
+		//#region packages/client/src/client/visible-interval.ts
+		function visibleInterval(run, ms, page = typeof document === "undefined" ? void 0 : document) {
+			let timer;
+			let hidden = page?.visibilityState === "hidden";
+			const start = () => {
+				clearInterval(timer);
+				timer = hidden ? void 0 : setInterval(run, ms);
+			};
+			const changed = () => {
+				const next = page?.visibilityState === "hidden";
+				if (next === hidden) return;
+				hidden = next;
+				if (!hidden) run();
+				start();
+			};
+			page?.addEventListener?.("visibilitychange", changed);
+			start();
+			return () => {
+				clearInterval(timer);
+				page?.removeEventListener?.("visibilitychange", changed);
+			};
+		}
+		//#endregion
+		//#region packages/computer/src/client/status-live.ts
+		const cancelled = (signal) => signal?.aborted === true && signal.reason?.name !== "TimeoutError";
+		function watchComputerStatus(observe, refresh) {
+			const controller = new AbortController();
+			let reading = false;
+			const read = async () => {
+				if (reading || controller.signal.aborted) return;
+				reading = true;
+				try {
+					await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(1e4)]));
+				} finally {
+					reading = false;
+				}
+			};
+			const stop = observe?.("computer", read) ?? visibleInterval(() => void read(), 15e3);
+			if (observe === void 0) read();
+			return () => {
+				controller.abort();
+				stop();
+			};
+		}
+		//#endregion
 		//#region node_modules/.pnpm/@stylexjs+stylex@0.19.1/node_modules/@stylexjs/stylex/lib/es/stylex.mjs
 		var styleq = {};
 		var hasRequiredStyleq;
@@ -13771,7 +13816,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/computer/src/client/local-computer.tsx
-		function LocalComputerStatus({ t }) {
+		function LocalComputerStatus({ t, observeResource }) {
 			const [payload, setPayload] = (0, react.useState)();
 			const [busy, setBusy] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)();
@@ -13787,27 +13832,13 @@ window.__ModuleLoader__.load({
 					setError((old) => old === "request-failed" ? void 0 : old);
 				}
 			}, []);
-			const resource = useMountedResource(() => {
-				const controller = new AbortController();
-				let pending = false;
-				const poll = async () => {
-					if (pending || controller.signal.aborted) return;
-					pending = true;
-					try {
-						await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(1e4)]));
-					} catch {
-						if (!controller.signal.aborted) setError("request-failed");
-					} finally {
-						pending = false;
-					}
-				};
-				poll();
-				const timer = setInterval(() => void poll(), 2e3);
-				return () => {
-					controller.abort();
-					clearInterval(timer);
-				};
-			}, [refresh]);
+			const resource = useMountedResource(() => watchComputerStatus(observeResource, async (signal) => {
+				try {
+					await refresh(signal);
+				} catch {
+					if (!cancelled(signal)) setError("request-failed");
+				}
+			}), [observeResource, refresh]);
 			const installing = payload?.install?.state === "installing";
 			const preparing = busy || installing || payload?.status?.phase === "starting";
 			const missing = payload?.status?.missing;
@@ -14066,6 +14097,7 @@ window.__ModuleLoader__.load({
 			const { prefs } = options;
 			return {
 				prefs,
+				observeResource: options.observeResource,
 				pickerAvailable: options.pickDirectory !== void 0,
 				pickDirectory: async () => options.pickDirectory === void 0 ? null : options.pickDirectory(),
 				openDirectory: async (dir) => {
@@ -14146,7 +14178,7 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
-		function ComputerSettingsRows({ t, prefs, pickerAvailable, pickDirectory, openDirectory, exportArchive, downloadUrl, importArchive, requestUpload, sendUploadBytes, listArchives, hostExportDir }) {
+		function ComputerSettingsRows({ t, prefs, observeResource, pickerAvailable, pickDirectory, openDirectory, exportArchive, downloadUrl, importArchive, requestUpload, sendUploadBytes, listArchives, hostExportDir }) {
 			const snapshot = (0, react.useSyncExternalStore)(prefs.subscribe, prefs.getSnapshot);
 			const [targetError, setTargetError] = (0, react.useState)();
 			const [targetSaving, setTargetSaving] = (0, react.useState)(false);
@@ -14188,27 +14220,20 @@ window.__ModuleLoader__.load({
 				setLivePhase(void 0);
 				setLiveElapsed(0);
 				const startedAt = Date.now();
-				const controller = new AbortController();
-				let pending = false;
-				const tick = async () => {
-					if (controller.signal.aborted) return;
-					setLiveElapsed(Math.round((Date.now() - startedAt) / 1e3));
-					if (pending) return;
-					pending = true;
+				const stop = watchComputerStatus(observeResource, async (signal) => {
 					try {
-						const payload = await requestJson$1(STATUS_ENDPOINT$1, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(1e4)]) });
-						if (!controller.signal.aborted) setLivePhase(payload.status?.phase);
-					} catch {} finally {
-						pending = false;
-					}
-				};
-				tick();
-				const timer = setInterval(() => void tick(), 1e3);
+						const payload = await requestJson$1(STATUS_ENDPOINT$1, { signal });
+						if (!signal.aborted) setLivePhase(payload.status?.phase);
+					} catch {}
+				});
+				const clock = setInterval(() => {
+					setLiveElapsed(Math.round((Date.now() - startedAt) / 1e3));
+				}, 1e3);
 				return () => {
-					controller.abort();
-					clearInterval(timer);
+					stop();
+					clearInterval(clock);
 				};
-			}, [busy]);
+			}, [busy, observeResource]);
 			const phaseKey = livePhase === void 0 ? void 0 : PHASE_LABEL[livePhase];
 			const exportDir = displayExportDir(snapshot.exportDir, hostDir);
 			const hasDir = exportDir !== "";
@@ -14393,7 +14418,10 @@ window.__ModuleLoader__.load({
 						label: t("rows.autoAllow.title")
 					})
 				}),
-				snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+					t,
+					observeResource
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
 						title: t("rows.exportDir.title"),
 						description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
@@ -14905,7 +14933,7 @@ window.__ModuleLoader__.load({
 				})
 			});
 		}
-		function createComputerEntry(t) {
+		function createComputerEntry(t, observeResource) {
 			return function ComputerEntryWithLocale(props) {
 				const { computerAccess } = useBotInfo(props.botSlug);
 				if (computerAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
@@ -14914,7 +14942,8 @@ window.__ModuleLoader__.load({
 				});
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntry, {
 					...props,
-					t
+					t,
+					observeResource
 				});
 			};
 		}
@@ -15063,7 +15092,7 @@ window.__ModuleLoader__.load({
 				}, props.botSlug);
 			};
 		}
-		function ComputerEntry({ botSlug, t }) {
+		function ComputerEntry({ botSlug, t, observeResource }) {
 			const { displayName } = useBotInfo(botSlug);
 			const [payload, setPayload] = (0, react.useState)();
 			const [error, setError] = (0, react.useState)();
@@ -15079,29 +15108,13 @@ window.__ModuleLoader__.load({
 					setPayload(next);
 					setError(void 0);
 				} catch (cause) {
-					if (!signal?.aborted) setError(String(cause));
+					if (!cancelled(signal)) setError(String(cause));
 				}
 			}, []);
 			const statusResource = useMountedResource(() => {
 				recordViewerOpen(connectionRpc, "computer");
-				const controller = new AbortController();
-				let pending = false;
-				const poll = async () => {
-					if (pending || controller.signal.aborted) return;
-					pending = true;
-					try {
-						await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(1e4)]));
-					} finally {
-						pending = false;
-					}
-				};
-				poll();
-				const timer = setInterval(() => void poll(), 3e3);
-				return () => {
-					controller.abort();
-					clearInterval(timer);
-				};
-			}, [refresh]);
+				return watchComputerStatus(observeResource, refresh);
+			}, [observeResource, refresh]);
 			const phase = payload?.status.phase;
 			const inProgress = phase === "pulling" || phase === "starting" || phase === "stopping" || phase === "exporting" || phase === "importing";
 			const progressResource = useMountedResource(() => {
@@ -15158,7 +15171,10 @@ window.__ModuleLoader__.load({
 				children: [inProgress ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					hidden: true,
 					ref: progressResource
-				}) : null, payload?.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, { t }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
+				}) : null, payload?.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+					t,
+					observeResource
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ComputerEntryView, {
 					t,
 					state: payload?.status.state ?? "absent",
 					...phase === void 0 ? {} : { phase },
@@ -15195,6 +15211,7 @@ window.__ModuleLoader__.load({
 				const workspace = workspaceCtx.uiWorkspace;
 				const face = createComputerSettingsFace({
 					prefs: settingsPrefs,
+					observeResource: workspaceCtx.get?.("botharnessResourceObserver"),
 					pickDirectory: workspace?.pickDirectory?.bind(workspace)
 				});
 				workspaceCtx.slots.inject("botharness.settings.section", () => workspaceCtx.slots.register({
@@ -15233,7 +15250,7 @@ window.__ModuleLoader__.load({
 					label: t("entry.label"),
 					order: 40,
 					scope: "personabot",
-					component: createComputerEntry(t),
+					component: createComputerEntry(t, sidebarCtx.get?.("botharnessResourceObserver")),
 					headerAction: createComputerHeader(t),
 					badge: createComputerBadge(t),
 					tab: "screen"

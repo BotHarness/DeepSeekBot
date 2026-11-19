@@ -54,7 +54,7 @@ export interface CdpClient {
   ): Promise<Record<string, unknown>>;
   subscribe(
     method: string,
-    sessionId: string,
+    sessionId: string | undefined,
     listener: (params: Record<string, unknown>) => void,
   ): () => void;
   close(): void;
@@ -81,6 +81,7 @@ export interface BotBrowserRuntimeOptions {
   readonly foregroundTabs?: () => boolean;
   readonly launchTimeoutMs?: number;
   readonly onEvent?: (detail: string) => void;
+  readonly onObservationChanged?: (() => void) | undefined;
   readonly onInstallProgress?: (downloadedBytes: number, totalBytes: number) => void;
   readonly onInstallSettled?: () => void;
   readonly preflight?: PreflightDeps;
@@ -239,7 +240,7 @@ export async function connectCdp(url: string, ctor?: WebSocketCtor): Promise<Cdp
   >();
   const subscriptions = new Set<{
     method: string;
-    sessionId: string;
+    sessionId: string | undefined;
     listener: (params: Record<string, unknown>) => void;
   }>();
   let nextId = 1;
@@ -476,6 +477,19 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       ? options.execution.isRunning()
       : child !== undefined && child.exitCode === null && !child.killed);
 
+  const watchTargets = (live: CdpClient): void => {
+    const changed = options.onObservationChanged;
+    if (changed === undefined) return;
+    for (const method of [
+      'Target.targetCreated',
+      'Target.targetDestroyed',
+      'Target.targetInfoChanged',
+    ])
+      live.subscribe(method, undefined, changed);
+    void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
+    changed();
+  };
+
   const launch = async (): Promise<void> => {
     if (options.execution !== undefined) {
       const started = await options.execution.start();
@@ -486,6 +500,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         await options.execution.stop();
         throw error;
       }
+      watchTargets(client);
       onEvent('ready target=container');
       return;
     }
@@ -559,7 +574,10 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
-    proc.once('close', () => closedChildren.add(proc));
+    proc.once('close', () => {
+      closedChildren.add(proc);
+      options.onObservationChanged?.();
+    });
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = '';
       let stderrTruncated = false;
@@ -629,6 +647,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       proc.kill('SIGTERM');
       throw error;
     }
+    watchTargets(client);
     onEvent('ready');
   };
 
@@ -1297,6 +1316,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       }
       live?.close();
       await options.execution.stop();
+      options.onObservationChanged?.();
       onEvent('stopped target=container');
       return;
     }
@@ -1340,6 +1360,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       });
     }
     if (child === proc) child = undefined;
+    options.onObservationChanged?.();
     onEvent('stopped');
   };
 

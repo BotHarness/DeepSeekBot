@@ -1,3 +1,5 @@
+import type {} from '../../core/src/channels/resource-events.js';
+import { coalesce } from '../../core/src/runtime/coalesce.js';
 import { openComputerPermissionSettings } from './permission-settings.js';
 import { spawn } from 'node:child_process';
 import ComputerUseRegistry from './native-registry.js';
@@ -352,6 +354,11 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     },
   });
   let transferTokens = createTransferTokens();
+  const statusChanged = coalesce(() => ctx.get('botharnessResourcePublisher')?.('computer'), {
+    delayMs: 25,
+    maxWaitMs: 1_000,
+  });
+  ctx.effect(() => statusChanged.cancel, 'botharness-computer: status notifications');
   const service: ComputerService = createComputerService();
   let requestedLanguage = '';
   const runner = createProcessRunner();
@@ -388,7 +395,8 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
         .catch(() => diagnostics.record('lifecycle', 'phase=local-video-runtime-cleanup-refused'));
     },
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
-    create: (selected) => {
+    onStatusChanged: statusChanged.schedule,
+    create: (selected, onStatusChanged) => {
       if (selected === 'local') {
         const driver = createLocalCuaDriver({
           runner,
@@ -398,12 +406,14 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
           driver,
           runner,
           onEvent: (detail) => diagnostics.record('lifecycle', `target=local ${detail}`),
+          onStatusChanged,
         });
         return { provider, driver };
       }
       const provider = createDockerComputerProvider({
         runner,
         onEvent: (detail) => diagnostics.record('container', detail),
+        onStatusChanged,
         getLanguage: () => (requestedLanguage === '' ? config.language : requestedLanguage),
         config: {
           image: config.image,
@@ -441,6 +451,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     void runtime
       .sync()
       .then(() => toolProvider.reconcileAll())
+      .finally(statusChanged.schedule)
       .catch((error: unknown) =>
         diagnostics.record(
           'lifecycle',
@@ -790,6 +801,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
           );
         const started = Date.now();
         packageInstall = { state: 'installing', packages: missing.packages, percent: 0, text: '' };
+        statusChanged.schedule();
         log(
           `install-packages start packages=${missing.packages.join(',')} access=${missing.install}`,
         );
@@ -804,6 +816,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
               percent: progress.percent,
               text: progress.text,
             };
+            statusChanged.schedule();
           },
         })
           .then(async () => {
@@ -813,6 +826,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
               percent: 100,
               text: '',
             };
+            statusChanged.schedule();
             log(`install-packages done durationMs=${String(Date.now() - started)}`);
             await service.start();
             await toolProvider.reconcileAll();
@@ -826,6 +840,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
                 percent: packageInstall.percent,
                 text: detail,
               };
+            statusChanged.schedule();
             log(`install-packages refused detail=${detail}`);
           });
         return json({ ok: true, started: true });

@@ -161,7 +161,11 @@ import {
 } from './session-return-action.js';
 import { mountActivityLive } from './activity-live.js';
 import { installChannelFollow, mountChannelLive, mountRosterLive } from './channel-live.js';
-import { installTypedLive, observeHumanAttention } from './messaging-defaults-live.js';
+import {
+  installTypedLive,
+  observeHumanAttention,
+  observeResource,
+} from './messaging-defaults-live.js';
 import {
   CHANNEL_REMOTE_DESCRIPTOR,
   COMPANION_REMOTE_DESCRIPTOR,
@@ -642,6 +646,9 @@ export function apply(ctx: ClientContext): void {
     }),
   );
   ctx.provide('channelSidebar', channelSidebar);
+  ctx.provide('botharnessResourceObserver', (resource, refresh) =>
+    observeResource(resource, refresh, 10_000, 60_000, true),
+  );
   const profileCards = createProfileCardRegistry();
   ctx.provide('profileCards', profileCards);
   ctx.effect(() => {

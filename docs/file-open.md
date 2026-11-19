@@ -22,7 +22,7 @@ Under `$DSH_HOME/botharness/attachments/files/<uuid>/`, `data/<safe filename>` i
 
 Staged transfer cleanup remains separate. Reference-aware cleanup protects file identities from all retained Source Event envelopes, including removed Channels, before removing old unreferenced destinations and their records; automatic retention remains disabled. Future Profile Backup, selected Export and explicit Purge must include current referenced destinations and their records. They must preserve shared identity, never purge a file still reachable from retained facts, and capture current bytes rather than create a version archive. Those products are not added by this slice.
 
-The design is [ADR-0100](adr/0100-file-open-actions-target-real-host-files.md). The runnable verification entry is `scripts/e2e-real-attachment-files.mjs`: prepare through the real composer, save through an actual external editor, verify the original and independent/shared messages, restart the same Profile, then verify missing-file refusal. Its private fixture and login URL stay outside Git; only synthetic screenshots are published.
+The design is [ADR-0100](decisions/workspaces.md#adr-0100). The runnable verification entry is `scripts/e2e-real-attachment-files.mjs`: prepare through the real composer, save through an actual external editor, verify the original and independent/shared messages, restart the same Profile, then verify missing-file refusal. Its private fixture and login URL stay outside Git; only synthetic screenshots are published.
 
 ## Existing-message migration
 

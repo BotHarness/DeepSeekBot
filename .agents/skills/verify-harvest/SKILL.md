@@ -5,7 +5,7 @@ description: Model-check the Bot Inbox harvest (no replay after a side effect, h
 
 # Verify the Bot Inbox harvest
 
-`verification/harvest/Harvest.tla` models how one Bot's Inbox Admissions move through turn-time harvest ([ADR-0077](../../../docs/adr/0077-turn-time-harvest-consumes-the-ready-attention-set.md)). TLC checks every order of admissions, claims, turns that reach DSH, successes, failures and Host restarts, for three Admissions and up to two restarts.
+`verification/harvest/Harvest.tla` models how one Bot's Inbox Admissions move through turn-time harvest ([ADR-0077](../../../docs/decisions/inbox.md#adr-0077)). TLC checks every order of admissions, claims, turns that reach DSH, successes, failures and Host restarts, for three Admissions and up to two restarts.
 
 It checks three rules:
 

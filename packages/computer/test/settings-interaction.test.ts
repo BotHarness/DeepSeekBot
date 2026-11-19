@@ -15,6 +15,9 @@ import {
   ComputerSettingsRows,
   createComputerSettingsFace,
 } from '../src/client/settings-rows.js';
+import type { ObserveResource } from '../../core/src/channels/resource-events.js';
+import { observeResource } from '../../client/src/client/messaging-defaults-live.js';
+import { resourceEvents } from '../../client/test/resource-events-fixture.js';
 import { en, type ComputerTranslate } from '../src/client/locale.js';
 
 const t = ((key: ComputerKey, params?: Record<string, unknown>) => {
@@ -30,7 +33,14 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function mount(pickDirectory?: () => Promise<string | null>, target?: 'local' | 'container') {
+async function mount(
+  pickDirectory?: () => Promise<string | null>,
+  target?: 'local' | 'container',
+  options?: {
+    observe?: ObserveResource;
+    respond(url: string): Promise<Response>;
+  },
+) {
   let value: ComputerSettings = {
     exportDir: '/old',
     idleStopMinutes: 30,
@@ -55,9 +65,14 @@ async function mount(pickDirectory?: () => Promise<string | null>, target?: 'loc
   const requests: string[] = [];
   vi.stubGlobal('fetch', async (url: string) => {
     requests.push(url);
+    if (options) return options.respond(url);
     return Response.json({ archive: `${value.exportDir}/computer.tar` });
   });
-  const face = createComputerSettingsFace({ prefs, pickDirectory });
+  const face = createComputerSettingsFace({
+    prefs,
+    pickDirectory,
+    observeResource: options?.observe,
+  });
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
@@ -168,3 +183,37 @@ function labelOf(element: HTMLElement): string {
   const id = element.getAttribute('aria-labelledby');
   return id === null ? '' : (element.ownerDocument.getElementById(id)?.textContent ?? '');
 }
+
+it('shows the operation phase on a Host event and advances the stopwatch without polling', async () => {
+  vi.useFakeTimers();
+  const events = resourceEvents();
+  let completeExport: ((response: Response) => void) | undefined;
+  const exportRequest = new Promise<Response>((resolve) => {
+    completeExport = resolve;
+  });
+  let phase = 'idle';
+  const view = await mount(async () => '/picked', 'container', {
+    observe: (resource, refresh) => observeResource(resource, refresh, 10_000, 60_000, true),
+    respond: async (url) =>
+      url.endsWith('/export') ? exportRequest : Response.json({ status: { phase } }),
+  });
+  try {
+    await view.click('Export to…');
+    await view.click('Authorize and export');
+    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    phase = 'exporting';
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    expect(view.container.textContent).not.toMatch(/Exporting ·/);
+    await act(async () => {
+      events.emit('computer');
+      await vi.advanceTimersByTimeAsync(30);
+    });
+    expect(view.container.textContent).toContain('Exporting ·');
+    expect(view.container.textContent).toContain('2s');
+  } finally {
+    await act(async () => completeExport?.(Response.json({ archive: '/picked/computer.tar' })));
+    events.dispose();
+    vi.useRealTimers();
+  }
+});

@@ -1,3 +1,5 @@
+import type {} from '../../core/src/channels/resource-events.js';
+import { coalesce } from '../../core/src/runtime/coalesce.js';
 import { BROWSER_TOOLS, browserToolName } from './tool/catalog.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
@@ -138,6 +140,12 @@ export function apply(
   },
 ): void {
   if (!config.enabled) return;
+
+  const observationChanged = coalesce(() => ctx.get('botharnessResourcePublisher')?.('browser'), {
+    delayMs: 25,
+    maxWaitMs: 1_000,
+  });
+  ctx.effect(() => observationChanged.cancel, 'botharness-browser: observation notifications');
 
   let logDb: LogDatabase | undefined;
   try {
@@ -295,6 +303,7 @@ export function apply(
     headless: launchHeadless,
     foregroundTabs: () => localDesktop() !== undefined,
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
+    onObservationChanged: observationChanged.schedule,
     profileOf: (slug) => {
       const registry = coreLookup()?.registry as
         | { get(slug: string): { browserProfile?: string } | undefined }
@@ -392,6 +401,7 @@ export function apply(
     desktopControl: localDesktop,
     audit: (event) => diagnostics.record('browser-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
+    onObservationChanged: observationChanged.schedule,
     onInvalidate: (slug) => botRevisions.set(slug, (botRevisions.get(slug) ?? 0) + 1),
     onActivity: (slug) => {
       if (target() === 'local' || target() === 'container') runtimes.touch(slug);
@@ -497,6 +507,7 @@ export function apply(
     switching = switching.catch(() => undefined).then(() => runtimes.stopAll());
     void switching
       .then(() => provider.reconcileAll())
+      .finally(observationChanged.schedule)
       .catch((error: unknown) =>
         diagnostics.record(
           'lifecycle',
@@ -995,6 +1006,7 @@ export function apply(
             );
           }
         }
+        observationChanged.schedule();
         return json({ ok: true, takeover });
       },
     };
