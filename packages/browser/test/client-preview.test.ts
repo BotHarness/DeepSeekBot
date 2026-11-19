@@ -382,6 +382,16 @@ describe('Container Human viewer', () => {
       'Pause failed',
     );
   });
+  it('keeps the viewer and its interaction when an observation read times out', async () => {
+    const frame = await expand();
+    vi.mocked(fetch).mockImplementationOnce(async () => {
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    await observationChanged();
+    expect(host.querySelector('iframe')).toBe(frame);
+    expect(frame.style.pointerEvents).toBe('auto');
+  });
+
   it('revokes interaction when the target switches away from a viewer target', async () => {
     await expand();
     viewer = false;
