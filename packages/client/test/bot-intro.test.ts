@@ -452,7 +452,10 @@ describe('intro modal', () => {
       ...base,
       modelCatalog: vi.fn(async () => ({ models: [testModel('main'), testModel('task')] })),
     } as unknown as BridgeActions;
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ engines: [], selections: [] })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ engines: [], selections: [] })),
+    );
     await mountModelStep(actions, { call });
     await pickModel('onboarding.model');
     expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);

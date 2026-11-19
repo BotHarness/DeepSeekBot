@@ -1271,7 +1271,9 @@ function ModelStep({
           ) : null}
         </>
       ) : catalog === undefined ? (
-        readError === undefined ? <Note>{t('modelPreset.loading')}</Note> : null
+        readError === undefined ? (
+          <Note>{t('modelPreset.loading')}</Note>
+        ) : null
       ) : canConnect ? (
         <div {...stylex.props(styles.choices)}>
           <ChoiceButton
