@@ -157,7 +157,8 @@ export function SubscriptionAccounts({
             {engines.view.engines.map((status) => {
               const { engine, accountId } = status;
               const brand = engineName(engine);
-              const title = status.accountName ?? brand;
+              const title =
+                status.accountName === undefined ? brand : `${brand} · ${status.accountName}`;
               const key = engineModelKey(engine, accountId);
               const canManage =
                 accountId !== undefined && engine === 'codex' && revision !== undefined;
