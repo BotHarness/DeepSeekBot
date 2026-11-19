@@ -11,7 +11,7 @@ import { SHEET_GROUP } from './sheet';
 
 type RowActions = Pick<
   SettingsRowProps,
-  'onPress' | 'selected' | 'control' | 'accessory' | 'testID'
+  'onPress' | 'selected' | 'control' | 'accessory' | 'testID' | 'disclosure'
 >;
 
 export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: ModelCatalogEntry }) {

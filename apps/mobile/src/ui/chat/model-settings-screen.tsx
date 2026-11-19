@@ -926,7 +926,7 @@ export function ModelsView({
       contentContainerStyle={{ paddingVertical: space.x3 }}
       renderItem={({ item, index }) =>
         'kind' in item ? (
-          <RoutingGroupLink item={item} first={index === presets.length} />
+          <RoutingGroupLink item={item} first={index === presets.length} models={value.models} />
         ) : (
           <SettingsGroupItem
             first={index === 0}
