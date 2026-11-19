@@ -102,17 +102,16 @@ export type ButtonProps = {
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'ghost', size = 'md', icon, className, xstyle, children, ...rest },
+  { variant = 'ghost', size = 'md', icon, className, xstyle, children, style, ...rest },
   ref,
 ) {
+  const styled = stylex.props(styles.base, styles[size], styles[variant], xstyle);
   return (
     <button
       ref={ref}
       {...rest}
-      className={joinClass(
-        stylex.props(styles.base, styles[size], styles[variant], xstyle).className,
-        className,
-      )}
+      className={joinClass(styled.className, className)}
+      style={styled.style === undefined ? style : { ...styled.style, ...style }}
     >
       {icon == null ? null : <span {...stylex.props(styles.icon)}>{icon}</span>}
       {children}

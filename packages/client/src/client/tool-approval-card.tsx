@@ -339,7 +339,9 @@ export function ToolApprovalCard({
         {' · '}
         {request.toolName}
       </div>
-      <div {...stylex.props(styles.caption)}>{t('approval.cwd', { path: request.cwd })}</div>
+      <div {...hooked('bh-tool-approval-cwd', styles.caption)}>
+        {t('approval.cwd', { path: request.cwd })}
+      </div>
       <ApprovalInput
         toolName={request.toolName}
         input={request.input}

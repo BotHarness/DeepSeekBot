@@ -72,7 +72,7 @@ await page.setExtraHTTPHeaders({ cookie });
 async function screenshot(name) {
   await page.addStyleTag({
     content:
-      '.bh-tool-approval-card > .bh-note:nth-child(3){font-size:0}.bh-tool-approval-card > .bh-note:nth-child(3)::after{content:"[machine-local QA directory redacted]";font-size:12px}',
+      '.bh-tool-approval-card .bh-tool-approval-cwd{font-size:0}.bh-tool-approval-card .bh-tool-approval-cwd::after{content:"[machine-local QA directory redacted]";font-size:12px}',
   });
   await page.screenshot({ path: resolve(evidence, name) });
 }
