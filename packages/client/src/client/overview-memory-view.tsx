@@ -1,3 +1,5 @@
+import { hooked } from './ds/hooked.js';
+import { profileStyles } from './ds/profile-panel.js';
 import { Icon } from './ds/icon.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
@@ -142,11 +144,11 @@ export function OverviewMemoryView({
   return (
     <section
       ref={mount}
-      className="bh-profile-card bh-overview-memory"
+      {...hooked('bh-profile-card bh-overview-memory', profileStyles.card)}
       aria-label={t('overviewMemory.title')}
     >
-      <header className="bh-profile-card-head">
-        <h3 className="bh-profile-card-label">
+      <header {...hooked('bh-profile-card-head', profileStyles.cardHead)}>
+        <h3 {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>
           {t('overviewMemory.title')} · {t('overviewUsage.week')}
         </h3>
         <button

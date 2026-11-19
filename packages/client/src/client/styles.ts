@@ -2588,19 +2588,6 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bh-profile-roles {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: ${space.x2};
-}
-.bh-profile-description {
-  margin: 0;
-  color: var(--tobs-ink-secondary);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-}
 .bh-avatar-media-composed svg { overflow: visible; }
 .bh-illustrated-head { transform-box: fill-box; transform-origin: 50% 65%; }
 .bh-illustrated-gaze { transform-box: fill-box; transform-origin: center; }
@@ -2685,46 +2672,6 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-avatar-editor-fields :focus-visible { outline: ${border.focus} solid var(--tobs-ink-primary); outline-offset: 2px; }
 .bh-avatar-media-composed svg { image-rendering: pixelated; }
 @media (max-width: 640px) { .bh-avatar-editor { grid-template-columns: minmax(0, 1fr); } .bh-avatar-options { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); } }
-.bh-profile-view {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: ${space.x5} ${space.x5} ${space.x6};
-}
-.bh-profile-back {
-  display: inline-flex;
-  align-items: center;
-  gap: ${space.x2};
-  margin-bottom: ${space.x5};
-  padding: ${space.x2} ${space.x3} ${space.x2} ${space.x2};
-  border: 0;
-  border-radius: ${radius.sm};
-  background: transparent;
-  color: var(--tobs-ink-secondary);
-  font: inherit;
-  cursor: pointer;
-}
-.bh-profile-back:hover {
-  background: var(--bh-hover);
-  color: var(--tobs-ink-primary);
-}
-.bh-profile-header {
-  overflow: hidden;
-  margin-bottom: 20px;
-  border-radius: ${radius.md};
-  background: var(--tobs-layer-raised);
-}
-.bh-profile-banner {
-  position: relative;
-  aspect-ratio: 3 / 1;
-  max-height: 200px;
-  width: 100%;
-  overflow: hidden;
-  background: var(--bh-hover);
-  border-bottom: ${border.hairline} solid ${color.divider};
-}
 .bh-banner-art {
   display: block;
   width: 100%;
@@ -2732,78 +2679,6 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
   object-fit: cover;
 }
 canvas.bh-banner-art { image-rendering: pixelated; }
-.bh-profile-banner-edit {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: ${space.x1} ${space.x3};
-  border: ${border.hairline} solid ${color.border};
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--tobs-layer-raised) 88%, transparent);
-  color: var(--tobs-ink-primary);
-  font-size: ${text.metaSize};
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-.bh-profile-banner:hover .bh-profile-banner-edit,
-.bh-profile-banner-edit:focus-visible { opacity: 1; }
-@media (hover: none) { .bh-profile-banner-edit { opacity: 1; } }
-/* No max-height: with aspect-ratio, WebKit turns it into a max-width and the banner stops
-   short of the popover's right edge. Uploads are cropped to 3:1, so the ratio alone fits.
-   The art is absolutely placed so its intrinsic width doesn't widen the popover. */
-.bh-profile-header-body {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x2};
-  padding: 0 ${space.x5} ${space.x5};
-}
-.bh-profile-header-top {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: ${space.x4};
-  margin-top: -40px;
-}
-.bh-profile-header-top .bh-profile-avatar-button { flex: none; }
-.bh-profile-header-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: ${space.x3};
-  padding-bottom: ${space.x2};
-}
-.bh-profile-header-actions > button { white-space: nowrap; }
-.bh-profile-header .bh-profile-view-name { margin-top: ${space.x2}; white-space: normal; overflow-wrap: anywhere; }
-.bh-profile-header .bh-profile-description { -webkit-line-clamp: unset; overflow-wrap: anywhere; }
-.bh-profile-view-identity {
-  display: flex;
-  align-items: flex-start;
-  gap: ${space.x4};
-  padding-bottom: 20px;
-  border-bottom: ${border.hairline} solid ${color.divider};
-}
-.bh-profile-view-heading {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x2};
-  min-width: 0;
-}
-.bh-profile-view-name {
-  margin: 0;
-  font-size: ${text.titleSize};
-  font-weight: ${text.strong};
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bh-profile-shared-by {
-  margin: 0;
-  color: ${color.muted};
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
-}
 .bh-profile-action {
   padding: ${space.x2} ${space.x4};
   border: ${border.hairline} solid ${color.border};
@@ -2832,51 +2707,6 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 .bh-profile-error {
   color: var(--tobs-status-danger-base);
   font-size: ${text.metaSize};
-}
-.bh-profile-cards {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x4};
-  margin-top: 20px;
-}
-.bh-profile-section {
-  margin-top: 20px;
-}
-.bh-profile-section-title {
-  margin: 0 0 ${space.x4};
-  color: var(--tobs-ink-primary);
-  font-size: ${text.titleSize};
-  font-weight: ${text.strong};
-}
-.bh-profile-section .bh-profile-cards {
-  margin-top: 0;
-}
-.bh-profile-card {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x3};
-  padding: ${space.x4} ${space.x4};
-  border-radius: ${radius.md};
-  background: var(--tobs-layer-raised);
-}
-.bh-profile-card-compact {
-  gap: ${space.x2};
-  padding: ${space.x3} ${space.x3};
-  border: 0;
-  border-radius: ${radius.sm};
-}
-.bh-profile-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${space.x3};
-}
-.bh-profile-card-label {
-  display: inline-flex;
-  align-items: center;
-  gap: ${space.x2};
-  font-size: ${text.metaSize};
-  color: var(--tobs-ink-secondary);
 }
 .bh-profile-card-body {
   display: flex;
@@ -3326,50 +3156,6 @@ button.bh-profile-heat-cell:focus-visible {
 .bh-profile-tip-shares {
   color: var(--tobs-ink-secondary);
 }
-.bh-profile-avatar-button {
-  position: relative;
-  padding: 0;
-  border: 0;
-  border-radius: ${radius.lg};
-  background: transparent;
-  cursor: pointer;
-}
-.bh-profile-avatar-button:disabled { cursor: default; }
-.bh-profile-avatar-button:focus-visible {
-  outline: ${border.focus} solid var(--tobs-ink-primary);
-  outline-offset: 2px;
-}
-.bh-profile-avatar-button .bh-persona-avatar {
-  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--tobs-ink-primary) 18%, transparent));
-}
-.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar,
-.bh-profile-avatar-button:focus-visible .bh-persona-avatar {
-  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--tobs-ink-primary) 18%, transparent)) brightness(0.72);
-}
-.bh-profile-avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--tobs-ink-primary);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-.bh-profile-avatar-overlay-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: ${border.hairline} solid ${color.border};
-  border-radius: 999px;
-  background: var(--tobs-layer-raised);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--tobs-ink-primary) 16%, transparent);
-}
-.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay,
-.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay { opacity: 1; }
 .bh-content {
   flex: 1;
   min-height: 0;
