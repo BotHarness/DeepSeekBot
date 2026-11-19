@@ -12,6 +12,7 @@ export const PERMISSION_CATALOG = [
   { id: 'bots.createPublic', group: 'bots' },
   { id: 'bots.manageAll', group: 'bots' },
   { id: 'models.use', group: 'compute' },
+  { id: 'modelSources.manage', group: 'compute' },
   { id: 'im.bind', group: 'bots' },
   { id: 'workspaces.manageShared', group: 'compute' },
   { id: 'approvals.opaqueTools', group: 'oversight' },
@@ -21,7 +22,10 @@ export const PERMISSION_CATALOG = [
 ] as const;
 export type HostPermission = (typeof PERMISSION_CATALOG)[number]['id'];
 export const ALL_PERMISSIONS = PERMISSION_CATALOG.map(({ id }) => id);
-export const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((id) => id !== 'privateContent.view');
+export function ownerGrantedPermission(id: string): boolean {
+  return id === 'privateContent.view' || id === 'modelSources.manage';
+}
+export const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((id) => !ownerGrantedPermission(id));
 export const MEMBER_PERMISSIONS: HostPermission[] = ['dm.humans'];
 export const roleModelsSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('all') }),

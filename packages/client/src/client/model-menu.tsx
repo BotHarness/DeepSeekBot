@@ -4,6 +4,7 @@ import {
   modelBrand,
   modelFamilies,
   modelShortName,
+  providerBrand,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
 import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
@@ -122,6 +123,8 @@ export function modelMenuItems(
       brand,
       provider: entry.provider,
       model: entry.model,
+      hintBrand:
+        option.hint === undefined ? undefined : providerBrand(entry.provider, entry.providerName),
     };
   });
 }

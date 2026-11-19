@@ -11,6 +11,7 @@ export const liveResourceSchema = z.enum([
   'reachable-posts',
   'onboarding',
   'account',
+  'model-providers',
 ]);
 
 export const resourceChangeSchema = z.object({

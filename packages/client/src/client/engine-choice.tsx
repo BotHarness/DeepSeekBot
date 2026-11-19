@@ -187,7 +187,7 @@ export const engineRoles = ['orchestrator', 'assignment'] as const;
 type EngineModels = Partial<Record<EngineId, readonly EngineModelView[]>>;
 type ModelLoads = Partial<Record<EngineId, { state: 'pending' | 'ready' | 'failed' }>>;
 
-export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
+export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadModels = true) {
   const [view, setView] = useState<EnginesView>();
   const [models, setModels] = useState<EngineModels>({});
   const [loadFailed, setLoadFailed] = useState(false);
@@ -210,6 +210,7 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
       if (!alive.current || generation.current !== current) return undefined;
       setView(next);
       setLoadFailed(false);
+      if (!loadModels) return next;
       const source = loads.current;
       for (const status of next.engines) {
         const { engine, available } = status;
@@ -260,7 +261,7 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
       clearTimeout(poll.current);
       clearTimeout(deadline.current);
     };
-  }, [enabled, api]);
+  }, [enabled, api, loadModels]);
 
   const saveSelection = async (
     botSlug: string,

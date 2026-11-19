@@ -1,3 +1,6 @@
+import { ModelProvidersSettings } from './model-providers-settings.js';
+import { canManageModelProviders } from './team-bridge.js';
+import { currentTeamMode } from './team-state.js';
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { markOriginActions } from './origin-actions.js';
 import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
@@ -464,7 +467,18 @@ export function apply(ctx: ClientContext): void {
     },
   };
   const quickSwitcherSettings: QuickSwitcherSettings = {
-    search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
+    search: (query) =>
+      searchSettings(
+        botSettingsSections
+          .getSnapshot()
+          .filter(
+            ({ id }) =>
+              id !== BOT_SETTINGS_SECTIONS.modelProviders ||
+              canManageModelProviders(currentTeamMode(call)?.viewer),
+          ),
+        query,
+        t,
+      ),
     open: (result) => botSettings.open(result.section, result.target),
     launcher: createQuickSwitcherLauncher(),
   };
@@ -476,6 +490,7 @@ export function apply(ctx: ClientContext): void {
         locale: LOCALE_NS,
         inject: () => ({
           botSettings,
+          call,
           sections: botSettingsSections,
           environments: member ? undefined : remoteHosts(t),
           pins: member ? undefined : settingsPins,
@@ -1062,6 +1077,19 @@ export function apply(ctx: ClientContext): void {
           }),
         },
         KeyboardSettings,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.modelProviders,
+          order: 9,
+          label: () => t('botSettings.section.modelProviders'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        ModelProvidersSettings,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

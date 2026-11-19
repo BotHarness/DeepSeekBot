@@ -1,4 +1,9 @@
 export const MODEL_BRAND_ICONS = {
+  opencode: {
+    title: 'OpenCode',
+    evenodd: true,
+    markup: '<path d="M16 6H8v12h8V6zm4 16H4V2h16v20z"></path>',
+  },
   deepseek: {
     title: 'DeepSeek',
     markup:

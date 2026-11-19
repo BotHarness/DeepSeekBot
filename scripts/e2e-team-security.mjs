@@ -259,7 +259,7 @@ class Suite {
     if (last.error) process.stdout.write(`  ✗ ${last.error}\n`);
   }
 
-  member(username, roleIds, base = ['member']) {
+  member(username, roleIds, base = ['member'], webCredentials) {
     const file = join(this.secrets, `${username}.pw`);
     const created = this.cli([
       'members',
@@ -273,10 +273,12 @@ class Suite {
       '--initial-password-file',
       file,
     ]).member;
+    const password = `${randomUUID()}Aa!`;
     this.cli(['members', 'change-password', '--password-stdin'], {
       as: username,
-      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: `${randomUUID()}Aa!` }),
+      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: password }),
     });
+    webCredentials?.set(username, password);
     rmSync(file);
     return created;
   }
@@ -377,9 +379,10 @@ export async function main(argv = process.argv.slice(2)) {
         carol: `carol-${tag}`,
         dave: `dave-${tag}`,
       };
+      const webCredentials = new Map();
       const humans = {
         alice: s.member(users.alice, [roles.finance.roleId, roles.creators.roleId]),
-        bob: s.member(users.bob, [roles.creators.roleId]),
+        bob: s.member(users.bob, [roles.creators.roleId], ['member'], webCredentials),
         carol: s.member(users.carol, [roles.finance.roleId, roles.audit.roleId]),
         dave: s.member(users.dave, [roles.limited.roleId], []),
       };
@@ -435,6 +438,7 @@ export async function main(argv = process.argv.slice(2)) {
       writeFileSync(join(sharedFinance, 'ledger.md'), `${SHARED_FINANCE}\n`);
       const status = s.cli(['team-mode', 'status']);
       fx = {
+        webCredentials,
         roles,
         users,
         humans,
@@ -862,6 +866,103 @@ export async function main(argv = process.argv.slice(2)) {
       const refused = s.cli(['bots', 'reachable'], { as: fx.users.dave, allowFail: true });
       check('deactivated member refused', refused?.error !== undefined, refused?.error);
     });
+
+    await define(
+      'C3',
+      'Model provider settings require the explicit management permission',
+      async (check) => {
+        const owner = s.cli(['model-providers']);
+        const id = owner.providers[0]?.id ?? 'opencode-go';
+        const revision = owner.providers[0]?.revision ?? 0;
+        const expectedRevision = owner.revision ?? 0;
+        const testKey = 'm15-unused-test-key';
+        const as = fx.users.bob;
+        for (const args of [
+          ['model-providers'],
+          [
+            'model-provider-add',
+            '--template',
+            'opencode-go',
+            '--name',
+            'M15',
+            '--key-stdin',
+            '--expected-revision',
+            String(expectedRevision),
+          ],
+          ['model-provider-edit', id, '--key-stdin', '--expected-revision', String(revision)],
+          ['model-provider-remove', id, '--confirm', '--expected-revision', String(revision)],
+        ]) {
+          const result = s.cli(args, {
+            as,
+            input: args.includes('--key-stdin') ? testKey : undefined,
+            allowFail: true,
+          });
+          check(
+            `CLI ${args[0]} refused without disclosure`,
+            result?.error?.code === 'permission-required' &&
+              !JSON.stringify(result).includes(testKey),
+            result?.error?.code,
+          );
+        }
+
+        const path = s.url.origin + '/botharness-device/team';
+        const headers = { origin: s.url.origin, 'content-type': 'application/json' };
+        const signedIn = await fetch(path + '/sign-in', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ username: as, password: fx.webCredentials.get(as) }),
+        });
+        const cookie = signedIn.headers.get('set-cookie')?.split(';')[0];
+        if (!signedIn.ok || !cookie)
+          throw new Error(`Member sign-in failed (HTTP ${signedIn.status})`);
+        const memberHeaders = { ...headers, cookie };
+        try {
+          for (const [method, args] of [
+            ['modelProviders', {}],
+            [
+              'modelProviderAdd',
+              { template: 'opencode-go', name: 'M15', key: testKey, expectedRevision },
+            ],
+            ['modelProviderEdit', { id, key: testKey, expectedRevision: revision }],
+            ['modelProviderRemove', { id, expectedRevision: revision }],
+          ]) {
+            const endpoint = `botharness/${method}`;
+            const response = await fetch(path + '/__share/rpc', {
+              method: 'POST',
+              headers: memberHeaders,
+              body: JSON.stringify({
+                op: 'call',
+                path: `/api/${endpoint}`,
+                body: {
+                  type: 'client-request',
+                  rpcId: randomUUID(),
+                  method: endpoint,
+                  payload: { args },
+                },
+              }),
+            });
+            const { result } = await response.json();
+            check(
+              `Member bridge ${method} refused without disclosure`,
+              result?.ok === false &&
+                result.error?.code === 'permission-required' &&
+                !JSON.stringify(result).includes(testKey),
+              result?.error?.code,
+            );
+          }
+        } finally {
+          await fetch(path + '/sign-out', {
+            method: 'POST',
+            headers: memberHeaders,
+            signal: AbortSignal.timeout(10_000),
+          });
+        }
+        check(
+          'Denied writes left provider settings intact',
+          JSON.stringify(s.cli(['model-providers'])) === JSON.stringify(owner),
+        );
+      },
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

@@ -1,3 +1,8 @@
+import type {
+  ModelProvidersView,
+  ModelProviderSave,
+  ModelProviderRemoval,
+} from '../models/providers.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 
 import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
@@ -1286,6 +1291,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  modelProviders(): Promise<ModelProvidersView> {
+    return unwrapAsync(this.methods.modelProviders({}));
+  }
+
+  modelProviderAdd(
+    template: string,
+    name: string,
+    key: string,
+    expectedRevision: number,
+    endpoint?: string,
+    model?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(
+      this.methods.modelProviderAdd({ template, name, key, expectedRevision, endpoint, model }),
+    );
+  }
+
+  modelProviderEdit(
+    id: string,
+    expectedRevision: number,
+    name?: string,
+    key?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(this.methods.modelProviderEdit({ id, expectedRevision, name, key }));
+  }
+
+  modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
+    return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
+  }
+
   modelCatalog(): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
@@ -3606,6 +3641,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionMessageSend',
   'botStop',
   'modelCatalog',
+  'modelProviders',
+  'modelProviderAdd',
+  'modelProviderEdit',
+  'modelProviderRemove',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',

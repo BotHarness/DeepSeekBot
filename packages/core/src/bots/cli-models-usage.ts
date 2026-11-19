@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelFavorite } from '../models/favorites.js';
@@ -17,6 +18,20 @@ import { isUsageOverviewPeriod, usageOverviewPeriods } from '../usage/overview.j
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
 export const MODELS_USAGE_COMMANDS = [
+  { command: 'model-providers', description: 'list API key providers and their revisions' },
+  {
+    command: 'model-provider-add',
+    description:
+      'add an API key provider (--template, --name, --key-stdin or --key-file, --expected-revision)',
+  },
+  {
+    command: 'model-provider-edit',
+    description: 'rename or replace the key of an API key provider at its revision',
+  },
+  {
+    command: 'model-provider-remove',
+    description: 'remove an unused API key provider at its revision (--confirm)',
+  },
   {
     command: 'home-model-set',
     description:
@@ -118,6 +133,11 @@ export interface ModelsUsageValues {
   'assignment-engine-model'?: string;
   'assignment-engine-effort'?: string;
   name?: string;
+  template?: string;
+  endpoint?: string;
+  'key-stdin'?: boolean;
+  'key-file'?: string;
+  confirm?: boolean;
   'orchestrator-provider'?: string;
   'orchestrator-model'?: string;
   'orchestrator-effort'?: string;
@@ -144,6 +164,8 @@ export interface ModelsUsageValues {
 }
 
 const NO_TARGET = new Set([
+  'model-providers',
+  'model-provider-add',
   'home-model-set',
   'model-catalog',
   'model-groups',
@@ -345,6 +367,54 @@ export async function runModelsUsage(
   const target = rest[0]?.trim() ?? '';
   if (!noTarget && !target) usage(`${command} requires a nonempty target id.`);
   const expected = revision(values['expected-revision']);
+
+  if (command === 'model-providers') return (await connect())('modelProviders', {});
+  if (
+    command === 'model-provider-add' ||
+    command === 'model-provider-edit' ||
+    command === 'model-provider-remove'
+  ) {
+    if (expected === undefined) usage('Provide --expected-revision from model-providers.');
+    if (command === 'model-provider-remove') {
+      if (values.confirm !== true) usage('Add --confirm to remove the provider.');
+      return (await connect())('modelProviderRemove', { id: target, expectedRevision: expected });
+    }
+    const name = values.name?.trim();
+    if (values.name !== undefined && !name) usage('--name must not be empty.');
+    if (values['key-stdin'] && values['key-file'] !== undefined)
+      usage('Choose one key input: --key-stdin or --key-file.');
+    let key: string | undefined;
+    try {
+      if (values['key-stdin']) key = ((await io.readStdin?.()) ?? '').trim();
+      if (values['key-file'] !== undefined)
+        key = (await readFile(values['key-file'], 'utf8')).trim();
+    } catch {
+      usage('Could not read the API key.');
+    }
+    if (key === '') usage('The API key input is empty.');
+    if (command === 'model-provider-edit') {
+      if (name === undefined && key === undefined) usage('Provide a name or an API key input.');
+      return (await connect())('modelProviderEdit', {
+        id: target,
+        expectedRevision: expected,
+        ...(name === undefined ? {} : { name }),
+        ...(key === undefined ? {} : { key }),
+      });
+    }
+    const template = values.template;
+    if (template !== 'opencode-go' && template !== 'deepseek' && template !== 'custom')
+      usage('Choose --template opencode-go, deepseek or custom.');
+    if (name === undefined || key === undefined) usage('Provide a name and an API key input.');
+    if (template === 'custom' && (!values.endpoint || !values.model))
+      usage('The custom template requires --endpoint and --model.');
+    return (await connect())('modelProviderAdd', {
+      template,
+      name,
+      key,
+      expectedRevision: expected,
+      ...(template === 'custom' ? { endpoint: values.endpoint, model: values.model } : {}),
+    });
+  }
 
   if (command === 'home-model-set') {
     const group = values.group?.trim();

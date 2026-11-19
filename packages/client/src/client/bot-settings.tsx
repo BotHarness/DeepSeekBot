@@ -5,7 +5,9 @@ import { useState, useSyncExternalStore, type ReactElement, type ReactNode } fro
 import type { SettingsSectionSlots } from './bot-settings-slot.js';
 import * as stylex from '@stylexjs/stylex';
 import { MEMBER_SETTINGS_SECTIONS } from './member-settings.js';
-import { useTeamMember } from './team-state.js';
+import type { BridgeCall } from './bridge.js';
+import { canManageModelProviders } from './team-bridge.js';
+import { refreshTeamMode, useTeamMember, useTeamMode } from './team-state.js';
 import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import { Note } from './ds/note.js';
@@ -37,6 +39,7 @@ export const BOT_SETTINGS_SECTIONS = {
   appearance: 'appearance',
   notifications: 'notifications',
   shortcuts: 'shortcuts',
+  modelProviders: 'model-providers',
   models: 'models',
   messaging: 'messaging',
   autoApproval: 'auto-approval',
@@ -66,6 +69,7 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
   [BOT_SETTINGS_SECTIONS.account]: 'user',
   [BOT_SETTINGS_SECTIONS.general]: 'settings',
   [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
+  [BOT_SETTINGS_SECTIONS.modelProviders]: 'server',
   [BOT_SETTINGS_SECTIONS.models]: 'cpu',
   [BOT_SETTINGS_SECTIONS.autoApproval]: 'shield-check',
   [BOT_SETTINGS_SECTIONS.prompts]: 'file-text',
@@ -254,6 +258,7 @@ export class BotSettings {
 
 export type BotSettingsViewProps = SettingsSectionSlots & {
   botSettings: BotSettings;
+  call?: BridgeCall;
   sections: BotSettingsSectionSource;
   environments?: SettingsEnvironments | undefined;
   pins?: SettingsPins | undefined;
@@ -273,6 +278,7 @@ const EMPTY_ENVIRONMENTS = {
 
 export function BotSettingsView({
   botSettings,
+  call,
   sections,
   environments,
   pins,
@@ -284,6 +290,7 @@ export function BotSettingsView({
   const known = environments ?? NO_ENVIRONMENTS;
   const remotes = useSyncExternalStore(known.subscribe, known.getSnapshot, known.getSnapshot).hosts;
   const member = useTeamMember();
+  const canManageProviders = canManageModelProviders(useTeamMode(call)?.viewer);
   const thisHost = useThisHost();
   const [query, setQuery] = useState('');
   const [chosenHost, setChosenHost] = useState<{
@@ -312,6 +319,7 @@ export function BotSettingsView({
   const target = state.target;
   const locate = useMountedResource<HTMLDivElement>(
     (root) => {
+      if (call !== undefined) void refreshTeamMode(call);
       for (const item of root.querySelectorAll('[data-settings-highlight]')) {
         item.removeAttribute('data-settings-highlight');
         item.classList.remove(...searchTargetClasses);
@@ -347,13 +355,15 @@ export function BotSettingsView({
       find();
       return () => observer.disconnect();
     },
-    [state.sectionId, target],
+    [call, state.sectionId, target],
   );
   if (!state.open) return null;
   const rows = [...registered]
     .filter(
       (row) =>
-        (!member || MEMBER_SETTINGS_SECTIONS.has(row.id)) &&
+        (row.id === BOT_SETTINGS_SECTIONS.modelProviders
+          ? canManageProviders
+          : !member || MEMBER_SETTINGS_SECTIONS.has(row.id)) &&
         (!state.clientOnly || Object.hasOwn(CLIENT_SETTINGS_INDEX, row.id)),
     )
     .sort((a, b) => a.order - b.order);

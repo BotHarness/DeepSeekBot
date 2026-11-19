@@ -1,3 +1,13 @@
+import {
+  addModelProviderInput,
+  editModelProviderInput,
+  removeModelProviderInput,
+  ModelProviderError,
+  type ModelProviders,
+  type ModelProvidersView,
+  type ModelProviderSave,
+  type ModelProviderRemoval,
+} from '../models/providers.js';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -897,6 +907,10 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
 
+  modelProviders(payload: unknown): Promise<BridgeResult<ModelProvidersView>>;
+  modelProviderAdd(payload: unknown): Promise<BridgeResult<ModelProviderSave>>;
+  modelProviderEdit(payload: unknown): Promise<BridgeResult<ModelProviderSave>>;
+  modelProviderRemove(payload: unknown): Promise<BridgeResult<ModelProviderRemoval>>;
   modelCatalog(payload: unknown): Promise<
     BridgeResult<{
       models: ModelCatalogEntry[];
@@ -1467,6 +1481,7 @@ export interface BridgeMethodsDeps {
   routingGroups?: RoutingGroupStore;
   routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
+  modelProviders?: ModelProviders;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
@@ -2500,6 +2515,35 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
+  const requireModelSources = () => {
+    if (human.caller !== 'bot') {
+      if (deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId) return;
+      if (deps.team) return deps.team.roles.require(human, 'modelSources.manage');
+    }
+    throw new TeamError('permission-required', undefined, { permission: 'modelSources.manage' });
+  };
+  async function modelProviderOperation<T>(
+    run: (providers: ModelProviders) => Promise<T>,
+  ): Promise<BridgeResult<T>> {
+    try {
+      requireModelSources();
+      if (!deps.modelProviders) throw new ModelProviderError('provider-unavailable');
+      return { ok: true, value: await run(deps.modelProviders) };
+    } catch (error) {
+      if (error instanceof TeamError) return modelFailure(error);
+      const code = error instanceof ModelProviderError ? error.code : 'provider-write-failed';
+      return {
+        ok: false,
+        error: {
+          code,
+          message: code,
+          ...(error instanceof ModelProviderError && error.uses.length > 0
+            ? { details: { references: error.uses } }
+            : {}),
+        },
+      };
+    }
+  }
   const catalogRests = (): Map<string, string> =>
     new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
   const catalogEntry = <T extends { provider: string; model: string }>(
@@ -4355,6 +4399,33 @@ function buildBridgeMethods(
           ...(messageId === undefined ? {} : { messageId }),
         },
       };
+    },
+    modelProviders() {
+      return modelProviderOperation((providers) => providers.list());
+    },
+    modelProviderAdd(payload) {
+      return modelProviderOperation((providers) => {
+        const parsed = addModelProviderInput.safeParse(payload);
+        return parsed.success
+          ? providers.add(parsed.data, requireModelSources)
+          : Promise.reject(new ModelProviderError('invalid-input'));
+      });
+    },
+    modelProviderEdit(payload) {
+      return modelProviderOperation((providers) => {
+        const parsed = editModelProviderInput.safeParse(payload);
+        return parsed.success
+          ? providers.edit(parsed.data, requireModelSources)
+          : Promise.reject(new ModelProviderError('invalid-input'));
+      });
+    },
+    modelProviderRemove(payload) {
+      return modelProviderOperation((providers) => {
+        const parsed = removeModelProviderInput.safeParse(payload);
+        return parsed.success
+          ? providers.remove(parsed.data, requireModelSources)
+          : Promise.reject(new ModelProviderError('invalid-input'));
+      });
     },
     async modelCatalog() {
       if (deps.modelCatalog === undefined) return unavailable();

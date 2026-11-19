@@ -268,6 +268,7 @@ import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createGroupFallback } from './models/group-fallback.js';
+import { createModelProviders, testProviderReply } from './models/providers.js';
 import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
@@ -1253,6 +1254,10 @@ function initializeCore(
     (human, id) => team.channelAccess.canRead(human, id, true),
     (human, id) => team.channelAccess.canKnow(human, id),
     (human, value, channelId) => team.approvals.project(human, value, channelId),
+    (human, resource) =>
+      resource !== 'model-providers' ||
+      (human.caller !== 'bot' &&
+        (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))),
   );
   team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
@@ -1836,8 +1841,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'credentials/record-updated',
     'settings/document-updated',
     'llm/adapters-updated',
-  ])
+  ]) {
     events.on(event, forgetCredentialFailures);
+    events.on(event, () => core.live.publishResourceChanged('model-providers'));
+  }
   const modelCatalog = createModelCatalog(ctx.llm, {
     credentials: providerCredentials,
     credentialReadiness: createCredentialReadiness({
@@ -2273,6 +2280,53 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const routeRests = createRouteRests();
+  const nativeSettings = ctx.get('settings');
+  const nativeCredentials = ctx.get('credentials');
+  const modelProviders =
+    nativeSettings && nativeCredentials
+      ? createModelProviders({
+          settings: nativeSettings,
+          credentials: nativeCredentials,
+          directory: () => ctx.llm.listConfigurableProviders(),
+          activeProviders: () => ctx.llm.listProviders(),
+          models: (id) => ctx.llm.listModels(id),
+          rests: () => routeRests.list(),
+          uses: (id) => {
+            const applies = (
+              plan:
+                | {
+                    orchestrator?: { provider: string };
+                    assignmentDefault?: { provider: string };
+                    assignmentModels?: readonly { provider: string }[];
+                  }
+                | undefined,
+            ) =>
+              plan?.orchestrator?.provider === id ||
+              plan?.assignmentDefault?.provider === id ||
+              plan?.assignmentModels?.some((model) => model.provider === id) === true;
+            return [
+              ...(defaultModel.currentSelection().provider === id ? ['default-model'] : []),
+              ...(core.routingGroups
+                .list()
+                .some(({ members }) =>
+                  members.some((member) => member.kind === 'model' && member.provider === id),
+                )
+                ? ['routing-group']
+                : []),
+              ...(core.modelPresets.list().some(applies) ? ['model-preset'] : []),
+              ...(core.registry
+                .list()
+                .some((bot) => applies(bot.modelPlan) || bot.model?.startsWith(id + '/') === true)
+                ? ['bot']
+                : []),
+            ];
+          },
+          probe: (id, model) =>
+            testProviderReply(ctx.llm, id, model, (outcome) => {
+              ctx.logger.info('model-provider-probe outcome=%s', outcome);
+            }),
+        })
+      : undefined;
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
@@ -3933,6 +3987,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,

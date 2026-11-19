@@ -294,6 +294,24 @@
       ]
     },
     {
+      "id": "model-providers",
+      "description": "API key provider settings with template, display name, write-only key and custom endpoint and model.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.apiKey')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.endpoint')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.model')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.name')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.template')}"
+      ],
+      "commands": [
+        "model-providers",
+        "model-provider-add",
+        "model-provider-edit",
+        "model-provider-remove"
+      ]
+    },
+    {
       "id": "routing-groups",
       "description": "Routing Groups in Settings, Models: list with resting members, create, rename, reorder, add or remove members and delete.",
       "scope": "Host",
