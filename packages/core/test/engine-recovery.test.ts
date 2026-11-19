@@ -12,7 +12,11 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { createCore } from '../src/plugin.js';
+import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 import { inboxFixture } from './inbox-fixture.js';
@@ -389,6 +393,77 @@ describe('Engine Host recovery', () => {
       );
     } finally {
       await host.close();
+    }
+  });
+
+  it('rebuilds with Group history excerpts while leaving an unread admission pending', async () => {
+    const { host, opened } = hostWith(() =>
+      fakeCodex({ 'thread/resume': () => ({ error: 'thread not found' }) }),
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: new FakeAgentHost({ kind: 'completed' }),
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => {},
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      engines: host,
+    });
+    const excerpt = 'Unread Group history. '.padEnd(600, 'x');
+    const tail = 'Full message tail remains unread.';
+    const core = createCore({
+      dshHome: createTempRoot('engine-recovery-channel-'),
+      agents: {
+        runOrchestrator: async (run) => {
+          if (run.inboundChannelId === undefined) throw new Error('Group Channel expected');
+          const channelId = run.inboundChannelId;
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+            id: 'unread',
+            at: '2026-09-25T00:00:00.000Z',
+            author: { kind: 'human' },
+            body: excerpt + tail,
+          });
+          core.runtime.admitGroupMessage(channelId, 'unread');
+          host.store.rememberNativeSession(run.sessionId, 'codex', 'lost-thread', 'ChatGPT pro');
+          await adapter.runOrchestrator(run);
+        },
+        runAssignment: (run) => adapter.runAssignment(run),
+        requestAssignment: (run) => adapter.requestAssignment(run),
+        close: () => adapter.close(),
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Engine recovery',
+        members: ['ada'],
+      });
+      core.channels.setGroupWakePolicy(group.id, 'ada', {
+        mode: 'silent',
+        count: 2,
+        intervalSeconds: 3600,
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'mention',
+        at: '2026-09-25T00:00:01.000Z',
+        author: { kind: 'human' },
+        body: '@Ada review the plan',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      core.runtime.admitGroupMessage(group.id, 'mention');
+      await core.runtime.whenIdle();
+
+      expect(opened).toHaveLength(1);
+      expect(opened[0]?.methods()).toContain('thread/resume');
+      expect(opened[0]?.methods()).toContain('thread/start');
+      const input = opened[0]?.sent.find((frame) => frame['method'] === 'turn/start')?.['params'];
+      expect(input).toMatchObject({ input: [{ text: expect.stringContaining(excerpt) }] });
+      expect(JSON.stringify(input)).not.toContain(tail);
+      expect(core.channels.message(group.id, 'unread')?.deliveries).toEqual([
+        { botSlug: 'ada', state: 'pending' },
+      ]);
+    } finally {
+      await host.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
     }
   });
 

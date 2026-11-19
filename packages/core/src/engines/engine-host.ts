@@ -885,8 +885,10 @@ export class EngineHost {
       if (resume !== undefined && stored?.lastTurn !== undefined) {
         dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
         const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
-        if (last?.data.turn !== stored.lastTurn) resume = undefined;
-        if (last === undefined || last.data.turn < stored.lastTurn) recovery = await restore();
+        if (last?.data.turn !== stored.lastTurn) {
+          resume = undefined;
+          recovery = await restore();
+        }
       }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
       const contextSeed = () => holder.live?.seed;

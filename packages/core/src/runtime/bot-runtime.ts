@@ -638,7 +638,12 @@ export interface OrchestratorChannelAccess {
   startHumanDm?(humanId: string): ChannelRecord;
   replySource?(sourceEventId: string): { channelId: string; messageId: string };
   list(input?: ChannelListInput): ChannelListPage;
-  read(input?: { channelId?: string; before?: string; limit?: number }): ChannelMessageView[];
+  read(input?: {
+    channelId?: string;
+    before?: string;
+    limit?: number;
+    observe?: false;
+  }): ChannelMessageView[];
 
   ignore(input: { channelId?: string; messageId: string }): {
     sourceEventId: string;
@@ -9216,7 +9221,8 @@ class BotRuntimeImplementation implements BotRuntime {
             ...(input.limit === undefined ? {} : { limit: input.limit }),
           })
           .map((message) => viewOf(channel, message, humans));
-        if (observeReads) this.#observeReadMessages(botSlug, messages, readAdmissions);
+        if (observeReads && input.observe !== false)
+          this.#observeReadMessages(botSlug, messages, readAdmissions);
         return messages;
       },
       query: (input = {}) => {

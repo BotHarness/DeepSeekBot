@@ -1166,7 +1166,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           run.requireContent?.();
           if (run.inboundChannelId === undefined) return [];
           return run.channels
-            .read({ channelId: run.inboundChannelId, limit: 8 })
+            .read({ channelId: run.inboundChannelId, limit: 8, observe: false })
             .toReversed()
             .map(({ message }) => ({
               label: 'Channel message',

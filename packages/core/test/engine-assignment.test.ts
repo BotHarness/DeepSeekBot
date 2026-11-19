@@ -115,9 +115,18 @@ function hostSetup(
 }
 
 describe('Assignments on a Subscription Engine', () => {
-  it.each(['native only', 'Session log', 'Directory entry'] as const)(
-    'resumes an engine Assignment and recovers or reports failure after losing %s',
-    async (lost) => {
+  it.each([
+    { scenario: 'the native thread is gone', recovery: 'native' },
+    { scenario: 'the Session log is missing', recovery: 'log' },
+    { scenario: 'the Directory entry is missing', recovery: 'directory' },
+    { scenario: 'the Session log is ahead of the native checkpoint', recovery: 'stale' },
+    {
+      scenario: 'the checkpoint is stale and the Directory entry is missing',
+      recovery: 'stale-directory',
+    },
+  ] as const)(
+    'resumes a matching native Session and checks recovery when $scenario',
+    async ({ recovery }) => {
       const recorded = assignmentRecording(true);
       const recordings = [recorded, recorded];
       const { host, replay, dsh } = hostSetup(recordings);
@@ -168,29 +177,43 @@ describe('Assignments on a Subscription Engine', () => {
         expect(nativeId).toBeDefined();
         expect(host.isLive(sessionId)).toBe(false);
 
+        const stale = recovery === 'stale' || recovery === 'stale-directory';
+        const checkpoint = host.store.nativeSession(sessionId);
+        if (stale) vi.spyOn(host.store, 'rememberNativeSession').mockImplementationOnce(() => {});
         access.request({ sessionId, mode: 'next-turn', text: 'Keep CSV quoting.' });
         await core.runtime.whenIdle();
         expect(replay.options[1]?.resume).toBe(nativeId);
         expect(replay.prompts[1]).not.toContain('Earlier DSH Session context');
 
-        recordings.push(
-          [{ kind: 'exit', detail: `No conversation found with session ID: ${nativeId}` }],
-          recorded,
-        );
-        if (lost === 'Session log') dsh.stored.delete(sessionId);
+        if (stale) {
+          expect(checkpoint?.lastTurn).toBeDefined();
+          expect(host.store.nativeSession(sessionId)).toEqual(checkpoint);
+          const latest = dsh.stored
+            .get(sessionId)
+            ?.events.findLast((event) => event.type === 'turn/end');
+          expect(latest?.data.turn).toBeGreaterThan(checkpoint?.lastTurn ?? 0);
+          recordings.push(recorded);
+        } else {
+          recordings.push(
+            [{ kind: 'exit', detail: `No conversation found with session ID: ${nativeId}` }],
+            recorded,
+          );
+        }
+        if (recovery === 'log') dsh.stored.delete(sessionId);
         access.request({ sessionId, mode: 'next-turn', text: 'Now finish the export.' });
-        if (lost === 'Directory entry') {
+        const missingDirectory = recovery === 'directory' || recovery === 'stale-directory';
+        if (missingDirectory) {
           attachOperationalModule(core.operationalDatabase, 'engine-recovery-test').transaction(
             (db) => db.prepare('DELETE FROM assignments WHERE session_id = ?').run(sessionId),
           );
         }
         await core.runtime.whenIdle();
-        if (lost !== 'native only') {
+        if (recovery === 'log' || missingDirectory) {
           expect(replay.prompts).toHaveLength(2);
           const summary =
             'The engine session was lost and the saved Assignment records are incomplete.';
           expect(orchestrators.filter((run) => run.inbox.includes(summary))).toHaveLength(1);
-          if (lost === 'Session log') {
+          if (recovery === 'log') {
             expect(access.inspect(sessionId)).toMatchObject({
               activity: 'error',
               latestReport: { state: 'failed', summary },
@@ -198,8 +221,13 @@ describe('Assignments on a Subscription Engine', () => {
           }
           return;
         }
-        expect(replay.options[2]?.resume).toBe(nativeId);
-        expect(replay.options[3]?.sessionId).not.toBe(nativeId);
+        if (stale) {
+          expect(replay.options[2]?.resume).toBeUndefined();
+          expect(replay.options[2]?.sessionId).not.toBe(nativeId);
+        } else {
+          expect(replay.options[2]?.resume).toBe(nativeId);
+          expect(replay.options[3]?.sessionId).not.toBe(nativeId);
+        }
         expect(replay.prompts[2]).toEqual(
           expect.stringMatching(
             /Export Directory title[\s\S]*specified A4[\s\S]*Keep CSV quoting[\s\S]*Now finish the export/u,
