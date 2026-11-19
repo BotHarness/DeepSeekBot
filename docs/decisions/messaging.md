@@ -250,7 +250,7 @@ _Formerly ADR-0102._
 
 `channel_read` returns a model projection (identity, author, time, full body, reply context, trusted attachment and action references; no receipts, delivery states or revisions). The Host fits the whole serialized result into a budget of UTF-16 code units (default 12,000, adjustable from 1,000 to 24,000) before it marks any message observed: a page is the largest chronological prefix that fits, with a continuation and a count of omitted candidates. An oversized message returns a `readContent` locator and is read in ordered fragments whose cursor binds a hash of the projection; only a contiguous prefix read in the current turn counts as consumed.
 
-Why: the history query marks returned messages as observed, so cropping its output afterwards would mark unseen messages handled ([ADR-0077](../adr/0077-turn-time-harvest-consumes-the-ready-attention-set.md)). A summary of a long instruction is not the instruction.
+Why: the history query marks returned messages as observed, so cropping its output afterwards would mark unseen messages handled ([ADR-0077](inbox.md#adr-0077)). A summary of a long instruction is not the instruction.
 
 Enforced by: `channel-model-read.test.ts`.
 

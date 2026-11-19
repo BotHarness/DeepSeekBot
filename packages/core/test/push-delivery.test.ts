@@ -401,6 +401,39 @@ describe('Push delivery', () => {
     expect(f.expo.sent).toHaveLength(3);
   });
 
+  it('withdraws a reply read on another device without withdrawing a still-unread reply', async () => {
+    const f = fixture();
+    const ios = f.device('iPhone');
+    const android = f.device('Android');
+    f.push.register(ios.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.push.register(android.device.id, { token: TOKEN_B, platform: 'android', render: 'app' });
+    f.advance(1000);
+    const read: PushCandidate = {
+      id: 'reply:read',
+      kind: 'reply',
+      attentionKind: 'channel-reply',
+      botSlug: 'ada',
+      channelId: 'dm-ada',
+      createdAt: f.at(0),
+    };
+    const unread = { ...read, id: 'reply:unread' };
+    f.setInbox([read, unread]);
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.data?.itemId === read.id)).toHaveLength(2);
+
+    const before = f.expo.flat().length;
+    f.setInbox([unread]);
+    await f.push.reconcile();
+    await f.push.reconcile();
+    const withdrawals = f.expo.flat().slice(before);
+    expect(withdrawals).toHaveLength(2);
+    expect(withdrawals.map((message) => message.to)).toEqual(
+      expect.arrayContaining([TOKEN_A, TOKEN_B]),
+    );
+    for (const message of withdrawals) expect(message.data).toMatchObject({ resolved: [read.id] });
+    expect(withdrawals.find((message) => message.to === TOKEN_A)?.badge).toBe(1);
+  });
+
   it('sends every resolved id in batches of at most 50', async () => {
     const f = fixture();
     const phone = f.device('Phone');
