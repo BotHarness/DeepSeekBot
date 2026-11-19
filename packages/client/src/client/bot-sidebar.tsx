@@ -1,6 +1,7 @@
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
+import { NavItem } from './ds/nav-item.js';
 import { MessageBotDialog } from './message-bot-dialog.js';
 import { BotCreateSourceModal } from './bot-create-source.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
@@ -669,14 +670,15 @@ function BotRow({
       side="right"
       delayMs={350}
     >
-      <button
-        type="button"
-        data-channel-id={channel.id}
-        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
+      <NavItem
+        multiline
+        current={selected}
+        data={{ 'data-channel-id': channel.id }}
+        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
         aria-pressed={multiSelected}
         aria-keyshortcuts={shortcut}
         title={shortcut === undefined ? undefined : t('shortcut.web.open', { key: shortcut })}
-        onClick={onActivate}
+        onSelect={onActivate}
         draggable={drag !== undefined}
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = 'move';
@@ -712,42 +714,47 @@ function BotRow({
           const rect = event.currentTarget.getBoundingClientRect();
           onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
         }}
-      >
-        <span className="bh-row-avatar">
-          <PersonaBotAvatar
-            t={t}
-            personaBotId={bot.slug}
-            name={bot.displayName}
-            src={bot.avatar}
-            appearance={bot.appearance}
-            avatarSeed={bot.avatarSeed}
-            state={activity}
-            activity={bot?.activity}
-            attention={bot?.attention}
-            size={34}
-            indicator={false}
-            still
-          />
-          <UnreadCount count={unread} muted={muted} corner t={t} />
-          {source ? <HostMark corner /> : null}
-        </span>
-        <span className="bh-body">
-          <span className="bh-top">
-            <span className="bh-name">{bot.displayName}</span>
-            {muted ? <MutedMark t={t} /> : null}
-            <ChannelMessageTime channel={channel} now={now} t={t} />
+        icon={
+          <span className="bh-row-avatar">
+            <PersonaBotAvatar
+              t={t}
+              personaBotId={bot.slug}
+              name={bot.displayName}
+              src={bot.avatar}
+              appearance={bot.appearance}
+              avatarSeed={bot.avatarSeed}
+              state={activity}
+              activity={bot?.activity}
+              attention={bot?.attention}
+              size={20}
+              indicator={false}
+              still
+            />
           </span>
-          <span className="bh-bottom">
-            <span className="bh-msg">{preview}</span>
-            <ChannelRowStatusGlyph status={status} t={t} />
+        }
+        label={
+          <span className="bh-body">
+            <span className="bh-top">
+              <span className="bh-name">{bot.displayName}</span>
+              {muted ? <MutedMark t={t} /> : null}
+              <ChannelMessageTime channel={channel} now={now} t={t} />
+            </span>
+            <span className="bh-bottom">
+              <span className="bh-msg">{preview}</span>
+              {source ? <HostMark /> : null}
+              <UnreadCount count={unread} muted={muted} t={t} />
+              <ChannelRowStatusGlyph status={status} t={t} />
+            </span>
           </span>
-        </span>
-        {showShortcutHints && shortcut !== undefined ? (
-          <kbd className="bh-shortcut-badge" aria-hidden="true">
-            {shortcut.slice(4)}
-          </kbd>
-        ) : null}
-      </button>
+        }
+        trailing={
+          showShortcutHints && shortcut !== undefined ? (
+            <kbd className="bh-shortcut-badge" aria-hidden="true">
+              {shortcut.slice(4)}
+            </kbd>
+          ) : null
+        }
+      />
     </Tooltip>
   );
 }
@@ -792,14 +799,15 @@ function ChannelRow({
     marker === 'before' ? ' bh-drop-before' : marker === 'after' ? ' bh-drop-after' : '';
   const sourceClass = drag?.source === true ? ' bh-drag-source' : '';
   return (
-    <button
-      type="button"
-      data-channel-id={channel.id}
-      className={`bh-channel-row${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
+    <NavItem
+      multiline
+      current={selected}
+      data={{ 'data-channel-id': channel.id }}
+      className={`bh-channel-row${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
       aria-pressed={multiSelected}
       aria-keyshortcuts={shortcut}
       title={shortcut === undefined ? undefined : t('shortcut.web.open', { key: shortcut })}
-      onClick={onActivate}
+      onSelect={onActivate}
       draggable={drag !== undefined}
       onDragStart={
         drag === undefined
@@ -850,42 +858,47 @@ function ChannelRow({
         const rect = event.currentTarget.getBoundingClientRect();
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
-    >
-      <span className="bh-row-avatar">
-        {isHumanDmChannel(channel) ? (
-          <span className="bh-channel-slot" aria-hidden="true">
-            <ChannelSidebarIcon name="user" size={18} />
+      icon={
+        <span className="bh-row-avatar">
+          {isHumanDmChannel(channel) ? (
+            <span className="bh-channel-slot" aria-hidden="true">
+              <ChannelSidebarIcon name="user" size={16} />
+            </span>
+          ) : (
+            <GroupChannelIcon
+              channel={channel}
+              bots={bots}
+              className="bh-channel-slot"
+              groupClassName="bh-group-channel-slot"
+              size={20}
+              hashSize={16}
+              t={t}
+            />
+          )}
+        </span>
+      }
+      label={
+        <span className="bh-body">
+          <span className="bh-top">
+            <span className="bh-name">{channel.name}</span>
+            {muted ? <MutedMark t={t} /> : null}
+            <ChannelMessageTime channel={channel} now={now} t={t} />
           </span>
-        ) : (
-          <GroupChannelIcon
-            channel={channel}
-            bots={bots}
-            className="bh-channel-slot"
-            groupClassName="bh-group-channel-slot"
-            size={34}
-            hashSize={18}
-            t={t}
-          />
-        )}
-        <UnreadCount count={unread} muted={muted} corner t={t} />
-        {source ? <HostMark corner /> : null}
-      </span>
-      <span className="bh-body">
-        <span className="bh-top">
-          <span className="bh-name">{channel.name}</span>
-          {muted ? <MutedMark t={t} /> : null}
-          <ChannelMessageTime channel={channel} now={now} t={t} />
+          <span className="bh-bottom">
+            <span className="bh-msg">{preview}</span>
+            {source ? <HostMark /> : null}
+            <UnreadCount count={unread} muted={muted} t={t} />
+          </span>
         </span>
-        <span className="bh-bottom">
-          <span className="bh-msg">{preview}</span>
-        </span>
-      </span>
-      {showShortcutHints && shortcut !== undefined ? (
-        <kbd className="bh-shortcut-badge" aria-hidden="true">
-          {shortcut.slice(4)}
-        </kbd>
-      ) : null}
-    </button>
+      }
+      trailing={
+        showShortcutHints && shortcut !== undefined ? (
+          <kbd className="bh-shortcut-badge" aria-hidden="true">
+            {shortcut.slice(4)}
+          </kbd>
+        ) : null
+      }
+    />
   );
 }
 

@@ -1,6 +1,13 @@
-import type { ReactElement, ReactNode } from 'react';
+import {
+  forwardRef,
+  type ButtonHTMLAttributes,
+  type MouseEventHandler,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { joinClass } from './class-name.js';
 import { edge, ink, line, radius, size, space, state, status, style, type } from './tobs.stylex.js';
 
 const INSET = space.x3;
@@ -8,11 +15,13 @@ const GAP = space.x3;
 
 const styles = stylex.create({
   item: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     gap: GAP,
     width: '100%',
     minHeight: style.rowNav,
+    minWidth: 0,
     margin: 0,
     paddingBlock: 0,
     paddingInline: INSET,
@@ -49,6 +58,9 @@ const styles = stylex.create({
     fontWeight: type.labelWeight,
   },
   slotCurrent: { color: style.navSelectedIcon },
+  multiline: { paddingBlock: space.x2 },
+  iconOnly: { width: style.rowNav, paddingInline: 0, justifyContent: 'center' },
+  pressed: { backgroundColor: { default: state.selected, ':hover': state.selected } },
   label: {
     flexGrow: 1,
     minWidth: 0,
@@ -56,6 +68,7 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  labelWithContent: { display: 'block', whiteSpace: 'normal', overflow: 'visible' },
   labelWithDescription: {
     whiteSpace: 'normal',
     overflowWrap: 'anywhere',
@@ -103,48 +116,85 @@ const styles = stylex.create({
   trailingCurrent: { color: style.navSelectedInk },
 });
 
-export interface NavItemProps {
+export interface NavItemProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'children' | 'style' | 'type' | 'aria-current' | 'onSelect'
+> {
   readonly icon?: ReactNode;
-  readonly label: string;
+  readonly label: ReactNode;
   readonly description?: string | undefined;
   readonly current?: boolean;
+  readonly iconOnly?: boolean;
+  readonly multiline?: boolean;
   readonly attention?: string | undefined;
   readonly trailing?: ReactNode;
   readonly xstyle?: stylex.StyleXStyles;
   readonly data?: Readonly<Record<`data-${string}`, string | undefined>>;
-  readonly onSelect: () => void;
+  readonly onSelect: MouseEventHandler<HTMLButtonElement>;
 }
 
-export function NavItem({
-  icon,
-  label,
-  description,
-  current = false,
-  attention,
-  trailing,
-  xstyle,
-  data,
-  onSelect,
-}: NavItemProps): ReactElement {
+export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavItem(
+  {
+    icon,
+    label,
+    description,
+    current = false,
+    iconOnly = false,
+    multiline = false,
+    attention,
+    trailing,
+    xstyle,
+    data,
+    onSelect,
+    onClick,
+    className,
+    ...button
+  },
+  ref,
+): ReactElement {
+  const stylesForButton = stylex.props(
+    styles.item,
+    current && styles.current,
+    button['aria-pressed'] === true && styles.pressed,
+    iconOnly && styles.iconOnly,
+    multiline && styles.multiline,
+    xstyle,
+  );
   return (
     <button
+      {...button}
       {...data}
+      ref={ref}
       type="button"
       aria-current={current ? 'page' : undefined}
-      onClick={onSelect}
-      {...stylex.props(styles.item, current && styles.current, xstyle)}
+      onClick={
+        onClick === undefined
+          ? onSelect
+          : (event) => {
+              onClick(event);
+              if (!event.defaultPrevented) onSelect(event);
+            }
+      }
+      {...stylesForButton}
+      className={joinClass(className, stylesForButton.className)}
     >
       <span aria-hidden="true" {...stylex.props(styles.slot, current && styles.slotCurrent)}>
         {icon}
       </span>
-      <span
-        {...stylex.props(styles.label, description !== undefined && styles.labelWithDescription)}
-      >
-        {label}
-        {description === undefined ? null : (
-          <span {...stylex.props(styles.description)}>{description}</span>
-        )}
-      </span>
+      {iconOnly ? null : (
+        <span
+          {...stylex.props(
+            styles.label,
+            multiline && styles.labelWithContent,
+            description !== undefined && styles.labelWithDescription,
+          )}
+        >
+          {label}
+          {description === undefined ? null : (
+            <span {...stylex.props(styles.description)}>{description}</span>
+          )}
+        </span>
+      )}
       {attention === undefined && trailing === undefined ? null : (
         <span {...stylex.props(styles.trailing, current && styles.trailingCurrent)}>
           {trailing}
@@ -155,7 +205,7 @@ export function NavItem({
       )}
     </button>
   );
-}
+});
 
 export function NavGroupHeading({
   label,

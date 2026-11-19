@@ -1366,7 +1366,7 @@ describe('bot sidebar rows', () => {
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
     expect(wide).toMatch(
-      /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
+      /<span class="bh-bottom">.*?<span class="bh-unread-count" aria-label="3 条未读">3<\/span>/u,
     );
     expect(wide).toContain('data-status="done-unread"');
     store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 120 } });
@@ -1380,7 +1380,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
-    expect(markup).toContain('bh-unread-count bh-unread-corner bh-unread-count-muted');
+    expect(markup).toContain('bh-unread-count bh-unread-count-muted');
   });
 
   it('shows recent activity for a bodyless latest DM message', () => {
