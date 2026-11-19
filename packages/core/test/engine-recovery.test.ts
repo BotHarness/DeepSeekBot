@@ -1,10 +1,13 @@
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CodexEngineSession, type CodexTransport } from '../src/engines/codex-engine.js';
 import { codexLoginUrl, startCodexLogin } from '../src/engines/codex-status.js';
+import { openEngineDshSession } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
@@ -208,6 +211,104 @@ describe('Codex Engine Session stop and timeouts', () => {
 });
 
 describe('Engine Host recovery', () => {
+  it('seeds only a new thread and gives the returning native Session the engine messages', async () => {
+    let starts = 0;
+    const { host, opened, request, dsh } = hostWith(() =>
+      fakeCodex({
+        'thread/start': () => ({ result: { thread: { id: `thread-${++starts}` } } }),
+        'turn/start': (_params, codex) => {
+          setTimeout(() => {
+            codex.notify('item/completed', {
+              item: { id: 'reply', type: 'agentMessage', text: 'Engine-only clue: orchid' },
+            });
+            codex.notify('turn/completed', { turn: { status: 'completed' } });
+          }, 5);
+          return { result: { turn: { id: 'turn-1' } } };
+        },
+      }),
+    );
+    const { sessionId } = request();
+    const id = SessionId(sessionId);
+    const recordNativeTurn = async (text: string, turn: number) => {
+      const native = await openEngineDshSession(dsh.store, dsh.persistence, id, '/tmp');
+      native.session.append('turn/start', { turn });
+      native.session.append(
+        'user/message',
+        createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
+        { surfaceOp: 'append' },
+      );
+      native.session.append('turn/end', { turn, reason: { kind: 'completed' } });
+      await native.flush();
+      await native.close();
+    };
+    const inputs = (index: number) =>
+      opened[index]?.sent
+        .filter((message) => message['method'] === 'turn/start')
+        .map((message) => message['params']);
+    await recordNativeTurn('My lucky number is 37', 1);
+    await host.runTurn({ ...request(), input: 'What is my number?' });
+    await host.runTurn({ ...request(), input: 'Follow up' });
+    expect(inputs(0)).toEqual([
+      expect.objectContaining({
+        input: [
+          expect.objectContaining({
+            text: expect.stringMatching(/My lucky number is 37[\s\S]+What is my number\?$/u),
+          }),
+        ],
+      }),
+      expect.objectContaining({ input: [expect.objectContaining({ text: 'Follow up' })] }),
+    ]);
+
+    await host.release(sessionId);
+    await host.runTurn({ ...request(), input: 'After reopening' });
+    expect(opened[1]?.methods()).toContain('thread/resume');
+    expect(inputs(1)).toEqual([
+      expect.objectContaining({ input: [expect.objectContaining({ text: 'After reopening' })] }),
+    ]);
+    await host.release(sessionId);
+    host.use('ada', 'orchestrator', undefined);
+
+    const writer = await dsh.persistence.open(id, 'write');
+    const { events, eventState } = await writer.read();
+    const restored = Session.fromRestore(
+      id,
+      events,
+      writer.header,
+      writer.inheritedEventCount,
+      eventState,
+    );
+    await writer.close();
+    expect(restored.id).toBe(sessionId);
+    const messages = restored.deriveMessages();
+    expect(messages.map((message) => message.content[0])).toEqual(
+      [
+        'My lucky number is 37',
+        'What is my number?',
+        'Engine-only clue: orchid',
+        'Follow up',
+        'Engine-only clue: orchid',
+        'After reopening',
+        'Engine-only clue: orchid',
+      ].map((text) => ({ type: 'text', text })),
+    );
+
+    await recordNativeTurn('New fact learned while back on DSH', 5);
+    host.use('ada', 'orchestrator', 'codex');
+    await host.runTurn(request());
+    expect(opened[2]?.methods()).toContain('thread/start');
+    expect(opened[2]?.methods()).not.toContain('thread/resume');
+    expect(inputs(2)).toEqual([
+      expect.objectContaining({
+        input: [
+          expect.objectContaining({
+            text: expect.stringContaining('New fact learned while back on DSH'),
+          }),
+        ],
+      }),
+    ]);
+    await host.close();
+  });
+
   it('keeps the stored thread on a transient resume failure and replaces it only when gone', async () => {
     let resume: Handler = () => ({ error: 'rollout file is locked' });
     const { host, request } = hostWith(() =>

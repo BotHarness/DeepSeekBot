@@ -56,8 +56,8 @@ function setup(
   root = createTempRoot('claude-'),
   approve?: ConstructorParameters<typeof EngineHost>[0]['approve'],
   claudeVersion = '2.1.327',
+  dsh = memoryDsh(),
 ) {
-  const dsh = memoryDsh();
   const gateway = createEngineGateway();
   gateways.push(gateway);
   const replay = claudeReplay(recordings);
@@ -175,6 +175,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       engine: 'claude',
       nativeId: options.sessionId,
       account: 'Claude max',
+      lastTurn: 1,
     });
     expect(host.describe('orchestrator-ada')).toEqual({
       engine: 'claude',
@@ -315,7 +316,7 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     const stored = first.host.store.nativeSession('orchestrator-ada')!.nativeId;
     await first.host.close();
 
-    const second = setup([RECORDING], root);
+    const second = setup([RECORDING], root, undefined, undefined, first.dsh);
     await second.host.runTurn(second.request);
     expect(second.replay.options[0]).toMatchObject({ resume: stored });
     expect(second.replay.options[0]!.sessionId).toBeUndefined();
@@ -333,13 +334,20 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
         RECORDING,
       ],
       root,
+      undefined,
+      undefined,
+      first.dsh,
     );
     await gone.host.runTurn(gone.request);
     expect(gone.replay.options.map((options) => options.resume)).toEqual([stored, undefined]);
     const fresh = gone.replay.options[1]!.sessionId!;
     expect(fresh).not.toBe(stored);
     expect(gone.host.store.nativeSession('orchestrator-ada')!.nativeId).toBe(fresh);
-    expect(gone.replay.prompts).toEqual(['Hi Ada']);
+    expect(gone.replay.prompts).toEqual([
+      expect.stringMatching(
+        /Earlier DSH Session context[\s\S]+Hello from Claude[\s\S]+Current input:\nHi Ada$/u,
+      ),
+    ]);
     await gone.host.close();
   });
 

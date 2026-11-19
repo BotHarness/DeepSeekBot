@@ -1813,5 +1813,6 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。
 - **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。每个 Session 一个引擎进程，原生会话是工作记忆。Host 记录是权威：Orchestrator 从 Bot Inbox、Channel 记录与 Memory 重建；Assignment 从 Assignment Directory、Assignment Request 与持久化的 Session 事件重建，缺失时以失败结束并报告 Orchestrator。
 - **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照，面板不改。
+- **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

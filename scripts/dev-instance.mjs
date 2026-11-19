@@ -18,6 +18,7 @@ import {
 import { spawn } from 'node:child_process';
 import {
   constants,
+  copyFileSync,
   fchmodSync,
   existsSync,
   mkdirSync,
@@ -30,6 +31,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseDocument } from 'yaml';
 
 import {
   devSecretEnvironment,
@@ -55,6 +57,21 @@ import {
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function patchPinnedFileReference(source, runtime, version) {
+  if (version !== '0.2.2-rc.1') return source;
+  const patch = 'patches/@deepseek-ai__dsh-file-reference-local@0.2.2-rc.1.patch';
+  const destination = join(runtime, patch);
+  mkdirSync(dirname(destination), { recursive: true });
+  copyFileSync(join(repoRoot, patch), destination);
+  const document = parseDocument(source);
+  document.setIn(
+    ['patchedDependencies', '@deepseek-ai/dsh-file-reference-local@0.2.2-rc.1'],
+    patch,
+  );
+  return String(document);
+}
+
 export function dshCommand(worktree) {
   const installedRoot = join(worktree, 'node_modules', '@deepseek-ai', 'dsh');
   const cli = join(installedRoot, 'lib', 'bin.js');
@@ -420,7 +437,11 @@ async function main() {
           );
         writeFileSync(
           runtimeWorkspace,
-          withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
+          patchPinnedFileReference(
+            withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
+            options.runtime,
+            version,
+          ),
         );
         writeFileSync(
           join(options.runtime, 'package.json'),
