@@ -5,6 +5,7 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { APPEARANCE_CLASS } from '../appearance-scope.js';
 import { useShellLayer } from './shell-layer.js';
 import { elevation, layer, motion, space, style } from './tobs.stylex.js';
+import { viewportInsets } from './viewport-insets.stylex.js';
 import { useWindowClass } from './window-class.js';
 
 const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
@@ -31,13 +32,13 @@ const styles = stylex.create({
     alignItems: 'stretch',
     justifyContent: 'flex-start',
     paddingInline: 0,
-    paddingTop: 'var(--dsh-frame-chrome-top, 0px)',
+    paddingTop: viewportInsets.frameTop,
     paddingBottom: 0,
   },
   hidden: { display: 'none' },
   scrim: {
     position: 'absolute',
-    top: 'var(--dsh-frame-chrome-top, 0px)',
+    top: viewportInsets.frameTop,
     right: 0,
     bottom: 0,
     left: 0,
@@ -67,14 +68,14 @@ const styles = stylex.create({
     minWidth: '100%',
     borderEndStartRadius: 0,
     borderEndEndRadius: 0,
-    paddingBottom: 'env(safe-area-inset-bottom)',
+    paddingBottom: viewportInsets.bottom,
   },
   drawer: {
     width: 'min(340px, 90%)',
     borderStartStartRadius: 0,
     borderEndStartRadius: 0,
-    paddingInlineStart: 'env(safe-area-inset-left)',
-    paddingBottom: 'env(safe-area-inset-bottom)',
+    paddingInlineStart: viewportInsets.left,
+    paddingBottom: viewportInsets.bottom,
     backgroundColor: layer.nav,
   },
 });

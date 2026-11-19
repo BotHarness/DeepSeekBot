@@ -6,6 +6,7 @@ import { BotModeSidebar, type BotModeSidebarProps } from './bot-mode-sidebar.js'
 import { Dialog } from './ds/dialog.js';
 import { hooked } from './ds/hooked.js';
 import { layer, size, space } from './ds/tobs.stylex.js';
+import { viewportInsets } from './ds/viewport-insets.stylex.js';
 import { useWindowClass } from './ds/window-class.js';
 import { MOBILE_BOT_CSS } from './mobile-bot-styles.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -24,8 +25,8 @@ const styles = stylex.create({
     flexDirection: 'column',
     minWidth: 0,
     overflow: 'hidden',
-    paddingLeft: 'env(safe-area-inset-left)',
-    paddingRight: 'env(safe-area-inset-right)',
+    paddingLeft: viewportInsets.left,
+    paddingRight: viewportInsets.right,
     backgroundColor: layer.canvas,
   },
   medium: { flexDirection: 'row', gap: space.x2 },
