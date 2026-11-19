@@ -1,6 +1,6 @@
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import {
-  DEFAULT_CODEX_ACCOUNT,
+  enginePickerAccountKey as engineModelKey,
   isEngineId,
   type EngineAccountIdentity,
   type EngineId,
@@ -194,9 +194,7 @@ const SIGN_IN_POLL_DEADLINE_MS = 3 * 60_000;
 
 export const engineRoles = ['orchestrator', 'assignment'] as const;
 
-export function engineModelKey(engine: EngineId, accountId?: string): string {
-  return accountId === DEFAULT_CODEX_ACCOUNT ? engine : (accountId ?? engine);
-}
+export { engineModelKey };
 
 export type EngineModels = Partial<Record<string, readonly EngineModelView[]>>;
 type ModelLoads = Partial<Record<string, { state: 'pending' | 'ready' | 'failed' }>>;

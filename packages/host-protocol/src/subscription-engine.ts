@@ -17,6 +17,10 @@ export function engineAccountKey(engine: EngineId, accountId?: string): string {
   return accountId ?? (engine === 'codex' ? DEFAULT_CODEX_ACCOUNT : engine);
 }
 
+export function enginePickerAccountKey(engine: EngineId, accountId?: string): string {
+  return accountId === DEFAULT_CODEX_ACCOUNT ? engine : (accountId ?? engine);
+}
+
 export interface EngineAccountIdentity {
   accountId?: string;
   accountName?: string;

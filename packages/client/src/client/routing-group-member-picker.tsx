@@ -3,7 +3,7 @@ import {
   routingGroupEnginePresentation,
 } from '@botharness/host-client/model-catalog';
 import {
-  engineAccountKey,
+  enginePickerAccountKey,
   type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState, type ReactElement } from 'react';
@@ -22,7 +22,7 @@ export function routingGroupMemberKey(member: RoutingGroupMemberView): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([engineAccountKey(member.engine, member.accountId), member.model ?? ''])}`;
+      return `engine:${JSON.stringify([enginePickerAccountKey(member.engine, member.accountId), member.model ?? ''])}`;
     case 'model':
       return `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
   }
