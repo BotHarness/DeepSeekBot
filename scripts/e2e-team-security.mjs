@@ -110,6 +110,19 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'\\''`)}'`;
 }
 
+export function buildShellIsolationProbe({ home, foreignFiles, outside, own, port }) {
+  const lines = [
+    ...foreignFiles.map((file) => `cat ${shellQuote(file)} 2>&1 | head -1`),
+    `grep -rI -m1 -h SENTINEL ${shellQuote(home)} 2>&1 | head -3`,
+    `find ${shellQuote(join(home, 'spaces'))} -name 'bob-account.md' 2>/dev/null | head -3`,
+    `echo PWNED > ${shellQuote(outside)} 2>&1; echo write-outside-exit=$?`,
+    `echo OWN_OK > ${shellQuote(own)} && cat ${shellQuote(own)}`,
+    `echo secret-env=$(env | grep -c -E 'API_?KEY|TOKEN|SECRET|PASSWORD|DSH_' || true)`,
+    `node -e "const s=require('net').connect(${port},'127.0.0.1');s.on('connect',()=>{console.log('HOST_API_CONNECTED');process.exit(0)});s.on('error',e=>{console.log('host-api',e.code);process.exit(0)});setTimeout(()=>{console.log('host-api TIMEOUT');process.exit(0)},5000)"`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 class Suite {
   constructor(options) {
     this.options = options;
@@ -691,19 +704,21 @@ export async function main(argv = process.argv.slice(2)) {
         const probe = join(fx.memory.alice, `probe-${tag}.sh`);
         const own = join(fx.memory.alice, `own-${tag}.txt`);
         const outside = join(fx.bobSpace, `shell-owned-${tag}.txt`);
-        const lines = [
-          `cat ${shellQuote(join(fx.memory.bob, 'bob-notes.md'))} 2>&1 | head -1`,
-          `cat ${shellQuote(join(fx.bobSpace, 'bob-account.md'))} 2>&1 | head -1`,
-          `cat ${shellQuote(join(fx.sharedFinance, 'ledger.md'))} 2>&1 | head -1`,
-          `cat ${shellQuote(join(s.botMemory(fx.vaultSlug), 'vault.md'))} 2>&1 | head -1`,
-          `grep -rI -m1 -h SENTINEL ${shellQuote(s.home)} 2>&1 | head -3`,
-          `find / -name 'bob-account.md' 2>/dev/null | head -3`,
-          `echo PWNED > ${shellQuote(outside)} 2>&1; echo write-outside-exit=$?`,
-          `echo OWN_OK > ${shellQuote(own)} && cat ${shellQuote(own)}`,
-          `echo secret-env=$(env | grep -c -E 'API_?KEY|TOKEN|SECRET|PASSWORD|DSH_' || true)`,
-          `node -e "const s=require('net').connect(${s.url.port},'127.0.0.1');s.on('connect',()=>{console.log('HOST_API_CONNECTED');process.exit(0)});s.on('error',e=>{console.log('host-api',e.code);process.exit(0)});setTimeout(()=>{console.log('host-api TIMEOUT');process.exit(0)},5000)"`,
-        ];
-        writeFileSync(probe, `${lines.join('\n')}\n`);
+        writeFileSync(
+          probe,
+          buildShellIsolationProbe({
+            home: s.home,
+            foreignFiles: [
+              join(fx.memory.bob, 'bob-notes.md'),
+              join(fx.bobSpace, 'bob-account.md'),
+              join(fx.sharedFinance, 'ledger.md'),
+              join(s.botMemory(fx.vaultSlug), 'vault.md'),
+            ],
+            outside,
+            own,
+            port: s.url.port,
+          }),
+        );
         const answer = s.ask(
           'shell',
           fx.users.alice,
