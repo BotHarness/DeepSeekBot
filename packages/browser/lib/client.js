@@ -1340,6 +1340,20 @@ window.__ModuleLoader__.load({
 				kKwaWg: "bhx18o3ruo bhxfdnnug",
 				$$css: true
 			},
+			preview: {
+				kVAEAm: "bhx1n2onr6",
+				kXwgrk: "bhxdt5ytf",
+				kzqmXN: "bhxh8yej3",
+				kZKoxP: "bhxt7dq6l",
+				kOBAk4: "bhx2ebxmi",
+				kmVPX3: "bhx1717udv",
+				kVQacm: "bhxb3r6kr",
+				kaIpWk: "bhxov8xcf",
+				kInvED: "bhxkmyskz",
+				kWkggS: "bhxp02wjs bhxqta4pg bhxl8ll33",
+				kMwMTN: "bhx14lg19 bhx3h2lrv",
+				$$css: true
+			},
 			icon: {
 				k1xSpc: "bhx3nfvp2",
 				kzqmXN: "bhx1x2ywmj",
@@ -11349,6 +11363,15 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		});
+		(0, react.forwardRef)(function HiddenFileInput(props, ref) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+				ref,
+				...props,
+				type: "file",
+				tabIndex: -1,
+				className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft"
+			});
+		});
 		//#endregion
 		//#region packages/client/src/client/anchored-panel.ts
 		const useLegacyPosition = "useAnchoredPosition" in _deepseek_ai_dsh_client_ui_primitives ? _deepseek_ai_dsh_client_ui_primitives.useAnchoredPosition : void 0;
@@ -14686,6 +14709,7 @@ window.__ModuleLoader__.load({
 .bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}
 .bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}
 .bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}
+.bhxov8xcf:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-card)}
 .bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}
 .bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
 .bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}
@@ -14750,6 +14774,7 @@ window.__ModuleLoader__.load({
 .bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}
 .bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}
 .bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}
+.bhx2ebxmi:not(#\\#):not(#\\#):not(#\\#){aspect-ratio:16 / 10}
 .bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}
 .bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
 .bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}
@@ -14785,6 +14810,7 @@ window.__ModuleLoader__.load({
 .bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}
 .bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}
 .bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
+.bhx1hyvwdk:not(#\\#):not(#\\#):not(#\\#){clip-path:inset(50%)}
 .bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}
 .bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}
 .bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}
@@ -14848,6 +14874,7 @@ window.__ModuleLoader__.load({
 .bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}
 .bhx18n8c13:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
 .bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
+.bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
 .bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}
@@ -14872,7 +14899,9 @@ window.__ModuleLoader__.load({
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}
 .bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
+.bhxl8ll33:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-choice-selected-fill)}
 .bhxd7xfip:is([data-danger] *):not(#\\#):not(#\\#):not(#\\#){color:inherit}
+.bhx3h2lrv:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-choice-selected-ink)}
 .bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
@@ -14904,10 +14933,12 @@ window.__ModuleLoader__.load({
 .bhxgm6bnx:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-width:1px}
 .bhx5yr21d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:100%}
 .bhx121clqe:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}
+.bhxjm9jq1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}
 .bhx17rw0jw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:22px}
 .bhxm58u58:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:24px}
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
+.bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}
 .bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}
 .bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
 .bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}
@@ -14940,6 +14971,7 @@ window.__ModuleLoader__.load({
 .bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
 .bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
+.bhx1i1rx1s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}
 .bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}
 .bhx1lify8o:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:24px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}
