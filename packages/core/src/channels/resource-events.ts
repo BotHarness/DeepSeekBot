@@ -21,7 +21,7 @@ export const resourceChangeSchema = z.object({
 
 export type LiveResource = z.infer<typeof liveResourceSchema>;
 
-export const OWNER_ONLY_RESOURCES: ReadonlySet<LiveResource> = new Set([
+export const RESTRICTED_RESOURCES: ReadonlySet<LiveResource> = new Set([
   'devices',
   'relationships',
   'computer',
@@ -29,6 +29,7 @@ export const OWNER_ONLY_RESOURCES: ReadonlySet<LiveResource> = new Set([
   'reachable-posts',
   'onboarding',
   'account',
+  'model-providers',
 ]);
 export type ResourceChange = z.infer<typeof resourceChangeSchema>;
 

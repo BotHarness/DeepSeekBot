@@ -2769,7 +2769,7 @@
       "behaviors": ["team.security-suite", "settings.model-providers"],
       "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant.",
       "task": 4197,
-      "sha256": "39f76e526428a4a14b544bae55459019e800b371156955229010b4689f451c3e"
+      "sha256": "395052b4cef080410cedcd2707dd08d770ced086dff9830d299016a3de4f2a17"
     }
   ],
   "native": [

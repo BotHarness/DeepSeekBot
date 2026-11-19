@@ -119,6 +119,7 @@ describe("generated developer reference", () => {
       { name: "agent/status", direction: "consumes", operation: "on" },
       { name: "approval/request", direction: "consumes", operation: "on" },
       { name: "botharness/personabot/activity", direction: "emits", operation: "emit" },
+      { name: "llm-pi-ai/request-headers", direction: "consumes", operation: "on" },
       { name: "session/event", direction: "consumes", operation: "on" },
       { name: "skills/change", direction: "consumes", operation: "on" },
       { name: "subagent/start", direction: "consumes", operation: "on" },

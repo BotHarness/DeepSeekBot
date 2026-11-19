@@ -1,13 +1,10 @@
 import {
-  addModelProviderInput,
-  editModelProviderInput,
-  removeModelProviderInput,
-  ModelProviderError,
-  type ModelProviders,
-  type ModelProvidersView,
-  type ModelProviderSave,
-  type ModelProviderRemoval,
-} from '../models/providers.js';
+  createModelProviderBridge,
+  invalidInput,
+  modelFailure,
+  type ModelProviderBridgeMethods,
+} from '../models/provider-bridge.js';
+import type { ModelProviders } from '../models/providers.js';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -813,7 +810,7 @@ export interface MessagingAppsView {
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export interface BridgeMethods extends TeamBridgeMethods {
+export interface BridgeMethods extends TeamBridgeMethods, ModelProviderBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -907,10 +904,6 @@ export interface BridgeMethods extends TeamBridgeMethods {
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
 
-  modelProviders(payload: unknown): Promise<BridgeResult<ModelProvidersView>>;
-  modelProviderAdd(payload: unknown): Promise<BridgeResult<ModelProviderSave>>;
-  modelProviderEdit(payload: unknown): Promise<BridgeResult<ModelProviderSave>>;
-  modelProviderRemove(payload: unknown): Promise<BridgeResult<ModelProviderRemoval>>;
   modelCatalog(payload: unknown): Promise<
     BridgeResult<{
       models: ModelCatalogEntry[];
@@ -1926,24 +1919,6 @@ function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineI
   };
 }
 
-function modelFailure(error: unknown): BridgeResult<never> {
-  if (error instanceof EngineRefusal)
-    return { ok: false, error: { code: error.code, message: error.message } };
-  if (error instanceof TeamError)
-    return {
-      ok: false,
-      error: {
-        code: error.code,
-        message: error.code,
-        ...(error.details ? { details: error.details } : {}),
-      },
-    };
-  return invalidInput(error instanceof Error ? error.message : String(error));
-}
-function invalidInput(message: string): BridgeResult<never> {
-  return { ok: false, error: { code: 'invalid-input', message } };
-}
-
 function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
   const source = asObject(value);
   const time = source['time'];
@@ -2515,35 +2490,6 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
-  const requireModelSources = () => {
-    if (human.caller !== 'bot') {
-      if (deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId) return;
-      if (deps.team) return deps.team.roles.require(human, 'modelSources.manage');
-    }
-    throw new TeamError('permission-required', undefined, { permission: 'modelSources.manage' });
-  };
-  async function modelProviderOperation<T>(
-    run: (providers: ModelProviders) => Promise<T>,
-  ): Promise<BridgeResult<T>> {
-    try {
-      requireModelSources();
-      if (!deps.modelProviders) throw new ModelProviderError('provider-unavailable');
-      return { ok: true, value: await run(deps.modelProviders) };
-    } catch (error) {
-      if (error instanceof TeamError) return modelFailure(error);
-      const code = error instanceof ModelProviderError ? error.code : 'provider-write-failed';
-      return {
-        ok: false,
-        error: {
-          code,
-          message: code,
-          ...(error instanceof ModelProviderError && error.uses.length > 0
-            ? { details: { references: error.uses } }
-            : {}),
-        },
-      };
-    }
-  }
   const catalogRests = (): Map<string, string> =>
     new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
   const catalogEntry = <T extends { provider: string; model: string }>(
@@ -3221,6 +3167,7 @@ function buildBridgeMethods(
 
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
+    ...createModelProviderBridge(human, deps),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
@@ -4399,33 +4346,6 @@ function buildBridgeMethods(
           ...(messageId === undefined ? {} : { messageId }),
         },
       };
-    },
-    modelProviders() {
-      return modelProviderOperation((providers) => providers.list());
-    },
-    modelProviderAdd(payload) {
-      return modelProviderOperation((providers) => {
-        const parsed = addModelProviderInput.safeParse(payload);
-        return parsed.success
-          ? providers.add(parsed.data, requireModelSources)
-          : Promise.reject(new ModelProviderError('invalid-input'));
-      });
-    },
-    modelProviderEdit(payload) {
-      return modelProviderOperation((providers) => {
-        const parsed = editModelProviderInput.safeParse(payload);
-        return parsed.success
-          ? providers.edit(parsed.data, requireModelSources)
-          : Promise.reject(new ModelProviderError('invalid-input'));
-      });
-    },
-    modelProviderRemove(payload) {
-      return modelProviderOperation((providers) => {
-        const parsed = removeModelProviderInput.safeParse(payload);
-        return parsed.success
-          ? providers.remove(parsed.data, requireModelSources)
-          : Promise.reject(new ModelProviderError('invalid-input'));
-      });
     },
     async modelCatalog() {
       if (deps.modelCatalog === undefined) return unavailable();

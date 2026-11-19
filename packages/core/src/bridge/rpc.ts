@@ -1,3 +1,4 @@
+import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
 import type {
   ModelProvidersView,
   ModelProviderSave,
@@ -276,30 +277,6 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
 
 export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
 
-const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
-
-interface RemoteMethodDescriptor {
-  readonly version: 1;
-  readonly methods: readonly {
-    readonly method: string;
-    readonly mode?: 'stream';
-    readonly invocation: { readonly kind: 'direct' };
-  }[];
-}
-
-function markRemoteMethods(prototype: object, methods: readonly string[]): void {
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: methods.map((method) =>
-      Object.freeze({ method, invocation: Object.freeze({ kind: 'direct' }) }),
-    ),
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
-}
-
 export interface BridgeLive {
   followRoster(human: HumanContext, signal: AbortSignal): AsyncIterable<RosterLiveFrame>;
   followActivity(human: HumanContext, signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
@@ -332,29 +309,6 @@ export interface BridgeLive {
     lastEventId: string,
     signal: AbortSignal,
   ): AsyncIterable<CompanionLiveFrame>;
-}
-
-function markRemoteStreams(prototype: object, streams: readonly string[]): void {
-  const marked = (prototype as Record<string, RemoteMethodDescriptor | undefined>)[
-    REMOTE_METHOD_DESCRIPTOR
-  ];
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: [
-      ...(marked?.methods ?? []),
-      ...streams.map((method) =>
-        Object.freeze({
-          method,
-          mode: 'stream' as const,
-          invocation: Object.freeze({ kind: 'direct' as const }),
-        }),
-      ),
-    ],
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
 }
 
 function toRemoteError(error: BridgeError): RemoteError {

@@ -263,17 +263,10 @@ import {
 } from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
-import { createModelCatalog, groupMemberRoute } from './models/catalog.js';
-import { createCredentialReadiness } from './models/credential-readiness.js';
-import { createProviderCredentialHealth } from './models/credential-health.js';
+import { groupMemberRoute } from './models/catalog.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createGroupFallback } from './models/group-fallback.js';
-import {
-  createModelProviders,
-  setOpenCodeGoSessionHeader,
-  testProviderReply,
-} from './models/providers.js';
-import { createRouteRests } from './models/route-rest.js';
+import { createHostModelCatalog, createHostModelProviders } from './models/host-models.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
@@ -1253,15 +1246,15 @@ function initializeCore(
           }),
         changed,
       ),
-    (human) => team.isOwner(human),
+    (human, resource) =>
+      resource === 'model-providers'
+        ? human.caller !== 'bot' &&
+          (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
+        : team.isOwner(human),
     (human, slug) => ownsBot(human, registry.getHistorical(slug)),
     (human, id) => team.channelAccess.canRead(human, id, true),
     (human, id) => team.channelAccess.canKnow(human, id),
     (human, value, channelId) => team.approvals.project(human, value, channelId),
-    (human, resource) =>
-      resource !== 'model-providers' ||
-      (human.caller !== 'bot' &&
-        (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))),
   );
   team.onAccessChanged(() => live?.refreshAccess());
   startup.enter('messaging', 'reconcile-paused-invitations');
@@ -1835,60 +1828,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
-  const providerCredentials = createProviderCredentialHealth();
-  ctx.on(
-    'llm-pi-ai/request-headers',
-    (request, _initial, next) => {
-      const headers = next();
-      setOpenCodeGoSessionHeader(request, headers);
-      return headers;
-    },
-    { global: true },
-  );
-
-  const forgetCredentialFailures = (): void => providerCredentials.reset();
-  const events = ctx as unknown as {
-    on(event: string, listener: () => void): () => void;
-  };
-  for (const event of [
-    'credentials/reference-updated',
-    'credentials/record-updated',
-    'settings/document-updated',
-    'llm/adapters-updated',
-  ]) {
-    events.on(event, forgetCredentialFailures);
-    events.on(event, () => core.live.publishResourceChanged('model-providers'));
-  }
-  const modelCatalog = createModelCatalog(ctx.llm, {
-    credentials: providerCredentials,
-    credentialReadiness: createCredentialReadiness({
-      providers: () => ctx.llm.listConfigurableProviders(),
-      settings: () =>
-        (
-          ctx.get('settings') as unknown as
-            | {
-                describe(options: { redactSecrets: boolean }): { ns: string; value: unknown }[];
-              }
-            | undefined
-        )?.describe({ redactSecrets: true }) ?? [],
-      describe: async (ref) => {
-        const credentials = ctx.get('credentials') as unknown as
-          | { describe(ref: string): Promise<{ configured: boolean }> }
-          | undefined;
-        if (!credentials) throw new Error('Native credentials service is unavailable');
-        return credentials.describe(ref);
-      },
-    }),
-    defaultRoute: () => {
-      const selection = defaultModel.currentSelection();
-      return {
-        provider: selection.provider,
-        model: selection.model,
-        ...(selection.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: selection.reasoningEffort }),
-      };
-    },
+  const { modelCatalog, providerCredentials } = createHostModelCatalog(ctx, {
+    defaultRoute: () => defaultModel.currentSelection(),
+    signalProviderChange: () => core.live.publishResourceChanged('model-providers'),
   });
   const modelReadiness = createModelRouteReadiness(
     {
@@ -2293,54 +2235,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
-  const routeRests = createRouteRests();
-  const nativeSettings = ctx.get('settings');
-  const nativeCredentials = ctx.get('credentials');
-  const modelProviders =
-    nativeSettings && nativeCredentials
-      ? createModelProviders({
-          settings: nativeSettings,
-          credentials: nativeCredentials,
-          directory: () => ctx.llm.listConfigurableProviders(),
-          activeProviders: () => ctx.llm.listProviders(),
-          models: (id) => ctx.llm.listModels(id),
-          rests: () => routeRests.list(),
-          uses: (id) => {
-            const applies = (
-              plan:
-                | {
-                    orchestrator?: { provider: string };
-                    assignmentDefault?: { provider: string };
-                    assignmentModels?: readonly { provider: string }[];
-                  }
-                | undefined,
-            ) =>
-              plan?.orchestrator?.provider === id ||
-              plan?.assignmentDefault?.provider === id ||
-              plan?.assignmentModels?.some((model) => model.provider === id) === true;
-            return [
-              ...(defaultModel.currentSelection().provider === id ? ['default-model'] : []),
-              ...(core.routingGroups
-                .list()
-                .some(({ members }) =>
-                  members.some((member) => member.kind === 'model' && member.provider === id),
-                )
-                ? ['routing-group']
-                : []),
-              ...(core.modelPresets.list().some(applies) ? ['model-preset'] : []),
-              ...(core.registry
-                .list()
-                .some((bot) => applies(bot.modelPlan) || bot.model?.startsWith(id + '/') === true)
-                ? ['bot']
-                : []),
-            ];
-          },
-          probe: (id, model) =>
-            testProviderReply(ctx.llm, id, model, (outcome) => {
-              ctx.logger.info('model-provider-probe outcome=%s', outcome);
-            }),
-        })
-      : undefined;
+  const { modelProviders, routeRests } = createHostModelProviders(ctx, {
+    registry: core.registry,
+    routingGroups: core.routingGroups,
+    modelPresets: core.modelPresets,
+    defaultRoute: () => defaultModel.currentSelection(),
+  });
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,

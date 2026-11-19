@@ -67,6 +67,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'workspace.gap',
     'dock.reset',
   ],
+  'model-providers': ['modelProviders.apiKey', 'modelProviders.subscriptions'],
   models: [
     'models.section.default',
     'models.section.context',
@@ -328,6 +329,7 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
   appearance: 'botSettings.section.appearance',
   notifications: 'botSettings.section.notifications',
   shortcuts: 'shortcuts.title',
+  'model-providers': 'botSettings.section.modelProviders',
   models: 'botSettings.section.models',
   messaging: 'botSettings.section.messaging',
   prompts: 'botSettings.section.prompts',

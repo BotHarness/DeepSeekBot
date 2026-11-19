@@ -245,11 +245,22 @@ it('every row and heading registered Bot settings sections render is searchable'
     'imApps.empty',
     'imApps.loadFailed',
     'plugins.restart.title',
+    'modelProviders.template',
+    'modelProviders.name',
+    'modelProviders.endpoint',
+    'modelProviders.model',
   ]);
   const missing: string[] = [];
   const sections = registeredSections();
   expect(sections.map((section) => section.id)).toEqual(
-    expect.arrayContaining(['general', 'voice', 'devices', 'browser', 'computer']),
+    expect.arrayContaining([
+      'general',
+      'model-providers',
+      'voice',
+      'devices',
+      'browser',
+      'computer',
+    ]),
   );
   for (const section of sections) {
     const rows = scanSettingsRows(section.entry, section.component);

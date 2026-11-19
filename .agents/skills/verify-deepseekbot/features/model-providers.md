@@ -6,6 +6,7 @@
 - `packages/core/src/models/providers.ts`
 - `packages/host-client/src/shared/model-brand.ts`
 - `scripts/e2e-team-security.mjs`
+- `scripts/team-security-model-provider-gate.mjs`
 
 ## Terms
 

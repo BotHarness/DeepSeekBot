@@ -1,4 +1,3 @@
-import { ModelProvidersSettings } from './model-providers-settings.js';
 import { canManageModelProviders } from './team-bridge.js';
 import { currentTeamMode } from './team-state.js';
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
@@ -100,8 +99,7 @@ import {
   AccountSection,
   GeneralSection,
   MessagingSection,
-  ModelsSection,
-  AutoApprovalSection,
+  registerModelSettingsSections,
   PromptsSection,
   VoiceSection,
 } from './bot-settings-sections.js';
@@ -1079,45 +1077,7 @@ export function apply(ctx: ClientContext): void {
         KeyboardSettings,
       ),
     );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.modelProviders,
-          order: 9,
-          label: () => t('botSettings.section.modelProviders'),
-          locale: LOCALE_NS,
-          inject: () => ({ call }),
-        },
-        ModelProvidersSettings,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.models,
-          order: 10,
-          label: () => t('botSettings.section.models'),
-          locale: LOCALE_NS,
-          inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
-        },
-        ModelsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.autoApproval,
-          order: 15,
-          label: () => t('botSettings.section.autoApproval'),
-          locale: LOCALE_NS,
-          inject: () => ({ actions, call, store }),
-        },
-        AutoApprovalSection,
-      ),
-    );
+    registerModelSettingsSections(settingsCtx, { t, prefs, actions, call, store });
     settingsCtx.slots.inject('botharness.settings.section', () =>
       settingsCtx.slots.register(
         {

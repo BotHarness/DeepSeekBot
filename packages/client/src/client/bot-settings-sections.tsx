@@ -1,3 +1,7 @@
+import type { Context as ClientContext } from '@deepseek-ai/cordis';
+import { BOT_SETTINGS_SECTIONS } from './bot-settings.js';
+import { LOCALE_NS } from './locale.js';
+import { ModelProvidersSettings } from './model-providers-settings.js';
 import { WindowZoomSettings } from './window-zoom-settings.js';
 import { WindowZoomSetup } from './window-zoom-setup.js';
 import type { ZoomSurface } from './window-zoom-mount.js';
@@ -37,7 +41,7 @@ import { BotModeDefaultSetting, BotModeTemplateSettings } from './bot-mode-setti
 import { buildLabel, clientBuild } from './build-id.js';
 import { DataResetSettings } from './data-reset-settings.js';
 import { StorageSettings } from './storage-settings.js';
-import type { BotModePrefsFace } from './bot-mode-prefs.js';
+import { botModePrefsFace, type BotModePrefs, type BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
@@ -310,5 +314,62 @@ export function AboutSection({
         t={t}
       />
     </Rows>
+  );
+}
+
+export function registerModelSettingsSections(
+  settingsCtx: ClientContext,
+  {
+    t,
+    prefs,
+    actions,
+    call,
+    store,
+  }: {
+    t: SectionProps<object>['t'];
+    prefs: BotModePrefs;
+    actions: BridgeActions;
+    call: BridgeCall;
+    store: ClientStore;
+  },
+): void {
+  settingsCtx.slots.inject('botharness.settings.section', () =>
+    settingsCtx.slots.register(
+      {
+        name: 'botharness.settings.section',
+        id: BOT_SETTINGS_SECTIONS.modelProviders,
+        order: 9,
+        label: () => t('botSettings.section.modelProviders'),
+        locale: LOCALE_NS,
+        inject: () => ({ call }),
+      },
+      ModelProvidersSettings,
+    ),
+  );
+  settingsCtx.slots.inject('botharness.settings.section', () =>
+    settingsCtx.slots.register(
+      {
+        name: 'botharness.settings.section',
+        id: BOT_SETTINGS_SECTIONS.models,
+        order: 10,
+        label: () => t('botSettings.section.models'),
+        locale: LOCALE_NS,
+        inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
+      },
+      ModelsSection,
+    ),
+  );
+  settingsCtx.slots.inject('botharness.settings.section', () =>
+    settingsCtx.slots.register(
+      {
+        name: 'botharness.settings.section',
+        id: BOT_SETTINGS_SECTIONS.autoApproval,
+        order: 15,
+        label: () => t('botSettings.section.autoApproval'),
+        locale: LOCALE_NS,
+        inject: () => ({ actions, call, store }),
+      },
+      AutoApprovalSection,
+    ),
   );
 }
