@@ -12,7 +12,7 @@ import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
-import { font } from './ds/tobs.stylex.js';
+import { font, size as tobsSize } from './ds/tobs.stylex.js';
 import { ASSIGNMENT_SESSION_ICON, channelSidebarIconMask } from './channel-sidebar-icon.js';
 
 const ASSIGNMENT_SESSION_MASK = channelSidebarIconMask(ASSIGNMENT_SESSION_ICON);
@@ -1052,8 +1052,7 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
    token。行盒落在 root 内容右缘（280px 侧栏 = x12..268），与原生行同表一致。 */
 /* .bh-root 前缀压过表单控件的 font: inherit 重置，让行盒与原生行同为
    14px/20px（可见文本各自声明字号）。 */
-.bh-root .bh-section-head,
-.bh-root .bh-channel-row {
+.bh-root .bh-section-head {
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -1068,17 +1067,9 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   line-height: ${text.bodyLine};
   user-select: none;
 }
-.bh-channel-row:hover,
-.bh-channel-row.bh-selected {
-  background: var(--bh-hover);
-}
 .bh-root .bh-multi-selected {
   background: var(--bh-selected);
   box-shadow: inset 0 0 0 1px var(--tobs-line-edge);
-}
-.bh-contact,
-.bh-root .bh-channel-row {
-  position: relative;
 }
 .bh-shortcut-badge {
   position: absolute;
@@ -1110,27 +1101,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   font-size: ${text.metaSize};
 }
 
-.bh-contact {
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  width: 100%;
-  padding: ${space.x3} ${space.x3};
-  border: 0;
-  border-radius: ${radius.sm};
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  transition: opacity 120ms var(--ds-ease-in-out);
-}
-.bh-contact:hover {
-  background: var(--bh-hover);
-}
-.bh-contact.bh-selected {
-  background: var(--bh-hover);
-}
 .bh-contact .bh-body,
 .bh-channel-row .bh-body {
   min-width: 0;
@@ -1249,18 +1219,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
 .bh-paused .bh-row-avatar > .bh-persona-avatar {
   opacity: 0.5;
 }
-.bh-unread-count.bh-unread-corner {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  z-index: 1;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 ${space.x1};
-  border-radius: ${radius.xs};
-  box-shadow: 0 0 0 2px var(--tobs-layer-canvas);
-  pointer-events: none;
-}
 .bh-contact .bh-name,
 .bh-channel-row .bh-name {
   font-weight: ${text.regular};
@@ -1340,13 +1298,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   font-weight: ${text.strong};
 }
 
-/* Conversation rows share the DM geometry so Groups also show a message preview. */
-.bh-channel-row {
-  min-height: 48px;
-  gap: ${space.x3};
-  padding: 7px 8px;
-  transition: opacity 120ms var(--ds-ease-in-out);
-}
 /* 拖拽源行原位淡出：标示来处，不占位、不推动任何布局（native 无此态，
    系刻意偏离：overlay 插入线之外唯一的拖拽中视觉）。 */
 .bh-channel-row.bh-drag-source {
@@ -1360,8 +1311,8 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: ${tobsSize.iconSlot};
+  height: ${tobsSize.iconSlot};
   border-radius: ${radius.md};
   overflow: hidden;
   background: var(--tobs-layer-elevated);

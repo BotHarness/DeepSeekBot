@@ -72,7 +72,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/bot-sidebar.tsx": {
-    "rawControl": 13,
+    "rawControl": 11,
     "legacyCss": 2
   },
   "packages/client/src/client/bot-skills-card.tsx": {
@@ -249,7 +249,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/host-tabs.tsx": {
-    "rawControl": 2
+    "rawControl": 1
   },
   "packages/client/src/client/idle-compaction-setting.tsx": {
     "dshImport": 1
@@ -435,7 +435,7 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1899,
+    "legacyCss": 1892,
     "lineBorder": 103
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {

@@ -103,26 +103,25 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
     } = {},
   ): ReactElement => (
     <Tooltip label={label} side="right" delayMs={500} disabled={wide}>
-      <button
-        type="button"
-        {...hooked(
-          'bh-mode-sidebar-row',
-          styles.row,
-          collapsed && styles.railRow,
-          extra.current === true && styles.current,
-        )}
-        data-bh-tour={extra.tour}
+      <NavItem
+        className="bh-mode-sidebar-row"
+        label={label.split(' · ')[0]}
         aria-label={label}
-        aria-current={extra.current === true ? 'page' : undefined}
-        onClick={onClick}
-      >
-        <span {...stylex.props(styles.glyph)}>
-          {glyph}
-          {collapsed && extra.dot === true ? <span {...stylex.props(styles.dot)} /> : null}
-        </span>
-        {wide ? <span {...stylex.props(styles.label)}>{label.split(' · ')[0]}</span> : null}
-        {wide ? extra.trailing : null}
-      </button>
+        current={extra.current === true}
+        iconOnly={collapsed}
+        xstyle={collapsed ? styles.railItem : undefined}
+        trailing={wide ? extra.trailing : undefined}
+        icon={
+          <span {...stylex.props(styles.glyph)}>
+            {glyph}
+            {collapsed && extra.dot === true ? (
+              <span data-sidebar-attention="" {...stylex.props(styles.dot)} />
+            ) : null}
+          </span>
+        }
+        data={{ 'data-bh-tour': extra.tour }}
+        onSelect={onClick}
+      />
     </Tooltip>
   );
 
@@ -413,43 +412,7 @@ const styles = stylex.create({
     marginTop: space.x2,
     marginBottom: 0,
   },
-  row: {
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minHeight: '36px',
-    marginInline: space.x1,
-    paddingBlock: space.x3,
-    paddingInline: space.x3,
-    borderWidth: 0,
-    borderStyle: 'none',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-    outlineOffset: '-2px',
-    borderRadius: radius.md,
-    color: color.fg,
-    font: 'inherit',
-    lineHeight: text.bodyLine,
-    textAlign: 'start',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-    },
-    cursor: 'pointer',
-  },
-  railRow: {
-    justifyContent: 'center',
-    width: '36px',
-    height: '36px',
-    margin: 0,
-    padding: 0,
-  },
-  current: {
-    backgroundColor: color.hover,
-  },
+  railItem: { width: size.rowMedium, minHeight: size.rowMedium },
   glyph: {
     position: 'relative',
     display: 'inline-flex',
@@ -466,13 +429,7 @@ const styles = stylex.create({
     borderRadius: radius.round,
     backgroundColor: color.danger,
   },
-  label: {
-    flexGrow: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    whiteSpace: 'nowrap',
-    textOverflow: 'ellipsis',
-  },
+
   count: {
     flexShrink: 0,
     minWidth: '18px',
