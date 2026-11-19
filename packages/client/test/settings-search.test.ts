@@ -241,10 +241,12 @@ it('every row and heading registered Bot settings sections render is searchable'
     'devices.connection.unchecked',
     'devices.list.empty',
     'devices.list.loading',
+    'group.avatarCrop.zoom',
     'im.loading',
     'imApps.empty',
     'imApps.loadFailed',
     'plugins.restart.title',
+    'wallpaper.zoom',
   ]);
   const missing: string[] = [];
   const sections = registeredSections();
