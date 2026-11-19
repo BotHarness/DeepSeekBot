@@ -11487,7 +11487,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const next = await this.refreshAssignmentRoute(botSlug, sessionId);
       const bot = this.#registry.get(botSlug);
       const row = this.#assignmentRow(botSlug, sessionId);
-      if (row?.stop_state !== 'running' || row.model_group_id == null) return;
+      if (row?.stop_state !== 'running') return;
       if (next === undefined || sameModelRoute(next, failed) || bot === undefined) {
         fail(cause);
         return;
