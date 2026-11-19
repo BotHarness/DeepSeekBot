@@ -5780,7 +5780,7 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
   min-width: min(340px, 100%);
   max-width: 560px;
   color: var(--tobs-ink-secondary);
-  font-size: var(--dsh-content-font-size-secondary, ${text.bodySize});
+  font-size: ${text.bodySize};
   line-height: ${text.bodyLine};
 }
 .bh-session-failure-heading {
@@ -5824,7 +5824,7 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-private-input-state { margin-left: auto; }
 .bh-private-input-card .bh-question-prompt { font-weight: ${text.regular}; }
 .bh-private-input-card .bh-note { line-height: ${text.metaLine}; color: var(--tobs-ink-secondary); }
-.bh-question-source { color: var(--tobs-ink-secondary); font-size: var(--dsh-content-font-size-secondary, ${text.bodySize}); }
+.bh-question-source { color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }
 .bh-question-source code { display: block; margin-top: ${space.x2}; overflow-wrap: anywhere; }
 .bh-question-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: ${space.x2}; min-width: 0; }
 .bh-question-prompt { font-weight: ${text.strong}; white-space: pre-wrap; }
@@ -5834,7 +5834,7 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-question-card label.bh-card-main { position: relative; }
 .bh-question-card .bh-card-checkbox { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .bh-question-card label.bh-card-main:has(.bh-card-checkbox:focus-visible) { outline: ${border.focus} solid var(--tobs-ink-primary); outline-offset: -2px; }
-.bh-question-custom { color: var(--tobs-ink-secondary); font-size: var(--dsh-content-font-size-secondary, ${text.bodySize}); }
+.bh-question-custom { color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }
 .bh-question-lettered { counter-reset: bh-option; }
 .bh-question-lettered .bh-card-main::before { counter-increment: bh-option; content: counter(bh-option, upper-alpha); display: inline-grid; flex-shrink: 0; place-items: center; width: ${space.x6}; height: ${space.x6}; border-radius: 999px; background: var(--bh-well-inset); color: var(--tobs-ink-secondary); font-size: ${text.metaSize}; font-weight: ${text.strong}; }
 .bh-tool-approval-input {
@@ -6760,9 +6760,9 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 @media (hover: none) { .bh-activity-list-message-source { opacity: 1; pointer-events: auto; } }
 
 
-.bh-channel-activity {margin-top:${space.x6};color:var(--tobs-ink-primary);font-size:var(--dsh-content-font-size);}
+.bh-channel-activity {margin-top:${space.x6};color:var(--tobs-ink-primary);font-size:${text.bodySize};}
 .bh-channel-activity header {display:flex;align-items:center;justify-content:space-between;gap:${space.x4};flex-wrap:wrap;}
-.bh-channel-activity h2 {font-size:var(--dsh-content-font-size);margin:0;font-weight:${text.strong};}
+.bh-channel-activity h2 {font-size:${text.bodySize};margin:0;font-weight:${text.strong};}
 .bh-channel-activity p {margin:${space.x3} 0;color:var(--tobs-ink-secondary);}
 .bh-channel-activity ul {list-style:none;margin:0;padding:0;}
 .bh-channel-activity > ul > li {border-bottom:${border.hairline} solid ${color.divider};}
@@ -6827,7 +6827,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-overview-usage .bh-profile-pin {flex-shrink:0;cursor:pointer;color:var(--tobs-ink-secondary);}
 .bh-overview-usage .bh-profile-pin:hover {background:var(--bh-hover);color:var(--bh-text);}
 .bh-overview-usage .bh-profile-pin:disabled {cursor:default;opacity:0.5;}
-.bh-statistics-content > header h3 {font-size:var(--dsh-content-font-size);margin:0;}
+.bh-statistics-content > header h3 {font-size:${text.bodySize};margin:0;}
 /* The see-through intro step marks the document, so no :has() scans the backdrop's siblings. */
 html[data-bh-intro-see-through] [role='presentation'] > [aria-hidden='true']::after {
   opacity: 0.2;

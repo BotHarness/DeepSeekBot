@@ -1,10 +1,5 @@
-import type {
-  Appearance,
-  AppearanceConfig,
-  AppearanceMode,
-  AppearanceModeConfig,
-  AppearancePreset,
-} from './appearance.js';
+import type { AppearanceConfig, AppearanceMode, AppearanceModeConfig } from './appearance.js';
+import { TOBS_TOKENS } from './ds/tobs-tokens.generated.js';
 export interface AppearanceMaterial extends Record<string, unknown> {
   color: string;
   opacity: number;
@@ -14,56 +9,28 @@ export type AppearanceMaterials = Record<'header' | 'body', AppearanceMaterial>;
 export type AppearanceMaterialOverrides = Partial<
   Record<'header' | 'body', Partial<AppearanceMaterial>>
 >;
-const defaults: Record<AppearancePreset, Record<AppearanceMode, AppearanceMaterials>> = {
-  'classic-blue': {
-    light: {
-      header: { color: '#fdfefe', opacity: 100, blur: 0 },
-      body: { color: '#fdfefe', opacity: 100, blur: 0 },
-    },
-    dark: {
-      header: { color: '#1a1a1c', opacity: 100, blur: 0 },
-      body: { color: '#1a1a1c', opacity: 100, blur: 0 },
-    },
-  },
-  'mist-purple': {
-    light: {
-      header: { color: '#f0eafa', opacity: 88, blur: 16 },
-      body: { color: '#f8f5fc', opacity: 80, blur: 12 },
-    },
-    dark: {
-      header: { color: '#292334', opacity: 88, blur: 16 },
-      body: { color: '#211d2b', opacity: 80, blur: 12 },
-    },
-  },
-  'forest-green': {
-    light: {
-      header: { color: '#e7f2ec', opacity: 88, blur: 16 },
-      body: { color: '#f2f8f4', opacity: 80, blur: 12 },
-    },
-    dark: {
-      header: { color: '#203129', opacity: 88, blur: 16 },
-      body: { color: '#1b2721', opacity: 80, blur: 12 },
-    },
-  },
-  'warm-amber': {
-    light: {
-      header: { color: '#faf0db', opacity: 90, blur: 14 },
-      body: { color: '#fcf7ed', opacity: 82, blur: 10 },
-    },
-    dark: {
-      header: { color: '#352c1f', opacity: 90, blur: 14 },
-      body: { color: '#2b251c', opacity: 82, blur: 10 },
-    },
-  },
-};
+export type MaterialLayers = Readonly<
+  Record<'--tobs-layer-raised' | '--tobs-layer-canvas', string>
+>;
+
 export function appearanceMaterials(
   config: AppearanceModeConfig,
   mode: AppearanceMode,
+  layers: MaterialLayers = TOBS_TOKENS[mode],
 ): AppearanceMaterials {
-  const preset = defaults[config.preset][mode];
   return {
-    header: { ...preset.header, ...config.materials?.header },
-    body: { ...preset.body, ...config.materials?.body },
+    header: {
+      color: layers['--tobs-layer-raised'],
+      opacity: 100,
+      blur: 0,
+      ...config.materials?.header,
+    },
+    body: {
+      color: layers['--tobs-layer-canvas'],
+      opacity: 100,
+      blur: 0,
+      ...config.materials?.body,
+    },
   };
 }
 export function validMaterial(
@@ -102,15 +69,6 @@ export function validMaterials(
     (v.body === undefined || validMaterial(v.body, strict))
   );
 }
-export function clearMaterialAdjustments(config: AppearanceModeConfig): void {
-  for (const part of ['header', 'body'] as const) {
-    const material = config.materials?.[part];
-    if (!material) continue;
-    delete material.color;
-    delete material.opacity;
-    delete material.blur;
-  }
-}
 export const WALLPAPER_MATERIALS = {
   header: { opacity: 80 },
   body: { opacity: 50, blur: 2 },
@@ -124,12 +82,4 @@ export function wallpaperMaterialPatches(config: AppearanceConfig) {
       }),
     )
     .map((mode) => ({ mode, materials: WALLPAPER_MATERIALS }));
-}
-export function keepWallpaperMaterials(appearance: Appearance, wallpaperShown: boolean): void {
-  if (!wallpaperShown) return;
-  for (const patch of wallpaperMaterialPatches(appearance.getSnapshot().config)) {
-    try {
-      appearance.update(patch);
-    } catch {}
-  }
 }

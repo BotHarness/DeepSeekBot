@@ -16,8 +16,6 @@ import { PreviewChoices, SwatchChoices } from './ds/preview-choice.js';
 import { accent, layer, line, state } from './ds/tobs.stylex.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { LayoutMode } from './layout-mode.js';
-import { keepWallpaperMaterials } from './appearance-materials.js';
-import type { Wallpaper } from './wallpaper.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
 export const APPEARANCE_PRESETS: readonly { id: AppearancePreset; label: BotHarnessKey }[] = [
@@ -319,17 +317,12 @@ export function StylePicker({
   );
 }
 
-export function applyPreset(
-  appearance: Appearance,
-  preset: AppearancePreset,
-  wallpaper?: Pick<Wallpaper, 'getSnapshot'>,
-): void {
+export function applyPreset(appearance: Appearance, preset: AppearancePreset): void {
   for (const mode of ['light', 'dark'] as const) {
     try {
       appearance.update({ mode, preset });
     } catch {}
   }
-  keepWallpaperMaterials(appearance, wallpaper?.getSnapshot().current !== undefined);
 }
 
 export function PrimaryColorPicker({

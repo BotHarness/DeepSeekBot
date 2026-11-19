@@ -7,6 +7,7 @@ import { PanelDialog } from './ds/panel-dialog.js';
 import { SettingsRows, SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { Note } from './ds/note.js';
+import { tobsTokens } from './tobs-theme.js';
 export function PanelAppearanceSettings({
   owner,
   id,
@@ -23,7 +24,12 @@ export function PanelAppearanceSettings({
   const snapshot = useSyncExternalStore(owner.subscribe, owner.getSnapshot);
   const { mode } = snapshot;
   const selected = snapshot.config.modes[mode];
-  const materials = panelMaterials(selected, mode, id);
+  const materials = panelMaterials(
+    selected,
+    mode,
+    id,
+    tobsTokens(mode, selected.preset, selected.primary, snapshot.config.style),
+  );
   const own = selected.panels?.[id];
   const change = (materials: PanelMaterialPatch) => {
     try {

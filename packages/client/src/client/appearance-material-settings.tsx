@@ -3,6 +3,7 @@ import { appearanceMaterials } from './appearance-materials.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { Slider } from './ds/slider.js';
+import { tobsTokens } from './tobs-theme.js';
 export function AppearanceMaterialSettings({
   appearance,
   snapshot,
@@ -12,8 +13,13 @@ export function AppearanceMaterialSettings({
   snapshot: AppearanceSnapshot;
   t: BotHarnessTranslate;
 }) {
-  const mode = snapshot.mode;
-  const materials = appearanceMaterials(snapshot.config.modes[mode], mode);
+  const { config, mode } = snapshot;
+  const selected = config.modes[mode];
+  const materials = appearanceMaterials(
+    selected,
+    mode,
+    tobsTokens(mode, selected.preset, selected.primary, config.style),
+  );
   const change = (patch: AppearancePatch) => {
     try {
       appearance.update(patch);

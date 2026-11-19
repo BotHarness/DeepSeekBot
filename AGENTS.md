@@ -67,6 +67,8 @@ Every feature must be operable and testable by an agent through the `deepseekbot
 
 Every new feature and dependency carries a performance-impact assessment and a regression guard on its hot path, Host/CLI work included; a docs-only change records a no-runtime-impact exemption. Budgets only tighten; raising one needs the Human's approval. Before profiling, an A/B comparison, or a timeline or rendering change, follow [performance observation and verification](docs/agents/ax-performance.md).
 
+When adding or changing a client refresh of Host-owned state, follow [live Host state](docs/agents/live-host-state.md) for Host push, reconnect snapshots, and slow fallback. The lint check flags fast timers for review.
+
 Before changing how the Bot Inbox is rendered for the Orchestrator (`inbox-render.ts`), run the [Bot Inbox rendering eval](docs/agents/inbox-eval.md) against a same-day baseline and record the verdict in its ledger.
 
 ### IM browser QA (AX)

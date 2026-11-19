@@ -30,6 +30,7 @@ import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { store } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
+import { tobsTokens } from '../src/client/tobs-theme.js';
 
 const NARROW_BLOCK = `/* Narrow screens: inline copy/reply actions crowd the bubble, so they move
    into the long-press message menu and the bubble keeps the full width. */
@@ -39,25 +40,8 @@ const NARROW_BLOCK = `/* Narrow screens: inline copy/reply actions crowd the bub
   }
 }`;
 
-const DSW_DARK = {
-  '--dsw-alias-interactive-bg-active': '#ffffff24',
-  '--dsw-alias-interactive-bg-hover': '#ffffff14',
-  '--dsw-alias-label-primary': '#f9fafb',
-  '--dsw-alias-label-secondary': '#cfd3d6',
-  '--dsw-alias-label-tertiary': '#adb2b8',
-  '--dsw-alias-label-dimmed': '#43454a',
-  '--dsw-alias-label-primary-foreground': '#0f1115',
-  '--dsw-alias-border-l2': '#ffffff1f',
-  '--dsw-alias-border-l3': '#ffffff29',
-  '--dsw-alias-bg-base': '#151517',
-  '--dsw-alias-bg-module-platform': '#353638',
-  '--dsw-alias-state-error-primary': '#f25a5a',
-  '--dsw-alias-state-business-primary': '#7aaaff',
-  '--dsw-alias-button-elevated-fill': '#43454a',
-} as const;
-
 function page(chatBody: string, css: string, title: string): string {
-  const vars = Object.entries(DSW_DARK)
+  const vars = Object.entries(tobsTokens('dark', 'classic-blue'))
     .map(([key, value]) => `  ${key}: ${value};`)
     .join('\n');
   return `<!doctype html>
@@ -70,7 +54,7 @@ function page(chatBody: string, css: string, title: string): string {
 :root {
 ${vars}
 }
-html, body { margin: 0; padding: 0; background: #151517; color: #f9fafb; }
+html, body { margin: 0; padding: 0; background: var(--tobs-layer-canvas); color: var(--tobs-ink-primary); }
 .bh-shot-column { width: 390px; height: 844px; overflow: hidden; position: relative; }
 .bh-shot-column .bh-chat-body { height: 844px; padding: 12px 12px 10px; box-sizing: border-box; }
 </style>

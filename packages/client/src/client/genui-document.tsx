@@ -21,6 +21,8 @@ import { getGenuiDocumentView, type GenuiDocumentActions } from './genui-documen
 import type { BotHarnessTranslate } from './locale.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { color, space, text } from './ds/tokens.stylex.js';
+import { TOBS_STYLES } from './ds/tobs-tokens.generated.js';
+import { readBotColorScheme, readBotStyle, subscribeBotColorScheme } from './bot-color-scheme.js';
 
 const styles = stylex.create({
   document: { display: 'grid', gap: space.x3, minWidth: 0, color: color.fg },
@@ -242,7 +244,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
   private container: HTMLDivElement | null = null;
   private surface: GenuiDocumentHandle | undefined;
   private shell: HTMLIFrameElement | undefined;
-  private observer?: MutationObserver;
+  private unsubscribeAppearance?: () => void;
   private timer?: ReturnType<typeof setTimeout>;
   private disposed = false;
   private failed = false;
@@ -250,37 +252,28 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
   private stateIdentity = JSON.stringify(this.props.state);
   private readonly runtime = loadGenuiDocumentRuntime();
 
-  private theme() {
-    return this.container?.ownerDocument.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
-  }
-
   private textScale() {
-    const body = this.container?.ownerDocument.body;
-    const owner = body?.ownerDocument.defaultView;
-    const size = Number.parseFloat(
-      body && owner ? owner.getComputedStyle(body).getPropertyValue('--dsh-content-font-size') : '',
-    );
-    return Number.isFinite(size) && size > 0 ? size / GENUI_EXECUTION_LIMITS.mirrorBaseFontSize : 1;
+    const size = Number.parseFloat(TOBS_STYLES[readBotStyle()]['--tobs-style-text-message-size']);
+    return size / GENUI_EXECUTION_LIMITS.mirrorBaseFontSize;
   }
 
   override componentDidMount() {
     this.disposed = false;
     const generation = ++this.generation;
     const container = this.container;
-    const owner = container?.ownerDocument.defaultView;
-    if (!container || !owner || typeof owner.MutationObserver !== 'function') {
+    if (!container) {
       this.fail();
       return;
     }
-    this.observer = new owner.MutationObserver((records) => {
-      if (records.some((record) => record.attributeName === 'data-ds-dark-theme'))
-        this.surface?.theme(this.theme());
-      if (records.some((record) => record.attributeName === 'style'))
-        this.surface?.textScale(this.textScale());
-    });
-    this.observer.observe(container.ownerDocument.body, {
-      attributes: true,
-      attributeFilter: ['data-ds-dark-theme', 'style'],
+    let mode = readBotColorScheme();
+    let scale = this.textScale();
+    this.unsubscribeAppearance = subscribeBotColorScheme(() => {
+      const nextMode = readBotColorScheme();
+      const nextScale = this.textScale();
+      if (nextMode !== mode) this.surface?.theme(nextMode);
+      if (nextScale !== scale) this.surface?.textScale(nextScale);
+      mode = nextMode;
+      scale = nextScale;
     });
     this.timer = setTimeout(this.fail, GENUI_EXECUTION_LIMITS.startupMs);
     const shell = createGenuiMirrorShell(container, this.props.document.title);
@@ -295,8 +288,8 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
             shell,
             document: this.props.document,
             state: this.props.state,
-            theme: this.theme(),
-            textScale: this.textScale(),
+            theme: mode,
+            textScale: scale,
             instanceId: this.instanceId,
             generation,
             onState: (value) => {
@@ -351,7 +344,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     this.disposed = true;
     this.generation++;
     clearTimeout(this.timer);
-    this.observer?.disconnect();
+    this.unsubscribeAppearance?.();
     this.surface?.dispose();
     this.surface = undefined;
     this.shell?.remove();
@@ -366,7 +359,7 @@ export class DocumentFrame extends Component<FrameProps, { failed: boolean }> {
     if (this.disposed || this.failed) return;
     this.failed = true;
     clearTimeout(this.timer);
-    this.observer?.disconnect();
+    this.unsubscribeAppearance?.();
     this.surface?.dispose();
     this.surface = undefined;
     this.shell?.remove();

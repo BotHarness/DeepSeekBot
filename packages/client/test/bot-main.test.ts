@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
 import { type ChannelMessage } from '../src/client/store.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -1006,6 +1007,7 @@ describe('Bot main Sessions pane', () => {
     };
     const contrast = (name: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(name)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    const appearance = mountAppearanceFixture();
     try {
       expect(authors(bot(), dm)).toHaveLength(0);
       const [automatic] = authors(bot(), group);
@@ -1017,7 +1019,7 @@ describe('Bot main Sessions pane', () => {
       const light = authors(white, group)[0]!.getAttribute('data-bot-name-color')!;
       expect(light).not.toBe('#ffffff');
       expect(contrast(light, 'light')).toBeGreaterThanOrEqual(4.5);
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       const dark = authors(white, group)[0]!;
       expect(dark.getAttribute('data-bot-name-color')).toBe('#ffffff');
       expect(dark.style.color).not.toBe('');
@@ -1025,12 +1027,12 @@ describe('Bot main Sessions pane', () => {
 
       const [groupBot] = authors(white, group);
       expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       expect(authors(white, group)[0]!.getAttribute('data-bot-name-color')).toBe(light);
       const gone = bot({ mode: 'custom', color: '#ffffff', retained: '#1d1b22' }, true);
       expect(authors(gone, group)[0]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);

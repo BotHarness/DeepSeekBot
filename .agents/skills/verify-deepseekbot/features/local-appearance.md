@@ -2,7 +2,7 @@
 
 ## Sources
 
-- `packages/client/src/client/appearance{,-context,-control,-scope,-settings,-pickers,-primitives,-native-tokens}.{ts,tsx}`
+- `packages/client/src/client/appearance{,-context,-control,-scope,-settings,-pickers,-primitives}.{ts,tsx}`
 - `packages/core/src/appearance/**`
 - `packages/core/src/bots/cli-appearance.ts`
 
@@ -13,8 +13,8 @@
 
 ## Sub-features
 
-- Theme cards (Follow system / Light / Dark) with mini previews; palette cards apply one preset to both modes; a Primary override is still saved separately for each mode.
-- DeepSeekBot roots, workspace, owned modal and menu palettes are scoped; native DSH mode and preferences are unchanged.
+- Theme cards (Follow system / Light / Dark) with mini previews; palette cards apply one accent preset to both modes while retaining material overrides; a Primary override is saved separately for each mode.
+- DeepSeekBot roots, workspace, owned modal and menu palettes are scoped; Bot mode and native DSH follow independent preferences.
 - Web browser/site persistence; Desktop application persistence without Host keys. Same-site tabs share storage; other browser profiles and Desktop are independent.
 - Explicit Client-targeted `appearance-clients`, `appearance-get`, `appearance-set`; same owner, revision conflicts and coded storage/delivery failures.
 

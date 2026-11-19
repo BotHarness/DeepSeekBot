@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -33,16 +34,18 @@ const DARK = REFERENCE_SURFACES.dark.background;
 
 let container: HTMLDivElement;
 let root: Root;
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
 });
 afterEach(async () => {
-  document.body.removeAttribute('data-ds-dark-theme');
   await act(async () => root.unmount());
   container.remove();
+  appearance.dispose();
 });
 
 const show = (rows: UsageSummary[], kind: 'model' | 'daily' = 'model') =>
@@ -115,7 +118,7 @@ it('keeps unclassified usage neutral and shows every token category that has dat
 it('re-derives the tones for the dark theme from the same sources', async () => {
   await show([row('ada', '#e2b04a'), row('bea', '#1d1b22')]);
   const light = fills('bea');
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await show([row('ada', '#e2b04a'), row('bea', '#1d1b22')]);
   await show([row('bea', '#1d1b22'), row('ada', '#e2b04a')]);
   const dark = botChartTones('#1d1b22', DARK);

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { TOBS_STYLES } from '../src/client/ds/tobs-tokens.generated.js';
-import { TOBS_DSH_BRIDGE } from '../src/client/tobs-bridge.js';
+import { appearanceCss } from '../src/client/appearance-scope.js';
+import { parseAppearance } from '../src/client/appearance.js';
 
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
 const clientDir = fileURLToPath(new URL('../src/client/', import.meta.url));
@@ -294,22 +295,12 @@ function sheetOffenders(): string[] {
           ]
         : [];
     });
-    const edges = parsed.flatMap((declaration) =>
-      /--dsw-alias-border-l(?![123]\b)/.test(declaration.value)
-        ? [`${file}:${declaration.line} ${declaration.selector} edge ${declaration.value}`]
-        : [],
+    const legacyColours = parsed.flatMap(({ line, value }) =>
+      /--dsw-/.test(value) ? [`${file}:${line} DSH colour ${value}`] : [],
     );
-    return [
-      ...colours,
-      ...lengths,
-      ...edges.filter(
-        (edge) => !NATIVE_EDGES.some((selector) => edge.includes(` ${selector} edge `)),
-      ),
-    ];
+    return [...colours, ...lengths, ...legacyColours];
   });
 }
-
-const NATIVE_EDGES = ['.bh-search-open', '.bh-name-input'];
 
 const EDGE_WIDTH = /\b(border\w*Width|outline(Width)?)\s*:.*\d+(\.\d+)?px/;
 
@@ -426,16 +417,16 @@ describe('design-system tokens', () => {
   });
 });
 
-it('keeps ds colours usable in portaled settings without Bot-mode variables', () => {
+it('provides the resolved Tobs palette to portaled settings in both themes', () => {
   const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
   const colours = tokens.slice(tokens.indexOf('export const actionColor'));
-  expect(colours).not.toContain('--bh-');
-  expect(colours).not.toContain('--dsw-');
-  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
-    if (name.startsWith('--tobs-style-')) {
-      expect(TOBS_DSH_BRIDGE[name], name).toBe((TOBS_STYLES.a as Record<string, string>)[name]);
-      continue;
+  expect(colours).not.toMatch(/--bh-|--dsw-/);
+  for (const mode of ['light', 'dark'] as const) {
+    const css = appearanceCss({ config: parseAppearance(null), mode });
+    expect(css).toMatch(/^body,/);
+    const palette = css.slice(0, css.indexOf('}'));
+    for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
+      expect(palette).toContain(`${name}:`);
     }
-    expect(TOBS_DSH_BRIDGE[name], name).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
   }
 });
