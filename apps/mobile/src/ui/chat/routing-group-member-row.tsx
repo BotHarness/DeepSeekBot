@@ -128,7 +128,15 @@ export function RoutingGroupMemberRow({
         accessory={theme.largeText ? undefined : accessory}
       />
       {theme.largeText ? (
-        <View style={{ alignItems: 'flex-end', paddingHorizontal: space.x3 }}>{accessory}</View>
+        <View
+          style={{
+            alignItems: 'flex-end',
+            paddingHorizontal: space.x3,
+            backgroundColor: theme.layer[SHEET_GROUP].fill,
+          }}
+        >
+          {accessory}
+        </View>
       ) : null}
     </SwipeRow>
   );
