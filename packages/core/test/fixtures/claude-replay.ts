@@ -12,6 +12,7 @@ export type ClaudeRecordedLine =
   | { kind: 'account'; info: Record<string, unknown> }
   | { kind: 'models'; list: unknown[] }
   | { kind: 'await-input' }
+  | { kind: 'await-interrupt' }
   | { kind: 'message'; msg: Record<string, unknown> }
   | {
       kind: 'permission';
@@ -84,6 +85,7 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
     const exit = lines.find((line) => line.kind === 'exit');
     let closed = false;
     let wake: (() => void) | undefined;
+    let interrupted: (() => void) | undefined;
     const results = new Map<string, { text: string; isError: boolean }>();
     const denials = new Map<string, string>();
     async function* messages(): AsyncGenerator<unknown> {
@@ -106,6 +108,12 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
             replay.prompts.push(next.value.message.content);
             break;
           }
+          case 'await-interrupt':
+            await new Promise<void>((resolve) => {
+              interrupted = resolve;
+              wake = resolve;
+            });
+            break;
           case 'permission': {
             const decision = await options.canUseTool(line.tool, line.input, {
               signal: new AbortController().signal,
@@ -169,6 +177,7 @@ export function claudeReplay(recordings: readonly ClaudeRecordedLine[][]): Claud
       },
       interrupt: async () => {
         replay.interrupts += 1;
+        interrupted?.();
         return undefined;
       },
       close: () => {
