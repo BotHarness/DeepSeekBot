@@ -144,14 +144,14 @@ export function createGroupFallback(options: {
       }
     },
     async pick(botSlug, groupId, effort) {
-      let routes: ModelRoute[];
+      let modelRoutes: ModelRoute[];
       try {
-        routes = options.routes(groupId);
+        modelRoutes = options.routes(groupId);
       } catch {
         return { kind: 'missing' };
       }
       const rests: RestingRoute[] = [];
-      for (const route of routes) {
+      for (const route of modelRoutes) {
         const rest = options.rests.restingUntil(route);
         if (rest !== undefined) {
           rests.push(rest);

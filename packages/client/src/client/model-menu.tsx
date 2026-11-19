@@ -6,7 +6,10 @@ import {
   modelShortName,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
-import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
+import {
+  modelCatalogGroupFront,
+  routingGroupEngineLabel,
+} from '@botharness/host-client/model-catalog';
 import type {
   ModelCatalogEntryView,
   ModelCatalogGroupView,
@@ -170,6 +173,16 @@ export function catalogMenuItems(
         entry === undefined
           ? undefined
           : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
+      const engineLabels = group.engineMembers?.map(routingGroupEngineLabel) ?? [];
+      const hint =
+        group.restingUntil !== undefined
+          ? restingHint(group.restingUntil, t)
+          : t('modelMenu.groupFront', {
+              model:
+                entry === undefined
+                  ? (front?.model ?? '')
+                  : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
+            });
       return {
         value: groupMenuKey(group.id),
         label: group.name,
@@ -179,20 +192,13 @@ export function catalogMenuItems(
         ...(group.restingUntil === undefined && entry !== undefined
           ? {
               hintBrand: brand,
-              hintLabel: t('modelMenu.groupFront', {
-                model: `${entry.modelName} · ${entry.providerName}`,
-              }),
+              hintLabel: [
+                t('modelMenu.groupFront', { model: `${entry.modelName} · ${entry.providerName}` }),
+                ...engineLabels,
+              ].join(' · '),
             }
           : {}),
-        hint:
-          group.restingUntil !== undefined
-            ? restingHint(group.restingUntil, t)
-            : t('modelMenu.groupFront', {
-                model:
-                  entry === undefined
-                    ? (front?.model ?? '')
-                    : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
-              }),
+        hint: [hint, ...engineLabels].join(' · '),
         disabled,
       };
     }),

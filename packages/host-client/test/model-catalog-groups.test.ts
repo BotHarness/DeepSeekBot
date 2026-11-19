@@ -4,6 +4,7 @@ import {
   modelCatalogGroupEfforts,
   modelCatalogGroupFront,
   parseModelCatalog,
+  routingGroupEngineLabel,
 } from '../src/model-catalog.js';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
@@ -35,6 +36,32 @@ describe('parseModelCatalog reads Routing Groups and rest state (#4421)', () => 
 
   it('leaves groups out for a Host that does not send them', () => {
     expect(parseModelCatalog({ models: [] })).not.toHaveProperty('groups');
+  });
+
+  it('keeps engine labels separate from the DSH routes used for selection', () => {
+    const answer = parseModelCatalog({
+      models: [],
+      groups: [
+        {
+          id: 'mixed',
+          name: 'Mixed',
+          revision: 1,
+          members: [
+            { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+            { kind: 'model', ...flash },
+            { kind: 'engine', engine: 'claude' },
+            { kind: 'engine', engine: 'unknown' },
+          ],
+          routes: [flash],
+        },
+      ],
+    });
+    const group = answer.groups?.[0];
+    expect(group?.engineMembers?.map(routingGroupEngineLabel)).toEqual([
+      'Codex (gpt-5.4)',
+      'Claude Code',
+    ]);
+    expect(group?.routes).toEqual([flash]);
   });
 
   it('puts the first member that is not resting or missing a key in front', () => {

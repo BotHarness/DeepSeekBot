@@ -16,6 +16,7 @@ import {
   applyModelFavoriteChanges,
   modelCatalogGroupFront,
   modelChoiceKey,
+  routingGroupEngineLabel,
   type ModelCatalogEntry,
   type ModelCatalogGroup,
   type ModelFavoriteChange,
@@ -53,6 +54,7 @@ import {
   effortChoices,
   groupEffortChoices,
   groupEffortOf,
+  groupPickerLabel,
   keptEffort,
   keptGroupEffort,
   presetDetail,
@@ -613,6 +615,8 @@ export function ModelsView({
             }
             if (row.kind === 'group') {
               const { group, front } = row;
+              const engineLabels = group.engineMembers?.map(routingGroupEngineLabel) ?? [];
+              const showFront = front !== undefined && group.restingUntil === undefined;
               const selected =
                 picker === 'allowed'
                   ? listedGroups.includes(group.id)
@@ -634,15 +638,11 @@ export function ModelsView({
                   <SettingsRow
                     on={SHEET_GROUP}
                     testID={`model-group-${group.id}`}
-                    {...(front === undefined || group.restingUntil !== undefined
-                      ? {}
-                      : {
-                          accessibilityLabel: `${group.name}, ${t.modelSettings.groupFront(
-                            `${front.modelName} · ${front.providerName}`,
-                          )}`,
-                        })}
+                    accessibilityLabel={
+                      showFront ? groupPickerLabel(group.name, front, engineLabels) : undefined
+                    }
                     leading={
-                      front === undefined || group.restingUntil !== undefined ? (
+                      !showFront ? (
                         <RowIcon
                           name="model"
                           size={theme.type.title.line}
@@ -668,6 +668,7 @@ export function ModelsView({
                               ? (group.routes[0]?.model ?? '')
                               : shortModelName(front),
                           ),
+                      ...engineLabels,
                       ...(picker === 'allowed' && note !== undefined ? [note] : []),
                     ].join(' · ')}
                     tone={usable ? 'fg' : 'muted'}
