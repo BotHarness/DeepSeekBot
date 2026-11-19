@@ -22,6 +22,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 vi.mock('../src/client/profile-combobox.js', () => ({ ProfileCombobox: () => null }));
+import type { ObserveResource } from '../../core/src/channels/resource-events.js';
+import { observeResource } from '../../client/src/client/messaging-defaults-live.js';
+import { resourceEvents } from '../../client/test/resource-events-fixture.js';
 import { apply, type BrowserClientContext } from '../src/client/index.js';
 import { en } from '../src/client/locale.js';
 
@@ -33,6 +36,7 @@ let target: 'local' | 'container';
 let takeover: boolean;
 let viewer: boolean;
 let handoffPending: boolean;
+let events: ReturnType<typeof resourceEvents>;
 const urls: string[] = [];
 const tabs = [
   { targetId: 'home', title: 'Home', url: 'http://fixture/home' },
@@ -51,9 +55,10 @@ function observation(url: string): object {
     tabs: tabs.map((t) => ({ ...t, current: t.targetId === current })),
   };
 }
-async function poll(): Promise<void> {
+async function observationChanged(): Promise<void> {
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(1500);
+    events.emit('browser');
+    await vi.advanceTimersByTimeAsync(30);
   });
 }
 async function click(selector: string): Promise<void> {
@@ -72,6 +77,7 @@ async function click(selector: string): Promise<void> {
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();
+  events = resourceEvents();
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -102,6 +108,8 @@ beforeEach(async () => {
   document.body.append(host);
   root = createRoot(host);
   Body = undefined;
+  const observe: ObserveResource = (resource, refresh) =>
+    observeResource(resource, refresh, 10_000, 60_000, true);
   apply({
     locale: {
       bind: () => (key: string, params?: Record<string, string | number>) =>
@@ -114,6 +122,7 @@ beforeEach(async () => {
     inject: (names, callback) => {
       if (names.includes('configForms')) return;
       callback({
+        get: () => observe,
         channelSidebar: {
           register: (entry: { component: typeof Body }) => {
             Body = entry.component;
@@ -136,6 +145,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  events.dispose();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -173,7 +183,7 @@ describe('Browser current work versus Human preview', () => {
               : observation(String(url)),
         } as Response;
       });
-      await poll();
+      await observationChanged();
       expect(host.querySelector('[role="alert"]')?.textContent).toBe(
         'Browser cleanup failed. Click Stop to retry.',
       );
@@ -205,7 +215,7 @@ describe('Browser current work versus Human preview', () => {
   it('locks the visible tab when Follow is turned off and resumes current work when re-enabled', async () => {
     await click('[role="switch"]');
     current = 'home';
-    await poll();
+    await observationChanged();
     expect(host.querySelector('img')?.getAttribute('src')).toBe('frame:work');
     expect(urls.at(-1)).toContain('tab=work');
     await click('[role="switch"]');
@@ -226,7 +236,7 @@ describe('Container Human viewer', () => {
   async function expand(): Promise<HTMLIFrameElement> {
     target = 'container';
     viewer = true;
-    await poll();
+    await observationChanged();
     const frame = host.querySelector('iframe')!;
     expect(frame.style.pointerEvents).toBe('auto');
     expect(frame.tabIndex).toBe(0);
@@ -277,11 +287,11 @@ describe('Container Human viewer', () => {
     await expand();
     await takeOver();
     handoffPending = true;
-    await poll();
+    await observationChanged();
     await release();
     expect(takeover).toBe(true);
     handoffPending = false;
-    await poll();
+    await observationChanged();
     await takeOver();
     await release();
     expect(takeover).toBe(false);
@@ -375,10 +385,10 @@ describe('Container Human viewer', () => {
   it('revokes interaction when the target switches away from a viewer target', async () => {
     await expand();
     viewer = false;
-    await poll();
+    await observationChanged();
     expect(host.querySelector('iframe')).toBeNull();
     viewer = true;
-    await poll();
+    await observationChanged();
     expect(host.querySelector('iframe')!.style.pointerEvents).toBe('auto');
   });
   it('hides the header takeover switch on touch devices', async () => {
@@ -394,7 +404,7 @@ describe('Container Human viewer', () => {
     target = 'container';
     viewer = true;
     await act(async () => root2.render(createElement(Body!, { botSlug: 'qa' })));
-    await poll();
+    await observationChanged();
     await act(async () =>
       [...host2.querySelectorAll('button')].find((b) => b.textContent === 'Fullscreen')!.click(),
     );
@@ -439,7 +449,7 @@ describe('Container Human viewer', () => {
   it('opens the fullscreen viewer without another server round trip', async () => {
     target = 'container';
     viewer = true;
-    await poll();
+    await observationChanged();
     const calls = vi.mocked(globalThis.fetch).mock.calls.length;
     await act(async () =>
       [...host.querySelectorAll('button')].find((b) => b.textContent === 'Fullscreen')!.click(),
@@ -468,7 +478,7 @@ describe('Container Human viewer', () => {
     });
     const fetch = vi.mocked(globalThis.fetch);
     fetch.mockImplementationOnce(() => delayed as Promise<Response>);
-    await poll();
+    await observationChanged();
     const count = fetch.mock.calls.length;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(6000);
@@ -489,7 +499,7 @@ describe('Local Human viewer', () => {
   it('renders the Host-served viewer for the local target', async () => {
     target = 'local';
     viewer = true;
-    await poll();
+    await observationChanged();
     const frame = host.querySelector('iframe')!;
     expect(frame.getAttribute('src')).toBe('./viewer/qa/?mode=direct');
     expect(frame.style.pointerEvents).toBe('auto');
@@ -499,7 +509,7 @@ describe('Local Human viewer', () => {
   it('opens watch-only without pausing the bot', async () => {
     target = 'local';
     viewer = true;
-    await poll();
+    await observationChanged();
     await act(async () =>
       [...host.querySelectorAll('button')].find((b) => b.textContent === 'Fullscreen')!.click(),
     );

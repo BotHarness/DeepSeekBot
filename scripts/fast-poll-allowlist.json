@@ -3,10 +3,6 @@
     "count": 1,
     "reason": "Host relationship enrollment poll; moves to the relationships resource event in #4609."
   },
-  "packages/client/src/client/account-profile-settings.tsx": {
-    "count": 1,
-    "reason": "Account sign-in status while a browser sign-in is open; #4542 replaces it with an account-changed event."
-  },
   "packages/client/src/client/connection-progress-log.tsx": {
     "count": 1,
     "reason": "Diagnostic log tail while the connection panel is open and visible; #4609 decides between a stream and a kept poll."
@@ -31,14 +27,6 @@
     "count": 1,
     "reason": "Waits 5 s to reconnect when the live snapshot stream fails."
   },
-  "packages/client/src/client/market-upload.tsx": {
-    "count": 1,
-    "reason": "Market account sign-in while a browser sign-in is open; follows the account-changed event from #4542."
-  },
-  "packages/client/src/client/onboarding-view.tsx": {
-    "count": 1,
-    "reason": "Onboarding checklist; #4542 removes the timer since it already follows the store."
-  },
   "packages/client/src/client/private-account-controls.tsx": {
     "count": 1,
     "reason": "Private account status while configuring; moves to the private-inputs resource event in #4609."
@@ -46,10 +34,6 @@
   "packages/client/src/client/private-input-card.tsx": {
     "count": 1,
     "reason": "Private input status while pending; moves to the private-inputs resource event in #4609."
-  },
-  "packages/client/src/client/reachable-post.tsx": {
-    "count": 1,
-    "reason": "Reachable-post request state; #4542 moves it to the Host change event."
   },
   "packages/client/src/client/remote-viewer/index.tsx": {
     "count": 1,

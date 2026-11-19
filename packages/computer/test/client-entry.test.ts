@@ -25,11 +25,15 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 import {
   apply,
   ComputerEntryView,
+  createComputerEntry,
   RecentLogs,
   RecentLogsList,
   StreamOverlay,
   ViewerTitleBar,
 } from '../src/client/index.js';
+import { observeResource } from '../../client/src/client/messaging-defaults-live.js';
+import { resourceEvents } from '../../client/test/resource-events-fixture.js';
+import { LocalComputerStatus } from '../src/client/local-computer.js';
 import { zh, type ComputerTranslate } from '../src/client/locale.js';
 
 const t = ((key: ComputerKey, params?: Record<string, unknown>): string => {
@@ -746,4 +750,65 @@ describe('Computer viewer mounted lifecycle', () => {
       restoreCanvas();
     }
   });
+});
+
+describe('live Computer status', () => {
+  it.each(['panel', 'Local Computer'])(
+    'refreshes %s on a Host event and reconnect without fast reads',
+    async (kind) => {
+      vi.useFakeTimers();
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const events = resourceEvents();
+      let phase = 'idle';
+      const fetcher = vi.fn(async () =>
+        Response.json({
+          target: 'container',
+          probe: { available: true },
+          status: { state: 'stopped', phase },
+        }),
+      );
+      vi.stubGlobal('fetch', fetcher);
+      const element = document.createElement('div');
+      const root = createRoot(element);
+      const observe: NonNullable<Parameters<typeof createComputerEntry>[1]> = (resource, refresh) =>
+        observeResource(resource, refresh, 10_000, 60_000, true);
+      const Entry = createComputerEntry(t, observe);
+      try {
+        await act(async () =>
+          root.render(
+            kind === 'panel'
+              ? createElement(Entry, {
+                  channelId: 'dm',
+                  scope: 'personabot',
+                  botSlug: undefined,
+                  actions: {},
+                })
+              : createElement(LocalComputerStatus, { t, observeResource: observe }),
+          ),
+        );
+        await act(async () => vi.advanceTimersByTimeAsync(30));
+        const idle = fetcher.mock.calls.length;
+        phase = 'starting';
+        await act(async () => vi.advanceTimersByTimeAsync(6_100));
+        expect(fetcher).toHaveBeenCalledTimes(idle);
+        expect(element.textContent).not.toContain(kind === 'panel' ? '正在启动' : '检查中');
+        await act(async () => {
+          events.emit('computer');
+          await vi.advanceTimersByTimeAsync(30);
+        });
+        expect(element.textContent).toContain(kind === 'panel' ? '正在启动' : '检查中');
+        phase = 'idle';
+        await act(async () => {
+          events.reconnect();
+          await vi.advanceTimersByTimeAsync(30);
+        });
+        expect(element.textContent).not.toContain(kind === 'panel' ? '正在启动' : '检查中');
+      } finally {
+        await act(async () => root.unmount());
+        events.dispose();
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+      }
+    },
+  );
 });

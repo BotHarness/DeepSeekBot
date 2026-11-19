@@ -412,3 +412,29 @@ describe('Profile Computer Target lifecycle', () => {
     expect(next.driver.call).toHaveBeenCalledTimes(1);
   });
 });
+
+it('does not publish retired provider failures when a status read retries a Computer Target switch', async () => {
+  let target: ComputerTarget = 'container';
+  const changed = vi.fn();
+  const runtime = createComputerTargetRuntime({
+    target: () => target,
+    onChange: () => {},
+    onStatusChanged: changed,
+    create: (selected, onStatusChanged) => {
+      const tools = fakeRuntime(selected);
+      vi.mocked(tools.provider.stop).mockImplementation(async () => {
+        onStatusChanged();
+        throw new Error('Docker unavailable');
+      });
+      return tools;
+    },
+  });
+  try {
+    target = 'local';
+    await expect(runtime.provider.status()).rejects.toThrow('Docker unavailable');
+    await expect(runtime.provider.status()).rejects.toThrow('Docker unavailable');
+    expect(changed).not.toHaveBeenCalled();
+  } finally {
+    await runtime.dispose();
+  }
+});

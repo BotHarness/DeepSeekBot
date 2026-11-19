@@ -241,6 +241,7 @@ function setup(
   watchMs = 60_000,
   onReady?: () => void,
   record?: Parameters<typeof createConnectAccount>[0]['record'],
+  onAccountChanged?: () => void,
 ) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
@@ -254,6 +255,7 @@ function setup(
     sleep: async () => {},
     watchMs,
     ...(onReady === undefined ? {} : { onReady }),
+    ...(onAccountChanged === undefined ? {} : { onAccountChanged }),
     ...(record === undefined ? {} : { record }),
   });
   return { account, credentials, tunnel, services };
@@ -1338,6 +1340,24 @@ describe('Connect account sign-in', () => {
 });
 
 describe('Connect account lifecycle', () => {
+  it('publishes account status after browser authorization settles and does not repeat a healthy sync', async () => {
+    const states: string[] = [];
+    const test = setup(fakeServices({ pending: 0 }), 41001, 60_000, undefined, undefined, () => {
+      states.push(test.account.status().state);
+    });
+    try {
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signing-in', 'signed-in']);
+      await test.account.start();
+      expect(states).toEqual(['signing-in', 'signed-in']);
+      await test.account.signOut();
+      expect(states).toEqual(['signing-in', 'signed-in', 'signed-out']);
+    } finally {
+      await test.account.close();
+    }
+  });
+
   it('announces readiness only after sign-in, without repeating it on a healthy account sync', async () => {
     const states: string[] = [];
     const test = setup(fakeServices({ pending: 0 }), 41001, 60000, () => {
