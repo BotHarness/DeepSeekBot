@@ -262,10 +262,23 @@ try {
   assert.ok(await page.$eval(opener, (node) => document.activeElement === node));
   await page.click(opener);
   await page.waitForSelector(drawer, { visible: true });
-  await page.locator(`${drawer} button[data-channel-id]`).click();
+  const tobName = label('Tob', '托布');
+  const tobRow = await page.waitForFunction(
+    (selector, name) =>
+      [...document.querySelectorAll(selector)].find(
+        (row) => row.querySelector('.bh-name')?.textContent === name,
+      ),
+    {},
+    `${drawer} button[data-channel-id]`,
+    tobName,
+  );
+  await tobRow.asElement().click();
+  await tobRow.dispose();
   await page.waitForSelector(drawer, { hidden: true });
   await page.waitForFunction(
-    () => document.querySelector('.bh-mobile-conversation-header h1')?.textContent === 'Tob',
+    (name) => document.querySelector('.bh-mobile-conversation-header h1')?.textContent === name,
+    {},
+    tobName,
   );
   await capture('compact-conversation');
   await page.setViewport({ width: 1440, height: 900 });

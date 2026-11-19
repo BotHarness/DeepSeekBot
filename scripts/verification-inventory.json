@@ -2326,7 +2326,7 @@
       "behaviors": ["desktop.bot-mode.entry"],
       "reason": "Real isolated Web Client: permanent bottom return, original logo, pointer and keyboard activation, last-mode restoration, moved-rail layout and unsent draft preservation, short window and narrow/wide transitions. Localized light/dark screenshots; no model or native Desktop claim. #4288 adds the medium dock and the compact drawer keyboard and focus-return assertions.",
       "task": 2289,
-      "sha256": "f236455d92273138d3c4cfd1de3b79bef13b58a9e6985bd17799f9b6d3e3d117"
+      "sha256": "1fe559ca2ee3d20abc8240d1b8e2e4992a20adba9de30aca462e7014b81ab239"
     },
     {
       "path": "scripts/e2e-panel-workspace.mjs",
