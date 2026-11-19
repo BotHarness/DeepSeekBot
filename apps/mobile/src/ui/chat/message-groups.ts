@@ -79,15 +79,6 @@ export function messageGroups(rows: readonly ChatRow[]): Array<{ key: string; gr
   return groups;
 }
 
-let clockFormat: Intl.DateTimeFormat | undefined;
-
-export function bubbleTime(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return '';
-  clockFormat ??= new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-  return clockFormat.format(at);
-}
-
 export function separatorLabel(iso: string, now: Date, yesterday: string, locale?: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';

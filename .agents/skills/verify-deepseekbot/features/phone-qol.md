@@ -60,9 +60,14 @@ Handoff v2 adds these required scenarios on both lanes and both paths:
 - Send a long multiline draft with the keyboard open, then closed. Track the newest
   bubble's bottom edge relative to the composer throughout collapse; fail steps or
   delayed jumps, and confirm the flying text remains visible throughout the send.
-- Delay server confirmation, then commit the pending Human message. Its local time
-  row must already be present, with the check hidden until commit; bubble height
-  must not change. Check the failed state as well. This shared fix is in #3901.
+- Delay server confirmation, then commit the pending Human message. Verify that
+  pending and committed bubbles show the same body layout without a clock or
+  timestamp row. Check failed-send retry and the separate delivery and reading chips.
+- Open Message Actions by long-pressing on iOS and tapping on Android. Confirm
+  the timestamp is readable in the iOS sheet and Android anchored menu, including
+  a calendar date for yesterday and a year for last year. Repeat for media-only
+  messages and exercise the accessibility entry. Android long-press keeps message
+  selection.
 - Flick away from the bottom with small release velocity, then return to the bottom.
   The latest arrow must clear even when no momentum-start event follows the drag
   (#3889 uses a 120 ms fallback). Also verify a real fling retains history ownership.
@@ -73,7 +78,7 @@ until the multiline-send measurement proves Android needs a spacer. If needed, p
 it in the inverted list's header, add an A/B switch and remeasure. Do not copy iOS
 shrink glue without a measured Android shrink jump. Record separate list displacement,
 composer edge, bubble edge and bubble height: list-only correlation cannot prove a
-stable bubble/composer gap or stable timestamp-row height.
+stable bubble/composer gap or bubble height.
 
 Capture scrcpy clips, retain original timestamps and extract 60 fps frames with ffmpeg.
 Cross-correlate neighbouring frames in a fixed list-only crop, excluding the composer

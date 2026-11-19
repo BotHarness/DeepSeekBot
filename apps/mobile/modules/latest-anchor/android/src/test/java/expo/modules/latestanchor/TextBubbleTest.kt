@@ -27,8 +27,8 @@ class TextBubbleTest {
     "fg" to "#1b1b1f", "muted" to "#77777f",
     "bodySize" to 14.0, "bodyLine" to 20.0, "metaSize" to 12.0, "metaLine" to 16.0, "fontScale" to 1.0,
     "rowInset" to 12.0, "firstGap" to 12.0, "joinGap" to 2.0, "lastGap" to 4.0,
-    "padX" to 16.0, "padY" to 10.0, "timeGap" to 8.0, "stackGap" to 4.0,
-    "open" to 16.0, "join" to 8.0, "tail" to 8.0, "besideMax" to 60.0, "maxWidth" to 0.88,
+    "padX" to 16.0, "padY" to 10.0,
+    "open" to 16.0, "join" to 8.0, "tail" to 8.0, "maxWidth" to 0.88,
   )
   private val tokens = TextRowStyle.from(style)!!
 
@@ -49,9 +49,9 @@ class TextBubbleTest {
   }
 
   @Test fun leavesRoomForTheSpeakerAvatarAndNamesTheFirstRowOfARun() {
-    val plain = TextBubbleLayout(TextRow("b", false, true, true, "hello", "09:30"), tokens, 1200, 3f)
-    val named = TextBubbleLayout(TextRow("b", false, true, true, "hello", "09:30", speaker = true, name = "Perf QA"), tokens, 1200, 3f)
-    val joined = TextBubbleLayout(TextRow("b", false, false, true, "hello", "09:30", speaker = true), tokens, 1200, 3f)
+    val plain = TextBubbleLayout(TextRow("b", false, true, true, "hello"), tokens, 1200, 3f)
+    val named = TextBubbleLayout(TextRow("b", false, true, true, "hello", speaker = true, name = "Perf QA"), tokens, 1200, 3f)
+    val joined = TextBubbleLayout(TextRow("b", false, false, true, "hello", speaker = true), tokens, 1200, 3f)
     assertEquals(plain.bubble.left + (32f + 12f) * 3f, named.bubble.left, 0.5f)
     assertTrue(named.bubble.top > plain.bubble.top + 4f * 3f)
     assertEquals(plain.bubble.top - (12f - 2f) * 3f, joined.bubble.top, 0.5f)
@@ -61,8 +61,8 @@ class TextBubbleTest {
   }
 
   @Test fun placesBubblesBySenderAndGroup() {
-    val human = TextBubbleLayout(TextRow("h", true, true, true, "hello", "09:30 ✓"), tokens, 1200, 3f)
-    val bot = TextBubbleLayout(TextRow("b", false, false, false, "hello", "09:30"), tokens, 1200, 3f)
+    val human = TextBubbleLayout(TextRow("h", true, true, true, "hello"), tokens, 1200, 3f)
+    val bot = TextBubbleLayout(TextRow("b", false, false, false, "hello"), tokens, 1200, 3f)
     assertEquals(1200f - 36f, human.bubble.right, 0.5f)
     assertEquals(36f, bot.bubble.left, 0.5f)
     assertEquals(36f, human.bubble.top, 0.5f)
@@ -71,19 +71,23 @@ class TextBubbleTest {
     assertTrue(bot.height >= bot.bubble.bottom.toInt())
   }
 
-  @Test fun putsShortBotTimeBesideAndKeepsLongTextWithinTheBubbleWidth() {
-    val short = TextBubbleLayout(TextRow("s", false, true, true, "short", "09:30"), tokens, 1200, 3f)
-    val long = TextBubbleLayout(TextRow("l", false, true, true, "word ".repeat(80).trim(), "09:30"), tokens, 1200, 3f)
+  @Test fun fitsShortAndLongTextWithoutReservingSpaceForTime() {
+    val short = TextBubbleLayout(TextRow("s", false, true, true, "short"), tokens, 1200, 3f)
+    val long = TextBubbleLayout(TextRow("l", false, true, true, "word ".repeat(80).trim()), tokens, 1200, 3f)
     assertEquals(1, short.paragraphs.single().lineCount)
-    assertTrue(short.timeX > short.bubble.left + short.paragraphs.single().width)
-    if (long.paragraphs.single().lineCount > 1) assertTrue(long.timeBaseline > long.bubble.top + long.paragraphs.single().height)
+    assertTrue(long.paragraphs.single().lineCount > 1)
+    for (layout in listOf(short, long)) {
+      val text = layout.paragraphs.single()
+      assertEquals(text.height + 2 * tokens.padY * 3f, layout.bubble.height(), 0.5f)
+    }
+    assertEquals(short.paragraphs.single().getLineRight(0) + 2 * tokens.padX * 3f, short.bubble.width(), 0.5f)
     assertTrue(long.bubble.width() <= (1200 - 72) * 0.88f + 0.5f)
   }
 
   @Test fun separatesBotParagraphsByTheMarkdownGap() {
     val gapped = tokens.copy(paragraphGap = 8f)
-    val two = TextBubbleLayout(TextRow("p", false, true, true, "first\n\nsecond", "09:30"), gapped, 1200, 3f)
-    val human = TextBubbleLayout(TextRow("q", true, true, true, "first\n\nsecond", "09:30"), gapped, 1200, 3f)
+    val two = TextBubbleLayout(TextRow("p", false, true, true, "first\n\nsecond"), gapped, 1200, 3f)
+    val human = TextBubbleLayout(TextRow("q", true, true, true, "first\n\nsecond"), gapped, 1200, 3f)
     assertEquals(2, two.paragraphs.size)
     assertEquals(1, human.paragraphs.size)
   }
@@ -97,7 +101,7 @@ class TextBubbleTest {
     val list = ChatRecyclerView(react, app)
     activity.setContentView(list)
     list.setTextStyle(style)
-    list.setTextRows(listOf(mapOf("key" to "item:b", "human" to false, "first" to true, "last" to true, "body" to "plain", "time" to "09:30")))
+    list.setTextRows(listOf(mapOf("key" to "item:b", "human" to false, "first" to true, "last" to true, "body" to "plain")))
     list.setRows(listOf("item:a", "item:b", "item:c"))
     list.measure(View.MeasureSpec.makeMeasureSpec(1200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY))
     list.layout(0, 0, 1200, 2000)
@@ -107,7 +111,7 @@ class TextBubbleTest {
     assertEquals(1, recycler.adapter!!.getItemViewType(1))
     assertEquals(0, recycler.adapter!!.getItemViewType(0))
     val holder = recycler.findViewHolderForAdapterPosition(1)!!
-    val expected = TextBubbleLayout(TextRow("item:b", false, true, true, "plain", "09:30"), tokens, list.width, list.resources.displayMetrics.density).height
+    val expected = TextBubbleLayout(TextRow("item:b", false, true, true, "plain"), tokens, list.width, list.resources.displayMetrics.density).height
     assertEquals(expected, holder.itemView.layoutParams.height)
     controller.pause().stop().destroy()
   }
