@@ -27,7 +27,8 @@ import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, type ShortcutKey } from './ds/kbd.js';
 import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { PreviewChoices } from './ds/preview-choice.js';
+import { ink, space } from './ds/tobs.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -71,85 +72,9 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   sendKeySeparator: {
-    color: color.muted,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))',
-    gap: space.x3,
-    marginTop: space.x3,
-  },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: space.x2,
-    minWidth: 0,
-    paddingBlock: space.x3,
-    paddingInline: space.x2,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.md,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-      ':is([aria-checked=true])': color.selected,
-    },
-    color: {
-      default: color.muted,
-      ':hover': color.fg,
-      ':is([aria-checked=true])': color.fg,
-    },
-    fontFamily: 'inherit',
-    fontWeight: { default: 400, ':is([aria-checked=true])': 500 },
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    cursor: 'pointer',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-  },
-  art: {
-    pointerEvents: 'none',
-  },
-  cardLabel: {
-    maxWidth: '100%',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    color: ink.secondary,
   },
 });
-
-export function BotIconCard({
-  option,
-  label,
-  selected,
-  onSelect,
-}: {
-  readonly option: BotModeIcon;
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onSelect: (icon: BotModeIcon) => void;
-}): ReactElement {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={() => {
-        onSelect(option);
-      }}
-      {...stylex.props(styles.card)}
-    >
-      <span {...stylex.props(styles.art)}>
-        <BotIcon icon={option} size={28} />
-      </span>
-      <span {...stylex.props(styles.cardLabel)}>{label}</span>
-    </button>
-  );
-}
 
 export function BotIconSetting({
   t,
@@ -159,17 +84,17 @@ export function BotIconSetting({
   const botIcon = useBotModePrefs((value) => value.botIcon);
   return (
     <SettingsRow title={t('icon.row.title')} description={t('icon.row.description')}>
-      <div role="radiogroup" aria-label={t('icon.row.title')} {...stylex.props(styles.grid)}>
-        {ICON_OPTIONS.map((option) => (
-          <BotIconCard
-            key={option.id}
-            option={option.id}
-            label={t(option.label)}
-            selected={botIcon === option.id}
-            onSelect={setBotIcon}
-          />
-        ))}
-      </div>
+      <PreviewChoices
+        label={t('icon.row.title')}
+        variant="icon"
+        value={botIcon}
+        onChange={setBotIcon}
+        options={ICON_OPTIONS.map((option) => ({
+          id: option.id,
+          label: t(option.label),
+          preview: <BotIcon icon={option.id} size={28} />,
+        }))}
+      />
     </SettingsRow>
   );
 }

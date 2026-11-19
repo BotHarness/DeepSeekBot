@@ -6,7 +6,7 @@ import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import type { SettingsLayoutSlots } from './bot-settings-slot.js';
 import { BotIconSetting, type BotModeSettingRowProps } from './bot-mode-setting-rows.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import {
   ColorSchemePicker,
   PrimaryColorPicker,
@@ -33,7 +33,7 @@ export function AppearanceSection(
     } catch {}
   };
   return (
-    <div>
+    <SettingsRows>
       <Note>{t('appearance.local')}</Note>
       {theme.error && <Note tone="danger">{t('appearance.saveFailed')}</Note>}
       <SettingsSection title={t('settings.theme')}>
@@ -90,6 +90,6 @@ export function AppearanceSection(
       {props.clientOnly
         ? null
         : (renderSlot('botharness.settings.layout', {}) as unknown as ReactNode)}
-    </div>
+    </SettingsRows>
   );
 }

@@ -16,7 +16,6 @@ import { BotModePrefs, botModePrefsFace } from '../src/client/bot-mode-prefs.js'
 import {
   AssignmentConcurrencyRow,
   AutoCollapseMessagesSetting,
-  BotIconCard,
   BotIconSetting,
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
@@ -47,6 +46,7 @@ it('offers an off-by-default folding switch that updates the shared message pref
 });
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
 afterEach(() => {
+  vi.unstubAllGlobals();
   for (const { root, container } of mounted.splice(0)) {
     act(() => root.unmount());
     container.remove();
@@ -207,19 +207,8 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('仅当前会话生效，不会保存');
     expect(markup).not.toContain('设置 Bot 模式列表的默认排序方式');
   });
-  it('selects a mark when its card is activated', () => {
-    const setBotIcon = vi.fn();
-    const card = BotIconCard({
-      option: 'simple',
-      label: 'Tobs 简约',
-      selected: false,
-      onSelect: setBotIcon,
-    });
-    (card.props as { onClick: () => void }).onClick();
-    expect(setBotIcon).toHaveBeenCalledWith('simple');
-  });
-
-  it('renders one card per Bot mark and writes the picked one', () => {
+  it.each([400, 1280])('writes the selected Bot icon at %i px', (width) => {
+    vi.stubGlobal('innerWidth', width);
     const setBotIcon = vi.fn();
     const markup = renderSection(snapshot({ botIcon: 'blob' }), undefined, undefined, setBotIcon);
     expect(markup).toContain('Bot 图标');
@@ -228,6 +217,12 @@ describe('Bot mode setting rows', () => {
     const cards = [...markup.matchAll(/<button[^>]*role="radio"[^>]*>/g)].map((m) => m[0]);
     expect(cards).toHaveLength(4);
     expect(cards.filter((card) => card.includes('aria-checked="true"'))).toHaveLength(1);
+    const choice = [...document.querySelectorAll<HTMLButtonElement>('button[role="radio"]')].find(
+      (button) => button.textContent === t('icon.simple'),
+    );
+    expect(choice).toBeDefined();
+    act(() => choice?.click());
+    expect(setBotIcon).toHaveBeenCalledWith('simple');
   });
 });
 

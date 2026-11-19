@@ -62,9 +62,7 @@
     "rawControl": 8
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
-    "dshImport": 1,
-    "rawControl": 1,
-    "lineBorder": 1
+    "dshImport": 1
   },
   "packages/client/src/client/bot-mode-sidebar.tsx": {
     "dshImport": 1
@@ -519,10 +517,6 @@
   },
   "packages/client/src/client/wallpaper-layer.ts": {
     "legacyCss": 4
-  },
-  "packages/client/src/client/wallpaper-library.tsx": {
-    "rawControl": 5,
-    "lineBorder": 1
   },
   "packages/client/src/client/window-companion-styles.ts": {
     "legacyCss": 42,
