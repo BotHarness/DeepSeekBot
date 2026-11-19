@@ -3,6 +3,7 @@
 ## Sources
 
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
+- `packages/core/src/models/routing-group-engine-options.ts`
 - `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter}.ts`
 - `packages/core/src/engines/engine-host.ts`
 - `packages/client/src/client/turn-stop-line.tsx`
@@ -18,37 +19,44 @@
 
 ## Sub-features
 
-- The CLI saves a Codex or Claude Code target with an optional engine model in an ordered Routing Group. Listing and showing the group return those members in order.
-- Routing Group settings display the engine by name. Desktop and phone model choices show engine names as part of the group's description.
-- The phone editor shows saved engine rows as read-only and preserves them in the ordered member list when saving other edits.
+- A saved engine member uses the model brand, short model name or engine default, full subscription source, and puzzle-piece icon. The editor gives every member a position and dims unavailable engines with a reason.
+- The group picker shows the current DSH route. Its accessible name reads the current route and the full saved member order.
+- The desktop and phone editors add, reorder, and remove engine members. **Subscription Engines** shows a default and the models the Host reports for each signed-in engine. Other engines show a disabled row with a reason.
+- Reopening **Subscription Engines** refreshes availability and leaves existing choices visible until the Host responds. A failed read shows Retry and preserves the editor draft. Search matches terms across the engine and model fields.
+- Saving a group that expands to zero DSH models shows the Host refusal inline and keeps the draft.
 - The local Orchestrator runs the first ready target in a mixed group. After quota, the next ready engine or DSH model continues the same request in the same Session, using completed tool results. A reply already sent for the original Source Event is protected against a second send. Assignment and Subagent choices use the group's DSH route projection.
-- The Channel shows a limit card when every target rests. The card gives the earliest reset time.
+- The Channel shows one limit card when every target rests. The card gives the earliest reset time.
 
 ## How to get to it (user POV)
 
-Create a mixed group with `deepseekbot model-group-create --members-stdin` as shown in the [CLI guide](../../../../docs/bot-cli.md#routing-groups). Open Bot settings → Models & execution → Routing Groups. The group row and its member list show the engine name and any configured engine model. Open a model picker and browse the Routing Groups filter to see the same label.
+On desktop open Bot settings → Models & execution → Routing Groups. On a paired phone open Settings → Models and presets → Routing Groups. Open a group, then **Add member** → **Subscription Engines**. On desktop the puzzle-piece filter is named **Subscription Engines**.
 
-On a paired phone, open a Bot's settings, open its model picker and select the Groups filter. The group row shows its DSH route and saved engine labels.
+For the group picker, open the global default model picker on desktop or a Bot's model picker on phone. Use the Routing Groups filter.
 
 ## Driving it with verify-app
 
-Launch and check an isolated Host. Read `deepseekbot model-catalog` and use a catalog route in the fixture. Create a group with engine, DSH model and another engine in that order. Read it with `model-groups` and `model-group <id>`. Update the engine model with `model-group-update --members-stdin`, then read the group again. Verify `group.members` contains each engine and `routes` contains only DSH routes. Confirm an unknown engine is refused and leaves the revision unchanged.
+### Editor and picker
 
-Use `verify-app shot --bot-mode` to open Routing Group settings and check the group summary and member list. Check the model picker Group row and confirm the active route label still points to the DSH model. Run the phone path through the shared device queue.
+1. Launch and check an isolated Host. Sign Codex in with a ChatGPT subscription or fixture its installed, signed-in status and `gpt-5.4` model catalog. Leave Claude Code signed out or fixture that status. Seed a Routing Group with `opencode-go/deepseek-v4.1-flash`, Codex `gpt-5.4`, and the Claude Code default in that order through `deepseekbot model-group-create --members-stdin`. Use a configured catalog route and avoid sending messages. This leaves the Codex default available and unsaved.
+2. Open each group picker and verify that only the current DSH route is visible under the name. Read the accessible name and check the full ordered list. The expanded DSH routes and the saved members are available from `deepseekbot model-group <id>`.
+3. In each editor verify the same member order, the short model title, and the muted Claude Code row with its sign-in reason. Open **Add member** → **Subscription Engines** and compare the choices to `deepseekbot engine status` and `deepseekbot engine models <engine>`. Add the Codex default, move it, remove a different engine, and save. Read back the new member order and revision. Before testing the second editor, restore the original three members using the current revision, or seed a separate group with the same original members.
+4. Remove the last DSH model and save. Verify the inline refusal, retained draft, and unchanged stored revision. Add the model back before saving.
+5. Capture the editor, group picker, and Add member picker in both themes. Use the paired Expo Web preview for a phone layout comparison. Use the shared device queue for native results.
 
-On the phone, open Settings → Models and presets → Routing Groups and select the mixed group. Verify that each engine row shows the engine name and optional model. Rename the group and save. Read `deepseekbot model-group <id>` again and verify the new name and the original member order, including both engines.
+### Quota fallback
 
-For quota fallback, first use the replay test so the run uses no subscription quota.
+Run the replay first to verify continuation with a completed tool result, deduplication when a reply has already been delivered, and exhaustion without consuming subscription quota.
 
 ```sh
 pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts
 ```
 
-For a live follow-up on an isolated local Host, select the group using `model-plan-customize <bot> --orchestrator-group <id>` and send a DM. After an engine limit, check `engine status` for the reset and `channel-timeline <channel>` for the switch notice. Check that the original DM gets one reply in the same Session without another Human message. In the replay that hits quota after a tool call, verify that the next target sees its completed result. In the replay with an earlier reply, verify that only that reply is delivered. With every target resting, open the DM and verify the limit card's earliest reset against `turnStop.rests[0].until`. Exercise this journey using a replay transport if a real engine quota window is unavailable.
+For an isolated Host check, create an engine-first group and assign it through `model-plan-customize <bot> --orchestrator-group <id>`. Send a DM. After an engine limit, check the reset in `deepseekbot engine status` and the switch notice in `deepseekbot channel-timeline <channel>`. The original DM gets one reply in the same Session without another Human message. When every target is resting, open the DM and check the card's earliest reset against `turnStop.rests[0].until`. Use a replay transport when the live subscription cannot produce the intended quota case.
 
-After the first fallback, restart the isolated Host while the engine still rests and send a DM that depends on the earlier conversation. Check that one reply reaches the Channel and that `bot-sessions` and `session-transcript` reopen the same Session.
+After the first fallback, restart the isolated Host while the engine still rests and send a DM that depends on the earlier conversation. Verify that one reply reaches the Channel and that `bot-sessions` and `session-transcript` reopen the same Session.
 
 ## Gotchas
 
+- A task-local engine status fixture can exercise installed, signed-out, and model-list cases without a paid account or a model call. Label the evidence with the fixture and use the regular Host API and editor to verify persistence.
 - The CLI accepts engine ID `claude` for Claude Code. The group still needs at least one DSH model after expansion. Explicit `engine use` choices take precedence.
 - Before downgrading to a Host that predates engine members, remove them from saved Routing Groups using the current CLI.

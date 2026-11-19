@@ -2324,9 +2324,9 @@
       "path": "scripts/e2e-bot-mode-exit.mjs",
       "category": "mapped",
       "behaviors": ["desktop.bot-mode.entry"],
-      "reason": "Real isolated Web Client: permanent bottom return, original logo, pointer and keyboard activation, last-mode restoration, moved-rail layout and unsent draft preservation, short window and narrow/wide transitions. Localized light/dark screenshots; no model or native Desktop claim.",
+      "reason": "Real isolated Web Client: permanent bottom return, original logo, pointer and keyboard activation, last-mode restoration, moved-rail layout and unsent draft preservation, short window and narrow/wide transitions. Localized light/dark screenshots; no model or native Desktop claim. #4288 adds the medium dock and the compact drawer keyboard and focus-return assertions.",
       "task": 2289,
-      "sha256": "666c5a940eed71f111bbaf5d619fc86ddb072804026efac129a8f3a1f6bd2d62"
+      "sha256": "1fe559ca2ee3d20abc8240d1b8e2e4992a20adba9de30aca462e7014b81ab239"
     },
     {
       "path": "scripts/e2e-panel-workspace.mjs",
@@ -2542,25 +2542,25 @@
       "path": "scripts/e2e-memory-images.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.png-preview"],
-      "reason": "Task-owned isolated Host, synthetic Git fixture, current/working/history Web decode and image exports with unauthenticated-route refusal. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "reason": "Task-owned isolated Host, synthetic Git fixture, current/working/history Web decode and image exports with unauthenticated-route refusal. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged. #4288 follows the sidebar drawer at compact width and retains the legacy list entry for before captures.",
       "task": 3092,
-      "sha256": "c296b85e45009f92dc0c61884ea41800c93486d8fee56ff1b04c5a0d6615e8e9"
+      "sha256": "a4299dcfc5dd4e835b7a6e7d32e5b471624a7f88da919f2814e0703d49d50080"
     },
     {
       "path": "scripts/e2e-memory-markdown.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.markdown-preview"],
-      "reason": "Task-owned isolated Git/Host fixture; real Markdown rendering and image decode, source/line toggles, historical/index/local bytes, explicit intercepted external load, missing/stale/anonymous refusal and narrow layout. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "reason": "Task-owned isolated Git/Host fixture; real Markdown rendering and image decode, source/line toggles, historical/index/local bytes, explicit intercepted external load, missing/stale/anonymous refusal and narrow layout. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged. #4288 follows the sidebar drawer at compact width and retains the legacy list entry for before captures.",
       "task": 3092,
-      "sha256": "a1a02122ef5d04cae90d1e2ac7d6cda7e276c49af4cc0bb1e29eeb73a47f2d01"
+      "sha256": "96ea4e57ffefed32e237d1675c667e1b0798dc897a50dc9d352f8cf7fd1cf607"
     },
     {
       "path": "scripts/e2e-memory-formats.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.image-formats"],
-      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged. #4288 follows the sidebar drawer at compact width and retains the legacy list entry for before captures.",
       "task": 3092,
-      "sha256": "affcb7bc549c5bb4e7c6ebff4f5e25e1f783e890d4056a5ae099ca5a41d29a5b"
+      "sha256": "bde3350d965c41608087e5b038db45941e66c65ea83c222eb0022bbeab20ae96"
     },
     {
       "path": "scripts/e2e-vrm-companion.mjs",

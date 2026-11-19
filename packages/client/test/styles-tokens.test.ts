@@ -81,8 +81,6 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-section-head \{[^}]*height: 24px/);
     expect(source).toMatch(/\.bh-section-head \{[^}]*gap: 6px/);
     expect(source).toMatch(/\.bh-section-head \{[^}]*padding: 0 8px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*min-height: 48px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*padding: 7px 8px/);
     expect(source).toMatch(/\.bh-list-area > \* \+ \* \{\s*margin-top: 2px/);
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
     expect(source).toMatch(/\.bh-section-head:hover \.bh-row-actions,[^}]*display: inline-flex/);

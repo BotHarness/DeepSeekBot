@@ -321,8 +321,8 @@ export class EngineHost {
   async status(): Promise<EngineStatusReport[]> {
     if (!this.#options.local) return [];
     const [codex, claude] = await Promise.all([
-      (this.#options.detectCodex ?? detectCodex)(this.#codex),
-      (this.#options.detectClaude ?? detectClaude)(this.#claude),
+      probeStatus(() => (this.#options.detectCodex ?? detectCodex)(this.#codex)),
+      probeStatus(() => (this.#options.detectClaude ?? detectClaude)(this.#claude)),
     ]);
     return [
       statusReport('codex', codex, 'chatgpt', this.quota('codex')),
@@ -902,6 +902,14 @@ export function requireSubscription(account: EngineAccount): string {
     'engine-signed-out',
     `${ENGINE_LABELS[account.engine]} is not signed in. ${hint}`,
   );
+}
+
+async function probeStatus(detect: () => Promise<CodexStatus | ClaudeStatus>) {
+  try {
+    return await detect();
+  } catch {
+    return { installed: true, login: 'unknown' } satisfies CodexStatus | ClaudeStatus;
+  }
 }
 
 function statusReport(

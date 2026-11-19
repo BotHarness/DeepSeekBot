@@ -45,11 +45,23 @@ Enforced by: [package boundaries](https://github.com/BotHarness/BotHarness/blob/
 <a id="adr-0194"></a>
 <a id="adr-0348"></a>
 
-[#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) supersedes the DSH token and primitive requirements for Bot mode. The DTCG resolver at `design/tokens/tobs.resolver.json` composes shared core values, Web semantic roles, colour modes and style sets. The generator emits CSS custom properties and StyleX constants. The shared `ds/` components own row alignment and content controls. Existing DSH imports and token references follow a shrinking migration baseline. [Base UI overlays](/dev/adr/0349-tobs-overlays-are-built-on-base-ui) use the shell layer for focus and keyboard ownership. DSH-owned surfaces retain their own components, and the docs site uses COSS.
+[#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) supersedes the DSH token and primitive requirements for Bot mode. The DTCG resolver at `design/tokens/tobs.resolver.json` composes shared core values, Web semantic roles, colour modes and style sets. The generator emits CSS custom properties and StyleX constants. The shared `ds/` components own row alignment and content controls. Existing DSH imports and token references follow a shrinking migration baseline. [Base UI overlays](#adr-0349) use the shell layer for focus and keyboard ownership. DSH-owned surfaces retain their own components, and the docs site uses COSS.
 
 Why: Tobs needs to set its own hierarchy, alignment and colours while living inside the native shell. Central roles keep the same controls consistent across Panels, and one overlay seam preserves keyboard order across both owners.
 
 Enforced by: [resolver and generated outputs](https://github.com/BotHarness/BotHarness/blob/main/scripts/generate-tokens.mjs), [migration guard](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-design-tokens.mjs), [UI rules](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-ui-rules.mjs), [dialog and shell layering](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/tobs-dialog.test.tsx).
+
+## Tobs overlays use Base UI and share the DSH layer stack
+
+<a id="adr-0349"></a>
+
+Tobs overlays use `@base-ui/react` for structure and Tobs tokens for styling. The pinned UI dependency is inlined in the Client Bundle. `ds/shell-layer.ts` is the sole DSH overlay-stack seam, so the top layer owns Escape, Tab and focus return across Tobs and DSH. In the settings dialog, Base UI handles the portal, accessibility and lifecycle in non-modal mode. The shell handles the keyboard, and the scrim alone handles pointer dismissal outside the dialog.
+
+Existing DSH overlays migrate through the shrinking import baseline. DSH-owned pages keep their own controls, and the docs site uses COSS.
+
+Why: Base UI gives Tobs control of overlay markup and styling. The shared shell stack keeps keyboard and focus behavior coherent when either owner opens a layer above the other.
+
+Enforced by: [Client Bundle inlining](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/client-bundle.test.ts), [dialog behavior](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/tobs-dialog.test.tsx), and [DSH import guard](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-design-tokens.mjs).
 
 ## Style, colour mode and accent resolve independently
 

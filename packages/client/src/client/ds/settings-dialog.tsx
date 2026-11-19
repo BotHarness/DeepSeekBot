@@ -488,6 +488,7 @@ function SettingsFrame({
   return (
     <Dialog
       open
+      presentation="center"
       onClose={onClose}
       title={title}
       className={className}

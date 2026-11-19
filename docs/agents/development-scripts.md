@@ -205,7 +205,7 @@ node scripts/e2e-team-security.mjs --name <n> --scenario A  # Role Policy only, 
 node scripts/e2e-team-security.mjs --list
 ```
 
-The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Publish it with `pnpm evidence:publish` and link it from the PR; AGENTS.md requires it for every PR that changes Team mode permissions.
+The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Run the suite on the exact PR head for every Team mode authority change, including offboarding, device access and model allowlists. Publish the report and transcripts through `pnpm evidence:publish` and link them from the PR. A failing scenario blocks merge unless the PR names the known gap and links its tracking issue.
 
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
 
@@ -269,3 +269,21 @@ and registry readback before preparing later product releases. A different runti
 archive still fails closed; an unpublished Provider continues through first-publication preparation.
 The historical `scripts/provider-release-plan.json` belongs to the separate standalone Provider
 publication workflow and is not the product's reuse authority.
+
+## Lint backlog and toolchain
+
+Use the pnpm version in `package.json` and the Node pin in `.node-version`. The project uses TypeScript, oxlint, oxfmt, Vitest and tsdown. In WSL, use the fnm Node and `corepack pnpm`; Windows pnpm cannot create symlinks on WSL paths.
+
+Lint rules with an existing backlog run through `scripts/lint-ratchet.mjs` (type-aware oxlint, registered in `scripts/guardrails.json`): new findings fail at edit (Claude Code hook), commit and CI; fixing old ones means running `pnpm lint:baseline`, which only lowers `scripts/lint-baseline.json`. A rule added to the registry seeds its backlog once with `node scripts/lint-ratchet.mjs --seed=<rule>`; repo-specific rules live in `scripts/lint-rules/botharness.mjs`.
+
+Repository helpers use Node `.mjs` and run as `node scripts/<name>.mjs`. Keep CLI action and flag names, exit codes and JSON shapes stable when porting a helper. Resolve Windows `.cmd` shims through [the package-manager helper](../../scripts/dev-package-manager.mjs). [The guardrail registry](../../scripts/guardrails.json) records the shell-script and spawn checks.
+
+`node scripts/health.mjs --report` shows the combined UTF-8 size of the always-loaded guides. After slimming them or changing the [guardrail registry](../../scripts/guardrails.json), run `node scripts/health.mjs --update` to regenerate the rule table and lower the cap when the prose shrinks. The CI base comparison rejects cap increases.
+
+## Presentation workspace
+
+The [open-slide workspace](../../apps/presentations/AGENTS.md) keeps one deck per `slides/<id>/`. Iterate with `pnpm slides:dev`. `pnpm slides:build` runs `scripts/sync-slides.mjs` to embed the decks at `/slides/`. Edit the source decks and leave the generated `apps/docs/public/slides/` out of Git. `pnpm docs:build` rebuilds the embed automatically.
+
+## Developer diagnostics
+
+A plugin that owns containers, adapters, schedulers or external commands records lifecycle transitions on a bounded developer log surface that Humans and agents can read. Log the initiator, phase, duration, external command summary and coded refusal reason. Keep messages stable, machine-parseable and free of secrets. These records serve as process evidence. The tracing plan lives in [#160](https://github.com/BotHarness/BotHarness/issues/160).
