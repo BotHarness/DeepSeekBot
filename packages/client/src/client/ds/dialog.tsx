@@ -56,6 +56,7 @@ export interface DialogProps {
   title: string;
   className?: string | undefined;
   xstyle?: stylex.StyleXStyles;
+  viewportXstyle?: stylex.StyleXStyles;
   unsized?: boolean;
   children?: ReactNode;
 }
@@ -66,6 +67,7 @@ export function Dialog({
   title,
   className,
   xstyle,
+  viewportXstyle,
   unsized = false,
   children,
 }: DialogProps): ReactNode {
@@ -97,7 +99,10 @@ export function Dialog({
         <div
           role="presentation"
           data-tobs-dialog-viewport=""
-          className={[APPEARANCE_CLASS, stylex.props(styles.viewport).className].join(' ')}
+          className={[
+            APPEARANCE_CLASS,
+            stylex.props(styles.viewport, viewportXstyle).className,
+          ].join(' ')}
         >
           <div
             aria-hidden="true"

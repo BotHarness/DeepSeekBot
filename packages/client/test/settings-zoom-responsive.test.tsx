@@ -4,6 +4,7 @@ import { type Root } from 'react-dom/client';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { getWindowClass } from '../src/client/ds/window-class.js';
 import { SettingsDialog } from '../src/client/ds/settings-dialog.js';
 
 vi.mock('../src/client/ds/dialog.js', () => ({
@@ -46,13 +47,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
   disconnect.mockClear();
 });
-function render() {
+function render(pageNavigation = false) {
   act(() =>
     root.render(
       <SettingsDialog
         title="Settings"
         sections={[{ id: 'general', label: 'General' }]}
         activeId="general"
+        {...(pageNavigation
+          ? {
+              compactNavigation: {
+                backLabel: 'Back',
+                showList: false,
+                onBack: () => {},
+                onExpand: () => {},
+              },
+            }
+          : {})}
         onSelect={() => {}}
         onClose={() => {}}
         labels={{ nav: 'Sections', close: 'Close', picker: (label) => `Choose ${label}` }}
@@ -94,7 +105,7 @@ it('uses local layout width after zoom and retains the mounted editor while chan
   });
   expect(document.body.querySelector('[data-pointer-menu]')).toBeNull();
 });
-it('includes the exact compact boundary and disposes its layout observer', () => {
+it('retains the Channel settings picker boundary and disposes its layout observer', () => {
   width = 648;
   render();
   expect(document.body.querySelector('nav')).toBeNull();
@@ -105,4 +116,33 @@ it('includes the exact compact boundary and disposes its layout observer', () =>
   expect(document.body.querySelector('nav')).not.toBeNull();
   act(() => root.render(null));
   expect(disconnect).toHaveBeenCalledTimes(1);
+});
+
+it('uses the generated Tobs window class boundaries', () => {
+  width = 599;
+  expect(getWindowClass()).toBe('compact');
+  width = 600;
+  expect(getWindowClass()).toBe('medium');
+  width = 839;
+  expect(getWindowClass()).toBe('medium');
+  width = 840;
+  expect(getWindowClass()).toBe('expanded');
+});
+
+it('keeps the active settings editor mounted when the Bot settings window becomes compact', () => {
+  width = 600;
+  render(true);
+  const input = document.body.querySelector('input')!;
+  input.value = 'unsaved';
+  input.focus();
+  expect(document.body.querySelector('nav')).not.toBeNull();
+  act(() => {
+    width = 599;
+    resize();
+  });
+  expect(document.body.querySelector('nav')).toBeNull();
+  expect(document.body.querySelector('[aria-label="Back"]')).not.toBeNull();
+  expect(document.body.querySelector('input')).toBe(input);
+  expect(input.value).toBe('unsaved');
+  expect(document.activeElement).toBe(input);
 });

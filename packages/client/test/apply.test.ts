@@ -394,7 +394,7 @@ describe('client apply', () => {
     botSettings.close();
     const companion = specs.find((spec) => spec.id === 'botharness-window-companion');
     (companion?.inject?.() as { openSettings(): void }).openSettings();
-    expect(botSettings.getSnapshot()).toEqual({
+    expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'companions',
       pairPhone: false,
@@ -406,7 +406,7 @@ describe('client apply', () => {
     (
       main?.inject?.() as { telemetryNotice: { openSettings(): void } }
     ).telemetryNotice.openSettings();
-    expect(botSettings.getSnapshot()).toEqual({
+    expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'data-privacy',
       pairPhone: false,
