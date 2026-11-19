@@ -46,7 +46,9 @@ export function RoutingGroupMemberRow({
       ? detail
       : [
           engineRow.detail,
-          engineRow.isDefault ? t.routingGroup.defaultTag : undefined,
+          engineRow.isDefault
+            ? t.routingGroup.defaultTag.replace(/\p{Ideographic}(?=\p{Ideographic})/gu, '$&\u2060')
+            : undefined,
           engineReason === undefined
             ? undefined
             : `${t.routingGroup.unavailable} · ${engineReason}`,
@@ -117,7 +119,9 @@ export function RoutingGroupMemberRow({
       <SettingsRow
         on={SHEET_GROUP}
         title={position + (engineRow?.title ?? title)}
-        accessibilityLabel={[position + name, memberDetail].filter(Boolean).join(', ')}
+        accessibilityLabel={[position + name, memberDetail?.replaceAll('\u2060', '')]
+          .filter(Boolean)
+          .join(', ')}
         detail={memberDetail}
         tone={tone}
         leading={leading}
