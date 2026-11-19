@@ -1335,7 +1335,7 @@ describe('Uploaded Bots in the Market panel', () => {
         await vi.advanceTimersByTimeAsync(30);
       });
       expect(document.querySelector('[data-market-sign-in]')).toBeNull();
-      expect(document.body.textContent).toContain(zhTranslate('market.author.name'));
+      expect(document.querySelector('[data-market-direct="details"]')).not.toBeNull();
     } finally {
       await act(async () => root.unmount());
       host.remove();

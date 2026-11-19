@@ -374,8 +374,7 @@ describe('Profile Computer Target lifecycle', () => {
       create: factory,
       onChange: vi.fn(),
     });
-    expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory).toHaveBeenCalledWith('local');
+    expect(factory.mock.calls.map(([selected]) => selected)).toEqual(['local']);
     await runtime.provider.start();
     expect(runtime.isRunning()).toBe(true);
     await expect(runtime.provider.exportTo?.('/tmp')).rejects.toThrow('Container Computer');
