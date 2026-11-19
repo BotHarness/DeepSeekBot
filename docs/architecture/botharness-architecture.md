@@ -1809,6 +1809,7 @@ Expo 移动端复用 Web 的 `skill-refs` 解析、`rankSkillEntries` 排序与 
 
 PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在 **Subscription Engine** 上：Human 本机上未修改的官方 agent CLI（首批 Claude Code、Codex；ChatGPT 订阅是用 Codex 自己的 `codex login` 登录的 Codex，token 留在 CLI 内），使用 Human 自己的订阅登录，由 Host 驱动。只在本地 Host 提供，Cloud 与 VPS 不提供。
 
+- **模型选择**：本机 Host 的主模型和任务模型选择器各有订阅分组，提供该引擎的模型、推理强度及登录入口。模型预设可为任一角色保存引擎选择；应用预设时，Host 先验证订阅模型，再更新 Bot 的 DSH Model Plan 与两种角色的引擎设置。未保存引擎选择的角色切回预设中的 DSH 路由。
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
 - **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。

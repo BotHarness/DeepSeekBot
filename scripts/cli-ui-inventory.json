@@ -1064,8 +1064,8 @@
     },
     {
       "id": "subscription-engines",
-      "description": "The Host lists Subscription Engines, starts the Bot's own Codex or Claude Code sign-in and runs a Bot's Orchestrator on an engine instead of a DSH model.",
-      "scope": "Host / PersonaBot Orchestrator",
+      "description": "The local Host lists subscription models and starts Codex or Claude Code sign-in from the Main and Task model pickers. Model Presets can store and restore a subscription model and effort for each role.",
+      "scope": "Host / PersonaBot",
       "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
       "commands": [
         "engine-list",
@@ -1075,7 +1075,10 @@
         "engine-tool",
         "engine-login",
         "engine-models",
-        "engine-use"
+        "engine-use",
+        "model-preset-create",
+        "model-preset-update",
+        "model-preset-apply"
       ]
     },
     {

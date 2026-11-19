@@ -507,7 +507,9 @@ export function FilterPicker({
                         </span>
                       ) : null}
                     </button>
-                    {favorites === undefined || option.filter === undefined ? null : (
+                    {favorites === undefined ||
+                    option.filter === undefined ||
+                    option.favorite === undefined ? null : (
                       <button
                         type="button"
                         aria-pressed={option.favorite === true}
