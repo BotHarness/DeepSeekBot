@@ -15,7 +15,7 @@ function useBadgeColors(tone: CountBadgeTone) {
   return tone === 'needs-you'
     ? {
         containerColor: theme.color.warning,
-        contentColor: theme.color[theme.scheme === 'dark' ? 'base' : 'fg'],
+        contentColor: theme.color.onWarning,
       }
     : tone === 'unread'
       ? { containerColor: roles.primary, contentColor: roles.onPrimary }
