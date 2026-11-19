@@ -434,6 +434,14 @@ it('filters subscription models by engine and exposes only applicable actions', 
   });
   const rail = document.querySelector<HTMLButtonElement>('[data-picker-filter="engine:codex"]')!;
   expect(rail.getAttribute('aria-label')).toBe('Codex 订阅');
+  expect(
+    rail.querySelector('[data-engine-brand="openai"] [data-model-brand="openai"]'),
+  ).not.toBeNull();
+  expect(
+    document.querySelector(
+      '[data-picker-filter]:not([data-picker-filter^="engine:"]) [data-engine-brand]',
+    ),
+  ).toBeNull();
   await act(async () => rail.click());
   expect(rows()).toEqual(['GPT-6 SubscriptionCodex 订阅Ctrl+1']);
   const signInFilter = document.querySelector<HTMLButtonElement>(

@@ -3,7 +3,7 @@ import { useRef, useState, type ReactElement } from 'react';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { ModelMenu, type ModelMenuEffort, type ModelMenuItem } from './model-menu.js';
 
 export function ModelTrigger({
@@ -43,7 +43,9 @@ export function ModelTrigger({
         icon={
           current?.group !== undefined ? (
             <ChannelSidebarIcon name="git-branch" size={16} />
-          ) : current?.model === undefined ? undefined : (
+          ) : current?.model === undefined ? undefined : current.engine !== undefined ? (
+            <EngineBrandIcon brand={current.brand} size={16} />
+          ) : (
             <ModelBrandIcon brand={current.brand} size={16} />
           )
         }

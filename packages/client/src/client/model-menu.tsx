@@ -19,7 +19,7 @@ import { FilterPicker } from './ds/filter-picker.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { EngineId, EngineModelView, EngineStatusView } from './engine-choice.js';
 import { engineName } from './session-engine.js';
-import { ModelBrandIcon } from './model-brand.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
@@ -398,7 +398,7 @@ export function ModelMenu({
               ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
               : item.engine !== undefined
                 ? {
-                    icon: <ModelBrandIcon brand={item.brand} size={16} />,
+                    icon: <EngineBrandIcon brand={ENGINE_BRAND[item.engine]} size={16} />,
                     filter: `engine:${item.engine}`,
                   }
                 : item.model === undefined
@@ -430,7 +430,7 @@ export function ModelMenu({
         ...[...engines].map((engine) => ({
           key: `engine:${engine}`,
           label: t('engine.subscription', { engine: engineName(engine) }),
-          icon: <ModelBrandIcon brand={ENGINE_BRAND[engine]} size={16} />,
+          icon: <EngineBrandIcon brand={ENGINE_BRAND[engine]} size={16} />,
         })),
         ...modelFamilies(models).map((family) => ({
           key: familyKey(family.brand),
