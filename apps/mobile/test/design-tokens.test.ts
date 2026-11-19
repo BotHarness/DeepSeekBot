@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
-import { palette } from '@botharness/host-client/ui/design/palette.generated';
+import { mobileAccents, palette } from '@botharness/host-client/ui/design/palette.generated';
 import {
   BUTTON_TONES,
   buttonColors,
@@ -14,7 +13,8 @@ import { contrast, headerBand, resolveTheme, withAccent } from '../src/ui/design
 import { botColor } from '../src/ui/bot-color';
 import { edge, space } from '../src/ui/design/tokens';
 
-const DSH_LAYER_ROLES = ['borderField', 'field', 'sheet'];
+const schemes = ['light', 'dark'] as const;
+const presets = Object.keys(mobileAccents.light);
 
 const webTokens = readFileSync(
   new URL('../../../packages/client/src/client/ds/tokens.stylex.ts', import.meta.url),
@@ -38,30 +38,6 @@ function px(value: string): number {
 }
 
 describe('mobile design tokens', () => {
-  it('match the DSH theme the Web Client paints with', () => {
-    expect(render(dshPalette())).toBe(
-      readFileSync(
-        new URL(
-          '../../../packages/host-client/src/ui/design/palette.generated.ts',
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    );
-  });
-
-  it('keep every Web colour role', () => {
-    expect(Object.keys(palette.light).sort()).toEqual(
-      [
-        ...Object.keys(webConsts('color')).filter(
-          (role) => role !== 'navSelected' && role !== 'navSelectedInk',
-        ),
-        ...DSH_LAYER_ROLES,
-      ].sort(),
-    );
-    expect(Object.keys(palette.dark)).toEqual(Object.keys(palette.light));
-  });
-
   it('share the Web spacing and focus scales', () => {
     expect(
       Object.fromEntries(Object.entries(webConsts('space')).map(([k, v]) => [k, px(v)])),
@@ -83,10 +59,10 @@ describe('resolveTheme', () => {
   });
 
   it('applies a custom accent with readable text on it', () => {
-    expect(resolveTheme('light', { accent: '#FFD60A' }).color).toMatchObject({
-      accent: '#ffd60a',
-      onAccent: '#0f1115',
-    });
+    const yellow = resolveTheme('light', { accent: '#FFD60A' }).color;
+    expect(distance(yellow.accent, '#ffd60a')).toBeLessThan(SEPARATION);
+    expect(yellow.onAccent).toBe('#0f1115');
+    expect(contrastOf(yellow.onAccent, yellow.accent)).toBeGreaterThanOrEqual(4.5);
     expect(resolveTheme('dark', { accent: '#5b2ecc' }).color).toMatchObject({
       accent: '#5b2ecc',
       onAccent: '#ffffff',
@@ -108,10 +84,76 @@ describe('resolveTheme', () => {
   });
 });
 
-describe('Layers and their states', () => {
-  const accents = [undefined, '#d9475a', '#3f8fd0', '#5f9e45', '#c79a2b', '#ffd60a', '#000000'];
+describe.each(schemes)('Tobs mobile contrast in %s mode', (scheme) => {
+  it.each([undefined, ...presets])('qualifies custom-surface roles for %s', (accent) => {
+    const theme = resolveTheme(scheme, accent === undefined ? {} : { accent });
+    const { color } = theme;
+    const surfaces = [...LAYERS.map((name) => theme.layer[name].fill), color.elevated];
+    const textRoles = [
+      'fg',
+      'muted',
+      'subtle',
+      'accent',
+      'accentText',
+      'danger',
+      'warning',
+      'success',
+    ] as const;
+    const graphicalRoles = ['borderStrong', 'borderField', 'dangerEdge', 'warningEdge'] as const;
+    for (const background of surfaces) {
+      for (const role of textRoles)
+        expect(
+          contrastOf(color[role], background),
+          `${role} on ${background}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      for (const role of graphicalRoles)
+        expect(
+          contrastOf(color[role], background),
+          `${role} on ${background}`,
+        ).toBeGreaterThanOrEqual(3);
+    }
+    for (const [foreground, background] of [
+      [color.onAccent, color.accent],
+      [color.onDanger, color.danger],
+      [color.onWarning, color.warning],
+      [color.warning, color.warningSoft],
+      [color.accentText, color.accentTint],
+      [color.muted, theme.layer.canvas.inset],
+    ])
+      expect(
+        contrastOf(foreground, background),
+        `${foreground} on ${background}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    expect(contrastOf(theme.overlay.handle, theme.overlay.fill)).toBeGreaterThanOrEqual(3);
 
-  it('tints a chosen row like the DSH accent tint on the base', () => {
+    const band = headerBand(scheme, color);
+    for (const background of [band.top, band.bottom])
+      expect(contrastOf(color[band.ink], background)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('swaps only the accent roles for a preset', () => {
+    expect(resolveTheme(scheme).color).toEqual(palette[scheme]);
+    for (const [name, roles] of Object.entries(mobileAccents[scheme]))
+      expect(resolveTheme(scheme, { accent: name }).color).toEqual({
+        ...palette[scheme],
+        ...roles,
+      });
+  });
+});
+
+describe('Layers and their states', () => {
+  const accents = [
+    undefined,
+    ...presets,
+    '#d9475a',
+    '#3f8fd0',
+    '#5f9e45',
+    '#c79a2b',
+    '#ffd60a',
+    '#000000',
+  ];
+
+  it('uses the generated accent tint for a chosen row on the base', () => {
     for (const scheme of ['light', 'dark'] as const)
       expect(
         distance(resolveTheme(scheme).layer.well.chosen, palette[scheme].accentTint),

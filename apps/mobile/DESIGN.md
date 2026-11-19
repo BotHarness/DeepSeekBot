@@ -45,7 +45,7 @@ On both platforms the system's own design and components are the standard: Apple
 
 Tokens come in three layers ([ADR-0266](../../docs/decisions/mobile-ui.md#adr-0266)):
 
-- **Shared:** brand accent, status colours, spacing and content-only colours (`tokens.ts`, `palette.generated.ts`). These match the Web.
+- **Shared:** the [Tobs resolver](../../design/tokens/tobs.resolver.json) supplies the brand, four accent families, status hues and neutral ramp. `pnpm tokens` generates their mobile colour roles in `palette.generated.ts` for custom surfaces. `tokens.ts` supplies spacing and sizing.
 - **Android:** chrome colours come from `useMaterialRoles()` (Material 3 roles seeded by the accent), with type from `materialType`.
 - **iOS:** chrome colours come from `systemColors` (semantic system colours), with type from `systemType` (Dynamic Type styles), and the accent is the tint.
 
@@ -563,20 +563,20 @@ Chats, Activity and Settings are the three top-level destinations on iOS and And
 
 ## Layers and states
 
-Every fill comes from a layer, like the Web Client's DSH layers. `theme.layer.<name>` holds opaque colours:
+Custom fills come from the Tobs neutral ramp. `theme.layer.<name>` holds opaque colours:
 
-| Layer    | Fill (DSH)           | Used for                                                  |
-| -------- | -------------------- | --------------------------------------------------------- |
-| `canvas` | `bg-base`            | screens, lists, the chat behind the composer              |
-| `raised` | `bg-module-platform` | cards, Bot bubbles, shortcut cards, the Android composer  |
-| `well`   | `bg-base`            | a recessed area in a raised card: option groups, previews |
-| `field`  | `bg-layer-1`         | text inputs in a card, edged with `border-l4`             |
-| `sheet`  | `bg-layer-2`         | settings rows on a screen, and menus                      |
+| Layer    | Palette role | Used for                                                  |
+| -------- | ------------ | --------------------------------------------------------- |
+| `canvas` | `base`       | screens, lists, the chat behind the composer              |
+| `raised` | `surface`    | cards, Bot bubbles, shortcut cards, the Android composer  |
+| `well`   | `well`       | a recessed area in a raised card: option groups, previews |
+| `field`  | `field`      | text inputs in a card                                     |
+| `sheet`  | `sheet`      | settings rows on a screen, and menus                      |
 
 Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab), `chosen` (the Human's pick, an accent tint), `danger` (a destructive button, a red tint), `inset` (code, badges, tiles), `edge` and `divider`.
 
-- `chosen` is the accent over the fill, 13% in light and 30% in dark. On `well` it equals DSH `state-business-tertiary`, and it follows a Bot's accent.
-- A state is pushed further from its fill until it stands apart from the fill, the layer under it and the other states (`SEPARATION` in `layers.ts`; `test/design-tokens.test.ts` checks every scheme and accent). DSH's dark `interactive-bg-active` over `bg-base` equals `bg-module-platform`, so without this a selected row in a card looks like the card.
+- `chosen` is the accent over the fill, 13% in light and 30% in dark. It follows the current accent, including the Bot's primary colour in its DM.
+- A state is pushed further from its fill until it stands apart from the fill, the layer under it and the other states (`SEPARATION` in `layers.ts`; `test/design-tokens.test.ts` checks every scheme and accent).
 - On iOS, `Button` is a SwiftUI system button (#3008): `primary` is bordered prominent, `secondary` and `tonal` are bordered, and `text` is borderless; on iOS 26 with Reduce Transparency off, bordered prominent and bordered become glass prominent and glass, the same rule as the step bar. `danger` uses the destructive role, busy shows the system `ProgressView` and disables the button, `symbol` draws an SF Symbol, and a React Native `icon` is not shown inside the native button. The label uses the Dynamic Type `body` style, the button keeps the 44pt target and grows in height with the text. At large text sizes (`theme.largeText`) the symbol sits above the label instead of beside it, so the label has the button's full width and wraps between words, never inside one. The button's `Host` ignores every safe area, so a button under the navigation bar is drawn inside its own frame and never over the next stacked button after a text-size change. It fills a column and shares a row equally with its sibling buttons.
 - The React Native fallback (the Web preview) draws buttons as solid pills (`radius.round`) with no border, and take their colours from `buttonColors(theme, tone, on)` (`controls.ts`) for the layer they sit `on`. Primary is the neutral `fg` fill with a `base` label, never the Bot accent. Secondary is the layer's `selected`, or the next layer's fill when `selected` is too close to the layer. Danger is the layer's `danger` tint with a red label. Each fill stands apart from the layer and from the other tones, and each label reaches 4.5:1.
 - Bottom sheets (`chat/sheet.tsx`) follow the [overlay contract](./OVERLAYS.md), with one functional handle and task-specific header actions. On Android the shell is the Material 3 `ModalBottomSheet` (`chat/sheet-frame.android.tsx`, see [Native first](#native-first)); on iOS it is still the fallback React Native modal on `theme.overlay.fill` with its grabber, pending the iOS sheet migration. Their content is grouped rows on `raised` (`SettingsGroupItem`): on iOS inset groups with `divider` hairlines, on Android the segmented list above, a muted heading above each group and a muted footnote below it. A warning goes in a `warningSoft` callout, not orange text. A selected option shows a `fg` check, and switches use `Toggle` (`accent` track when on).
