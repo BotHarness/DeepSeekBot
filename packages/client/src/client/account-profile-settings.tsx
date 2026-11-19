@@ -1,15 +1,15 @@
 import { Button } from './ds/button.js';
-import { Input } from './ds/input.js';
+import { HiddenFileInput, Input } from './ds/input.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import type { BotHarnessTranslate } from './locale.js';
 
 import type { BridgeActions } from './actions.js';
 import type { MarketplaceAuthorAccount } from '../../../core/src/marketplace/client.js';
 import type { MarketplaceAccount } from '../../../core/src/marketplace/uploaded-bots.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection, SettingsValue } from './ds/settings-row.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { ink, radius, size, space, state, style } from './ds/tobs.stylex.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ConnectSignInBlock } from './connect-sign-in-block.js';
 import { StatusBlock } from './ds/status-block.js';
@@ -22,7 +22,7 @@ export const ACCOUNT_NAME_MAX = 40;
 const SIGN_IN_FALLBACK_MS = 15_000;
 
 const styles = stylex.create({
-  avatarControls: { display: 'flex', alignItems: 'center', gap: space.x3 },
+  avatarControls: { display: 'flex', alignItems: 'center', gap: space.x3, flexWrap: 'wrap' },
   avatar: {
     display: 'grid',
     placeItems: 'center',
@@ -30,14 +30,13 @@ const styles = stylex.create({
     width: size.row,
     height: size.row,
     overflow: 'hidden',
-    borderRadius: radius.round,
-    backgroundColor: color.hover,
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    borderRadius: radius.full,
+    backgroundColor: state.hover,
+    color: ink.secondary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
   image: { width: '100%', height: '100%', objectFit: 'cover' },
-  file: { display: 'none' },
   field: {
     boxSizing: 'border-box',
     width: '200px',
@@ -60,15 +59,15 @@ type State =
   | { status: 'error'; message: string }
   | { status: 'ready'; account: MarketplaceAccount };
 
-export type AccountProfileSettingsProps = PropsLocale<'botharness'> &
-  InjectFace<{
-    actions: Pick<
-      BridgeActions,
-      'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAuthorAvatarSet'
-    >;
-    startSignIn(): Promise<ConnectSignInCode>;
-    uploads?: ReactNode;
-  }>;
+export interface AccountProfileSettingsProps {
+  t: BotHarnessTranslate;
+  actions: Pick<
+    BridgeActions,
+    'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAuthorAvatarSet'
+  >;
+  startSignIn(): Promise<ConnectSignInCode>;
+  uploads?: ReactNode;
+}
 
 export function AccountProfileSettings({
   actions,
@@ -273,13 +272,10 @@ export function AccountProfileSettings({
             >
               {t('accountProfile.photoChoose')}
             </Button>
-            <input
+            <HiddenFileInput
               ref={fileInput}
-              type="file"
               accept="image/png,image/jpeg,image/webp"
-              tabIndex={-1}
               aria-hidden="true"
-              {...stylex.props(styles.file)}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 if (file) setCropFile(file);

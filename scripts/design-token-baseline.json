@@ -1,8 +1,4 @@
 {
-  "packages/client/src/client/account-profile-settings.tsx": {
-    "dshImport": 1,
-    "rawControl": 1
-  },
   "packages/client/src/client/activity-approval.tsx": {
     "rawControl": 2
   },
@@ -268,9 +264,6 @@
   "packages/client/src/client/host-tabs.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/human-name-settings.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/idle-compaction-setting.tsx": {
     "dshImport": 1
   },
@@ -483,8 +476,8 @@
     "lineBorder": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1924,
-    "lineBorder": 107
+    "legacyCss": 1911,
+    "lineBorder": 105
   },
   "packages/client/src/client/team-settings.tsx": {
     "dshImport": 1

@@ -28,7 +28,17 @@ import { isApplePlatform, KeyCombo, type ShortcutKey } from './ds/kbd.js';
 import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { PreviewChoices } from './ds/preview-choice.js';
-import { ink, space } from './ds/tobs.stylex.js';
+import {
+  accent,
+  ink,
+  layer,
+  motion,
+  radius,
+  size,
+  space,
+  style,
+  type as text,
+} from './ds/tobs.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -64,12 +74,46 @@ const SEND_KEY_OPTIONS: readonly {
   { id: 'mod-enter', send: ['Mod', 'Enter'], newline: ['Enter'] },
 ];
 
+const motionSample = stylex.keyframes({
+  '0%, 70%, 100%': { opacity: 0.4, transform: 'translateY(0)' },
+  '35%': { opacity: 1, transform: `translateY(-${space.x1})` },
+});
+
 const styles = stylex.create({
+  motionPreview: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x3,
+    width: 'fit-content',
+    minHeight: size.controlSmall,
+    marginTop: space.x2,
+    paddingBlock: space.x1,
+    paddingInline: space.x3,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+  },
+  motionSample: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
+  motionDot: {
+    width: space.x2,
+    height: space.x2,
+    borderRadius: radius.full,
+    backgroundColor: accent.solid,
+    opacity: 0.45,
+  },
+  animatedDot: (index: number) => ({
+    animationName: motionSample,
+    animationDuration: '1100ms',
+    animationTimingFunction: motion.standard,
+    animationIterationCount: 'infinite',
+    animationDelay: `${index * 130}ms`,
+  }),
   sendKey: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-    whiteSpace: 'nowrap',
+    flexWrap: 'wrap',
   },
   sendKeySeparator: {
     color: ink.secondary,
@@ -128,11 +172,17 @@ export function MotionSetting({
         />
       }
     >
-      <div className="bh-motion-preview" role="status" aria-live="polite">
-        <span className="bh-motion-preview-sample" aria-hidden="true">
-          <i />
-          <i />
-          <i />
+      <div role="status" aria-live="polite" {...stylex.props(styles.motionPreview)}>
+        <span aria-hidden="true" {...stylex.props(styles.motionSample)}>
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.motionDot,
+                prefs.effectiveMotion === 'full' && styles.animatedDot(index),
+              )}
+            />
+          ))}
         </span>
         <span>
           {t('motion.preview.label')} · {t(effectiveLabel)}

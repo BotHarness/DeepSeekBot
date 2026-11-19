@@ -25,11 +25,14 @@ import {
 } from '../src/client/bot-mode-setting-rows.js';
 import { buttonNamed, menuItem } from './primitive-mocks.js';
 import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
+import { DesktopNotificationPrefs } from '../src/client/desktop-notifications.js';
+import { DesktopNotificationSetting } from '../src/client/notification-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 const t = zhTranslate;
 
-it('offers an off-by-default folding switch that updates the shared message preference', () => {
+it.each([400, 1280])('updates the shared chat folding preference at %i px', (width) => {
+  vi.stubGlobal('innerWidth', width);
   const prefs = new BotModePrefs();
   const markup = renderAndOpenMenus(
     createElement(AutoCollapseMessagesSetting, {
@@ -163,7 +166,8 @@ describe('Bot mode setting rows', () => {
     ]);
   });
 
-  it('renders and writes the three-state motion preference with its effective preview', () => {
+  it.each([400, 1280])('updates the motion preference and preview at %i px', (width) => {
+    vi.stubGlobal('innerWidth', width);
     const setMotionPreference = vi.fn();
     const markup = renderSection(
       snapshot({ motionPreference: 'system', effectiveMotion: 'reduce' }),
@@ -287,4 +291,23 @@ describe('send key setting', () => {
       '↵',
     ]);
   });
+});
+
+it.each([400, 1280])('sets desktop notification permission at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
+  const requestPermission = vi
+    .fn<() => Promise<NotificationPermission>>()
+    .mockResolvedValue('granted');
+  const desktopNotifications = new DesktopNotificationPrefs(undefined, {
+    permission: () => 'default',
+    requestPermission,
+    show: () => ({ onclick: null, close: () => {} }),
+  });
+  renderAndOpenMenus(createElement(DesktopNotificationSetting, { desktopNotifications, t }));
+  const toggle = buttonNamed(t('desktopNotify.row.title'));
+  await act(async () => toggle.click());
+  expect(requestPermission).toHaveBeenCalledOnce();
+  expect(toggle.getAttribute('aria-checked')).toBe('true');
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
 });

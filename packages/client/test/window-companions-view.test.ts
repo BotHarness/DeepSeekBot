@@ -13,7 +13,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
-it('pins independently, exposes right-click controls and applies global bounded card capacity', async () => {
+it.each([400, 1280])('operates Window companion controls at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const frames = new Map<number, FrameRequestCallback>();
   let frame = 0;

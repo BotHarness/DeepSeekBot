@@ -5476,31 +5476,6 @@ html[data-botharness-motion='reduce'] .bh-release-note-head::before {
   line-height: ${text.metaLine};
 }
 /* These controls are in native Modal portals, outside .bh-root. */
-.bh-group-avatar-crop { display: grid; gap: ${space.x4}; color: var(--tobs-ink-primary); }
-.bh-group-avatar-crop > label { font-size: ${text.metaSize}; color: var(--tobs-ink-secondary); }
-.bh-group-avatar-crop-viewport {
-  position: relative;
-  width: 280px;
-  height: 280px;
-  max-width: 100%;
-  overflow: hidden;
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.md};
-  background: var(--tobs-layer-elevated);
-  cursor: grab;
-  touch-action: none;
-}
-.bh-group-avatar-crop-viewport:active { cursor: grabbing; }
-.bh-group-avatar-crop-viewport:focus-visible { outline: ${border.focus} solid var(--tobs-ink-primary); }
-.bh-group-avatar-crop-viewport img {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  max-width: none;
-  user-select: none;
-  pointer-events: none;
-}
-.bh-group-avatar-crop input[type='range'] { width: 100%; }
 .bh-group-avatar-image {
   display: block;
   width: 100%;
@@ -5697,55 +5672,6 @@ button.bh-bot-nav > svg {
   line-height: ${text.metaLine};
   color: var(--tobs-ink-secondary);
 }
-.bh-motion-preview {
-  display: inline-flex;
-  align-items: center;
-  gap: ${space.x3};
-  width: fit-content;
-  min-height: 24px;
-  margin-top: ${space.x2};
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.md};
-  padding: ${space.x1} ${space.x3};
-  color: var(--tobs-ink-secondary);
-  font-size: ${text.metaSize};
-}
-.bh-motion-preview-sample {
-  display: inline-flex;
-  align-items: center;
-  gap: ${space.x1};
-  width: 22px;
-  height: 12px;
-}
-.bh-motion-preview-sample i {
-  width: 4px;
-  height: 4px;
-  border-radius: ${radius.round};
-  background: var(--tobs-accent-solid);
-  opacity: 0.45;
-}
-html[data-botharness-motion='full'] .bh-motion-preview-sample i {
-  animation: bh-motion-preview-dot 1100ms var(--ds-ease-in-out) infinite;
-}
-html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(2) {
-  animation-delay: 130ms;
-}
-html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
-  animation-delay: 260ms;
-}
-@keyframes bh-motion-preview-dot {
-  0%,
-  70%,
-  100% {
-    opacity: 0.4;
-    transform: translateY(0);
-  }
-  35% {
-    opacity: 1;
-    transform: translateY(-2px);
-  }
-}
-
 @media (max-width: 720px) {
   .bh-composer-shell,
   .bh-composer-inset {

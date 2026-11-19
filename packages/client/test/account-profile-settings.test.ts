@@ -51,6 +51,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => root.unmount());
   host.remove();
 });
@@ -216,7 +217,8 @@ it('says the Market refused a signed-in account instead of offering sign-in agai
   expect(buttonNamed(t('accountProfile.retry'), document.body)).toBeDefined();
 });
 
-it('shows the profile and renames it once on Enter then blur', async () => {
+it.each([400, 1280])('renames the profile once on Enter then blur at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   const actions = actionsFor({ signedIn: true, email: 'vain@example.com', author: AUTHOR });
   await render(actions);
 

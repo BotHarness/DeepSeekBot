@@ -1,11 +1,42 @@
 import { useRef, useState, type ReactElement } from 'react';
 
+import * as stylex from '@stylexjs/stylex';
 import { FormDialog } from './ds/form-dialog.js';
+import { SettingsRow } from './ds/settings-row.js';
+import { Slider } from './ds/slider.js';
+import { accent, edge, layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const PREVIEW_SIZE = 280;
 const OUTPUT_SIZE = 128;
+
+const styles = stylex.create({
+  frame: { display: 'grid', gap: space.x4 },
+  viewport: {
+    position: 'relative',
+    width: `${PREVIEW_SIZE}px`,
+    height: `${PREVIEW_SIZE}px`,
+    maxWidth: '100%',
+    overflow: 'hidden',
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${accent.focus}` },
+    cursor: { default: 'grab', ':active': 'grabbing' },
+    touchAction: 'none',
+  },
+  image: (width: number, height: number, x: number, y: number) => ({
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    maxWidth: 'none',
+    userSelect: 'none',
+    pointerEvents: 'none',
+    width: `${width}px`,
+    height: `${height}px`,
+    transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+  }),
+});
 
 export function GroupAvatarCropModal({
   file,
@@ -103,9 +134,9 @@ export function GroupAvatarCropModal({
       onCancel={onClose}
       onSubmit={() => void save()}
     >
-      <div className="bh-group-avatar-crop" ref={sourceMount}>
+      <div ref={sourceMount} {...stylex.props(styles.frame)}>
         <div
-          className="bh-group-avatar-crop-viewport"
+          {...stylex.props(styles.viewport)}
           role="img"
           tabIndex={0}
           aria-label={t('group.avatarCrop.move')}
@@ -147,11 +178,7 @@ export function GroupAvatarCropModal({
               src={source}
               alt=""
               draggable={false}
-              style={{
-                width: renderWidth,
-                height: renderHeight,
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
-              }}
+              {...stylex.props(styles.image(renderWidth, renderHeight, offset.x, offset.y))}
               onLoad={(event) =>
                 setDimensions({
                   width: event.currentTarget.naturalWidth,
@@ -162,22 +189,24 @@ export function GroupAvatarCropModal({
             />
           ) : null}
         </div>
-        <label htmlFor="bh-group-avatar-zoom">{t('group.avatarCrop.zoom')}</label>
-        <input
-          id="bh-group-avatar-zoom"
-          type="range"
-          min={1}
-          max={3}
-          step={0.05}
-          value={zoom}
-          onChange={(event) => {
-            const next = Number(event.target.value);
-            setZoom(next);
-            if (!dimensions) return;
-            const nextX = Math.max(0, (dimensions.width * base * next - PREVIEW_SIZE) / 2);
-            const nextY = Math.max(0, (dimensions.height * base * next - PREVIEW_SIZE) / 2);
-            setOffset({ x: clamp(offset.x, nextX), y: clamp(offset.y, nextY) });
-          }}
+        <SettingsRow
+          title={t('group.avatarCrop.zoom')}
+          control={
+            <Slider
+              label={t('group.avatarCrop.zoom')}
+              min={1}
+              max={3}
+              step={0.05}
+              value={zoom}
+              onChange={(next) => {
+                setZoom(next);
+                if (!dimensions) return;
+                const nextX = Math.max(0, (dimensions.width * base * next - PREVIEW_SIZE) / 2);
+                const nextY = Math.max(0, (dimensions.height * base * next - PREVIEW_SIZE) / 2);
+                setOffset({ x: clamp(offset.x, nextX), y: clamp(offset.y, nextY) });
+              }}
+            />
+          }
         />
       </div>
     </FormDialog>

@@ -118,7 +118,7 @@ export const HiddenFileInput = forwardRef<
   HTMLInputElement,
   Pick<
     InputHTMLAttributes<HTMLInputElement>,
-    'aria-label' | 'accept' | 'multiple' | 'disabled' | 'onChange'
+    'aria-label' | 'aria-hidden' | 'accept' | 'multiple' | 'disabled' | 'onChange'
   >
 >(function HiddenFileInput(props, ref) {
   return (
