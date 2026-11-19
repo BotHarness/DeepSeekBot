@@ -132,7 +132,7 @@ async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () => Prom
   cleanups.push(() => ctx.fiber.dispose());
   await ctx.plugin(LlmRuntime).await();
   ctx.get('llm')!.registerAdapter([API.provider], model);
-  await ctx.plugin(SessionStore).await();
+  const store = new SessionStore(ctx);
   const dsh = memoryDsh();
   const persistence = {
     ...dsh.persistence,
@@ -166,7 +166,7 @@ async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () => Prom
   return {
     ctx,
     agents: ctx.agents,
-    dsh: { ...dsh, store: ctx.sessions },
+    dsh: { ...dsh, store },
     releaseNativeAgent: (agent: Parameters<typeof ctx.agentLoop.releaseIdleAgent>[0]) =>
       ctx.agentLoop.releaseIdleAgent(agent),
   };
@@ -282,7 +282,7 @@ function setup(options: {
   });
   const memoryDirectory = join(root, 'memory', 'ada');
   const prepareModelRoute = vi.fn(async () => {
-    const id = core.runtime.currentOrchestratorSessionId('ada');
+    const id = core.runtime.currentOrchestratorSessionId?.('ada');
     if (id !== undefined) await options.beforeNativeHandle?.(id, memoryDirectory);
   });
   const adapter = createDshBotAgentAdapter({
@@ -371,10 +371,13 @@ function setup(options: {
 it('continues a native quota turn on an engine, then resumes DSH on the same Session', async () => {
   const model = new NativeReplay(true);
   const writerClosing = vi.fn();
-  const allowClose = Promise.withResolvers<void>();
+  let allowClose!: () => void;
+  const release = new Promise<void>((resolve) => {
+    allowClose = resolve;
+  });
   const runtime = await nativeRuntime(model, async () => {
     writerClosing();
-    await allowClose.promise;
+    await release;
   });
   const { ctx, dsh } = runtime;
   const bot = setup({
@@ -404,7 +407,7 @@ it('continues a native quota turn on an engine, then resumes DSH on the same Ses
     ).toThrow('releasing its Session');
     expect(bot.codex).toHaveLength(0);
   } finally {
-    allowClose.resolve();
+    allowClose();
     await first;
   }
   const id = bot.sessionId();
