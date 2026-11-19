@@ -46,6 +46,8 @@ pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fall
 
 For a live follow-up on an isolated local Host, select the group using `model-plan-customize <bot> --orchestrator-group <id>` and send a DM. After an engine limit, check `engine status` for the reset and `channel-timeline <channel>` for the switch notice. Check that the original DM gets one reply in the same Session without another Human message. In the replay that hits quota after a tool call, verify that the next target sees its completed result. In the replay with an earlier reply, verify that only that reply is delivered. With every target resting, open the DM and verify the limit card's earliest reset against `turnStop.rests[0].until`. Exercise this journey using a replay transport if a real engine quota window is unavailable.
 
+After the first fallback, restart the isolated Host while the engine still rests and send a DM that depends on the earlier conversation. Check that one reply reaches the Channel and that `bot-sessions` and `session-transcript` reopen the same Session.
+
 ## Gotchas
 
 - The CLI accepts engine ID `claude` for Claude Code. The group still needs at least one DSH model after expansion. Explicit `engine use` choices take precedence.
