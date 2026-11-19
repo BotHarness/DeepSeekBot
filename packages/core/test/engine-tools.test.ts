@@ -6,9 +6,8 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createEngineGateway } from '../src/engines/engine-gateway.js';
+import { createEngineGateway, engineGatewayResult } from '../src/engines/engine-gateway.js';
 import {
-  engineGatewayResult,
   type EngineToolApproval,
   type EngineToolContext,
   type EngineTurnRequest,

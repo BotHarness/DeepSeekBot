@@ -80,6 +80,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Activity Center: shared header Environment selector, per-item source badges, approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
 | Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
+| Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
 
 ## Coverage and maintenance
 
