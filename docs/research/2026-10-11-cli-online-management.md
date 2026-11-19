@@ -212,6 +212,6 @@ official upstream source at `4878cdabd87d4041bdaff61d04c966883b9fd07a` were both
 inspected; gateway dispatch behavior matched. Official plugin documentation was
 checked for Plugin/Service lifecycle context, not used to infer version-specific
 remote API behavior: [DSH first plugin](https://deepseek-harness.github.io/deepseek-harness/develop/basic/).
-The accepted [ADR-0156](../adr/0156-programmatic-bot-creation-is-a-machine-first-cli-over-registry-creation.md)
+The accepted [ADR-0156](../decisions/bots.md#adr-0156)
 originally selected offline-first creation; changing its default is a durable
 decision to record rather than an implementation detail to assume.

@@ -1,13 +1,24 @@
 import { Button } from './ds/button.js';
 import { useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from 'react';
 import type { Shortcuts, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client';
-import type { PropsLocale, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
-import type { BotModePrefsFace } from './bot-mode-prefs.js';
+import * as stylex from '@stylexjs/stylex';
+import type { BotModeSettingRowProps } from './bot-mode-setting-rows.js';
+import { space } from './ds/tobs.stylex.js';
+import { Note } from './ds/note.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import { ShortcutHelpList } from './shortcut-help.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { SearchField } from './ds/field.js';
 import { useMountedResource } from './mounted-resource.js';
+
+const styles = stylex.create({
+  page: { display: 'flex', flexDirection: 'column', gap: space.x5 },
+  empty: {
+    [stylex.when.ancestor(':has([data-shortcut], [data-settings-row])')]: {
+      display: 'none',
+    },
+  },
+});
 
 let workShortcutNotice = false;
 const noticeListeners = new Set<() => void>();
@@ -28,13 +39,10 @@ export function KeyboardSettings({
   useBotModePrefs,
   shortcutBindings,
   shortcuts,
-}: PropsLocale<'botharness'> &
-  InjectFace<
-    BotModePrefsFace & {
-      shortcutBindings: ShortcutBindings;
-      shortcuts: Shortcuts;
-    }
-  >): ReactElement {
+}: Pick<BotModeSettingRowProps, 't' | 'useBotModePrefs'> & {
+  shortcutBindings: ShortcutBindings;
+  shortcuts: Shortcuts;
+}): ReactElement {
   const migrationNotice = useSyncExternalStore(subscribeNotice, noticeSnapshot, noticeSnapshot);
   const [query, setQuery] = useState('');
   const [recording, setRecording] = useState<ShortcutCommandId>();
@@ -124,7 +132,7 @@ export function KeyboardSettings({
         .includes(query.trim().toLocaleLowerCase()),
   );
   return (
-    <div ref={mount} className="bh-keyboard-settings">
+    <div ref={mount} {...stylex.props(styles.page, stylex.defaultMarker())}>
       {migrationNotice ? (
         <p role="status">
           {t('sessions.shortcut.migration')}{' '}
@@ -139,7 +147,7 @@ export function KeyboardSettings({
           setRecording(undefined);
         }}
       />
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <Note tone="danger">{error}</Note> : null}
       {panels.length ? (
         <SettingsSection title={t('shortcuts.title')}>
           {panels.map((row) => (
@@ -196,7 +204,7 @@ export function KeyboardSettings({
         shortcutBindings={shortcutBindings}
         query={query}
       />
-      <div className="bh-shortcuts-empty" role="status">
+      <div role="status" {...stylex.props(styles.empty)}>
         {t('settings.noResults')}
       </div>
     </div>

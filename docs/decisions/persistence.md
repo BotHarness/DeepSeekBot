@@ -99,7 +99,7 @@ Enforced by: [purge tests](../../packages/core/test/content-purge.test.ts) and [
 
 _Formerly ADR-0027 and ADR-0093. ADR-0019, ADR-0020 and ADR-0040 are retired._
 
-Applying a Model Preset copies its choices into an independent PersonaBot Model Plan. Profile Backup carries plans without credentials. Sharing a [Memory repository](memory.md#adr-0002) or [Bot Zip](../adr/0135-a-bot-moves-between-people-as-a-zip-of-its-memory-files.md) leaves model choice with the recipient. SoulSnapshot, the hosted Soul registry and the per-Bot PersonaBot Export are retired. Whole-Profile recovery uses the package described above.
+Applying a Model Preset copies its choices into an independent PersonaBot Model Plan. Profile Backup carries plans without credentials. Sharing a [Memory repository](memory.md#adr-0002) or [Bot Zip](bots.md#adr-0135) leaves model choice with the recipient. SoulSnapshot, the hosted Soul registry and the per-Bot PersonaBot Export are retired. Whole-Profile recovery uses the package described above.
 
 New Orchestrator turns and Assignment requests resolve their choices under the current plan and the Host's execution checks. An existing Assignment keeps its retained route until an authorized switch. A plan may fix only the Orchestrator and inherit the Profile's Assignment policy. Open Assignment mode admits additional catalog routes subject to role and credential checks. Presets and plans can reference a [Routing Group](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md) by ID, so edits to that group's membership can take effect at request boundaries without changing the applied preset snapshot.
 

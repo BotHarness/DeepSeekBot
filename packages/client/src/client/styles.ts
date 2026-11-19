@@ -35,13 +35,6 @@ export const CSS =
   inherits: false;
   initial-value: 0px;
 }
-.bh-settings-search-results { display: flex; flex-direction: column; gap: ${space.x2}; max-height: 45vh; overflow-y: auto; }
-.bh-settings-search-results button { display: flex; flex-direction: column; gap: ${space.x2}; padding: ${space.x3}; text-align: start; border: 0; border-radius: ${radius.xs}; background: transparent; color: ${color.fg}; cursor: pointer; font: inherit; }
-.bh-settings-search-results button:hover { background: ${color.hover}; }
-.bh-settings-search-results small { opacity: .65; }
-[data-settings-highlight] { outline: ${border.focus} solid ${color.accent}; outline-offset: ${space.x1}; border-radius: ${radius.xs}; }
-.bh-keyboard-settings { display: flex; flex-direction: column; gap: ${space.x5}; }
-.bh-keyboard-settings:has([data-shortcut], [role="group"]) .bh-shortcuts-empty { display: none; }
 
 .bh-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: ${space.x4}; margin: 0 ${space.x5} ${space.x5}; padding: ${space.x3} ${space.x4} ${space.x3} ${space.x5}; border-radius: ${radius.md}; background: var(--tobs-layer-raised); color: var(--tobs-ink-primary); }
 .bh-selection-count { min-width: 0; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; font-weight: ${text.strong}; font-variant-numeric: tabular-nums; }

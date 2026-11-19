@@ -6,7 +6,7 @@
 
 先读取仓库 `AGENTS.md`、`.agents/skills/to-spec/SKILL.md`（缺失时查可用个人 skills）、[CONTEXT](../../GLOSSARY.md)／[中文 CONTEXT](../../GLOSSARY.zh.md)、[living architecture](../architecture/botharness-architecture.md) §5.2；DSH 计划进入 `dsh-plugin-dev` Context → Decision Tree。
 
-规范结果是 [Accepted ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md)，选择与事实依据见 [完整访谈](2026-10-03-svg-avatar-design-exploration.md)。ADR 原草稿用 0101，随后改为 0116；与已合入的 Daily Browser ADR 编号冲突，集成时重新编号为 0118。继续前检查新的编号竞争。
+规范结果是 [Accepted ADR-0118](../decisions/bots.md#adr-0118)，选择与事实依据见 [完整访谈](2026-10-03-svg-avatar-design-exploration.md)。ADR 原草稿用 0101，随后改为 0116；与已合入的 Daily Browser ADR 编号冲突，集成时重新编号为 0118。继续前检查新的编号竞争。
 
 [issue #743](https://github.com/BotHarness/BotHarness/issues/743) 只追踪设计文档，不是完整功能 spec。#120、#58 是已完成的活动／图片头像基础，不重开它们。继续时查 feature:avatar 的现存 spec/hub，避免重复发布。
 

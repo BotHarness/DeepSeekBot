@@ -49,6 +49,20 @@ const input = {
 };
 
 describe('canonical keyed Bot creation', () => {
+  it('assigns distinct filesystem-safe IDs to independent requests with the same display name', () => {
+    const f = fixture();
+    const displayName = 'Ada / 研究';
+    const first = f.owner.create({ ...input, displayName }, key);
+    const second = f.owner.create({ ...input, displayName }, 'test-create-operation-02');
+
+    expect(first.record.slug).toMatch(/^bot-[0-9a-f]{32}$/);
+    expect(second.record.slug).toMatch(/^bot-[0-9a-f]{32}$/);
+    expect(second.record.slug).not.toBe(first.record.slug);
+    expect(first.record.displayName).toBe(displayName);
+    expect(second.record.displayName).toBe(displayName);
+    expect(f.core.channels.list()).toHaveLength(2);
+  });
+
   it('creates one identity, Git Memory and DM and returns the same receipt after retry and restart', async () => {
     const f = fixture();
     expect(f.owner.lookup(key, input)).toBeUndefined();
