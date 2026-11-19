@@ -218,4 +218,4 @@ Bot 显式调用 `bot_send_message`，使用自己的明确授权 grant_id。既
 
 ## 微信默认值与继承（#912）
 
-Messaging 拥有微信不可变默认版本与独立的身份／输入状态继承标记。Generation 69 保留原覆盖，新绑定继承。扫码账号私聊编辑器不显示并拒绝未支持的群 @／Thread 策略；频道连接器保留独立路由。恢复收件沿用新消息时间边界，输入状态变化只取消继承的运行中租约。无需升级 Provider 或新增消息权威。参见 [ADR-0119](../../adr/0119-external-platform-defaults-retain-explicit-inheritance.md) 与[候选审阅路径](../../wechat-connection.zh.md#14-继承默认值或保留-bot-自定义)。真实微信新消息验收仍待完成。
+Messaging 拥有微信不可变默认版本与独立的身份／输入状态继承标记。Generation 69 保留原覆盖，新绑定继承。扫码账号私聊编辑器不显示并拒绝未支持的群 @／Thread 策略；频道连接器保留独立路由。恢复收件沿用新消息时间边界，输入状态变化只取消继承的运行中租约。无需升级 Provider 或新增消息权威。参见 [ADR-0119](../../decisions/inbox.md#adr-0119) 与[候选审阅路径](../../wechat-connection.zh.md#14-继承默认值或保留-bot-自定义)。真实微信新消息验收仍待完成。
