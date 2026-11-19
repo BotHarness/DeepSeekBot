@@ -20,6 +20,6 @@ Use these precedents for composition. Bot mode uses shared Tobs components and t
 ## Reading a reference
 
 1. Name the precedent and what it contributes: composition, hierarchy, or states — not styling.
-2. Express it with `--dsw-*` tokens, the exported primitives, and the native inset contract; pass light and dark.
+2. Express it with Tobs role tokens (`ds/tobs.stylex.ts`), the `ds/` components, and the native inset contract; pass light and dark.
 3. The shell's existing pattern wins where one exists; a reference fills only the gaps.
 4. In the PR, name the borrowed pattern and each deliberate deviation.

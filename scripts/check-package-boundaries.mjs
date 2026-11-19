@@ -106,11 +106,18 @@ function clientHostBaselineErrors(root, files, baseline) {
   const errors = Object.keys(baseline)
     .filter((file) => !files.includes(file))
     .map((file) => `${file}: remove the retired entry from ${CLIENT_HOST_BASELINE}`);
-  const prior = spawnSync('git', ['show', `origin/main:${CLIENT_HOST_BASELINE}`], {
+  const requested = process.env.BASELINE_BASE;
+  const base = !requested ? 'origin/main' : /^0+$/u.test(requested) ? 'HEAD^' : requested;
+  const prior = spawnSync('git', ['show', `${base}:${CLIENT_HOST_BASELINE}`], {
     cwd: root,
     encoding: 'utf8',
     windowsHide: true,
   });
+  if (prior.status !== 0 && !/does not exist in|exists on disk, but not in/u.test(prior.stderr)) {
+    const message = `${CLIENT_HOST_BASELINE}: cannot read the baseline at ${base} to check that it only shrinks; fetch it or set BASELINE_BASE to the PR base commit`;
+    if (requested) errors.push(message);
+    else console.warn(`warning: ${message}`);
+  }
   if (prior.status === 0) {
     const previous = JSON.parse(prior.stdout);
     for (const [file, specifiers] of Object.entries(baseline)) {
