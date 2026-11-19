@@ -24,6 +24,7 @@ import {
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import { resolveEngineCommand } from './engine-launch.js';
+import { buildEngineContextSeed } from './engine-context.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
@@ -182,6 +183,8 @@ interface LiveEngineSession {
   account: string;
   grant: EngineGrant;
   dsh: OpenedEngineDshSession;
+  nativeId: string;
+  seed: string | undefined;
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
@@ -278,7 +281,8 @@ export class EngineHost {
     const engine = this.engineFor(botSlug);
     if (engine === undefined) return undefined;
     const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
-    const model = this.store.model(botSlug, engine);
+    const model =
+      this.store.choice(botSlug, 'orchestrator').model ?? this.store.model(botSlug, engine);
     return {
       engine,
       displayName: ENGINE_DEFINITIONS[engine].displayName,
@@ -417,6 +421,30 @@ export class EngineHost {
     return { engine, started: true, ...started };
   }
 
+  async validateChoice(engine: EngineId, choice: EngineChoice): Promise<void> {
+    const models = await this.models(engine);
+    if (choice.model === undefined && choice.effort === undefined) return;
+    const picked =
+      choice.model === undefined
+        ? (models.find((entry) => entry.isDefault === true) ?? models[0])
+        : models.find((entry) => entry.id === choice.model);
+    if (picked === undefined)
+      throw new EngineRefusal(
+        'unknown-model',
+        `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
+      );
+    if (
+      choice.effort !== undefined &&
+      !picked.efforts.some((option) => option.id === choice.effort)
+    )
+      throw new EngineRefusal(
+        'unknown-effort',
+        picked.efforts.length === 0
+          ? `${picked.id} takes no effort level`
+          : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
+      );
+  }
+
   async models(engine: EngineId): Promise<EngineModel[]> {
     if (!this.#options.local)
       throw new EngineRefusal(
@@ -466,7 +494,7 @@ export class EngineHost {
   async #claudeSession(
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode'
+      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed'
     >,
   ): Promise<ClaudeEngineSession> {
     const claude = this.#claude;
@@ -577,6 +605,17 @@ export class EngineHost {
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
+            broken = live.seed !== undefined && end.status !== 'completed';
+            if (!broken) {
+              this.store.rememberNativeSession(
+                request.sessionId,
+                engine,
+                live.nativeId,
+                live.account,
+                log.turn,
+              );
+              live.seed = undefined;
+            }
           } catch (error) {
             broken = true;
             throw error;
@@ -726,7 +765,9 @@ export class EngineHost {
   }
 
   isLive(sessionId: string): boolean {
-    return this.#live.has(sessionId) || this.#opening.has(sessionId);
+    return (
+      this.#live.has(sessionId) || this.#opening.has(sessionId) || this.#releasing.has(sessionId)
+    );
   }
 
   #role(sessionId: string): EngineRole {
@@ -810,8 +851,14 @@ export class EngineHost {
         },
       });
       const stored = this.store.nativeSession(sessionId);
-      const resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      let resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      if (resume !== undefined && stored?.lastTurn !== undefined) {
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
+        if (last?.data.turn !== stored.lastTurn) resume = undefined;
+      }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
+      const contextSeed = () => holder.live?.seed;
       let opened: EngineSession;
       if (engineId === 'codex') {
         const options: CodexProcessOptions = { ...this.#codex, cwd, gateway: gatewayEndpoint };
@@ -819,12 +866,14 @@ export class EngineHost {
         opened = new CodexEngineSession(transport, {
           cwd,
           instructions: request.instructions,
+          contextSeed,
           ...choice,
         });
       } else {
         opened = await this.#claudeSession({
           cwd,
           instructions: request.instructions,
+          contextSeed,
           gateway: gatewayEndpoint,
           ...(request.role === 'assignment' ? { permissionMode: 'acceptEdits' as const } : {}),
           ...choice,
@@ -843,11 +892,11 @@ export class EngineHost {
         nativeId = await opened.start(resume);
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
+        resume = undefined;
         nativeId = await opened.start();
       }
-      this.store.rememberNativeSession(sessionId, engineId, nativeId, label);
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
@@ -856,6 +905,8 @@ export class EngineHost {
         account: label,
         grant,
         dsh,
+        nativeId,
+        seed: resume === undefined ? buildEngineContextSeed(dsh.session) : undefined,
         turn: undefined,
         stop: undefined,
         closing: false,

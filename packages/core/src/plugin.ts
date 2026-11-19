@@ -2476,12 +2476,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (topics.includes('paired-devices')) core.live.publishResourceChanged('devices');
         if (topics.includes('host-relationships'))
           core.live.publishResourceChanged('relationships');
+        if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
+        if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
       }),
     'botharness: live resource changes',
+  );
+  ctx.provide('botharnessResourcePublisher', (resource) =>
+    core.live.publishResourceChanged(resource),
   );
   mountDevicePairing(ctx, {
     team,
     onDevicesChanged: () => core.live.publishResourceChanged('devices'),
+    onAccountChanged: () => core.live.publishResourceChanged('account'),
     calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
@@ -3927,6 +3933,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    subscriptionEngines: engineHost,
+    releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,
     routeRests,

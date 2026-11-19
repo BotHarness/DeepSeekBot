@@ -3989,6 +3989,15 @@ const HUMAN_PROFILE_SETUP_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_MODEL_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-effort',
+  module: 'assignments',
+  description: 'Remember the reasoning effort chosen for an Assignment Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE assignments ADD COLUMN model_effort TEXT');
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4161,4 +4170,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ASSIGNMENT_AGENT_PRESET_MIGRATION,
   SESSION_AGENT_PRESET_MIGRATION,
   ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
+  ASSIGNMENT_MODEL_EFFORT_MIGRATION,
 ]);

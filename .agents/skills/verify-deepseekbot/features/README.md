@@ -29,6 +29,7 @@
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
 | Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
+| Session context across a Subscription Engine switch | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
 
@@ -58,6 +59,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android launch, sheets, shell and chat presentation | no | Launch: queued native check; interactions: `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
+| Phone Routing Group editing | no | shared-device queue and Host CLI readback | [phone-routing-groups.md](phone-routing-groups.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |
 | Bot Browser on the phone                                                                           | no                         | `scripts/e2e-mobile-browser-web.mjs`                                                                 | [phone-browser.md](phone-browser.md)                 |
 | Token usage on the phone                                                                           | yes                        | `scripts/e2e-mobile-usage-web.mjs`                                                                   | [phone-usage.md](phone-usage.md)                     |

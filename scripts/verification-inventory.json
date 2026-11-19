@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "engine.session-context",
+      "label": "Session context across a Subscription Engine switch",
+      "source": "packages/core/src/engines/engine-context.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/engine-session-context.md",
+      "task": 4559,
+      "gap": "Replay covers Codex and Claude Code. Live subscription recall and return to the native model use an isolated local Host."
+    },
+    {
       "id": "team.own-bot-memory",
       "label": "Members manage their own Bots Memory through Host and CLI",
       "source": "packages/core/src/team/member-methods.ts",
@@ -454,6 +462,14 @@
       "source": "apps/mobile/src/ui/primitives/keyboard-frame.android.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-android-interactions.md",
       "task": 2021,
+      "gap": null
+    },
+    {
+      "id": "phone.routing-groups",
+      "label": "Create, rename, reorder members and delete Routing Groups on the phone",
+      "source": "apps/mobile/src/ui/chat/routing-group-editor.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-routing-groups.md",
+      "task": 4497,
       "gap": null
     },
     {

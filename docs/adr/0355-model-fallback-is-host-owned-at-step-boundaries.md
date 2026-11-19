@@ -16,6 +16,8 @@ The Host owns Model Fallback. A Session's Model Choice may be a Routing Group: a
 
 Reading remaining quota (vendor balance or plan-window endpoints) belongs to DSH provider adapters, so keys never leave DSH; fallback itself needs only failure signals. External gateways remain usable as ordinary custom providers.
 
+An Assignment stores its chosen Routing Group effort separately from the member route that ran. Each fallback or resume applies the stored effort where the member supports it, and a member with its own pinned effort uses that pin. An explicit switch to a single model clears the group and its effort. Assignments created before this field retain their route-derived fallback behavior.
+
 ## Consequences
 
 - One step's request is lost on fallback, never a partial reply; a step that already streamed output is not replayed on another route.

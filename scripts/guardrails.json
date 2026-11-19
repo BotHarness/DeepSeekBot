@@ -65,6 +65,13 @@
       "check": "scripts/check-pr-provenance.mjs"
     },
     {
+      "id": "pr-needs-human",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915324149",
+      "fix": "leave any PR labeled `needs-human` for a human maintainer to merge.",
+      "check": "scripts/check-needs-human.mjs"
+    },
+    {
       "id": "source-policy",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/pull/4329",

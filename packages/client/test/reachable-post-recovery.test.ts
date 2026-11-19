@@ -9,6 +9,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
 }));
 import { ReachablePostDialog } from '../src/client/reachable-post.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { ReachablePostRequests } from '../src/client/reachable-post-requests.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { chooseOption } from './primitive-mocks.js';
@@ -223,8 +224,9 @@ it('reconciles the original Outbox result on reopen through a read-only query, w
   }
 });
 
-it('reads an in-flight result until settled without retrying the native effect', async () => {
+it('settles an in-flight reachable post on a Host event without retrying the native effect', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  const events = resourceEvents();
   const post = vi.fn(async () => {
     throw new Error('Response lost');
   });
@@ -237,12 +239,16 @@ it('reads an in-flight result until settled without retrying the native effect',
     await view.render();
     expect(view.send().disabled).toBe(true);
     state = 'provider-accepted';
-    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    await act(async () => {
+      events.emit('reachable-posts');
+      await new Promise((resolve) => setTimeout(resolve, 35));
+    });
     expect(document.body.textContent).toContain(zhTranslate('proactive.accepted'));
     expect(view.send().disabled).toBe(false);
     expect(post).toHaveBeenCalledTimes(1);
   } finally {
     await view.dispose();
+    events.dispose();
     vi.useRealTimers();
   }
 });
