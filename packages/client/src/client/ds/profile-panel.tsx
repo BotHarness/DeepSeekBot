@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { Button } from './button.js';
+import { joinClass } from './class-name.js';
 import { dimension } from './dimensions.stylex.js';
 import { hooked } from './hooked.js';
 import { Icon } from './icon.js';
@@ -65,7 +66,7 @@ export const profileStyles = stylex.create({
     padding: 0,
     borderRadius: radius.lg,
     boxShadow: elevation.x1,
-    opacity: { ':disabled': 1 },
+    opacity: 1,
   },
   avatarBadge: {
     position: 'absolute',
@@ -191,8 +192,9 @@ export function ProfileCard({
   label: ReactNode;
   children: ReactNode;
 }): ReactElement {
+  const { className, ...props } = stylex.props(profileStyles.card, surfaceStyles.card);
   return (
-    <section {...hooked('bh-profile-card', profileStyles.card, surfaceStyles.card)}>
+    <section className={joinClass('bh-profile-card', className)} {...props}>
       <header {...hooked('bh-profile-card-head', profileStyles.cardHead)}>
         <span {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>{label}</span>
       </header>
