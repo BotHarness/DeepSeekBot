@@ -5,7 +5,7 @@ import { createModelProviders, setOpenCodeGoSessionHeader } from '../src/models/
 const settingsNs = 'llm-pi-ai';
 const secret = 'test-secret-1234';
 
-function fixture() {
+function fixture(secrets: { path: string[]; set: boolean }[] = []) {
   const providers: Record<string, unknown> = {};
   const keys = new Map<string, string>();
   let revision = 0;
@@ -28,7 +28,9 @@ function fixture() {
   const probe = vi.fn(async (_id: string, _model: string) => true);
   const modelProviders = createModelProviders({
     settings: {
-      describe: () => [{ ns: settingsNs, value: { providers }, user: { providers }, revision }],
+      describe: () => [
+        { ns: settingsNs, value: { providers }, user: { providers }, revision, secrets },
+      ],
       mutate,
     },
     credentials: {
@@ -191,4 +193,17 @@ it('sends a separate session header for each conversation on an additional OpenC
   expect(first.get('x-opencode-session')).toBe('first-conversation');
   expect(second.get('x-opencode-session')).toBe('second-conversation');
   expect(other.has('x-opencode-session')).toBe(false);
+});
+
+it('keeps an inline key reported as stored after a rename', async () => {
+  const { modelProviders, settings } = fixture([
+    { path: ['providers', 'custom', 'apiKey'], set: true },
+  ]);
+  settings['custom'] = { api: 'openai-completions', baseURL: 'https://example.test/v1' };
+
+  const [listed] = (await modelProviders.list()).providers.filter(({ id }) => id === 'custom');
+  const renamed = await modelProviders.edit({ id: 'custom', name: 'Renamed', expectedRevision: 0 });
+
+  expect(listed?.keyStored).toBe(true);
+  expect(renamed).toMatchObject({ id: 'custom', keyStored: true, testReply: 'skipped' });
 });

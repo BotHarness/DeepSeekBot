@@ -202,6 +202,18 @@ function exclusiveReference(value: unknown, ref: CredentialRef): boolean {
   return true;
 }
 
+function inlineKeySet(section: SettingsView, settingsPath: readonly string[]): boolean {
+  return (
+    section.secrets?.some(
+      ({ path, set }) =>
+        set &&
+        path.length === settingsPath.length + 1 &&
+        path[path.length - 1] === 'apiKey' &&
+        settingsPath.every((key, index) => key === path[index]),
+    ) ?? false
+  );
+}
+
 function isDictionaryRoute(location: ProviderLocation): boolean {
   return location.settingsPath.length === 2 && location.settingsPath[0] === 'providers';
 }
@@ -365,13 +377,7 @@ export function createModelProviders(source: ProviderSources) {
             explicit === undefined
               ? (location.nativeAuth?.env ?? []).flatMap((name) => reference(name) ?? [])
               : [explicit];
-          const secretConfigured = section.secrets?.some(
-            ({ path, set }) =>
-              set &&
-              path.length === settingsPath.length + 1 &&
-              path[path.length - 1] === 'apiKey' &&
-              settingsPath.every((key, index) => key === path[index]),
-          );
+          const secretConfigured = inlineKeySet(section, settingsPath);
           const key = await credential(refs);
           const models = active.has(id) ? await source.models(id).catch(() => []) : [];
           const providerRests = rests.filter((rest) => rest.provider === id);
@@ -392,7 +398,7 @@ export function createModelProviders(source: ProviderSources) {
                   ? fallback
                   : (label ?? fallback),
             ...key,
-            keyStored: key.keyStored || secretConfigured === true,
+            keyStored: key.keyStored || secretConfigured,
             modelCount: models.length,
             availability:
               models.length === 0 ? 'unavailable' : everyResting ? 'resting' : 'available',
@@ -474,7 +480,9 @@ export function createModelProviders(source: ProviderSources) {
           const modelCount = (await source.models(input.id).catch(() => [])).length;
           return {
             id: input.id,
-            keyStored: (await credential(previousRef === undefined ? [] : [previousRef])).keyStored,
+            keyStored:
+              (await credential(previousRef === undefined ? [] : [previousRef])).keyStored ||
+              inlineKeySet(section, path),
             modelCount,
             testReply: 'skipped' as const,
           };

@@ -108,6 +108,11 @@ function Subscriptions({ t }: { t: BotHarnessTranslate }): ReactElement {
   return (
     <SettingsSection title={t('modelProviders.subscriptions')}>
       <div ref={engines.mount}>
+        {engines.loadFailed ? (
+          <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
+            {t('engine.loadFailed')}
+          </ReadFailure>
+        ) : null}
         <SidebarCardList label={t('modelProviders.subscriptions')}>
           {engineIds.map((id) => {
             const status = engines.view?.engines.find(({ engine }) => engine === id);
