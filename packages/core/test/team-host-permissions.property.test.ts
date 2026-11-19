@@ -80,7 +80,11 @@ describe('Team mode Host Permission ceiling', () => {
             requested === 'roles.manage' ? canManageRoles : held.includes(requested);
           if (!canManageRoles) {
             expect(create).toThrow(expect.objectContaining({ code: 'permission-required' }));
-          } else if (!memberHoldsIt || requested === 'privateContent.view') {
+          } else if (
+            !memberHoldsIt ||
+            requested === 'privateContent.view' ||
+            requested === 'modelSources.manage'
+          ) {
             expect(create).toThrow(expect.objectContaining({ code: 'permission-not-grantable' }));
           } else {
             const { role } = create();

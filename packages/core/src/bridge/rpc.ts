@@ -1,3 +1,10 @@
+import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
+import type {
+  ModelProvidersView,
+  ModelProviderSave,
+  ModelProviderRemoval,
+} from '@botharness/host-client/model-providers';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 
 import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
@@ -271,30 +278,6 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
 
 export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
 
-const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
-
-interface RemoteMethodDescriptor {
-  readonly version: 1;
-  readonly methods: readonly {
-    readonly method: string;
-    readonly mode?: 'stream';
-    readonly invocation: { readonly kind: 'direct' };
-  }[];
-}
-
-function markRemoteMethods(prototype: object, methods: readonly string[]): void {
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: methods.map((method) =>
-      Object.freeze({ method, invocation: Object.freeze({ kind: 'direct' }) }),
-    ),
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
-}
-
 export interface BridgeLive {
   followRoster(human: HumanContext, signal: AbortSignal): AsyncIterable<RosterLiveFrame>;
   followActivity(human: HumanContext, signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
@@ -327,29 +310,6 @@ export interface BridgeLive {
     lastEventId: string,
     signal: AbortSignal,
   ): AsyncIterable<CompanionLiveFrame>;
-}
-
-function markRemoteStreams(prototype: object, streams: readonly string[]): void {
-  const marked = (prototype as Record<string, RemoteMethodDescriptor | undefined>)[
-    REMOTE_METHOD_DESCRIPTOR
-  ];
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: [
-      ...(marked?.methods ?? []),
-      ...streams.map((method) =>
-        Object.freeze({
-          method,
-          mode: 'stream' as const,
-          invocation: Object.freeze({ kind: 'direct' as const }),
-        }),
-      ),
-    ],
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
 }
 
 function toRemoteError(error: BridgeError): RemoteError {
@@ -1286,13 +1246,48 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  modelCatalog(): Promise<{
+  modelProviders(): Promise<ModelProvidersView> {
+    return unwrapAsync(this.methods.modelProviders({}));
+  }
+
+  modelProviderAdd(
+    template: string,
+    name: string,
+    key: string,
+    expectedRevision: number,
+    endpoint?: string,
+    model?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(
+      this.methods.modelProviderAdd({ template, name, key, expectedRevision, endpoint, model }),
+    );
+  }
+
+  modelProviderEdit(
+    id: string,
+    expectedRevision: number,
+    name?: string,
+    key?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(this.methods.modelProviderEdit({ id, expectedRevision, name, key }));
+  }
+
+  modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
+    return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
+  }
+
+  modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
     defaultRevision?: number;
     favorites?: ModelFavorite[];
+    routingGroupEngines?: RoutingGroupEngineOptions[];
   }> {
-    return unwrapAsync(this.methods.modelCatalog({}));
+    return unwrapAsync(
+      this.methods.modelCatalog(
+        includeRoutingGroupEngines === true ? { includeRoutingGroupEngines } : {},
+      ),
+    );
   }
 
   modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
@@ -3606,6 +3601,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionMessageSend',
   'botStop',
   'modelCatalog',
+  'modelProviders',
+  'modelProviderAdd',
+  'modelProviderEdit',
+  'modelProviderRemove',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',

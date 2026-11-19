@@ -1,7 +1,6 @@
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
   loadTelemetryStatus,
@@ -10,7 +9,7 @@ import {
   type TelemetryLock,
   type TelemetryStatus,
 } from './bridge.js';
-import type { BotHarnessKey } from './locale.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
@@ -23,7 +22,10 @@ const styles = stylex.create({
   },
 });
 
-export type TelemetrySettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface TelemetrySettingsProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+}
 
 const LOCK_NOTES: Record<TelemetryLock, BotHarnessKey> = {
   config: 'telemetry.row.lockedConfig',

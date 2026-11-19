@@ -1,8 +1,13 @@
+import * as stylex from '@stylexjs/stylex';
+import { Note } from './ds/note.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { visibleInterval } from './visible-interval.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
+import { ChoiceButton } from './ds/choice-button.js';
+import { Icon } from './ds/icon.js';
 import {
   selectConversationChannel,
   selectConversationSending,
@@ -42,6 +47,20 @@ import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
 
 const ONBOARDING_VIEW_FIELDS = ['bots', 'channels'] as const;
+
+const modelStyles = stylex.create({
+  form: { display: 'grid', gap: space.x5, minWidth: 0, lineHeight: style.textUiLine },
+  request: {
+    display: 'grid',
+    gap: space.x2,
+    padding: space.x4,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+  },
+  prompt: { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+  action: { justifySelf: 'start' },
+  scope: { display: 'grid', gap: space.x2 },
+});
 
 export function OnboardingModelDialog({
   actions,
@@ -167,11 +186,11 @@ export function OnboardingModelDialog({
         </Button>
       }
     >
-      <div ref={mount} className="bh-root bh-onboarding-model-form">
+      <div ref={mount} {...stylex.props(modelStyles.form)}>
         {request ? (
-          <div className="bh-onboarding-request">
-            <span className="bh-note">{t('onboarding.requestLabel')}</span>
-            <p>{request}</p>
+          <div data-onboarding-request="" {...stylex.props(modelStyles.request)}>
+            <Note>{t('onboarding.requestLabel')}</Note>
+            <p {...stylex.props(modelStyles.prompt)}>{request}</p>
           </div>
         ) : null}
         <ModelPicker
@@ -213,29 +232,32 @@ export function OnboardingModelDialog({
           t={t}
         />
         {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-        <SidebarCardList label={t('failure.openModels')}>
-          <SidebarCardRow
-            icon="settings"
-            title={t('failure.openModels')}
-            meta={
-              selected?.credential || (loaded && models.length === 0)
-                ? t('onboarding.keyHint')
-                : t('onboarding.providerSettingsHint')
+        <ChoiceButton
+          leading={<Icon name="settings" />}
+          title={t('failure.openModels')}
+          description={
+            selected?.credential || (loaded && models.length === 0)
+              ? t('onboarding.keyHint')
+              : t('onboarding.providerSettingsHint')
+          }
+          disabled={busy}
+          onClick={() => {
+            if (onProviderSettings) onProviderSettings();
+            else {
+              onClose();
+              openModelsSettings();
             }
-            disabled={busy}
-            onClick={() => {
-              if (onProviderSettings) onProviderSettings();
-              else {
-                onClose();
-                openModelsSettings();
-              }
-            }}
-          />
-        </SidebarCardList>
-        <Button variant="ghost" disabled={busy} onClick={() => void load()}>
+          }}
+        />
+        <Button
+          variant="ghost"
+          className={stylex.props(modelStyles.action).className}
+          disabled={busy}
+          onClick={() => void load()}
+        >
           {t('onboarding.refreshModels')}
         </Button>
-        <div className="bh-onboarding-model-scope">
+        <div {...stylex.props(modelStyles.scope)}>
           {!globalOnly ? (
             <Checkbox
               checked={globalDefault}
@@ -244,13 +266,9 @@ export function OnboardingModelDialog({
               disabled={busy}
             />
           ) : null}
-          <p className="bh-note">{t('onboarding.globalHint')}</p>
+          <Note>{t('onboarding.globalHint')}</Note>
         </div>
-        {error ? (
-          <p role="alert" className="bh-error">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Note tone="danger">{error}</Note> : null}
       </div>
     </Modal>
   );
@@ -731,10 +749,10 @@ export function OnboardingOverlay({
             </Button>
           }
         >
-          <div className="bh-root bh-onboarding-model-form">
+          <div {...stylex.props(modelStyles.form)}>
             <p className="bh-note">{t('onboarding.sendHint')}</p>
-            <div className="bh-onboarding-request">
-              <span className="bh-note">{t('onboarding.requestLabel')}</span>
+            <div data-onboarding-request="" {...stylex.props(modelStyles.request)}>
+              <Note>{t('onboarding.requestLabel')}</Note>
               <p>{state.pending.body}</p>
             </div>
             <Button

@@ -9,11 +9,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { createElement } = await import('react');
+  const { shellPrimitives } = await import('../../client/test/primitive-mocks.js');
   const glyph = () => null;
 
   const dot = (props: { state?: string }) => createElement('span', { 'data-state': props.state });
 
   return {
+    ...shellPrimitives(),
     Menu: glyph,
 
     StateDot: dot,

@@ -14,6 +14,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
+import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'packages/deepseekbot/dist/deepseekbot.mjs');
@@ -264,7 +265,7 @@ class Suite {
     if (last.error) process.stdout.write(`  ✗ ${last.error}\n`);
   }
 
-  member(username, roleIds, base = ['member']) {
+  member(username, roleIds, base = ['member'], webCredentials) {
     const file = join(this.secrets, `${username}.pw`);
     const created = this.cli([
       'members',
@@ -278,10 +279,12 @@ class Suite {
       '--initial-password-file',
       file,
     ]).member;
+    const password = `${randomUUID()}Aa!`;
     this.cli(['members', 'change-password', '--password-stdin'], {
       as: username,
-      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: `${randomUUID()}Aa!` }),
+      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: password }),
     });
+    webCredentials?.set(username, password);
     rmSync(file);
     return created;
   }
@@ -382,9 +385,10 @@ export async function main(argv = process.argv.slice(2)) {
         carol: `carol-${tag}`,
         dave: `dave-${tag}`,
       };
+      const webCredentials = new Map();
       const humans = {
         alice: s.member(users.alice, [roles.finance.roleId, roles.creators.roleId]),
-        bob: s.member(users.bob, [roles.creators.roleId]),
+        bob: s.member(users.bob, [roles.creators.roleId], ['member'], webCredentials),
         carol: s.member(users.carol, [roles.finance.roleId, roles.audit.roleId]),
         dave: s.member(users.dave, [roles.limited.roleId], []),
       };
@@ -440,6 +444,7 @@ export async function main(argv = process.argv.slice(2)) {
       writeFileSync(join(sharedFinance, 'ledger.md'), `${SHARED_FINANCE}\n`);
       const status = s.cli(['team-mode', 'status']);
       fx = {
+        webCredentials,
         roles,
         users,
         humans,
@@ -880,6 +885,15 @@ export async function main(argv = process.argv.slice(2)) {
       const refused = s.cli(['bots', 'reachable'], { as: fx.users.dave, allowFail: true });
       check('deactivated member refused', refused?.error !== undefined, refused?.error);
     });
+
+    await define(
+      'C3',
+      'Model provider settings require the explicit management permission',
+      async (check) => {
+        const as = fx.users.bob;
+        await runModelProviderGate(s, { as, password: fx.webCredentials.get(as) }, check);
+      },
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
+import { isEngineId, type EngineId } from '@botharness/host-protocol/subscription-engine';
+import { useRef, useState } from 'react';
 
 import { useMountedResource } from './mounted-resource.js';
 
-export type EngineId = SubscriptionModel['engine'];
+export type { EngineId } from '@botharness/host-protocol/subscription-engine';
 export type EngineRole = 'orchestrator' | 'assignment';
 
 export type EngineUnavailableReason =
@@ -51,7 +52,6 @@ export interface EngineApi {
 }
 
 const ENGINES = './api/botharness/engines';
-const ENGINE_IDS: readonly string[] = ['codex', 'claude'];
 const ROLES: readonly string[] = ['orchestrator', 'assignment'];
 const REASONS: readonly string[] = [
   'host-not-local',
@@ -69,10 +69,9 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
 function parseStatus(value: unknown): EngineStatusView | undefined {
   const entry = record(value);
   const engine = entry?.['engine'];
-  if (entry === undefined || typeof engine !== 'string' || !ENGINE_IDS.includes(engine))
-    return undefined;
+  if (entry === undefined || !isEngineId(engine)) return undefined;
   const base = {
-    engine: engine as EngineId,
+    engine,
     installed: entry['installed'] === true,
     ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),
   };
@@ -102,15 +101,14 @@ export function parseEngines(value: unknown): EnginesView {
       const role = entry?.['role'];
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
-        typeof engine === 'string' &&
-        ENGINE_IDS.includes(engine) &&
+        isEngineId(engine) &&
         typeof role === 'string' &&
         ROLES.includes(role)
         ? [
             {
               botSlug: entry['botSlug'],
               role: role as EngineRole,
-              engine: engine as EngineId,
+              engine,
               ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),
               ...(typeof entry['effort'] === 'string' ? { effort: entry['effort'] } : {}),
               ...(typeof entry['fallback'] === 'boolean' ? { fallback: entry['fallback'] } : {}),
@@ -187,7 +185,7 @@ export const engineRoles = ['orchestrator', 'assignment'] as const;
 type EngineModels = Partial<Record<EngineId, readonly EngineModelView[]>>;
 type ModelLoads = Partial<Record<EngineId, { state: 'pending' | 'ready' | 'failed' }>>;
 
-export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
+export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadModels = true) {
   const [view, setView] = useState<EnginesView>();
   const [models, setModels] = useState<EngineModels>({});
   const [loadFailed, setLoadFailed] = useState(false);
@@ -210,6 +208,7 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
       if (!alive.current || generation.current !== current) return undefined;
       setView(next);
       setLoadFailed(false);
+      if (!loadModels) return next;
       const source = loads.current;
       for (const status of next.engines) {
         const { engine, available } = status;
@@ -260,7 +259,7 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
       clearTimeout(poll.current);
       clearTimeout(deadline.current);
     };
-  }, [enabled, api]);
+  }, [enabled, api, loadModels]);
 
   const saveSelection = async (
     botSlug: string,

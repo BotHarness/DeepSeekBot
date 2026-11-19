@@ -1,8 +1,14 @@
-import type { ModelCatalogEntry, ModelCatalogGroup } from '@botharness/host-client/model-catalog';
+import {
+  modelCatalogGroupMemberLabels,
+  type routingGroupEnginePresentation,
+  type ModelCatalogEntry,
+  type ModelCatalogGroup,
+} from '@botharness/host-client/model-catalog';
 
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, type SettingsRowProps } from '../primitives/settings-row';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
 import { ModelBrandIcon } from './model-brand-icon';
@@ -14,11 +20,32 @@ type RowActions = Pick<
   'onPress' | 'selected' | 'control' | 'accessory' | 'testID' | 'disclosure'
 >;
 
-export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: ModelCatalogEntry }) {
+export function modelPickerAvailability(
+  entry: ModelCatalogEntry,
+  t: ReturnType<typeof useStrings>,
+) {
+  return {
+    usable: entry.credential === undefined && entry.restingUntil === undefined,
+    detail:
+      entry.credential === 'missing'
+        ? t.modelNeedsKey(entry.providerName)
+        : entry.credential === 'invalid'
+          ? t.modelKeyInvalid(entry.providerName)
+          : entry.restingUntil !== undefined
+            ? `${entry.providerName} · ${restingLabel(entry.restingUntil)}`
+            : entry.providerName,
+  };
+}
+
+export function ModelPickerRow({
+  entry,
+  shortTitle = false,
+  ...actions
+}: RowActions & { entry: ModelCatalogEntry; shortTitle?: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const label = modelEntryLabel(entry);
-  const usable = entry.credential === undefined && entry.restingUntil === undefined;
+  const { usable, detail } = modelPickerAvailability(entry, t);
   return (
     <SettingsRow
       {...actions}
@@ -30,18 +57,46 @@ export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: Mode
           color={usable ? theme.color.fg : theme.color.muted}
         />
       }
-      title={label.name}
+      title={shortTitle ? label.short : label.name}
       accessibilityLabel={`${entry.modelName}, ${entry.providerName}`}
-      detail={
-        entry.credential === 'missing'
-          ? t.modelNeedsKey(entry.providerName)
-          : entry.credential === 'invalid'
-            ? t.modelKeyInvalid(entry.providerName)
-            : entry.restingUntil !== undefined
-              ? `${entry.providerName} · ${restingLabel(entry.restingUntil)}`
-              : entry.providerName
-      }
+      detail={detail}
       tone={usable ? 'fg' : 'muted'}
+    />
+  );
+}
+
+export function ModelEnginePickerRow({
+  row,
+  reason,
+  position,
+  ...actions
+}: RowActions & {
+  row: ReturnType<typeof routingGroupEnginePresentation>;
+  reason?: string | undefined;
+  position?: number;
+}) {
+  const theme = useDesignTheme();
+  const tone = reason === undefined ? 'fg' : 'muted';
+  const detail = reason === undefined ? row.detail : `${row.detail} · ${reason}`;
+  const order = position === undefined ? '' : `${position}. `;
+  return (
+    <SettingsRow
+      {...actions}
+      on={SHEET_GROUP}
+      leading={
+        <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color[tone]} />
+      }
+      trailing={
+        <SystemSymbol
+          name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
+          size={theme.type.meta.line}
+          color={theme.color.muted}
+        />
+      }
+      title={order + row.title}
+      detail={detail}
+      accessibilityLabel={`${order}${row.name}, ${detail}`}
+      tone={tone}
     />
   );
 }
@@ -49,6 +104,8 @@ export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: Mode
 export function ModelGroupPickerRow({
   group,
   front,
+  models,
+  groups,
   usable,
   showCount,
   note,
@@ -56,6 +113,8 @@ export function ModelGroupPickerRow({
 }: RowActions & {
   group: ModelCatalogGroup;
   front: ModelCatalogEntry | undefined;
+  models: readonly ModelCatalogEntry[];
+  groups: readonly ModelCatalogGroup[];
   usable: boolean;
   showCount: boolean;
   note?: string | undefined;
@@ -64,18 +123,21 @@ export function ModelGroupPickerRow({
   const theme = useDesignTheme();
   const restful = group.restingUntil;
   const color = usable ? theme.color.fg : theme.color.muted;
+  const members = modelCatalogGroupMemberLabels(group, models, groups, t.routingGroup.engineRow);
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
+  const current =
+    restful !== undefined
+      ? restingLabel(restful)
+      : front === undefined
+        ? frontLabel
+        : t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`);
   return (
     <SettingsRow
       {...actions}
       on={SHEET_GROUP}
-      accessibilityLabel={
-        front === undefined || restful !== undefined
-          ? undefined
-          : `${group.name}, ${t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`)}`
-      }
+      accessibilityLabel={[group.name, current, ...members, note].filter(Boolean).join(', ')}
       leading={
         front === undefined || restful !== undefined ? (
           <RowIcon name="model" size={theme.type.title.line} color={color} />

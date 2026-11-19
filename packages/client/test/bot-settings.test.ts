@@ -7,7 +7,14 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 let member = false;
-vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
+let canManageProviders = false;
+vi.mock('../src/client/team-state.js', () => ({
+  useTeamMember: () => member,
+  useTeamMode: () => ({
+    viewer: { owner: !member, permissions: canManageProviders ? ['modelSources.manage'] : [] },
+  }),
+  refreshTeamMode: async () => {},
+}));
 
 vi.mock('../src/client/target-name.js', () => ({
   TargetName: ({ name }: { name: string }) => name,
@@ -80,6 +87,7 @@ let rendered: {
 
 beforeEach(() => {
   member = false;
+  canManageProviders = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   host = document.createElement('div');
   document.body.append(host);
@@ -827,7 +835,8 @@ it('opens on Pinned, which leads the sidebar and opens each pinned page from its
   expect(shownSection()).toBe('appearance');
 });
 
-it('pins the open page from the header star and unpins it from its card', async () => {
+it.each([400, 1280])('pins and unpins a settings section at %i px', async (width) => {
+  frameWidth(width < 600);
   const settings = new BotSettings();
   const pins = memoryPins(['models']);
   mount(settings, fullRows(), undefined, pins);
@@ -840,6 +849,7 @@ it('pins the open page from the header star and unpins it from its card', async 
   expect(pins.saved).toEqual([['models', 'about']]);
   expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
 
+  if (width < 600) await click('[aria-label="返回设置列表"]');
   await click('[data-settings-section="home"]');
   await click('[data-settings-pin="models"] [aria-label="从常用移除models"]');
   expect(pins.saved.at(-1)).toEqual(['about']);
@@ -952,4 +962,21 @@ it('opens About from the old Plugins page id', () => {
   });
   expect(current()).toBe('关于');
   expect(shownSection()).toBe('about');
+});
+
+it('shows Model providers above Models & execution and hides it from members without permission', () => {
+  const row = { id: 'model-providers', label: '模型提供商', order: 9 };
+  const settings = new BotSettings();
+  act(() => settings.open());
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent?.indexOf('模型提供商')).toBeGreaterThan(-1);
+  expect(document.body.textContent?.indexOf('模型提供商')).toBeLessThan(
+    document.body.textContent?.indexOf('模型与运行') ?? -1,
+  );
+  member = true;
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent).not.toContain('模型提供商');
+  canManageProviders = true;
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent).toContain('模型提供商');
 });

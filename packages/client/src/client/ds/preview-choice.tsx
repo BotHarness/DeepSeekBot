@@ -12,6 +12,21 @@ const styles = stylex.create({
     gap: space.x3,
     gridTemplateColumns: 'repeat(3, minmax(0, 148px))',
   },
+  iconGrid: {
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 112px), 1fr))',
+  },
+  glyphGrid: { display: 'flex', flexWrap: 'wrap', gap: space.x1 },
+  glyphCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: style.controlHeight,
+    height: style.controlHeight,
+    padding: 0,
+  },
+  iconCard: {
+    justifyItems: 'center',
+    alignItems: 'center',
+  },
   card: {
     position: 'relative',
     display: 'flex',
@@ -106,14 +121,24 @@ export function PreviewChoices<T extends string>({
   value,
   options,
   onChange,
+  variant = 'illustration',
 }: {
   readonly label: string;
-  readonly value: T;
+  readonly variant?: 'illustration' | 'icon' | 'glyph';
+  readonly value: T | undefined;
   readonly options: readonly PreviewChoiceOption<T>[];
   readonly onChange: (value: T) => void;
 }): ReactElement {
   return (
-    <div role="radiogroup" aria-label={label} {...stylex.props(styles.grid)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      {...stylex.props(
+        styles.grid,
+        variant === 'icon' && styles.iconGrid,
+        variant === 'glyph' && styles.glyphGrid,
+      )}
+    >
       {options.map((option) => {
         const checked = value === option.id;
         return (
@@ -122,17 +147,26 @@ export function PreviewChoices<T extends string>({
             type="button"
             role="radio"
             aria-checked={checked}
+            aria-label={variant === 'glyph' ? option.label : undefined}
             {...option.data}
             onClick={() => onChange(option.id)}
-            {...stylex.props(styles.card, checked && styles.checked)}
+            {...stylex.props(
+              styles.card,
+              checked && styles.checked,
+              variant === 'icon' && styles.iconCard,
+              variant === 'glyph' && styles.glyphCard,
+            )}
           >
             <span
-              {...stylex.props(styles.preview, checked && styles.previewChecked)}
+              {...stylex.props(
+                variant === 'illustration' && styles.preview,
+                variant === 'illustration' && checked && styles.previewChecked,
+              )}
               aria-hidden="true"
             >
               {option.preview}
             </span>
-            {option.label}
+            {variant === 'glyph' ? null : option.label}
           </button>
         );
       })}

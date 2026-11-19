@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { edge, ink, layer, line, radius, space, state, type } from './tobs.stylex.js';
+import { edge, ink, layer, line, space, state, style, type } from './tobs.stylex.js';
 
 const styles = stylex.create({
   card: {
@@ -9,10 +9,7 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     minWidth: 0,
-    borderWidth: edge.hairline,
-    borderStyle: 'solid',
-    borderColor: line.edge,
-    borderRadius: radius.md,
+    borderRadius: style.radiusCard,
     backgroundColor: { default: layer.raised, ':hover': state.hover },
   },
   open: {
@@ -25,7 +22,7 @@ const styles = stylex.create({
     paddingInlineEnd: space.x2,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.md,
+    borderRadius: style.radiusCard,
     backgroundColor: 'transparent',
     color: ink.primary,
     fontFamily: 'inherit',

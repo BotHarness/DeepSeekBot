@@ -33,7 +33,11 @@ import {
   loadWorkspaceOptions as loadHostWorkspaceOptions,
   setModelFavorite as setHostModelFavorite,
 } from '@botharness/host-client/bot-settings';
-import type { ModelChoice } from '@botharness/host-client/model-catalog';
+import type {
+  ModelCatalogGroup,
+  ModelChoice,
+  RoutingGroupMember,
+} from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {
@@ -302,13 +306,7 @@ export interface ModelCatalogEntryView {
   restingUntil?: string;
 }
 
-export interface ModelCatalogGroupView {
-  id: string;
-  name: string;
-  revision: number;
-  routes: ModelRouteView[];
-  restingUntil?: string;
-}
+export type ModelCatalogGroupView = ModelCatalogGroup;
 
 export interface ModelCatalogView {
   models: ModelCatalogEntryView[];
@@ -401,9 +399,7 @@ export async function loadModelPlanState(
   return loadHostModelPlanState(bridgeHost(call), slug);
 }
 
-export type RoutingGroupMemberView =
-  | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
-  | { kind: 'group'; id: string };
+export type RoutingGroupMemberView = RoutingGroupMember;
 
 export interface RoutingGroupView {
   id: string;

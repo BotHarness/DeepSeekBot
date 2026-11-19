@@ -85,7 +85,7 @@ Client 线路偏好检查或文件替换失败时，Host 线路可能已经更�
 
 手机上 通知 → 送达方式 可为该 Host 选择 **推送**、**仅 App 内** 或 **关闭**。仅 App 内会停止向这台设备推送，但角标照常更新；App 只在打开时显示横幅。CLI 用 `deepseekbot device-notifications --device-file <私有配对.json> --delivery push|in-app` 设置，返回带 `delivery` 的设置；关闭即原有的 `enabled:false`。`--delivery` 不能和 `--preferences-stdin` 同时使用，未注册推送的设备返回 `push-not-registered`。
 
-`deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。`status` 同样只需 `clientActivityId`，读取本设备自己的登记（活动结束后也可读）：返回请求的 `channelId`、`messageId`、`progress`；若该请求创建或推进了某个任务（Assignment），另含 `assignmentId`（即 Assignment Session id，手机据此打开 `bot/[slug]/assignment/[id]`）；`prepare`、`register` 在已知时也带同一 `assignmentId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成；若该请求创建或推进了任务，另含 `assignmentId`（以最近一次为准）。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
+`deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。`status` 同样只需 `clientActivityId`，读取本设备自己的登记（活动结束后也可读）：返回请求的 `channelId`、`messageId`、`progress`；若该请求创建或推进了某个任务（Assignment），另含 `assignmentId`（即 Assignment Session id，手机据此打开 `bot/[slug]/assignment/[id]`）；`prepare`、`register` 在已知时也带同一 `assignmentId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成；若该请求创建或推进了任务，另含 `assignmentId`（以最近一次为准）。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](decisions/mobile.md#adr-0255)。
 
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
@@ -241,7 +241,7 @@ deepseekbot grant-create <bot-id> --workspace <workspace-id>
 
 输入框的 `/` 菜单也能引用 Assignment Session：未输入过滤词时只列出该对话中 Bot 进行中的会话，输入后会搜索全部会话（含已归档和已结束）。同样的列表可用 `assignments <bot-id> [--search <text>] [--include-archived]` 取得。选中后插入 `[<标题>](session:<session-id>)`，与 Bot 已使用的链接格式相同，所以用 `send --body` 发送这个链接得到的是同一条消息，气泡里显示为可打开会话详情的会话标签。
 
-`skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug、Workspace 名或 ID 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`），以及各 Bot 当前 Workspace Grant 根目录下这两个 Skill 目录中的 Project Skill（`owner.kind` 为 `workspace`，`workspaceId` 是稳定标识，`name` 是显示名）。同一 Workspace 在对话中只列一次，不读取上层仓库的 Skill；最后一个可用 Grant 撤销后即消失。只有发送者可读取的活跃 Bot 提供条目。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host`、`bot:<bot-id>` 或 `workspace:<workspace-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Workspace ID 取自 `skills-list`，文件夹显示名更改后身份不变。例如 `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` 保存所选 Skill 的快照，不隐式提及任何 Bot；提及仍须通过常规发送选项指定。没有该 Grant 的接收 Bot 可收到文本，但现有文件守卫会拦截其路径读取。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](adr/0346-skill-invocation-is-snapshotted-text-that-addresses-no-one.md)。
+`skills-list` 返回该对话 `/` 菜单提供的 Skill，并按 `--query` 以与菜单相同的规则排序（名称前缀、名称子序列、所属 Bot 显示名或 slug、Workspace 名或 ID 子串、描述子串）：包括 Host Skill（`owner.kind` 为 `host`），以及各 PersonaBot Memory Repository 下 `.agents/skills` 或 `.dsh/skills` 中的 Project Skill（`owner.kind` 为 `bot`），以及各 Bot 当前 Workspace Grant 根目录下这两个 Skill 目录中的 Project Skill（`owner.kind` 为 `workspace`，`workspaceId` 是稳定标识，`name` 是显示名）。同一 Workspace 在对话中只列一次，不读取上层仓库的 Skill；最后一个可用 Grant 撤销后即消失。只有发送者可读取的活跃 Bot 提供条目。任意 Channel 可用 `--channel <channel-id>` 代替 `--bot`。`send --skill <owner>/<name>`（owner 为 `host`、`bot:<bot-id>` 或 `workspace:<workspace-id>`，可重复）按参数顺序，为每个参数把正文中第一个尚未选中的 `/name` token 变成 Skill Invocation（token 两端必须为空白或正文边界；没有未用匹配时拒绝发送）：Host 把该 Skill 当前的文本随消息保存，Bot 以 `<skill_invocation>` 块读到它。Workspace ID 取自 `skills-list`，文件夹显示名更改后身份不变。例如 `send --channel <id> --skill workspace:<workspace-id>/review --body '/review'` 保存所选 Skill 的快照，不隐式提及任何 Bot；提及仍须通过常规发送选项指定。没有该 Grant 的接收 Bot 可收到文本，但现有文件守卫会拦截其路径读取。Skill 不决定由谁回复；已不存在的 Skill 会以 `skill-unavailable` 拒绝；Skill 文本超过 64,000 个字符时会以 `skill-too-large` 拒绝，不会截断。见 [ADR-0346](decisions/approvals.md#adr-0346)。
 
 `skills-list --bot <bot-id> --session <session-id>` 返回该 Session 详情输入框中 `/` 菜单提供的 Skill。它列出该 Session 自己能发现的 Skill：Host Skill、该 Bot 的 Memory Repository Skill，以及工作目录所在 Workspace Grant 的 Project Skill。同名只列一项，优先级按 [ADR-0345](decisions/workspaces.md#adr-0345)：Workspace，然后 Memory，然后 Host。选中后插入纯文本 `/name`。请求以用户输入送达该 Session，由 DSH 自己的 Skill 手势在其中加载该 Skill，不另存快照。
 
@@ -832,7 +832,7 @@ Host 离线时返回 `host-unreachable`，不提交消息；过期令牌返回 `
 
 ### 待办示例插件
 
-这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
+这些命令对应待办示例插件（`@botharness/todo`，[ADR-0203](decisions/desktop-ui.md#adr-0203)）。只有安装了该插件的 Host 才能使用，其他 Host 返回 `todo-plugin-missing`。
 
 ```bash
 deepseekbot todos
@@ -1065,6 +1065,8 @@ deepseekbot device-revoke <device-id> --confirm
 
 ### 订阅引擎
 
+如需在同一组中保存订阅引擎和 DSH 模型，参见[路由组](#路由组)。
+
 PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎上：Host 用 Human 在这台电脑上自己的订阅驱动引擎（ADR-0353）。目前有两个引擎：Codex 运行用 ChatGPT 登录的 `codex app-server`；Claude Code 通过 Claude Agent SDK 运行 Human 安装的 `claude`，用 Claude 订阅登录。Bot 登录到 `$DSH_HOME/botharness/engines` 下自己的 Codex 目录和 Claude 配置目录，不共用 Human 自己的登录、CLAUDE.md、设置、MCP 服务器和 hooks。
 
 ```bash
@@ -1193,7 +1195,13 @@ deepseekbot group-activity <group-channel>
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表；成员可以是路由 `{"kind":"model","provider","model","reasoningEffort"?}`，也可以是另一个组 `{"kind":"group","id"}`。`model-groups` 列出所有组，并在 `rests` 中返回当前正在休息的路由及其结束时间（设置 → 模型 → 路由组显示同样内容），`model-group` 还会按顺序、去重返回组展开后的路由。`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`；每个模型成员都必须在 `model-catalog` 中，名称不能重复，会包含自身或没有任何模型的组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。被 Bot 或其他组使用的组不能用 `model-group-delete` 删除，返回 `routing-group-in-use` 并列出使用者。`model-plan-customize --orchestrator-group <id>` 把组设为 Bot 的 Orchestrator 选择：每个成员都必须是 Bot 所有者角色允许的模型（`model-not-allowed` 会指出第一个不允许的），Bot 使用第一个供应商已就绪的成员。方案里的 `orchestrator` 显示当前路由，`orchestratorGroupId` 显示所选组；重新选择单个路由会清除组。组的写入和预设一样核对 revision。
+### 路由组
+
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
+
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
+
+`model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。`model-plan-customize --orchestrator-group <id>` 会将该组设为 Bot 的 Orchestrator 选择。Host 按 Bot 所有者的角色校验 DSH 路由，再选择第一条已就绪的路由。方案中 `orchestrator` 显示该路由，`orchestratorGroupId` 显示所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 
 当 Orchestrator 选择为 Routing Group 的 Bot 遇到额度用完、凭据被拒，或限流超过重试等待时，失败的请求结束，Host 把该 Session 切到组内下一个未在休息、所有者角色允许、且凭据就绪的成员，然后继续这一轮。失败的路由在整个 Host 上休息（额度用完则休息到重置，凭据和限流失败休息几分钟），因此使用同一组的其他 Bot 会直接从下一个成员开始，不会先失败一次。Channel 中会出现一条系统消息，带有 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}`；它是通知，不计入未读，也不会通知任何人。只有当所有成员都在休息时 Bot 才会暂停，暂停通知的 `turnStop.rests` 列出每条路由及其重置时间。已切换的 Session 在这一轮剩下的部分继续使用备用路由；前面成员的休息结束后，下一轮开始时会回到该成员，并记录一条 `reason: "returned"` 的 `modelSwitch`。如果该成员再次失败，它会重新开始休息，Session 再次切换。
 
@@ -1206,6 +1214,20 @@ deepseekbot group-activity <group-channel>
 `overview-usage`（`--period today|week|month|quarter`，`month` 为近 28 天，`quarter` 为近 84 天，默认 `today`）和 `overview-memory` 返回总览页上每个 Bot 的数据行；把返回的 `nextCursor` 作为 `--after` 传回可以继续读取。`activity-overview` 显示每个 Bot 正在做什么，`channel-activity-today` 显示每个 Channel 今天的消息。`bot-*` 读取命令按 Bot ID 定位，通过它的私聊读取 Profile 面板：`bot-usage` 需要不晚于今天、跨度小于 182 天的 `--start`/`--end`，`bot-session-usage` 按会话和 Assignment 汇总用量，`bot-activity-history` 返回活动日历（`--weeks` 为 1–104）。`group-activity` 接受群组 Channel ID。
 
 `bot-activity-history` 的模型行在混有未报告调用时保留已上报的 `totalTokens` 下界，并标记 `partial: true`；完全未报告时保持 `null`。严格的 `bot-usage` 查询继续保留原来的未知总计语义。
+
+### API key 提供商
+
+Host Owner 或拥有 `modelSources.manage` 权限的 Human 可以查看和管理 API key 提供商。内置管理员角色默认没有此权限。添加时使用列表的总修订号，编辑或移除时使用对应提供商的修订号。发生冲突后重新读取列表。
+
+```bash
+deepseekbot model-providers
+deepseekbot model-provider-add --template opencode-go --name "OpenCode Go 备用" --key-stdin --expected-revision 0 < /path/to/key
+deepseekbot model-provider-edit opencode-go-2 --name "备用" --expected-revision 1
+deepseekbot model-provider-edit opencode-go-2 --key-file /path/to/key --expected-revision 2
+deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
+```
+
+使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

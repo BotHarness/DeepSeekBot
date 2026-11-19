@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
-import { accent, ink, layer, state, style } from './tobs.stylex.js';
+import { accent, edge, ink, layer, state, style } from './tobs.stylex.js';
 import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -61,6 +61,26 @@ const styles = stylex.create({
       ':hover:enabled': `linear-gradient(${state.hover}, ${state.hover})`,
     },
   },
+  preview: {
+    position: 'relative',
+    flexDirection: 'column',
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '16 / 10',
+    padding: 0,
+    overflow: 'hidden',
+    borderRadius: style.radiusCard,
+    outlineOffset: `calc(-1 * ${edge.focusOffset})`,
+    backgroundColor: {
+      default: layer.well,
+      ':hover:enabled': state.hover,
+      ':is([aria-pressed=true], [data-drag-over])': style.choiceSelectedFill,
+    },
+    color: {
+      default: ink.secondary,
+      ':is([aria-pressed=true], [data-drag-over])': style.choiceSelectedInk,
+    },
+  },
   icon: {
     display: 'inline-flex',
     width: style.iconSize,
@@ -70,7 +90,7 @@ const styles = stylex.create({
   },
 });
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar';
+export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar' | 'preview';
 
 export type ButtonProps = {
   readonly variant?: ButtonVariant;

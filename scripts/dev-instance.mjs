@@ -121,6 +121,7 @@ export function parseArgs(argv) {
     dshVersion: null,
     json: false,
     noAxModel: false,
+    noDeepSeekSecret: process.env.BOTHARNESS_NO_DEEPSEEK_SECRET === '1',
     trustedHosts: [],
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
   };
@@ -195,6 +196,9 @@ export function parseArgs(argv) {
         break;
       case '--no-ax-model':
         options.noAxModel = true;
+        break;
+      case '--no-deepseek-secret':
+        options.noDeepSeekSecret = true;
         break;
       default:
         throw new Error(`unknown option: ${flag}`);
@@ -306,9 +310,13 @@ async function launch(options) {
     ...process.env,
     DSH_HOME: options.home,
     BOTHARNESS_CLIENT_DIAGNOSTICS: options.clientDiagnostics ? '1' : '0',
-    ...devSecretEnvironment(),
+    ...(options.noDeepSeekSecret ? {} : devSecretEnvironment()),
     ...axModelEnvironment(options.axModel),
   };
+  if (options.noDeepSeekSecret) {
+    delete env.DEEPSEEK_API_KEY;
+    delete env.DSH_DEV_SECRET_SOURCE;
+  }
   const runtime = options.runtime ?? options.worktree;
   const [command, cli] = dshCommand(runtime);
 
@@ -404,7 +412,7 @@ async function main() {
   options.lease = lease;
   options.copyRecoveries = [];
   try {
-    const secret = resolveDevSecret();
+    const secret = options.noDeepSeekSecret ? undefined : resolveDevSecret();
     options.axModel = options.noAxModel ? undefined : resolveAxModel();
     mkdirSync(options.home, { recursive: true });
     if (options.productArtifacts || options.axModel || options.dshVersion || options.noAxModel) {
@@ -497,7 +505,7 @@ async function main() {
       writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
     }
     const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
-    if (!options.axModel && secret === undefined && !profileCredential)
+    if (!options.noDeepSeekSecret && !options.axModel && secret === undefined && !profileCredential)
       console.error(devSecretInstructions());
     const runtimeDescription = describeRuntime(options);
     const { child, logPath } = await launch(options);

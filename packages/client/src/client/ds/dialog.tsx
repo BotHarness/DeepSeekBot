@@ -5,6 +5,8 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { APPEARANCE_CLASS } from '../appearance-scope.js';
 import { useShellLayer } from './shell-layer.js';
 import { elevation, layer, motion, space, style } from './tobs.stylex.js';
+import { viewportInsets } from './viewport-insets.stylex.js';
+import { useWindowClass } from './window-class.js';
 
 const fadeIn = stylex.keyframes({ from: { opacity: 0 }, to: { opacity: 1 } });
 
@@ -21,9 +23,22 @@ const styles = stylex.create({
     paddingBlock: `max(${space.x7}, var(--dsh-frame-overlay-top, ${space.x7}))`,
     paddingInline: space.x7,
   },
+  sheetViewport: {
+    alignItems: 'flex-end',
+    paddingInline: 0,
+    paddingBottom: 0,
+  },
+  drawerViewport: {
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    paddingInline: 0,
+    paddingTop: viewportInsets.frameTop,
+    paddingBottom: 0,
+  },
+  hidden: { display: 'none' },
   scrim: {
     position: 'absolute',
-    top: 'var(--dsh-frame-chrome-top, 0px)',
+    top: viewportInsets.frameTop,
     right: 0,
     bottom: 0,
     left: 0,
@@ -48,6 +63,21 @@ const styles = stylex.create({
     animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
   sized: { width: 'min(380px, 100%)' },
+  sheet: {
+    width: '100%',
+    minWidth: '100%',
+    borderEndStartRadius: 0,
+    borderEndEndRadius: 0,
+    paddingBottom: viewportInsets.bottom,
+  },
+  drawer: {
+    width: 'min(340px, 90%)',
+    borderStartStartRadius: 0,
+    borderEndStartRadius: 0,
+    paddingInlineStart: viewportInsets.left,
+    paddingBottom: viewportInsets.bottom,
+    backgroundColor: layer.nav,
+  },
 });
 
 export interface DialogProps {
@@ -58,6 +88,7 @@ export interface DialogProps {
   xstyle?: stylex.StyleXStyles;
   viewportXstyle?: stylex.StyleXStyles;
   unsized?: boolean;
+  presentation?: 'responsive' | 'center' | 'drawer';
   children?: ReactNode;
 }
 
@@ -69,9 +100,13 @@ export function Dialog({
   xstyle,
   viewportXstyle,
   unsized = false,
+  presentation = 'responsive',
   children,
 }: DialogProps): ReactNode {
   const popup = useRef<HTMLDivElement | null>(null);
+  const compact = useWindowClass() === 'compact';
+  const sheet = presentation === 'responsive' && compact;
+  const drawer = presentation === 'drawer';
   const [mounted, setMounted] = useState(false);
   const attach = useCallback((node: HTMLDivElement | null) => {
     popup.current = node;
@@ -80,7 +115,13 @@ export function Dialog({
   useShellLayer(popup, open && mounted, onClose);
   const popupClass = [
     APPEARANCE_CLASS,
-    stylex.props(styles.popup, !unsized && styles.sized, xstyle).className,
+    stylex.props(
+      styles.popup,
+      !unsized && styles.sized,
+      xstyle,
+      sheet && styles.sheet,
+      drawer && styles.drawer,
+    ).className,
     className,
   ]
     .filter(Boolean)
@@ -95,13 +136,21 @@ export function Dialog({
         details.allowPropagation();
       }}
     >
-      <BaseDialog.Portal>
+      <BaseDialog.Portal keepMounted={drawer}>
         <div
           role="presentation"
           data-tobs-dialog-viewport=""
+          data-presentation={drawer ? 'drawer' : sheet ? 'sheet' : 'center'}
+          hidden={!open}
           className={[
             APPEARANCE_CLASS,
-            stylex.props(styles.viewport, viewportXstyle).className,
+            stylex.props(
+              styles.viewport,
+              viewportXstyle,
+              sheet && styles.sheetViewport,
+              drawer && styles.drawerViewport,
+              !open && styles.hidden,
+            ).className,
           ].join(' ')}
         >
           <div
@@ -112,8 +161,9 @@ export function Dialog({
           />
           <BaseDialog.Popup
             ref={attach}
-            aria-label={title}
-            aria-modal="true"
+            role={open ? 'dialog' : 'presentation'}
+            aria-label={open ? title : undefined}
+            aria-modal={open ? 'true' : undefined}
             initialFocus={false}
             finalFocus={false}
             className={popupClass}

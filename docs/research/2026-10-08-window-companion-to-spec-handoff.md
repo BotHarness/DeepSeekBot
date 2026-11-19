@@ -7,7 +7,7 @@ The Human confirmed the complete Q1–Q23 design and the default shared-Channel 
 ## Authorities
 
 - [Bilingual product glossary](../../GLOSSARY.md): Window Companion and Companion Visibility.
-- [ADR-0144](../adr/0144-window-companions-consume-owned-activity-and-scoped-output.md): local presentation and qualified owned-output consumption; [ADR-0049](../decisions/release.md#adr-0049) and [ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md) retain Activity and appearance authority.
+- [ADR-0144](../decisions/desktop-ui.md#adr-0144): local presentation and qualified owned-output consumption; [ADR-0049](../decisions/release.md#adr-0049) and [ADR-0118](../decisions/bots.md#adr-0118) retain Activity and appearance authority.
 - [Living architecture](../architecture/botharness-architecture.en.md#53--window-companions-accepted-design-not-yet-implemented) and its Chinese counterpart integrate the target boundaries.
 - [Source-backed research and interview](2026-10-08-coopanion-pixel-desktop-pet.md) distinguish the initial desktop-pet investigation from the accepted in-window goal.
 - [Reviewed static HTML](evidence/coopanion-animation/window-companion-design.html) shows the design; it is not production interaction or performance evidence.

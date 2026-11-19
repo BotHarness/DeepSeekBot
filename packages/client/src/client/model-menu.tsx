@@ -4,9 +4,14 @@ import {
   modelBrand,
   modelFamilies,
   modelShortName,
+  providerBrand,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
-import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
+import {
+  modelCatalogGroupFront,
+  modelCatalogGroupMemberLabels,
+  type RoutingGroupEngineCopy,
+} from '@botharness/host-client/model-catalog';
 import type {
   ModelCatalogEntryView,
   ModelCatalogGroupView,
@@ -70,6 +75,13 @@ function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1
   return /\p{L}/u.test(short) ? short : name;
 }
 
+export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
+  return {
+    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
+    subscription: (source) => t('engine.subscription', { engine: source }),
+  };
+}
+
 export function restingHint(until: string, t: BotHarnessTranslate): string {
   return t('routingGroups.resting', {
     until: new Date(until).toLocaleString(undefined, {
@@ -122,6 +134,8 @@ export function modelMenuItems(
       brand,
       provider: entry.provider,
       model: entry.model,
+      hintBrand:
+        option.hint === undefined ? undefined : providerBrand(entry.provider, entry.providerName),
     };
   });
 }
@@ -174,29 +188,36 @@ export function catalogMenuItems(
         entry === undefined
           ? undefined
           : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
+      const members = modelCatalogGroupMemberLabels(
+        group,
+        catalog,
+        groups,
+        routingGroupEngineCopy(t),
+      );
+      const restful = group.restingUntil;
+      const currentName =
+        entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
+      const hint =
+        restful !== undefined
+          ? restingHint(restful, t)
+          : t('modelMenu.groupFront', {
+              model:
+                entry === undefined
+                  ? (front?.model ?? '')
+                  : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
+            });
       return {
         value: groupMenuKey(group.id),
         label: group.name,
         name: group.name,
         brand: undefined,
         group: group.id,
-        ...(group.restingUntil === undefined && entry !== undefined
-          ? {
-              hintBrand: brand,
-              hintLabel: t('modelMenu.groupFront', {
-                model: `${entry.modelName} · ${entry.providerName}`,
-              }),
-            }
-          : {}),
-        hint:
-          group.restingUntil !== undefined
-            ? restingHint(group.restingUntil, t)
-            : t('modelMenu.groupFront', {
-                model:
-                  entry === undefined
-                    ? (front?.model ?? '')
-                    : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
-              }),
+        hintBrand: restful === undefined ? brand : undefined,
+        hintLabel: [
+          restful === undefined ? t('modelMenu.groupFront', { model: currentName }) : hint,
+          ...members,
+        ].join(' · '),
+        hint,
         disabled,
       };
     }),

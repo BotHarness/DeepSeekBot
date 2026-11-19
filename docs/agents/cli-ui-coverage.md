@@ -112,3 +112,13 @@ This is partial delivery of #2090, so implementation PRs reference rather than c
 For each new UI setting or action, identify its durable owner and scope first. Reuse its existing CLI command when equivalent; otherwise record the smallest delivery issue. A combined group is acceptable only while all recorded members share the same mapping or gap. Split a group when one operation becomes covered, remove stale mappings, and preserve precise nonconfigurable exceptions.
 
 For Client settings, acceptance must prove which Client changes, a reload/restart readback, and that another Client or Channel is unaffected. For Host mutations, test the direct CLI independently of the model, then the real Tob conversation and canonical readback. Approval, revoked/stale context, unsupported operations and failed readback remain coded outcomes, never fallback access.
+
+## CLI parity contract
+
+Every feature must be operable and testable by an agent through the `deepseekbot` CLI, without the Web UI and without the model. A change that adds or changes a Host bridge method, a Host `/api/...` route, or a Harness Bot tool ships the matching CLI command in the same PR:
+
+- Online against a live Host, one JSON document on stdout, secrets only from stdin or files and never printed, the same Host owner and checks as the UI, coded refusals instead of fallbacks. Dangerous changes keep their explicit confirmation flag.
+- Bot tools also need a direct path that runs the same tool code without the model (as `browser-tool` / `computer-tool` do), so a failure can be placed in the model, the Harness or the runtime; `bot-trace` shows what the Bot itself called.
+- Tests for the command, an entry in [English](../bot-cli.md) and [Chinese](../bot-cli.zh.md) CLI guides, and a real run against a live Host.
+
+`pnpm lint` runs `scripts/check-cli-parity.mjs`: a new bridge method, route or Bot tool without a CLI command fails unless `scripts/cli-parity-baseline.json` records an issue or an exemption reason for it. The baseline only shrinks — covering an entry means deleting it, and the check fails while a covered entry remains. Remaining gaps are tracked in [#1690](https://github.com/BotHarness/DeepSeekBot/issues/1690).

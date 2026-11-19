@@ -73,6 +73,12 @@ const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
 };
 
 const styles = stylex.create({
+  modelForm: {
+    display: 'grid',
+    gap: space.x5,
+    minWidth: 0,
+    lineHeight: text.bodyLine,
+  },
   dialog: {
     width: dialog.medium,
     maxWidth: '100%',
@@ -905,7 +911,10 @@ function ModelStep({
     return { provider, model, ...(effort ? { reasoningEffort: effort } : {}) };
   };
   return (
-    <div ref={mount} className="bh-onboarding-model-form">
+    <div
+      ref={mount}
+      className={`bh-onboarding-model-form ${stylex.props(styles.modelForm).className ?? ''}`}
+    >
       <span ref={bound} hidden />
       <h2 {...stylex.props(styles.title)}>{t('intro.model.title')}</h2>
       <ModelPicker

@@ -149,6 +149,8 @@ jobs:
             node scripts/feature-impact.mjs --base=HEAD^ --summary
           fi
       - run: pnpm lint
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm build

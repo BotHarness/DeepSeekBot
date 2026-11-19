@@ -1,3 +1,4 @@
+import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
@@ -145,6 +146,7 @@ import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { routingGroupEngineOptions } from './models/routing-group-engine-options.js';
 import { createEngineGateway } from './engines/engine-gateway.js';
 import { EngineHost } from './engines/engine-host.js';
 import {
@@ -263,12 +265,10 @@ import {
 } from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
 import { createOpenAssignmentRoutes } from './models/open-assignments.js';
-import { createModelCatalog, groupMemberRoute } from './models/catalog.js';
-import { createCredentialReadiness } from './models/credential-readiness.js';
-import { createProviderCredentialHealth } from './models/credential-health.js';
+import { groupMemberRoute } from './models/catalog.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createGroupFallback } from './models/group-fallback.js';
-import { createRouteRests } from './models/route-rest.js';
+import { createHostModelCatalog, createHostModelProviders } from './models/host-models.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
@@ -1249,7 +1249,11 @@ function initializeCore(
           }),
         changed,
       ),
-    (human) => team.isOwner(human),
+    (human, resource) =>
+      resource === 'model-providers'
+        ? human.caller !== 'bot' &&
+          (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
+        : team.isOwner(human),
     (human, slug) => ownsBot(human, registry.getHistorical(slug)),
     (human, id) => team.channelAccess.canRead(human, id, true),
     (human, id) => team.channelAccess.canKnow(human, id),
@@ -1827,48 +1831,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
-  const providerCredentials = createProviderCredentialHealth();
-  const forgetCredentialFailures = (): void => providerCredentials.reset();
-  const events = ctx as unknown as {
-    on(event: string, listener: () => void): () => void;
-  };
-  for (const event of [
-    'credentials/reference-updated',
-    'credentials/record-updated',
-    'settings/document-updated',
-    'llm/adapters-updated',
-  ])
-    events.on(event, forgetCredentialFailures);
-  const modelCatalog = createModelCatalog(ctx.llm, {
-    credentials: providerCredentials,
-    credentialReadiness: createCredentialReadiness({
-      providers: () => ctx.llm.listConfigurableProviders(),
-      settings: () =>
-        (
-          ctx.get('settings') as unknown as
-            | {
-                describe(options: { redactSecrets: boolean }): { ns: string; value: unknown }[];
-              }
-            | undefined
-        )?.describe({ redactSecrets: true }) ?? [],
-      describe: async (ref) => {
-        const credentials = ctx.get('credentials') as unknown as
-          | { describe(ref: string): Promise<{ configured: boolean }> }
-          | undefined;
-        if (!credentials) throw new Error('Native credentials service is unavailable');
-        return credentials.describe(ref);
-      },
-    }),
-    defaultRoute: () => {
-      const selection = defaultModel.currentSelection();
-      return {
-        provider: selection.provider,
-        model: selection.model,
-        ...(selection.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: selection.reasoningEffort }),
-      };
-    },
+  const { modelCatalog, providerCredentials } = createHostModelCatalog(ctx, {
+    defaultRoute: () => defaultModel.currentSelection(),
+    signalProviderChange: () => core.live.publishResourceChanged('model-providers'),
   });
   const modelReadiness = createModelRouteReadiness(
     {
@@ -2410,6 +2375,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     sessionArchive: () =>
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
+  });
+  const modelProviders = createHostModelProviders(ctx, {
+    routeRests,
+    registry: core.registry,
+    routingGroups: core.routingGroups,
+    modelPresets: core.modelPresets,
+    defaultRoute: () => defaultModel.currentSelection(),
   });
   publishDraft = (event) => {
     core.live.publishDraft(event);
@@ -3935,7 +3907,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
+    routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,
