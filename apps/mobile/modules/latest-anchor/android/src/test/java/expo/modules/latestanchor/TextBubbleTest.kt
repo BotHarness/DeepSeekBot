@@ -73,7 +73,7 @@ class TextBubbleTest {
 
   @Test fun fitsShortAndLongTextWithoutReservingSpaceForTime() {
     val short = TextBubbleLayout(TextRow("s", false, true, true, "short"), tokens, 1200, 3f)
-    val long = TextBubbleLayout(TextRow("l", false, true, true, "word ".repeat(80).trim()), tokens, 1200, 3f)
+    val long = TextBubbleLayout(TextRow("l", false, true, true, "word ".repeat(80).trimEnd() + "\nSecond line"), tokens, 1200, 3f)
     assertEquals(1, short.paragraphs.single().lineCount)
     assertTrue(long.paragraphs.single().lineCount > 1)
     for (layout in listOf(short, long)) {
