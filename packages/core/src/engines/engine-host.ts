@@ -32,11 +32,11 @@ import {
   type OpenedEngineDshSession,
   openEngineDshSession,
 } from './engine-dsh-session.js';
-import type {
-  EngineGateway,
-  EngineGatewayCallResult,
-  EngineGatewayTool,
-  EngineGrant,
+import {
+  engineGatewayResult,
+  type EngineGateway,
+  type EngineGatewayTool,
+  type EngineGrant,
 } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
@@ -62,6 +62,8 @@ import {
   type EngineStore,
   engineStorePath,
 } from './engine-store.js';
+
+export { engineGatewayResult };
 
 export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
   'bot_send_message',
@@ -911,32 +913,6 @@ export class EngineHost {
 }
 
 const RELEASE_GRACE_MS = 10_000;
-
-export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
-  if (typeof value === 'string') return { text: value, isError: false };
-  const content =
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as { content?: unknown }).content)
-      ? ((value as { content: unknown[] }).content.filter(
-          (part) =>
-            typeof part === 'object' &&
-            part !== null &&
-            (((part as { type?: unknown }).type === 'text' &&
-              typeof (part as { text?: unknown }).text === 'string') ||
-              ((part as { type?: unknown }).type === 'image' &&
-                typeof (part as { data?: unknown }).data === 'string' &&
-                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
-        ) as EngineGatewayCallResult['content'])
-      : undefined;
-  if (content !== undefined && content.length > 0)
-    return {
-      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
-      content,
-      isError: (value as { isError?: unknown }).isError === true,
-    };
-  return { text: JSON.stringify(value) ?? 'null', isError: false };
-}
 
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;

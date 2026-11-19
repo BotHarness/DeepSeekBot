@@ -59,7 +59,7 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-groups',
     description:
-      'list Routing Groups and their ordered model, group and Subscription Engine members',
+      'list Routing Groups and their ordered model, Routing Group and Subscription Engine members',
   },
   {
     command: 'model-group',
@@ -213,7 +213,9 @@ async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Prom
       ? (input as Record<string, unknown>)['members']
       : undefined;
   if (!Array.isArray(members) || Object.keys(input as object).length !== 1)
-    usage('Members stdin must be {"members":[...]} with model, group or engine member objects.');
+    usage(
+      'Members stdin must be {"members":[...]} with model, Routing Group or engine member objects.',
+    );
   return members;
 }
 
