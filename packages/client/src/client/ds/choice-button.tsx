@@ -52,7 +52,7 @@ export const ChoiceButton = forwardRef<HTMLButtonElement, ChoiceButtonProps>(fun
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
-      {...stylex.props(styles.choice)}
+      xstyle={styles.choice}
     >
       {leading}
       <span {...stylex.props(styles.copy)}>
