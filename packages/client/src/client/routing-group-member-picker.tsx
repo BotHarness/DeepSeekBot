@@ -111,7 +111,7 @@ export function RoutingGroupMemberPicker({
     }
     for (const { member, status, modelName } of routingGroupEngineChoices(engines ?? [])) {
       const value = routingGroupMemberKey(member);
-      if (taken.has(value)) continue;
+      if (status.available && taken.has(value)) continue;
       const row = routingGroupEnginePresentation(member, routingGroupEngineCopy(t), modelName);
       const reason = status.available
         ? undefined

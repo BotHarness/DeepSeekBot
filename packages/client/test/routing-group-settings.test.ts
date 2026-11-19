@@ -153,7 +153,10 @@ function option(value: string) {
 
 async function addMember(value: string, engine = false) {
   await act(async () => buttonNamed(t('routingGroups.add'), dialog()).click());
-  if (engine) await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  if (engine) {
+    await act(async () => buttonNamed(t('routingGroups.engines')).click());
+    expect(option('engine:["claude",""]')).toMatchObject({ disabled: true });
+  }
   await act(async () => option(value)!.click());
 }
 

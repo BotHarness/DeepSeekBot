@@ -81,7 +81,7 @@ export function RoutingGroupMemberPicker({
     const needle = query.trim().toLowerCase();
     if (source === 'engines') {
       return routingGroupEngineChoices(engines ?? []).flatMap((choice): Choice[] => {
-        if (taken.has(routingGroupMemberKey(choice.member))) return [];
+        if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
         const row = routingGroupEnginePresentation(
           choice.member,
           t.routingGroup.engineRow,
