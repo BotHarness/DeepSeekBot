@@ -816,6 +816,7 @@ describe('M10 member usage and role models', () => {
     });
     expect(f.registry.get('ada')?.modelPlan?.orchestrator).toEqual(denied);
     const result = await f.methods.modelCatalog({});
+    expect(result).toMatchObject({ ok: true, value: { models: [] } });
     expect(JSON.stringify(result)).not.toContain('credential');
     expect(
       await f.methods.modelPlanCustomize({

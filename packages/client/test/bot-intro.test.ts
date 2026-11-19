@@ -62,11 +62,13 @@ vi.mock('../src/client/connections-dialog.js', () => ({
 import type { BridgeActions } from '../src/client/actions.js';
 import { Appearance } from '../src/client/appearance.js';
 import { BotIntro } from '../src/client/bot-intro.js';
+import type { BridgeCall } from '../src/client/bridge.js';
 import { cachedGithubStars, fetchGithubStars } from '../src/client/community-links.js';
 import { receiveTobMessages, requestTobMessage } from '../src/client/tob-requests.js';
 import { en, zh, zhTranslate } from '../src/client/locale.js';
 import { ONBOARDING_PERSONAS, PERSONA_TEMPLATES } from '../src/client/onboarding-personas.js';
 import { INTRO_STEPS, OnboardingController, onboardingFor } from '../src/client/onboarding.js';
+import { setTeamModeSnapshot } from '../src/client/team-state.js';
 
 const fresh: OnboardingSnapshot = {
   profileId: 'intro',
@@ -184,6 +186,136 @@ describe('intro modal', () => {
   });
   afterEach(() => {
     act(() => root.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  const goModel = {
+    provider: 'opencode-go',
+    providerName: 'OpenCode Go',
+    model: 'deepseek-v4.1-flash',
+    modelName: 'DeepSeek V4.1 Flash',
+    efforts: [],
+  };
+
+  async function openModelStep({ configured = false, owner = true } = {}) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          engines: [{ engine: 'codex', installed: true, available: false, reason: 'signed-out' }],
+          selections: [],
+        }),
+      ),
+    );
+    let connected = configured;
+    const actions = {
+      ...actionsFor(),
+      modelCatalog: vi.fn(async () => ({ models: connected ? [goModel] : [] })),
+    } as unknown as BridgeActions;
+    const call = vi.fn<BridgeCall>(async (method) => {
+      if (method === 'modelProviderAdd') {
+        connected = true;
+        return {
+          ok: true,
+          value: { id: 'opencode-go', keyStored: true, modelCount: 1, testReply: 'ok' },
+        };
+      }
+      return { ok: true, value: { revision: 2, providers: [] } };
+    });
+    setTeamModeSnapshot(call, {
+      enabled: !owner,
+      ownerPasswordSet: false,
+      insecureHttpAllowed: false,
+      memberUrls: [],
+      isolation: 'trial',
+      viewer: {
+        humanId: owner ? 'owner' : 'member',
+        kind: owner ? 'owner' : 'member',
+        displayName: owner ? 'Owner' : 'Member',
+        mustChangePassword: false,
+        owner,
+        permissions: [],
+        roleIds: [],
+      },
+    });
+    const openProviders = vi.fn();
+    const botSettings = {
+      open: openProviders,
+      getSnapshot: () => ({ open: false, sectionId: undefined }),
+      subscribe: () => () => {},
+    };
+    const controller = onboardingFor(actions);
+    await controller.enter();
+    controller.openIntro();
+    controller.setIntroStep(INTRO_STEPS.indexOf('model'));
+    const props = { actions, call, botSettings, t: zhTranslate };
+    await act(async () => root.render(createElement(BotIntro, props)));
+    const button = (name: string) =>
+      [...container.querySelectorAll('button')].find(
+        (candidate) => (candidate.getAttribute('aria-label') ?? candidate.textContent) === name,
+      );
+    const click = async (name: string) => {
+      const target = button(name);
+      if (target === undefined) throw new Error(`No button named ${name}`);
+      await act(async () => target.click());
+    };
+    return { actions, button, call, click, openProviders };
+  }
+
+  it('shows the picker and the connected providers row for a configured DSH route', async () => {
+    const { button, click, openProviders } = await openModelStep({ configured: true });
+    expect(
+      container.querySelector(`[data-picker="${zhTranslate('onboarding.model')}"]`),
+    ).toBeTruthy();
+    const row = button('模型提供商');
+    expect(row?.textContent ?? '').toContain('OpenCode Go');
+    expect(row?.querySelector('[data-model-brand="opencode"]')).toBeTruthy();
+    await click('模型提供商');
+    expect(openProviders).toHaveBeenCalledWith('model-providers');
+  });
+
+  it('offers a key or subscription first when the Host has no usable model', async () => {
+    const { button } = await openModelStep();
+    expect(container.querySelector('[data-picker]')).toBeNull();
+    expect(button('填 API key')).toBeTruthy();
+    expect(button('登录订阅')).toBeTruthy();
+  });
+
+  it('keeps provider controls unavailable to a member without permission', async () => {
+    const { button, call } = await openModelStep({ owner: false });
+    expect(button('填 API key')).toBeUndefined();
+    expect(button('登录订阅')).toBeUndefined();
+    expect(container.textContent).toContain('所有者还没有连接模型。');
+    expect(call).not.toHaveBeenCalledWith('modelProviders', expect.anything(), expect.anything());
+  });
+
+  it('continues to the picker in the same step after adding a key inline', async () => {
+    const { click, call } = await openModelStep();
+    await click('填 API key');
+    const input = container.querySelector('input[aria-label="API key"]');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+        input,
+        'test-key',
+      );
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await click('保存');
+    expect(call).toHaveBeenCalledWith(
+      'modelProviderAdd',
+      expect.objectContaining({ expectedRevision: 2 }),
+      undefined,
+    );
+    expect(container.textContent).toContain('API key 已保存');
+    expect(container.textContent).toContain('已列出 1 个模型');
+    expect(container.textContent).toContain('测试回复成功');
+    const receiptClose = [...container.querySelectorAll<HTMLButtonElement>('section button')].find(
+      (button) => button.textContent === '关闭',
+    );
+    if (receiptClose === undefined) throw new Error('Receipt close action is missing');
+    await act(async () => receiptClose.click());
+    expect(container.querySelector('[data-intro-step="model"] [data-picker]')).toBeTruthy();
   });
 
   it('skips without connection work and returns from the shared dialog before explicit Continue', async () => {

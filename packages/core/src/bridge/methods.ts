@@ -4364,7 +4364,7 @@ function buildBridgeMethods(
             ok: true,
             value: {
               models: models
-                .filter(isAllowed)
+                .filter((route) => route.credential === undefined && isAllowed(route))
                 .map(({ credential: _credential, ...route }) => catalogEntry(route, rests)),
               ...favoritesOf(),
               ...catalogGroups(rests, isAllowed),

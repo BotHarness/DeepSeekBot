@@ -51,7 +51,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/bot-intro.tsx": {
-    "rawControl": 6,
+    "rawControl": 5,
     "lineBorder": 2
   },
   "packages/client/src/client/bot-main.tsx": {
