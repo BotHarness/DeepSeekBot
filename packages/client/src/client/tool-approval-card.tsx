@@ -1,4 +1,8 @@
-import { ActionButton } from './ds/action-button.js';
+import * as stylex from '@stylexjs/stylex';
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { Button } from './ds/button.js';
+import { hooked } from './ds/hooked.js';
+import { RequestHeading, RequestOutcome, requestCardStyles as styles } from './ds/request-card.js';
 import {
   useId,
   useRef,
@@ -303,14 +307,16 @@ export function ToolApprovalCard({
         : t('approval.summaryTool', { tool: request.toolName }));
   const preview =
     summary.command !== undefined ? (
-      <code className="bh-tool-approval-line">{summary.command}</code>
+      <code {...hooked('bh-tool-approval-line', styles.well, styles.preview)}>
+        {summary.command}
+      </code>
     ) : summary.file !== undefined ? (
-      <span className="bh-tool-approval-line">
+      <span {...hooked('bh-tool-approval-line', styles.well, styles.preview)}>
         <code>{summary.file.path}</code>{' '}
-        <span className="bh-tool-approval-diff-stat" data-kind="add">
+        <span {...stylex.props(styles.added)} data-kind="add">
           +{summary.file.added}
         </span>{' '}
-        <span className="bh-tool-approval-diff-stat" data-kind="remove">
+        <span {...stylex.props(styles.removed)} data-kind="remove">
           −{summary.file.removed}
         </span>
       </span>
@@ -327,27 +333,21 @@ export function ToolApprovalCard({
         ? status
         : undefined;
   const details = open ? (
-    <div
-      id={detailsId}
-      className={
-        compact
-          ? 'bh-tool-approval-details-body bh-companion-details'
-          : 'bh-tool-approval-details-body'
-      }
-    >
-      <div className="bh-note">
+    <div id={detailsId} {...hooked('bh-tool-approval-details-body', styles.group)}>
+      <div {...stylex.props(styles.caption)}>
         {request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')}
         {' · '}
         {request.toolName}
       </div>
-      <div className="bh-note">{t('approval.cwd', { path: request.cwd })}</div>
+      <div {...stylex.props(styles.caption)}>{t('approval.cwd', { path: request.cwd })}</div>
       <ApprovalInput
         toolName={request.toolName}
         input={request.input}
         t={t}
         caption={summary.description === undefined}
+        compact={compact}
       />
-      <div className="bh-note">
+      <div {...stylex.props(styles.caption)}>
         {t(
           request.toolName === 'channel_attachment_open'
             ? 'approval.originalRisk'
@@ -376,7 +376,14 @@ export function ToolApprovalCard({
   return (
     <div
       ref={approvalMount}
-      className="bh-tool-approval-card"
+      {...hooked(
+        'bh-tool-approval-card',
+        styles.card,
+        styles.focus,
+        compact && styles.compact,
+        !compact && surface === 'chat' && styles.approval,
+        surface === 'activity' && styles.inset,
+      )}
       data-compact={compact || undefined}
       tabIndex={actionable ? 0 : undefined}
       aria-label={actionable ? t('approval.requestTitle') : undefined}
@@ -391,41 +398,38 @@ export function ToolApprovalCard({
       onKeyDown={onKeyDown}
       onClick={onCardClick}
     >
-      <div className="bh-request-head">
-        <span className="bh-request-category">{category}</span>
-        {actionable ? (
-          <span
-            ref={countdownMount}
-            className="bh-request-pill"
-            data-state="pending"
-            data-urgent={countdown?.urgent || undefined}
-          >
-            {countdown !== undefined && soon ? (
-              <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
-                {t(countdown.key, { count: String(countdown.count) })}
-              </time>
-            ) : (
-              <span
-                title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
-              >
-                {t('approval.outcome.pending')}
-              </span>
-            )}
-          </span>
-        ) : null}
-      </div>
+      <RequestHeading
+        urgent={countdown?.urgent === true}
+        pendingRef={countdownMount}
+        pending={
+          !actionable ? undefined : countdown !== undefined && soon ? (
+            <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
+              {t(countdown.key, { count: String(countdown.count) })}
+            </time>
+          ) : (
+            <span
+              title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
+            >
+              {t('approval.outcome.pending')}
+            </span>
+          )
+        }
+      >
+        {category}
+      </RequestHeading>
       <>
-        <button
+        <Button
           type="button"
           className="bh-request-summary"
+          xstyle={styles.summary}
           aria-expanded={open}
           aria-controls={open ? detailsId : undefined}
           title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="bh-tool-approval-sentence">{sentence}</span>
+          <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
           {preview}
-        </button>
+        </Button>
         {botCreate === undefined ? null : (
           <BotCreateApprovalPreview
             args={botCreate}
@@ -435,13 +439,13 @@ export function ToolApprovalCard({
           />
         )}
         {request.effects === undefined ? null : (
-          <div className="bh-note">
+          <div {...stylex.props(styles.caption)}>
             {t(`approval.effect.changes.${request.effects.changes}`)} ·{' '}
             {t(`approval.effect.reach.${request.effects.reach}`)}
           </div>
         )}
         {request.approvalReview === undefined ? null : (
-          <div className="bh-note">
+          <div {...stylex.props(styles.caption)}>
             {request.approvalReview.kind === 'template-unavailable'
               ? t('autoApproval.unavailable')
               : request.approvalReview.fallback === undefined
@@ -454,7 +458,7 @@ export function ToolApprovalCard({
       {executionState === 'waiting-human' ||
       executionState === 'waiting-capacity' ||
       executionState === 'needs-repair' ? (
-        <div role="status" className="bh-note">
+        <div role="status" {...stylex.props(styles.caption)}>
           {t(
             executionState === 'waiting-human'
               ? 'approval.waitingHumanCapacity'
@@ -465,7 +469,7 @@ export function ToolApprovalCard({
         </div>
       ) : null}
       {effectiveDecision !== undefined || actionable ? (
-        <div className="bh-note">
+        <div {...stylex.props(styles.caption)}>
           {canAlwaysAllow
             ? t(
                 secretCli
@@ -479,10 +483,8 @@ export function ToolApprovalCard({
         </div>
       ) : null}
       {settled !== undefined ? (
-        <div
-          role="status"
-          className="bh-request-done"
-          data-state={settled}
+        <RequestOutcome
+          outcome={settled}
           title={t(
             settled === 'denied'
               ? 'approval.rejected'
@@ -498,16 +500,13 @@ export function ToolApprovalCard({
           )}
         >
           {category + ' · ' + t(`approval.outcome.${settled}`)}
-        </div>
+        </RequestOutcome>
       ) : null}
       {effectiveDecision !== undefined || actionable ? (
-        <div
-          ref={focusMount}
-          className="bh-tool-approval-actions bh-message-card-actions"
-          data-stack
-        >
+        <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
           <ActionButton
             icon="check"
+            pill
             tone="primary"
             size={size}
             disabled={disabled}
@@ -519,6 +518,7 @@ export function ToolApprovalCard({
           </ActionButton>
           <ActionButton
             icon="shield-check"
+            pill
 
             size={size}
             disabled={disabled || !canAlwaysAllow}
@@ -530,6 +530,7 @@ export function ToolApprovalCard({
           </ActionButton>
           <ActionButton
             icon="x"
+            pill
 
             size={size}
             tone="danger"
@@ -540,26 +541,27 @@ export function ToolApprovalCard({
           >
             {t('approval.reject')}
           </ActionButton>
-        </div>
+        </ActionGroup>
       ) : status === 'loading' || status === 'unavailable' ? (
-        <div role="status" className="bh-note">
+        <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
       ) : null}
       {status === 'unavailable' ? (
-        <div className="bh-message-card-actions">
+        <ActionGroup>
           <ActionButton
             icon="refresh"
+            pill
 
             disabled={companionTarget !== undefined && !qualified()}
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('companion.retryRequest')}
           </ActionButton>
-        </div>
+        </ActionGroup>
       ) : null}
       {error === undefined ? null : (
-        <div className="bh-error" role="alert">
+        <div {...stylex.props(styles.caption, styles.error)} role="alert">
           {error}
         </div>
       )}

@@ -43,8 +43,6 @@ const styles = stylex.create({
     bottom: 0,
     left: 0,
     backgroundColor: layer.scrim,
-    animationName: fadeIn,
-    animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
   popup: {
     boxSizing: 'border-box',
@@ -59,6 +57,8 @@ const styles = stylex.create({
     backgroundColor: layer.sheet,
     boxShadow: elevation.x3,
     outline: 'none',
+  },
+  enter: {
     animationName: fadeIn,
     animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
@@ -82,6 +82,7 @@ const styles = stylex.create({
 
 export interface DialogProps {
   open: boolean;
+  animate?: boolean;
   onClose: () => void;
   title: string;
   className?: string | undefined;
@@ -94,6 +95,7 @@ export interface DialogProps {
 
 export function Dialog({
   open,
+  animate = true,
   onClose,
   title,
   className,
@@ -117,6 +119,7 @@ export function Dialog({
     APPEARANCE_CLASS,
     stylex.props(
       styles.popup,
+      open && animate && styles.enter,
       !unsized && styles.sized,
       xstyle,
       sheet && styles.sheet,
@@ -157,7 +160,7 @@ export function Dialog({
             aria-hidden="true"
             data-tobs-dialog-scrim=""
             onClick={onClose}
-            {...stylex.props(styles.scrim)}
+            {...stylex.props(styles.scrim, open && animate && styles.enter)}
           />
           <BaseDialog.Popup
             ref={attach}

@@ -1,7 +1,4 @@
 {
-  "packages/client/src/client/activity-approval.tsx": {
-    "rawControl": 2
-  },
   "packages/client/src/client/activity-center-view.tsx": {
     "rawControl": 1
   },
@@ -9,7 +6,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/activity-inbox-styles.ts": {
-    "legacyCss": 42
+    "legacyCss": 41
   },
   "packages/client/src/client/activity-list-controls.tsx": {
     "rawControl": 1
@@ -25,9 +22,6 @@
   },
   "packages/client/src/client/appearance-scope.ts": {
     "legacyCss": 8
-  },
-  "packages/client/src/client/approval-input.tsx": {
-    "rawControl": 1
   },
   "packages/client/src/client/approval-template-entry.tsx": {
     "rawControl": 1
@@ -435,8 +429,8 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1892,
-    "lineBorder": 103
+    "legacyCss": 1824,
+    "lineBorder": 102
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1
@@ -445,7 +439,6 @@
     "lineBorder": 1
   },
   "packages/client/src/client/tool-approval-card.tsx": {
-    "rawControl": 1,
     "legacyCss": 1
   },
   "packages/client/src/client/update-run-view.tsx": {
@@ -461,8 +454,8 @@
     "legacyCss": 4
   },
   "packages/client/src/client/window-companion-styles.ts": {
-    "legacyCss": 42,
-    "lineBorder": 3
+    "legacyCss": 27,
+    "lineBorder": 1
   },
   "packages/client/src/client/window-companion-view.tsx": {
     "rawControl": 5,

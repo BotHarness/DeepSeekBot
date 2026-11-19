@@ -1143,9 +1143,9 @@
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only.",
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only. TB6 uses the rendered Always allow name for the disabled-state assertion.",
       "task": 2730,
-      "sha256": "69f0c60976b84a85c22874c93e4238329f78caa210511b9426963cfb7fb780a9"
+      "sha256": "8789c1d8dde6f09ca6ebffecb9bdcdac8c424db37b38b6322eb55426752fed07"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",

@@ -1358,7 +1358,7 @@ function ConversationView({
   messageHost?: MessageHost | undefined;
   unavailable: boolean;
   onRetryConversation?: (() => void) | undefined;
-  openCompactSidebar?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   scopeKey: string;
   state: ConversationStateView;
   actions: BridgeActions;
@@ -4575,7 +4575,7 @@ function BotMainContent({
   nativeChatT,
   t = zhTranslate,
 }: {
-  openCompactSidebar?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
   channelSidebar: ChannelSidebarRegistry;
@@ -4804,7 +4804,7 @@ export function BotPanel({
   telemetryNotice,
   t,
 }: {
-  openCompactSidebar?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   prefs?: Pick<BotModePrefs, 'source'> | undefined;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
