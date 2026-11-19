@@ -11477,7 +11477,7 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     const fail = (error: unknown) => {
       const row = runningAssignment();
-      if (row?.model_group_id == null) return;
+      if (row === undefined) return;
       this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
       this.#setActivity(sessionId, 'error');
       const channel = this.#assignmentDmChannel(row);
