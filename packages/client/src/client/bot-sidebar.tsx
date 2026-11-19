@@ -3071,7 +3071,7 @@ export function BotSidebar({
                         }}
                       />
                       {needCount > 0 ? (
-                        <span {...stylex.props(rosterStyles.sectionAttention)}>
+                        <span {...hooked('bh-section-needs', rosterStyles.sectionAttention)}>
                           {t(needCount === 1 ? 'roster.needsYouCountOne' : 'roster.needsYouCount', {
                             count: needCount,
                           })}
