@@ -46,6 +46,7 @@ export interface FilterPickerFilter {
   readonly key: string;
   readonly label: string;
   readonly icon: ReactNode;
+  readonly onActivate?: () => void;
   readonly status?:
     | {
         readonly message: string;
@@ -443,6 +444,7 @@ export function FilterPicker({
                 aria-label={entry.label}
                 title={entry.label}
                 onClick={() => {
+                  if (filter !== entry.key) entry.onActivate?.();
                   setFilter(entry.key);
                   setActive(undefined);
                   setHeld(undefined);

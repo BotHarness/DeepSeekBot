@@ -226,25 +226,32 @@ function MemberEditor({
   t: BotHarnessTranslate;
 }): ReactElement {
   const members = editor.members;
-  const [engines, setEngines] = useState<RoutingGroupEngineOptions[] | 'failed'>();
-  const [checkEngines, setCheckEngines] = useState(() =>
-    members.some((member) => member.kind === 'engine'),
+  const [engines, setEngines] = useState<RoutingGroupEngineOptions[]>();
+  const [engineReadFailed, setEngineReadFailed] = useState(false);
+  const [engineRead, setEngineRead] = useState(() =>
+    members.some((member) => member.kind === 'engine') ? 1 : 0,
   );
+  const refreshEngines = () => {
+    setEngineReadFailed(false);
+    setEngineRead((read) => read + 1);
+  };
   const mount = useMountedResource<HTMLDivElement>(() => {
-    if (!checkEngines || engines !== undefined) return;
+    if (engineRead === 0) return;
     let active = true;
     void loadEngines().then(
       (options) => {
-        if (active) setEngines(options);
+        if (!active) return;
+        setEngines(options);
+        setEngineReadFailed(false);
       },
       () => {
-        if (active) setEngines('failed');
+        if (active) setEngineReadFailed(true);
       },
     );
     return () => {
       active = false;
     };
-  }, [checkEngines, engines, loadEngines]);
+  }, [engineRead, loadEngines]);
   const move = (index: number, by: number): void => {
     const next = [...members];
     const [member] = next.splice(index, 1);
@@ -259,8 +266,8 @@ function MemberEditor({
         <ol {...stylex.props(styles.members)} aria-label={t('routingGroups.members')}>
           {members.map((member, index) => {
             const engine =
-              member.kind === 'engine' && Array.isArray(engines)
-                ? engines.find((option) => option.engine === member.engine)
+              member.kind === 'engine'
+                ? engines?.find((option) => option.engine === member.engine)
                 : undefined;
             const engineModelName =
               engine?.available === true && member.kind === 'engine'
@@ -337,8 +344,8 @@ function MemberEditor({
         members={members}
         selfId={editor.mode === 'edit' ? editor.group.id : undefined}
         engines={engines}
-        onOpen={() => setCheckEngines(true)}
-        onRetryEngines={() => setEngines(undefined)}
+        engineReadFailed={engineReadFailed}
+        refreshEngines={refreshEngines}
         onSelect={(member) => onChange([...members, member])}
         t={t}
       />

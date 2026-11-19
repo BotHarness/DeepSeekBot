@@ -45,17 +45,17 @@ export function RoutingGroupMemberPicker({
   selfId,
   members,
   engines,
-  onShowEngines,
-  onRetryEngines,
+  engineReadFailed,
+  refreshEngines,
   onSelect,
   onClose,
 }: {
   catalog: ModelCatalogAnswer;
   selfId: string | undefined;
   members: RoutingGroupMember[];
-  engines: RoutingGroupEngineOptions[] | 'failed' | undefined;
-  onShowEngines(): void;
-  onRetryEngines(): void;
+  engines: RoutingGroupEngineOptions[] | undefined;
+  engineReadFailed: boolean;
+  refreshEngines(): void;
   onSelect(member: RoutingGroupMember): void;
   onClose(): void;
 }) {
@@ -67,21 +67,19 @@ export function RoutingGroupMemberPicker({
     const needle = query.trim().toLocaleLowerCase();
     if (source === 'engines') {
       const terms = needle.split(/\s+/u);
-      return routingGroupEngineChoices(Array.isArray(engines) ? engines : []).flatMap(
-        (choice): Choice[] => {
-          if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
-          const row = routingGroupEnginePresentation(
-            choice.member,
-            t.routingGroup.engineRow,
-            choice.modelName,
-          );
-          const text = [row.name, row.title, row.detail, choice.member.model]
-            .join(' ')
-            .toLocaleLowerCase();
-          if (!terms.every((term) => text.includes(term))) return [];
-          return [{ kind: 'engine', ...choice, row }];
-        },
-      );
+      return routingGroupEngineChoices(engines ?? []).flatMap((choice): Choice[] => {
+        if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
+        const row = routingGroupEnginePresentation(
+          choice.member,
+          t.routingGroup.engineRow,
+          choice.modelName,
+        );
+        const text = [row.name, row.title, row.detail, choice.member.model]
+          .join(' ')
+          .toLocaleLowerCase();
+        if (!terms.every((term) => text.includes(term))) return [];
+        return [{ kind: 'engine', ...choice, row }];
+      });
     }
     return [
       ...(catalog.groups ?? [])
@@ -160,8 +158,8 @@ export function RoutingGroupMemberPicker({
           label={t.routingGroup.engines}
           selected={source === 'engines'}
           onPress={() => {
+            if (source !== 'engines') refreshEngines();
             setSource('engines');
-            onShowEngines();
           }}
         />
       </View>
@@ -173,15 +171,19 @@ export function RoutingGroupMemberPicker({
         contentContainerStyle={{ paddingTop: space.x3 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ListEmptyComponent={
-          source === 'engines' && engines === undefined ? (
-            <SheetLoading />
-          ) : source === 'engines' && engines === 'failed' ? (
+        ListHeaderComponent={
+          source === 'engines' && engineReadFailed ? (
             <SheetFailed
               message={t.routingGroup.enginesUnavailable}
-              onRetry={onRetryEngines}
+              onRetry={refreshEngines}
               on={SHEET_GROUP}
             />
+          ) : null
+        }
+        ListEmptyComponent={
+          source === 'engines' && engineReadFailed ? null : source === 'engines' &&
+            engines === undefined ? (
+            <SheetLoading />
           ) : (
             <SheetNote>
               {source === 'engines' && engines?.length === 0

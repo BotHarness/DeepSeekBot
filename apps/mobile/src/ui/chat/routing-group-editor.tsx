@@ -136,26 +136,33 @@ function RoutingGroupEditor({
   const [name, setName] = useState(group?.name ?? '');
   const [members, setMembers] = useState(group?.members ?? []);
   const [picking, setPicking] = useState(false);
-  const [engines, setEngines] = useState<RoutingGroupEngineOptions[] | 'failed'>();
-  const [checkEngines, setCheckEngines] = useState(
-    () => group?.members.some((member) => member.kind === 'engine') === true,
+  const [engines, setEngines] = useState<RoutingGroupEngineOptions[]>();
+  const [engineReadFailed, setEngineReadFailed] = useState(false);
+  const [engineRead, setEngineRead] = useState(() =>
+    group?.members.some((member) => member.kind === 'engine') ? 1 : 0,
   );
+  const refreshEngines = () => {
+    setEngineReadFailed(false);
+    setEngineRead((read) => read + 1);
+  };
   useFocusEffect(
     useCallback(() => {
-      if (!checkEngines || engines !== undefined) return;
+      if (engineRead === 0) return;
       let active = true;
       void loadRoutingGroupEngines(client).then(
         (options) => {
-          if (active) setEngines(options);
+          if (!active) return;
+          setEngines(options);
+          setEngineReadFailed(false);
         },
         () => {
-          if (active) setEngines('failed');
+          if (active) setEngineReadFailed(true);
         },
       );
       return () => {
         active = false;
       };
-    }, [checkEngines, client, engines]),
+    }, [client, engineRead]),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -270,8 +277,8 @@ function RoutingGroupEditor({
         }
         renderItem={({ item, index }) => {
           const engine =
-            item.kind === 'engine' && Array.isArray(engines)
-              ? engines.find((option) => option.engine === item.engine)
+            item.kind === 'engine'
+              ? engines?.find((option) => option.engine === item.engine)
               : undefined;
           const listedModel =
             engine?.available === true && item.kind === 'engine'
@@ -377,8 +384,8 @@ function RoutingGroupEditor({
           selfId={group?.id}
           members={members}
           engines={engines}
-          onShowEngines={() => setCheckEngines(true)}
-          onRetryEngines={() => setEngines(undefined)}
+          engineReadFailed={engineReadFailed}
+          refreshEngines={refreshEngines}
           onSelect={(member) => {
             setMembers((current) =>
               current.some(

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { ModelCatalogAnswer } from '@botharness/host-client/model-catalog';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -301,4 +302,35 @@ it('shows a successful empty catalog without a retry action', async () => {
   expect(view.querySelector('[role="dialog"]')?.textContent).toContain(t.routingGroup.noEngines);
   expect(view.querySelector('[role="alert"]')).toBeNull();
   expect(view.querySelector('[role="dialog"]')?.textContent).not.toContain(t.tryAgain);
+});
+
+it('refreshes availability when the engine filter reopens and keeps the last choices visible', async () => {
+  const fresh = Promise.withResolvers<RoutingGroupEngineOptions[]>();
+  const readEngines = vi
+    .fn()
+    .mockResolvedValueOnce([{ engine: 'claude', available: false, reason: 'signed-out' }])
+    .mockReturnValueOnce(fresh.promise);
+  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+    if (method === 'modelGroup') return { group: { ...group, members: [dsh] } };
+    if (args?.['includeRoutingGroupEngines'] === true)
+      return { ...catalog, routingGroupEngines: await readEngines() };
+    return catalog;
+  });
+  await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
+  await typeInto('routing-group-name', 'Renamed draft');
+  await click('routing-group-add-member');
+  await click('routing-member-filter-engines');
+  const engine = 'routing-member-engine-claude-default';
+  expect(button(engine).disabled).toBe(true);
+  await click('routing-member-filter-models');
+  await click('routing-member-filter-engines');
+  expect(readEngines).toHaveBeenCalledTimes(2);
+  expect(button(engine).disabled).toBe(true);
+  await act(async () => fresh.resolve([{ engine: 'claude', available: true, models: [] }]));
+  expect(button(engine).disabled).toBe(false);
+  expect(button(engine).textContent).not.toContain(t.routingGroup.engineUnavailable['signed-out']);
+  expect(view.querySelector('[data-testid="routing-group-name"]')).toHaveProperty(
+    'value',
+    'Renamed draft',
+  );
 });

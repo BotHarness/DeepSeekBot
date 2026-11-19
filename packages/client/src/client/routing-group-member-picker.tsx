@@ -31,8 +31,8 @@ export function RoutingGroupMemberPicker({
   members,
   selfId,
   engines,
-  onOpen,
-  onRetryEngines,
+  engineReadFailed,
+  refreshEngines,
   onSelect,
   t,
 }: {
@@ -40,17 +40,21 @@ export function RoutingGroupMemberPicker({
   groups: readonly RoutingGroupView[];
   members: readonly RoutingGroupMemberView[];
   selfId: string | undefined;
-  engines: RoutingGroupEngineOptions[] | 'failed' | undefined;
-  onOpen(): void;
-  onRetryEngines(): void;
+  engines: RoutingGroupEngineOptions[] | undefined;
+  engineReadFailed: boolean;
+  refreshEngines(): void;
   onSelect(member: RoutingGroupMemberView): void;
   t: BotHarnessTranslate;
 }): ReactElement {
   const taken = new Set(members.map(routingGroupMemberKey));
   const anchor = useRef<HTMLButtonElement>(null);
+  const openedEngineFilter = useRef(false);
   const [picking, setPicking] = useState(false);
   const togglePicker = () => {
-    if (!picking) onOpen();
+    if (!picking) {
+      openedEngineFilter.current = false;
+      refreshEngines();
+    }
     setPicking(!picking);
   };
   const choices = new Map<string, RoutingGroupMemberView>();
@@ -96,9 +100,7 @@ export function RoutingGroupMemberPicker({
         filter: 'groups',
       });
     }
-    for (const { member, status, modelName } of routingGroupEngineChoices(
-      Array.isArray(engines) ? engines : [],
-    )) {
+    for (const { member, status, modelName } of routingGroupEngineChoices(engines ?? [])) {
       const value = routingGroupMemberKey(member);
       if (status.available && taken.has(value)) continue;
       const row = routingGroupEnginePresentation(member, routingGroupEngineCopy(t), modelName);
@@ -160,17 +162,20 @@ export function RoutingGroupMemberPicker({
               key: 'engines',
               label: t('routingGroups.engines'),
               icon: <Icon name={ENGINE_MARKER_ICON} size={16} />,
-              status:
-                engines === 'failed'
-                  ? {
-                      message: t('routingGroups.enginesUnavailable'),
-                      retry: { label: t('routingGroups.retryEngines'), onPress: onRetryEngines },
-                    }
-                  : engines === undefined
-                    ? { message: t('modelPreset.loading') }
-                    : engines.length === 0
-                      ? { message: t('routingGroups.noEngines') }
-                      : undefined,
+              onActivate: () => {
+                if (openedEngineFilter.current) refreshEngines();
+                openedEngineFilter.current = true;
+              },
+              status: engineReadFailed
+                ? {
+                    message: t('routingGroups.enginesUnavailable'),
+                    retry: { label: t('routingGroups.retryEngines'), onPress: refreshEngines },
+                  }
+                : engines === undefined
+                  ? { message: t('modelPreset.loading') }
+                  : engines.length === 0
+                    ? { message: t('routingGroups.noEngines') }
+                    : undefined,
             },
           ]}
           allFilter={{

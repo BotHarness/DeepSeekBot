@@ -260,6 +260,39 @@ it('shows a successful empty catalog without a retry action', async () => {
   expect(picker?.textContent).not.toContain(t('routingGroups.retryEngines'));
 });
 
+it('refreshes availability when the picker and engine filter reopen and keeps the last choices visible', async () => {
+  const actions = harness([group]);
+  const fresh = Promise.withResolvers<RoutingGroupEngineOptions[]>();
+  const signedOut = { engine: 'claude', available: false, reason: 'signed-out' } as const;
+  actions.routingGroupEngines
+    .mockResolvedValueOnce([signedOut])
+    .mockResolvedValueOnce([signedOut])
+    .mockReturnValueOnce(fresh.promise);
+  await render(actions);
+  await act(async () => buttonNamed(t('routingGroups.editTitle', { name: group.name })).click());
+  const name = fieldNamed(t('routingGroups.name'), dialog());
+  await typeInto(name, 'Renamed draft');
+  const add = buttonNamed(t('routingGroups.add'), dialog());
+  await act(async () => add.click());
+  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  const engine = 'engine:["claude",""]';
+  expect(option(engine)?.disabled).toBe(true);
+  await act(async () => add.click());
+  await act(async () => add.click());
+  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  expect(actions.routingGroupEngines).toHaveBeenCalledTimes(2);
+  await act(async () => buttonNamed(t('routingGroups.models')).click());
+  await act(async () => buttonNamed(t('routingGroups.engines')).click());
+  expect(actions.routingGroupEngines).toHaveBeenCalledTimes(3);
+  expect(option(engine)?.disabled).toBe(true);
+  await act(async () => fresh.resolve([{ engine: 'claude', available: true, models: [] }]));
+  expect(option(engine)?.disabled).toBe(false);
+  expect(option(engine)?.textContent).not.toContain(
+    t('engine.signInLabel', { engine: 'Claude Code' }),
+  );
+  expect(name.value).toBe('Renamed draft');
+});
+
 it('shows disabled Subscription Engines and the Host refusal for an engine-only group', async () => {
   const actions = harness([]);
   await render(actions);
