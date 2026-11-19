@@ -37,7 +37,6 @@ export const ACTIVITY_INBOX_CSS = `
 .bh-activity-approval-heading > div { display: grid; flex: 1; min-width: 0; }
 .bh-activity-approval-heading strong { font-weight: ${text.strong}; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; }
 .bh-activity-approval-heading span, .bh-activity-approval-heading time { color: ${color.muted}; font-size: ${text.metaSize}; line-height: ${text.metaLine}; overflow-wrap: anywhere; }
-.bh-activity-approval .bh-tool-approval-card { min-width: 0; }
 .bh-activity-approval-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: ${space.x3}; padding-top: ${space.x3}; }
 .bh-activity-approval .bh-activity-list-reply { margin-top: ${space.x4}; background: ${color.well}; min-width: 0; }
 .bh-activity-approval[data-leaving] { animation: bh-activity-exit 180ms var(--bh-ease-out) forwards; pointer-events: none; }

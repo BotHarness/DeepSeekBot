@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 
 import { APPEARANCE_CLASS } from '../appearance-scope.js';
+import { dialogOpenedFromKeyboard } from './dialog-input.js';
 import { useShellLayer } from './shell-layer.js';
 import { elevation, layer, motion, space, style } from './tobs.stylex.js';
 import { viewportInsets } from './viewport-insets.stylex.js';
@@ -43,8 +44,6 @@ const styles = stylex.create({
     bottom: 0,
     left: 0,
     backgroundColor: layer.scrim,
-    animationName: fadeIn,
-    animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
   popup: {
     boxSizing: 'border-box',
@@ -59,6 +58,8 @@ const styles = stylex.create({
     backgroundColor: layer.sheet,
     boxShadow: elevation.x3,
     outline: 'none',
+  },
+  enter: {
     animationName: fadeIn,
     animationDuration: { default: motion.base, '@media (prefers-reduced-motion: reduce)': '0s' },
   },
@@ -82,6 +83,7 @@ const styles = stylex.create({
 
 export interface DialogProps {
   open: boolean;
+  animate?: boolean | undefined;
   onClose: () => void;
   title: string;
   className?: string | undefined;
@@ -94,6 +96,7 @@ export interface DialogProps {
 
 export function Dialog({
   open,
+  animate,
   onClose,
   title,
   className,
@@ -108,6 +111,9 @@ export function Dialog({
   const sheet = presentation === 'responsive' && compact;
   const drawer = presentation === 'drawer';
   const [mounted, setMounted] = useState(false);
+  const [opening, setOpening] = useState(() => ({ open, keyboard: dialogOpenedFromKeyboard() }));
+  if (opening.open !== open) setOpening({ open, keyboard: dialogOpenedFromKeyboard() });
+  const fade = open && (animate ?? !opening.keyboard);
   const attach = useCallback((node: HTMLDivElement | null) => {
     popup.current = node;
     setMounted(node !== null);
@@ -117,6 +123,7 @@ export function Dialog({
     APPEARANCE_CLASS,
     stylex.props(
       styles.popup,
+      fade && styles.enter,
       !unsized && styles.sized,
       xstyle,
       sheet && styles.sheet,
@@ -157,7 +164,7 @@ export function Dialog({
             aria-hidden="true"
             data-tobs-dialog-scrim=""
             onClick={onClose}
-            {...stylex.props(styles.scrim)}
+            {...stylex.props(styles.scrim, fade && styles.enter)}
           />
           <BaseDialog.Popup
             ref={attach}

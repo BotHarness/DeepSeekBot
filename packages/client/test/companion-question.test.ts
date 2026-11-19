@@ -67,8 +67,8 @@ function button(node: Element, text: string): HTMLButtonElement {
   )!;
 }
 function choice(node: Element, text: string): HTMLLabelElement {
-  return [...node.querySelectorAll<HTMLLabelElement>('label.bh-card-main')].find((entry) =>
-    entry.textContent?.includes(text),
+  return [...node.querySelectorAll<HTMLLabelElement>('label:has(input[type=checkbox])')].find(
+    (entry) => entry.textContent?.includes(text),
   )!;
 }
 

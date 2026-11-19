@@ -119,9 +119,12 @@ export const theme = {
   scheme: 'light',
   touch: 48,
   mono: 'Menlo',
+  layer: { raised: { fill: 'surface' } },
   color: {
     accent: 'accent',
+    accentText: 'accentText',
     warning: 'warning',
+    onWarning: 'onWarning',
     fg: 'fg',
     base: 'base',
     warningSoft: 'warningSoft',

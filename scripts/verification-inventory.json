@@ -1151,9 +1151,9 @@
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only.",
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only. TB6 uses the rendered Always allow name for the disabled-state assertion.",
       "task": 2730,
-      "sha256": "69f0c60976b84a85c22874c93e4238329f78caa210511b9426963cfb7fb780a9"
+      "sha256": "8789c1d8dde6f09ca6ebffecb9bdcdac8c424db37b38b6322eb55426752fed07"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",
@@ -1199,9 +1199,9 @@
       "path": "scripts/e2e-activity-recovery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "d54e46c551bf914d541d72f3fc8c4e8cfe417ad59fcae67a3590a48276a17045"
+      "sha256": "d3607b2265e6e9223d9a8c0b9be7528a5f340b43dae0b5f3fee50b46a138c635"
     },
     {
       "path": "scripts/e2e-all-bot-mention.mjs",
@@ -1719,17 +1719,17 @@
       "path": "scripts/e2e-dm-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "9acd768fd7e5a5a3180545d0aed1f5af9365cdd106d23fb675e280b43c214a4f"
+      "sha256": "06d6cc4961546ed7a5a59a74036bf99adad97b2e784455384f671d33a45fd44f"
     },
     {
       "path": "scripts/e2e-dm-scroll.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.timeline.read-position"],
-      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4ea51928ece47020f6efe63023344895464703eac6c38cb7bf13b8c60147d0d1"
+      "sha256": "27e3d291a5809110689647ceb85238a9cb1c2aefc571ef4f00779ad1d20d12b9"
     },
     {
       "path": "scripts/e2e-filtered-usage.mjs",
@@ -2151,9 +2151,9 @@
       "path": "scripts/e2e-orchestrator-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "55fa26fc3e12420f66b95fee812ea0c054a433d1bfd1b1667d51dd2f22621a74"
+      "sha256": "1d5644f2ccee49ec3201e1661067457770907de144b8c79a8d1e575873bca89f"
     },
     {
       "path": "scripts/e2e-orchestrator-reply-delivery.mjs",
@@ -2260,9 +2260,9 @@
       "path": "scripts/e2e-safe-tool-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.tool-details"],
-      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 approval-card re-audit: the cwd redaction selector follows the new bh-tool-approval-cwd hook. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "34a1031f1478d83816f508c0c4adf05a499d25d08467e73e907da95a52a3be2c"
+      "sha256": "c640be25ceaff41b12f5760f83304a99c472305a4e5c42e7159950b77e0b67bd"
     },
     {
       "path": "scripts/e2e-sidebar-preview.mjs",
@@ -2702,9 +2702,9 @@
       "path": "scripts/e2e-timeline-navigation.mjs",
       "category": "mapped",
       "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
-      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 waits for the existing button paint transition to settle.",
       "task": 2748,
-      "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
+      "sha256": "af0c66233ecd12f6c5b5d41e2fbf67bda63a4b8f27f496db50222ba70ec2d262"
     },
     {
       "path": "scripts/e2e-mobile-deletion-web.mjs",
@@ -2776,7 +2776,15 @@
       "behaviors": ["team.security-suite", "settings.model-providers"],
       "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant.",
       "task": 4197,
-      "sha256": "395052b4cef080410cedcd2707dd08d770ced086dff9830d299016a3de4f2a17"
+      "sha256": "718e2aef0b7f4744468b0cdeaa5f0b30034a384ed5a1a4ded315dc289e63af98"
+    },
+    {
+      "path": "scripts/e2e-team-security-engines.mjs",
+      "category": "mapped",
+      "behaviors": ["team.security-suite"],
+      "reason": "M15 B4 and B5 drive a disposable owner Bot on each Subscription Engine and verify files, Session tool results and approval state.",
+      "task": 4655,
+      "sha256": "80b1d27c1245ac43ed244166a908b1d1264909a766dd5e84ac97668c9aae1342"
     }
   ],
   "native": [

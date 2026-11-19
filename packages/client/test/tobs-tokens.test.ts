@@ -123,6 +123,8 @@ describe('Tobs design tokens', () => {
     on(v('web.color.accent.on-solid'), v('web.color.accent.solid-hover'), 4.5, 'on-solid hover');
     on(v('web.color.accent.on-container'), v('web.color.accent.container'), 4.5, 'on-container');
     on(v('web.color.accent.ink'), v('web.color.accent.tint'), 4.5, 'accent.ink on tint');
+    on(v('web.color.accent.focus'), v('web.color.accent.tint'), 3, 'question option focus');
+    on(v('web.color.layer.canvas'), v('web.color.ink.primary'), 4.5, 'request primary action');
     on(v('web.color.accent.on-selection'), v('web.color.accent.selection'), 4.5, 'on-selection');
     for (const tone of ['danger', 'warning', 'success'])
       on(
@@ -130,6 +132,13 @@ describe('Tobs design tokens', () => {
         v(`web.color.status.${tone}.tint`),
         4.5,
         `${tone} ink on tint`,
+      );
+    for (const tone of ['danger', 'success'])
+      on(
+        v(`web.color.status.${tone}.ink`),
+        v('web.color.layer.well'),
+        4.5,
+        `approval diff ${tone}`,
       );
   });
 

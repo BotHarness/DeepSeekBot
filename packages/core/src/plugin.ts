@@ -339,6 +339,7 @@ import {
   borrowedAgentDenial,
   type BotSessionRepair,
   deviceToolAuthorization,
+  engineWorkspaceMode,
   grantExecutionDenial,
   sessionRefusalMessage,
   grantToolExecutionDenial,
@@ -1909,6 +1910,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const agentAdapter = createDshBotAgentAdapter({
     engines: engineHost,
+    engineWorkspaceMode: (slug, permission) => engineWorkspaceMode(core, slug, permission),
     engineTools: (info) => core.engineTools(info),
     engineToolGate,
     enginePersona: (bot) =>

@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
+import type { Options } from '@anthropic-ai/claude-agent-sdk';
+
 import { engineLaunch } from './engine-launch.js';
 import {
   type EngineAccount,
@@ -13,6 +15,7 @@ import {
   type EngineSession,
   type EngineStartOptions,
   type EngineTurnEnd,
+  type EngineWorkspaceMode,
   EngineRefusal,
   engineEffort,
   engineEnvironment,
@@ -20,6 +23,8 @@ import {
 
 export const CLAUDE_GATEWAY_SERVER = 'deepseekbot';
 const GATEWAY_PREFIX = `mcp__${CLAUDE_GATEWAY_SERVER}__`;
+const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep'];
+const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'];
 
 export interface ClaudeUserMessage {
   type: 'user';
@@ -48,7 +53,10 @@ export interface ClaudeSpawnOptions {
   signal: AbortSignal;
 }
 
-export interface ClaudeQueryOptions {
+export interface ClaudeQueryOptions extends Pick<
+  Options,
+  'allowDangerouslySkipPermissions' | 'tools' | 'disallowedTools' | 'settings'
+> {
   cwd: string;
   env: Record<string, string>;
   pathToClaudeCodeExecutable: string;
@@ -59,7 +67,7 @@ export interface ClaudeQueryOptions {
     { type: 'http'; url: string; headers: Record<string, string>; alwaysLoad: true }
   >;
   mcpServersDelivery?: 'initialize';
-  permissionMode: 'default' | 'acceptEdits';
+  permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions';
   model?: string;
   effort?: string;
   systemPrompt: { type: 'preset'; preset: 'claude_code'; append: string };
@@ -122,6 +130,7 @@ export interface ClaudeProcessOptions extends EngineChoice {
   instructions: string;
   gateway?: EngineGatewayEndpoint;
   permissionMode?: 'default' | 'acceptEdits';
+  workspaceMode?: EngineWorkspaceMode;
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -130,6 +139,8 @@ export function claudeQueryOptions(
   handlers: Pick<ClaudeQueryOptions, 'canUseTool' | 'stderr'>,
   session: { resume: string } | { sessionId: string },
 ): ClaudeQueryOptions {
+  const readOnly = options.workspaceMode === 'read-only';
+  const fullAccess = options.workspaceMode === 'danger-full-access';
   return {
     cwd: options.cwd,
     env: engineEnvironment(options.env ?? process.env, {
@@ -151,7 +162,12 @@ export function claudeQueryOptions(
             },
           },
     ...(options.gateway === undefined ? {} : { mcpServersDelivery: 'initialize' as const }),
-    permissionMode: options.permissionMode ?? 'default',
+    permissionMode: fullAccess ? 'bypassPermissions' : (options.permissionMode ?? 'default'),
+    ...(fullAccess ? { allowDangerouslySkipPermissions: true } : {}),
+    ...(readOnly ? { tools: [...READ_ONLY_TOOLS], disallowedTools: [...WRITE_TOOLS] } : {}),
+    ...(options.workspaceMode === 'workspace-write'
+      ? { settings: { permissions: { ask: ['Bash', 'PowerShell'] } } }
+      : {}),
     ...(options.model === undefined ? {} : { model: options.model }),
     ...(options.effort === undefined ? {} : { effort: options.effort }),
     systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },
@@ -530,9 +546,13 @@ export class ClaudeEngineSession implements EngineSession {
   ): Promise<ClaudePermission> {
     if (name.startsWith(GATEWAY_PREFIX))
       return Promise.resolve({ behavior: 'allow', updatedInput: input });
+    if (this.#options.workspaceMode === 'read-only' && !READ_ONLY_TOOLS.includes(name))
+      return Promise.resolve({ behavior: 'deny', message: 'Workspace access is read-only.' });
     const approvalId = context.toolUseID || randomUUID();
     if (this.#turn === undefined || context.signal.aborted)
       return Promise.resolve({ behavior: 'deny', message: DENIED });
+    if (this.#options.workspaceMode === 'danger-full-access')
+      return Promise.resolve({ behavior: 'allow', updatedInput: input });
     return new Promise((resolve) => {
       const answer = (decision: EngineApprovalDecision) => {
         this.#approvals.delete(approvalId);

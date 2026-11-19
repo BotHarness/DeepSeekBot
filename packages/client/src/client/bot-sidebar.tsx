@@ -92,6 +92,7 @@ import {
   webShortcutBlocked,
 } from './channel-shortcuts.js';
 import { QuickSwitcher, type QuickSwitcherSettings } from './quick-switcher.js';
+import type { QuickSwitcherSource } from './quick-switcher-launcher.js';
 import { searchTextMatches } from './search-match.js';
 import { ShortcutBindings } from './shortcut-bindings.js';
 import { quickSwitcherEntries, type QuickSwitcherEntry } from './quick-switcher-rank.js';
@@ -1089,7 +1090,7 @@ export function BotSidebar({
   const [hiddenManagerOpen, setHiddenManagerOpen] = useState(false);
   const [channelHistoryOpen, setChannelHistoryOpen] = useState(false);
   const listNow = useMinuteNow();
-  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [quickSwitcherSource, setQuickSwitcherSource] = useState<QuickSwitcherSource>();
   const [sectionMenuId, setSectionMenuId] = useState<string | undefined>(undefined);
   const [sectionCreateMenuId, setSectionCreateMenuId] = useState<string | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1529,13 +1530,13 @@ export function BotSidebar({
       if (webQuickSwitcherBlocked(event.target, document)) return;
       event.preventDefault();
       setShowShortcutHints(false);
-      setQuickSwitcherOpen(true);
+      setQuickSwitcherSource('shortcut');
       actions.telemetryEvent('search:switcher_open', { source: 'shortcut' });
     };
     const stopLauncher = launcher?.subscribe((source) => {
       if (webQuickSwitcherBlocked(null, document)) return false;
       setShowShortcutHints(false);
-      setQuickSwitcherOpen(true);
+      setQuickSwitcherSource(source);
       actions.telemetryEvent('search:switcher_open', { source });
       return true;
     });
@@ -1956,7 +1957,7 @@ export function BotSidebar({
     { channel }: Pick<QuickSwitcherEntry, 'channel'>,
     then?: () => Promise<void>,
   ): void => {
-    setQuickSwitcherOpen(false);
+    setQuickSwitcherSource(undefined);
     openLocalConversation();
     setChannelSelection((current) =>
       selectChannels(
@@ -3276,8 +3277,9 @@ export function BotSidebar({
           }}
         />
       ) : null}
-      {quickSwitcherOpen ? (
+      {quickSwitcherSource !== undefined ? (
         <QuickSwitcher
+          source={quickSwitcherSource}
           entries={quickSwitcherEntries(state.channels, state.bots, rosterHiddenIds)}
           settings={
             quickSwitcherSettings === undefined
@@ -3285,7 +3287,7 @@ export function BotSidebar({
               : {
                   search: quickSwitcherSettings.search,
                   open: (result) => {
-                    setQuickSwitcherOpen(false);
+                    setQuickSwitcherSource(undefined);
                     actions.telemetryEvent('search:result_open', {
                       kind: 'setting',
                     });
@@ -3309,7 +3311,7 @@ export function BotSidebar({
             actions.telemetryEvent('search:result_open', { kind: 'channel' });
             openQuickSwitcherEntry(entry);
           }}
-          onClose={() => setQuickSwitcherOpen(false)}
+          onClose={() => setQuickSwitcherSource(undefined)}
         />
       ) : null}
       {channelHistoryOpen ? (

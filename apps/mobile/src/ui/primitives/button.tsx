@@ -18,7 +18,7 @@ import {
 import { Pressable, View } from 'react-native';
 import { controlCase } from '../platform-copy';
 
-import { buttonColors, type ButtonTone } from '../design/controls';
+import { buttonColors, cardDecisionInk, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -49,18 +49,21 @@ export function Button({
   busy?: boolean;
   selected?: boolean;
   on?: LayerName;
-  variant?: 'filled' | 'text';
+  variant?: 'filled' | 'text' | 'card-text';
   symbol?: ButtonSymbol;
   testID?: string;
 }) {
   const theme = useDesignTheme();
   const colors = buttonColors(theme, tone, on);
   const filled = variant === 'filled';
-  const labelColor = filled
-    ? colors.label
-    : tone === 'danger'
-      ? theme.color.danger
-      : theme.color.fg;
+  const labelColor =
+    variant === 'card-text'
+      ? cardDecisionInk(theme, tone)
+      : filled
+        ? colors.label
+        : tone === 'danger'
+          ? theme.color.danger
+          : theme.color.fg;
   return (
     <Pressable
       testID={testID}

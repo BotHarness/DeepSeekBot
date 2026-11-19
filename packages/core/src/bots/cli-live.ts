@@ -1663,14 +1663,24 @@ async function runControlCommand(
       slug: target,
       enabled: values.enabled === true,
     });
-  if (command === 'access') return rpc('assignmentAccessGet', { slug: target });
-  if (command === 'access-set')
-    return rpc('assignmentAccessSet', {
-      slug: target,
-      mode: values.mode,
-      ...(values.scope === undefined ? {} : { scope: values.scope }),
-      ...(values.mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
-    });
+  if (command === 'access' || command === 'access-set') {
+    const result = await (command === 'access'
+      ? rpc('assignmentAccessGet', { slug: target })
+      : rpc('assignmentAccessSet', {
+          slug: target,
+          mode: values.mode,
+          ...(values.scope === undefined ? {} : { scope: values.scope }),
+          ...(values.mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
+        }));
+    const access = record(result);
+    return record(access['preset'])['mode'] === 'danger-full-access'
+      ? {
+          ...access,
+          warning:
+            'The Bot can run commands that change or delete files anywhere without approval.',
+        }
+      : result;
+  }
   if (command === 'workspace-create') return rpc('workspace/create', { request: { path: target } });
   if (command === 'group-create')
     return rpc('channelCreate', {

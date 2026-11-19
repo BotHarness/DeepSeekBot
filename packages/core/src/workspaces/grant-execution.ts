@@ -6,6 +6,7 @@ import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sand
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import { sameDirectory } from '../fs/same-directory.js';
+import type { EngineWorkspaceMode } from '../engines/engine-session.js';
 import type { BotHarnessCore } from '../plugin.js';
 import type { AssignmentPermissionSnapshot, WorkspaceGrant } from './grants.js';
 import {
@@ -152,6 +153,28 @@ export function orchestratorPermission(
   return preset?.mode === 'danger-full-access' && preset.scope === 'chat'
     ? { mode: 'danger-full-access', approval: 'ask' }
     : { mode: 'workspace-write', approval: 'ask' };
+}
+
+export function engineWorkspaceMode(
+  core: { grants: Pick<BotHarnessCore['grants'], 'list' | 'requireActive'> } & AccessCore,
+  botSlug: string,
+  permission?: AssignmentPermissionSnapshot,
+): EngineWorkspaceMode {
+  if (permission === undefined) {
+    const { mode } = orchestratorPermission(core, botSlug);
+    return mode === 'workspace-write' &&
+      core.grants
+        .list(botSlug)
+        .some((grant) => !grant.revokedAt && grant.orchestratorWrite !== true)
+      ? 'read-only'
+      : mode;
+  }
+  const grant = core.grants.requireActive(botSlug, permission.grantId);
+  if (grant.workspaceId !== permission.workspaceId || grant.workspacePath !== permission.primaryCwd)
+    throw new Error('Assignment Workspace Grant no longer matches its permission snapshot');
+  if (permission.mode === 'danger-full-access' && isMemberBot(core, botSlug))
+    throw new Error('permission-required: Full access requires a Host-owned Bot');
+  return assignmentSandboxMode(permission, grant);
 }
 
 export function sessionHasFullAccess(
