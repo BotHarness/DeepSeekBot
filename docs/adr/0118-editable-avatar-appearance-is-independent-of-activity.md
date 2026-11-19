@@ -52,7 +52,7 @@ Sharing is coordinated with #17's confirmed contract: committed presentation met
 
 - [#743: design documentation and local spec handoff](https://github.com/BotHarness/BotHarness/issues/743)
 - [Design interview and source evidence](../research/2026-10-03-svg-avatar-design-exploration.md)
-- [ADR-0049: shared activity projection](0049-personabot-activity-is-a-projection-with-live-events.md)
+- [ADR-0049: shared activity projection](../decisions/release.md#adr-0049)
 - [ADR-0086: bounded static image avatars](0086-custom-personabot-avatars-are-bounded-data-urls.md)
 - [#120: shared Avatar surface](https://github.com/BotHarness/BotHarness/issues/120)
 - [#123 owner and undeclared waiting source](https://github.com/BotHarness/BotHarness/issues/123#issuecomment-5965624849)

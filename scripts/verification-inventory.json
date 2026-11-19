@@ -465,6 +465,14 @@
       "gap": null
     },
     {
+      "id": "phone.routing-groups",
+      "label": "Create, rename, reorder members and delete Routing Groups on the phone",
+      "source": "apps/mobile/src/ui/chat/routing-group-editor.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-routing-groups.md",
+      "task": 4497,
+      "gap": null
+    },
+    {
       "id": "phone.notifications",
       "label": "Switch Host, configure notifications and route simulated push; physical delivery separate",
       "source": "apps/mobile/src/host/push-routing.ts",

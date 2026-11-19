@@ -6,7 +6,7 @@ Issues: [#3898](https://github.com/BotHarness/DeepSeekBot/issues/3898)
 
 # Host capabilities degrade, or fail with HOST_INCOMPATIBLE
 
-Amends [ADR-0087](0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md): admission stays open (`>=0.2.0-0`), so a Host Tobs has never run on can load it.
+Amends [ADR-0087](../decisions/release.md#adr-0087): admission stays open (`>=0.2.0-0`), so a Host Tobs has never run on can load it.
 
 ## Context
 

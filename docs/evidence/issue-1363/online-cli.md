@@ -40,4 +40,4 @@ The Windows `pnpm docs:build` aggregate hit the existing `sync-slides.mjs` `spaw
 
 Local focused CLI/owner regressions passed. A broad Windows suite attempt was stopped after failures and is not counted as passing full-suite evidence; final full-suite acceptance uses Linux CI on the committed change.
 
-Issue: [#1363](https://github.com/BotHarness/DeepSeekBot/issues/1363). Scope: [online CLI and DM](../../research/2026-10-11-cli-online-dm-scope.md). Decision: [ADR-0162](../../adr/0162-online-cli-management-keeps-explicit-host-authority.md).
+Issue: [#1363](https://github.com/BotHarness/DeepSeekBot/issues/1363). Scope: [online CLI and DM](../../research/2026-10-11-cli-online-dm-scope.md). Decision: [ADR-0162](../../decisions/release.md#adr-0162).

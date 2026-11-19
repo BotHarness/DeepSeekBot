@@ -45,6 +45,48 @@ export function routingGroupEngineLabel(member: RoutingGroupEngineMember): strin
   return member.model === undefined ? name : `${name} (${member.model})`;
 }
 
+export type RoutingGroupMember =
+  | ({ kind: 'model' } & ModelCatalogRoute)
+  | { kind: 'group'; id: string }
+  | RoutingGroupEngineMember;
+
+export type RoutingGroup = Pick<ModelCatalogGroup, 'id' | 'name' | 'revision'> & {
+  members: RoutingGroupMember[];
+};
+
+export function parseRoutingGroup(value: unknown): RoutingGroup | undefined {
+  const row = record(value);
+  const id = row?.['id'];
+  const name = row?.['name'];
+  const revision = row?.['revision'];
+  const rows = row?.['members'];
+  if (
+    !filled(id) ||
+    !filled(name) ||
+    typeof revision !== 'number' ||
+    !Number.isSafeInteger(revision) ||
+    revision < 1 ||
+    !Array.isArray(rows)
+  )
+    return undefined;
+  const members: RoutingGroupMember[] = [];
+  for (const value of rows) {
+    if (isRoutingGroupEngineMember(value)) {
+      members.push(value);
+      continue;
+    }
+    const member = record(value);
+    if (member?.['kind'] === 'group' && filled(member['id'])) {
+      members.push({ kind: 'group', id: member['id'] });
+      continue;
+    }
+    const route = member?.['kind'] === 'model' ? catalogRoute(member) : undefined;
+    if (route === undefined) return undefined;
+    members.push({ kind: 'model', ...route });
+  }
+  return { id, name, revision, members };
+}
+
 export type ModelChoice =
   | { kind: 'model'; provider: string; model: string }
   | { kind: 'group'; id: string }

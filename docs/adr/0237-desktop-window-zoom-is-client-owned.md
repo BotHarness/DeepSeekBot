@@ -133,7 +133,7 @@ Desktop/Host/Client tuple; re-enable only after qualifying the new combination.
 
 ## 2026-10-24 admission correction (#2713)
 
-The exact Desktop release checks above are superseded. Optional setup and the Client lease now check adapter protocol 1, platform, ownership and generated file integrity; the runtime release string is diagnostic information only. The theme converter still rejects unknown source bytes/import shapes because its transformation targets specific code, but identical code in a differently labelled release is admissible. Native interaction qualification remains separate from installation admission. This follows [ADR-0087’s current admission policy](0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md).
+The exact Desktop release checks above are superseded. Optional setup and the Client lease now check adapter protocol 1, platform, ownership and generated file integrity; the runtime release string is diagnostic information only. The theme converter still rejects unknown source bytes/import shapes because its transformation targets specific code, but identical code in a differently labelled release is admissible. Native interaction qualification remains separate from installation admission. This follows [ADR-0087’s current admission policy](../decisions/release.md#adr-0087).
 
 ## 2026-11-07 versioned theme payloads (#3639)
 

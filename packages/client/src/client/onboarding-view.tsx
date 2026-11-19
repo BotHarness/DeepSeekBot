@@ -1,3 +1,5 @@
+import { observeResource } from './messaging-defaults-live.js';
+import { visibleInterval } from './visible-interval.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
@@ -611,11 +613,11 @@ export function OnboardingOverlay({
       else if (snapshot.git?.available && controller.getSnapshot().error === 'git-not-found')
         void controller.enter(companion);
     });
-    const timer = setInterval(() => {
-      if (active && store.getSnapshot().mode === 'bot' && !controller.getSnapshot().busy)
-        void controller.refresh(store.getSnapshot().conversation.channel?.botSlug);
-    }, 5000);
-    const evidenceTimer = setInterval(() => {
+    const stopObserving = observeResource('onboarding', () => {
+      if (active && store.getSnapshot().mode === 'bot')
+        return controller.refresh(store.getSnapshot().conversation.channel?.botSlug);
+    });
+    const stopEvidence = visibleInterval(() => {
       const snapshot = controller.getSnapshot();
       if (
         active &&
@@ -632,8 +634,8 @@ export function OnboardingOverlay({
       controller.closeChecklist();
       unsubscribe();
       unsubscribeCompanion?.();
-      clearInterval(timer);
-      clearInterval(evidenceTimer);
+      stopObserving();
+      stopEvidence();
     };
   }, [actions, companion]);
   const tourMount = useMountedResource<HTMLSpanElement>(() => {

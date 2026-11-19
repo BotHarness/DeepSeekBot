@@ -39,6 +39,7 @@ export interface BotBrowserRuntimesOptions {
   readonly headless?: boolean | (() => boolean);
   readonly foregroundTabs?: () => boolean;
   readonly onEvent?: (detail: string) => void;
+  readonly onObservationChanged?: () => void;
   readonly profileOf: (slug: string) => string;
   readonly create?: (options: BotBrowserRuntimeOptions) => BotBrowserRuntime;
 }
@@ -142,11 +143,14 @@ export function createBotBrowserRuntimes(options: BotBrowserRuntimesOptions): Bo
       ...(options.headless === undefined ? {} : { headless: options.headless }),
       ...(options.foregroundTabs === undefined ? {} : { foregroundTabs: options.foregroundTabs }),
       onEvent: (detail) => options.onEvent?.(`[${profile === '' ? 'default' : profile}] ${detail}`),
+      onObservationChanged: options.onObservationChanged,
       onInstallProgress: (downloadedBytes, totalBytes) => {
         created.progress = { downloadedBytes, totalBytes };
+        options.onObservationChanged?.();
       },
       onInstallSettled: () => {
         created.progress = undefined;
+        options.onObservationChanged?.();
       },
     });
     entries.set(key, created);

@@ -8,7 +8,8 @@
 - `packages/client/src/client/turn-stop-line.tsx`
 - `packages/client/src/client/routing-group-settings.tsx`
 - `packages/client/src/client/model-menu.tsx`
-- `apps/mobile/src/ui/chat/model-settings-screen.tsx`
+- `apps/mobile/src/ui/chat/model-picker-row.tsx`
+- `apps/mobile/src/ui/chat/routing-group-editor.tsx`
 
 ## Terms
 
@@ -19,6 +20,7 @@
 
 - The CLI saves a Codex or Claude Code target with an optional engine model in an ordered Routing Group. Listing and showing the group return those members in order.
 - Routing Group settings display the engine by name. Desktop and phone model choices show engine names as part of the group's description.
+- The phone editor shows saved engine rows as read-only and preserves them in the ordered member list when saving other edits.
 - The local Orchestrator runs the first ready target in a mixed group. After quota, the next turn uses the next ready engine or DSH model in the same Session. Assignment and Subagent choices use the group's DSH route projection.
 - The Channel shows a limit card when every target rests. The card gives the earliest reset time.
 
@@ -33,6 +35,8 @@ On a paired phone, open a Bot's settings, open its model picker and select the G
 Launch and check an isolated Host. Read `deepseekbot model-catalog` and use a catalog route in the fixture. Create a group with engine, DSH model and another engine in that order. Read it with `model-groups` and `model-group <id>`. Update the engine model with `model-group-update --members-stdin`, then read the group again. Verify `group.members` contains each engine and `routes` contains only DSH routes. Confirm an unknown engine is refused and leaves the revision unchanged.
 
 Use `verify-app shot --bot-mode` to open Routing Group settings and check the group summary and member list. Check the model picker Group row and confirm the active route label still points to the DSH model. Run the phone path through the shared device queue.
+
+On the phone, open Settings → Models and presets → Routing Groups and select the mixed group. Verify that each engine row shows the engine name and optional model. Rename the group and save. Read `deepseekbot model-group <id>` again and verify the new name and the original member order, including both engines.
 
 For quota fallback, first use the replay test so the run uses no subscription quota.
 

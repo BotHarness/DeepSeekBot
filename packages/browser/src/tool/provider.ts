@@ -57,6 +57,7 @@ export interface BrowserToolProviderOptions {
   readonly audit: (event: BrowserAuditEvent) => void;
   readonly note?: (detail: string) => void;
   readonly onActivity?: (slug: string) => void;
+  readonly onObservationChanged?: () => void;
   readonly onInvalidate?: (slug: string) => void;
   readonly core: () => BrowserCoreLookup;
   readonly profile?: () => Pick<ProfileControl, 'command'> | undefined;
@@ -299,18 +300,20 @@ export function createBrowserToolProvider(
   };
 
   const applyTakeover = (slug: string, active: boolean): boolean => {
-    if (takeovers.has(slug) !== active) {
+    const changed = takeovers.has(slug) !== active;
+    if (changed) {
       const state = botTabs(slug);
       state.controlRevision += 1;
       note(`observation invalidated slug=${slug} revision=${state.controlRevision}`);
     }
     if (active) takeovers.add(slug);
     else takeovers.delete(slug);
+    if (changed) options.onObservationChanged?.();
     note(`takeover ${active ? 'on' : 'off'} slug=${slug}`);
     return takeovers.has(slug);
   };
 
-  const runTool = async (
+  const executeTool = async (
     raw: string,
     args: Record<string, unknown>,
     slug: string,
@@ -699,6 +702,16 @@ export function createBrowserToolProvider(
     throw new Error(`Unknown Bot Browser operation: ${raw}`);
   };
 
+  const runTool = async (...args: Parameters<typeof executeTool>) => {
+    const [tool, input] = args;
+    try {
+      return await executeTool(...args);
+    } finally {
+      if (tool !== 'observe' && tool !== 'wait' && (tool !== 'tabs' || input['action'] !== 'list'))
+        options.onObservationChanged?.();
+    }
+  };
+
   const unregisterSession = (
     sessionId: string,
     reason = new Error('Browser session was disposed'),
@@ -1057,6 +1070,7 @@ export function createBrowserToolProvider(
         state.owned.add(tab.tabId);
         state.current ??= tab.tabId;
         state.lastActivity = Date.now();
+        options.onObservationChanged?.();
         note(
           `human window ${targetId === undefined ? 'created' : 'revealed'} slug=${slug} durationMs=${Date.now() - started}`,
         );
@@ -1096,6 +1110,7 @@ export function createBrowserToolProvider(
     resetBot(slug) {
       tabsByBot.delete(slug);
       takeovers.delete(slug);
+      options.onObservationChanged?.();
     },
 
     resetRuntime() {
@@ -1107,6 +1122,7 @@ export function createBrowserToolProvider(
       tabsByBot.clear();
       takeovers.clear();
       grants.clear();
+      options.onObservationChanged?.();
     },
 
     invalidateProfile(profile) {

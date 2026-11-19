@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // campaign short links on go.botharness.ai (ADR-0132)
+  // campaign short links on go.tobs.app (docs/decisions/release.md#adr-0132)
   "name": "botharness-links",
   "account_id": "332e72d480d7cb3e60ee671d3ca0cad0",
   "main": "src/worker.ts",

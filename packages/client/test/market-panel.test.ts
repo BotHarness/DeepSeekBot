@@ -44,6 +44,7 @@ import {
 import { MyUploadsSettingsRow } from '../src/client/market-mine.js';
 import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store } from '../src/client/store.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { CSS } from '../src/client/styles.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
@@ -1280,14 +1281,28 @@ describe('Uploaded Bots in the Market panel', () => {
     );
   });
 
-  it('asks a signed-out user to register before sharing a preselected Bot', async () => {
+  it('updates the Market upload account step on the Host account event', async () => {
     store.setRoster([bot('writer', { displayName: 'Writer' })], []);
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const host = document.createElement('div');
     document.body.append(host);
     const root = createRoot(host);
+    vi.useFakeTimers();
+    const events = resourceEvents();
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://example.com/device',
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
     const actions = {
-      marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+      marketplaceAccount: vi.fn(
+        async (): Promise<{ signedIn: boolean; author: typeof author | null }> => ({
+          signedIn: false,
+          author: null,
+        }),
+      ),
       marketplaceUploadPlan: vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 })),
       shareDraftGet: vi.fn(async () => draftView('ready')),
     };
@@ -1309,9 +1324,24 @@ describe('Uploaded Bots in the Market panel', () => {
       expect(
         document.body.querySelector('[data-market-direct]')?.getAttribute('data-market-direct'),
       ).toBe('account');
+      await click(host, zhTranslate('market.direct.signIn'));
+      expect(document.querySelector('[data-market-sign-in]')?.textContent).toContain('ABCD-EFGH');
+      actions.marketplaceAccount.mockResolvedValue({
+        signedIn: true,
+        author,
+      });
+      await act(async () => {
+        events.emit('account');
+        await vi.advanceTimersByTimeAsync(30);
+      });
+      expect(document.querySelector('[data-market-sign-in]')).toBeNull();
+      expect(document.querySelector('[data-market-direct="details"]')).not.toBeNull();
     } finally {
       await act(async () => root.unmount());
       host.remove();
+      events.dispose();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
     }
   });
 

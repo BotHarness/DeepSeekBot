@@ -4,6 +4,9 @@ import { dirname, posix, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from '@babel/parser';
 
+const cliAdapter = /^packages\/core\/src\/bots\/cli-[^/]+\.[cm]?[jt]s$/u;
+const operationalDatabase = /^packages\/core\/src\/(?:database\/|channels\/sqlite-store\.)/u;
+
 export function packageBoundaryErrors(file, source, workspaces = new Map()) {
   if (!file.startsWith('packages/')) return [];
   const ast = parse(source, {
@@ -60,6 +63,15 @@ export function packageBoundaryErrors(file, source, workspaces = new Map()) {
         errors.push(
           `${file}:${input.loc.start.line}: core must not import client source (${specifier})`,
         );
+      if (
+        (cliAdapter.test(file) || file.startsWith('packages/host-client/src/')) &&
+        ((target && operationalDatabase.test(target)) ||
+          name === 'node:sqlite' ||
+          name === 'better-sqlite3')
+      )
+        errors.push(
+          `${file}:${input.loc.start.line}: CLI adapters must use the Host for operational database access (${specifier})`,
+        );
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) queue.push(...value.filter((child) => child?.type));
@@ -102,6 +114,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (errors.length) {
     console.error(errors.join('\n'));
     process.exitCode = 1;
-  } else
-    console.log('package boundaries: packages do not import apps; core does not import client');
+  } else console.log('package boundaries: apps, core/client and CLI database boundaries hold');
 }

@@ -29,6 +29,7 @@ import {
 } from '../src/client/account-profile-settings.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { buttonNamed, typeInto } from './primitive-mocks.js';
 
 const AVATAR = 'data:image/webp;base64,UklGRg==';
@@ -87,8 +88,9 @@ function nameInput(): HTMLInputElement {
   return input;
 }
 
-it('signs a signed-out Human in from the profile and shows it once approved', async () => {
+it('signs a signed-out Human in from the profile and shows it on the Host account event', async () => {
   vi.useFakeTimers();
+  const events = resourceEvents();
   try {
     const startSignIn = vi.fn(async () => CODE);
     const actions = actionsFor({ signedIn: false, author: null });
@@ -104,17 +106,23 @@ it('signs a signed-out Human in from the profile and shows it once approved', as
     await act(async () => buttonNamed(t('devices.connect.openPage'), document.body).click());
     expect(open).toHaveBeenCalledWith(CODE.verificationUri, '_blank', 'noopener');
 
+    await act(async () => vi.advanceTimersByTimeAsync(30));
+    const idle = actions.marketplaceAccount.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(actions.marketplaceAccount).toHaveBeenCalledTimes(idle);
     actions.marketplaceAccount.mockResolvedValue({
       signedIn: true,
       email: 'vain@example.com',
       author: AUTHOR,
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      events.emit('account');
+      await vi.advanceTimersByTimeAsync(30);
     });
     expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
     expect(nameInput().value).toBe('Vain');
   } finally {
+    events.dispose();
     vi.useRealTimers();
   }
 });
@@ -132,7 +140,7 @@ it('leaves the browser step with an explanation when the relay fails after appro
       author: null,
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(15_050);
     });
     expect(host.querySelector('[data-account-sign-in-code]')).toBeNull();
     expect(host.textContent).toContain(t('accountProfile.signInRelay'));
@@ -142,7 +150,7 @@ it('leaves the browser step with an explanation when the relay fails after appro
       author: AUTHOR,
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(15_050);
     });
     expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
   } finally {
@@ -169,13 +177,13 @@ it('keeps the new code when a poll lands while sign-in is starting', async () =>
       author: AUTHOR,
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(15_050);
     });
     expect(host.querySelector('[data-account-profile="ready"]')).toBeNull();
     actions.marketplaceAccount.mockResolvedValue({ signedIn: false, author: null });
     await act(async () => release(CODE));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(15_050);
     });
     expect(host.querySelector('[data-account-sign-in-code]')?.textContent).toBe('NXKC-GQXZ');
   } finally {

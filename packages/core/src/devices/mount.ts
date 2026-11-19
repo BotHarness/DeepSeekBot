@@ -157,6 +157,7 @@ export function mountDevicePairing(
     packageAnchors?: readonly string[];
     onAccount?: (account: ConnectAccount | undefined) => void;
     onDevicesChanged?: () => void;
+    onAccountChanged?: () => void;
     telemetry?: Pick<TelemetryService, 'capture'>;
     calls?: () => VoiceCalls | undefined;
     botNetwork?: {
@@ -697,6 +698,7 @@ export function mountDevicePairing(
     const account = createConnectAccount({
       credentials: options.credentials ?? (() => undefined),
       connect,
+      ...(options.onAccountChanged ? { onAccountChanged: options.onAccountChanged } : {}),
       onReady: () => {
         if (connect.status().state === 'connected') void connectHealth?.check();
       },
