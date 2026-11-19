@@ -4103,7 +4103,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
   ctx.effect(
     () =>
-      mountCardContextLive(ctx, core, bridgeMethods, toolApproval, userQuestions, (slug, id) => {
+      mountCardContextLive(ctx, core, toolApproval, userQuestions, (slug, id) => {
         const request =
           id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
         const route =

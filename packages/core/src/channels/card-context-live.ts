@@ -1,19 +1,18 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { BotHarnessCore } from '../plugin.js';
-import type { BridgeMethods } from '../bridge/methods.js';
 import { TeamError } from '../team/error.js';
 import { ownsBot } from '../team/bot-access.js';
 import type { ChannelUserQuestions } from './user-questions.js';
-import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
+import type { ChannelToolApproval, ToolApprovalNotice } from '../workspaces/tool-approval.js';
+import { readToolApprovalState } from '../workspaces/tool-approval-state.js';
 
 type Card = { channelId: string; messageId: string };
 
 export function mountCardContextLive(
   ctx: Context,
   core: BotHarnessCore,
-  bridge: Pick<BridgeMethods, 'toolApprovalStatus'>,
-  approvals: Pick<ChannelToolApproval, 'subscribe'>,
+  approvals: Pick<ChannelToolApproval, 'subscribe' | 'status' | 'expiresAt'>,
   questions: Pick<ChannelUserQuestions, 'subscribeStatus'>,
   contextRoute: (slug: string, sessionId: string | undefined) => unknown,
 ): () => void {
@@ -47,7 +46,8 @@ export function mountCardContextLive(
         ownsBot(human, core.registry.get(slug)) &&
         core.team.member(human.humanId)?.status === 'active',
     );
-  const tracked = new Map<string, Card & { last?: string }>();
+  const tracked = new Map<string, { notice: ToolApprovalNotice; last?: string }>();
+  const approvalReader = { runtime: core.runtime, toolApproval: approvals };
   let queued = false;
   let closed = false;
   const refreshApprovals = () => {
@@ -59,21 +59,17 @@ export function mountCardContextLive(
       for (const [id, card] of tracked) {
         let snapshot;
         try {
-          snapshot = bridge.toolApprovalStatus(card);
+          snapshot = readToolApprovalState(approvalReader, card.notice);
         } catch {
           ctx.logger.warn('botharness.approval-card-live phase=snapshot-failed');
           continue;
         }
-        if (!snapshot.ok) {
-          tracked.delete(id);
-          continue;
-        }
-        const last = JSON.stringify(snapshot.value);
+        const last = JSON.stringify(snapshot);
         if (card.last !== last) {
           card.last = last;
-          publishCard('tool-approval', card);
+          publishCard('tool-approval', card.notice);
         }
-        const { status, execution } = snapshot.value;
+        const { status, execution } = snapshot;
         if (
           status !== 'pending' &&
           (execution === undefined || execution === 'settled' || execution === 'needs-repair')
@@ -83,9 +79,9 @@ export function mountCardContextLive(
     });
   };
   const offApprovals = approvals.subscribe((notice) => {
-    const { channelId, messageId } = notice;
+    const { messageId } = notice;
     if (notice.role === 'assignment') {
-      if (!tracked.has(messageId)) tracked.set(messageId, { channelId, messageId });
+      if (!tracked.has(messageId)) tracked.set(messageId, { notice });
       refreshApprovals();
     } else publishCard('tool-approval', notice);
   });
@@ -95,32 +91,37 @@ export function mountCardContextLive(
     const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
     return JSON.stringify([sessionId, contextRoute(slug, sessionId)]);
   };
-  const refreshContext = (slug: string, force = false): void => {
+  type ContextRefresh = 'seed' | 'change' | 'force';
+  const refreshContext = (slug: string, mode: ContextRefresh): void => {
     if (!core.registry.get(slug)) return;
     try {
       const key = contextKey(slug);
-      if (force || (contexts.has(slug) && contexts.get(slug) !== key)) publishContext(slug);
+      if (mode === 'force' || (mode === 'change' && contexts.get(slug) !== key))
+        publishContext(slug);
       contexts.set(slug, key);
     } catch {
       ctx.logger.warn('botharness.bot-context-live phase=snapshot-failed');
     }
   };
-  const refreshContexts = () => {
+  const refreshContexts = (mode: ContextRefresh) => {
     const slugs = new Set(core.registry.list().map((bot) => bot.slug));
     for (const slug of contexts.keys()) if (!slugs.has(slug)) contexts.delete(slug);
-    for (const slug of slugs) refreshContext(slug);
+    for (const slug of slugs) refreshContext(slug, mode);
   };
-  refreshContexts();
+  refreshContexts('seed');
   const offCommit = core.operationalDatabase.subscribe(({ topics }) => {
     if (topics.includes('assignments')) refreshApprovals();
-    if (topics.includes('bot-registry') || topics.includes('session-ownership')) refreshContexts();
+    if (topics.includes('bot-registry') || topics.includes('session-ownership'))
+      refreshContexts('change');
   });
   const updateSession = (sessionId: string, force: boolean) => {
     const owner = core.ownership.resolve(sessionId);
     if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return;
     refreshContext(
       owner.botSlug,
-      force && core.runtime.currentOrchestratorSessionId?.(owner.botSlug) === sessionId,
+      force && core.runtime.currentOrchestratorSessionId?.(owner.botSlug) === sessionId
+        ? 'force'
+        : 'change',
     );
   };
   const sessionLifecycle = ({ agent }: { agent: Agent }) => updateSession(agent.session.id, true);
@@ -142,14 +143,12 @@ export function mountCardContextLive(
     },
     { global: true },
   );
-  const offSettings = ctx.on('settings/document-updated', refreshContexts, { global: true });
-  const offAdapters = ctx.on(
-    'llm/adapters-updated',
-    () => {
-      for (const slug of contexts.keys()) refreshContext(slug, true);
-    },
-    { global: true },
-  );
+  const offSettings = ctx.on('settings/document-updated', () => refreshContexts('change'), {
+    global: true,
+  });
+  const offAdapters = ctx.on('llm/adapters-updated', () => refreshContexts('force'), {
+    global: true,
+  });
   return () => {
     closed = true;
     tracked.clear();

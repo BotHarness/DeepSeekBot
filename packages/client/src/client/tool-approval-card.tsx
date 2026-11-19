@@ -26,6 +26,18 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 
+function isReadTimeout(error: unknown): boolean {
+  const cause: unknown = error instanceof Error ? error.cause : undefined;
+  const failure = cause ?? error;
+  if (typeof failure !== 'object' || failure === null) return false;
+  return (
+    ('name' in failure && (failure.name === 'TimeoutError' || failure.name === 'AbortError')) ||
+    ('message' in failure &&
+      typeof failure.message === 'string' &&
+      /\b(?:timed out|did not answer in time)\b/iu.test(failure.message))
+  );
+}
+
 export function ToolApprovalCard({
   message,
   actions,
@@ -111,10 +123,15 @@ export function ToolApprovalCard({
           assignment &&
           actions.toolApprovalExecutionState !== undefined
         ) {
-          const value = await actions.toolApprovalExecutionState(cardChannelId, message.id);
-          if (active) setExecutionState(value);
+          try {
+            const value = await actions.toolApprovalExecutionState(cardChannelId, message.id);
+            if (active) setExecutionState(value);
+          } catch (error) {
+            if (active && !isReadTimeout(error)) setExecutionState(undefined);
+          }
         }
-        if (effectiveDecision !== undefined && actions.toolApprovalState === undefined) return;
+        if (!active || (effectiveDecision !== undefined && actions.toolApprovalState === undefined))
+          return;
         const snapshot = await (actions.toolApprovalState?.(cardChannelId, message.id) ??
           actions.toolApprovalStatus(cardChannelId, message.id).then((status) => ({
             status,

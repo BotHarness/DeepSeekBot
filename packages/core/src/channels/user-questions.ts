@@ -489,6 +489,7 @@ export class ChannelUserQuestions {
         pending.answeringHuman = human;
         pending.deferred = true;
         pending.submitted = true;
+        this.#statusChanged(messageId, pending);
         pending.resolve(answer);
         return true;
       }
