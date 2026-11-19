@@ -248,6 +248,8 @@ import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
+import { hooked } from './ds/hooked.js';
+import { bubble } from './ds/chat-chrome.js';
 import { DmCallControl } from './dm-call.js';
 import { color, radius, text } from './ds/tokens.stylex.js';
 import type { ReleaseNotesController } from './release-notes.js';
@@ -991,7 +993,11 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
+                  {...hooked(
+                    `bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`,
+                    bubble.surface,
+                    human && bubble.human,
+                  )}
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
@@ -1039,10 +1045,10 @@ const MessageGroupView = memo(function MessageGroupView({
                   t={t}
                 />
                 <BubbleToolbar>
-                  <div className="bh-bubble-actions">
+                  <div {...hooked('bh-bubble-actions', bubble.toolbar)}>
                     {stamp === undefined ? null : (
                       <time
-                        className="bh-bubble-toolbar-time"
+                        {...hooked('bh-bubble-toolbar-time', bubble.time)}
                         data-bubble-time=""
                         dateTime={message.at}
                         title={fullTime(message.at, t)}

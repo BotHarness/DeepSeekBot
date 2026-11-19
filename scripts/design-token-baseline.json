@@ -114,7 +114,7 @@
   },
   "packages/client/src/client/channel-composer.tsx": {
     "dshImport": 1,
-    "rawControl": 14
+    "rawControl": 10
   },
   "packages/client/src/client/channel-delivery-receipt.tsx": {
     "rawControl": 2,
@@ -168,9 +168,6 @@
   "packages/client/src/client/composer-context-styles.ts": {
     "legacyCss": 43,
     "lineBorder": 5
-  },
-  "packages/client/src/client/composer-voice.tsx": {
-    "rawControl": 1
   },
   "packages/client/src/client/connect-account-hosts.tsx": {
     "dshImport": 1
@@ -429,8 +426,8 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1824,
-    "lineBorder": 102
+    "legacyCss": 1803,
+    "lineBorder": 100
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1

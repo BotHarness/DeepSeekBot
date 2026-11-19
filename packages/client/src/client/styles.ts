@@ -3700,23 +3700,7 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: none; }
 }
-.bh-bubble {
-  text-align: left;
-  width: fit-content;
-  max-width: 100%;
-  border-radius: ${radius.lg};
-  background: ${color.surface};
-  color: ${color.fg};
-  padding: var(--bh-chat-card-inset);
-}
-/* Text bubbles are flat and compact like the mobile bubble; cards keep the card inset. */
-.bh-bubble:has(> .bh-bubble-body) {
-  padding: ${space.x3} ${space.x4};
-}
-.bh-bubble {
-  --bh-bubble-radius: var(--tobs-style-radius-bubble);
-  border-radius: var(--bh-bubble-radius);
-}
+.bh-bubble { --bh-bubble-radius: var(--tobs-style-radius-bubble); }
 .bh-bubble[data-group-position='solo'],
 .bh-bubble[data-group-position='last'] {
   border-bottom-left-radius: ${radius.sm};
@@ -3857,10 +3841,6 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-dark, ${color.accent});
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-dark, ${color.onAccent});
 }
-.bh-bubble-me {
-  background: var(--bh-bubble-me-fill);
-  color: var(--bh-bubble-me-ink);
-}
 .bh-bubble-focused .bh-bubble {
   outline: ${border.focus} solid var(--bh-accent);
   outline-offset: 2px;
@@ -3990,9 +3970,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
 }
-.bh-bubble {
-  position: relative;
-}
 .bh-bubble[data-bubble-media] {
   width: 320px;
   padding: 0;
@@ -4045,24 +4022,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-bubble-wrap:focus-within .bh-bubble-toolbar,
 .bh-bubble-toolbar:has([aria-expanded='true']) {
   opacity: 1;
-}
-.bh-bubble-actions {
-  display: flex;
-  align-items: center;
-  gap: ${space.x1};
-  padding: ${space.x1};
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.md};
-  background: ${color.base};
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--tobs-ink-primary) 8%, transparent);
-}
-.bh-bubble-toolbar-time {
-  padding-inline: ${space.x3} ${space.x2};
-  color: var(--tobs-ink-tertiary);
-  font-size: ${text.metaSize};
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 .bh-bubble-wrap:hover .bh-bubble-actions,
 .bh-bubble-wrap:focus-within .bh-bubble-actions,
@@ -4497,9 +4456,6 @@ a[href^="https://session.tobs.invalid/"]::before {
   --bh-composer-footer-padding: 10px 12px 48px;
   padding: var(--bh-composer-padding, ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left));
   border: ${border.hairline} solid transparent;
-  border-radius: calc(${radius.panel} + ${space.x3});
-  background: light-dark(var(--tobs-layer-raised), var(--tobs-layer-elevated));
-  box-shadow: var(--tobs-elevation-1);
   transition:
     padding 180ms var(--bh-ease-out),
     border-color 160ms var(--ds-ease-in-out);
@@ -4517,8 +4473,6 @@ a[href^="https://session.tobs.invalid/"]::before {
   flex-direction: column;
   min-width: 0;
   gap: ${space.x1};
-  padding-left: ${space.x3};
-  border-left: ${border.hairline} solid var(--tobs-ink-secondary);
 }
 .bh-composer-reply-author {
   overflow: hidden;
@@ -4535,30 +4489,6 @@ a[href^="https://session.tobs.invalid/"]::before {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.bh-composer-reply-cancel {
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: ${radius.round};
-  color: var(--tobs-ink-secondary);
-  background: transparent;
-  font-size: ${text.titleSize};
-  cursor: pointer;
-}
-.bh-composer-reply-cancel:hover {
-  background: var(--tobs-state-pressed);
-}
-.bh-composer-reply-cancel:focus-visible {
-  outline: ${border.focus} solid var(--tobs-ink-primary);
-}
-
-.bh-composer-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.bh-composer-add-file { position: absolute; left: 9px; bottom: 9px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: ${radius.round}; corner-shape: round; background: transparent; color: var(--tobs-ink-secondary); cursor: pointer; }
-.bh-composer-add-file:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
-.bh-composer-add-file:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
-.bh-composer-add-file:disabled { opacity: .5; cursor: default; }
 .bh-composer-attachments {
   display: flex;
   flex-wrap: nowrap;
@@ -4671,42 +4601,8 @@ a[href^="https://session.tobs.invalid/"]::before {
   align-items: center;
   justify-content: flex-end;
 }
-.bh-composer .bh-send-btn:not(#\\#):not(#\\#) {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0;
-  border-radius: ${radius.round}; corner-shape: round;
-}
 .bh-composer-has-mic { --bh-composer-compact-padding-right: 88px; }
 .bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
-.bh-composer-mic {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: ${radius.round}; corner-shape: round;
-  background: transparent;
-  color: var(--tobs-ink-secondary);
-  cursor: pointer;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.bh-composer-mic:hover { background: var(--tobs-state-hover); color: var(--tobs-ink-primary); }
-.bh-composer-mic:focus-visible { outline: ${border.focus} solid var(--tobs-line-focus); outline-offset: 2px; }
-.bh-composer-mic:disabled { opacity: .5; cursor: default; }
-.bh-composer-mic[data-state='starting'] { color: var(--tobs-accent-solid); background: var(--tobs-state-pressed); }
-.bh-composer-mic[data-state='toggle'],
-.bh-composer-mic[data-state='hold'] {
-  border-color: transparent;
-  background: var(--tobs-accent-solid);
-  color: var(--tobs-accent-on-solid);
-}
 .bh-composer[data-dictation='starting'],
 .bh-composer[data-dictation='listening'],
 .bh-composer[data-dictation='finishing'] {
