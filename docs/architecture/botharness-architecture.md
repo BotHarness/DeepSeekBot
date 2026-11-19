@@ -1814,5 +1814,6 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。每个 Session 一个引擎进程，原生会话是工作记忆。Host 记录是权威：Orchestrator 从 Bot Inbox、Channel 记录与 Memory 重建；Assignment 从 Assignment Directory、Assignment Request 与持久化的 Session 事件重建，缺失时以失败结束并报告 Orchestrator。
 - **Session detail**：引擎事件翻译成现有 `SessionTranscriptItem` 与 live 快照，面板不改。
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
+- **混合路由组**：本地 Host 的 BotRuntime 在 Orchestrator 轮次开始时按组内顺序选择就绪的 DSH 路由或订阅引擎。引擎额度休息时间沿用 EngineHost 的持久化额度记录。额度失败先结束当前轮次，下一轮复用同一个 DSH Session 和运行器切换机制。全组都在休息时，Channel 才显示组的额度卡片。显式引擎选择优先。Assignment 和 Subagent 保留 DSH 路由投影。新 Orchestrator Session 记录 Bot 的 Memory 目录供 DSH Agent 恢复，引擎进程仍在隔离工作目录运行。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

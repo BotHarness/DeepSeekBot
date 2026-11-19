@@ -1,3 +1,4 @@
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 
 import { randomUUID } from 'node:crypto';
@@ -7,6 +8,7 @@ import { join } from 'node:path';
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
+import { DEFAULT_REST_MS } from '../models/route-rest.js';
 import {
   type CodexProcessOptions,
   type CodexTransport,
@@ -75,7 +77,9 @@ export interface EngineTool {
 export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
+  target?: RoutingGroupEngineMember;
   cwd?: string;
+  sessionCwd?: string;
   sessionId: string;
   channelId: string | undefined;
   input: string;
@@ -194,7 +198,6 @@ interface LiveEngineSession {
   running: Promise<void>;
 }
 
-const LIMIT_REST_MS = 60 * 60_000;
 const MODELS_TTL_MS = 5 * 60_000;
 
 function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
@@ -258,8 +261,21 @@ export class EngineHost {
     return this.store.selection(botSlug, role);
   }
 
-  choiceFor(botSlug: string, role: EngineRole = 'orchestrator'): string | undefined {
-    return choiceKey(this.engineFor(botSlug, role), this.store.choice(botSlug, role));
+  #turnSelection(request: EngineTurnRequest): {
+    engine: EngineId | undefined;
+    choice: EngineChoice;
+  } {
+    const role = request.role ?? 'orchestrator';
+    const target = request.target;
+    if (target !== undefined && role === 'orchestrator' && this.#options.local)
+      return {
+        engine: target.engine,
+        choice: target.model === undefined ? {} : { model: target.model },
+      };
+    return {
+      engine: this.engineFor(request.botSlug, role),
+      choice: this.store.choice(request.botSlug, role),
+    };
   }
 
   use(
@@ -333,7 +349,7 @@ export class EngineHost {
     const until =
       quota.resetsAt !== undefined && Number.isFinite(Date.parse(quota.resetsAt))
         ? Date.parse(quota.resetsAt)
-        : Date.parse(quota.observedAt) + LIMIT_REST_MS;
+        : Date.parse(quota.observedAt) + DEFAULT_REST_MS;
     if (!(until > this.#now())) return undefined;
     return { account: quota.account ?? engine, until: new Date(until).toISOString() };
   }
@@ -377,11 +393,20 @@ export class EngineHost {
 
   #record(engine: EngineId, account: string, event: Extract<EngineEvent, { kind: 'rate-limit' }>) {
     const previous = this.store.quota(engine);
+    const now = this.#now();
+    const reset = event.resetsAt === undefined ? undefined : new Date(event.resetsAt * 1000);
+    const previousReset = previous?.resetsAt;
     const resetsAt =
-      event.resetsAt !== undefined
-        ? new Date(event.resetsAt * 1000).toISOString()
-        : event.limited && previous?.limited === true && previous.account === account
-          ? previous.resetsAt
+      reset !== undefined &&
+      Number.isFinite(reset.getTime()) &&
+      (!event.limited || reset.getTime() > now)
+        ? reset.toISOString()
+        : event.limited &&
+            previous?.limited === true &&
+            previous.account === account &&
+            previousReset !== undefined &&
+            Date.parse(previousReset) > now
+          ? previousReset
           : undefined;
     const usedPercent =
       event.usedPercent ?? (event.limited ? 100 : undefined) ?? previous?.usedPercent;
@@ -390,7 +415,7 @@ export class EngineHost {
       ...(usedPercent === undefined ? {} : { usedPercent }),
       ...(resetsAt === undefined ? {} : { resetsAt }),
       limited: event.limited,
-      observedAt: new Date(this.#now()).toISOString(),
+      observedAt: new Date(now).toISOString(),
     };
     this.store.rememberQuota(engine, quota);
   }
@@ -500,7 +525,7 @@ export class EngineHost {
   async runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
-    const selected = this.engineFor(request.botSlug, role);
+    const selected = this.#turnSelection(request).engine;
     if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
@@ -757,14 +782,13 @@ export class EngineHost {
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
-    const role = request.role ?? 'orchestrator';
-    const selected = this.choiceFor(request.botSlug, role);
+    const initial = this.#turnSelection(request);
+    const selected = choiceKey(initial.engine, initial.choice);
     if (live !== undefined && !live.engine.ended && live.choice === selected) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const engineId = this.engineFor(request.botSlug, role);
-    const choice = this.store.choice(request.botSlug, role);
+    const { engine: engineId, choice } = this.#turnSelection(request);
     const key = choiceKey(engineId, choice);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
@@ -803,6 +827,7 @@ export class EngineHost {
       if (sessions === undefined || persistence === undefined)
         throw new EngineRefusal('engine-unavailable', 'DSH Session Persistence is unavailable');
       const cwd = request.cwd ?? join(this.#options.root, 'workdirs', botSlug);
+      const sessionCwd = request.sessionCwd ?? cwd;
       if (request.cwd === undefined) mkdirSync(cwd, { recursive: true });
       await this.#options.gateway.start();
       const tools: EngineGatewayTool[] = request.tools
@@ -828,7 +853,7 @@ export class EngineHost {
       const stored = this.store.nativeSession(sessionId);
       let resume = stored?.engine === engineId ? stored.nativeId : undefined;
       if (resume !== undefined && stored?.lastTurn !== undefined) {
-        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
         const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
         if (last?.data.turn !== stored.lastTurn) resume = undefined;
       }
@@ -871,7 +896,7 @@ export class EngineHost {
         nativeId = await opened.start();
       }
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
@@ -904,7 +929,6 @@ export class EngineHost {
     }
   }
 }
-
 const RELEASE_GRACE_MS = 10_000;
 
 export function engineGatewayResult(value: unknown): EngineGatewayCallResult {

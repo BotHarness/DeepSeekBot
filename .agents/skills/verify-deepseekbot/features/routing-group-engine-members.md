@@ -3,6 +3,9 @@
 ## Sources
 
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
+- `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter}.ts`
+- `packages/core/src/engines/engine-host.ts`
+- `packages/client/src/client/turn-stop-line.tsx`
 - `packages/client/src/client/routing-group-settings.tsx`
 - `packages/client/src/client/model-menu.tsx`
 - `apps/mobile/src/ui/chat/model-settings-screen.tsx`
@@ -16,7 +19,8 @@
 
 - The CLI saves a Codex or Claude Code target with an optional engine model in an ordered Routing Group. Listing and showing the group return those members in order.
 - Routing Group settings display the engine by name. Desktop and phone model choices show engine names as part of the group's description.
-- DSH model selection continues to use the group's expanded DSH routes.
+- The local Orchestrator runs the first ready target in a mixed group. After quota, the next turn uses the next ready engine or DSH model in the same Session. Assignment and Subagent choices use the group's DSH route projection.
+- The Channel shows a limit card when every target rests. The card gives the earliest reset time.
 
 ## How to get to it (user POV)
 
@@ -30,7 +34,15 @@ Launch and check an isolated Host. Read `deepseekbot model-catalog` and use a ca
 
 Use `verify-app shot --bot-mode` to open Routing Group settings and check the group summary and member list. Check the model picker Group row and confirm the active route label still points to the DSH model. Run the phone path through the shared device queue.
 
+For quota fallback, first use the replay test so the run uses no subscription quota.
+
+```sh
+pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts
+```
+
+For a live follow-up on an isolated local Host, select the group using `model-plan-customize <bot> --orchestrator-group <id>` and send a DM. After an engine limit, check `engine status` for the reset and `channel-timeline <channel>` for the switch notice. Send a new DM and check that it uses the same Session ID. With every target resting, open the DM and verify the limit card's earliest reset against `turnStop.rests[0].until`. Exercise this journey using a replay transport if a real engine quota window is unavailable.
+
 ## Gotchas
 
-- The CLI accepts engine ID `claude` for Claude Code. The group still needs at least one DSH model after expansion. `group-fallback.ts`'s `pick` takes the store's DSH-only route projection until [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574) step 2 adds engine fallback.
+- The CLI accepts engine ID `claude` for Claude Code. The group still needs at least one DSH model after expansion. Explicit `engine use` choices take precedence.
 - Before downgrading to a Host that predates engine members, remove them from saved Routing Groups using the current CLI.

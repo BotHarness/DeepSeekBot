@@ -1842,6 +1842,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
       ...(isChannelTurnStopRests(stop['rests']) ? { rests: stop['rests'] } : {}),
       ...(isChannelTurnStopEngine(stop['engine']) ? { engine: stop['engine'] } : {}),
+      ...(stop['routingGroup'] === true ? { routingGroup: true as const } : {}),
       ...(typeof stop['botSlug'] === 'string' && stop['botSlug'] !== ''
         ? { botSlug: stop['botSlug'] }
         : {}),

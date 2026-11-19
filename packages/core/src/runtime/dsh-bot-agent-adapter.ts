@@ -982,7 +982,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (
         run.tobCliTurn === undefined &&
         engines !== undefined &&
-        this.#runsOnEngine(run.bot.slug)
+        (run.routingTarget === undefined
+          ? this.runsOnEngine(run.bot.slug)
+          : run.routingTarget.kind === 'engine')
       ) {
         await this.#runEngineTurn(run, engines, abandonable.abandoned);
         return;
@@ -1001,7 +1003,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           async (signal) => {
             run.tobCliTurn?.signal.throwIfAborted();
             if (run.tobCliTurn === undefined)
-              await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
+              await this.#prepareModelRoute?.(
+                run.bot.slug,
+                'orchestrator',
+                run.routingTarget?.kind === 'route' ? run.routingTarget.route : undefined,
+              );
             return this.#orchestratorHandle(run, signal);
           },
           run.tobCliTurn?.signal,
@@ -1111,7 +1117,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
-  #runsOnEngine(botSlug: string, role: 'orchestrator' | 'assignment' = 'orchestrator'): boolean {
+  runsOnEngine(botSlug: string, role: 'orchestrator' | 'assignment' = 'orchestrator'): boolean {
     const engines = this.#engines;
     if (engines === undefined) return false;
     return engines.runsOnEngine?.(botSlug, role) ?? engines.engineFor(botSlug, role) !== undefined;
@@ -1147,9 +1153,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       const promptText = this.#promptText(run.sessionId);
       const persona = this.#enginePersona?.(run.bot) ?? {};
+      const sessionCwd = this.#orchestratorCwd?.(run.bot);
       run.inputAccepted?.();
       await engines.runTurn({
         botSlug: run.bot.slug,
+        ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
+        ...(sessionCwd === undefined ? {} : { sessionCwd }),
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
@@ -1550,7 +1559,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const abandonable = this.#abandonable(run.sessionId);
     try {
       const engines = this.#engines;
-      if (engines !== undefined && this.#runsOnEngine(run.bot.slug, 'assignment')) {
+      if (engines !== undefined && this.runsOnEngine(run.bot.slug, 'assignment')) {
         await this.#runEngineAssignment(run, engines, entry, abandonable.abandoned, accepted);
         return;
       }
@@ -1756,7 +1765,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run,
       this.#defaultModel.currentSelection(),
       this.#resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
-      this.#orchestratorRoute?.(run.sessionId),
+      run.routingTarget?.kind === 'route'
+        ? run.routingTarget.route
+        : this.#orchestratorRoute?.(run.sessionId),
     );
   }
 

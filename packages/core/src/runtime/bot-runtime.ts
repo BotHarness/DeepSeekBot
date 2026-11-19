@@ -117,8 +117,9 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { RestingRoute, RouteRests } from '../models/route-rest.js';
-import type { GroupFallback, ModelSwitch } from '../models/group-fallback.js';
-import { EngineLimitError } from '../engines/engine-session.js';
+import type { GroupFallback, ModelSwitch, SubscriptionRest } from '../models/group-fallback.js';
+import type { RoutingTarget } from '../models/routing-groups.js';
+import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -395,6 +396,7 @@ export interface OrchestratorAssignmentAccess {
 }
 
 export interface OrchestratorAgentRun {
+  routingTarget?: RoutingTarget;
   inputAccepted?(): void;
   speakerPolicy?(
     humanId?: string,
@@ -838,6 +840,7 @@ export class DirectBotToolError extends HarnessError {
 }
 
 export interface BotAgentAdapter {
+  runsOnEngine?(botSlug: string): boolean;
   captureNativeOrchestratorModel?(sessionId: string, bot: PersonaBotRecord): void;
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
   loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
@@ -1062,7 +1065,8 @@ export interface BotRuntimeOptions {
   groupFallback?: Pick<
     GroupFallback,
     'choose' | 'start' | 'pick' | 'inherited' | 'inheritedEffort'
-  >;
+  > &
+    Partial<Pick<GroupFallback, 'pickMixedOrchestrator'>>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   engineFallback?: (botSlug: string, limit: EngineLimitError) => ModelSwitch | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
@@ -1635,11 +1639,38 @@ export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
 
 class RouteRestingError extends Error {
   readonly code = 'ROUTE_RESTING';
-  constructor(readonly rests: readonly RestingRoute[]) {
+  constructor(
+    readonly rests: readonly RestingRoute[],
+    readonly subscription?: SubscriptionRest,
+  ) {
     super(
-      `ROUTE_RESTING: ${rests.map((rest) => `${rest.provider}/${rest.model} rests until ${rest.until}`).join('; ')}; no request was sent.`,
+      subscription === undefined
+        ? `ROUTE_RESTING: ${rests.map((rest) => `${rest.provider}/${rest.model} rests until ${rest.until}`).join('; ')}; no request was sent.`
+        : 'ROUTE_RESTING: All Routing Group targets are resting.',
     );
   }
+}
+
+class RoutingGroupSwitchError extends Error {
+  readonly code = 'ROUTING_GROUP_SWITCHED';
+  constructor(cause: unknown) {
+    super('The Routing Group switched targets for the next turn.', { cause });
+  }
+}
+
+class RoutingGroupUnavailableError extends Error {
+  readonly code = 'ROUTING_GROUP_UNAVAILABLE';
+  constructor(cause?: unknown) {
+    super('The Routing Group has no usable target. Check its model permissions and credentials.', {
+      cause,
+    });
+  }
+}
+
+function routingTargetKey(target: RoutingTarget): ModelSwitch['to'] {
+  return target.kind === 'route'
+    ? target.route
+    : { provider: target.engine, model: target.model ?? target.engine };
 }
 
 export interface StoppedSessionRef {
@@ -6510,6 +6541,8 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #restsOf(botSlug: string, error: unknown): readonly RestingRoute[] | undefined {
     if (error instanceof RouteRestingError || error instanceof EngineLimitError) return error.rests;
+    if (error instanceof RoutingGroupUnavailableError || error instanceof EngineRefusal)
+      return undefined;
     const rest = this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
     return rest === undefined ? undefined : [rest];
   }
@@ -6609,6 +6642,20 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#held.has(botSlug)) return true;
     this.#failureStreaks.delete(botSlug);
     this.#hold(botSlug, 'quota');
+    if (error instanceof RouteRestingError && error.subscription !== undefined) {
+      await this.#appendHoldNotice(
+        botSlug,
+        channelId,
+        `${this.#registry.get(botSlug)?.displayName ?? botSlug} paused: all Routing Group targets are resting. Try again after ${rest.until}.`,
+        {
+          cause: 'quota',
+          rests: rests.slice(0, 32),
+          engine: error.subscription,
+          routingGroup: true,
+        },
+      );
+      return true;
+    }
     if (error instanceof EngineLimitError) {
       this.#warn?.(
         JSON.stringify({
@@ -6658,7 +6705,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string | undefined,
     body: string,
-    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests' | 'engine'>,
+    stop: Pick<ChannelTurnStop, 'cause' | 'failures' | 'rests' | 'engine' | 'routingGroup'>,
   ): Promise<void> {
     const bot = this.#registry.get(botSlug);
     const sessionId = this.currentOrchestratorSessionId(botSlug);
@@ -6703,6 +6750,10 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<void> {
     const code = sessionFailureDetails(error).code;
     if (this.#held.has(botSlug)) return;
+    if (error instanceof RoutingGroupSwitchError) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
     if (await this.#holdForRestingRoute(botSlug, channelId, error)) return;
     if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
       this.#failureStreaks.delete(botSlug);
@@ -6978,6 +7029,10 @@ class BotRuntimeImplementation implements BotRuntime {
     } catch (error) {
       this.#setObserved(collected.eventIds, null, bot.slug);
       this.#markSourceEventFailed(claim.sourceEventId);
+      if (error instanceof RoutingGroupSwitchError) {
+        this.#failureStreaks.delete(bot.slug);
+        throw error;
+      }
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
@@ -7093,9 +7148,20 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
-    if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
-    const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
-    if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
+    const explicitEngine =
+      tobCliTurn === undefined && this.#agents.runsOnEngine?.(bot.slug) === true;
+    const group =
+      tobCliTurn === undefined && !explicitEngine
+        ? await this.#groupFallback?.pickMixedOrchestrator?.(bot.slug)
+        : undefined;
+    if (group?.kind === 'exhausted') throw new RouteRestingError(group.rests, group.subscription);
+    if (group?.kind === 'unavailable') throw new RoutingGroupUnavailableError();
+    const routingTarget = group?.target;
+    if (routingTarget === undefined && !explicitEngine) {
+      if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
+      const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+      if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
+    }
     const turnSources = new Set([
       ...(sourceEventId === undefined ? [] : [sourceEventId]),
       ...wakeEventIds,
@@ -7244,6 +7310,7 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
       const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
+        ...(routingTarget === undefined ? {} : { routingTarget }),
         ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
         setExecutionReady: (ready) => {
           if (ready) {
@@ -7306,7 +7373,18 @@ class BotRuntimeImplementation implements BotRuntime {
           modelContent: body + '\n' + inbox,
         }),
       };
-      await this.#agents.runOrchestrator(run);
+      try {
+        await this.#agents.runOrchestrator(run);
+      } catch (error) {
+        if (routingTarget === undefined) throw error;
+        throw await this.#mixedGroupTurnFailure(
+          bot.slug,
+          orchestrator.sessionId,
+          channelId,
+          routingTarget,
+          error,
+        );
+      }
       this.#requireTurnAccess(bot.slug, turnSources);
       if (acceptNativeInput === undefined) envelope?.commit();
       if (tobCliTurn !== undefined && sourceEventId !== undefined)
@@ -7353,6 +7431,36 @@ class BotRuntimeImplementation implements BotRuntime {
       if (observeMemory) this.#activeMemoryEvents.delete(bot.slug);
       this.#originalAttachments.clear(orchestrator.sessionId);
     }
+  }
+
+  async #mixedGroupTurnFailure(
+    botSlug: string,
+    sessionId: string,
+    channelId: string | undefined,
+    target: RoutingTarget,
+    error: unknown,
+  ): Promise<unknown> {
+    const rest =
+      target.kind === 'engine'
+        ? error instanceof EngineLimitError
+          ? error.rests[0]
+          : undefined
+        : this.#routeRests?.restingUntil(target.route);
+    if (rest === undefined) return error;
+    const next = await this.#groupFallback?.pickMixedOrchestrator?.(botSlug);
+    if (next?.kind === 'exhausted') return new RouteRestingError(next.rests, next.subscription);
+    if (next?.kind !== 'target') return new RoutingGroupUnavailableError(error);
+    const to = routingTargetKey(next.target);
+    const from = routingTargetKey(target);
+    if (from.provider !== to.provider || from.model !== to.model)
+      await this.#appendModelSwitch(botSlug, sessionId, channelId, {
+        kind: 'switch',
+        from,
+        to,
+        reason: rest.reason ?? 'quota',
+        until: rest.until,
+      });
+    return new RoutingGroupSwitchError(error);
   }
 
   #orchestratorServices(
@@ -7749,7 +7857,8 @@ class BotRuntimeImplementation implements BotRuntime {
     progress?: SessionFailureProgress | undefined;
     autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
-    if (input.error instanceof RouteRestingError) return;
+    if (input.error instanceof RouteRestingError || input.error instanceof RoutingGroupSwitchError)
+      return;
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,

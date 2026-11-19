@@ -1944,6 +1944,7 @@ export const zh = {
   'turn.stoppedFailures': '{name} 连续 {count} 次运行失败，已自动停下 · 给它发消息即可重试',
   'turn.stoppedQuota': '{name} 已暂停：{route} 额度用完，{until} 重置 · 重置后给它发消息即可重试',
   'turn.stoppedEngineLimit': '{name} 已暂停：{engine} 订阅（{account}）额度用完，{until} 重置',
+  'turn.stoppedRoutingGroup': '{name} 已暂停：路由组的所有目标都在休息 · {until} 后发消息重试',
   'turn.switchToModel': '改用 API 模型',
   'turn.switchingToModel': '正在切换…',
   'turn.switchedToModel': '已改用 API 模型，给它发消息继续',
@@ -8324,6 +8325,8 @@ export const en = {
     '{name} paused: {route} is out of quota until {until} · message it after that to try again',
   'turn.stoppedEngineLimit':
     '{name} paused: the {engine} subscription ({account}) is used up until {until}',
+  'turn.stoppedRoutingGroup':
+    '{name} paused: all Routing Group targets are resting · message it after {until} to try again',
   'turn.switchToModel': 'Switch to API model',
   'turn.switchingToModel': 'Switching…',
   'turn.switchedToModel': 'Switched to the API model. Message it to continue',

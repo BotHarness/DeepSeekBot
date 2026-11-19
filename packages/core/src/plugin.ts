@@ -1891,9 +1891,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobCliInvocation = new ModelFreeTobCliInvocation();
   const sessionLive = new SessionLiveStreams();
   const engineGateway = createEngineGateway();
+  const localEngines = subscriptionEnginesAllowed(config, process.env);
   const engineHost = new EngineHost({
     root: join(dshHome, 'botharness', 'engines'),
-    local: subscriptionEnginesAllowed(config, process.env),
+    local: localEngines,
     gateway: engineGateway,
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
@@ -2278,6 +2279,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
     inheritedEffort: () => core.routingGroups.defaultGroup().effort,
     routes: (groupId) => core.routingGroups.routes(groupId),
+    engines: {
+      targets: (groupId) => core.routingGroups.targets(groupId),
+      canRoute: (botSlug) => localEngines && engineHost.engineFor(botSlug) === undefined,
+      allowed: (botSlug) => {
+        const bot = core.registry.get(botSlug);
+        return (
+          bot !== undefined &&
+          core.team.roles.modelsAllowed(
+            humanContext(bot.ownerHumanId ?? core.team.ownerContext().humanId),
+          ).all
+        );
+      },
+      limit: (engine) => engineHost.limit(engine),
+    },
     rests: routeRests,
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),

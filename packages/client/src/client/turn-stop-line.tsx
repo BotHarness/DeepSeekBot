@@ -62,7 +62,7 @@ export function TurnStopLine({
       data-engine-limit={engine.engine}
     >
       <span>{turnStopText(stop, t)}</span>
-      {state.kind === 'done' ? (
+      {stop.routingGroup === true ? null : state.kind === 'done' ? (
         <span role="status" {...stylex.props(styles.done)}>
           {t('turn.switchedToModel')}
         </span>
