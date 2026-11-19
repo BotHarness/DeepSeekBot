@@ -252,7 +252,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: tobsSpace.x2,
-    marginTop: tobsSpace.x2,
   },
   providers: {
     display: 'flex',
