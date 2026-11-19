@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canaryPassed,
   classifyTurn,
   degradedCapabilities,
   parseCanaryArgs,
@@ -66,6 +67,21 @@ describe('DSH canary', () => {
     expect(
       degradedCapabilities([{ code: line }, { code: 'agent setup' }, { code: line }, {}]),
     ).toEqual([line]);
+  });
+
+  it('fails qualification when a Bot reply still required a degraded Host capability', () => {
+    const outcome = classifyTurn(
+      [{ id: 'r', author: { kind: 'bot', slug: 'canary' } }],
+      'canary',
+      new Set(),
+    );
+    const degraded = degradedCapabilities([
+      {
+        code: 'botharness.host_capability.degraded capability=tools.presentAs dsh=0.3.0 reason=missing',
+      },
+    ]);
+    expect(canaryPassed(outcome, [])).toBe(true);
+    expect(canaryPassed(outcome, degraded)).toBe(false);
   });
 
   it('resolves a dist-tag and rejects a version below the floor', async () => {

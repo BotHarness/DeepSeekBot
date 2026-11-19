@@ -156,7 +156,7 @@ changing the same owned font-shortcut scope as earlier versions.
 
 The admission floor `>=0.2.0-0` permits installation; it does **not** certify
 0.2.3 or an untested prerelease. Existing capability adapters and
-[ADR-0316](../adr/0316-host-capabilities-degrade-or-fail-with-host-incompatible.md)
+[ADR-0316](../decisions/connections.md#adr-0316)
 provide local degradation/refusal at known boundaries. They cannot predict a
 method that keeps its name while changing its argument or persistence contract.
 

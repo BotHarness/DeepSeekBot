@@ -146,3 +146,17 @@ ADR-0296 was marked Proposed. The relay routes and phone sheet now implement it.
 Why: the native field avoids duplicate digits in the hosted iOS code field. The WorkOS client secret stays at the relay, and sign-in remains separate from the Host's Device Pairing grant.
 
 Enforced by: [connect-email-code.test.ts](../../apps/mobile/test/connect-email-code.test.ts) and [email-code.test.ts](../../packages/connect-relay/test/email-code.test.ts).
+
+## 9. Live Activities follow one admitted Human DM request
+
+<a id="adr-0255"></a>
+
+The phone offers explicit tracking after its own Human DM message commits. The paired Host verifies the exact request's canonical admission and the Connect delivery capability before iOS starts a single Live Activity. Only explicit Inbox resolution as done reports completion. Ignored ends with unknown progress; retryable and needs-repair stay nonterminal. Stopping the display leaves the request running.
+
+The Device Gateway derives identity from the admitted credential. The managed Connect Worker holds APNs signing material, fixes the app topic and Apple environment, and binds an opaque delivery handle to the owning account, Host, device and activity. The Host stores the handle and request IDs. The display payload carries bounded status, time, locale and the Host's public display name. A phone without configured Connect delivery cannot start tracking, and Expo push retains its separate path.
+
+The Host persists delivery revisions before I/O, retries within registration expiry, and retires terminal delivery after provider acknowledgement. Stop, revocation and unlink fence further updates. The phone restores an existing ActivityKit card against its original request and pairing. An explicit source change or loss of that pairing ends the display, and an opaque deep link resolves only through the saved request identity. A new native binary and real iOS/APNs qualification are tracked in [#2815](https://github.com/BotHarness/DeepSeekBot/issues/2815).
+
+Why: ActivityKit can update the Lock Screen while JavaScript is suspended, with request outcomes still owned by the Host and Apple credentials held by the managed sender.
+
+Enforced by: [Host admission and delivery](../../packages/core/test/live-activity.test.ts), [Connect ownership and APNs payload](../../packages/connect-relay/test/activity-apns.test.ts), [native presentation](../../apps/mobile/test/native-live-activity.test.tsx), [pairing and source changes](../../apps/mobile/test/native-live-activity-multiple.test.tsx), [deep-link routing](../../apps/mobile/test/live-activity-routing.test.ts), and [CLI parity](../../packages/core/test/cli-live-activity.test.ts).

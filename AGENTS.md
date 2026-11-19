@@ -7,7 +7,7 @@ Project-specific guidance for AI coding agents.
 BotHarness — a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin layer that gives agents a persistent identity: **PersonaBots** with a persona and file-based memory that spans sessions, chats, and workspaces. **DeepSeekBot** is its first app (sidebar roster, delegation, IM adapters).
 
 - DSH official docs (source of truth when DSH behavior/APIs are in question): <https://deepseek-harness.github.io/deepseek-harness/> — plugin authoring, packaging and install under `/develop/basic/` (`/publish` documents `dsh plugin`, bundle/profile manifests and layer order); CLI behavior reference upstream at `apps/cli/reference/README.md`.
-- Product language: `GLOSSARY.md` (English) and `GLOSSARY.zh.md` (Chinese); integrated target architecture: `docs/architecture/botharness-architecture.md`; durable choices and rationale: `docs/adr/`. The old platform spec and app PRD are archived working drafts, not parallel authorities.
+- Product language: `GLOSSARY.md` (English) and `GLOSSARY.zh.md` (Chinese); integrated target architecture: `docs/architecture/botharness-architecture.md`; durable choices and rationale: `docs/decisions/`. The old platform spec and app PRD are archived drafts.
 - IM adapter base: [dsh-im](https://github.com/xmanrui/dsh-im) (multi-bot + settings UI). Reliability patterns from [dsh-lark-link](https://github.com/amlyczz/dsh-lark-link); group/thread routing from [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge).
 - Current architecture baseline: ADR-0035–0045 and the living architecture; delivery status and sequencing live in GitHub Issues and Projects.
 
@@ -36,7 +36,7 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 - Repo scripts are Node `.mjs` run as `node scripts/<name>.mjs` — no new `.ps1`/`.cmd`/`.bat` files. Spawn child processes with direct `argv` (`shell: false`; resolve `.cmd` shims through `scripts/dev-package-manager.mjs`) and `windowsHide: true` on every spawn so no conhost window flashes on Windows; keep CLI action/flag names, exit codes and JSON shapes stable when porting a helper.
 - Never commit secrets: the Feishu App Secret goes to the DSH credentials service, never to config or the repo (ADR-0006).
 - Memory terminology lives in `GLOSSARY.md`; durable memory choices live in ADR-0002/0003/0004/0012/0014/0021 and are integrated into the living architecture.
-- Record durable architecture choices as ADRs under `docs/adr/`, then integrate their current result into the living architecture instead of leaving decisions in chat or a mutable PRD.
+- Record new decisions in the matching `docs/decisions/<topic>.md` section and integrate them into the living architecture.
 - Living architecture doc: `docs/architecture/botharness-architecture.md` (inline mermaid) — update it when modules, data flow, or boundaries change; it syncs to the docs site (`apps/docs`, botharness.ai) via `scripts/sync-docs.mjs`.
 - Docs site (`apps/docs`, Nimbus): content is generated from repo sources by `scripts/sync-docs.mjs`, so edit the sources, never generated files. Before editing docs pages, diagrams, OG cards or running the docs dev server, follow [docs site maintenance](docs/agents/docs-site-maintenance.md).
 - Third-party skills under `.agents/skills/` stay unedited and are locked by hash in `skills-lock.json`; first-party skills in the same tree (`dsh-plugin-dev`, `dsh-dev`, `dsh-ui`, `verify-deepseekbot`, `ios-hig`, `android-material`, `promo-pv`) are ours to edit. Before adding, syncing or renaming a skill, follow [vendored skills](docs/agents/vendored-skills.md). `visual-pr` stays the PR description authority.
@@ -150,7 +150,7 @@ For a nontrivial behavior, lifecycle, permission, persistence or cross-module PR
 
 ### Domain docs
 
-Single-context layout: root `GLOSSARY.md` + `docs/adr/` (extended lazily by the domain skills). Root `GLOSSARY.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
+Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
 
 ### UI guidelines
 
