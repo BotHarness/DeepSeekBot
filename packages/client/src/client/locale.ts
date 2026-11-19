@@ -1,9 +1,11 @@
+import * as modelProviderCopy from './model-provider-copy.js';
 import { AVATAR_LABELS } from '../../../core/src/bots/avatar-labels.js';
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  ...modelProviderCopy.zh,
   'approval.effect.changes.none': '只读',
   'approval.effect.changes.reversible': '可撤销更改',
   'approval.effect.changes.irreversible': '不可撤销',
@@ -1949,17 +1951,6 @@ export const zh = {
   'turn.switchToModel': '改用 API 模型',
   'turn.switchingToModel': '正在切换…',
   'turn.switchedToModel': '已改用 API 模型，给它发消息继续',
-  'engine.localOnly': 'Subscription Engine 只能在你自己的电脑上运行，这台 Host 不支持。',
-  'engine.subscription': '{engine} 订阅',
-  'engine.noModels': '没有可用的订阅模型',
-  'engine.loadFailed': '读取 Subscription Engine 失败',
-  'engine.notSubscription': '当前用 API key 登录，需改用订阅登录',
-  'engine.loginUnknown': '无法确认登录状态',
-  'engine.notInstalled': '这台电脑没有安装 {engine}',
-  'engine.signingIn': '等待登录…',
-  'engine.signInLabel': '登录 {engine}',
-  'engine.openSignIn': '打开登录页面',
-  'engine.reload': '重新读取',
   'turn.switchFailed': '没切换成功：{message}',
   'member.removed': '{name} 被移出了频道',
   'hidden.modal.title': '隐藏的频道与 Bot 私聊',
@@ -6266,6 +6257,7 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  ...modelProviderCopy.en,
   'approval.effect.changes.none': 'Read only',
   'approval.effect.changes.reversible': 'Reversible changes',
   'approval.effect.changes.irreversible': 'Irreversible',
@@ -8333,17 +8325,6 @@ export const en = {
   'turn.switchToModel': 'Switch to API model',
   'turn.switchingToModel': 'Switching…',
   'turn.switchedToModel': 'Switched to the API model. Message it to continue',
-  'engine.localOnly': 'Subscription Engines run only on your own computer, not on this Host.',
-  'engine.subscription': '{engine} subscription',
-  'engine.noModels': 'No subscription models available',
-  'engine.loadFailed': 'Couldn’t read Subscription Engines',
-  'engine.notSubscription': 'Signed in with an API key; sign in with your subscription',
-  'engine.loginUnknown': 'Sign-in state unknown',
-  'engine.notInstalled': '{engine} isn’t installed on this computer',
-  'engine.signingIn': 'Waiting for sign-in…',
-  'engine.signInLabel': 'Sign in to {engine}',
-  'engine.openSignIn': 'Open the sign-in page',
-  'engine.reload': 'Reload',
   'turn.switchFailed': 'Could not switch: {message}',
   'member.removed': '{name} was removed from the Channel',
   'hidden.modal.title': 'Hidden channels and Bot DMs',

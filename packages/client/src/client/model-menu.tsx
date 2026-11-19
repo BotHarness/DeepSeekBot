@@ -4,6 +4,7 @@ import {
   modelBrand,
   modelFamilies,
   modelShortName,
+  providerBrand,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
 import {
@@ -135,6 +136,8 @@ export function modelMenuItems(
       brand,
       provider: entry.provider,
       model: entry.model,
+      hintBrand:
+        option.hint === undefined ? undefined : providerBrand(entry.provider, entry.providerName),
     };
   });
 }

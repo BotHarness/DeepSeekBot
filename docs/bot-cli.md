@@ -1252,6 +1252,20 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 
 `overview-usage` (`--period today|week|month|quarter`; `month` is the last 28 days and `quarter` the last 84, default `today`) and `overview-memory` return the Overview page's per-Bot rows; pass `nextCursor` back as `--after` for more. In `overview-usage`, each bucket is the sum of what providers reported and is `null` only when nothing in it was reported; `partial: true` on the totals, a day or a Bot means some usage in it went unreported, so its `totalTokens` is a lower bound. `activity-overview` shows what every Bot is doing and `channel-activity-today` today's messages per Channel. The `bot-*` readers address a Bot by id and read the Profile panels through its DM: `bot-usage` needs a non-future `--start`/`--end` range shorter than 182 days, `bot-session-usage` groups usage by Session and Assignment, and `bot-activity-history` returns the activity calendar (`--weeks` 1–104). `group-activity` takes a group Channel id. In `bot-activity-history`, a model row’s `totalTokens` retains the reported lower bound with `partial: true` when other calls are unreported; fully unreported usage stays `null`. The strict `bot-usage` query retains its existing unknown-total semantics.
 
+### API key providers
+
+The Host Owner and Humans with `modelSources.manage` can list and manage API key providers. The built-in admin role does not grant it. Use the list’s top-level revision to add, and the provider row’s revision to edit or remove. Refresh the list after a conflict.
+
+```bash
+deepseekbot model-providers
+deepseekbot model-provider-add --template opencode-go --name "OpenCode Go backup" --key-stdin --expected-revision 0 < /path/to/key
+deepseekbot model-provider-edit opencode-go-2 --name "Backup" --expected-revision 1
+deepseekbot model-provider-edit opencode-go-2 --key-file /path/to/key --expected-revision 2
+deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
+```
+
+Use `deepseek` for DeepSeek or `custom` with `--endpoint <base-url> --model <id>` for an OpenAI-compatible service. Add and key replacement report whether the key was stored, how many models are listed and whether a test reply succeeded on the new route. The JSON shows at most the last four characters of a key. Removal is refused when the provider is inherited or referenced by a default model, Routing Group, Model Preset or Bot. Enter keys on the Host or over Tailscale.
+
 ### Marketplace, releases, usage statistics, Git and pairing review
 
 Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.

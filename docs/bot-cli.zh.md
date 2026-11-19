@@ -1220,6 +1220,20 @@ printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","
 
 `bot-activity-history` 的模型行在混有未报告调用时保留已上报的 `totalTokens` 下界，并标记 `partial: true`；完全未报告时保持 `null`。严格的 `bot-usage` 查询继续保留原来的未知总计语义。
 
+### API key 提供商
+
+Host Owner 或拥有 `modelSources.manage` 权限的 Human 可以查看和管理 API key 提供商。内置管理员角色默认没有此权限。添加时使用列表的总修订号，编辑或移除时使用对应提供商的修订号。发生冲突后重新读取列表。
+
+```bash
+deepseekbot model-providers
+deepseekbot model-provider-add --template opencode-go --name "OpenCode Go 备用" --key-stdin --expected-revision 0 < /path/to/key
+deepseekbot model-provider-edit opencode-go-2 --name "备用" --expected-revision 1
+deepseekbot model-provider-edit opencode-go-2 --key-file /path/to/key --expected-revision 2
+deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
+```
+
+使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
+
 ### 市场、版本更新、使用统计、Git 与配对审核
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。

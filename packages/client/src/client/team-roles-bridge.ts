@@ -243,7 +243,11 @@ export interface GrantingViewer {
 
 export function canGrant(viewer: GrantingViewer, permission: string): boolean {
   if (viewer.owner) return true;
-  return permission !== 'privateContent.view' && viewer.permissions.includes(permission);
+  return (
+    permission !== 'privateContent.view' &&
+    permission !== 'modelSources.manage' &&
+    viewer.permissions.includes(permission)
+  );
 }
 
 export function canGrantAll(viewer: GrantingViewer, permissions: readonly string[]): boolean {

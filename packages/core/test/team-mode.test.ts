@@ -2732,7 +2732,8 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const catalog = z
       .array(z.object({ id: z.string(), group: z.string() }).strict())
       .parse(await f.invoke('permissionCatalog'));
-    expect(catalog).toHaveLength(16);
+    expect(catalog).toHaveLength(17);
+    expect(catalog).toContainEqual({ id: 'modelSources.manage', group: 'compute' });
     expect(f.team.mode(owner).viewer).toMatchObject({
       owner: true,
       roleIds: [],
@@ -2747,6 +2748,9 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(15);
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
       'privateContent.view',
+    );
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
+      'modelSources.manage',
     );
     expect(builtins.find((r) => r.builtin === 'member')?.memberCount).toBe(2);
     const { role } = f.team.roles.create(owner, 'Operators', ['usage.view', 'audit.view']);

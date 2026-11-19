@@ -150,20 +150,22 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   rowHint: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x1,
     flexShrink: 1,
     minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     color: color.muted,
     fontSize: text.metaSize,
     fontWeight: text.regular,
   },
-  hintIcon: {
-    display: 'inline-flex',
-    verticalAlign: 'middle',
-    marginInlineEnd: space.x1,
+  rowHintText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
+  hintIcon: { display: 'inline-flex', flexShrink: 0 },
   rowCheck: { display: 'inline-flex', color: color.accentText },
   rowLine: { display: 'flex', alignItems: 'center', gap: space.x1 },
   rowMain: { flexGrow: 1, minWidth: 0 },
@@ -533,7 +535,7 @@ export function FilterPicker({
                             {option.hintIcon === undefined ? null : (
                               <span {...stylex.props(styles.hintIcon)}>{option.hintIcon}</span>
                             )}
-                            {option.hint}
+                            <span {...stylex.props(styles.rowHintText)}>{option.hint}</span>
                           </span>
                         )}
                       </span>
