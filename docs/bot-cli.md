@@ -865,7 +865,7 @@ Credential writes validate actual YAML before and after disk writes and restore 
 
 ### To-do example plugin
 
-These commands reach the to-do example plugin (`@botharness/todo`, [ADR-0203](adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)). They work only on a Host where that plugin is installed; elsewhere they fail `todo-plugin-missing`.
+These commands reach the to-do example plugin (`@botharness/todo`, [ADR-0203](decisions/desktop-ui.md#adr-0203)). They work only on a Host where that plugin is installed; elsewhere they fail `todo-plugin-missing`.
 
 ```bash
 deepseekbot todos

@@ -1,0 +1,582 @@
+{
+  "packages/client/src/client/account-environments.ts": {
+    "../../../core/src/devices/relationship-contract.js": 1
+  },
+  "packages/client/src/client/account-profile-settings.tsx": {
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/uploaded-bots.js": 1
+  },
+  "packages/client/src/client/actions.ts": {
+    "../../../core/src/bots/avatar-appearance.js": 3,
+    "../../../core/src/bots/deletion.js": 1,
+    "../../../core/src/bots/part-library.js": 4,
+    "../../../core/src/bridge/methods.js": 2,
+    "../../../core/src/channels/activity-today.js": 1,
+    "../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../core/src/channels/channel.js": 2,
+    "../../../core/src/channels/genui-document.js": 1,
+    "../../../core/src/channels/genui.js": 1,
+    "../../../core/src/channels/reply-preview.js": 1,
+    "../../../core/src/credentials/contracts.js": 5,
+    "../../../core/src/marketplace/altcha.js": 1,
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/install-review.js": 1,
+    "../../../core/src/marketplace/language.js": 1,
+    "../../../core/src/marketplace/share-draft.js": 1,
+    "../../../core/src/marketplace/uploaded-bots.js": 1,
+    "../../../core/src/memory/overview.js": 1,
+    "../../../core/src/messaging/channel-bridge.js": 1,
+    "../../../core/src/messaging/conversation-ingest.js": 1,
+    "../../../core/src/messaging/conversations.js": 1,
+    "../../../core/src/messaging/group-policy.js": 1,
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/inbound.js": 1,
+    "../../../core/src/messaging/outbound.js": 1,
+    "../../../core/src/messaging/pairing.js": 1,
+    "../../../core/src/messaging/provider.js": 2,
+    "../../../core/src/messaging/sender-access.js": 1,
+    "../../../core/src/messaging/thread-policy.js": 1,
+    "../../../core/src/onboarding/types.js": 1,
+    "../../../core/src/purge/contracts.js": 1,
+    "../../../core/src/runtime/bot-runtime.js": 1,
+    "../../../core/src/runtime/context-window.js": 1,
+    "../../../core/src/runtime/prompt-inspection.js": 2,
+    "../../../core/src/skills/entries.js": 1,
+    "../../../core/src/telemetry/events.js": 1,
+    "../../../core/src/tob/service.js": 1,
+    "../../../core/src/usage/overview.js": 1
+  },
+  "packages/client/src/client/activity-attention.ts": {
+    "../../../core/src/state/bot-state.js": 1
+  },
+  "packages/client/src/client/activity-detail.ts": {
+    "../../../core/src/state/tool-activity.js": 2
+  },
+  "packages/client/src/client/activity-list-pairing.tsx": {
+    "../../../core/src/messaging/pairing.js": 1,
+    "../../../core/src/messaging/sender-access.js": 1
+  },
+  "packages/client/src/client/activity-live.ts": {
+    "../../../core/src/state/tool-activity.js": 1
+  },
+  "packages/client/src/client/approval-settings.tsx": {
+    "../../../core/src/messaging/approval-messaging.js": 1,
+    "../../../core/src/messaging/failure-alerts.js": 1
+  },
+  "packages/client/src/client/approval-template-library.tsx": {
+    "../../../core/src/workspaces/approval-template-deletion-contract.js": 1,
+    "../../../core/src/workspaces/approval-template-guidance.js": 1
+  },
+  "packages/client/src/client/avatar-appearance-editor.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/bots/avatar-line.js": 1,
+    "../../../core/src/bots/part-library.js": 1
+  },
+  "packages/client/src/client/avatar-speech.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1
+  },
+  "packages/client/src/client/avatar.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/bots/primary-color.js": 1,
+    "../../../core/src/state/bot-state.js": 1,
+    "../../../core/src/state/tool-activity.js": 1
+  },
+  "packages/client/src/client/behavior-permission-settings.tsx": {
+    "../../../core/src/messaging/behavior-policy.js": 1,
+    "../../../core/src/messaging/pairing.js": 1,
+    "../../../core/src/messaging/permission-groups.js": 1,
+    "../../../core/src/messaging/sender-access.js": 1
+  },
+  "packages/client/src/client/bot-main.tsx": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../core/src/skills/entries.js": 1,
+    "../../../core/src/takeover/contracts.js": 1
+  },
+  "packages/client/src/client/bot-presentation.ts": {
+    "../../../core/src/channels/message-preview.js": 1
+  },
+  "packages/client/src/client/bot-primary-color.ts": {
+    "../../../core/src/bots/primary-color.js": 1
+  },
+  "packages/client/src/client/bot-sidebar.tsx": {
+    "../../../core/src/channels/message-preview.js": 1
+  },
+  "packages/client/src/client/bot-skills-card.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/bridge.ts": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/bots/avatar-appearance.js": 2,
+    "../../../core/src/bots/part-library.js": 1,
+    "../../../core/src/bots/primary-color.js": 1,
+    "../../../core/src/bridge/composer-recovery.js": 1,
+    "../../../core/src/bridge/methods.js": 2,
+    "../../../core/src/channels/activity-today.js": 1,
+    "../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../core/src/channels/channel.js": 1,
+    "../../../core/src/channels/genui-document.js": 1,
+    "../../../core/src/channels/genui.js": 1,
+    "../../../core/src/channels/model-switch.js": 1,
+    "../../../core/src/channels/reply-preview.js": 1,
+    "../../../core/src/channels/turn-stop.js": 1,
+    "../../../core/src/channels/voice-call-record.js": 1,
+    "../../../core/src/channels/voice.js": 1,
+    "../../../core/src/credentials/contracts.js": 1,
+    "../../../core/src/marketplace/altcha.js": 1,
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/install-review.js": 1,
+    "../../../core/src/marketplace/language.js": 1,
+    "../../../core/src/marketplace/uploaded-bots.js": 1,
+    "../../../core/src/memory/overview.js": 1,
+    "../../../core/src/messaging/channel-bridge.js": 1,
+    "../../../core/src/messaging/conversation-ingest.js": 1,
+    "../../../core/src/messaging/conversations.js": 1,
+    "../../../core/src/messaging/defaults.js": 1,
+    "../../../core/src/messaging/group-policy.js": 1,
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/inbound.js": 1,
+    "../../../core/src/messaging/outbound.js": 2,
+    "../../../core/src/messaging/pairing.js": 1,
+    "../../../core/src/messaging/provider.js": 3,
+    "../../../core/src/messaging/sender-access.js": 1,
+    "../../../core/src/messaging/thread-policy.js": 1,
+    "../../../core/src/runtime/assignment-human-context.js": 2,
+    "../../../core/src/runtime/bot-runtime.js": 1,
+    "../../../core/src/schedules/bot-schedules.js": 2,
+    "../../../core/src/skills/entries.js": 1,
+    "../../../core/src/skills/events.js": 1,
+    "../../../core/src/takeover/contracts.js": 1,
+    "../../../core/src/team/member-methods.js": 1,
+    "../../../core/src/usage/overview.js": 1,
+    "../../../core/src/usage/query.js": 2,
+    "../../../core/src/workspaces/approval-template-deletion-contract.js": 1,
+    "../../../core/src/workspaces/folder-browse.js": 1,
+    "../../../core/src/workspaces/tool-approval-actor.js": 2,
+    "../../../core/src/workspaces/tool-approval.js": 1,
+    "../../../core/src/workspaces/tool-effects-contract.js": 1
+  },
+  "packages/client/src/client/call-camera.ts": {
+    "../../../core/src/voice/call-contract.js": 1,
+    "../../../core/src/voice/call-session.js": 1,
+    "../../../core/src/voice/keyframes.js": 1
+  },
+  "packages/client/src/client/call-media.ts": {
+    "../../../core/src/voice/call-client.js": 1
+  },
+  "packages/client/src/client/channel-activity-chart.tsx": {
+    "../../../core/src/channels/activity-today.js": 1
+  },
+  "packages/client/src/client/channel-activity-view.tsx": {
+    "../../../core/src/channels/activity-today.js": 1
+  },
+  "packages/client/src/client/channel-bridge-list.tsx": {
+    "../../../core/src/messaging/channel-bridge.js": 1
+  },
+  "packages/client/src/client/channel-composer.tsx": {
+    "../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../core/src/channels/message-preview.js": 1,
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/channel-history.tsx": {
+    "../../../core/src/purge/contracts.js": 1
+  },
+  "packages/client/src/client/channel-live.ts": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/channels/channel-notice.js": 1
+  },
+  "packages/client/src/client/channel-message-body.tsx": {
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/channel-row-status.tsx": {
+    "../../../core/src/state/bot-state.js": 1
+  },
+  "packages/client/src/client/channel-sidebar-builtins.tsx": {
+    "../../../core/src/messaging/inbound.js": 1
+  },
+  "packages/client/src/client/companion-beats.ts": {
+    "../../../core/src/channels/message-preview.js": 1
+  },
+  "packages/client/src/client/companion-requests-view.tsx": {
+    "../../../core/src/companions/feed.js": 1
+  },
+  "packages/client/src/client/companion-requests.ts": {
+    "../../../core/src/companions/feed.js": 1
+  },
+  "packages/client/src/client/companion-sound.ts": {
+    "../../../core/src/companions/sources.js": 1
+  },
+  "packages/client/src/client/composer-dictation.ts": {
+    "../../../core/src/voice/dictation-client.js": 2,
+    "../../../core/src/voice/pcm.js": 1
+  },
+  "packages/client/src/client/composer-draft-store.ts": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/composer-submission-store.ts": {
+    "../../../core/src/attachments/ref.js": 1
+  },
+  "packages/client/src/client/connect-account-hosts.tsx": {
+    "../../../core/src/devices/connect-account.js": 1
+  },
+  "packages/client/src/client/connect-health-card.tsx": {
+    "../../../core/src/devices/connect-health-contract.js": 1
+  },
+  "packages/client/src/client/connect-panel.tsx": {
+    "../../../core/src/devices/connect-health-contract.js": 1
+  },
+  "packages/client/src/client/connection-hosts.tsx": {
+    "../../../core/src/devices/connect-account.js": 1
+  },
+  "packages/client/src/client/connection-management.ts": {
+    "../../../core/src/devices/connect-account.js": 1,
+    "../../../core/src/devices/connection-operation.js": 1
+  },
+  "packages/client/src/client/content-redactions.ts": {
+    "../../../core/src/purge/contracts.js": 1
+  },
+  "packages/client/src/client/conversation-ingest-list.tsx": {
+    "../../../core/src/messaging/conversation-ingest.js": 1
+  },
+  "packages/client/src/client/custom-part-editor.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1
+  },
+  "packages/client/src/client/desktop-call.ts": {
+    "../../../core/src/voice/call-client.js": 1,
+    "../../../core/src/voice/call-contract.js": 1,
+    "../../../core/src/voice/call-session.js": 1,
+    "../../../core/src/voice/call-view.js": 1,
+    "../../../core/src/voice/keyframes.js": 1
+  },
+  "packages/client/src/client/external-conversations.tsx": {
+    "../../../core/src/messaging/conversations.js": 1,
+    "../../../core/src/messaging/group-policy.js": 1,
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/outbound.js": 1
+  },
+  "packages/client/src/client/external-entries.tsx": {
+    "../../../core/src/messaging/identity.js": 1
+  },
+  "packages/client/src/client/external-identity-list.tsx": {
+    "../../../core/src/messaging/conversations.js": 1,
+    "../../../core/src/messaging/group-policy.js": 1,
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/outbound.js": 1
+  },
+  "packages/client/src/client/external-message-text.tsx": {
+    "../../../core/src/messaging/provider.js": 1
+  },
+  "packages/client/src/client/external-source-content.tsx": {
+    "../../../core/src/messaging/inbound.js": 1
+  },
+  "packages/client/src/client/failure-alert-settings.tsx": {
+    "../../../core/src/messaging/failure-alerts.js": 1
+  },
+  "packages/client/src/client/generated-files-panel.tsx": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/purge/contracts.js": 1
+  },
+  "packages/client/src/client/genui-document-runtime.ts": {
+    "../../../core/src/channels/genui-document-runtime.js": 1
+  },
+  "packages/client/src/client/genui-document-view.ts": {
+    "../../../core/src/channels/genui-document.js": 1,
+    "../../../core/src/purge/contracts.js": 1
+  },
+  "packages/client/src/client/genui-document.tsx": {
+    "../../../core/src/channels/genui-document-runtime.js": 1,
+    "../../../core/src/channels/genui-document.js": 1,
+    "../../../core/src/channels/genui-execution-limits.js": 1,
+    "../../../core/src/channels/genui-mirror-shell.js": 1
+  },
+  "packages/client/src/client/genui-report.tsx": {
+    "../../../core/src/channels/genui.js": 1
+  },
+  "packages/client/src/client/group-wake-policy-list.tsx": {
+    "../../../core/src/channels/channel.js": 1
+  },
+  "packages/client/src/client/group-work-entry.tsx": {
+    "../../../core/src/runtime/bot-runtime.js": 1
+  },
+  "packages/client/src/client/illustrated-avatar.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/bots/avatar-random.js": 1
+  },
+  "packages/client/src/client/index.ts": {
+    "../../../core/src/credentials/web-locator.js": 1
+  },
+  "packages/client/src/client/lan-bot-settings.tsx": {
+    "../../../core/src/devices/bot-lan-control.js": 1
+  },
+  "packages/client/src/client/line-morph.ts": {
+    "../../../core/src/bots/avatar-appearance.js": 1
+  },
+  "packages/client/src/client/live-snapshots.ts": {
+    "../../../core/src/channels/live.js": 1,
+    "../../../core/src/companions/live.js": 1
+  },
+  "packages/client/src/client/locale.ts": {
+    "../../../core/src/bots/avatar-labels.js": 1
+  },
+  "packages/client/src/client/market-cover.tsx": {
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/language.js": 1
+  },
+  "packages/client/src/client/market-digest.tsx": {
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/language.js": 1
+  },
+  "packages/client/src/client/market-files.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/market-mine.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/market-panel.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/market-rankings.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/market-upload.tsx": {
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/share-draft.js": 1,
+    "../../../core/src/marketplace/uploaded-bots.js": 1
+  },
+  "packages/client/src/client/marketplace.tsx": {
+    "../../../core/src/marketplace/altcha.js": 1,
+    "../../../core/src/marketplace/client.js": 1,
+    "../../../core/src/marketplace/install-review.js": 1,
+    "../../../core/src/marketplace/language.js": 1
+  },
+  "packages/client/src/client/mentions.ts": {
+    "../../../core/src/channels/all-bot-mention.js": 1
+  },
+  "packages/client/src/client/message-album.tsx": {
+    "../../../core/src/channels/reply-preview.js": 1
+  },
+  "packages/client/src/client/message-host.ts": {
+    "../../../core/src/purge/contracts.js": 1
+  },
+  "packages/client/src/client/message-perf.ts": {
+    "../../../core/src/channels/channel.js": 1
+  },
+  "packages/client/src/client/messaging-defaults-live.ts": {
+    "../../../core/src/channels/resource-events.js": 1,
+    "../../../core/src/purge/contracts.js": 1,
+    "../../../core/src/skills/events.js": 1
+  },
+  "packages/client/src/client/messaging-defaults-settings.tsx": {
+    "../../../core/src/messaging/defaults.js": 1
+  },
+  "packages/client/src/client/messaging-grant.tsx": {
+    "../../../core/src/messaging/group-policy.js": 1,
+    "../../../core/src/messaging/outbound.js": 2,
+    "../../../core/src/messaging/provider.js": 1
+  },
+  "packages/client/src/client/messaging-store.ts": {
+    "../../../core/src/messaging/outbound.js": 1
+  },
+  "packages/client/src/client/model-switch-line.tsx": {
+    "../../../core/src/channels/model-switch.js": 1
+  },
+  "packages/client/src/client/onboarding-checklist.ts": {
+    "../../../core/src/onboarding/types.js": 1
+  },
+  "packages/client/src/client/onboarding-view.tsx": {
+    "../../../core/src/onboarding/types.js": 1
+  },
+  "packages/client/src/client/onboarding.ts": {
+    "../../../core/src/onboarding/types.js": 1,
+    "../../../core/src/telemetry/events.js": 1
+  },
+  "packages/client/src/client/overview-memory-view.tsx": {
+    "../../../core/src/memory/overview.js": 1
+  },
+  "packages/client/src/client/overview-usage-view.tsx": {
+    "../../../core/src/usage/overview.js": 1
+  },
+  "packages/client/src/client/paired-devices.tsx": {
+    "../../../core/src/devices/bot-lan-control.js": 1,
+    "../../../core/src/devices/connect-account.js": 1,
+    "../../../core/src/devices/connect-health-contract.js": 1
+  },
+  "packages/client/src/client/pairing-settings.tsx": {
+    "../../../core/src/messaging/behavior-policy.js": 1,
+    "../../../core/src/messaging/pairing.js": 1,
+    "../../../core/src/messaging/permission-groups.js": 1,
+    "../../../core/src/messaging/sender-access.js": 1
+  },
+  "packages/client/src/client/permission-group-settings.tsx": {
+    "../../../core/src/messaging/behavior-policy.js": 1,
+    "../../../core/src/messaging/pairing.js": 2,
+    "../../../core/src/messaging/permission-groups.js": 1,
+    "../../../core/src/messaging/sender-access.js": 1
+  },
+  "packages/client/src/client/personabot-deletion.tsx": {
+    "../../../core/src/bots/deletion.js": 1
+  },
+  "packages/client/src/client/plugin-updates-view.tsx": {
+    "../../../core/src/release/plugins.js": 1
+  },
+  "packages/client/src/client/plugin-updates.ts": {
+    "../../../core/src/release/plugins.js": 1
+  },
+  "packages/client/src/client/primary-color-editor.tsx": {
+    "../../../core/src/bots/primary-color.js": 1
+  },
+  "packages/client/src/client/private-account-controls.tsx": {
+    "../../../core/src/credentials/contracts.js": 1
+  },
+  "packages/client/src/client/private-accounts-section.tsx": {
+    "../../../core/src/credentials/contracts.js": 1
+  },
+  "packages/client/src/client/private-accounts.ts": {
+    "../../../core/src/credentials/contracts.js": 1
+  },
+  "packages/client/src/client/private-input-card.tsx": {
+    "../../../core/src/credentials/contracts.js": 1
+  },
+  "packages/client/src/client/private-input-navigation.ts": {
+    "../../../core/src/credentials/web-locator.js": 1
+  },
+  "packages/client/src/client/progressive-settings.ts": {
+    "../../../core/src/messaging/outbound.js": 1
+  },
+  "packages/client/src/client/provider-app-setup.ts": {
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/provider.js": 1
+  },
+  "packages/client/src/client/question-notifications.tsx": {
+    "../../../core/src/messaging/question-messaging.js": 1
+  },
+  "packages/client/src/client/reachable-post-requests.ts": {
+    "../../../core/src/messaging/outbound.js": 1
+  },
+  "packages/client/src/client/reachable-post.tsx": {
+    "../../../core/src/messaging/identity.js": 1,
+    "../../../core/src/messaging/provider.js": 1
+  },
+  "packages/client/src/client/reception-status.tsx": {
+    "../../../core/src/messaging/receiver-recovery.js": 1
+  },
+  "packages/client/src/client/relationship-settings.tsx": {
+    "../../../core/src/devices/relationship-contract.js": 1
+  },
+  "packages/client/src/client/relationships.ts": {
+    "../../../core/src/devices/relationship-contract.js": 2
+  },
+  "packages/client/src/client/release-notes-view.tsx": {
+    "../../../core/src/release/compatibility.js": 1,
+    "../../../core/src/release/notes.js": 1
+  },
+  "packages/client/src/client/release-notes.ts": {
+    "../../../core/src/release/compatibility.js": 1,
+    "../../../core/src/release/identity.js": 1,
+    "../../../core/src/release/notes.js": 1,
+    "../../../core/src/release/service.js": 1,
+    "../../../core/src/release/version.js": 1
+  },
+  "packages/client/src/client/remote-activity.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1
+  },
+  "packages/client/src/client/remote-avatar.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1
+  },
+  "packages/client/src/client/remote-host-activity.ts": {
+    "../../../core/src/state/tool-activity.js": 1
+  },
+  "packages/client/src/client/remote-hosts.ts": {
+    "../../../core/src/devices/connection-operation.js": 1,
+    "../../../core/src/devices/relationship-contract.js": 3,
+    "../../../core/src/devices/relationship-enrollment.js": 1
+  },
+  "packages/client/src/client/rich-mention-editor.ts": {
+    "../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/section-management.tsx": {
+    "../../../core/src/channels/message-preview.js": 1
+  },
+  "packages/client/src/client/session-detail.tsx": {
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/session-stop-model.ts": {
+    "../../../core/src/state/tool-activity.js": 1
+  },
+  "packages/client/src/client/share-flow.tsx": {
+    "../../../core/src/marketplace/client.js": 1
+  },
+  "packages/client/src/client/skill-preview.tsx": {
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/skill-refs.ts": {
+    "../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/store.ts": {
+    "../../../core/src/attachments/ref.js": 1,
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/bots/primary-color.js": 1,
+    "../../../core/src/bridge/composer-recovery.js": 1,
+    "../../../core/src/channels/channel.js": 7,
+    "../../../core/src/channels/genui.js": 2,
+    "../../../core/src/channels/model-switch.js": 1,
+    "../../../core/src/channels/reply-preview.js": 1,
+    "../../../core/src/channels/turn-stop.js": 2,
+    "../../../core/src/channels/voice-call-record.js": 1,
+    "../../../core/src/credentials/contracts.js": 2,
+    "../../../core/src/purge/contracts.js": 1,
+    "../../../core/src/state/bot-state.js": 1,
+    "../../../core/src/state/tool-activity.js": 1,
+    "../../../core/src/takeover/contracts.js": 2,
+    "../../../core/src/team/approval-contract.js": 1,
+    "../../../core/src/workspaces/tool-approval.js": 1,
+    "../../../core/src/workspaces/tool-effects.js": 1
+  },
+  "packages/client/src/client/takeover-card.tsx": {
+    "../../../core/src/takeover/contracts.js": 1
+  },
+  "packages/client/src/client/thread-reception-settings.tsx": {
+    "../../../core/src/messaging/thread-policy.js": 1
+  },
+  "packages/client/src/client/turn-continuation.ts": {
+    "../../../core/src/channels/channel-notice.js": 1
+  },
+  "packages/client/src/client/update-run-view.tsx": {
+    "../../../core/src/release/update-runs.js": 1
+  },
+  "packages/client/src/client/update-runs.ts": {
+    "../../../core/src/release/update-runs.js": 1
+  },
+  "packages/client/src/client/voice-bridge.ts": {
+    "../../../core/src/bots/persona-bot.js": 1,
+    "../../../core/src/voice/bridge.js": 1,
+    "../../../core/src/voice/presets.js": 1,
+    "../../../core/src/voice/providers.js": 1,
+    "../../../core/src/voice/vad.js": 1
+  },
+  "packages/client/src/client/voice-call-record.tsx": {
+    "../../../core/src/voice/call-view.js": 1
+  },
+  "packages/client/src/client/voice-options.ts": {
+    "../../../core/src/voice/presets.js": 1
+  },
+  "packages/client/src/client/window-companion-view.tsx": {
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/companions/feed.js": 1,
+    "../../../core/src/companions/sources.js": 1
+  },
+  "packages/client/src/client/window-companion.ts": {
+    "../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../core/src/channels/message-preview.js": 1,
+    "../../../core/src/companions/feed.js": 1,
+    "../../../core/src/companions/sources.js": 1
+  },
+  "packages/client/src/client/window-companions.ts": {
+    "../../../core/src/companions/sources.js": 1
+  },
+  "packages/client/src/index.ts": {
+    "../../core/src/release/component.js": 1
+  }
+}
