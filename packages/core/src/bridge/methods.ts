@@ -1,3 +1,11 @@
+import {
+  createModelProviderBridge,
+  invalidInput,
+  modelFailure,
+  type ModelProviderBridgeMethods,
+} from '../models/provider-bridge.js';
+import type { ModelProviders } from '../models/providers.js';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -804,7 +812,7 @@ export interface MessagingAppsView {
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export interface BridgeMethods extends TeamBridgeMethods {
+export interface BridgeMethods extends TeamBridgeMethods, ModelProviderBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -906,6 +914,7 @@ export interface BridgeMethods extends TeamBridgeMethods {
       defaultGroupId?: string;
       favorites?: ModelFavorite[];
       groups?: ModelCatalogGroup[];
+      routingGroupEngines?: RoutingGroupEngineOptions[];
     }>
   >;
   modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
@@ -1463,11 +1472,13 @@ export interface BridgeMethodsDeps {
   subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
     store: Pick<EngineHost['store'], 'selection'>;
   };
+  routingGroupEngineOptions?(): Promise<RoutingGroupEngineOptions[]>;
   releaseEngineQuotaHold?(slug: string): void;
   modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
   routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
+  modelProviders?: ModelProviders;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
@@ -1910,24 +1921,6 @@ function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineI
     ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
     ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
   };
-}
-
-function modelFailure(error: unknown): BridgeResult<never> {
-  if (error instanceof EngineRefusal)
-    return { ok: false, error: { code: error.code, message: error.message } };
-  if (error instanceof TeamError)
-    return {
-      ok: false,
-      error: {
-        code: error.code,
-        message: error.code,
-        ...(error.details ? { details: error.details } : {}),
-      },
-    };
-  return invalidInput(error instanceof Error ? error.message : String(error));
-}
-function invalidInput(message: string): BridgeResult<never> {
-  return { ok: false, error: { code: 'invalid-input', message } };
 }
 
 function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
@@ -3178,6 +3171,7 @@ function buildBridgeMethods(
 
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
+    ...createModelProviderBridge(human, deps),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
@@ -4357,7 +4351,7 @@ function buildBridgeMethods(
         },
       };
     },
-    async modelCatalog() {
+    async modelCatalog(payload) {
       if (deps.modelCatalog === undefined) return unavailable();
       try {
         const models = await deps.modelCatalog.list();
@@ -4399,6 +4393,10 @@ function buildBridgeMethods(
             ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
             ...catalogGroups(rests, () => true),
+            ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
+            deps.routingGroupEngineOptions !== undefined
+              ? { routingGroupEngines: await deps.routingGroupEngineOptions() }
+              : {}),
           },
         };
       } catch (error) {

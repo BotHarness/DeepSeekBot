@@ -7,6 +7,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
   (await import('./primitive-mocks.js')).comboboxPrimitives(),
 );
 
+import type { ModelCatalogGroupView } from '../src/client/bridge.js';
 import type { EngineStatusView } from '../src/client/engine-choice.js';
 import { modelFamilies } from '@botharness/host-client/shared/model-brand';
 import type { ModelCatalogEntryView } from '../src/client/bridge.js';
@@ -318,7 +319,7 @@ it('lists Routing Groups in their own column with the member in front, and stars
   ]);
   const daily = document.body.querySelector("[data-picker-option='group:daily']");
   expect(daily?.getAttribute('aria-label')).toBe(
-    `Daily · ${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1 · OpenAI' })}`,
+    `Daily · ${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1 · OpenAI' })} · DeepSeek V4.1 Flash · OpenCode Go · GPT-6.1 · OpenAI`,
   );
   expect(daily?.querySelector('[data-model-brand]')).not.toBeNull();
   expect(
@@ -454,4 +455,29 @@ it('filters subscription models by engine and exposes only applicable actions', 
       .click(),
   );
   expect(onSelect).toHaveBeenCalledExactlyOnceWith('engine-signin:claude');
+});
+
+it('announces the current target and the full saved member order without displaying the backup engines', async () => {
+  const front = catalog[0]!;
+  const groups: ModelCatalogGroupView[] = [
+    {
+      id: 'mixed',
+      name: 'Mixed',
+      revision: 1,
+      routes: [{ provider: front.provider, model: front.model }],
+      members: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+        { kind: 'model', provider: front.provider, model: front.model },
+        { kind: 'engine', engine: 'claude' },
+      ],
+    },
+  ];
+  await render({ items: catalogMenuItems(catalog, zhTranslate, groups) });
+  const option = document.body.querySelector('[data-picker-option="group:mixed"]');
+  expect(option?.textContent).toContain('当前：V4.1 Flash');
+  expect(option?.textContent).not.toMatch(/Codex|Claude/);
+  expect(option?.getAttribute('aria-label')).toBe(
+    'Mixed · 当前：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
+  );
+  expect(option?.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
 });

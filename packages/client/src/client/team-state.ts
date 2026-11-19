@@ -67,6 +67,10 @@ export function setTeamModeSnapshot(call: BridgeCall, value: TeamModeView): void
   publish(call, entry(call), value);
 }
 
+export function currentTeamMode(call: BridgeCall): TeamModeView | undefined {
+  return entry(call).value;
+}
+
 export function useTeamMode(call: BridgeCall | undefined): TeamModeView | undefined {
   const value = useSyncExternalStore(
     (listener) => {

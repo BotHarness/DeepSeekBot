@@ -40,8 +40,15 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   placeholder: { color: ink.tertiary },
-  hint: { flexShrink: 0, color: ink.secondary, fontSize: text.metaSize },
-  hintIcon: { display: 'inline-flex', verticalAlign: 'middle', marginInlineEnd: space.x1 },
+  hint: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    flexShrink: 0,
+    color: ink.secondary,
+    fontSize: text.metaSize,
+  },
+  hintIcon: { display: 'inline-flex', flexShrink: 0 },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
