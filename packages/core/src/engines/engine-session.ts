@@ -35,6 +35,8 @@ export interface EngineChoice {
   effort?: string;
 }
 
+export type EngineWorkspaceMode = 'read-only' | 'workspace-write' | 'danger-full-access';
+
 const EFFORT_NAMES: Record<string, string> = {
   none: 'None',
   minimal: 'Minimal',
