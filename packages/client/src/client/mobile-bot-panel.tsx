@@ -307,7 +307,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
           <button
             type="button"
             {...stylex.props(styles.touch, styles.hover, styles.navButton)}
-            onClick={props.openBotSettings}
+            onClick={() => props.openBotSettings()}
             aria-label={t('panel.settings')}
             title={t('panel.settings')}
           >

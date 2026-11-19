@@ -2,6 +2,7 @@ import type { Appearance, AppearanceSnapshot, AppearancePatch } from './appearan
 import { appearanceMaterials } from './appearance-materials.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { ColorInput } from './ds/input.js';
 import { Slider } from './ds/slider.js';
 import { tobsTokens } from './tobs-theme.js';
 export function AppearanceMaterialSettings({
@@ -37,15 +38,10 @@ export function AppearanceMaterialSettings({
           <SettingsRow
             title={t('appearance.materialColor')}
             control={
-              <input
-                type="color"
-                aria-label={t(
-                  part === 'header' ? 'appearance.headerColor' : 'appearance.bodyColor',
-                )}
+              <ColorInput
+                label={t(part === 'header' ? 'appearance.headerColor' : 'appearance.bodyColor')}
                 value={materials[part].color}
-                onChange={(event) =>
-                  change({ mode, materials: { [part]: { color: event.currentTarget.value } } })
-                }
+                onChange={(color) => change({ mode, materials: { [part]: { color } } })}
               />
             }
           />

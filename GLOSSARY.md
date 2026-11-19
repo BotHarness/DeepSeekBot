@@ -1181,7 +1181,7 @@ Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. On
 _Avoid_: Telemetry, multi-message export, automatic error reporting
 
 **Mobile Telemetry**:
-Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
+Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers ([ADR-0214](docs/decisions/mobile.md#adr-0214)).
 
 **Mobile Install ID**:
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
