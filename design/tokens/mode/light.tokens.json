@@ -67,59 +67,31 @@
       "layer": {
         "canvas": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [1.0, 1.0, 1.0],
-            "hex": "#ffffff"
-          }
+          "$value": "{palette.neutral.100}"
         },
         "raised": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.9569, 0.9608, 0.9686],
-            "hex": "#f4f5f7"
-          }
+          "$value": "{palette.neutral.97}"
         },
         "well": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.9255, 0.9333, 0.9451],
-            "hex": "#eceef1"
-          }
+          "$value": "{palette.neutral.94}"
         },
         "field": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [1.0, 1.0, 1.0],
-            "hex": "#ffffff"
-          }
+          "$value": "{palette.neutral.100}"
         },
         "nav": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.9725, 0.9765, 0.9804],
-            "hex": "#f8f9fa"
-          }
+          "$value": "{palette.neutral.98}"
         },
         "sheet": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [1.0, 1.0, 1.0],
-            "hex": "#ffffff"
-          }
+          "$value": "{palette.neutral.100}"
         },
         "elevated": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [1.0, 1.0, 1.0],
-            "hex": "#ffffff"
-          }
+          "$value": "{palette.neutral.100}"
         },
         "scrim": {
           "$type": "color",
@@ -144,27 +116,15 @@
       "ink": {
         "primary": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.0667, 0.0745, 0.0941],
-            "hex": "#111318"
-          }
+          "$value": "{palette.neutral.7}"
         },
         "secondary": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.3608, 0.3843, 0.4157],
-            "hex": "#5c626a"
-          }
+          "$value": "{palette.neutral.38}"
         },
         "tertiary": {
           "$type": "color",
-          "$value": {
-            "colorSpace": "srgb",
-            "components": [0.4039, 0.4235, 0.4549],
-            "hex": "#676c74"
-          },
+          "$value": "{palette.neutral.42}",
           "$description": "Lowest text ink; still 4.5:1 on every surface."
         },
         "quiet": {

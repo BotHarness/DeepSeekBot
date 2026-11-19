@@ -89,6 +89,7 @@ export function layers(
   color: {
     base: string;
     surface: string;
+    well: string;
     field: string;
     sheet: string;
     hover: string;
@@ -103,7 +104,7 @@ export function layers(
   const fills: Record<LayerName, string> = {
     canvas: color.base,
     raised: color.surface,
-    well: color.base,
+    well: color.well,
     field: color.field,
     sheet: color.sheet,
   };
