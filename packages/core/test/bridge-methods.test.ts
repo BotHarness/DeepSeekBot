@@ -29,6 +29,7 @@ import {
 } from '../src/usage/usage.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
+import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { DirectBotToolError, type BotRuntime } from '../src/runtime/bot-runtime.js';
 import { GenuiDiagramError } from '../src/runtime/genui-diagram.js';
@@ -56,6 +57,57 @@ it('reports unavailable Group review without blaming roster storage', () => {
       message: 'Group send review is unavailable on this Host',
     },
   });
+});
+
+it('reads engine status and models only for the opted-in Routing Group catalog', async () => {
+  const { registry, states, channels } = setup();
+  const status = vi.fn(async () =>
+    (
+      [
+        {
+          engine: 'codex',
+          displayName: 'Codex',
+          installed: true,
+          available: true,
+          login: 'chatgpt',
+        },
+        {
+          engine: 'claude',
+          displayName: 'Claude Code',
+          installed: true,
+          available: false,
+          reason: 'signed-out',
+          login: 'signed-out',
+        },
+      ] as const
+    ).map((engine) => ({ ...engine })),
+  );
+  const models = vi.fn(async (_engine: 'codex' | 'claude') => [
+    { id: 'gpt-5.4', name: 'GPT-5.4', efforts: [] },
+  ]);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+    registry,
+    states,
+    channels,
+    roster: createTestRosterStore(),
+    ownership: createTestOwnership(),
+    modelCatalog: { list: async () => [], validate: async () => undefined },
+    routingGroupEngineOptions: () => routingGroupEngineOptions({ status, models }),
+  });
+  await expect(methods.modelCatalog({})).resolves.toEqual({ ok: true, value: { models: [] } });
+  expect(status).not.toHaveBeenCalled();
+  await expect(methods.modelCatalog({ includeRoutingGroupEngines: true })).resolves.toEqual({
+    ok: true,
+    value: {
+      models: [],
+      routingGroupEngines: [
+        { engine: 'codex', available: true, models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }] },
+        { engine: 'claude', available: false, reason: 'signed-out' },
+      ],
+    },
+  });
+  expect(status).toHaveBeenCalledOnce();
+  expect(models.mock.calls).toEqual([['codex']]);
 });
 
 describe('composer recovery reference validation', () => {

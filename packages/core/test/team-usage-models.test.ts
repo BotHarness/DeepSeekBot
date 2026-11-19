@@ -927,3 +927,33 @@ describe('M10 member usage and role models', () => {
     }
   });
 });
+
+it('keeps provider list and writes behind the explicitly granted management permission', async () => {
+  const { deps, team, member } = fixture();
+  const modelProviders = {
+    list: vi.fn(async () => ({ providers: [] })),
+    add: vi.fn(),
+    edit: vi.fn(),
+    remove: vi.fn(),
+  };
+  const memberMethods = createBridgeMethods(member, { ...deps, modelProviders });
+  const ownerMethods = createBridgeMethods(owner, { ...deps, modelProviders });
+  const denied = {
+    ok: false,
+    error: { code: 'permission-required', details: { permission: 'modelSources.manage' } },
+  };
+  expect(await memberMethods.modelProviders({})).toMatchObject(denied);
+  expect(await memberMethods.modelProviderAdd({ key: 'test-secret' })).toMatchObject(denied);
+  expect(await memberMethods.modelProviderEdit({ key: 'test-secret' })).toMatchObject(denied);
+  expect(await memberMethods.modelProviderRemove({ id: 'test' })).toMatchObject(denied);
+  expect(modelProviders.list).not.toHaveBeenCalled();
+  expect(modelProviders.add).not.toHaveBeenCalled();
+  expect(modelProviders.edit).not.toHaveBeenCalled();
+  expect(modelProviders.remove).not.toHaveBeenCalled();
+  expect(await ownerMethods.modelProviders({})).toEqual({ ok: true, value: { providers: [] } });
+  expect(() => team.roles.update(owner, 'admin', { permissions: ['modelSources.manage'] })).toThrow(
+    expect.objectContaining({ code: 'permission-not-grantable' }),
+  );
+  team.roles.update(owner, 'member', { permissions: ['modelSources.manage'] });
+  expect(await memberMethods.modelProviders({})).toEqual({ ok: true, value: { providers: [] } });
+});

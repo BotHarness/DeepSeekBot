@@ -13,6 +13,8 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
+import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'packages/deepseekbot/dist/deepseekbot.mjs');
@@ -29,6 +31,7 @@ Options:
   --name <n>         verify-app instance (default team-security).
   --launch           Launch that instance first (run pnpm build before) and stop it afterwards.
   --scenario <id>    Run only scenarios whose id starts with this (repeatable), e.g. A, B2, C.
+  --no-subscriptions Mark the Subscription Engine cases as blocked without checking logins.
   --report <dir>     Report directory (default .humanlayer/team-security/<time>). It holds
                      report.json, report.md and transcripts/. Publish it with pnpm evidence:publish;
                      never commit it.
@@ -85,6 +88,7 @@ function parseArgs(argv) {
     if (value === '--name') options.name = next();
     else if (value === '--launch') options.launch = true;
     else if (value === '--scenario') options.scenarios.push(next());
+    else if (value === '--no-subscriptions') options.noSubscriptions = true;
     else if (value === '--report') options.report = resolve(next());
     else if (value === '--timeout') options.timeout = Number(next());
     else if (value === '--list') options.list = true;
@@ -227,17 +231,19 @@ class Suite {
     this.current = id;
     const started = Date.now();
     const checks = [];
+    let blocked;
     const check = (name, ok, detail) => {
       checks.push({ name, ok: Boolean(ok), ...(detail === undefined ? {} : { detail }) });
       return ok;
     };
     try {
-      await run(check);
+      await run(check, (reason) => (blocked = reason));
       const failed = checks.filter((item) => !item.ok);
       this.results.push({
         id,
         summary,
-        result: failed.length === 0 ? 'pass' : 'fail',
+        result: failed.length > 0 ? 'fail' : blocked === undefined ? 'pass' : 'blocked',
+        ...(blocked === undefined ? {} : { error: blocked }),
         checks,
         ms: Date.now() - started,
       });
@@ -259,7 +265,7 @@ class Suite {
     if (last.error) process.stdout.write(`  ✗ ${last.error}\n`);
   }
 
-  member(username, roleIds, base = ['member']) {
+  member(username, roleIds, base = ['member'], webCredentials) {
     const file = join(this.secrets, `${username}.pw`);
     const created = this.cli([
       'members',
@@ -273,10 +279,12 @@ class Suite {
       '--initial-password-file',
       file,
     ]).member;
+    const password = `${randomUUID()}Aa!`;
     this.cli(['members', 'change-password', '--password-stdin'], {
       as: username,
-      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: `${randomUUID()}Aa!` }),
+      input: JSON.stringify({ current: readFileSync(file, 'utf8'), next: password }),
     });
+    webCredentials?.set(username, password);
     rmSync(file);
     return created;
   }
@@ -377,9 +385,10 @@ export async function main(argv = process.argv.slice(2)) {
         carol: `carol-${tag}`,
         dave: `dave-${tag}`,
       };
+      const webCredentials = new Map();
       const humans = {
         alice: s.member(users.alice, [roles.finance.roleId, roles.creators.roleId]),
-        bob: s.member(users.bob, [roles.creators.roleId]),
+        bob: s.member(users.bob, [roles.creators.roleId], ['member'], webCredentials),
         carol: s.member(users.carol, [roles.finance.roleId, roles.audit.roleId]),
         dave: s.member(users.dave, [roles.limited.roleId], []),
       };
@@ -435,6 +444,7 @@ export async function main(argv = process.argv.slice(2)) {
       writeFileSync(join(sharedFinance, 'ledger.md'), `${SHARED_FINANCE}\n`);
       const status = s.cli(['team-mode', 'status']);
       fx = {
+        webCredentials,
         roles,
         users,
         humans,
@@ -843,6 +853,19 @@ export async function main(argv = process.argv.slice(2)) {
       },
     );
 
+    for (const engine of ['claude', 'codex']) {
+      await define(
+        `B4-${engine}`,
+        `${engine} Assignment cannot write inside or outside a read-only Workspace Grant`,
+        (check, block) => engineWorkspaceScenario(s, engine, false, check, block),
+      );
+      await define(
+        `B5-${engine}`,
+        `${engine} Assignment with full access can edit and run shell outside the Grant`,
+        (check, block) => engineWorkspaceScenario(s, engine, true, check, block),
+      );
+    }
+
     await define('C2', 'Offboarding and model allowlists hold', async (check) => {
       s.cli([
         'roles',
@@ -862,6 +885,15 @@ export async function main(argv = process.argv.slice(2)) {
       const refused = s.cli(['bots', 'reachable'], { as: fx.users.dave, allowFail: true });
       check('deactivated member refused', refused?.error !== undefined, refused?.error);
     });
+
+    await define(
+      'C3',
+      'Model provider settings require the explicit management permission',
+      async (check) => {
+        const as = fx.users.bob;
+        await runModelProviderGate(s, { as, password: fx.webCredentials.get(as) }, check);
+      },
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

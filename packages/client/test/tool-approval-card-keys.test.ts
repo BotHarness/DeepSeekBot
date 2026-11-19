@@ -238,7 +238,7 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     await act(async () =>
-      card.querySelector<HTMLElement>('.bh-tool-approval-details-body .bh-note')!.click(),
+      card.querySelector<HTMLElement>('.bh-tool-approval-details-body > div')!.click(),
     );
     expect(card.querySelector('.bh-tool-approval-details-body')).not.toBeNull();
     await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());

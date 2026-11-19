@@ -301,7 +301,8 @@ function RoleDialog({
               <div {...stylex.props(styles.checks)}>
                 {entries.map((entry) => {
                   const locked =
-                    (builtin === 'admin' && entry.id === 'privateContent.view') ||
+                    (builtin === 'admin' &&
+                      (entry.id === 'privateContent.view' || entry.id === 'modelSources.manage')) ||
                     !canGrant(viewer, entry.id);
                   const hint = permissionHint(t, entry.id);
                   return (

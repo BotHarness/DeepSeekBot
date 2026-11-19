@@ -162,6 +162,11 @@ export const MESSAGING_OPTIONS = {
 } as const;
 
 export const MODELS_USAGE_OPTIONS = {
+  template: { type: 'string' },
+  endpoint: { type: 'string' },
+  'key-stdin': { type: 'boolean' },
+  'key-file': { type: 'string' },
+  confirm: { type: 'boolean' },
   'orchestrator-engine': { type: 'string' },
   'orchestrator-engine-model': { type: 'string' },
   'orchestrator-engine-effort': { type: 'string' },

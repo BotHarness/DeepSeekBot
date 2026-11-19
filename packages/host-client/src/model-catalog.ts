@@ -1,8 +1,15 @@
 import {
   ENGINE_DEFINITIONS,
+  ENGINE_IDS,
+  ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS,
+  isEngineId,
   isRoutingGroupEngineMember,
   type RoutingGroupEngineMember,
+  type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
+
+import type { HostCall } from './host-answer';
+import { modelBrand, modelShortName } from './shared/model-brand';
 
 export interface ModelCatalogRoute {
   provider: string;
@@ -36,13 +43,84 @@ export interface ModelCatalogGroup {
   name: string;
   revision: number;
   routes: ModelCatalogRoute[];
-  engineMembers?: RoutingGroupEngineMember[];
+  members?: RoutingGroupMember[];
   restingUntil?: string;
 }
 
-export function routingGroupEngineLabel(member: RoutingGroupEngineMember): string {
-  const name = ENGINE_DEFINITIONS[member.engine].displayName;
-  return member.model === undefined ? name : `${name} (${member.model})`;
+export interface RoutingGroupEngineCopy {
+  defaultModel(engine: string): string;
+  subscription(source: string): string;
+}
+
+export function routingGroupEnginePresentation(
+  member: RoutingGroupEngineMember,
+  copy: RoutingGroupEngineCopy,
+  modelName?: string,
+) {
+  const engineName = ENGINE_DEFINITIONS[member.engine].displayName;
+  const brand =
+    modelBrand({ model: member.model, name: modelName }) ??
+    (member.engine === 'codex' ? 'openai' : 'claude');
+  const name =
+    member.model === undefined
+      ? copy.defaultModel(engineName)
+      : (modelName ??
+        member.model.replace(
+          /^gpt(-[0-9.]+)(?:-([a-z]+))?$/iu,
+          (_id: string, version: string, variant: string | undefined) =>
+            `GPT${version}${variant === undefined ? '' : ` ${variant.charAt(0).toUpperCase()}${variant.slice(1)}`}`,
+        ));
+  const short = member.model === undefined ? name : modelShortName(name, brand);
+  return {
+    brand,
+    title: /^[0-9]|^$/u.test(short) ? name : short,
+    name,
+    detail: `${engineName} · ${copy.subscription(member.engine === 'codex' ? 'ChatGPT' : 'Claude')}`,
+  };
+}
+
+export function routingGroupEngineChoices(engines: readonly RoutingGroupEngineOptions[]) {
+  return engines.flatMap((status) => {
+    const member: RoutingGroupEngineMember = { kind: 'engine', engine: status.engine };
+    const choices: {
+      member: RoutingGroupEngineMember;
+      status: RoutingGroupEngineOptions;
+      modelName?: string;
+    }[] = [{ member, status }];
+    if (status.available)
+      for (const model of status.models)
+        choices.push({ member: { ...member, model: model.id }, status, modelName: model.name });
+    return choices;
+  });
+}
+
+export async function loadRoutingGroupEngines(
+  host: HostCall,
+): Promise<RoutingGroupEngineOptions[]> {
+  const answer = record(await host.call('modelCatalog', { includeRoutingGroupEngines: true }));
+  const rows = answer?.['routingGroupEngines'];
+  if (!Array.isArray(rows)) return [];
+  const statuses = rows.flatMap((value): RoutingGroupEngineOptions[] => {
+    const row = record(value);
+    const engine = row?.['engine'];
+    if (!isEngineId(engine)) return [];
+    if (row?.['available'] === true) {
+      const models = Array.isArray(row['models'])
+        ? row['models'].flatMap((value) => {
+            const model = record(value);
+            const id = model?.['id'];
+            const name = model?.['name'];
+            return filled(id) && filled(name) ? [{ id, name }] : [];
+          })
+        : [];
+      return [{ engine, available: true, models }];
+    }
+    const reason = ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS.find(
+      (reason) => reason === row?.['reason'],
+    );
+    return reason === undefined ? [] : [{ engine, available: false, reason }];
+  });
+  return ENGINE_IDS.flatMap((engine) => statuses.find((status) => status.engine === engine) ?? []);
 }
 
 export type RoutingGroupMember =
@@ -69,22 +147,47 @@ export function parseRoutingGroup(value: unknown): RoutingGroup | undefined {
     !Array.isArray(rows)
   )
     return undefined;
-  const members: RoutingGroupMember[] = [];
-  for (const value of rows) {
-    if (isRoutingGroupEngineMember(value)) {
-      members.push(value);
-      continue;
-    }
-    const member = record(value);
-    if (member?.['kind'] === 'group' && filled(member['id'])) {
-      members.push({ kind: 'group', id: member['id'] });
-      continue;
-    }
-    const route = member?.['kind'] === 'model' ? catalogRoute(member) : undefined;
-    if (route === undefined) return undefined;
-    members.push({ kind: 'model', ...route });
-  }
-  return { id, name, revision, members };
+  const members = rows.map(parseRoutingGroupMember);
+  return members.every((member) => member !== undefined)
+    ? { id, name, revision, members }
+    : undefined;
+}
+
+function parseRoutingGroupMember(value: unknown): RoutingGroupMember | undefined {
+  if (isRoutingGroupEngineMember(value)) return value;
+  const member = record(value);
+  if (member?.['kind'] === 'group' && filled(member['id']))
+    return { kind: 'group', id: member['id'] };
+  const route = member?.['kind'] === 'model' ? catalogRoute(member) : undefined;
+  return route === undefined ? undefined : { kind: 'model', ...route };
+}
+
+export function modelCatalogGroupMemberLabels(
+  group: ModelCatalogGroup,
+  models: readonly ModelCatalogEntry[],
+  groups: readonly ModelCatalogGroup[],
+  copy: RoutingGroupEngineCopy,
+): string[] {
+  return (group.members ?? group.routes.map((route) => ({ kind: 'model' as const, ...route }))).map(
+    (member) => {
+      switch (member.kind) {
+        case 'group':
+          return groups.find((group) => group.id === member.id)?.name ?? member.id;
+        case 'engine': {
+          const row = routingGroupEnginePresentation(member, copy);
+          return `${row.name} · ${row.detail}`;
+        }
+        case 'model': {
+          const entry = models.find(
+            (model) => model.provider === member.provider && model.model === member.model,
+          );
+          return entry === undefined
+            ? `${member.provider}/${member.model}`
+            : `${entry.modelName} · ${entry.providerName}`;
+        }
+      }
+    },
+  );
 }
 
 export type ModelChoice =
@@ -199,14 +302,16 @@ export function modelCatalogGroup(value: unknown): ModelCatalogGroup | undefined
     return parsed === undefined ? [] : [parsed];
   });
   if (routes.length === 0) return undefined;
-  const members = row['members'];
-  const engineMembers = Array.isArray(members) ? members.filter(isRoutingGroupEngineMember) : [];
+  const rawMembers = row['members'];
+  const members = Array.isArray(rawMembers)
+    ? rawMembers.flatMap((member) => parseRoutingGroupMember(member) ?? [])
+    : [];
   return {
     id,
     name: filled(row['name']) ? row['name'] : id,
     revision: typeof revision === 'number' && Number.isSafeInteger(revision) ? revision : 0,
     routes,
-    ...(engineMembers.length === 0 ? {} : { engineMembers }),
+    ...(members.length === 0 ? {} : { members }),
     ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
   };
 }

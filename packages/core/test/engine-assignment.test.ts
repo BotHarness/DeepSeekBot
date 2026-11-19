@@ -123,6 +123,7 @@ describe('Assignments on a Subscription Engine', () => {
       botSlug: 'ada',
       role: 'assignment',
       cwd: grant,
+      workspaceMode: () => 'workspace-write',
       sessionId: 'assignment-1',
       channelId: undefined,
       input: 'Fix the export button',
@@ -255,6 +256,7 @@ function adapterWith(engines: DshBotEngines, host = new FakeAgentHost({ kind: 'c
       ensureWorkspace: () => {},
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       engines,
+      engineWorkspaceMode: () => 'workspace-write',
     }),
   };
 }

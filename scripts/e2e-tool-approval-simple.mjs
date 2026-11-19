@@ -296,7 +296,7 @@ try {
     await page.waitForSelector('.bh-tool-approval-card[tabindex="0"]', { visible: true });
     assert.equal(
       await page.$eval(
-        '.bh-tool-approval-card[tabindex="0"] .bh-request-secondary',
+        '.bh-tool-approval-card[tabindex="0"] ::-p-aria([name="Always allow"][role="button"])',
         (button) => button.disabled,
       ),
       !managementAlways,

@@ -19,12 +19,14 @@ import {
   controlSize,
   disabled as controlDisabled,
   font,
+  foregroundStyle,
   frame,
   multilineTextAlignment,
   shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { controlCase } from '../platform-copy';
+import { cardDecisionInk } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
@@ -86,6 +88,7 @@ function SwiftUIButton({
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
+  const cardInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
   const Stack = theme.largeText ? VStack : HStack;
   return (
     <Host
@@ -103,7 +106,7 @@ function SwiftUIButton({
         modifiers={[
           buttonStyle(style),
           controlSize('large'),
-          tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
+          tint(cardInk ?? (tone === 'danger' ? theme.color.danger : theme.color.accent)),
           controlDisabled(disabled || busy),
           accessibilityLabel(label),
           ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
@@ -115,6 +118,9 @@ function SwiftUIButton({
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: bezel ? theme.touch - space.x5 : theme.touch }),
             ...(bezel ? [] : [contentShape(shapes.rectangle())]),
+            ...(cardInk !== undefined && ((!disabled && !busy) || selected)
+              ? [foregroundStyle(cardInk)]
+              : []),
           ]}
         >
           {busy ? (

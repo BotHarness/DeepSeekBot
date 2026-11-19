@@ -12,6 +12,7 @@ const { parse } = require('@babel/parser');
 export const BASELINE = join(root, 'scripts/ui-copy-baseline.json');
 export const SOURCES = [
   { name: 'client', file: 'packages/client/src/client/locale.ts' },
+  { name: 'client', file: 'packages/client/src/client/model-provider-copy.ts' },
   { name: 'mobile', file: 'apps/mobile/src/ui/strings.ts' },
 ];
 const GUIDE = 'docs/agents/ui-copy.md';

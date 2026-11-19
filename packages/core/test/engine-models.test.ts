@@ -12,8 +12,9 @@ import {
   codexProcessSpec,
 } from '../src/engines/codex-engine.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
-import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
+import { EngineHost, type EngineHostOptions, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import {
   type ClaudeRecordedLine,
   claudeReplay,
@@ -65,7 +66,10 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function setup(recordings: ClaudeRecordedLine[][]) {
+function setup(
+  recordings: ClaudeRecordedLine[][],
+  detectors: Pick<EngineHostOptions, 'detectCodex' | 'detectClaude'> = {},
+) {
   const root = createTempRoot('engine-models-');
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
@@ -82,6 +86,7 @@ function setup(recordings: ClaudeRecordedLine[][]) {
     openClaude: replay.factory,
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
+    ...detectors,
   });
   const request = {
     botSlug: 'ada',
@@ -107,6 +112,32 @@ function setup(recordings: ClaudeRecordedLine[][]) {
 }
 
 describe('Subscription Engine models', () => {
+  it('keeps the healthy engine and its models when another status probe fails', async () => {
+    const { host, replay } = setup([LISTING], {
+      detectCodex: async () => {
+        throw new Error('EACCES: cannot open the Codex profile directory');
+      },
+    });
+    try {
+      const [codex, claude] = await routingGroupEngineOptions(host);
+      expect(codex).toEqual({ engine: 'codex', available: false, reason: 'login-unknown' });
+      expect(claude).toEqual({
+        engine: 'claude',
+        available: true,
+        models: [
+          { id: 'default', name: 'Default (recommended)' },
+          { id: 'sonnet', name: 'Sonnet' },
+          { id: 'fable', name: 'Fable' },
+          { id: 'opus', name: 'Opus' },
+          { id: 'haiku', name: 'Haiku' },
+        ],
+      });
+      expect(replay.prompts).toEqual([]);
+    } finally {
+      await host.close();
+    }
+  });
+
   it('lists the Claude subscription models without the gateway and caches them', async () => {
     const { host, replay, route, root } = setup([LISTING]);
     const listed = await route({ action: 'models', engine: 'claude' });
