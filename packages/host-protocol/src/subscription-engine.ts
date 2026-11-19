@@ -11,21 +11,42 @@ export function isEngineId(value: unknown): value is EngineId {
   return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
 }
 
+export const DEFAULT_CODEX_ACCOUNT = 'codex-default';
+
+export function engineAccountKey(engine: EngineId, accountId?: string): string {
+  return accountId ?? (engine === 'codex' ? DEFAULT_CODEX_ACCOUNT : engine);
+}
+
+export interface EngineAccountIdentity {
+  accountId?: string;
+  accountName?: string;
+}
+
+export interface NamedEngineAccount {
+  id: string;
+  engine: EngineId;
+  name: string;
+}
+
 export interface RoutingGroupEngineMember {
   kind: 'engine';
   engine: EngineId;
   model?: string;
+  accountId?: string;
 }
 
 export function isRoutingGroupEngineMember(value: unknown): value is RoutingGroupEngineMember {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const member = value as Record<string, unknown>;
-  const model = member['model'];
+  const { model, accountId } = member;
   return (
     member['kind'] === 'engine' &&
     isEngineId(member['engine']) &&
     (model === undefined || (typeof model === 'string' && model.trim().length > 0)) &&
-    Object.keys(member).every((key) => key === 'kind' || key === 'engine' || key === 'model')
+    (accountId === undefined || (typeof accountId === 'string' && accountId.trim().length > 0)) &&
+    Object.keys(member).every(
+      (key) => key === 'kind' || key === 'engine' || key === 'model' || key === 'accountId',
+    )
   );
 }
 
@@ -40,7 +61,8 @@ export const ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS = [
 export type RoutingGroupEngineUnavailable =
   (typeof ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS)[number];
 
-export type RoutingGroupEngineOptions = { engine: EngineId } & (
-  | { available: true; models: { id: string; name: string }[] }
-  | { available: false; reason: RoutingGroupEngineUnavailable }
-);
+export type RoutingGroupEngineOptions = { engine: EngineId } & EngineAccountIdentity &
+  (
+    | { available: true; models: { id: string; name: string }[] }
+    | { available: false; reason: RoutingGroupEngineUnavailable }
+  );

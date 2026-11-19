@@ -1085,9 +1085,17 @@
       "id": "subscription-engines",
       "description": "The local Host lists subscription models and starts Codex or Claude Code sign-in from the Main and Task model pickers. Model Presets can store and restore a subscription model and effort for each role.",
       "scope": "Host / PersonaBot",
-      "surfaces": ["route:packages/core/src/plugin.ts:ENGINES_PATH"],
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:ENGINES_PATH",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.accountEngine')}",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.name')}"
+      ],
       "commands": [
         "engine-list",
+        "engine-accounts",
+        "engine-account-add",
+        "engine-account-rename",
+        "engine-account-remove",
         "engine-status",
         "engine-approvals",
         "engine-tools",

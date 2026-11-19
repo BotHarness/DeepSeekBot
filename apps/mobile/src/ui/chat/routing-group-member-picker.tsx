@@ -1,3 +1,4 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { useMemo, useState } from 'react';
 import { FlatList, Keyboard, View } from 'react-native';
 
@@ -34,7 +35,7 @@ export function routingGroupMemberKey(member: RoutingGroupMember): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
+      return `engine:${JSON.stringify([engineAccountKey(member.engine, member.accountId), member.model ?? ''])}`;
     case 'model':
       return JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
   }
@@ -74,6 +75,7 @@ export function RoutingGroupMemberPicker({
           choice.member,
           t.routingGroup.engineRow,
           choice.modelName,
+          choice.status.accountName,
         );
         const text = [row.name, row.title, row.detail, choice.member.model]
           .join(' ')
@@ -213,7 +215,7 @@ export function RoutingGroupMemberPicker({
                     ? undefined
                     : t.routingGroup.engineUnavailable[item.status.reason]
                 }
-                testID={`routing-member-engine-${item.member.engine}-${item.member.model ?? 'default'}`}
+                testID={`routing-member-engine-${item.member.accountId ?? item.member.engine}-${item.member.model ?? 'default'}`}
                 onPress={item.status.available ? () => select(item.member) : undefined}
               />
             ) : (

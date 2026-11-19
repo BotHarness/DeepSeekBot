@@ -4,7 +4,7 @@ import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
 import { ModelTrigger } from './model-trigger.js';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
-import type { EngineId, EngineModelView } from './engine-choice.js';
+import { engineModelKey, type EngineId, type EngineModels } from './engine-choice.js';
 import {
   catalogMenuItems,
   engineMenuKey,
@@ -50,16 +50,19 @@ export function ModelPicker({
     | {
         choice: SubscriptionModel | null;
         items: readonly ModelMenuItem[];
-        models: Partial<Record<EngineId, readonly EngineModelView[]>>;
+        models: EngineModels;
         onChange(choice: SubscriptionModel): void;
-        signIn(engine: EngineId): void;
+        signIn(engine: EngineId, accountId?: string): void;
       }
     | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
   const engine = subscription?.choice ?? null;
-  const models = engine === null ? [] : (subscription?.models[engine.engine] ?? []);
+  const models =
+    engine === null
+      ? []
+      : (subscription?.models[engineModelKey(engine.engine, engine.accountId)] ?? []);
   const selectedModel =
     engine?.model === undefined
       ? (models.find((model) => model.isDefault) ?? models[0])
@@ -127,16 +130,27 @@ export function ModelPicker({
         onSelect={(key) => {
           const item = items.find((entry) => entry.value === key);
           if (item?.engine !== undefined && subscription !== undefined) {
-            if (key === engineSignInKey(item.engine)) subscription.signIn(item.engine);
-            else if (item.model !== undefined && key === engineMenuKey(item.engine, item.model)) {
-              if (engine?.engine === item.engine && engine.model === item.model) return;
-              const model = subscription.models[item.engine]?.find(
+            if (key === engineSignInKey(item.engine, item.accountId))
+              subscription.signIn(item.engine, item.accountId);
+            else if (
+              item.model !== undefined &&
+              key === engineMenuKey(item.engine, item.model, item.accountId)
+            ) {
+              const accountKey = engineModelKey(item.engine, item.accountId);
+              if (
+                engine !== null &&
+                engineModelKey(engine.engine, engine.accountId) === accountKey &&
+                engine.model === item.model
+              )
+                return;
+              const model = subscription.models[accountKey]?.find(
                 (entry) => entry.id === item.model,
               );
               if (model === undefined) return;
               const effort = model.efforts.find((option) => option.id === model.defaultEffort);
               subscription.onChange({
                 engine: item.engine,
+                ...(item.accountId === undefined ? {} : { accountId: item.accountId }),
                 model: model.id,
                 ...(effort === undefined ? {} : { effort: effort.id }),
               });

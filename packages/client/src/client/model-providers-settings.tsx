@@ -1,3 +1,4 @@
+import { SubscriptionAccounts } from './subscription-accounts.js';
 import { useState, type ReactElement } from 'react';
 
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
@@ -15,12 +16,11 @@ import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
-import { useSubscriptionEngines, type EngineId, type EngineStatusView } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { observeResource } from './messaging-defaults-live.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
-import { shortTime, engineName } from './session-engine.js';
+import { ModelBrandIcon } from './model-brand.js';
+import { shortTime } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 type Template = 'opencode-go' | 'deepseek' | 'custom';
@@ -39,7 +39,6 @@ type Dialog =
   | { kind: 'receipt'; receipt: ModelProviderSave };
 
 const templateNames = { 'opencode-go': 'OpenCode Go', deepseek: 'DeepSeek' };
-const engineIds: readonly EngineId[] = ['codex', 'claude'];
 
 function blankDraft(): Draft {
   return { name: 'OpenCode Go', key: '', endpoint: '', model: '', template: 'opencode-go' };
@@ -81,78 +80,6 @@ function providerSummary(provider: ModelProviderView, t: BotHarnessTranslate): s
         )
       : t('modelProviders.resting', { time: shortTime(provider.restingUntil) });
   return [key, t('modelProviders.count', { count: provider.modelCount }), status].join(' · ');
-}
-
-function engineStatus(
-  status: EngineStatusView | undefined,
-  engine: string,
-  t: BotHarnessTranslate,
-): string {
-  if (status?.available === true) return t('modelProviders.signedIn');
-  switch (status?.reason) {
-    case 'not-installed':
-      return t('engine.notInstalled', { engine });
-    case 'signed-out':
-      return t('modelProviders.signedOut');
-    case 'not-subscription':
-      return t('engine.notSubscription');
-    case 'host-not-local':
-    case 'login-unknown':
-    case undefined:
-      return t('engine.loginUnknown');
-  }
-}
-
-function Subscriptions({ t }: { t: BotHarnessTranslate }): ReactElement {
-  const engines = useSubscriptionEngines(true, undefined, false);
-  return (
-    <SettingsSection title={t('modelProviders.subscriptions')}>
-      <div ref={engines.mount}>
-        {engines.loadFailed ? (
-          <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
-            {t('engine.loadFailed')}
-          </ReadFailure>
-        ) : null}
-        <SidebarCardList label={t('modelProviders.subscriptions')}>
-          {engineIds.map((id) => {
-            const status = engines.view?.engines.find(({ engine }) => engine === id);
-            const name = engineName(id);
-            return (
-              <SidebarCardRow
-                key={id}
-                leading={<EngineBrandIcon brand={id === 'codex' ? 'openai' : 'claude'} size={20} />}
-                title={name}
-                summary={engineStatus(status, name, t)}
-                trailing={
-                  status?.installed === true && !status.available ? (
-                    <Button
-                      variant="outline"
-                      disabled={engines.signingIn !== undefined}
-                      onClick={() => engines.signIn(id)}
-                    >
-                      {engines.signingIn === id
-                        ? t('engine.signingIn')
-                        : t('engine.signInLabel', { engine: name })}
-                    </Button>
-                  ) : undefined
-                }
-              />
-            );
-          })}
-        </SidebarCardList>
-        {engines.signInUrl === undefined ? null : (
-          <Note>
-            <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">
-              {t('engine.openSignIn')}
-            </a>
-          </Note>
-        )}
-        {engines.error === undefined ? null : (
-          <Note tone="danger">{t('modelProviders.signInFailed')}</Note>
-        )}
-      </div>
-    </SettingsSection>
-  );
 }
 
 export function ModelProvidersSettings({
@@ -500,7 +427,7 @@ export function ModelProvidersSettings({
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}
       </SettingsSection>
-      <Subscriptions t={t} />
+      <SubscriptionAccounts call={call} t={t} />
       {editor}
     </>
   );

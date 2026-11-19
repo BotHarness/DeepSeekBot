@@ -2,7 +2,10 @@ import {
   routingGroupEngineChoices,
   routingGroupEnginePresentation,
 } from '@botharness/host-client/model-catalog';
-import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
+import {
+  engineAccountKey,
+  type RoutingGroupEngineOptions,
+} from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState, type ReactElement } from 'react';
 
 import type { ModelCatalogEntryView, RoutingGroupMemberView, RoutingGroupView } from './bridge.js';
@@ -19,7 +22,7 @@ export function routingGroupMemberKey(member: RoutingGroupMemberView): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
+      return `engine:${JSON.stringify([engineAccountKey(member.engine, member.accountId), member.model ?? ''])}`;
     case 'model':
       return `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
   }
@@ -103,7 +106,12 @@ export function RoutingGroupMemberPicker({
     for (const { member, status, modelName } of routingGroupEngineChoices(engines ?? [])) {
       const value = routingGroupMemberKey(member);
       if (status.available && taken.has(value)) continue;
-      const row = routingGroupEnginePresentation(member, routingGroupEngineCopy(t), modelName);
+      const row = routingGroupEnginePresentation(
+        member,
+        routingGroupEngineCopy(t),
+        modelName,
+        status.accountName,
+      );
       const reason = status.available
         ? undefined
         : routingGroupEngineReason(member.engine, status.reason, t);

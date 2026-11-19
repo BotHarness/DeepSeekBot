@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   isRoutingGroupEngineMember,
+  engineAccountKey,
   type RoutingGroupEngineMember,
 } from '@botharness/host-protocol/subscription-engine';
 
@@ -18,7 +19,7 @@ export type ModelChoice =
 export type RoutingGroupMember = ModelChoice | RoutingGroupEngineMember;
 
 export const ROUTING_GROUP_MEMBER_SHAPES =
-  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?}';
+  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,accountId?}';
 
 export interface RoutingGroup {
   id: string;
@@ -114,6 +115,7 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
     return {
       kind: 'engine',
       engine: member.engine,
+      ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
       ...(member.model === undefined ? {} : { model: member.model.trim() }),
     };
   return {
@@ -127,8 +129,10 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
 }
 
 export function memberLabel(member: RoutingGroupMember): string {
-  if (member.kind === 'engine')
-    return member.model === undefined ? member.engine : `${member.engine}/${member.model}`;
+  if (member.kind === 'engine') {
+    const account = engineAccountKey(member.engine, member.accountId);
+    return member.model === undefined ? account : `${account}/${member.model}`;
+  }
   return member.kind === 'group'
     ? `group ${member.id}`
     : `${member.provider}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;

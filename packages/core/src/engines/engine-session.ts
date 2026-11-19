@@ -27,6 +27,7 @@ export interface EngineModel {
 }
 
 export interface EngineChoice {
+  accountId?: string;
   model?: string;
   effort?: string;
 }
@@ -127,15 +128,23 @@ export class EngineLimitError extends Error {
 export class EngineRefusal extends Error {
   constructor(
     readonly code:
+      | 'engine-account-not-found'
+      | 'engine-account-conflict'
+      | 'engine-account-in-use'
+      | 'engine-account-busy'
+      | 'invalid-input'
       | 'engine-unavailable'
       | 'engine-not-installed'
       | 'engine-signed-out'
       | 'engine-not-subscription'
       | 'engine-thread-gone'
       | 'engine-failed'
+      | 'unknown-engine'
+      | 'engine-account-write-failed'
       | 'unknown-model'
       | 'unknown-effort',
     message: string,
+    readonly references?: readonly string[],
   ) {
     super(message);
     this.name = 'EngineRefusal';

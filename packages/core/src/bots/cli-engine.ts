@@ -26,6 +26,10 @@ export const ENGINE_COMMANDS = [
     description:
       'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
   },
+  { command: 'engine-accounts', description: 'list subscription accounts and their revision' },
+  { command: 'engine-account-add', description: 'add a named Codex subscription account' },
+  { command: 'engine-account-rename', description: 'rename a Codex subscription account' },
+  { command: 'engine-account-remove', description: 'remove an unused Codex account and its home' },
   {
     command: 'engine-login',
     description:
@@ -44,6 +48,7 @@ export const ENGINE_COMMANDS = [
 ] as const;
 
 type Connect = () => Promise<{
+  rpc?(name: string, args: Record<string, unknown>): Promise<unknown>;
   http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
 }>;
 
@@ -83,6 +88,10 @@ export async function runEngineCommand(
   rest: string[],
   values: {
     role?: string[];
+    name?: string;
+    account?: string;
+    confirm?: boolean;
+    'expected-revision'?: string;
     fallback?: string;
     query?: string;
     model?: string;
@@ -93,20 +102,30 @@ export async function runEngineCommand(
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
   if (command === 'engine-list' || command === 'engine-status') {
-    if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
-    const value = await call(connect);
+    if (rest.length > (command === 'engine-status' ? 1 : 0))
+      throw new CliLiveError('usage', 'engine status accepts one optional engine or account ID.');
+    const value = await call(
+      connect,
+      rest.length === 0 ? undefined : { action: 'status', engine: rest[0] },
+    );
     const engines = value['engines'];
     if (!Array.isArray(engines) || !engines.every(isObject) || !Array.isArray(value['selections']))
       throw protocolError();
-    if (command === 'engine-list')
+    if (command === 'engine-list') {
+      const byEngine = new Map<unknown, Record<string, unknown>>();
+      for (const engine of engines) {
+        const key = engine['engine'];
+        if (!byEngine.has(key) || engine['available'] === true) byEngine.set(key, engine);
+      }
       return {
-        engines: engines.map((engine) => ({
+        engines: [...byEngine.values()].map((engine) => ({
           engine: engine['engine'],
           displayName: engine['displayName'],
           available: engine['available'],
           ...(engine['reason'] === undefined ? {} : { reason: engine['reason'] }),
         })),
       };
+    }
     return value;
   }
   if (command === 'engine-approvals') {
@@ -145,16 +164,53 @@ export async function runEngineCommand(
       throw protocolError();
     return value;
   }
-  if (command === 'engine-login') {
-    if (rest.length !== 1)
-      throw new CliLiveError('usage', 'engine login needs one engine: codex or claude.');
-    const value = await call(connect, { action: 'login', engine: rest[0] });
-    if (value['started'] !== true || typeof value['engine'] !== 'string') throw protocolError();
-    return value;
+  if (
+    command === 'engine-accounts' ||
+    command.startsWith('engine-account-') ||
+    command === 'engine-login'
+  ) {
+    const rpc = async (method: string, args: Record<string, unknown>) => {
+      const host = await connect();
+      if (!host.rpc) throw protocolError();
+      return host.rpc(method, args);
+    };
+    if (command === 'engine-accounts') {
+      if (rest.length)
+        throw new CliLiveError('usage', 'engine accounts takes no positional arguments.');
+      return rpc('engineAccounts', {});
+    }
+    if (rest.length !== 1 || !rest[0])
+      throw new CliLiveError('usage', `${command} needs one engine or account ID.`);
+    const [id] = rest;
+    if (command === 'engine-login') {
+      const result = await rpc('engineAccountLogin', { id });
+      if (!isObject(result) || result['started'] !== true || typeof result['engine'] !== 'string')
+        throw protocolError();
+      return result;
+    }
+    const rawRevision = values['expected-revision'];
+    const expectedRevision = Number(rawRevision);
+    if (
+      rawRevision === undefined ||
+      !/^\d+$/u.test(rawRevision) ||
+      !Number.isSafeInteger(expectedRevision)
+    )
+      throw new CliLiveError('usage', 'Provide --expected-revision from engine accounts.');
+    if (command === 'engine-account-remove') {
+      if (!values.confirm)
+        throw new CliLiveError('usage', 'engine account-remove requires --confirm.');
+      return rpc('engineAccountRemove', { id, expectedRevision, confirm: true });
+    }
+    const name = values.name?.trim();
+    if (!name) throw new CliLiveError('usage', `${command} needs --name.`);
+    if (command === 'engine-account-add')
+      return rpc('engineAccountAdd', { engine: id, name, expectedRevision });
+    if (command === 'engine-account-rename')
+      return rpc('engineAccountRename', { id, name, expectedRevision });
   }
   if (command === 'engine-models') {
     if (rest.length !== 1)
-      throw new CliLiveError('usage', 'engine models needs one engine: codex or claude.');
+      throw new CliLiveError('usage', 'engine models needs one engine or account ID.');
     const value = await call(connect, { action: 'models', engine: rest[0] });
     if (!Array.isArray(value['models']) || !value['models'].every(isObject)) throw protocolError();
     return value;
@@ -177,9 +233,9 @@ export async function runEngineCommand(
       throw new CliLiveError('usage', 'engine use none takes no --fallback.');
     if (fallback !== undefined && chosen === 'assignment')
       throw new CliLiveError('usage', 'engine use --role assignment takes no --fallback.');
-    const { model, effort } = values;
-    if ((model !== undefined || effort !== undefined) && engine === 'none')
-      throw new CliLiveError('usage', 'engine use none takes no --model or --effort.');
+    const { model, effort, account } = values;
+    if ((model !== undefined || effort !== undefined || account !== undefined) && engine === 'none')
+      throw new CliLiveError('usage', 'engine use none takes no --model, --effort or --account.');
     const value = await call(connect, {
       action: 'use',
       bot,
@@ -188,6 +244,7 @@ export async function runEngineCommand(
       ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(account === undefined ? {} : { accountId: account }),
     });
     if (value['bot'] !== bot || value['role'] !== chosen) throw protocolError();
     return value;

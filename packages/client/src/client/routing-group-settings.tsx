@@ -1,3 +1,4 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
 import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import * as stylex from '@stylexjs/stylex';
@@ -145,9 +146,15 @@ function memberName(
   library: Library,
   t: BotHarnessTranslate,
   engineModelName?: string,
+  engineAccountName?: string,
 ): { name: string; title: string; detail?: string; brand?: ModelBrand | undefined } {
   if (member.kind === 'engine')
-    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t), engineModelName);
+    return routingGroupEnginePresentation(
+      member,
+      routingGroupEngineCopy(t),
+      engineModelName,
+      engineAccountName,
+    );
   if (member.kind === 'group') {
     const name =
       library.groups.find((group) => group.id === member.id)?.name ??
@@ -267,7 +274,11 @@ function MemberEditor({
           {members.map((member, index) => {
             const engine =
               member.kind === 'engine'
-                ? engines?.find((option) => option.engine === member.engine)
+                ? engines?.find(
+                    (option) =>
+                      engineAccountKey(option.engine, option.accountId) ===
+                      engineAccountKey(member.engine, member.accountId),
+                  )
                 : undefined;
             const engineModelName =
               engine?.available === true && member.kind === 'engine'
@@ -277,7 +288,13 @@ function MemberEditor({
               engine?.available === false
                 ? routingGroupEngineReason(engine.engine, engine.reason, t)
                 : undefined;
-            const { name, title, detail, brand } = memberName(member, library, t, engineModelName);
+            const { name, title, detail, brand } = memberName(
+              member,
+              library,
+              t,
+              engineModelName,
+              engine?.accountName,
+            );
             const rest = restOf(member, library.rests);
             const unavailable = rest !== undefined || engineReason !== undefined;
             return (

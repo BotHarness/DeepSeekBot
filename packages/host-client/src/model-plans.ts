@@ -43,6 +43,7 @@ export interface ModelPlan extends ModelPlanGroups {
 }
 
 export interface SubscriptionModel {
+  accountId?: string;
   engine: 'codex' | 'claude';
   model?: string;
   effort?: string;
@@ -64,10 +65,12 @@ function parseSubscriptionModel(value: unknown): SubscriptionModel | undefined {
   if (engine !== 'codex' && engine !== 'claude') return undefined;
   const model = row?.['model'];
   const effort = row?.['effort'];
+  const accountId = row?.['accountId'];
   return {
     engine,
     ...(text(model) ? { model } : {}),
     ...(text(effort) ? { effort } : {}),
+    ...(text(accountId) ? { accountId } : {}),
   };
 }
 

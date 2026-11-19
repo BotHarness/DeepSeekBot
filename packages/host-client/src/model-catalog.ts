@@ -56,6 +56,7 @@ export function routingGroupEnginePresentation(
   member: RoutingGroupEngineMember,
   copy: RoutingGroupEngineCopy,
   modelName?: string,
+  accountName?: string,
 ) {
   const engineName = ENGINE_DEFINITIONS[member.engine].displayName;
   const brand =
@@ -75,13 +76,23 @@ export function routingGroupEnginePresentation(
     brand,
     title: /^[0-9]|^$/u.test(short) ? name : short,
     name,
-    detail: `${engineName} · ${copy.subscription(member.engine === 'codex' ? 'ChatGPT' : 'Claude')}`,
+    detail: [
+      engineName,
+      accountName,
+      copy.subscription(member.engine === 'codex' ? 'ChatGPT' : 'Claude'),
+    ]
+      .filter(Boolean)
+      .join(' · '),
   };
 }
 
 export function routingGroupEngineChoices(engines: readonly RoutingGroupEngineOptions[]) {
   return engines.flatMap((status) => {
-    const member: RoutingGroupEngineMember = { kind: 'engine', engine: status.engine };
+    const member: RoutingGroupEngineMember = {
+      kind: 'engine',
+      engine: status.engine,
+      ...(status.accountId === undefined ? {} : { accountId: status.accountId }),
+    };
     const choices: {
       member: RoutingGroupEngineMember;
       status: RoutingGroupEngineOptions;
@@ -104,6 +115,11 @@ export async function loadRoutingGroupEngines(
     const row = record(value);
     const engine = row?.['engine'];
     if (!isEngineId(engine)) return [];
+    const base = {
+      engine,
+      ...(filled(row?.['accountId']) ? { accountId: row['accountId'] } : {}),
+      ...(filled(row?.['accountName']) ? { accountName: row['accountName'] } : {}),
+    };
     if (row?.['available'] === true) {
       const models = Array.isArray(row['models'])
         ? row['models'].flatMap((value) => {
@@ -113,14 +129,14 @@ export async function loadRoutingGroupEngines(
             return filled(id) && filled(name) ? [{ id, name }] : [];
           })
         : [];
-      return [{ engine, available: true, models }];
+      return [{ ...base, available: true, models }];
     }
     const reason = ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS.find(
       (reason) => reason === row?.['reason'],
     );
-    return reason === undefined ? [] : [{ engine, available: false, reason }];
+    return reason === undefined ? [] : [{ ...base, available: false, reason }];
   });
-  return ENGINE_IDS.flatMap((engine) => statuses.find((status) => status.engine === engine) ?? []);
+  return ENGINE_IDS.flatMap((engine) => statuses.filter((status) => status.engine === engine));
 }
 
 export type RoutingGroupMember =

@@ -47,7 +47,7 @@ export function isModelPresetEngine(value: unknown): value is ModelPresetEngine 
   const row = value as Record<string, unknown>;
   return (
     isEngineId(row['engine']) &&
-    [row['model'], row['effort']].every(
+    [row['model'], row['effort'], row['accountId']].every(
       (entry) => entry === undefined || (typeof entry === 'string' && entry.trim() !== ''),
     )
   );
@@ -63,11 +63,12 @@ function presetEngines(
 ): ModelPresetEngines {
   const clean = (choice: ModelPresetEngine): ModelPresetEngine => {
     if (!isModelPresetEngine(choice)) throw new Error('Invalid Model Preset Subscription Engine');
-    const { engine, model, effort } = choice;
+    const { engine, model, effort, accountId } = choice;
     return {
       engine,
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(accountId === undefined ? {} : { accountId }),
     };
   };
   const orchestrator =

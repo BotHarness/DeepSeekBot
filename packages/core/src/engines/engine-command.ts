@@ -56,7 +56,7 @@ export function engineLoginUrl(line: string): string | undefined {
 }
 
 export function startEngineLogin(
-  target: EngineCommand & { name: string; label: string },
+  target: EngineCommand & { name: string; label: string; signal?: AbortSignal; onExit?(): void },
   args: string[],
   timeoutMs = 10_000,
 ): Promise<{ url?: string }> {
@@ -66,6 +66,7 @@ export function startEngineLogin(
     const child = spawn(spec.file, spec.args, {
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(target.signal === undefined ? {} : { signal: target.signal }),
       windowsHide: true,
       ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
     });
@@ -113,6 +114,7 @@ export function startEngineLogin(
       ),
     );
     child.on('close', (code) => {
+      target.onExit?.();
       if (code === 0) finish({});
       else
         finish(

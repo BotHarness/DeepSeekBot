@@ -564,6 +564,7 @@ export interface DshBotAgentAdapterOptions {
 export interface DshBotEngines {
   engineFor(botSlug: string, role?: 'orchestrator' | 'assignment'): string | undefined;
   runsOnEngine?(botSlug: string, role?: 'orchestrator' | 'assignment'): boolean;
+  assertAssignmentAccount?(botSlug: string): void;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
   steerAssignment?(sessionId: string, text: string): boolean;
   release(sessionId: string): Promise<void>;
@@ -1663,6 +1664,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         await native.dispose();
       }
       if (stopped()) throw new Error('Assignment stopped before Inbox acceptance');
+      engines.assertAssignmentAccount?.(run.bot.slug);
       run.setExecutionReady?.(true);
       run.requireContent?.();
       if (run.acceptNativeInput !== undefined) {

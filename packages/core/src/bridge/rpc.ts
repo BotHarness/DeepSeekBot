@@ -1276,6 +1276,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
   }
 
+  engineAccounts() {
+    return unwrapAsync(this.methods.engineAccounts({}));
+  }
+
+  engineAccountAdd(engine: string, name: string, expectedRevision: number) {
+    return unwrapAsync(this.methods.engineAccountAdd({ engine, name, expectedRevision }));
+  }
+
+  engineAccountRename(id: string, name: string, expectedRevision: number) {
+    return unwrapAsync(this.methods.engineAccountRename({ id, name, expectedRevision }));
+  }
+
+  engineAccountRemove(id: string, expectedRevision: number, confirm: boolean) {
+    return unwrapAsync(this.methods.engineAccountRemove({ id, expectedRevision, confirm }));
+  }
+
+  engineAccountLogin(id: string) {
+    return unwrapAsync(this.methods.engineAccountLogin({ id }));
+  }
+
   modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
@@ -3605,6 +3625,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelProviderAdd',
   'modelProviderEdit',
   'modelProviderRemove',
+  'engineAccounts',
+  'engineAccountAdd',
+  'engineAccountRename',
+  'engineAccountRemove',
+  'engineAccountLogin',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',

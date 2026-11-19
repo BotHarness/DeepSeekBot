@@ -1,3 +1,5 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
+import { requireModelSources } from './models/provider-bridge.js';
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { contextSources } from './runtime/context-sources.js';
@@ -1861,6 +1863,23 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     root: join(dshHome, 'botharness', 'engines'),
     local: subscriptionEnginesAllowed(config, process.env),
     gateway: engineGateway,
+    accountsChanged: () => core.live.publishResourceChanged('model-providers'),
+    accountUses: (id) => {
+      const uses = (choice: { engine: string; accountId?: string } | undefined) =>
+        choice?.engine === 'codex' && engineAccountKey('codex', choice.accountId) === id;
+      return [
+        ...core.modelPresets
+          .list()
+          .filter((preset) => uses(preset.orchestratorEngine) || uses(preset.assignmentEngine))
+          .map((preset) => `Model Preset ${preset.name} (${preset.id})`),
+        ...core.routingGroups
+          .list()
+          .filter((group) =>
+            group.members.some((member) => member.kind === 'engine' && uses(member)),
+          )
+          .map((group) => `Routing Group ${group.name} (${group.id})`),
+      ];
+    },
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
       core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),
@@ -3909,6 +3928,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelPresets: core.modelPresets,
     ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
+    engineAccounts: engineHost,
     routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
@@ -4432,6 +4452,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           fetch: (request) =>
             engineRouteFetch(request, {
               host: engineHost,
+              authorizeLogin: () => requireModelSources(team.ownerContext(), team),
               botExists: (slug) => core.registry.get(slug) !== undefined,
               tools: (bot) => agentAdapter.engineToolCatalog(bot),
               runTool: async (bot, tool, args) => {
