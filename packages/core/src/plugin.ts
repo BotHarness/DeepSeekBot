@@ -4127,7 +4127,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     () =>
       mountCardContextLive(ctx, core, bridgeMethods, toolApproval, userQuestions, (slug, id) => {
         const request =
-          id === undefined ? undefined : liveAgent(id)?.session.requestHeader()?.config;
+          id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
         const { provider, model } =
           request ??
           core.registry.get(slug)?.modelPlan?.orchestrator ??
