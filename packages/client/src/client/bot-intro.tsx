@@ -48,7 +48,7 @@ import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
 import { requestTobMessage } from './tob-requests.js';
-import { useTeamMember, useTeamMode } from './team-state.js';
+import { refreshTeamMode, useTeamMember, useTeamModeRead } from './team-state.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -637,6 +637,7 @@ export function BotIntro({
             t={t}
             draft={modelDraft}
             bind={setModel}
+            saving={busy}
             onProviderSavingChange={setProviderSaving}
             openProviders={
               botSettings === undefined
@@ -903,6 +904,7 @@ function ModelStep({
   t,
   draft: [{ route: draftRoute, subscription, assignment, advanced }, setDraft],
   bind,
+  saving,
   onProviderSavingChange,
   openProviders,
 }: {
@@ -912,10 +914,13 @@ function ModelStep({
   t: BotHarnessTranslate;
   draft: [ModelStepDraft, Dispatch<SetStateAction<ModelStepDraft>>];
   bind(model: ModelStepBinding | undefined): void;
+  saving: boolean;
   onProviderSavingChange(saving: boolean): void;
   openProviders: (() => void) | undefined;
 }): ReactElement {
-  const viewer = useTeamMode(call)?.viewer;
+  const viewerRead = useTeamModeRead(call);
+  const viewer = viewerRead.value?.viewer;
+  const [retryingViewer, setRetryingViewer] = useState(false);
   const owner = call === undefined ? !member : viewer?.owner;
   const canConnect = canManageModelProviders(viewer);
   const engines = useSubscriptionEngines(viewer?.owner === true);
@@ -981,6 +986,14 @@ function ModelStep({
   const draftEngineModels =
     draftEngine === undefined ? undefined : engines.models[draftEngine.engine];
   const draftEngineModel = draftEngineModels?.find(({ id }) => id === subscription?.model);
+  const unavailableSubscription =
+    owner === true &&
+    subscription != null &&
+    engines.view !== undefined &&
+    (draftEngine === undefined ||
+      (subscription.model !== undefined &&
+        draftEngineModels !== undefined &&
+        draftEngineModel === undefined));
   const validatedSubscription =
     subscription && draftEngine && (subscription.model === undefined || draftEngineModel)
       ? {
@@ -991,8 +1004,8 @@ function ModelStep({
             ? { effort: subscription.effort }
             : {}),
         }
-      : subscription === null
-        ? null
+      : owner
+        ? subscription
         : undefined;
   const engineChoice: SubscriptionModel | null =
     validatedSubscription !== undefined
@@ -1022,12 +1035,13 @@ function ModelStep({
   const waitingForCatalog =
     catalog === undefined && (draftRoute !== undefined || (advanced && assignment !== undefined));
   const canAdvance =
-    owner !== undefined &&
-    (!owner ||
-      editingKey ||
-      (!waitingForEngineSelection &&
-        (engineChoice !== null || (!waitingForCatalog && !invalidAssignment))));
-  const hasProvider = models.length > 0 || availableEngines.length > 0;
+    owner === false ||
+    (owner === true &&
+      !unavailableSubscription &&
+      (editingKey ||
+        (!waitingForEngineSelection &&
+          (engineChoice !== null || (!waitingForCatalog && !invalidAssignment)))));
+  const hasUsableProvider = route !== undefined || availableEngines.length > 0;
   const local =
     engines.view === undefined
       ? undefined
@@ -1157,7 +1171,7 @@ function ModelStep({
       <div ref={engines.mount} hidden />
       <h2 {...stylex.props(styles.title)}>
         {t(
-          editingKey || !hasProvider
+          editingKey || !hasUsableProvider
             ? 'intro.model.connectTitle'
             : engineChoice !== null
               ? 'intro.model.tobModel'
@@ -1177,7 +1191,7 @@ function ModelStep({
           }}
           t={t}
         />
-      ) : hasProvider ? (
+      ) : hasUsableProvider ? (
         <>
           <ModelPicker
             title={t('onboarding.model')}
@@ -1194,9 +1208,9 @@ function ModelStep({
             onChange={(choice) =>
               setDraft((previous) => ({ ...previous, route: parse(choice), subscription: null }))
             }
-            disabled={false}
+            disabled={saving}
             subscription={
-              availableEngines.length === 0 || tob === undefined
+              (availableEngines.length === 0 && engineChoice === null) || tob === undefined
                 ? undefined
                 : {
                     choice: engineChoice,
@@ -1221,7 +1235,11 @@ function ModelStep({
               }}
               data-intro-model-advanced
             >
-              <summary {...stylex.props(styles.advancedSummary)}>
+              <summary
+                {...stylex.props(styles.advancedSummary)}
+                aria-disabled={saving || undefined}
+                onClick={saving ? (event) => event.preventDefault() : undefined}
+              >
                 <span>{t('intro.model.advanced')}</span>
                 <span {...stylex.props(styles.copy)}>
                   {t(split ? 'intro.model.advancedSplit' : 'intro.model.advancedSame')}
@@ -1239,7 +1257,7 @@ function ModelStep({
                 onChange={(choice) =>
                   setDraft((previous) => ({ ...previous, assignment: parse(choice) }))
                 }
-                disabled={false}
+                disabled={saving}
                 t={t}
               />
             </details>
@@ -1260,6 +1278,7 @@ function ModelStep({
                     {connected.size > 3 ? <span>+{connected.size - 3}</span> : null}
                   </span>
                 }
+                disabled={saving}
                 onClick={openProviders}
               />
             </div>
@@ -1280,6 +1299,7 @@ function ModelStep({
             title={t('intro.model.enterKey')}
             description={t('intro.model.enterKeyHint')}
             leading={<Icon name="shield-check" />}
+            disabled={saving}
             onClick={() => setConnection('key')}
           />
           {local === true ? (
@@ -1290,6 +1310,7 @@ function ModelStep({
                 title={t('intro.model.signIn')}
                 description={t('intro.model.signInHint')}
                 leading={<Icon name="plug" />}
+                disabled={saving}
                 onClick={() => setConnection('subscription')}
               />
             )
@@ -1305,16 +1326,32 @@ function ModelStep({
       ) : viewer !== undefined ? (
         <Note>{t('intro.model.ownerConnects')}</Note>
       ) : null}
+      {call !== undefined && viewerRead.failed ? (
+        <ReadFailure
+          retryLabel={t('team.retry')}
+          busy={retryingViewer}
+          onRetry={() => {
+            setRetryingViewer(true);
+            void refreshTeamMode(call).finally(() => setRetryingViewer(false));
+          }}
+        >
+          {t('intro.model.viewerLoadFailed')}
+        </ReadFailure>
+      ) : null}
       {readError === undefined ? null : (
         <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
           {readError}
         </ReadFailure>
       )}
+      {!editingKey && owner && unavailableSubscription ? (
+        <Note tone="danger">{t('intro.model.subscriptionUnavailable')}</Note>
+      ) : null}
       {!editingKey && owner && engineChoice === null && invalidAssignment ? (
         <div>
           <Note tone="warning">{t('intro.model.assignmentUnavailable')}</Note>
           <Button
             variant="outline"
+            disabled={saving}
             onClick={() => setDraft((previous) => ({ ...previous, assignment: undefined }))}
           >
             {t('intro.model.useMainForAssignment')}

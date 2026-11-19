@@ -25,20 +25,28 @@ vi.mock('../src/client/model-picker.js', () => ({
     title,
     choice,
     onChange,
-  }: {
-    title: string;
-    choice: { key: string; effort: string };
-    onChange(choice: { key: string; effort: string }): void;
-  }) =>
-    createElement('span', {
+    subscription,
+    disabled,
+  }: Parameters<typeof import('../src/client/model-picker.js').ModelPicker>[0]) =>
+    createElement('button', {
+      type: 'button',
+      disabled,
       'data-picker': title,
       'data-choice': choice.key,
       'data-effort': choice.effort,
-      onClick: (event: MouseEvent<HTMLSpanElement>) =>
+      'data-subscription-model': subscription?.choice?.model,
+      onClick: (event: MouseEvent<HTMLButtonElement>) => {
+        const model = event.currentTarget.dataset['selectSubscription'];
+        if (model !== undefined) {
+          if (subscription?.models.codex?.some(({ id }) => id === model))
+            subscription.onChange({ engine: 'codex', model });
+          return;
+        }
         onChange({
           key: JSON.stringify(['p', 'task']),
           effort: event.currentTarget.dataset['selectEffort'] ?? '',
-        }),
+        });
+      },
     }),
 }));
 vi.mock('../src/client/wallpaper-library.js', () => ({
@@ -267,20 +275,26 @@ describe('intro modal', () => {
     configured = false,
     owner = true,
     models = [goModel],
-  }: { configured?: boolean; owner?: boolean; models?: ModelCatalogView['models'] } = {}) {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        Response.json({
-          engines: [{ engine: 'codex', installed: true, available: false, reason: 'signed-out' }],
-          selections: [],
-        }),
-      ),
-    );
+    receipt = fresh,
+    fetcher = vi.fn(async () =>
+      Response.json({
+        engines: [{ engine: 'codex', installed: true, available: false, reason: 'signed-out' }],
+        selections: [],
+      }),
+    ),
+  }: {
+    configured?: boolean;
+    owner?: boolean;
+    models?: ModelCatalogView['models'];
+    receipt?: OnboardingSnapshot;
+    fetcher?: typeof fetch;
+  } = {}) {
+    vi.stubGlobal('fetch', fetcher);
     let connected = configured;
+    const modelCatalog = vi.fn(async () => ({ models: connected ? models : [] }));
     const actions = {
-      ...actionsFor(),
-      modelCatalog: vi.fn(async () => ({ models: connected ? models : [] })),
+      ...actionsFor([receipt]),
+      modelCatalog,
     } as unknown as BridgeActions;
     const call = vi.fn<BridgeCall>(async (method) => {
       if (method === 'modelProviderAdd') {
@@ -326,7 +340,7 @@ describe('intro modal', () => {
       },
     };
     await mountModelStep(actions, { call, botSettings });
-    return { actions, button, call, click, openProviders, setSettingsOpen };
+    return { actions, button, call, click, modelCatalog, openProviders, setSettingsOpen };
   }
 
   it('shows the picker and the connected providers row for a configured DSH route', async () => {
@@ -346,28 +360,101 @@ describe('intro modal', () => {
       testModel('main'),
       { ...testModel('task'), efforts: [{ id: 'high', name: 'High' }] },
     ];
-    const { setSettingsOpen } = await openModelStep({ configured: true, models });
+    const { modelCatalog, setSettingsOpen } = await openModelStep({ configured: true, models });
     const picker = () =>
       container.querySelector<HTMLElement>(`[data-picker="${zhTranslate('onboarding.model')}"]`);
     picker()?.setAttribute('data-select-effort', 'high');
     await pickModel('onboarding.model');
     await click(zhTranslate('botSettings.section.modelProviders'));
     expect(picker()).toBeNull();
+    const initialReads = modelCatalog.mock.calls.length;
     await act(async () => setSettingsOpen(false));
+    expect(modelCatalog).toHaveBeenCalledTimes(initialReads + 1);
     expect(picker()?.dataset['choice']).toBe(JSON.stringify(['p', 'task']));
     expect(picker()?.dataset['effort']).toBe('high');
     await click(zhTranslate('botSettings.section.modelProviders'));
-    models[1] = testModel('task');
+    modelCatalog.mockResolvedValueOnce({ models: [testModel('main'), testModel('task')] });
     await act(async () => setSettingsOpen(false));
+    expect(modelCatalog).toHaveBeenCalledTimes(initialReads + 2);
     expect(picker()?.dataset['choice']).toBe(JSON.stringify(['p', 'task']));
     expect(picker()?.dataset['effort']).toBe('');
   });
 
-  it('offers a key or subscription first when the Host has no usable model', async () => {
-    const { button } = await openModelStep();
-    expect(container.querySelector('[data-picker]')).toBeNull();
-    expect(button('填 API key')).toBeTruthy();
-    expect(button('登录订阅')).toBeTruthy();
+  it('requires a new choice when the selected subscription model disappears in Settings', async () => {
+    const savedModel = { id: 'saved', name: 'Saved', efforts: [] };
+    let subscriptionModels = [savedModel, { id: 'selected', name: 'Selected', efforts: [] }];
+    const { setSettingsOpen } = await openModelStep({
+      configured: true,
+      receipt: { ...fresh, defaultBotSlug: 'tob' },
+      fetcher: async (_url, init) =>
+        init?.method === 'POST'
+          ? Response.json({ models: subscriptionModels })
+          : Response.json({
+              engines: [{ engine: 'codex', installed: true, available: true }],
+              selections: [
+                { botSlug: 'tob', role: 'orchestrator', engine: 'codex', model: 'saved' },
+              ],
+            }),
+    });
+    const picker = () =>
+      container.querySelector<HTMLElement>(`[data-picker="${zhTranslate('onboarding.model')}"]`);
+    expect(picker()?.dataset['subscriptionModel']).toBe('saved');
+    picker()?.setAttribute('data-select-subscription', 'selected');
+    await pickModel('onboarding.model');
+    expect(picker()?.dataset['subscriptionModel']).toBe('selected');
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    subscriptionModels = [savedModel];
+    await act(async () => setSettingsOpen(false));
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      zhTranslate('intro.model.subscriptionUnavailable'),
+    );
+    expect(picker()?.dataset['subscriptionModel']).toBe('selected');
+    picker()?.setAttribute('data-select-subscription', 'saved');
+    await pickModel('onboarding.model');
+    await click(zhTranslate('intro.next'));
+    expect(step()).toBe('phone');
+  });
+
+  it.each([
+    { configured: false, models: [] },
+    { configured: true, models: [{ ...goModel, restingUntil: '2026-11-22T00:00:00Z' }] },
+  ])(
+    'offers a key or subscription with no usable model (configured: $configured)',
+    async (setup) => {
+      const { button } = await openModelStep(setup);
+      expect(container.querySelector('[data-picker]')).toBeNull();
+      expect(button('填 API key')).toBeTruthy();
+      expect(button('登录订阅')).toBeTruthy();
+    },
+  );
+
+  it('disables model edits and Model Providers during Next and restores them after a failed save', async () => {
+    const { actions, openProviders } = await openModelStep({
+      configured: true,
+      receipt: { ...fresh, defaultBotSlug: 'tob' },
+    });
+    const modelSave = deferred<void>();
+    vi.mocked(actions.onboardingModel).mockImplementationOnce(async () => {
+      await modelSave.promise;
+      throw new Error('Save failed');
+    });
+    const controls = () => [
+      container.querySelector<HTMLButtonElement>(
+        `[data-picker="${zhTranslate('onboarding.model')}"]`,
+      ),
+      container.querySelector<HTMLButtonElement>(
+        `[data-picker="${zhTranslate('modelPreset.assignment')}"]`,
+      ),
+      button(zhTranslate('botSettings.section.modelProviders')),
+    ];
+    await click(zhTranslate('intro.next'));
+    expect(controls().map((control) => control?.disabled)).toEqual([true, true, true]);
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    expect(openProviders).not.toHaveBeenCalled();
+    await act(async () => modelSave.resolve());
+    expect(step()).toBe('model');
+    expect(controls().map((control) => control?.disabled)).toEqual([false, false, false]);
   });
 
   it('keeps provider controls unavailable to a member without permission', async () => {
@@ -444,13 +531,19 @@ describe('intro modal', () => {
     );
   });
 
-  it('waits for the viewer before advancing and keeps Skip available', async () => {
+  it('retries a failed viewer lookup while keeping the draft and Skip available', async () => {
     const viewer = deferred<Awaited<ReturnType<BridgeCall>>>();
-    const call = vi.fn<BridgeCall>(() => viewer.promise);
+    const call = vi
+      .fn<BridgeCall>(() => viewer.promise)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'unavailable', message: 'Unavailable', details: {} },
+      });
     const base = actionsFor();
+    const modelCatalog = vi.fn(async () => ({ models: [testModel('main'), testModel('task')] }));
     const actions = {
       ...base,
-      modelCatalog: vi.fn(async () => ({ models: [testModel('main'), testModel('task')] })),
+      modelCatalog,
     } as unknown as BridgeActions;
     vi.stubGlobal(
       'fetch',
@@ -458,11 +551,20 @@ describe('intro modal', () => {
     );
     await mountModelStep(actions, { call });
     await pickModel('onboarding.model');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      zhTranslate('intro.model.viewerLoadFailed'),
+    );
+    expect(call).toHaveBeenCalledTimes(1);
     expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
     expect(button(zhTranslate('intro.skip'))?.disabled).toBe(false);
     await click(zhTranslate('intro.next'));
     expect(step()).toBe('model');
     expect(base.onboardingModel).not.toHaveBeenCalled();
+    await click(zhTranslate('team.retry'));
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call).toHaveBeenLastCalledWith('teamMode', {}, undefined);
+    expect(modelCatalog).toHaveBeenCalledOnce();
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
     await act(async () => viewer.resolve({ ok: true, value: { viewer: ownerViewer } }));
     await click(zhTranslate('intro.next'));
     expect(base.onboardingModel).toHaveBeenCalledWith(
