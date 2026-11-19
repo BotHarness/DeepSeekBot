@@ -9,9 +9,19 @@ import type { SettingsRowProps } from '../src/ui/primitives/settings-row-model';
 import { t } from '../src/ui/strings';
 import { ModelGroupPickerRow } from '../src/ui/chat/model-picker-row';
 import { RoutingGroupEditorRoute } from '../src/ui/chat/routing-group-editor';
+import { RoutingGroupMemberRow } from '../src/ui/chat/routing-group-member-row';
 
-const { back } = vi.hoisted(() => ({ back: vi.fn() }));
-vi.mock('react-native', () => import('./react-native-shim'));
+const { back, device } = vi.hoisted(() => ({ back: vi.fn(), device: { fontScale: 1 } }));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  return {
+    ...shim,
+    Dimensions: {
+      ...shim.Dimensions,
+      get: () => ({ ...shim.useWindowDimensions(), fontScale: device.fontScale }),
+    },
+  };
+});
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('expo-router', async () => {
   const { useEffect } = await import('react');
@@ -63,12 +73,12 @@ vi.mock('../src/ui/primitives/settings-row', () => ({
         data-testid={testID}
         data-tone={tone}
       >
-        {leading}
+        {leading === undefined ? null : <span data-row-slot="leading">{leading}</span>}
         {title}
-        <span>{detail}</span>
-        {trailing}
+        <span data-row-slot="detail">{detail}</span>
+        {trailing === undefined ? null : <span data-row-slot="trailing">{trailing}</span>}
       </button>
-      {accessory}
+      {accessory === undefined ? null : <div data-row-slot="accessory">{accessory}</div>}
     </div>
   ),
 }));
@@ -90,10 +100,12 @@ vi.mock('../src/ui/primitives/sheet-save-button', () => ({
     </button>
   ),
 }));
-vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: ({ name }: { name: { ios: string } }) => <span data-symbol={name.ios} />,
+}));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('../src/ui/primitives/swipe-row', () => ({
-  SwipeRow: ({ children }: { children: ReactNode }) => children,
+  SwipeRow: ({ children }: { children: ReactNode }) => <div data-member-row>{children}</div>,
 }));
 vi.mock('../src/ui/primitives/search-field', async () => {
   const { TextInput } = await import('./react-native-shim');
@@ -132,6 +144,7 @@ const catalog = { models: [entry], groups: [group] } satisfies ModelCatalogAnswe
 let view: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
+  device.fontScale = 1;
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   view = document.createElement('div');
   document.body.append(view);
@@ -163,6 +176,95 @@ async function typeInto(testID: string, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+
+const engineRow = {
+  name: 'GPT-6.2-Sol',
+  title: 'GPT-6.2-Sol',
+  brand: 'openai',
+  detail: `Codex · ${t.routingGroup.engineRow.subscription('ChatGPT')} · High`,
+  isDefault: true,
+  unavailable: false,
+} as const;
+
+it('gives the editor engine title and details the trailing space at default text size', async () => {
+  await act(async () =>
+    root.render(
+      <RoutingGroupMemberRow
+        index={1}
+        name={engineRow.name}
+        title={engineRow.title}
+        detail={undefined}
+        brand={undefined}
+        engineRow={engineRow}
+        engineReason={undefined}
+        usable
+        moveUp={() => {}}
+        moveDown={undefined}
+        remove={() => {}}
+      />,
+    ),
+  );
+  const row = view.querySelector('[data-member-row]');
+  expect(row?.querySelector('button')?.textContent).toBe(
+    `2. GPT-6.2-Sol${engineRow.detail} · ${t.routingGroup.defaultTag}`,
+  );
+  expect(row?.querySelector('[data-row-slot="detail"]')?.textContent).toBe(
+    `${engineRow.detail} · ${t.routingGroup.defaultTag}`,
+  );
+  expect(
+    row?.querySelector('[data-row-slot="leading"] [data-symbol]')?.getAttribute('data-symbol'),
+  ).toBe('puzzlepiece.extension');
+  expect(row?.querySelector('[data-row-slot="trailing"]')).toBeNull();
+  expect(
+    button('routing-group-member-1-remove')
+      .closest('[data-row-slot]')
+      ?.getAttribute('data-row-slot'),
+  ).toBe('accessory');
+});
+
+it.each([1.6, 3.12])('puts all member controls below the text at scale %s', async (fontScale) => {
+  device.fontScale = fontScale;
+  const up = vi.fn();
+  const down = vi.fn();
+  const remove = vi.fn();
+  await act(async () =>
+    root.render(
+      <>
+        {['V4.1 Flash', 'Daily', engineRow.name].map((name, index) => (
+          <RoutingGroupMemberRow
+            key={name}
+            index={index}
+            name={name}
+            title={name}
+            detail={index === 0 ? entry.providerName : t.routingGroup.group}
+            brand={index === 0 ? 'deepseek' : undefined}
+            engineRow={index === 2 ? engineRow : undefined}
+            engineReason={undefined}
+            usable
+            moveUp={up}
+            moveDown={down}
+            remove={remove}
+          />
+        ))}
+      </>,
+    ),
+  );
+  const rows = [...view.querySelectorAll('[data-member-row]')];
+  expect(rows).toHaveLength(3);
+  for (const [index, row] of rows.entries()) {
+    const [label, controls] = row.children;
+    expect(label?.textContent).toMatch(new RegExp(`^${index + 1}\\. `, 'u'));
+    expect(label?.querySelector('[data-row-slot="accessory"]')).toBeNull();
+    for (const action of ['up', 'down', 'remove']) {
+      const testID = `routing-group-member-${index}-${action}`;
+      expect(controls?.contains(button(testID))).toBe(true);
+      await click(testID);
+    }
+  }
+  expect(up).toHaveBeenCalledTimes(3);
+  expect(down).toHaveBeenCalledTimes(3);
+  expect(remove).toHaveBeenCalledTimes(3);
+});
 
 it('shows the current model on the phone group row and announces all full member names', async () => {
   const mixed = { ...group, members: [dsh, codex, claude] };

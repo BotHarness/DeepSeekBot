@@ -71,34 +71,27 @@ export function ModelPickerRow({
 
 export function ModelEnginePickerRow({
   row,
-  reason,
   isDefault = false,
-  position,
   selected,
   ...actions
 }: RowActions & {
   row: ReturnType<typeof routingGroupEnginePresentation>;
-  reason?: string | undefined;
-  position?: number;
   isDefault?: boolean;
 }) {
   const theme = useDesignTheme();
   const t = useStrings();
-  const tone = reason === undefined ? 'fg' : 'muted';
-  const detail = reason === undefined ? row.detail : `${row.detail} · ${reason}`;
-  const order = position === undefined ? '' : `${position}. `;
   return (
     <SettingsRow
       {...actions}
       selected={selected}
       on={SHEET_GROUP}
       leading={
-        <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color[tone]} />
+        <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color.fg} />
       }
       trailing={
         <View
           style={{
-            flexDirection: position === undefined ? 'row' : 'column',
+            flexDirection: 'row',
             alignItems: 'center',
             gap: space.x2,
           }}
@@ -130,16 +123,11 @@ export function ModelEnginePickerRow({
           ) : null}
         </View>
       }
-      title={order + row.title}
-      detail={detail}
-      accessibilityLabel={[
-        order + row.name,
-        isDefault ? t.routingGroup.defaultTag : undefined,
-        detail,
-      ]
+      title={row.title}
+      detail={row.detail}
+      accessibilityLabel={[row.name, isDefault ? t.routingGroup.defaultTag : undefined, row.detail]
         .filter(Boolean)
         .join(', ')}
-      tone={tone}
     />
   );
 }

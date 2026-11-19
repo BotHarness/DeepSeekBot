@@ -3,13 +3,13 @@ import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { Pressable, View } from 'react-native';
 
 import { pressTint, useDesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { SettingsRow } from '../primitives/settings-row';
 import { SwipeRow } from '../primitives/swipe-row';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { ModelBrandIcon } from './model-brand-icon';
-import { ModelEnginePickerRow } from './model-picker-row';
 import { SHEET_GROUP } from './sheet';
 
 export function RoutingGroupMemberRow({
@@ -39,7 +39,30 @@ export function RoutingGroupMemberRow({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const tone = usable ? 'fg' : 'muted';
+  const tone = usable && engineReason === undefined ? 'fg' : 'muted';
+  const position = `${index + 1}. `;
+  const memberDetail =
+    engineRow === undefined
+      ? detail
+      : [
+          engineRow.detail,
+          engineRow.isDefault ? t.routingGroup.defaultTag : undefined,
+          engineReason === undefined
+            ? undefined
+            : `${t.routingGroup.unavailable} · ${engineReason}`,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+  const leading =
+    engineRow !== undefined ? (
+      <SystemSymbol
+        name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
+        size={theme.type.title.line}
+        color={theme.color[tone]}
+      />
+    ) : brand === undefined ? undefined : (
+      <ModelBrandIcon brand={brand} color={theme.color[tone]} size={theme.type.title.line} />
+    );
   const actions = [
     { key: 'up', label: t.routingGroup.moveUp(name), run: moveUp, Icon: ChevronUpIcon },
     { key: 'down', label: t.routingGroup.moveDown(name), run: moveDown, Icon: ChevronDownIcon },
@@ -91,37 +114,18 @@ export function RoutingGroupMemberRow({
             ]
       }
     >
-      {engineRow === undefined ? (
-        <SettingsRow
-          on={SHEET_GROUP}
-          title={`${index + 1}. ${title}`}
-          accessibilityLabel={[`${index + 1}. ${name}`, detail].filter(Boolean).join(', ')}
-          detail={detail}
-          tone={tone}
-          leading={
-            brand === undefined ? undefined : (
-              <ModelBrandIcon
-                brand={brand}
-                color={theme.color[tone]}
-                size={theme.type.title.line}
-              />
-            )
-          }
-          accessory={accessory}
-        />
-      ) : (
-        <ModelEnginePickerRow
-          row={engineRow}
-          reason={
-            engineReason === undefined
-              ? undefined
-              : `${t.routingGroup.unavailable} · ${engineReason}`
-          }
-          isDefault={engineRow.isDefault}
-          position={index + 1}
-          accessory={accessory}
-        />
-      )}
+      <SettingsRow
+        on={SHEET_GROUP}
+        title={position + (engineRow?.title ?? title)}
+        accessibilityLabel={[position + name, memberDetail].filter(Boolean).join(', ')}
+        detail={memberDetail}
+        tone={tone}
+        leading={leading}
+        accessory={theme.largeText ? undefined : accessory}
+      />
+      {theme.largeText ? (
+        <View style={{ alignItems: 'flex-end', paddingHorizontal: space.x3 }}>{accessory}</View>
+      ) : null}
     </SwipeRow>
   );
 }

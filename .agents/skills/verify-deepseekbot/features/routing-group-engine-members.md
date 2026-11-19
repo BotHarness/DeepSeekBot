@@ -7,6 +7,7 @@
 - `packages/client/src/client/model-menu.tsx`
 - `apps/mobile/src/ui/chat/model-picker-row.tsx`
 - `apps/mobile/src/ui/chat/routing-group-editor.tsx`
+- `apps/mobile/src/ui/chat/routing-group-member-row.tsx`
 
 ## Terms
 
@@ -15,7 +16,7 @@
 
 ## Sub-features
 
-- A saved engine member uses the model brand, short model name or engine default, full subscription source, and puzzle-piece icon. The editor gives every member a position and dims unavailable engines with a reason.
+- A saved engine member shows its short model name or engine default, full subscription source, and puzzle-piece symbol. The phone editor leads with the symbol and puts Default in the details. The editor gives every member a position and dims unavailable engines with a reason.
 - The group picker shows the current DSH route. Its accessible name reads the current route and the full saved member order.
 - The desktop and phone editors add, reorder, and remove engine members. The main model picker presentation lists **Codex** and **Claude Code** in separate sources. “Default” marks the real default. Each new engine member saves a concrete model ID and its optional reasoning effort. A legacy member without a model shows the engine’s current default. Removed models display an unavailable reason.
 - Reopening the picker or returning to an engine source refreshes availability and leaves existing choices visible until the Host responds. A failed read shows Retry and preserves the editor draft. Search matches terms across the engine and model fields.

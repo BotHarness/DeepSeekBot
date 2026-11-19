@@ -4,7 +4,9 @@
 
 - `apps/mobile/app/settings/routing-group.tsx`
 - `apps/mobile/src/ui/chat/routing-group-editor.tsx`
+- `apps/mobile/src/ui/chat/routing-group-member-row.tsx`
 - `apps/mobile/test/routing-group-editor.test.ts`
+- `apps/mobile/test/routing-group-engine-ui.test.tsx`
 - `packages/host-client/src/model-settings.ts`
 
 ## Terms
@@ -30,7 +32,7 @@ Use the assigned [shared device QA](../../../../docs/agents/device-qa.md) lane. 
 2. Open the group again, rename it, and add a second Routing Group. Verify the picker shows models and eligible groups and excludes the one being edited. Reorder with the row controls, swipe a member to remove it, save, and read back the order and nested group ID.
 3. Create a group that uses the edited group. Try adding that parent to the edited group and verify the cycle banner and retained draft. Try deleting the edited group and verify the banner names the parent. Cancel a delete confirmation once. Remove the reference, confirm deletion, and verify the group disappears on the phone and CLI.
 4. Open an existing group on the phone and update it from the CLI. Save a phone edit and verify the revision banner and retained draft. Reopen the group to read the latest revision. Confirm that backing out of an unsaved draft asks before discarding it.
-5. Repeat the editor and member-picker checks in light and dark and at default, intermediate and maximum system text sizes. Open each text field with the native keyboard and verify the caret, save action and sheet dismissal remain reachable.
+5. Repeat the editor and member-picker checks in light and dark and at default, intermediate and maximum system text sizes. At default size, check that the engine symbol is at the leading edge, the Default label is in the details and the GPT-6.2-Sol title fits on one line at 390 pt. At accessibility sizes, verify that the reorder and remove buttons sit below the text for model, group and engine members and can still be used. Open each text field with the native keyboard and verify the caret, save action and sheet dismissal remain reachable.
 
 Follow [Subscription Engines in Routing Groups](routing-group-engine-members.md) for the phone engine-picker, edit, and save-refusal checks.
 
