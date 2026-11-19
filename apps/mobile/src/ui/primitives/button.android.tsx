@@ -6,20 +6,23 @@ import {
   Host,
   Icon,
   Row,
+  Shape,
   Text,
   TextButton,
 } from '@expo/ui/jetpack-compose';
 import {
+  border,
   defaultMinSize,
   fillMaxWidth,
   semantics,
+  Shapes,
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { cardDecisionInk } from '../design/controls';
+import { cardChoiceColors } from '../design/controls';
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
-import { loadingIndicator, materialButton } from '../design/tokens';
+import { edge, loadingIndicator, materialButton, radius } from '../design/tokens';
 import { controlCase } from '../platform-copy';
 import { useStrings } from '../strings';
 import type { Button as SharedButton, ButtonSymbol } from './button';
@@ -63,11 +66,14 @@ export function Button({
   const tree = useComposeTree();
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
-  const text = variant !== 'filled';
-  const textInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
+  const text = variant === 'text';
+  const solid = variant === 'card-solid';
+  const resting = solid ? cardChoiceColors(theme, tone) : undefined;
+  const unavailable = solid && !selected ? cardChoiceColors(theme, tone, 'disabled') : resting;
+  const paint = disabled || busy ? unavailable : resting;
   const Control = text
     ? TextButton
-    : tone === 'primary' || danger
+    : solid || tone === 'primary' || danger
       ? FilledButton
       : FilledTonalButton;
   const chosenFill = danger
@@ -80,28 +86,53 @@ export function Button({
     : tone === 'primary'
       ? roles.onPrimary
       : roles.onSecondaryContainer;
-  const contentColor = textInk ?? (danger ? roles.error : roles.primary);
-  const colors = text
-    ? textInk !== undefined || danger || selected
-      ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
-      : undefined
-    : danger || selected
+  const contentColor = danger ? roles.error : roles.primary;
+  const colors =
+    resting !== undefined && unavailable !== undefined
       ? {
-          ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
-          ...(selected
-            ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
-            : {}),
+          containerColor: resting.fill,
+          contentColor: resting.ink,
+          disabledContainerColor: unavailable.fill,
+          disabledContentColor: unavailable.ink,
         }
-      : undefined;
+      : text
+        ? danger || selected
+          ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
+          : undefined
+        : danger || selected
+          ? {
+              ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+              ...(selected
+                ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+                : {}),
+            }
+          : undefined;
   const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
       enabled={!disabled && !busy}
       onClick={onPress}
       {...(colors ? { colors } : {})}
+      {...(solid
+        ? {
+            shape: (
+              <Shape.RoundedCorner
+                cornerRadii={{
+                  topStart: radius.md,
+                  topEnd: radius.md,
+                  bottomStart: radius.md,
+                  bottomEnd: radius.md,
+                }}
+              />
+            ),
+          }
+        : {})}
       modifiers={[
         ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
-        defaultMinSize({ minHeight: theme.touch }),
+        defaultMinSize({ ...(solid ? { minWidth: theme.touch } : {}), minHeight: theme.touch }),
+        ...(paint === undefined
+          ? []
+          : [border(edge.hairline, paint.outline, Shapes.RoundedCorner(radius.md))]),
         ...(id ? [testID(id)] : []),
         ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}

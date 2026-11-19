@@ -345,6 +345,7 @@ function ApprovalCardContent({
             symbol="check"
             label={t.allowOnce}
             testID="approval-allow-once"
+            variant="card-solid"
             tone="primary"
             disabled={!actionable || busy !== undefined}
             selected={selected === 'allowed-once'}
@@ -355,7 +356,7 @@ function ApprovalCardContent({
             symbol="shield-check"
             label={t.alwaysAllow}
             testID="approval-always-allow"
-            variant="card-text"
+            variant="card-solid"
             disabled={!actionable || busy !== undefined || !request.allowAlways}
             selected={selected === 'allowed-always-tool'}
             busy={busy === 'allowed-always-tool'}
@@ -365,7 +366,7 @@ function ApprovalCardContent({
             symbol="x"
             label={t.reject}
             testID="approval-deny"
-            variant="card-text"
+            variant="card-solid"
             tone="danger"
             disabled={!actionable || busy !== undefined}
             selected={selected === 'rejected'}

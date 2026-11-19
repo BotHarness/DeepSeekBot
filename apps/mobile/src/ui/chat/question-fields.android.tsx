@@ -1,5 +1,6 @@
 import { Box, Checkbox, Column, RadioButton, Row, Text } from '@expo/ui/jetpack-compose';
 import {
+  background,
   border,
   clickable,
   clip,
@@ -15,6 +16,7 @@ import {
 import type { ComponentProps } from 'react';
 
 import { toggleOption, typeCustom } from '@botharness/host-client/requests';
+import { cardChoiceColors } from '../design/controls';
 import { materialType, useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -68,6 +70,7 @@ export function QuestionFields({
       ) : null}
       {question.options?.length ? (
         <Column
+          verticalArrangement={{ spacedBy: space.x2 }}
           modifiers={[
             fillMaxWidth(),
             ...(multiple ? [] : [selectableGroup()]),
@@ -76,6 +79,12 @@ export function QuestionFields({
         >
           {question.options.map((option, index) => {
             const chosen = draft.selected.includes(option.label);
+            const { fill, ink, outline } = cardChoiceColors(
+              theme,
+              chosen ? 'primary' : 'secondary',
+              disabled ? 'disabled' : 'rest',
+            );
+            const shape = Shapes.RoundedCorner(radius.md);
             const press = () =>
               onPick === undefined
                 ? onChange(toggleOption(question, draft, option.label))
@@ -88,6 +97,9 @@ export function QuestionFields({
                 modifiers={[
                   fillMaxWidth(),
                   defaultMinSize({ minHeight: theme.touch }),
+                  clip(shape),
+                  background(fill),
+                  border(edge.hairline, outline, shape),
                   toggleable(chosen, press, {
                     role: multiple ? 'checkbox' : 'radioButton',
                     enabled: !disabled,
@@ -96,16 +108,35 @@ export function QuestionFields({
                 ]}
               >
                 {multiple ? (
-                  <Checkbox value={chosen} enabled={!disabled} />
+                  <Checkbox
+                    value={chosen}
+                    enabled={!disabled}
+                    colors={{
+                      checkedColor: ink,
+                      uncheckedColor: ink,
+                      disabledCheckedColor: ink,
+                      disabledUncheckedColor: ink,
+                      checkmarkColor: fill,
+                    }}
+                  />
                 ) : (
-                  <RadioButton selected={chosen} enabled={!disabled} />
+                  <RadioButton
+                    selected={chosen}
+                    enabled={!disabled}
+                    colors={{
+                      selectedColor: ink,
+                      unselectedColor: ink,
+                      disabledSelectedColor: ink,
+                      disabledUnselectedColor: ink,
+                    }}
+                  />
                 )}
                 <Column verticalArrangement={{ spacedBy: space.x1 }} modifiers={[weight(1)]}>
-                  <Text style={{ typography: materialType.body }}>
+                  <Text color={ink} style={{ typography: materialType.body }}>
                     {t.option(letter(index), option.label)}
                   </Text>
                   {option.description === undefined ? null : (
-                    <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
+                    <Text color={ink} style={{ typography: materialType.meta }}>
                       {option.description}
                     </Text>
                   )}

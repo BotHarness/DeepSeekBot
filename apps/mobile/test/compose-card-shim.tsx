@@ -46,6 +46,7 @@ export const compose = {
   LoadingIndicator: node('LoadingIndicator'),
   Checkbox: node('Checkbox'),
   RadioButton: node('RadioButton'),
+  Shape: { RoundedCorner: node('RoundedCorner') },
   Badge: node('Badge'),
   BadgedBox: Object.assign(node('BadgedBox'), { Badge: slot('badge') }),
   TextField: Object.assign(

@@ -1,0 +1,25 @@
+import fc from 'fast-check';
+import { expect, it } from 'vitest';
+
+import { cardChoiceColors } from '../src/ui/design/controls';
+import { contrast, resolveTheme } from '../src/ui/design/resolve-theme';
+
+it('preserves readable card choices with arbitrary Bot accents', () => {
+  fc.assert(
+    fc.property(fc.integer({ min: 0, max: 0xffffff }), (rgb) => {
+      const accent = '#' + rgb.toString(16).padStart(6, '0');
+      for (const scheme of ['light', 'dark'] as const) {
+        const theme = resolveTheme(scheme, { accent });
+        const resting = cardChoiceColors(theme, 'primary');
+        for (const state of ['rest', 'pressed', 'disabled'] as const) {
+          const paint = cardChoiceColors(theme, 'primary', state);
+          expect(contrast(paint.ink, paint.fill)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(paint.outline, theme.layer.raised.fill)).toBeGreaterThanOrEqual(3);
+          if (state === 'pressed')
+            expect(contrast(resting.ink, paint.fill)).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }),
+    { numRuns: 256 },
+  );
+});

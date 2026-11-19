@@ -276,3 +276,22 @@ it('keeps a disabled selected result visible and exposes the native selected tra
   await act(async () => button.click());
   expect(onPress).not.toHaveBeenCalled();
 });
+
+it('renders a flat card choice with the same accessible action when Liquid Glass is available', async () => {
+  glass.on = true;
+  const onPress = vi.fn();
+  const host = await render(
+    <Button
+      label="Allow once"
+      testID="allow"
+      variant="card-solid"
+      tone="primary"
+      onPress={onPress}
+    />,
+  );
+  const button = host.querySelector<HTMLButtonElement>('[data-testid="allow"]')!;
+  expect(button.getAttribute('aria-label')).toBe('Allow once');
+  expect(host.querySelector('[data-host]')).toBeNull();
+  await act(async () => button.click());
+  expect(onPress).toHaveBeenCalledOnce();
+});

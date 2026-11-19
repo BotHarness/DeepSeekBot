@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 
 import { toggleOption, typeCustom, type QuestionDraft } from '@botharness/host-client/requests';
 import type { QuestionItem } from '@botharness/host-protocol/wire';
+import { cardChoiceColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -28,29 +29,33 @@ function Option({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const tone = chosen ? 'primary' : 'secondary';
+  const colors = cardChoiceColors(theme, tone, disabled ? 'disabled' : 'rest');
+  const pressedColors = cardChoiceColors(theme, tone, 'pressed');
   const badge = theme.type.body.line * theme.fontScale + space.x2;
   return (
     <Pressable
       accessibilityRole={multiple ? 'checkbox' : 'radio'}
       accessibilityLabel={t.option(letter(index), label)}
+      accessibilityHint={description}
       accessibilityState={{ checked: chosen, disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: theme.touch,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x4,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-        borderTopWidth: index === 0 ? 0 : edge.hairline,
-        borderTopColor: theme.layer.well.divider,
-        backgroundColor: chosen
-          ? theme.layer.well.chosen
-          : pressed
-            ? theme.layer.well.pressed
-            : theme.layer.well.fill,
-      })}
+      style={({ pressed }) => {
+        const paint = pressed && !disabled ? pressedColors : colors;
+        return {
+          minHeight: theme.touch,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x4,
+          paddingHorizontal: space.x4,
+          paddingVertical: space.x3,
+          borderWidth: edge.hairline,
+          borderColor: paint.outline,
+          borderRadius: radius.md,
+          backgroundColor: paint.fill,
+        };
+      }}
     >
       <View
         style={{
@@ -59,17 +64,18 @@ function Option({
           borderRadius: multiple ? radius.sm : radius.round,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: chosen ? theme.color.accent : theme.layer.well.inset,
+          borderWidth: edge.hairline,
+          borderColor: colors.ink,
         }}
       >
-        <Text variant="meta" strong tone={chosen ? 'onAccent' : 'muted'}>
-          {letter(index)}
+        <Text variant="meta" strong style={{ color: colors.ink }}>
+          {chosen ? '✓' : letter(index)}
         </Text>
       </View>
       <View style={{ flexShrink: 1, gap: space.x1 }}>
-        <Text>{label}</Text>
+        <Text style={{ color: colors.ink }}>{label}</Text>
         {description === undefined ? null : (
-          <Text variant="meta" tone="muted">
+          <Text variant="meta" style={{ color: colors.ink }}>
             {description}
           </Text>
         )}
@@ -125,14 +131,7 @@ export function QuestionFields({
         </Text>
       ) : null}
       {question.options?.length ? (
-        <View
-          accessibilityLabel={question.question}
-          style={{
-            overflow: 'hidden',
-            borderRadius: radius.md,
-            backgroundColor: theme.layer.well.fill,
-          }}
-        >
+        <View accessibilityLabel={question.question} style={{ gap: space.x2 }}>
           {question.options.map((option, index) => (
             <Option
               key={option.label}

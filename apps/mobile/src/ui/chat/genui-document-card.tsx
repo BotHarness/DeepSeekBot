@@ -246,13 +246,13 @@ function ViewControls({ view, stateful }: { view: GenuiDocumentViewModel; statef
           <>
             <Button
               label={t.genuiUseSaved}
-              variant="text"
+              variant="card-solid"
               testID="genui-document-use-saved"
               onPress={() => void view.reload()}
             />
             <Button
               label={t.genuiKeepMine}
-              variant="text"
+              variant="card-solid"
               testID="genui-document-keep-mine"
               onPress={() => void view.keepDraft()}
             />
@@ -336,12 +336,14 @@ function Replies({
           label={t.genuiContinue}
           tone="primary"
           disabled={blocked}
+          variant="card-solid"
           testID="genui-document-continue"
           onPress={() => submit('continue')}
         />
         <Button
           label={t.genuiRefresh}
           disabled={blocked}
+          variant="card-solid"
           testID="genui-document-refresh"
           onPress={() => submit('refresh')}
         />

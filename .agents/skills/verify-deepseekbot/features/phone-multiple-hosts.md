@@ -56,6 +56,10 @@ required to verify routing; a real reply additionally needs a working model.
    source names with their colored environment icons and follows the selected filter; resolve B's approval and answer B's
    question, then read back only B's results. Page each category and change badge
    preferences. Verify late responses after a scope change cannot alter the new view.
+   Compare the in-card controls on the same pending fixtures in Light and Dark.
+   Use a Question card with three or four options and an Action card with all
+   three decisions. At default, intermediate and maximum system text sizes,
+   reach the last choice and verify the Host records exactly one answer or decision.
 8. Background the app, generate messages on both Hosts and tap a B notification while
    A is selected. Verify the destination and all actions stay on B. Return foreground
    with A offline: B catches up independently; restore A and verify its missed state.

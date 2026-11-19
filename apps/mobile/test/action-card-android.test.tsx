@@ -32,8 +32,8 @@ vi.mock(
 vi.mock('../src/ui/chat/action-card', () => import('../src/ui/chat/action-card.android'));
 vi.mock('../src/ui/chat/approval-diff', () => import('../src/ui/chat/approval-diff.android'));
 vi.mock('../src/ui/design/theme', async () => {
-  const { theme } = await import('./compose-card-shim');
-  return { useDesignTheme: () => theme };
+  const { resolveTheme } = await import('../src/ui/design/resolve-theme');
+  return { useDesignTheme: () => resolveTheme('light', {}, 'android') };
 });
 
 import type { QuestionItem } from '@botharness/host-protocol/wire';
@@ -51,8 +51,11 @@ import {
 import { FileDiff } from '../src/ui/chat/approval-diff.android';
 import { QuestionFields } from '../src/ui/chat/question-fields.android';
 import { Button } from '../src/ui/primitives/button.android';
+import { cardChoiceColors } from '../src/ui/design/controls';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import { t } from '../src/ui/strings';
 
+const theme = resolveTheme('light', {}, 'android');
 const { ApprovalCard } = await import('../src/ui/chat/approval-card');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -95,14 +98,14 @@ describe('ActionCard on Android', () => {
     const card = all(view, 'Card')[0]!;
     expect(card.getAttribute('data-border')).toBeNull();
     expect(JSON.parse(card.getAttribute('data-colors')!)).toEqual({
-      containerColor: 'surface',
-      contentColor: 'fg',
+      containerColor: theme.layer.raised.fill,
+      contentColor: theme.color.fg,
     });
     expect(
       all(card, 'Text')
         .find((text) => text.textContent === 'Needs you')
         ?.getAttribute('data-color'),
-    ).toBe('warning');
+    ).toBe(theme.color.warning);
     expect(modifiers(card)).toContainEqual({ testID: 'action-card' });
     expect(texts(card)).toEqual(
       expect.arrayContaining(['Terminal', 'Needs you', 'Run this command', 'git status']),
@@ -137,7 +140,7 @@ describe('ActionCard on Android', () => {
       expect(modifiers(button)).not.toContainEqual({ fillMaxWidth: true });
     expect(JSON.parse(all(view, 'Card')[0]!.getAttribute('data-border')!)).toEqual({
       width: 2,
-      color: 'accent',
+      color: theme.color.accent,
     });
   });
 
@@ -233,6 +236,9 @@ describe('question options on Android', () => {
     expect(all(view, 'RadioButton')).toHaveLength(2);
     expect(all(view, 'Checkbox')).toHaveLength(0);
     const rows = all(view, 'Row');
+    expect(modifiers(rows[0]!)).toContainEqual({
+      background: cardChoiceColors(theme, 'secondary').fill,
+    });
     expect(texts(rows[0]!)).toEqual([t.option('A', 'main'), 'The default branch']);
     expect(modifiers(rows[1]!)).toContainEqual({
       toggleable: { value: false, role: 'radioButton', enabled: true },
@@ -316,7 +322,7 @@ it('draws an approval diff in Compose and shows the rest on demand', async () =>
     ),
   )!;
   expect(all(diff, 'Text')).toHaveLength(40);
-  expect(all(diff, 'Text')[0]!.getAttribute('data-color')).toBe('success');
+  expect(all(diff, 'Text')[0]!.getAttribute('data-color')).toBe(theme.color.success);
   const more = all(view, 'TextButton')[0]!;
   expect(more.textContent).toBe(t.diffMore(5));
   await act(async () => (more as HTMLElement).click());
@@ -363,14 +369,17 @@ it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     const deny = controls.find((node) =>
       modifiers(node).some((modifier) => modifier.testID === 'approval-deny'),
     );
-    expect(always?.getAttribute('data-compose')).toBe('TextButton');
-    expect(JSON.parse(always?.getAttribute('data-colors') ?? '{}')).toEqual({
-      contentColor: 'accentText',
-    });
-    expect(deny?.getAttribute('data-compose')).toBe('TextButton');
-    expect(JSON.parse(deny?.getAttribute('data-colors') ?? '{}')).toEqual({
-      contentColor: 'danger',
-    });
+    for (const [control, tone] of [
+      [always, 'secondary'],
+      [deny, 'danger'],
+    ] as const) {
+      expect(control?.getAttribute('data-compose')).toBe('FilledButton');
+      const { fill, ink } = cardChoiceColors(theme, tone);
+      expect(JSON.parse(control?.getAttribute('data-colors') ?? '{}')).toMatchObject({
+        containerColor: fill,
+        contentColor: ink,
+      });
+    }
     const chosen = controls.find((node) =>
       modifiers(node).some((modifier) => modifier.testID === chosenID),
     );

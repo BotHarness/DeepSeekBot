@@ -5,7 +5,7 @@ import { mobileAccents, palette } from '@botharness/host-client/ui/design/palett
 import {
   BUTTON_TONES,
   buttonColors,
-  cardDecisionInk,
+  cardChoiceColors,
   settingsColors,
   messageColors,
 } from '../src/ui/design/controls';
@@ -140,12 +140,23 @@ describe.each(schemes)('Tobs mobile contrast in %s mode', (scheme) => {
         'warning pill',
       ).toBeGreaterThanOrEqual(4.5);
 
-      for (const [decision, tone] of [
-        ['Always allow', 'secondary'],
-        ['Deny', 'danger'],
-      ] as const) {
-        const ratio = contrastOf(cardDecisionInk(theme, tone), theme.layer.raised.fill);
-        expect(ratio, `${decision} label and symbol`).toBeGreaterThanOrEqual(4.5);
+      for (const tone of ['primary', 'secondary', 'danger'] as const) {
+        const resting = cardChoiceColors(theme, tone);
+        for (const state of ['rest', 'pressed', 'disabled'] as const) {
+          const { fill, ink, outline } = cardChoiceColors(theme, tone, state);
+          expect(fill).toMatch(/^#[0-9a-f]{6}$/i);
+          expect(contrastOf(ink, fill), `${tone} ${state} label and symbol`).toBeGreaterThanOrEqual(
+            4.5,
+          );
+          expect(
+            contrastOf(outline, theme.layer.raised.fill),
+            `${tone} ${state} outline`,
+          ).toBeGreaterThanOrEqual(3);
+          if (state === 'pressed')
+            expect(contrastOf(resting.ink, fill)).toBeGreaterThanOrEqual(4.5);
+          if (state !== 'rest') expect(fill).not.toBe(resting.fill);
+        }
+        if (tone === 'primary') expect(resting.fill).toBe(theme.color.accent);
       }
     },
   );

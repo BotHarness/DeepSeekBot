@@ -242,6 +242,8 @@ export function QuestionCard({
             <Button
               symbol="check"
               label={t.submitChoice}
+              testID="question-submit"
+              variant="card-solid"
               tone="primary"
               disabled={answer === undefined}
               busy={phase.busy === true}
