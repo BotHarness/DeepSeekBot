@@ -682,5 +682,9 @@
   {
     "id": "routing-group-default-effort",
     "sha256": "76d4104730b069c01cb8ea7dc6fcd08d1ec80f69027fdf48aa73b920c1b500dc"
+  },
+  {
+    "id": "assignment-model-effort",
+    "sha256": "2eb1bb384be7c934d15ffcc336ee1378897fcd89e6c6c11e82ed62cd6cc6a40a"
   }
 ]
