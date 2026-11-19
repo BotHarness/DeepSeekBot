@@ -7,6 +7,7 @@ import { TeamError } from './error.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
+  ownerGrantedPermission,
   roleSchema,
   type HostPermission,
   type HostRole,
@@ -184,7 +185,7 @@ export class TeamRoles {
     if (authority.kind === 'owner') return;
     const permission = permissions.find(
       (id) =>
-        !authority.permissions.has(id) || (operation === 'grant' && id === 'privateContent.view'),
+        !authority.permissions.has(id) || (operation === 'grant' && ownerGrantedPermission(id)),
     );
     if (permission !== undefined)
       throw new TeamError('permission-not-grantable', undefined, { permission });
@@ -250,10 +251,9 @@ export class TeamRoles {
       patch.permissions === undefined
         ? role.permissions
         : this.validatePermissions(patch.permissions);
-    if (role.builtin === 'admin' && grants.includes('privateContent.view'))
-      throw new TeamError('permission-not-grantable', undefined, {
-        permission: 'privateContent.view',
-      });
+    const ownerGrant = role.builtin === 'admin' ? grants.find(ownerGrantedPermission) : undefined;
+    if (ownerGrant !== undefined)
+      throw new TeamError('permission-not-grantable', undefined, { permission: ownerGrant });
     this.checkPermissions(authority, grants, 'grant');
     this.db.transaction(
       (db) =>

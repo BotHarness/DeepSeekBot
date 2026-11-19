@@ -1,9 +1,11 @@
+import * as modelProviderCopy from './model-provider-copy.js';
 import { AVATAR_LABELS } from '../../../core/src/bots/avatar-labels.js';
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  ...modelProviderCopy.zh,
   'approval.effect.changes.none': '只读',
   'approval.effect.changes.reversible': '可撤销更改',
   'approval.effect.changes.irreversible': '不可撤销',
@@ -1949,17 +1951,6 @@ export const zh = {
   'turn.switchToModel': '改用 API 模型',
   'turn.switchingToModel': '正在切换…',
   'turn.switchedToModel': '已改用 API 模型，给它发消息继续',
-  'engine.localOnly': 'Subscription Engine 只能在你自己的电脑上运行，这台 Host 不支持。',
-  'engine.subscription': '{engine} 订阅',
-  'engine.noModels': '没有可用的订阅模型',
-  'engine.loadFailed': '读取 Subscription Engine 失败',
-  'engine.notSubscription': '当前用 API key 登录，需改用订阅登录',
-  'engine.loginUnknown': '无法确认登录状态',
-  'engine.notInstalled': '这台电脑没有安装 {engine}',
-  'engine.signingIn': '等待登录…',
-  'engine.signInLabel': '登录 {engine}',
-  'engine.openSignIn': '打开登录页面',
-  'engine.reload': '重新读取',
   'turn.switchFailed': '没切换成功：{message}',
   'member.removed': '{name} 被移出了频道',
   'hidden.modal.title': '隐藏的频道与 Bot 私聊',
@@ -3549,7 +3540,14 @@ export const zh = {
   'routingGroups.name': '名称',
   'routingGroups.members': '成员（按顺序尝试）',
   'routingGroups.noMembers': '还没有成员。添加至少一个模型。',
-  'routingGroups.add': '添加模型或路由组',
+  'routingGroups.add': '添加成员',
+  'routingGroups.models': '模型',
+  'routingGroups.engines': '订阅引擎',
+  'routingGroups.engineDefault': '{engine} 默认模型',
+  'routingGroups.enginesUnavailable': '无法读取这台电脑上的订阅引擎。',
+  'routingGroups.noEngines': '这台电脑上没有订阅引擎。',
+  'routingGroups.retryEngines': '重试',
+  'routingGroups.requiresModel': '路由组至少需要一个 DSH 模型。',
   'routingGroups.groupTag': '路由组',
   'routingGroups.missingGroup': '已删除的路由组',
   'routingGroups.resting': '休息至 {until}',
@@ -4045,7 +4043,7 @@ export const zh = {
   'sessions.access.danger': '完整文件访问',
   'sessions.mode': '模式：{name}。会话开始后不能更换。',
   'sessions.access.dangerDetails':
-    '此事项会话可访问授权工作区之外的文件；关闭 Bot 默认设置不会降低此会话的权限。',
+    '此事项的命令可修改或删除工作区外的文件，无需审批。关闭 Bot 的完全访问开关后，此事项仍保留该权限。',
   'sessions.status.running': '运行中',
   'sessions.status.stopping': '正在停止…',
   'sessions.status.attention': '需要关注',
@@ -4872,15 +4870,14 @@ export const zh = {
     '普通操作可访问所有文件，无需逐次确认；权限变更仍需确认。关闭后，聊天和新事项恢复工作区权限；已有事项保留原权限。',
   'access.confirmTitle': '开启危险文件权限？',
   'access.confirmRisk':
-    '此 Bot 的聊天会话和之后新建的事项可访问工作区外的任何文件，命令不再逐次提问。别人在群聊或 IM 里发来的内容也可能诱导它执行操作。修改持续权限或审批策略仍需单独确认。开启后可以把范围改成“仅新事项”。关闭开关会让聊天会话恢复受限，但不会降低已有危险事项的权限。',
+    '聊天会话和新事项可直接运行命令，修改或删除工作区外的文件。群聊和 IM 消息也可能触发这些操作。开启期间创建的事项，关闭后仍保留完全访问。',
   'access.confirmEnable': '我了解风险，开启',
   'access.scopeTitle': '完全访问的范围',
   'access.scopeChat': '聊天会话和新事项',
   'access.scopeAssignments': '仅新事项',
   'access.activeWarningAssignments':
-    '完全访问已开启（仅新事项）：之后新建的事项可访问任何文件，普通操作不再逐次提问；权限变更仍需确认。聊天会话仍然受限。',
-  'access.activeWarning':
-    '完全访问已开启：此 Bot 的聊天会话和之后新建的事项可访问任何文件，普通操作不再逐次提问；权限变更仍需确认。',
+    '新事项可运行命令，修改或删除工作区外的文件，无需审批。聊天会话仍使用工作区权限。',
+  'access.activeWarning': '聊天会话和新事项可运行命令，修改或删除工作区外的文件，无需审批。',
   'access.sessionWarning': '此事项以危险文件权限创建；关闭 Bot 开关不会改变它。',
   'approval.revokeRule': '撤销规则',
   'approval.exactRule': '相同调用：{tool}',
@@ -6255,6 +6252,7 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  ...modelProviderCopy.en,
   'approval.effect.changes.none': 'Read only',
   'approval.effect.changes.reversible': 'Reversible changes',
   'approval.effect.changes.irreversible': 'Irreversible',
@@ -8322,17 +8320,6 @@ export const en = {
   'turn.switchToModel': 'Switch to API model',
   'turn.switchingToModel': 'Switching…',
   'turn.switchedToModel': 'Switched to the API model. Message it to continue',
-  'engine.localOnly': 'Subscription Engines run only on your own computer, not on this Host.',
-  'engine.subscription': '{engine} subscription',
-  'engine.noModels': 'No subscription models available',
-  'engine.loadFailed': 'Couldn’t read Subscription Engines',
-  'engine.notSubscription': 'Signed in with an API key; sign in with your subscription',
-  'engine.loginUnknown': 'Sign-in state unknown',
-  'engine.notInstalled': '{engine} isn’t installed on this computer',
-  'engine.signingIn': 'Waiting for sign-in…',
-  'engine.signInLabel': 'Sign in to {engine}',
-  'engine.openSignIn': 'Open the sign-in page',
-  'engine.reload': 'Reload',
   'turn.switchFailed': 'Could not switch: {message}',
   'member.removed': '{name} was removed from the Channel',
   'hidden.modal.title': 'Hidden channels and Bot DMs',
@@ -10030,7 +10017,14 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'routingGroups.name': 'Name',
   'routingGroups.members': 'Members, tried in order',
   'routingGroups.noMembers': 'No members yet. Add at least one model.',
-  'routingGroups.add': 'Add a model or group',
+  'routingGroups.add': 'Add member',
+  'routingGroups.models': 'Models',
+  'routingGroups.engines': 'Subscription Engines',
+  'routingGroups.engineDefault': '{engine} default model',
+  'routingGroups.enginesUnavailable': 'Couldn’t read Subscription Engines on this computer.',
+  'routingGroups.noEngines': 'No Subscription Engines on this computer.',
+  'routingGroups.retryEngines': 'Retry',
+  'routingGroups.requiresModel': 'A Routing Group needs at least one DSH model.',
   'routingGroups.groupTag': 'Group',
   'routingGroups.missingGroup': 'Deleted group',
   'routingGroups.resting': 'Resting until {until}',
@@ -10548,7 +10542,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sessions.access.danger': 'Full file access',
   'sessions.mode': 'Mode: {name}. It stays fixed once the Session starts.',
   'sessions.access.dangerDetails':
-    'This Assignment Session can access files outside its workspace. Turning off the Bot default does not downgrade this Session.',
+    'This Assignment can run commands that change or delete files outside its workspace without approval. It keeps that access if you turn off Full access for the Bot.',
   'sessions.status.running': 'Running',
   'sessions.status.stopping': 'Stopping…',
   'sessions.status.attention': 'Needs attention',
@@ -11414,15 +11408,15 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Ordinary work can access all files without repeated prompts. Permission changes still need confirmation. Turning this off restores workspace permissions for chat and new Assignments; existing Assignments keep their permissions.',
   'access.confirmTitle': 'Enable dangerous file access?',
   'access.confirmRisk':
-    "This Bot's chat Session and its new Assignments may access any file outside their workspace and will not ask for each command. Content other people send in a Group or IM could steer it into acting. Persistent permission and approval-policy changes still need individual confirmation. Turning this off confines the chat Session again but does not downgrade existing dangerous Assignments.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval. Group and IM messages can trigger these actions. Assignments created with full access keep it after you turn this off.',
   'access.confirmEnable': 'I understand, enable',
   'access.scopeTitle': 'Scope of full access',
   'access.scopeChat': 'Chat and new Assignments',
   'access.scopeAssignments': 'New Assignments only',
   'access.activeWarningAssignments':
-    'Full access is on for new Assignments only: ordinary work may access any file without repeated prompts; permission changes still need confirmation. The chat Session stays confined.',
+    'New Assignments can run commands that change or delete files outside the workspace without approval. Chat keeps workspace permissions.',
   'access.activeWarning':
-    "Full access is on: this Bot's chat Session and its new Assignments may access any file for ordinary work without repeated prompts. Permission changes still need confirmation.",
+    'Chat and new Assignments can run commands that change or delete files outside the workspace without approval.',
   'access.sessionWarning':
     'This Assignment was created with dangerous file access; turning off the Bot setting will not change it.',
   'approval.revokeRule': 'Revoke rule',

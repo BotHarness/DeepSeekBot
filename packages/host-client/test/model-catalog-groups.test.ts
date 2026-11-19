@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  loadRoutingGroupEngines,
   modelCatalogGroupEfforts,
+  modelCatalogGroupMemberLabels,
   modelCatalogGroupFront,
   parseModelCatalog,
   parseRoutingGroup,
-  routingGroupEngineLabel,
+  routingGroupEngineChoices,
+  routingGroupEnginePresentation,
 } from '../src/model-catalog.js';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
@@ -72,7 +75,7 @@ describe('parseModelCatalog reads Routing Groups and rest state (#4421)', () => 
     expect(parseModelCatalog({ models: [] })).not.toHaveProperty('groups');
   });
 
-  it('keeps engine labels separate from the DSH routes used for selection', () => {
+  it('keeps saved order alongside the DSH routes used for selection', () => {
     const answer = parseModelCatalog({
       models: [],
       groups: [
@@ -91,9 +94,10 @@ describe('parseModelCatalog reads Routing Groups and rest state (#4421)', () => 
       ],
     });
     const group = answer.groups?.[0];
-    expect(group?.engineMembers?.map(routingGroupEngineLabel)).toEqual([
-      'Codex (gpt-5.4)',
-      'Claude Code',
+    expect(group?.members).toEqual([
+      { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+      { kind: 'model', ...flash },
+      { kind: 'engine', engine: 'claude' },
     ]);
     expect(group?.routes).toEqual([flash]);
   });
@@ -143,5 +147,116 @@ describe('modelCatalogGroupEfforts offers the efforts every reasoning member sha
 
   it('offers nothing when no member supports reasoning', () => {
     expect(modelCatalogGroupEfforts({ routes: [glm] }, models)).toEqual([]);
+  });
+});
+
+const en = {
+  defaultModel: (engine: string) => `${engine} default model`,
+  subscription: (source: string) => `${source} subscription`,
+};
+const zh = {
+  defaultModel: (engine: string) => `${engine} 默认模型`,
+  subscription: (source: string) => `${source} 订阅`,
+};
+
+describe('Routing Group engine presentation', () => {
+  it.each([
+    ['codex', 'gpt-5.4', undefined, 'openai', 'GPT-5.4', 'Codex · ChatGPT subscription'],
+    [
+      'codex',
+      undefined,
+      undefined,
+      'openai',
+      'Codex default model',
+      'Codex · ChatGPT subscription',
+    ],
+    [
+      'claude',
+      'claude-sonnet-4-6',
+      'Claude Sonnet 4.6',
+      'claude',
+      'Sonnet 4.6',
+      'Claude Code · Claude subscription',
+    ],
+    [
+      'claude',
+      undefined,
+      undefined,
+      'claude',
+      'Claude Code default model',
+      'Claude Code · Claude subscription',
+    ],
+    ['codex', 'gemini-3', 'Gemini 3', 'gemini', 'Gemini 3', 'Codex · ChatGPT subscription'],
+  ] as const)('formats %s %s as a model row', (engine, model, modelName, brand, title, detail) => {
+    expect(
+      routingGroupEnginePresentation(
+        {
+          kind: 'engine',
+          engine,
+          ...(model === undefined ? {} : { model }),
+        },
+        en,
+        modelName,
+      ),
+    ).toMatchObject({ brand, title, detail });
+  });
+
+  it('labels every saved member in order, including nested groups and localized engines', () => {
+    const catalog = parseModelCatalog({
+      models: [{ ...flash, modelName: 'DeepSeek V4.1 Flash', providerName: 'OpenCode Go' }],
+      groups: [
+        {
+          id: 'mixed',
+          name: 'Mixed',
+          routes: [flash],
+          members: [
+            { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+            { kind: 'group', id: 'nested' },
+            { kind: 'model', ...flash },
+            { kind: 'engine', engine: 'claude' },
+          ],
+        },
+        { id: 'nested', name: 'Full nested name', routes: [flash] },
+      ],
+    });
+    expect(
+      modelCatalogGroupMemberLabels(catalog.groups![0]!, catalog.models, catalog.groups!, zh),
+    ).toEqual([
+      'GPT-5.4 · Codex · ChatGPT 订阅',
+      'Full nested name',
+      'DeepSeek V4.1 Flash · OpenCode Go',
+      'Claude Code 默认模型 · Claude Code · Claude 订阅',
+    ]);
+  });
+
+  it('offers defaults and reported models only for available engines', async () => {
+    const engines = await loadRoutingGroupEngines({
+      async call(method, args) {
+        expect(method).toBe('modelCatalog');
+        expect(args).toEqual({ includeRoutingGroupEngines: true });
+        return {
+          routingGroupEngines: [
+            {
+              engine: 'codex',
+              available: true,
+              models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }, { id: '' }],
+            },
+            {
+              engine: 'claude',
+              available: false,
+              reason: 'signed-out',
+              models: [{ id: 'sonnet', name: 'Sonnet' }],
+            },
+          ],
+        };
+      },
+    });
+    expect(
+      routingGroupEngineChoices(engines).map(({ member, status }) => [member, status.available]),
+    ).toEqual([
+      [{ kind: 'engine', engine: 'codex' }, true],
+      [{ kind: 'engine', engine: 'codex', model: 'gpt-5.4' }, true],
+      [{ kind: 'engine', engine: 'claude' }, false],
+    ]);
   });
 });

@@ -1,3 +1,4 @@
+import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
 import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
@@ -302,6 +303,7 @@ import {
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
+  bridgeHost,
   loadModelCatalog,
   setModelFavorite,
   loadModelPresets,
@@ -661,6 +663,7 @@ export interface BridgeActions extends BotModeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  routingGroupEngines(): ReturnType<typeof loadRoutingGroupEngines>;
   setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   routingGroups(): Promise<{
@@ -2205,6 +2208,7 @@ export function createActions(
     setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
+    routingGroupEngines: () => loadRoutingGroupEngines(bridgeHost(call)),
     createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
     updateRoutingGroup: (id, expectedRevision, name, members) =>
       updateRoutingGroup(call, id, expectedRevision, name, members),
