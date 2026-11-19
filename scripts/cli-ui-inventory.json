@@ -328,6 +328,15 @@
       ]
     },
     {
+      "id": "bot-primary-color",
+      "description": "The Bot Profile exposes the Host-owned primary color choice.",
+      "scope": "PersonaBot",
+      "surfaces": [
+        "setting:packages/client/src/client/profile-header.tsx:{t('profile.primaryColor.title')}"
+      ],
+      "commands": ["bot-primary-color-set"]
+    },
+    {
       "id": "bot-modes",
       "description": "The DSH mode (Agent Preset) every Bot without its own uses, each Bot's own mode, and the mode templates that limit which modes a Bot and its Orchestrator can use.",
       "scope": "Host",
