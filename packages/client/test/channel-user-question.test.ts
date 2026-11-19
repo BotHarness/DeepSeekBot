@@ -495,7 +495,7 @@ describe('native question card interaction', () => {
     expect(container.querySelector('.bh-request-category')?.textContent).toBe('提问');
     expect(container.querySelector('.bh-request-pill')?.textContent).toBe('需要你回答');
     expect(container.textContent).not.toContain('需要你的回答');
-    expect(container.querySelector('.bh-question-lettered')).not.toBeNull();
+    expect(container.querySelector('ul[aria-label]')).not.toBeNull();
     expect(container.querySelector('details')).toBeNull();
     expect(
       container.querySelector<HTMLInputElement>('input[aria-label="其他回答"]')?.placeholder,
@@ -543,7 +543,9 @@ describe('native question card interaction', () => {
     const choices = Array.from(
       container.querySelectorAll<HTMLInputElement>('input[type=checkbox]'),
     );
-    const labels = Array.from(container.querySelectorAll<HTMLLabelElement>('label.bh-card-main'));
+    const labels = Array.from(
+      container.querySelectorAll<HTMLLabelElement>('label:has(input[type=checkbox])'),
+    );
     expect(choices).toHaveLength(3);
     expect(container.querySelector('button input')).toBeNull();
     await act(async () => labels[0]?.click());

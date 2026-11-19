@@ -21,6 +21,12 @@ export interface TeamModeView {
   readonly viewer: TeamViewer;
 }
 
+export function canManageModelProviders(viewer: TeamViewer | undefined): boolean {
+  return (
+    viewer !== undefined && (viewer.owner || viewer.permissions.includes('modelSources.manage'))
+  );
+}
+
 export type TeamMemberStatus = 'active' | 'suspended' | 'deactivated';
 
 export interface TeamMember {

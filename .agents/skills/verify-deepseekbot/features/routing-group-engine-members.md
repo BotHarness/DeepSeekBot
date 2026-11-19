@@ -45,7 +45,7 @@ For the group picker, open the global default model picker on desktop or a Bot's
 
 ### Quota fallback
 
-Run the replay first to verify continuation with a completed tool result, deduplication when a reply has already been delivered, and exhaustion without consuming subscription quota.
+Run the replay first to verify continuation with a completed tool result, deduplication when a reply has already been delivered, and exhaustion without consuming subscription quota. The replay also checks that a read-only Workspace Grant keeps both the first Codex target and the Claude Code continuation read-only.
 
 ```sh
 pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts

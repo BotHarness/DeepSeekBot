@@ -1,3 +1,10 @@
+import {
+  createModelProviderBridge,
+  invalidInput,
+  modelFailure,
+  type ModelProviderBridgeMethods,
+} from '../models/provider-bridge.js';
+import type { ModelProviders } from '../models/providers.js';
 import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
@@ -805,7 +812,7 @@ export interface MessagingAppsView {
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export interface BridgeMethods extends TeamBridgeMethods {
+export interface BridgeMethods extends TeamBridgeMethods, ModelProviderBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1471,6 +1478,7 @@ export interface BridgeMethodsDeps {
   routingGroups?: RoutingGroupStore;
   routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
   modelCatalog?: ModelCatalog;
+  modelProviders?: ModelProviders;
   modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
@@ -1913,24 +1921,6 @@ function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineI
     ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
     ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
   };
-}
-
-function modelFailure(error: unknown): BridgeResult<never> {
-  if (error instanceof EngineRefusal)
-    return { ok: false, error: { code: error.code, message: error.message } };
-  if (error instanceof TeamError)
-    return {
-      ok: false,
-      error: {
-        code: error.code,
-        message: error.code,
-        ...(error.details ? { details: error.details } : {}),
-      },
-    };
-  return invalidInput(error instanceof Error ? error.message : String(error));
-}
-function invalidInput(message: string): BridgeResult<never> {
-  return { ok: false, error: { code: 'invalid-input', message } };
 }
 
 function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
@@ -3181,6 +3171,7 @@ function buildBridgeMethods(
 
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
+    ...createModelProviderBridge(human, deps),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,

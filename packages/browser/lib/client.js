@@ -1363,11 +1363,16 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
+		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
+			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
-				className: joinClass(props(styles$4.base, styles$4[size], styles$4[variant]).className, className),
+				className: joinClass(styled.className, className),
+				style: styled.style === void 0 ? style : {
+					...styled.style,
+					...style
+				},
 				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
 					children: icon
@@ -1401,6 +1406,12 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
 		const styles$3 = {
+			wrap: {
+				khDVqt: "bhxeaf4i8",
+				kHjlTd: "bhxj0a0fe",
+				ks0D6T: "bhx193iq5w",
+				$$css: true
+			},
 			tag: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -1454,13 +1465,14 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		function Tag({ tone = "neutral", className, children }) {
+		const Tag = (0, react.forwardRef)(function Tag({ tone = "neutral", className, wrap = false, ...props$1 }, ref) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				...props$1,
+				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$3.tag, styles$3[tone]).className, className),
-				children
+				className: joinClass(props(styles$3.tag, styles$3[tone], wrap && styles$3.wrap).className, className)
 			});
-		}
+		});
 		//#endregion
 		//#region packages/client/src/client/ds/empty-state.tsx
 		function PanelEmptyState({ icon, children, action }) {
@@ -11354,13 +11366,15 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		});
-		(0, react.forwardRef)(function HiddenFileInput(props, ref) {
+		(0, react.forwardRef)(function HiddenFileInput({ className, ...props }, ref) {
+			const appearance = { className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft" };
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 				ref,
 				...props,
 				type: "file",
 				tabIndex: -1,
-				className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft"
+				...appearance,
+				className: joinClass(appearance.className, className)
 			});
 		});
 		//#endregion

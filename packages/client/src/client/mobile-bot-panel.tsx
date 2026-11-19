@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { BotPanel } from './bot-main.js';
 import { BotModeSidebar, type BotModeSidebarProps } from './bot-mode-sidebar.js';
 import { Dialog } from './ds/dialog.js';
+import { dimension } from './ds/dimensions.stylex.js';
 import { hooked } from './ds/hooked.js';
 import { layer, size, space } from './ds/tobs.stylex.js';
 import { viewportInsets } from './ds/viewport-insets.stylex.js';
@@ -30,7 +31,11 @@ const styles = stylex.create({
     backgroundColor: layer.canvas,
   },
   medium: { flexDirection: 'row', gap: space.x2 },
-  sidebar: { width: 'min(280px, 40%)', flexShrink: 0, backgroundColor: layer.nav },
+  sidebar: {
+    width: `min(${dimension.mediumSidebarWidth}, 40%)`,
+    flexShrink: 0,
+    backgroundColor: layer.nav,
+  },
   rail: { width: `calc(${size.rowLarge} + ${space.x3})` },
   content: {
     flex: '1 1 0',
@@ -91,17 +96,18 @@ export function MobileBotPanel(props: MobileBotPanelProps): ReactElement {
   const compact = windowClass === 'compact';
   const medium = windowClass === 'medium';
   const narrow = compact || medium;
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerSource, setDrawerSource] = useState<'keyboard' | 'pointer'>();
   const [rail, setRail] = useState(false);
   const layout = props.workspace?.layout;
   const shellMount = useMountedResource<HTMLDivElement>(
     (node) => {
-      if (!compact) setDrawerOpen(false);
+      if (!compact) setDrawerSource(undefined);
       if (!narrow) return;
       const releaseShell = mountMobileBotShell(node);
       const releaseCommand = layout
         ? claimSidebarCommand(layout, () => {
-            if (compact) setDrawerOpen((open) => !open);
+            if (compact)
+              setDrawerSource((source) => (source === undefined ? 'keyboard' : undefined));
             else setRail((collapsed) => !collapsed);
           })
         : undefined;
@@ -112,7 +118,7 @@ export function MobileBotPanel(props: MobileBotPanelProps): ReactElement {
     },
     [compact, narrow, layout],
   );
-  const closeDrawer = () => setDrawerOpen(false);
+  const closeDrawer = () => setDrawerSource(undefined);
 
   return (
     <div
@@ -139,11 +145,19 @@ export function MobileBotPanel(props: MobileBotPanelProps): ReactElement {
           ? hooked('bh-mobile-content', styles.content)
           : stylex.props(narrow ? styles.content : styles.inline))}
       >
-        <BotPanel {...props} openCompactSidebar={compact ? () => setDrawerOpen(true) : undefined} />
+        <BotPanel
+          {...props}
+          openCompactSidebar={
+            compact
+              ? (event) => setDrawerSource(event.detail === 0 ? 'keyboard' : 'pointer')
+              : undefined
+          }
+        />
       </div>
       {compact && (
         <Dialog
-          open={drawerOpen}
+          open={drawerSource !== undefined}
+          animate={drawerSource === 'pointer'}
           title={props.t('mobile.navigation')}
           presentation="drawer"
           unsized

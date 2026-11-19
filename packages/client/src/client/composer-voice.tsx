@@ -1,3 +1,4 @@
+import { ComposerControl, composer } from './ds/chat-chrome.js';
 import { Icon } from './ds/icon.js';
 
 import {
@@ -252,10 +253,11 @@ export function ComposerMicButton({
       portal
       delayMs={350}
     >
-      <button
-        type="button"
+      <ComposerControl
         ref={levelMount}
         className="bh-composer-mic bh-voice-ripple"
+        primary={live}
+        xstyle={[composer.mic, recording && !live && composer.micStarting]}
         data-ripple={live ? 'on' : undefined}
         data-state={live ? (voice.snapshot.mode ?? 'toggle') : recording ? 'starting' : 'idle'}
         aria-label={label}
@@ -288,7 +290,7 @@ export function ComposerMicButton({
         }}
       >
         <Icon name="mic" size={16} />
-      </button>
+      </ComposerControl>
     </Tooltip>
   );
 }

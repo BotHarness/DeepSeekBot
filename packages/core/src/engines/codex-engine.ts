@@ -13,6 +13,7 @@ import {
   type EngineSession,
   type EngineStartOptions,
   type EngineTurnEnd,
+  type EngineWorkspaceMode,
   EngineRefusal,
   engineEffort,
   engineEnvironment,
@@ -219,6 +220,12 @@ export const CODEX_TURN_SANDBOX = {
   excludeSlashTmp: true,
 } as const;
 
+const TURN_SANDBOX = {
+  'read-only': { type: 'readOnly', networkAccess: false },
+  'workspace-write': CODEX_TURN_SANDBOX,
+  'danger-full-access': { type: 'dangerFullAccess' },
+} as const satisfies Record<EngineWorkspaceMode, object>;
+
 const SERVER_APPROVALS = new Set([
   'item/commandExecution/requestApproval',
   'item/fileChange/requestApproval',
@@ -245,6 +252,7 @@ export class CodexEngineSession implements EngineSession {
   readonly #instructions: string;
   readonly #contextSeed: EngineStartOptions['contextSeed'];
   readonly #choice: EngineChoice;
+  readonly #workspaceMode: EngineWorkspaceMode;
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
@@ -259,12 +267,13 @@ export class CodexEngineSession implements EngineSession {
   constructor(
     transport: CodexTransport,
     options: Pick<EngineStartOptions, 'cwd' | 'instructions' | 'contextSeed'> &
-      EngineChoice & { requestTimeoutMs?: number },
+      EngineChoice & { requestTimeoutMs?: number; workspaceMode?: EngineWorkspaceMode },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
     this.#contextSeed = options.contextSeed;
+    this.#workspaceMode = options.workspaceMode ?? 'workspace-write';
     this.#choice = {
       ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.effort === undefined ? {} : { effort: options.effort }),
@@ -302,8 +311,8 @@ export class CodexEngineSession implements EngineSession {
     await this.#initialize();
     const common = {
       cwd: this.#cwd,
-      approvalPolicy: 'on-request',
-      sandbox: 'workspace-write',
+      approvalPolicy: this.#approvalPolicy,
+      sandbox: this.#workspaceMode,
       developerInstructions: this.#instructions,
       ...(this.#choice.model === undefined ? {} : { model: this.#choice.model }),
     };
@@ -325,6 +334,10 @@ export class CodexEngineSession implements EngineSession {
     if (!id) throw new EngineRefusal('engine-failed', 'Codex did not return a thread id');
     this.#threadId = id;
     return id;
+  }
+
+  get #approvalPolicy(): 'on-request' | 'never' {
+    return this.#workspaceMode === 'workspace-write' ? 'on-request' : 'never';
   }
 
   async send(currentInput: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
@@ -358,7 +371,8 @@ export class CodexEngineSession implements EngineSession {
       active.started = this.#request('turn/start', {
         threadId,
         input: [{ type: 'text', text: input, text_elements: [] }],
-        sandboxPolicy: CODEX_TURN_SANDBOX,
+        sandboxPolicy: TURN_SANDBOX[this.#workspaceMode],
+        approvalPolicy: this.#approvalPolicy,
         ...this.#choice,
       }).then((response) => text(record(record(response)['turn'])['id']));
       turnId = (await active.started) || undefined;
@@ -525,6 +539,10 @@ export class CodexEngineSession implements EngineSession {
 
   #serverRequest(id: number | string, method: string, params: Json): void {
     if (SERVER_APPROVALS.has(method)) {
+      if (this.#approvalPolicy === 'never') {
+        this.#transport.send({ id, result: { decision: 'decline' } });
+        return;
+      }
       const itemId = text(params['itemId']);
       const approvalId = `${itemId}:${text(params['approvalId']) || String(id)}`;
       this.#approvals.set(approvalId, id);

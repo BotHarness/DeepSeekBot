@@ -277,7 +277,7 @@ deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
 
-`access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下普通工具请求不再逐次弹卡；识别出的权限／策略变更仍需 Human 本次决定，浏览器和 Computer 保留各自能力检查。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。 `botHopLimit`（1–1000 的整数，默认 128，「设置 → 消息」）是由一条 Human 消息开始的 Bot 接力链的最大层数。会唤醒其他 Bot 的发送（@ 提及或 Bot 私信）超限时以 `collaboration-hop-limit` 被拒，且不会写入任何消息；不 @ 任何 Bot 的群消息仍会发出，只是不唤醒任何 Bot。Tob 的受限 CLI 不能修改它。`settingsPins` 是「设置 → 常用」里固定的设置页 id 列表，按顺序显示，保存在 Host 上，连接同一 Host 的所有客户端看到同一组固定项。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
+完全访问开启时，`access` 和 `access-set` 的 JSON 响应包含 `warning` 字段。Claude Code 和 Codex 可以运行命令，直接修改或删除工作区外的文件。`access-set` 设置 `danger-full-access` 时必须带 `--acknowledge-risk`：完全访问下普通工具请求不再逐次弹卡；识别出的权限／策略变更仍需 Human 本次决定，浏览器和 Computer 保留各自能力检查。`--scope chat` 同时作用于 Bot 自己的对话；`assignments` 只作用于新的 Assignment。`settings` 返回一个命名空间的 `{ns, revision, value}`；`settings-set` 从标准输入读取一个字段 JSON 对象，并基于该版本号应用，所以并发修改会失败而不是被覆盖。只有 Host 标记为可在线修改的字段才能这样改。 `botHopLimit`（1–1000 的整数，默认 128，「设置 → 消息」）是由一条 Human 消息开始的 Bot 接力链的最大层数。会唤醒其他 Bot 的发送（@ 提及或 Bot 私信）超限时以 `collaboration-hop-limit` 被拒，且不会写入任何消息；不 @ 任何 Bot 的群消息仍会发出，只是不唤醒任何 Bot。Tob 的受限 CLI 不能修改它。`settingsPins` 是「设置 → 常用」里固定的设置页 id 列表，按顺序显示，保存在 Host 上，连接同一 Host 的所有客户端看到同一组固定项。`workspace-create` 接受绝对路径并返回 Host 工作区，其 id 供 `grant-create` 使用。
 
 ### Bot 私聊中的 GenUI 文档
 
@@ -1218,6 +1218,20 @@ deepseekbot group-activity <group-channel>
 `overview-usage`（`--period today|week|month|quarter`，`month` 为近 28 天，`quarter` 为近 84 天，默认 `today`）和 `overview-memory` 返回总览页上每个 Bot 的数据行；把返回的 `nextCursor` 作为 `--after` 传回可以继续读取。`activity-overview` 显示每个 Bot 正在做什么，`channel-activity-today` 显示每个 Channel 今天的消息。`bot-*` 读取命令按 Bot ID 定位，通过它的私聊读取 Profile 面板：`bot-usage` 需要不晚于今天、跨度小于 182 天的 `--start`/`--end`，`bot-session-usage` 按会话和 Assignment 汇总用量，`bot-activity-history` 返回活动日历（`--weeks` 为 1–104）。`group-activity` 接受群组 Channel ID。
 
 `bot-activity-history` 的模型行在混有未报告调用时保留已上报的 `totalTokens` 下界，并标记 `partial: true`；完全未报告时保持 `null`。严格的 `bot-usage` 查询继续保留原来的未知总计语义。
+
+### API key 提供商
+
+Host Owner 或拥有 `modelSources.manage` 权限的 Human 可以查看和管理 API key 提供商。内置管理员角色默认没有此权限。添加时使用列表的总修订号，编辑或移除时使用对应提供商的修订号。发生冲突后重新读取列表。
+
+```bash
+deepseekbot model-providers
+deepseekbot model-provider-add --template opencode-go --name "OpenCode Go 备用" --key-stdin --expected-revision 0 < /path/to/key
+deepseekbot model-provider-edit opencode-go-2 --name "备用" --expected-revision 1
+deepseekbot model-provider-edit opencode-go-2 --key-file /path/to/key --expected-revision 2
+deepseekbot model-provider-remove opencode-go-2 --expected-revision 3 --confirm
+```
+
+使用 `deepseek` 模板配置 DeepSeek。使用 `custom` 模板配置兼容 OpenAI 的服务，并提供 `--endpoint <base-url> --model <id>`。添加或替换 key 时会返回 API key 是否已保存、列出的模型数量以及该路由上的测试回复结果。JSON 最多显示 key 的末四位。由 Host 配置继承或仍被默认模型、路由组、模型预设或 Bot 引用的提供商不能移除。在 Host 上或通过 Tailscale 输入 key。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 

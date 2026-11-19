@@ -12,6 +12,7 @@ import { createRouteRests } from '../src/models/route-rest.js';
 import type { RoutingGroupMember } from '../src/models/routing-groups.js';
 import { createCore } from '../src/plugin.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { engineWorkspaceMode } from '../src/workspaces/grant-execution.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { claudeReplay, readClaudeRecording } from './fixtures/claude-replay.js';
 import { codexReplay, readCodexRecording, type CodexReplay } from './fixtures/codex-replay.js';
@@ -92,6 +93,12 @@ function setup(options: {
 }) {
   const clock = { now: START };
   const root = createTempRoot('routing-group-engine-');
+  const workspace = {
+    id: 'project',
+    path: createTempRoot('routing-group-granted-workspace-'),
+    title: 'Fixture',
+    status: async () => 'ok' as const,
+  };
   const dsh = memoryDsh();
   const replies = vi.fn();
   const native = new FakeAgentHost(undefined, {
@@ -158,6 +165,8 @@ function setup(options: {
   const adapter = createDshBotAgentAdapter({
     agents: native,
     engines: host,
+    engineWorkspaceMode: (slug): ReturnType<typeof engineWorkspaceMode> =>
+      engineWorkspaceMode(core, slug),
     orchestratorCwd: () => memoryDirectory,
     ensureWorkspace: () => {},
     prepareModelRoute,
@@ -169,6 +178,10 @@ function setup(options: {
   const core = createCore({
     dshHome: root,
     agents: adapter,
+    workspaces: () => ({
+      get: (id) => (id === workspace.id ? workspace : undefined),
+      list: () => [workspace],
+    }),
     groupFallback,
     routeRests,
     sessionRoute: (_slug, id) => groupFallback.route(id) ?? adapter.modelSelection(id) ?? API,
@@ -212,6 +225,7 @@ function setup(options: {
     prepareModelRoute,
     replies,
     memoryDirectory,
+    grantWorkspace: () => core.grants.create('ada', workspace.id),
     message,
     sessionId: () => core.runtime.currentOrchestratorSessionId?.('ada')!,
     channelMessages: () => core.channels.readMessages(channel.id),
@@ -327,6 +341,29 @@ it('carries Session context through Codex to Claude Code to DSH in the same turn
     { modelSwitch: { sessionId, from: { provider: 'codex' }, to: { provider: 'claude' } } },
     { modelSwitch: { sessionId, from: { provider: 'claude' }, to: API } },
   ]);
+});
+
+it('starts mixed-group engines in read-only mode across quota continuation', async () => {
+  const bot = setup({ members: [CODEX, CLAUDE] });
+  expect(await bot.grantWorkspace()).toMatchObject({ orchestratorWrite: false });
+
+  await bot.message('first', 'Check the granted workspace');
+
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start')).toMatchObject({
+    params: { sandbox: 'read-only', approvalPolicy: 'never' },
+  });
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'turn/start')).toMatchObject({
+    params: { sandboxPolicy: { type: 'readOnly', networkAccess: false }, approvalPolicy: 'never' },
+  });
+  expect(bot.claude.options).toMatchObject([
+    {
+      model: CLAUDE.model,
+      permissionMode: 'default',
+      tools: ['Read', 'Glob', 'Grep'],
+      disallowedTools: ['Edit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell'],
+    },
+  ]);
+  expect(bot.claude.prompts).toEqual([expect.stringContaining('Check the granted workspace')]);
 });
 
 it('blocks a second reply when the engine delivered one before quota', async () => {

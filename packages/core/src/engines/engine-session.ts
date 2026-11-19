@@ -31,6 +31,8 @@ export interface EngineChoice {
   effort?: string;
 }
 
+export type EngineWorkspaceMode = 'read-only' | 'workspace-write' | 'danger-full-access';
+
 export function requireOfferedEngineChoice(
   engine: EngineId,
   choice: EngineChoice,

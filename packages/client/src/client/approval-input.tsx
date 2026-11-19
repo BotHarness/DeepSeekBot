@@ -1,9 +1,29 @@
 import { useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import {
   approvalFileChange,
   approvalShellCommand,
 } from '@botharness/host-client/shared/approval-diff';
 import type { BotHarnessTranslate } from './locale.js';
+import { Button } from './ds/button.js';
+import { hooked } from './ds/hooked.js';
+import { requestCardStyles as card } from './ds/request-card.js';
+import { ink, space, status } from './ds/tobs.stylex.js';
+
+const styles = stylex.create({
+  noMargin: { margin: 0 },
+  input: { maxHeight: 'min(420px, 60vh)', overflow: 'auto' },
+  compact: { maxHeight: '160px' },
+  folded: { maxHeight: 'none', overflow: 'hidden' },
+  toggle: { justifySelf: 'start' },
+  file: { display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: space.x2 },
+  diff: { paddingInline: 0 },
+  diffLine: { display: 'block', paddingInline: space.x3 },
+  diffMark: { display: 'inline-block', width: '1.5ch', color: ink.primary, userSelect: 'none' },
+  added: { backgroundColor: status.successTint, color: status.successInk },
+  removed: { backgroundColor: status.dangerTint, color: status.dangerInk },
+  change: { textDecoration: 'none' },
+});
 
 export const APPROVAL_INPUT_PREVIEW_LINES = 12;
 export const APPROVAL_INPUT_PREVIEW_CHARS = 480;
@@ -20,11 +40,13 @@ export function ApprovalInput({
   input,
   t,
   caption = true,
+  compact = false,
 }: {
   toolName: string;
   input: string;
   t: BotHarnessTranslate;
   caption?: boolean;
+  compact?: boolean;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
   const fileChange = approvalFileChange(toolName, input);
@@ -35,28 +57,37 @@ export function ApprovalInput({
     lineCount > APPROVAL_INPUT_PREVIEW_LINES ||
     (fileChange === undefined && shown.length > APPROVAL_INPUT_PREVIEW_CHARS);
   const folded = foldable && !expanded;
+  const inputStyles = [
+    card.well,
+    card.preview,
+    styles.noMargin,
+    styles.input,
+    compact && styles.compact,
+    folded && styles.folded,
+  ];
   const toggle = foldable ? (
-    <button
+    <Button
       type="button"
-      className="bh-tool-approval-fold"
+      size="sm"
+      {...hooked('bh-tool-approval-fold', styles.toggle)}
       aria-expanded={expanded}
       onClick={() => setExpanded((value) => !value)}
     >
       {t(expanded ? 'approval.collapseInput' : 'approval.expandInput')}
-    </button>
+    </Button>
   ) : null;
   if (shell !== undefined)
     return (
-      <figure className="bh-tool-approval-input-block bh-tool-approval-shell">
+      <figure {...hooked('bh-tool-approval-shell', card.group, styles.noMargin)}>
         {shell.description === undefined || !caption ? null : (
-          <figcaption>{shell.description}</figcaption>
+          <figcaption {...stylex.props(card.caption)}>{shell.description}</figcaption>
         )}
         <pre
-          className="bh-tool-approval-input"
+          {...stylex.props(...inputStyles)}
           data-folded={folded || undefined}
           aria-label={t('approval.commandLabel')}
         >
-          <span className="bh-tool-approval-diff-mark" aria-hidden="true">
+          <span {...stylex.props(styles.diffMark)} aria-hidden="true">
             ${' '}
           </span>
           {folded ? preview(shell.command) : shell.command}
@@ -66,8 +97,8 @@ export function ApprovalInput({
     );
   if (fileChange === undefined)
     return (
-      <div className="bh-tool-approval-input-block">
-        <pre className="bh-tool-approval-input" data-folded={folded || undefined}>
+      <div {...stylex.props(card.group)}>
+        <pre {...stylex.props(...inputStyles)} data-folded={folded || undefined}>
           {folded ? preview(input) : input}
         </pre>
         {toggle}
@@ -75,30 +106,39 @@ export function ApprovalInput({
     );
   const lines = folded ? fileChange.lines.slice(0, APPROVAL_INPUT_PREVIEW_LINES) : fileChange.lines;
   return (
-    <figure className="bh-tool-approval-input-block bh-tool-approval-diff">
-      <figcaption>
+    <figure {...hooked('bh-tool-approval-diff', card.group, styles.noMargin)}>
+      <figcaption {...stylex.props(card.caption, styles.file)}>
         <code>{fileChange.path}</code>
-        <span className="bh-tool-approval-diff-stat" data-kind="add">
+        <span {...stylex.props(card.added)} data-kind="add">
           +{fileChange.added}
         </span>
-        <span className="bh-tool-approval-diff-stat" data-kind="remove">
+        <span {...stylex.props(card.removed)} data-kind="remove">
           −{fileChange.removed}
         </span>
       </figcaption>
       <pre
-        className="bh-tool-approval-input"
+        {...stylex.props(...inputStyles, styles.diff)}
         data-folded={folded || undefined}
         aria-label={t('approval.diffLabel', { path: fileChange.path })}
       >
         {lines.map((line, index) => (
-          <span key={index} className="bh-tool-approval-diff-line" data-kind={line.kind}>
-            <span className="bh-tool-approval-diff-mark" aria-hidden="true">
+          <span
+            key={index}
+            {...hooked(
+              'bh-tool-approval-diff-line',
+              styles.diffLine,
+              line.kind === 'add' && styles.added,
+              line.kind === 'remove' && styles.removed,
+            )}
+            data-kind={line.kind}
+          >
+            <span {...stylex.props(styles.diffMark)} aria-hidden="true">
               {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ' '}
             </span>
             {line.kind === 'add' ? (
-              <ins>{line.text}</ins>
+              <ins {...stylex.props(styles.change)}>{line.text}</ins>
             ) : line.kind === 'remove' ? (
-              <del>{line.text}</del>
+              <del {...stylex.props(styles.change)}>{line.text}</del>
             ) : (
               line.text
             )}

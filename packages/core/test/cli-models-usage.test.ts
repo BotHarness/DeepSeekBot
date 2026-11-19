@@ -875,3 +875,39 @@ it('passes subscription flags and explicit removal to the online preset owner', 
     { method: 'modelPresetUpdate', args: { assignmentEngine: null, expectedRevision: 1 } },
   ]);
 });
+
+it('passes a provider key only from explicit secret input and prints the Host receipt', async () => {
+  const input = 'stdin-provider-key';
+  const { url, calls } = await host(() => ({
+    ok: true,
+    value: { id: 'opencode-go-2', keyStored: true, modelCount: 2, testReply: 'ok' },
+  }));
+  const args = [
+    'model-provider-add',
+    '--template',
+    'opencode-go',
+    '--name',
+    'Backup',
+    '--expected-revision',
+    '4',
+  ];
+  const missing = await invoke(args, url);
+  expect(missing.code).not.toBe(0);
+  expect(calls).toEqual([]);
+  const saved = await invoke([...args, '--key-stdin'], url, input);
+  expect(saved.code).toBe(0);
+  expect(saved.text).not.toContain(input);
+  expect(saved.json).toMatchObject({ id: 'opencode-go-2', testReply: 'ok' });
+  expect(calls).toEqual([
+    {
+      method: 'modelProviderAdd',
+      args: { template: 'opencode-go', name: 'Backup', key: input, expectedRevision: 4 },
+    },
+  ]);
+  const removal = await invoke(
+    ['model-provider-remove', 'opencode-go-2', '--expected-revision', '5'],
+    url,
+  );
+  expect(removal.code).not.toBe(0);
+  expect(calls).toHaveLength(1);
+});
