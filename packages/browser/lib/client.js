@@ -10585,16 +10585,6 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
-		//#region packages/client/src/client/ds/surface.ts
-		const surfaceStyles = { card: {
-			"--tobs-on-field": "bhxvn5hdi",
-			"--tobs-on-field-edge": "bhxwe5oui",
-			"--tobs-on-track": "bhxgbxpun",
-			"--tobs-on-secondary": "bhxweo6jt",
-			"--tobs-on-secondary-edge": "bhx1f506l2",
-			$$css: true
-		} };
-		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
 		const SettingsGroupContext = (0, react.createContext)(false);
 		const styles$2 = {
@@ -10635,17 +10625,6 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		function SettingsRows({ children, rootRef }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				ref: rootRef,
-				"data-settings-group": "",
-				...props(styles$2.rows, styles$2.group, surfaceStyles.card),
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsGroupContext.Provider, {
-					value: true,
-					children
-				})
-			});
-		}
 		function SettingsRow({ title, icon, description, info, control, children, rootRef, data }) {
 			const id = (0, react.useId)();
 			const titleId = `${id}-title`;
@@ -10694,6 +10673,18 @@ window.__ModuleLoader__.load({
 					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhxvdlyrv bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
 					children: control
 				})]
+			});
+		}
+		function SettingsGroupPart({ children, rootRef, busy, role, label, data }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				ref: rootRef,
+				role,
+				"aria-label": label,
+				"aria-busy": busy,
+				"data-settings-part": "",
+				...data,
+				className: "bhx-default-marker bhxjp7ctv",
+				children
 			});
 		}
 		styles$2.row;
@@ -14256,7 +14247,7 @@ window.__ModuleLoader__.load({
 			}), [scope]);
 			const snapshot = (0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot);
 			const target = snapshot.value?.target ?? "local";
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsRows, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsGroupPart, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ConfigChoice, {
 				scope,
 				field: "target",
 				value: target,

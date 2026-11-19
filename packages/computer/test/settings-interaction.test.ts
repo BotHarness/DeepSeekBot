@@ -6,9 +6,9 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Menu: ({ anchor }: { anchor: unknown }) => anchor,
-}));
+import { shellPrimitives } from '../../client/test/primitive-mocks.js';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => shellPrimitives());
 
 import {
   ComputerSettingsPrefs,
