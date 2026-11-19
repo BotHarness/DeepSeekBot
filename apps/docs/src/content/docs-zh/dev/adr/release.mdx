@@ -54,7 +54,7 @@ Enforced by: [browser bundle identity](https://github.com/BotHarness/BotHarness/
 
 <a id="adr-0087"></a>
 
-First-party product package manifests declare `engines.dsh` as `>=0.2.0-0`. The native DSH evaluator includes prereleases. Exact build dependencies pin the reproducible build and tests. The Host resolves native DSH modules, so product members do not declare separate npm peers for them. The independent IM Provider has its own support policy. Qualification names the exact artifacts and DSH versions exercised.
+First-party product package manifests declare `engines.dsh` as `>=0.2.0-0`. The native DSH evaluator includes prereleases. Exact build dependencies pin the reproducible build and tests. The Host resolves native DSH modules, so product members do not declare separate npm peers for them. The independent IM Provider has its own support policy. Qualification names the exact artifacts and DSH versions exercised. The [Host compatibility decision](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/connections.md#adr-0316) defines fallback and canary behavior.
 
 Why: An API floor admits another release without a package rebuild solely for its version label. Exact build pins and runtime qualification preserve a separate record of what was actually built and tested.
 
