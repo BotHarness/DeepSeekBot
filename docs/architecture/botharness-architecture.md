@@ -70,7 +70,7 @@ Connect Bot transport is mounted beside the existing Human device gateway at `/b
 
 [#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253) 的共享入口沿用同一 Bot Host 身份、Noise key 与 remote Channel：认证来源可同时保存 tailnet 节点绑定及 Connect 账号／两端注册标识，更新一种来源不覆盖另一种。退出单个范围时，先以无撤销副作用的查询检查其他已认证范围，再决定是否取消关系待办；缺少来源的旧待办仍须先终止。发送前选择可用路线，开始投递后不换路重发。此结构与模块回归不代表 Connect 认证或真实通信已验收，完整结果由该切片 PR 记录。
 
-应用品牌为 Tobs（托布，Team of bots／Thousands of Bots），框架保留 BotHarness。官网域迁至 `tobs.app`；`go.tobs.app` 与旧短链域共享现有 Worker 和 D1，后台经 `ADMIN_ORIGIN` 留在原 Access 保护域。市场与统计服务接纳新官网来源；设备连接域、应用身份及既有安装入口保持兼容。见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 与 [迁移方案](../proposals/tobs-brand-migration.md)。
+应用品牌为 Tobs（托布，Team of bots／Thousands of Bots），框架保留 BotHarness。官网域迁至 `tobs.app`；`go.tobs.app` 与旧短链域共享现有 Worker 和 D1，后台经 `ADMIN_ORIGIN` 留在原 Access 保护域。市场与统计服务接纳新官网来源；设备连接域、应用身份及既有安装入口保持兼容。见 [ADR-0248](../decisions/bots.md#adr-0248) 与 [迁移方案](../proposals/tobs-brand-migration.md)。
 
 #2080 第一条切片让 Web 请求卡与在线 CLI 共用 application-defined Workspace 请求批准命令。Grant owner 在 Channel owner 的现有提交事务内写入读写权限，规范决议与 Inbox Admission 同时提交；成功读回后再沿原运行时处理原任务。新目录与旧只读升级均需 Human 明确确认，不由 Client 串联多个独立成功动作。Orchestrator 与 Assignment 的原生文件写入都检查当前 Grant 写权限；Assignment 仍只使用其原 Grant 和单 cwd。普通目录设置、移动端交互和完整重启恢复矩阵仍按后续切片交付，不能从本次 Web/CLI 路径推定已完成。见 [ADR-0238](../decisions/approvals.md#adr-0238)。
 
@@ -438,7 +438,7 @@ Application-defined IM DM commands (`/commands`, `/help`, `/status`, `/model`, `
 
 ### 首条外部出站路径（ADR-0101）
 
-产品品牌迁移保留这一分发身份：[ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 的 `tobs` npm 入口精确依赖同版本 `deepseekbot`，使用相同组件版本和逐字节相同的 Bundle Patch。两个包分别拥有 `tobs` 与 `deepseekbot` 命令，既有 Profile 无需添加第二个 Bundle，也不迁移存储。发布顺序为组件、旧入口、新入口；发布前分别验证两个 Bundle 的全新 Profile 安装及重启，并在 Windows/Linux 验证命令共存和独立卸载。
+产品品牌迁移保留这一分发身份：[ADR-0248](../decisions/bots.md#adr-0248) 的 `tobs` npm 入口精确依赖同版本 `deepseekbot`，使用相同组件版本和逐字节相同的 Bundle Patch。两个包分别拥有 `tobs` 与 `deepseekbot` 命令，既有 Profile 无需添加第二个 Bundle，也不迁移存储。发布顺序为组件、旧入口、新入口；发布前分别验证两个 Bundle 的全新 Profile 安装及重启，并在 Windows/Linux 验证命令共存和独立卸载。
 
 [ADR-0127](../decisions/im-providers.md#adr-0127) 提议在开发用 fork 政策之外增加产品分发路径：打包的 `deepseekbot` 固定 Core、Client、Browser、Computer 和独立版本的 `@botharness/im-provider`，通过同一 Bundle Patch 激活全部六个组件（[ADR-0160](../decisions/release.md#adr-0160)）。Provider 保留 SDK、凭据、存储身份及公开 Service；Core 保留所有 application-defined authority。构建校验不可变输入、重建运行时来源和 tarball 完整性。原生优先从 CLI 安装位置解析 Bundle，因此产物验收使用独立安装的官方 CLI，避免误用开发链接。初始不连接账号；重复的 standalone Bundle 在启动前被拒绝。Provider 随产品更新。此构建路径不发布 npm、不自动资格验证其他平台，也不免除 Human QA 和生产启用门槛。参见[打包验收指南](../product-im-installation.md)。 产品 Provider 的来源、DSH 版本和运行时摘要独立于开发版固定值；改变产品输入需要递增自身版本并重做实际安装验收（[#868](https://github.com/BotHarness/BotHarness/issues/868)）。
 
@@ -850,7 +850,7 @@ Tool detail Capability 默认拒绝所有 Consumer。部署 Human 在 `botharnes
 
 ### 5.2 · 可编辑 Avatar（已接受设计，待交付）
 
-[ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md) 记录 Human 已确认的设计目标：人物插画与抽象小角色两个 Avatar Family 共用真实 Bot-state 语义与过渡规则，各自适配部件和姿态。保存的有版本 Avatar Appearance 配方归 PersonaBot owning module；执行与 Human attention 消费现有 owning projection；逐帧姿态和过渡时间归 Client renderer，不写 SessionEvent、不改保存造型，也不另建状态聚合。首版编辑目标包含细分发件与有界五官几何参数；抽象角色可短暂变成有界点阵／符号，配件暂时收起、稳定姿态恢复时完整回来；小头像的动作更短、更克制，大形象更丰富。保存配方与派生静态快照；缺少兼容部件／协议版本时保留配方、显示原外形快照，并明确暂不可编辑／播放角色动画，独立活动提示继续消费真实事实。候选渲染路线是现有 React Client 内的受控 SVG、稳定节点与有界姿态采样，不预先引入新动效依赖。首个切片先验证编辑、保存、重读、真实工作动作与独立 attention（依赖 #123 owner 已交付的共享合同），第二家族复用语义合同；完成／错误动作后续另定结果作用域。shared native Human attention 继续由 #123 owner 提供，explicit waiting-on-Assignment 不由头像推断。
+[ADR-0118](../decisions/bots.md#adr-0118) 记录 Human 已确认的设计目标：人物插画与抽象小角色两个 Avatar Family 共用真实 Bot-state 语义与过渡规则，各自适配部件和姿态。保存的有版本 Avatar Appearance 配方归 PersonaBot owning module；执行与 Human attention 消费现有 owning projection；逐帧姿态和过渡时间归 Client renderer，不写 SessionEvent、不改保存造型，也不另建状态聚合。首版编辑目标包含细分发件与有界五官几何参数；抽象角色可短暂变成有界点阵／符号，配件暂时收起、稳定姿态恢复时完整回来；小头像的动作更短、更克制，大形象更丰富。保存配方与派生静态快照；缺少兼容部件／协议版本时保留配方、显示原外形快照，并明确暂不可编辑／播放角色动画，独立活动提示继续消费真实事实。候选渲染路线是现有 React Client 内的受控 SVG、稳定节点与有界姿态采样，不预先引入新动效依赖。首个切片先验证编辑、保存、重读、真实工作动作与独立 attention（依赖 #123 owner 已交付的共享合同），第二家族复用语义合同；完成／错误动作后续另定结果作用域。shared native Human attention 继续由 #123 owner 提供，explicit waiting-on-Assignment 不由头像推断。
 
 [#751](https://github.com/BotHarness/BotHarness/issues/751) 的首条人物路径使用 Registry 的 `setAppearance`：受控、严格版本化的部件与十六进制颜色配方和 Host 由同一 SVG 派生的 512×512 PNG 在一次原子写入内保存，SHA-256 revision 绑定配方与快照。DTO 只携带配方／revision 与既有快照 URL；图片覆盖或移除会清除 composed 配方。Client 的 Profile 草稿在 Save 前不写入，侧栏和大图消费同一保存配方；稳定 SVG 节点上的 Web Animations 只持有有界局部姿态，真实 activity 切换会重新定向，减少动画、隐藏、离屏和卸载取消资源。Host 光栅化依赖仅在保存时执行，不进入 Client Bundle；第二家族、细分发件／五官和缺版本兼容回退仍由后续切片验收。
 
@@ -874,7 +874,7 @@ Tool detail Capability 默认拒绝所有 Consumer。部署 Human 在 `botharnes
 
 ### 5.4 · 形象物种与自绘部件（部分已实现）
 
-[ADR-0148](../adr/0148-avatar-species-and-custom-parts-extend-one-pixel-rig.md) 在不新增 rig 的前提下扩展像素 Avatar Family。Avatar Species（人类、精灵、哥布林、矮人、兽人、猫、狗、狐狸、兔子、熊、花）是像素胸像骨架上的基底：轮廓、耳朵、鼻子或吻部、建议身体色与可接受部件；动作、锚点、说话嘴型与伙伴透明轮廓保持共享。头发拆为可分别上色的分片，新增穿过头发的头饰槽（前后两层）。当前物种无法显示的选择保存并隐藏，不被替换。
+[ADR-0148](../decisions/bots.md#adr-0148) 在不新增 rig 的前提下扩展像素 Avatar Family。Avatar Species（人类、精灵、哥布林、矮人、兽人、猫、狗、狐狸、兔子、熊、花）是像素胸像骨架上的基底：轮廓、耳朵、鼻子或吻部、建议身体色与可接受部件；动作、锚点、说话嘴型与伙伴透明轮廓保持共享。头发拆为可分别上色的分片，新增穿过头发的头饰槽（前后两层）。当前物种无法显示的选择保存并隐藏，不被替换。
 
 Custom Part 是有界像素网格，每格引用外形颜色或固定色并带明度档位，因此随外形换色。BotPixel 负责其类型、校验、渲染与纯函数绘制算法；PersonaBot 所属模块把副本嵌入 Avatar Appearance，DSH Profile 中由 Host 管理的 Part Library 以内容哈希身份和来源保存可复用部件。导出的 PersonaBot 携带其部件；单个部件以内嵌数据的 PNG 流转。眼睛、眉毛和嘴不可自绘，眨眼与说话帧仍由 rig 负责。
 
@@ -884,7 +884,7 @@ Custom Part 是有界像素网格，每格引用外形颜色或固定色并带�
 
 ### 5.5 · Bot 主色（已实现）
 
-[ADR-0177](../adr/0177-bot-primary-color-is-portable-identity-not-theme-state.md) 将 application-defined Bot Primary Color 定义为 PersonaBot 的视觉身份来源，而不是 DSH-native Service、SessionEvent、Client 偏好或全局主题品牌 token。现有 PersonaBot Host owner 管理自动／自定义模式与可移植兜底来源；Client 共享来源解析，再针对实际背景与 light/dark 派生名字颜色。自动模式采用当前 Avatar 的主 `hairColor`，没有可用主发色（上传图片、无头发、line family 或不支持的外形）时使用按 PersonaBot ID 确定的兜底色；自定义覆盖独立于 Avatar Appearance。主题切换不修改 Avatar 或身份来源。
+[ADR-0177](../decisions/bots.md#adr-0177) 将 application-defined Bot Primary Color 定义为 PersonaBot 的视觉身份来源，而不是 DSH-native Service、SessionEvent、Client 偏好或全局主题品牌 token。现有 PersonaBot Host owner 管理自动／自定义模式与可移植兜底来源；Client 共享来源解析，再针对实际背景与 light/dark 派生名字颜色。自动模式采用当前 Avatar 的主 `hairColor`，没有可用主发色（上传图片、无头发、line family 或不支持的外形）时使用按 PersonaBot ID 确定的兜底色；自定义覆盖独立于 Avatar Appearance。主题切换不修改 Avatar 或身份来源。
 
 已实现（#1471）：PersonaBot Registry 记录的可选 `primaryColor` 字段保存来源策略（缺失即自动，无 schema generation 变化）；`botPrimaryColorSet` bridge 方法沿用 DM 范围的既有授权，校验后保存，自动模式保留已携带的兜底来源。`primary-color` 模块提供 Avatar renderer 与主色解析共用的外形解析，二者不会各自实现默认头像算法。Bot Profile 的头像弹窗提供独立的 Bot 主色设置（自动／自定义、预设、取色器、HEX）与本地 light/dark 预览，Host 保存成功后才更新共享呈现；取消或失败不发布草稿。DM 的 Bot 作者名按实测背景派生名字色：保持色相与色度，只调整明度，直到对比度不低于 4.5:1，黑白灰保持无彩色。群聊（#1472）沿用同一来源解析：群聊与 DM 的 Bot 作者名、@ 候选名、输入框中选中的 Bot 提及和已发送的 Bot 提及各自按自身实测背景（含半透明提及底色与对方气泡）派生名字色；只给名字文字着色，提及底色、气泡、正文、Human 名字、Channel 引用和“所有 Bot”保持原样，主题切换时重新测量。分享与导入（#1473）沿用既有的 `.botharness/bot.json` descriptor：导出与每次保存主色时写入 `primaryColor`（模式、自定义来源，以及已携带或按来源 PersonaBot ID 得出的自动兜底色），不写任何主题派生色；Git 与 Zip 导入在创建新身份后读取它，新 ID 不改变携带的兜底色，自动模式仍是自动并在有可用主发色时跟随发色。没有该字段的旧 descriptor 按新身份的自动策略处理；字段不合法时沿用 descriptor 既有校验，整份 descriptor 被忽略，不写入 Registry。删除后的归属（#1474）沿用 Registry 保留的历史记录：PersonaBot Deletion 受理时把当时解析出的来源色写入该记录的 `primaryColor.retained`，不新增存储，也不做逐消息或逐统计时间点的颜色快照。`list` 对已删除身份返回带 `retained` 的策略，没有该值的旧记录在读取时按 PersonaBot ID 兜底且不回写；`overviewUsage` 的每个 Bot 行返回 `primaryColor` 来源色（现存 Bot 为当前解析值，已删除为保留值）。Client 用同一套名字色派生给已删除 Bot 的历史作者名、已发送提及和用量列表名字着色；现存 Bot 忽略记录上残留的 `retained`，继续跟随当前来源。按 Bot 的用量图表（#1476）读取 `overviewUsage` 行上的来源色：以图表实测背景派生对比度不低于 3:1 的图表色，再按固定层级（缓存读 100%、其他输入 62%、输出 36%，与背景混合）和固定顺序绘制 token 子类，分项不可用的用量保持中性色；色调图例和 tooltip 身份标记说明含义。概览的每日总用量、Profile 的按模型视图等以 token 类型或模型为主要比较对象的图表保留分类色；单个 Bot 自己的 token 图表（popover 的迷你图和 Profile 的每日总量视图）与按 Bot 的条形使用同一组色调和色调图例；消息框右下角 token 用量弹层里的 Bot 名字和各 Session 占比条也使用该 Bot 的名字色与图表色。颜色只取决于该 Bot 的来源色和背景，不随排序、分页、时间范围或参与的 Bot 改变。单 Bot 活跃度热力图（#1475）沿用同一来源：Profile 与 popover 中的事件活跃和 Memory 提交热力图把按实测背景派生的图表色写入该热力图的 `--bh-heat-color`，四档强度仍按原有比例与中性底色混合，计数、分档和 tooltip 不变，零活动保持主题中性色；主题切换时重新派生。Group Channel 的聚合热力图没有单一 Bot 身份，继续使用品牌强调色。
 
@@ -945,7 +945,7 @@ Diagnostic Bundle（[ADR-0185](../adr/0185-diagnostic-bundles-are-local-redacted
 
 ### 删除与清除（已接受设计，待实现）
 
-[ADR-0130](../adr/0130-deletion-preserves-history-and-makes-memory-erasure-explicit.md) 与 #138 将 PersonaBot／Channel 的结束参与和物理内容清除分开。删除 PersonaBot 的确认框展示实际 Memory Repository 与依赖，提供“打开记忆文件夹”及默认不勾选的“同时删除记忆文件”；打开文件夹不改变勾选或确认状态。未勾选时保留记忆及 Git，勾选后也只能清除经 Host 重查、专属且归属明确的仓库。共享、路径变化或无法证明归属时不可清除；Workspace、原生 DSH Session、远端 Git、外部导出与备份不随之删除。普通删除先关闭执行／收件／授权入口，等待所拥有的 AgentHandle 执行树静止，再保留 deleted identity、历史 Session Ownership 和仍保留记忆的持久位置；它不同于可恢复归档。Channel 删除保留消息及因果归属，只结束其成员和路由，不删除外部会话或其他路由；Hidden Channel 仍可恢复。另行确认的 Content Purge 才清除选中的 Source Event 正文，附件需检查共享引用，并覆盖 legacy CAS 与当前真实文件绑定。
+[ADR-0130](../decisions/bots.md#adr-0130) 与 #138 将 PersonaBot／Channel 的结束参与和物理内容清除分开。删除 PersonaBot 的确认框展示实际 Memory Repository 与依赖，提供“打开记忆文件夹”及默认不勾选的“同时删除记忆文件”；打开文件夹不改变勾选或确认状态。未勾选时保留记忆及 Git，勾选后也只能清除经 Host 重查、专属且归属明确的仓库。共享、路径变化或无法证明归属时不可清除；Workspace、原生 DSH Session、远端 Git、外部导出与备份不随之删除。普通删除先关闭执行／收件／授权入口，等待所拥有的 AgentHandle 执行树静止，再保留 deleted identity、历史 Session Ownership 和仍保留记忆的持久位置；它不同于可恢复归档。Channel 删除保留消息及因果归属，只结束其成员和路由，不删除外部会话或其他路由；Hidden Channel 仍可恢复。另行确认的 Content Purge 才清除选中的 Source Event 正文，附件需检查共享引用，并覆盖 legacy CAS 与当前真实文件绑定。
 
 现有 roster stream 在提交后和重连时投影不含正文的清除位置选择器。Client 清理当前和缓存会话、侧栏和 attention 摘要，拦截延迟响应回填，并显示清除标记。这些内存选择器来自 Host，不构成第二份持久权威。
 
@@ -973,7 +973,7 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
 
-[ADR-0131](../decisions/marketplace.md#adr-0131) 与 #18 让 Bot Marketplace 先作为 GitHub 索引目录上线：作者给公开仓库加 `botharness-bot` topic 即同意收录，也可在 Marketplace 贴链接立即抓取。独立的 Cloudflare Worker 与 D1 每日按 topic 切片发现、每小时用 GraphQL 批量刷新，README 进入 FTS5 索引；浏览用 keyset cursor，搜索只取前 200 条。harness 的 Marketplace modal 展示 README 详情；安装复用 #298 的 Git URL 创建路径，确认框显示最新提交并提示第三方仓库风险。贴链接与一键举报共用 ALTCHA 和限流。不建账号、不计下载。[ADR-0135](../adr/0135-a-bot-moves-between-people-as-a-zip-of-its-memory-files.md) 撤销了基于账号的第二阶段：把单个 Bot 交给别人或换设备，改为在 harness 里导出 Bot Zip（默认只含 Memory 文件和 `.botharness/bot.json`，整包导出时可选带 Git 历史），对方从创建菜单的「从 zip 导入」得到新的 PersonaBot。
+[ADR-0131](../decisions/marketplace.md#adr-0131) 与 #18 让 Bot Marketplace 先作为 GitHub 索引目录上线：作者给公开仓库加 `botharness-bot` topic 即同意收录，也可在 Marketplace 贴链接立即抓取。独立的 Cloudflare Worker 与 D1 每日按 topic 切片发现、每小时用 GraphQL 批量刷新，README 进入 FTS5 索引；浏览用 keyset cursor，搜索只取前 200 条。harness 的 Marketplace modal 展示 README 详情；安装复用 #298 的 Git URL 创建路径，确认框显示最新提交并提示第三方仓库风险。贴链接与一键举报共用 ALTCHA 和限流。不建账号、不计下载。[ADR-0135](../decisions/bots.md#adr-0135) 撤销了基于账号的第二阶段：把单个 Bot 交给别人或换设备，改为在 harness 里导出 Bot Zip（默认只含 Memory 文件和 `.botharness/bot.json`，整包导出时可选带 Git 历史），对方从创建菜单的「从 zip 导入」得到新的 PersonaBot。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
@@ -987,7 +987,7 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 [移动端设计](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 统一空白创建、市场、Git 链接和 Bot Zip 导入的原生流程：“全部”中显式选择已配对 Remote Host，最近使用的 Host 只作预选；从 A 进入沿用 A，提交前可改目标并保留表单。市场先浏览，点击导入后再确认目标；手机有网络时，无已配对或在线 Host 也可浏览，配对／连接后保留选择，但不自动提交。统一确认页显示来源、环境与可编辑名称，简介和标签收起。选择目标不切换主浏览环境；仍在进度页时，确认成功后进入目标 Host 的新 Bot DM；已经离开则保留完成提示与“打开 Bot”，不抢占当前页面。
 
-[ADR-0247](../adr/0247-bot-creation-and-import-recover-on-their-chosen-host.md) 将断线恢复和避免重复创建纳入交付范围：application-defined 创建能力扩展既有 Host 创建回执机制，持久绑定目标、已接受输入和同一次操作的身份；Registry、Memory 与 Channel owners 仍是规范数据的唯一所有者。手机保存恢复引用、草稿及恢复所需的选中文件；重连向原 Host 核对同一结果，不因响应丢失另建 Bot，也不改投其他 Host。Git 导入先只读确认来源版本，再将该版本和用户输入绑定到同一次操作；来源前进时明确拒绝，不自动接受新的内容。已完成操作的查询不依赖来源仓库继续可用。Host 持久接收后继续处理，离开页面不取消，本期不提供强制中止。Zip 上传要求保持前台；中断后核对原操作，必要时重传同一内容，不承诺持续后台上传或字节级续传。显式“再导入一份”使用新的操作与身份，允许重名。新 Bot 沿用目标 Host 默认模型；模型未就绪不阻止创建或回滚 Bot，DM 提供配置入口，不自动发送测试消息。每种来源的原生界面与 Host 恢复能力一起验证；交付和原生验收状态由 #2634 及其切片 PR 记录。
+[ADR-0247](../decisions/bots.md#adr-0247) 将断线恢复和避免重复创建纳入交付范围：application-defined 创建能力扩展既有 Host 创建回执机制，持久绑定目标、已接受输入和同一次操作的身份；Registry、Memory 与 Channel owners 仍是规范数据的唯一所有者。手机保存恢复引用、草稿及恢复所需的选中文件；重连向原 Host 核对同一结果，不因响应丢失另建 Bot，也不改投其他 Host。Git 导入先只读确认来源版本，再将该版本和用户输入绑定到同一次操作；来源前进时明确拒绝，不自动接受新的内容。已完成操作的查询不依赖来源仓库继续可用。Host 持久接收后继续处理，离开页面不取消，本期不提供强制中止。Zip 上传要求保持前台；中断后核对原操作，必要时重传同一内容，不承诺持续后台上传或字节级续传。显式“再导入一份”使用新的操作与身份，允许重名。新 Bot 沿用目标 Host 默认模型；模型未就绪不阻止创建或回滚 Bot，DM 提供配置入口，不自动发送测试消息。每种来源的原生界面与 Host 恢复能力一起验证；交付和原生验收状态由 #2634 及其切片 PR 记录。
 
 Zip 使用既有已认证 RPC 上传 256 KiB 原始数据块，避免整包超过加密网关的单请求边界。手机保留应用内文件、SHA-256 与大小；Host 暂存清单和不可变分块支持重启后核对，完整校验后才通过既有导入 owner 发布。暂存最多八个未过期会话、合计 400 MiB 预留，每个会话自首次接收起 24 小时到期；新上传接收时回收过期内容。规范导入回执独立于暂存期限，已完成操作无需原文件即可查回；未完成操作若需重选文件，必须匹配原哈希和大小。该暂存仅负责传输，不成为 Memory 或 Bot 的第二份权威。
 

@@ -2,7 +2,7 @@
 
 Scope: [#751](https://github.com/BotHarness/BotHarness/issues/751), under
 [spec #748](https://github.com/BotHarness/BotHarness/issues/748) and
-[ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md).
+[ADR-0118](../decisions/bots.md#adr-0118).
 Implementation reviewed at `23e37c93745ddf1cfe0eb57b6c425c6e0cee5477`, based on
 `db6f1bb3ccee4b491ef8bc1e1ce68a1bbbfb068b`. Follow-up commits add verification
 coverage and evidence; the first Human visual acceptance is pending.
