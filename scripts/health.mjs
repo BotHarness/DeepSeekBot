@@ -7,6 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE = 'scripts/health-baseline.json';
+const REGISTRY = 'scripts/guardrails.json';
+const TABLE_BEGIN = '<!-- guardrail-table:start -->';
+const TABLE_END = '<!-- guardrail-table:end -->';
 export const LIMIT = 1000;
 const SOURCE = /\.(?:[cm]?[jt]sx?)$/u;
 const SKIP =
@@ -47,10 +50,41 @@ export function collect(read, paths) {
 const sorted = (object) =>
   Object.fromEntries(Object.entries(object).sort(([a], [b]) => a.localeCompare(b)));
 
+const proseBytes = (current) =>
+  Object.values(current['agent-prose-bytes']).reduce((total, bytes) => total + bytes, 0);
+
+const validProseCap = (bytes) => Number.isSafeInteger(bytes) && bytes >= 0;
+
 export const baselineOf = (current) => ({
   'long-files': Object.keys(current['file-lines']),
   'tsc-exclude': current['tsc-exclude'],
+  'agent-prose-bytes': proseBytes(current),
 });
+
+export function syncGuardrailTable(text, guardrails) {
+  const start = text.indexOf(TABLE_BEGIN);
+  const end = text.indexOf(TABLE_END);
+  if (start < 0 || end < start) throw new Error('AGENTS.md is missing the guardrail table markers');
+  const header = ['Rule', 'Enforced by'];
+  const rows = guardrails.map(({ id, check }) => [
+    `\`${id}\``,
+    `[${check.split('/').at(-1)}](${check})`,
+  ]);
+  const widths = header.map((_, index) =>
+    Math.max(3, ...[header, ...rows].map((row) => row[index].length)),
+  );
+  const line = (row) => `| ${row.map((cell, index) => cell.padEnd(widths[index])).join(' | ')} |`;
+  const table = [
+    TABLE_BEGIN,
+    '',
+    line(header),
+    line(widths.map((width) => '-'.repeat(width))),
+    ...rows.map(line),
+    '',
+    TABLE_END,
+  ].join('\n');
+  return text.slice(0, start) + table + text.slice(end + TABLE_END.length);
+}
 
 export function check(current, baseline) {
   const errors = [];
@@ -73,6 +107,13 @@ export function check(current, baseline) {
   for (const path of excluded)
     if (!current['tsc-exclude'].includes(path))
       stale.push(`tsconfig.json no longer excludes ${path}`);
+  const cap = baseline['agent-prose-bytes'];
+  const bytes = proseBytes(current);
+  if (!validProseCap(cap)) errors.push(`${BASELINE} needs a nonnegative agent-prose-bytes cap`);
+  else if (bytes > cap)
+    errors.push(
+      `Always-loaded agent prose is ${bytes} bytes, above the ${cap}-byte cap. Move runbook detail behind a pointer to a doc or skill.`,
+    );
   return { errors, stale };
 }
 
@@ -83,6 +124,9 @@ export function lowered(current, baseline) {
   return {
     'long-files': next['long-files'].filter((path) => long.has(path)),
     'tsc-exclude': next['tsc-exclude'].filter((path) => excluded.has(path)),
+    'agent-prose-bytes': validProseCap(baseline['agent-prose-bytes'])
+      ? Math.min(next['agent-prose-bytes'], baseline['agent-prose-bytes'])
+      : next['agent-prose-bytes'],
   };
 }
 
@@ -92,6 +136,10 @@ export function raised(previous, next) {
     const before = new Set(previous[key] ?? []);
     for (const path of next[key] ?? []) if (!before.has(path)) errors.push(`${key}: ${path} added`);
   }
+  const before = previous['agent-prose-bytes'];
+  const after = next['agent-prose-bytes'];
+  if (validProseCap(before) && validProseCap(after) && after > before)
+    errors.push(`agent-prose-bytes: ${before} -> ${after}`);
   return errors;
 }
 
@@ -121,7 +169,6 @@ export function summary(current, before) {
   const over = lines.reduce((sum, [, count]) => sum + count - LIMIT, 0);
   const row = (label, now, then) => `| ${label} | ${then === undefined ? '' : then} | ${now} |`;
   const beforeLines = before ? Object.entries(before['file-lines']) : undefined;
-  const prose = (state) => Object.values(state['agent-prose-bytes']).reduce((a, b) => a + b, 0);
   return [
     '| Metric | Base | Now |',
     '| --- | --- | --- |',
@@ -132,7 +179,11 @@ export function summary(current, before) {
       beforeLines?.reduce((sum, [, count]) => sum + count - LIMIT, 0),
     ),
     row('Files excluded from tsc', current['tsc-exclude'].length, before?.['tsc-exclude'].length),
-    row('Always-loaded agent prose (bytes)', prose(current), before ? prose(before) : undefined),
+    row(
+      'Always-loaded agent prose (bytes)',
+      proseBytes(current),
+      before ? proseBytes(before) : undefined,
+    ),
     '',
     'Largest files:',
     ...lines
@@ -175,9 +226,14 @@ export const collectWorktree = () => collect(readWorktree, tracked());
 
 function main(argv) {
   const base = argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
+  const agents = readWorktree('AGENTS.md');
+  const { guardrails } = JSON.parse(readWorktree(REGISTRY));
+  const syncedAgents = syncGuardrailTable(agents, guardrails);
+  const updating = argv.includes('--update');
+  if (updating && syncedAgents !== agents) writeFileSync(join(root, 'AGENTS.md'), syncedAgents);
   const current = collectWorktree();
   const baselineText = readWorktree(BASELINE);
-  if (argv.includes('--update')) {
+  if (updating) {
     const next = baselineText ? lowered(current, JSON.parse(baselineText)) : baselineOf(current);
     writeFileSync(join(root, BASELINE), `${JSON.stringify(next, null, 2)}\n`);
     console.log(`health: wrote ${BASELINE}`);
@@ -186,6 +242,8 @@ function main(argv) {
   if (!baselineText) throw new Error(`${BASELINE} is missing; create it with --update`);
   const baseline = JSON.parse(baselineText);
   const errors = [];
+  if (agents !== syncedAgents)
+    errors.push('AGENTS.md guardrail table is stale. Run node scripts/health.mjs --update.');
   const notes = [];
   let before;
   if (base) {

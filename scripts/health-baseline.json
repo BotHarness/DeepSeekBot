@@ -184,5 +184,6 @@
     "apps/mobile/test/swipe-chat-target.test.ts",
     "apps/mobile/test/viewer-header.test.tsx",
     "apps/mobile/test/workspace-panel-root.test.ts"
-  ]
+  ],
+  "agent-prose-bytes": 20525
 }
