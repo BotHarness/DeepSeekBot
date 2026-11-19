@@ -15,24 +15,31 @@ import { SHEET_GROUP } from './sheet';
 export function RoutingGroupMemberRow({
   index,
   name,
+  title,
   detail,
   brand,
   engineRow,
+  engineReason,
+  usable,
   moveUp,
   moveDown,
   remove,
 }: {
   index: number;
   name: string;
+  title: string;
   detail: string | undefined;
   brand: ModelBrand | undefined;
   engineRow: ReturnType<typeof routingGroupEnginePresentation> | undefined;
+  engineReason: string | undefined;
+  usable: boolean;
   moveUp: (() => void) | undefined;
   moveDown: (() => void) | undefined;
   remove: (() => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const tone = usable ? 'fg' : 'muted';
   const actions = [
     { key: 'up', label: t.routingGroup.moveUp(name), run: moveUp, Icon: ChevronUpIcon },
     { key: 'down', label: t.routingGroup.moveDown(name), run: moveDown, Icon: ChevronDownIcon },
@@ -87,17 +94,28 @@ export function RoutingGroupMemberRow({
       {engineRow === undefined ? (
         <SettingsRow
           on={SHEET_GROUP}
-          title={`${index + 1}. ${name}`}
+          title={`${index + 1}. ${title}`}
+          accessibilityLabel={[`${index + 1}. ${name}`, detail].filter(Boolean).join(', ')}
           detail={detail}
+          tone={tone}
           leading={
             brand === undefined ? undefined : (
-              <ModelBrandIcon brand={brand} color={theme.color.fg} size={theme.type.title.line} />
+              <ModelBrandIcon
+                brand={brand}
+                color={theme.color[tone]}
+                size={theme.type.title.line}
+              />
             )
           }
           accessory={accessory}
         />
       ) : (
-        <ModelEnginePickerRow row={engineRow} accessory={accessory} />
+        <ModelEnginePickerRow
+          row={engineRow}
+          reason={engineReason}
+          position={index + 1}
+          accessory={accessory}
+        />
       )}
     </SwipeRow>
   );

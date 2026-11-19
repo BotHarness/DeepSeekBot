@@ -779,6 +779,7 @@ const en = {
     models: 'Models and Routing Groups',
     engines: 'Subscription Engines',
     enginesUnavailable: 'Couldn’t read Subscription Engines on this computer.',
+    noEngines: 'No Subscription Engines on this computer.',
     engineRow: {
       defaultModel: (engine: string) => `${engine} default model`,
       subscription: (source: string) => `${source} subscription`,
@@ -3532,6 +3533,7 @@ const zh: typeof en = {
     models: '模型和路由组',
     engines: '订阅引擎',
     enginesUnavailable: '无法读取这台电脑上的订阅引擎。',
+    noEngines: '这台电脑上没有订阅引擎。',
     engineRow: {
       defaultModel: (engine: string) => `${engine} 默认模型`,
       subscription: (source: string) => `${source} 订阅`,

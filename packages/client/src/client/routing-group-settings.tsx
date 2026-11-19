@@ -1,4 +1,5 @@
 import { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import * as stylex from '@stylexjs/stylex';
 import { useState, type ReactElement } from 'react';
 
@@ -21,7 +22,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { modelBrand, ModelBrandIcon, modelShortName, type ModelBrand } from './model-brand.js';
 import { routingGroupEngineCopy } from './model-menu.js';
-import { ENGINE_MARKER_ICON } from './session-engine.js';
+import { ENGINE_MARKER_ICON, routingGroupEngineReason } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker.js';
 
@@ -53,6 +54,7 @@ const styles = stylex.create({
     gap: space.x2,
     minWidth: 0,
   },
+  editorFields: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
   members: {
     display: 'flex',
     flexDirection: 'column',
@@ -90,6 +92,7 @@ const styles = stylex.create({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
+  unavailable: { color: color.muted },
   route: {
     overflow: 'hidden',
     color: color.muted,
@@ -141,9 +144,10 @@ function memberName(
   member: RoutingGroupMemberView,
   library: Library,
   t: BotHarnessTranslate,
+  engineModelName?: string,
 ): { name: string; title: string; detail?: string; brand?: ModelBrand | undefined } {
   if (member.kind === 'engine')
-    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t));
+    return routingGroupEnginePresentation(member, routingGroupEngineCopy(t), engineModelName);
   if (member.kind === 'group') {
     const name =
       library.groups.find((group) => group.id === member.id)?.name ??
@@ -222,6 +226,25 @@ function MemberEditor({
   t: BotHarnessTranslate;
 }): ReactElement {
   const members = editor.members;
+  const [engines, setEngines] = useState<RoutingGroupEngineOptions[] | 'failed'>();
+  const [checkEngines, setCheckEngines] = useState(() =>
+    members.some((member) => member.kind === 'engine'),
+  );
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    if (!checkEngines || engines !== undefined) return;
+    let active = true;
+    void loadEngines().then(
+      (options) => {
+        if (active) setEngines(options);
+      },
+      () => {
+        if (active) setEngines('failed');
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [checkEngines, engines, loadEngines]);
   const move = (index: number, by: number): void => {
     const next = [...members];
     const [member] = next.splice(index, 1);
@@ -229,18 +252,31 @@ function MemberEditor({
     onChange(next);
   };
   return (
-    <>
+    <div ref={mount} {...stylex.props(styles.editorFields)}>
       {members.length === 0 ? (
         <Note>{t('routingGroups.noMembers')}</Note>
       ) : (
         <ol {...stylex.props(styles.members)} aria-label={t('routingGroups.members')}>
           {members.map((member, index) => {
-            const { name, title, detail, brand } = memberName(member, library, t);
+            const engine =
+              member.kind === 'engine' && Array.isArray(engines)
+                ? engines.find((option) => option.engine === member.engine)
+                : undefined;
+            const engineModelName =
+              engine?.available === true && member.kind === 'engine'
+                ? engine.models.find((model) => model.id === member.model)?.name
+                : undefined;
+            const engineReason =
+              engine?.available === false
+                ? routingGroupEngineReason(engine.engine, engine.reason, t)
+                : undefined;
+            const { name, title, detail, brand } = memberName(member, library, t, engineModelName);
             const rest = restOf(member, library.rests);
+            const unavailable = rest !== undefined || engineReason !== undefined;
             return (
               <li
                 key={routingGroupMemberKey(member)}
-                {...stylex.props(styles.member)}
+                {...stylex.props(styles.member, unavailable && styles.unavailable)}
                 data-routing-group-member={routingGroupMemberKey(member)}
               >
                 <span {...stylex.props(styles.order)}>{index + 1}</span>
@@ -250,9 +286,13 @@ function MemberEditor({
                   <ModelBrandIcon brand={brand} size={16} />
                 )}
                 <span {...stylex.props(styles.label)}>
-                  <span {...stylex.props(styles.name)}>{title}</span>
+                  <span {...stylex.props(styles.name, unavailable && styles.unavailable)}>
+                    {title}
+                  </span>
                   {detail === undefined ? null : (
-                    <span {...stylex.props(styles.route)}>{detail}</span>
+                    <span {...stylex.props(styles.route)}>
+                      {engineReason === undefined ? detail : `${detail} · ${engineReason}`}
+                    </span>
                   )}
                 </span>
                 {member.kind === 'engine' ? <Icon name={ENGINE_MARKER_ICON} size={12} /> : null}
@@ -296,11 +336,13 @@ function MemberEditor({
         groups={library.groups}
         members={members}
         selfId={editor.mode === 'edit' ? editor.group.id : undefined}
-        loadEngines={loadEngines}
+        engines={engines}
+        onOpen={() => setCheckEngines(true)}
+        onRetryEngines={() => setEngines(undefined)}
         onSelect={(member) => onChange([...members, member])}
         t={t}
       />
-    </>
+    </div>
   );
 }
 

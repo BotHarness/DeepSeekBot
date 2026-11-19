@@ -12,8 +12,7 @@ import { Icon } from './ds/icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { modelBrand, ModelBrandIcon, modelShortName } from './model-brand.js';
 import { restingHint, routingGroupEngineCopy } from './model-menu.js';
-import { useMountedResource } from './mounted-resource.js';
-import { engineName, ENGINE_MARKER_ICON } from './session-engine.js';
+import { routingGroupEngineReason, ENGINE_MARKER_ICON } from './session-engine.js';
 
 export function routingGroupMemberKey(member: RoutingGroupMemberView): string {
   switch (member.kind) {
@@ -31,7 +30,9 @@ export function RoutingGroupMemberPicker({
   groups,
   members,
   selfId,
-  loadEngines,
+  engines,
+  onOpen,
+  onRetryEngines,
   onSelect,
   t,
 }: {
@@ -39,31 +40,17 @@ export function RoutingGroupMemberPicker({
   groups: readonly RoutingGroupView[];
   members: readonly RoutingGroupMemberView[];
   selfId: string | undefined;
-  loadEngines(): Promise<RoutingGroupEngineOptions[]>;
+  engines: RoutingGroupEngineOptions[] | 'failed' | undefined;
+  onOpen(): void;
+  onRetryEngines(): void;
   onSelect(member: RoutingGroupMemberView): void;
   t: BotHarnessTranslate;
 }): ReactElement {
   const taken = new Set(members.map(routingGroupMemberKey));
   const anchor = useRef<HTMLButtonElement>(null);
   const [picking, setPicking] = useState(false);
-  const [engines, setEngines] = useState<RoutingGroupEngineOptions[]>();
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    if (!picking) return;
-    let active = true;
-    void loadEngines().then(
-      (options) => {
-        if (active) setEngines(options);
-      },
-      () => {
-        if (active) setEngines([]);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [loadEngines, picking]);
   const togglePicker = () => {
-    if (!picking) setEngines(undefined);
+    if (!picking) onOpen();
     setPicking(!picking);
   };
   const choices = new Map<string, RoutingGroupMemberView>();
@@ -109,19 +96,15 @@ export function RoutingGroupMemberPicker({
         filter: 'groups',
       });
     }
-    for (const { member, status, modelName } of routingGroupEngineChoices(engines ?? [])) {
+    for (const { member, status, modelName } of routingGroupEngineChoices(
+      Array.isArray(engines) ? engines : [],
+    )) {
       const value = routingGroupMemberKey(member);
       if (status.available && taken.has(value)) continue;
       const row = routingGroupEnginePresentation(member, routingGroupEngineCopy(t), modelName);
       const reason = status.available
         ? undefined
-        : {
-            'host-not-local': () => t('engine.localOnly'),
-            'not-installed': () => t('engine.notInstalled', { engine: engineName(member.engine) }),
-            'signed-out': () => t('engine.signInLabel', { engine: engineName(member.engine) }),
-            'not-subscription': () => t('engine.notSubscription'),
-            'login-unknown': () => t('engine.loginUnknown'),
-          }[status.reason]();
+        : routingGroupEngineReason(member.engine, status.reason, t);
       choices.set(value, member);
       options.push({
         value,
@@ -131,24 +114,15 @@ export function RoutingGroupMemberPicker({
         icon: <ModelBrandIcon brand={row.brand} size={16} />,
         marker: <Icon name={ENGINE_MARKER_ICON} size={12} />,
         filter: 'engines',
+        search: member.model === undefined ? undefined : [member.model],
+        searchByTerms: true,
         exclusive: true,
         disabled: !status.available,
       });
     }
-    if (engines === undefined || engines.length === 0) {
-      options.push({
-        value: 'engines-status',
-        label: t(
-          engines !== undefined ? 'routingGroups.enginesUnavailable' : 'modelPreset.loading',
-        ),
-        disabled: true,
-        filter: 'engines',
-        exclusive: true,
-      });
-    }
   }
   return (
-    <div ref={mount}>
+    <div>
       <Button
         ref={anchor}
         type="button"
@@ -186,6 +160,17 @@ export function RoutingGroupMemberPicker({
               key: 'engines',
               label: t('routingGroups.engines'),
               icon: <Icon name={ENGINE_MARKER_ICON} size={16} />,
+              status:
+                engines === 'failed'
+                  ? {
+                      message: t('routingGroups.enginesUnavailable'),
+                      retry: { label: t('routingGroups.retryEngines'), onPress: onRetryEngines },
+                    }
+                  : engines === undefined
+                    ? { message: t('modelPreset.loading') }
+                    : engines.length === 0
+                      ? { message: t('routingGroups.noEngines') }
+                      : undefined,
             },
           ]}
           allFilter={{

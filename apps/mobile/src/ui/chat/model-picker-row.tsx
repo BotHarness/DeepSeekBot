@@ -20,11 +20,32 @@ type RowActions = Pick<
   'onPress' | 'selected' | 'control' | 'accessory' | 'testID' | 'disclosure'
 >;
 
-export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: ModelCatalogEntry }) {
+export function modelPickerAvailability(
+  entry: ModelCatalogEntry,
+  t: ReturnType<typeof useStrings>,
+) {
+  return {
+    usable: entry.credential === undefined && entry.restingUntil === undefined,
+    detail:
+      entry.credential === 'missing'
+        ? t.modelNeedsKey(entry.providerName)
+        : entry.credential === 'invalid'
+          ? t.modelKeyInvalid(entry.providerName)
+          : entry.restingUntil !== undefined
+            ? `${entry.providerName} · ${restingLabel(entry.restingUntil)}`
+            : entry.providerName,
+  };
+}
+
+export function ModelPickerRow({
+  entry,
+  shortTitle = false,
+  ...actions
+}: RowActions & { entry: ModelCatalogEntry; shortTitle?: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const label = modelEntryLabel(entry);
-  const usable = entry.credential === undefined && entry.restingUntil === undefined;
+  const { usable, detail } = modelPickerAvailability(entry, t);
   return (
     <SettingsRow
       {...actions}
@@ -36,17 +57,9 @@ export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: Mode
           color={usable ? theme.color.fg : theme.color.muted}
         />
       }
-      title={label.name}
+      title={shortTitle ? label.short : label.name}
       accessibilityLabel={`${entry.modelName}, ${entry.providerName}`}
-      detail={
-        entry.credential === 'missing'
-          ? t.modelNeedsKey(entry.providerName)
-          : entry.credential === 'invalid'
-            ? t.modelKeyInvalid(entry.providerName)
-            : entry.restingUntil !== undefined
-              ? `${entry.providerName} · ${restingLabel(entry.restingUntil)}`
-              : entry.providerName
-      }
+      detail={detail}
       tone={usable ? 'fg' : 'muted'}
     />
   );
@@ -55,14 +68,17 @@ export function ModelPickerRow({ entry, ...actions }: RowActions & { entry: Mode
 export function ModelEnginePickerRow({
   row,
   reason,
+  position,
   ...actions
 }: RowActions & {
   row: ReturnType<typeof routingGroupEnginePresentation>;
   reason?: string | undefined;
+  position?: number;
 }) {
   const theme = useDesignTheme();
   const tone = reason === undefined ? 'fg' : 'muted';
   const detail = reason === undefined ? row.detail : `${row.detail} · ${reason}`;
+  const order = position === undefined ? '' : `${position}. `;
   return (
     <SettingsRow
       {...actions}
@@ -77,9 +93,9 @@ export function ModelEnginePickerRow({
           color={theme.color.muted}
         />
       }
-      title={row.title}
+      title={order + row.title}
       detail={detail}
-      accessibilityLabel={`${row.name}, ${detail}`}
+      accessibilityLabel={`${order}${row.name}, ${detail}`}
       tone={tone}
     />
   );

@@ -9,12 +9,14 @@ import {
 } from '@botharness/host-client/bot-settings';
 import { MethodRefused } from '@botharness/host-client/client';
 import {
+  loadRoutingGroupEngines,
   routingGroupEnginePresentation,
   type ModelCatalogAnswer,
   type RoutingGroup,
   type RoutingGroupMember,
 } from '@botharness/host-client/model-catalog';
-import { modelBrand } from '@botharness/host-client/shared/model-brand';
+import { modelBrand, modelShortName } from '@botharness/host-client/shared/model-brand';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import { loadModelCatalog } from '@botharness/host-client/model-plans';
 import {
   createModelGroup,
@@ -33,6 +35,7 @@ import { SheetPage } from '../primitives/sheet-page';
 import { SheetSaveButton } from '../primitives/sheet-save-button';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
+import { modelPickerAvailability } from './model-picker-row';
 import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker';
 import { RoutingGroupMemberRow } from './routing-group-member-row';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading } from './sheet';
@@ -133,6 +136,27 @@ function RoutingGroupEditor({
   const [name, setName] = useState(group?.name ?? '');
   const [members, setMembers] = useState(group?.members ?? []);
   const [picking, setPicking] = useState(false);
+  const [engines, setEngines] = useState<RoutingGroupEngineOptions[] | 'failed'>();
+  const [checkEngines, setCheckEngines] = useState(
+    () => group?.members.some((member) => member.kind === 'engine') === true,
+  );
+  useFocusEffect(
+    useCallback(() => {
+      if (!checkEngines || engines !== undefined) return;
+      let active = true;
+      void loadRoutingGroupEngines(client).then(
+        (options) => {
+          if (active) setEngines(options);
+        },
+        () => {
+          if (active) setEngines('failed');
+        },
+      );
+      return () => {
+        active = false;
+      };
+    }, [checkEngines, client, engines]),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const list = useRef<FlatList<RoutingGroupMember>>(null);
@@ -245,9 +269,17 @@ function RoutingGroupEditor({
           </>
         }
         renderItem={({ item, index }) => {
+          const engine =
+            item.kind === 'engine' && Array.isArray(engines)
+              ? engines.find((option) => option.engine === item.engine)
+              : undefined;
+          const listedModel =
+            engine?.available === true && item.kind === 'engine'
+              ? engine.models.find((model) => model.id === item.model)?.name
+              : undefined;
           const engineRow =
             item.kind === 'engine'
-              ? routingGroupEnginePresentation(item, copy.engineRow)
+              ? routingGroupEnginePresentation(item, copy.engineRow, listedModel)
               : undefined;
           const entry =
             item.kind === 'model'
@@ -258,11 +290,13 @@ function RoutingGroupEditor({
             (item.kind === 'group'
               ? (catalog.groups?.find((group) => group.id === item.id)?.name ?? item.id)
               : (entry?.modelName ?? item.model ?? ''));
+          const availability = entry === undefined ? undefined : modelPickerAvailability(entry, t);
+          const brand = item.kind === 'model' ? modelBrand({ ...item, name }) : undefined;
           const detail =
             item.kind === 'group'
               ? copy.group
               : item.kind === 'model'
-                ? [entry?.providerName ?? item.provider, item.reasoningEffort]
+                ? [availability?.detail ?? item.provider, item.reasoningEffort]
                     .filter(Boolean)
                     .join(' · ')
                 : undefined;
@@ -271,9 +305,14 @@ function RoutingGroupEditor({
               <RoutingGroupMemberRow
                 index={index}
                 name={name}
+                title={item.kind === 'model' ? modelShortName(name, brand) : name}
                 detail={detail}
-                brand={item.kind === 'model' ? modelBrand({ ...item, name }) : undefined}
+                brand={brand}
                 engineRow={engineRow}
+                engineReason={
+                  engine?.available === false ? copy.engineUnavailable[engine.reason] : undefined
+                }
+                usable={availability?.usable ?? true}
                 moveUp={busy || index === 0 ? undefined : () => move(item, -1)}
                 moveDown={busy || index === members.length - 1 ? undefined : () => move(item, 1)}
                 remove={
@@ -334,10 +373,12 @@ function RoutingGroupEditor({
       />
       {picking ? (
         <RoutingGroupMemberPicker
-          client={client}
           catalog={catalog}
           selfId={group?.id}
           members={members}
+          engines={engines}
+          onShowEngines={() => setCheckEngines(true)}
+          onRetryEngines={() => setEngines(undefined)}
           onSelect={(member) => {
             setMembers((current) =>
               current.some(

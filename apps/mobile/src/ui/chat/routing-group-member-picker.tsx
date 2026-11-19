@@ -1,9 +1,8 @@
-import { useMemo, useState, type ComponentRef } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, Keyboard, View } from 'react-native';
 
 import {
   modelCatalogGroupFront,
-  loadRoutingGroupEngines,
   routingGroupEngineChoices,
   routingGroupEnginePresentation,
   type ModelCatalogAnswer,
@@ -12,17 +11,16 @@ import {
   type RoutingGroupMember,
 } from '@botharness/host-client/model-catalog';
 import { searchModels } from '@botharness/host-client/model-settings';
-import { sameModel, type ModelSettingsClient } from '@botharness/host-client/bot-settings';
+import { sameModel } from '@botharness/host-client/bot-settings';
 import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 
 import { space } from '../design/tokens';
-import { useMounted } from '../mounted';
 import { Chip } from '../primitives/chip';
 import { SearchField } from '../primitives/search-field';
 import { SettingsGroupItem } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 import { ModelEnginePickerRow, ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
-import { SHEET_GROUP, Sheet, SheetLoading, SheetNote } from './sheet';
+import { SHEET_GROUP, Sheet, SheetFailed, SheetLoading, SheetNote } from './sheet';
 
 type Choice =
   | { kind: 'model'; entry: ModelCatalogEntry }
@@ -43,58 +41,47 @@ export function routingGroupMemberKey(member: RoutingGroupMember): string {
 }
 
 export function RoutingGroupMemberPicker({
-  client,
   catalog,
   selfId,
   members,
+  engines,
+  onShowEngines,
+  onRetryEngines,
   onSelect,
   onClose,
 }: {
-  client: ModelSettingsClient;
   catalog: ModelCatalogAnswer;
   selfId: string | undefined;
   members: RoutingGroupMember[];
+  engines: RoutingGroupEngineOptions[] | 'failed' | undefined;
+  onShowEngines(): void;
+  onRetryEngines(): void;
   onSelect(member: RoutingGroupMember): void;
   onClose(): void;
 }) {
   const t = useStrings();
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<'models' | 'engines'>('models');
-  const [engines, setEngines] = useState<RoutingGroupEngineOptions[]>();
-  const mount = useMounted<ComponentRef<typeof View>>(() => {
-    if (source !== 'engines' || engines !== undefined) return;
-    let active = true;
-    void loadRoutingGroupEngines(client).then(
-      (options) => {
-        if (active) setEngines(options);
-      },
-      () => {
-        if (active) setEngines([]);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [client, engines, source]);
   const data = useMemo((): Choice[] => {
     const taken = new Set(members.map(routingGroupMemberKey));
-    const needle = query.trim().toLowerCase();
+    const needle = query.trim().toLocaleLowerCase();
     if (source === 'engines') {
-      return routingGroupEngineChoices(engines ?? []).flatMap((choice): Choice[] => {
-        if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
-        const row = routingGroupEnginePresentation(
-          choice.member,
-          t.routingGroup.engineRow,
-          choice.modelName,
-        );
-        if (
-          ![row.name, row.title, row.detail, choice.member.model].some((text) =>
-            text?.toLowerCase().includes(needle),
-          )
-        )
-          return [];
-        return [{ kind: 'engine', ...choice, row }];
-      });
+      const terms = needle.split(/\s+/u);
+      return routingGroupEngineChoices(Array.isArray(engines) ? engines : []).flatMap(
+        (choice): Choice[] => {
+          if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
+          const row = routingGroupEnginePresentation(
+            choice.member,
+            t.routingGroup.engineRow,
+            choice.modelName,
+          );
+          const text = [row.name, row.title, row.detail, choice.member.model]
+            .join(' ')
+            .toLocaleLowerCase();
+          if (!terms.every((term) => text.includes(term))) return [];
+          return [{ kind: 'engine', ...choice, row }];
+        },
+      );
     }
     return [
       ...(catalog.groups ?? [])
@@ -154,7 +141,6 @@ export function RoutingGroupMemberPicker({
         inset={space.x5}
       />
       <View
-        ref={mount}
         style={{
           flexDirection: 'row',
           flexWrap: 'wrap',
@@ -173,7 +159,10 @@ export function RoutingGroupMemberPicker({
           testID="routing-member-filter-engines"
           label={t.routingGroup.engines}
           selected={source === 'engines'}
-          onPress={() => setSource('engines')}
+          onPress={() => {
+            setSource('engines');
+            onShowEngines();
+          }}
         />
       </View>
       <FlatList
@@ -187,10 +176,16 @@ export function RoutingGroupMemberPicker({
         ListEmptyComponent={
           source === 'engines' && engines === undefined ? (
             <SheetLoading />
+          ) : source === 'engines' && engines === 'failed' ? (
+            <SheetFailed
+              message={t.routingGroup.enginesUnavailable}
+              onRetry={onRetryEngines}
+              on={SHEET_GROUP}
+            />
           ) : (
             <SheetNote>
               {source === 'engines' && engines?.length === 0
-                ? t.routingGroup.enginesUnavailable
+                ? t.routingGroup.noEngines
                 : t.routingGroup.noOptions}
             </SheetNote>
           )
@@ -202,6 +197,7 @@ export function RoutingGroupMemberPicker({
             item.kind === 'model' ? (
               <ModelPickerRow
                 entry={item.entry}
+                shortTitle
                 testID={`routing-member-model-${item.entry.provider}-${item.entry.model}`}
                 onPress={() =>
                   select({ kind: 'model', provider: item.entry.provider, model: item.entry.model })

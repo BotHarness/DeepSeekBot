@@ -28,6 +28,14 @@ vi.mock('../src/ui/chat/sheet', () => ({
   SheetNote: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   SheetCallout: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
   SheetLoading: () => <span role="status" />,
+  SheetFailed: ({ message, onRetry }: { message: string; onRetry(): void }) => (
+    <div>
+      <span role="alert">{message}</span>
+      <button type="button" onClick={onRetry}>
+        {t.tryAgain}
+      </button>
+    </div>
+  ),
 }));
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -41,6 +49,7 @@ vi.mock('../src/ui/primitives/settings-row', () => ({
     accessory,
     accessibilityLabel,
     testID,
+    tone,
   }: SettingsRowProps) => (
     <div>
       <button
@@ -49,6 +58,7 @@ vi.mock('../src/ui/primitives/settings-row', () => ({
         disabled={onPress === undefined}
         onClick={onPress}
         data-testid={testID}
+        data-tone={tone}
       >
         {leading}
         {title}
@@ -82,8 +92,14 @@ vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('../src/ui/primitives/swipe-row', () => ({
   SwipeRow: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock('../src/ui/primitives/search-field', () => ({ SearchField: () => null }));
-vi.mock('../src/ui/primitives/text-field', () => ({ TextField: () => null }));
+vi.mock('../src/ui/primitives/search-field', async () => {
+  const { TextInput } = await import('./react-native-shim');
+  return { SearchField: TextInput };
+});
+vi.mock('../src/ui/primitives/text-field', async () => {
+  const { TextInput } = await import('./react-native-shim');
+  return { TextField: TextInput };
+});
 vi.mock('../src/ui/primitives/keyboard-form', () => ({ renderKeyboardFormScroll: vi.fn() }));
 vi.mock('../src/ui/primitives/app-dialog', () => ({ confirmDestructive: vi.fn() }));
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
@@ -122,6 +138,16 @@ function button(testID: string) {
 
 async function click(testID: string) {
   await act(async () => button(testID).click());
+}
+
+async function typeInto(testID: string, value: string) {
+  const input = view.querySelector(`[data-testid="${testID}"]`);
+  if (!(input instanceof HTMLTextAreaElement)) throw new Error(`Missing field ${testID}`);
+  await act(async () => {
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    setValue?.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 }
 
 it('shows the current model on the phone group row and announces all full member names', async () => {
@@ -196,4 +222,83 @@ it('adds a ready engine model, moves it, removes the default engine and saves th
     members: [dsh, codex],
   });
   expect(back).toHaveBeenCalledOnce();
+});
+
+it.each(['signed-out', 'not-installed'] as const)(
+  'numbers all member types and dims a saved %s engine',
+  async (reason) => {
+    const nested = { ...group, id: 'nested', name: 'Nested' };
+    const mixed = { ...group, members: [dsh, { kind: 'group', id: nested.id }, codex, claude] };
+    const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+      if (method === 'modelGroup') return { group: mixed };
+      if (args?.['includeRoutingGroupEngines'] === true)
+        return { routingGroupEngines: [{ engine: 'claude', available: false, reason }] };
+      return { ...catalog, groups: [mixed, nested] };
+    });
+    await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
+    const rows = [...view.querySelectorAll('button[aria-label]')].filter((row) =>
+      /^\d+\./u.test(row.getAttribute('aria-label') ?? ''),
+    );
+    expect(rows.map((row) => row.textContent)).toEqual([
+      '1. V4.1 FlashOpenCode Go',
+      `2. Nested${t.routingGroup.group}`,
+      `3. GPT-5.4Codex · ${t.routingGroup.engineRow.subscription('ChatGPT')}`,
+      `4. ${t.routingGroup.engineRow.defaultModel('Claude Code')}Claude Code · ${t.routingGroup.engineRow.subscription('Claude')} · ${t.routingGroup.engineUnavailable[reason]}`,
+    ]);
+    expect(rows[3]?.getAttribute('data-tone')).toBe('muted');
+    expect(button('routing-group-member-3-remove').disabled).toBe(false);
+  },
+);
+
+it('retries the engine catalog in place, searches across fields and keeps the draft', async () => {
+  const editable = { ...group, members: [dsh] };
+  const readEngines = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('Disconnected'))
+    .mockResolvedValue([
+      { engine: 'codex', available: true, models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }] },
+    ]);
+  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+    if (method !== 'modelCatalog') return { group: editable };
+    if (args?.['includeRoutingGroupEngines'] === true)
+      return { ...catalog, routingGroupEngines: await readEngines() };
+    return catalog;
+  });
+  await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
+  await typeInto('routing-group-name', 'Renamed draft');
+  await click('routing-group-add-member');
+  await click('routing-member-filter-engines');
+  await typeInto('routing-group-member-search', 'Codex GPT-5.4');
+  expect(view.querySelector('[role="alert"]')?.textContent).toBe(t.routingGroup.enginesUnavailable);
+  const retry = [...view.querySelectorAll('button')].find(
+    (item) => item.textContent === t.tryAgain,
+  );
+  expect(retry).toBeDefined();
+  await act(async () => retry?.click());
+  expect(readEngines).toHaveBeenCalledTimes(2);
+  expect(button('routing-member-engine-codex-gpt-5.4').disabled).toBe(false);
+  expect(view.querySelector('[data-testid="routing-member-engine-codex-default"]')).toBeNull();
+  await typeInto('routing-group-member-search', 'gpt-5.4');
+  await click('routing-member-engine-codex-gpt-5.4');
+  await click('routing-group-save');
+  expect(call).toHaveBeenCalledWith('modelGroupUpdate', {
+    id: group.id,
+    expectedRevision: group.revision,
+    name: 'Renamed draft',
+    members: [dsh, codex],
+  });
+});
+
+it('shows a successful empty catalog without a retry action', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelGroup'
+      ? { group: { ...group, members: [dsh] } }
+      : { ...catalog, routingGroupEngines: [] },
+  );
+  await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
+  await click('routing-group-add-member');
+  await click('routing-member-filter-engines');
+  expect(view.querySelector('[role="dialog"]')?.textContent).toContain(t.routingGroup.noEngines);
+  expect(view.querySelector('[role="alert"]')).toBeNull();
+  expect(view.querySelector('[role="dialog"]')?.textContent).not.toContain(t.tryAgain);
 });
