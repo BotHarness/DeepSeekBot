@@ -275,6 +275,7 @@ export function createConnectAccount(options: {
   watchMs?: number;
   record?: (phase: string, detail?: string) => void;
   onReady?: () => void;
+  onAccountChanged?: () => void;
 }): ConnectAccount {
   const key = credentialKey('botharness-core', 'connect-account');
   const relay = relaySchema.parse(
@@ -311,6 +312,18 @@ export function createConnectAccount(options: {
   };
   const { connect } = options;
   let status: AccountStatus = { state: 'signed-out' };
+  const setStatus = (next: AccountStatus): void => {
+    const changed =
+      next.state !== status.state ||
+      next.email !== status.email ||
+      next.hostId !== status.hostId ||
+      next.issue !== status.issue ||
+      next.protectedUntil !== status.protectedUntil ||
+      JSON.stringify(next.wait) !== JSON.stringify(status.wait) ||
+      JSON.stringify(next.pool) !== JSON.stringify(status.pool);
+    status = next;
+    if (changed) options.onAccountChanged?.();
+  };
   let attempt = 0;
   let relationshipAbort = new AbortController();
   const advanceAttempt = () => {
@@ -564,7 +577,7 @@ export function createConnectAccount(options: {
     const wait = error instanceof AccountError ? error.wait : undefined;
     const pool = error instanceof AccountError ? error.pool : undefined;
     const since = status.wait?.since ?? new Date().toISOString();
-    status = {
+    setStatus({
       state: 'error',
       issue,
       recovery:
@@ -577,7 +590,7 @@ export function createConnectAccount(options: {
       ...(current?.hostId ? { hostId: current.hostId } : {}),
       ...(issue === 'relay-full' && wait !== undefined ? { wait: { ...wait, since } } : {}),
       ...(pool === undefined ? {} : { pool }),
-    };
+    });
     record('account-error', `issue=${issue}`);
   };
 
@@ -627,7 +640,7 @@ export function createConnectAccount(options: {
         current = await read();
         if (current === undefined) {
           await connect.disable();
-          status = { state: 'signed-out' };
+          setStatus({ state: 'signed-out' });
           return;
         }
         const stored = current;
@@ -658,11 +671,11 @@ export function createConnectAccount(options: {
             .datetime()
             .safeParse((own as { protectedUntil?: unknown } | undefined)?.protectedUntil);
           const { protectedUntil: _previous, ...rest } = status;
-          status = {
+          setStatus({
             ...rest,
             ...(pool.success ? { pool: pool.data } : {}),
             ...(until.success ? { protectedUntil: until.data } : {}),
-          };
+          });
         }
       } catch (error) {
         if (
@@ -691,7 +704,7 @@ export function createConnectAccount(options: {
       try {
         current = await read();
         if (current === undefined) {
-          status = { state: 'signed-out' };
+          setStatus({ state: 'signed-out' });
           return;
         }
         const access = await refresh(current);
@@ -718,11 +731,11 @@ export function createConnectAccount(options: {
         if (bound !== undefined && bound !== port) await requestTunnel(current, access, bound);
         if (generation !== attempt || signOutRequested || botNetworkClosed) return;
         const becameReady = status.state !== 'signed-in' || status.hostId !== current.hostId;
-        status = {
+        setStatus({
           state: 'signed-in',
           ...(current.email ? { email: current.email } : {}),
           ...(current.hostId ? { hostId: current.hostId } : {}),
-        };
+        });
         if (becameReady) options.onReady?.();
       } catch (error) {
         await revoke(error, current);
@@ -739,7 +752,7 @@ export function createConnectAccount(options: {
     let wait = interval;
     const expired = (signal?: AbortSignal): boolean => {
       if (!signal?.aborted && Date.now() < expires) return false;
-      status = { state: 'error', issue: 'sign-in-expired' };
+      setStatus({ state: 'error', issue: 'sign-in-expired' });
       record('sign-in-expired');
       return true;
     };
@@ -782,7 +795,7 @@ export function createConnectAccount(options: {
       const refreshToken = reply.body['refresh_token'];
       if (typeof error === 'string' || !reply.ok || typeof refreshToken !== 'string') {
         const expired = error === 'expired_token';
-        status = { state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' };
+        setStatus({ state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' });
         record(
           expired ? 'sign-in-expired' : 'sign-in-failed',
           `error=${typeof error === 'string' ? error : reply.status}`,
@@ -1293,12 +1306,12 @@ export function createConnectAccount(options: {
       const lifetime =
         Number(reply.body['expires_in']) > 0 ? Number(reply.body['expires_in']) : 300;
       const expires = Date.now() + lifetime * 1000;
-      status = {
+      setStatus({
         state: 'signing-in',
         userCode,
         verificationUri: uri,
         expiresAt: new Date(expires).toISOString(),
-      };
+      });
       record('sign-in-started');
       startWatch();
       void poll(run, id, deviceCode, interval, expires);
@@ -1332,7 +1345,7 @@ export function createConnectAccount(options: {
         } catch {
           return { ok: false, code: 'credential-unavailable' };
         }
-        status = { state: 'signed-out' };
+        setStatus({ state: 'signed-out' });
         record('signed-out');
         return { ok: true, status: { ...status } };
       });

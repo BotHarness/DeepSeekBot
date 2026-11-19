@@ -49,7 +49,7 @@ function renderPlan(): string {
 
 # Telemetry tracking plan
 
-Every analytics event the Host, the Web Client and the mobile app send, under the naming rules of [ADR-0270](adr/0270-telemetry-events-follow-one-tracking-plan.md). The product site keeps its own list in the deepseekbot-site repository under the same rules.
+Every analytics event the Host, the Web Client and the mobile app send, under the naming rules of [ADR-0270](decisions/release.md#adr-0270). The product site keeps its own list in the deepseekbot-site repository under the same rules.
 
 ## Naming
 

@@ -10,7 +10,7 @@ An internal `send` to a PersonaBot DM can exercise a real Host, Bot Inbox, Orche
 
 ## Authorities and terms
 
-The DSH/Cordis seam is **CLI Consumer → authenticated Connection/API Gateway → application-defined Service Definition → owning Host Provider**. Provider setup separately calls the Provider-owned `dsh-im/app-setup` exact authenticated Fetch Registration. Cordis Plugin/Fiber ownership controls the live registrations and receiver cleanup. Durable product records remain in the existing operational database; native secrets and account configuration remain Provider-owned. Source: [DSH Context](../../.agents/skills/dsh-plugin-dev/references/context.md), [Decision Tree](../../.agents/skills/dsh-plugin-dev/references/decision-tree.md), [ADR-0161](../adr/0161-cli-im-authorization-keeps-provider-attempt-authority.md), [Client Provider setup consumer](../../packages/client/src/client/provider-app-setup.ts).
+The DSH/Cordis seam is **CLI Consumer → authenticated Connection/API Gateway → application-defined Service Definition → owning Host Provider**. Provider setup separately calls the Provider-owned `dsh-im/app-setup` exact authenticated Fetch Registration. Cordis Plugin/Fiber ownership controls the live registrations and receiver cleanup. Durable product records remain in the existing operational database; native secrets and account configuration remain Provider-owned. Source: [DSH Context](../../.agents/skills/dsh-plugin-dev/references/context.md), [Decision Tree](../../.agents/skills/dsh-plugin-dev/references/decision-tree.md), [ADR-0161](../decisions/release.md#adr-0161), [Client Provider setup consumer](../../packages/client/src/client/provider-app-setup.ts).
 
 The following operations are distinct:
 

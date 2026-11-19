@@ -12,12 +12,12 @@ Read `dsh-plugin-dev` Context and Decision Tree, then `dsh-dev` and
 
 ## Keep four facts separate
 
-| Fact                    | Authority                                                                                                                                    | Meaning                                                                                                      |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Admission floor         | `scripts/dsh-compatibility.mjs`, package `engines.dsh`, [ADR-0087](../adr/0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md) | `>=0.2.0-0`, including prereleases, without a speculative upper bound.                                       |
-| Development baseline    | Exact package dependencies, lockfile and `productDsh` in `scripts/product-artifacts.mjs`                                                     | Reproducible SDK/CLI input, independent of the admission floor.                                              |
-| Qualification matrix    | `productDshVersions` and the version-specific evidence record                                                                                | Concrete released runtimes tested against a named product artifact. Listed targets are not proof of passing. |
-| Published Tobs identity | `scripts/install-release.json`                                                                                                               | Published stable product, independent of the DSH baseline.                                                   |
+| Fact                    | Authority                                                                                            | Meaning                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Admission floor         | `scripts/dsh-compatibility.mjs`, package `engines.dsh`, [ADR-0087](../decisions/release.md#adr-0087) | `>=0.2.0-0`, including prereleases, without a speculative upper bound.                                       |
+| Development baseline    | Exact package dependencies, lockfile and `productDsh` in `scripts/product-artifacts.mjs`             | Reproducible SDK/CLI input, independent of the admission floor.                                              |
+| Qualification matrix    | `productDshVersions` and the version-specific evidence record                                        | Concrete released runtimes tested against a named product artifact. Listed targets are not proof of passing. |
+| Published Tobs identity | `scripts/install-release.json`                                                                       | Published stable product, independent of the DSH baseline.                                                   |
 
 A newer SDK never raises the floor by itself. Preserve older Host capabilities
 through explicit adapters. Native capability, authorization and integrity refusals

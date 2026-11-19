@@ -1,3 +1,5 @@
+import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
+import { watchComputerStatus } from './status-live.js';
 import { Icon } from '../../../client/src/client/ds/icon.js';
 import { Input } from '../../../client/src/client/ds/input.js';
 import { Switch } from '../../../client/src/client/ds/switch.js';
@@ -150,6 +152,7 @@ export class ComputerSettingsPrefs {
 
 export interface ComputerSettingsFace {
   prefs: ComputerSettingsPrefs;
+  observeResource?: ObserveResource | undefined;
   pickerAvailable: boolean;
   pickDirectory: () => Promise<string | null>;
   openDirectory: (dir: string) => Promise<void>;
@@ -222,12 +225,14 @@ async function postAuthorized(url: string, body: Record<string, unknown> = {}): 
 
 export function createComputerSettingsFace(options: {
   prefs: ComputerSettingsPrefs;
+  observeResource?: ObserveResource | undefined;
   pickDirectory?: (() => Promise<string | null>) | undefined;
   createXhr?: (() => XMLHttpRequest) | undefined;
 }): ComputerSettingsFace {
   const { prefs } = options;
   return {
     prefs,
+    observeResource: options.observeResource,
     pickerAvailable: options.pickDirectory !== undefined,
     pickDirectory: async () =>
       options.pickDirectory === undefined ? null : options.pickDirectory(),
@@ -334,6 +339,7 @@ function Selector({
 export function ComputerSettingsRows({
   t,
   prefs,
+  observeResource,
   pickerAvailable,
   pickDirectory,
   openDirectory,
@@ -387,30 +393,22 @@ export function ComputerSettingsRows({
     setLivePhase(undefined);
     setLiveElapsed(0);
     const startedAt = Date.now();
-    const controller = new AbortController();
-    let pending = false;
-    const tick = async (): Promise<void> => {
-      if (controller.signal.aborted) return;
-      setLiveElapsed(Math.round((Date.now() - startedAt) / 1000));
-      if (pending) return;
-      pending = true;
+    const stop = watchComputerStatus(observeResource, async (signal) => {
       try {
         const payload = await requestJson<{ status?: { phase?: string } }>(STATUS_ENDPOINT, {
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+          signal,
         });
-        if (!controller.signal.aborted) setLivePhase(payload.status?.phase);
-      } catch {
-      } finally {
-        pending = false;
-      }
-    };
-    void tick();
-    const timer = setInterval(() => void tick(), 1000);
+        if (!signal.aborted) setLivePhase(payload.status?.phase);
+      } catch {}
+    });
+    const clock = setInterval(() => {
+      setLiveElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 1000);
     return () => {
-      controller.abort();
-      clearInterval(timer);
+      stop();
+      clearInterval(clock);
     };
-  }, [busy]);
+  }, [busy, observeResource]);
 
   const phaseKey = livePhase === undefined ? undefined : PHASE_LABEL[livePhase];
 
@@ -613,7 +611,7 @@ export function ComputerSettingsRows({
         }
       />
       {snapshot.target === 'local' ? (
-        <LocalComputerStatus t={t as ComputerTranslate} />
+        <LocalComputerStatus t={t as ComputerTranslate} observeResource={observeResource} />
       ) : (
         <>
           <SettingsRow

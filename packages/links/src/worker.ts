@@ -466,7 +466,7 @@ app.doc('/openapi.json', {
     title: 'BotHarness Campaign Links',
     version: '1.0.0',
     description:
-      'Campaign short links on go.tobs.app (ADR-0132). GET /{slug} redirects to tobs.app with UTM parameters.',
+      'Campaign short links on go.tobs.app. See [Campaign Links](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/release.md#adr-0132). GET /{slug} redirects to tobs.app with UTM parameters.',
   },
   servers: [{ url: 'https://go.tobs.app' }],
 });

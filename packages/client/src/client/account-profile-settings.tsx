@@ -15,10 +15,11 @@ import { ConnectSignInBlock } from './connect-sign-in-block.js';
 import { StatusBlock } from './ds/status-block.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
 import { marketplaceError } from './marketplace.js';
+import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export const ACCOUNT_NAME_MAX = 40;
-const SIGN_IN_POLL_MS = 3000;
+const SIGN_IN_FALLBACK_MS = 15_000;
 
 const styles = stylex.create({
   avatarControls: { display: 'flex', alignItems: 'center', gap: space.x3 },
@@ -110,10 +111,10 @@ export function AccountProfileSettings({
     };
   }, [actions]);
 
-  const poll = useMountedResource<HTMLSpanElement>(() => {
-    const timer = setInterval(() => void load(), SIGN_IN_POLL_MS);
-    return () => clearInterval(timer);
-  }, [signIn]);
+  const signInResource = useMountedResource<HTMLSpanElement>(
+    () => observeResource('account', load, SIGN_IN_FALLBACK_MS, SIGN_IN_FALLBACK_MS, true),
+    [actions, signIn],
+  );
 
   const beginSignIn = async (): Promise<void> => {
     setBusy(true);
@@ -232,7 +233,7 @@ export function AccountProfileSettings({
         codeMarker="data-account-sign-in-code"
       >
         {signIn === undefined && state.account.issue === undefined ? null : (
-          <span ref={poll} hidden />
+          <span ref={signInResource} hidden />
         )}
       </ConnectSignInBlock>,
     );

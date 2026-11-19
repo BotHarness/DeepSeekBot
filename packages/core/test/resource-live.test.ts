@@ -42,29 +42,39 @@ async function readUntil(
 }
 
 describe('resource changes on the live stream', () => {
-  it('tells owner roster streams which resource changed and nobody else', async () => {
-    const live = hub();
-    const request = () => new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`);
-    const owner = live.open(OWNER_HUMAN_CONTEXT, request()).body!.getReader();
-    const guest = live
-      .open({ ...OWNER_HUMAN_CONTEXT, humanId: 'h_guest' }, request())
-      .body!.getReader();
-    try {
-      await readUntil(owner, 'retry:');
-      await readUntil(guest, 'retry:');
-      live.publishResourceChanged('devices');
-      live.publishRosterCommitted();
-      const ownerText = await readUntil(owner, 'roster/changed');
-      expect(ownerText).toContain(
-        `event: ${RESOURCE_CHANGED_EVENT}\ndata: {"resource":"devices","revision":1}`,
-      );
-      const guestText = await readUntil(guest, 'roster/changed');
-      expect(guestText).not.toContain(RESOURCE_CHANGED_EVENT);
-    } finally {
-      await owner.cancel();
-      await guest.cancel();
-    }
-  });
+  it.each<LiveResource>([
+    'devices',
+    'computer',
+    'browser',
+    'reachable-posts',
+    'onboarding',
+    'account',
+  ])(
+    'delivers %s revisions to the owner roster stream and omits them for members',
+    async (resource) => {
+      const live = hub();
+      const request = () => new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`);
+      const owner = live.open(OWNER_HUMAN_CONTEXT, request()).body!.getReader();
+      const guest = live
+        .open({ ...OWNER_HUMAN_CONTEXT, humanId: 'h_guest' }, request())
+        .body!.getReader();
+      try {
+        await readUntil(owner, 'retry:');
+        await readUntil(guest, 'retry:');
+        live.publishResourceChanged(resource);
+        live.publishRosterCommitted();
+        const ownerText = await readUntil(owner, 'roster/changed');
+        expect(ownerText).toContain(
+          `event: ${RESOURCE_CHANGED_EVENT}\ndata: {"resource":"${resource}","revision":1}`,
+        );
+        const guestText = await readUntil(guest, 'roster/changed');
+        expect(guestText).not.toContain(RESOURCE_CHANGED_EVENT);
+      } finally {
+        await owner.cancel();
+        await guest.cancel();
+      }
+    },
+  );
 
   it('tells every roster stream when private input requests change', async () => {
     const live = hub();

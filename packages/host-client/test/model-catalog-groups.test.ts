@@ -4,12 +4,46 @@ import {
   modelCatalogGroupEfforts,
   modelCatalogGroupFront,
   parseModelCatalog,
+  parseRoutingGroup,
   routingGroupEngineLabel,
 } from '../src/model-catalog.js';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 const until = '2026-11-22T23:23:00.000Z';
+
+describe('parseRoutingGroup reads canonical members', () => {
+  it('round-trips engine, model and nested group members in order', () => {
+    const group = {
+      id: 'mixed',
+      name: 'Mixed',
+      revision: 3,
+      members: [
+        { kind: 'model', ...flash, reasoningEffort: 'high' },
+        { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+        { kind: 'group', id: 'backup' },
+        { kind: 'engine', engine: 'claude' },
+      ],
+    };
+    const parsed = parseRoutingGroup(group);
+    expect(parsed).toEqual(group);
+    expect(parseRoutingGroup(JSON.parse(JSON.stringify(parsed)))).toEqual(group);
+  });
+
+  it('rejects a group with an invalid engine member', () => {
+    expect(
+      parseRoutingGroup({
+        id: 'mixed',
+        name: 'Mixed',
+        revision: 3,
+        members: [
+          { kind: 'model', ...flash },
+          { kind: 'engine', engine: 'unknown' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe('parseModelCatalog reads Routing Groups and rest state (#4421)', () => {
   it('keeps well-formed groups and resting models, and drops the rest', () => {

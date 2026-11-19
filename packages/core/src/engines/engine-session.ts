@@ -75,6 +75,7 @@ export interface EngineGatewayEndpoint {
 export interface EngineStartOptions {
   cwd: string;
   instructions: string;
+  contextSeed?(): string | undefined;
   gateway: EngineGatewayEndpoint;
 }
 

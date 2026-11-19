@@ -5,6 +5,15 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### File reference cleanup after Agent disposal (#4559)
+
+On DSH `0.2.2-rc.1`, switching an active native Agent to an engine exposed a warning from
+the native `dsh-file-reference-local` Plugin. Its `agent/disposed` listener called
+`.catch()` directly on `fiber.dispose()`, which can return `undefined` after the Agent's
+Fiber teardown. The pinned workspace and managed AX runtime patch that listener to normalize
+the return before handling asynchronous errors. Verify the disposal edge on a running Host
+using the diagnostic log. A successful engine reply alone does not establish clean disposal.
+
 ### Native Session identity across an isolated CLI and a worktree Plugin (#4144)
 
 An AX Profile can load DSH from its isolated `ax-cli` while the linked Plugin resolves its own

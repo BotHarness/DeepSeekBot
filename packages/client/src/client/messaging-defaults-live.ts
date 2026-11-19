@@ -11,6 +11,7 @@ import {
   type LiveResource,
   type ResourceChange,
 } from '../../../core/src/channels/resource-events.js';
+import { visibleInterval } from './visible-interval.js';
 import { reportFailure } from './diagnostic-log.js';
 
 const skillListeners = new Map<() => void, string>();
@@ -432,20 +433,40 @@ export function observeHumanAttention(refresh: () => void): () => void {
 
 export function observeResource(
   resource: LiveResource,
-  refresh: () => void,
+  refresh: () => void | Promise<void>,
   recoveryMs = 10_000,
   safetyMs = 60_000,
+  readOnMount = false,
 ): () => void {
   let disposed = false;
   let pending: ReturnType<typeof setTimeout> | undefined;
-  let recovery: ReturnType<typeof setInterval> | undefined;
+  let reading = false;
+  let refreshAgain = false;
+  let stopFallback: (() => void) | undefined;
   let lastHealth: boolean | undefined;
+  const read = async (): Promise<void> => {
+    pending = undefined;
+    if (disposed) return;
+    reading = true;
+    try {
+      await refresh();
+    } catch {
+      reportFailure('live-resource-refresh-failed', 'live resource refresh failed');
+    } finally {
+      reading = false;
+      if (refreshAgain) {
+        refreshAgain = false;
+        invalidate();
+      }
+    }
+  };
   const invalidate = (): void => {
     if (disposed || pending !== undefined) return;
-    pending = setTimeout(() => {
-      pending = undefined;
-      if (!disposed) refresh();
-    }, 25);
+    if (reading) {
+      refreshAgain = true;
+      return;
+    }
+    pending = setTimeout(() => void read(), 25);
   };
   const changed = (change?: ResourceChange): void => {
     if (change === undefined || change.resource === resource) invalidate();
@@ -453,14 +474,9 @@ export function observeResource(
   const health = (healthy: boolean): void => {
     if (lastHealth === healthy) return;
     lastHealth = healthy;
-    clearInterval(recovery);
-    recovery = setInterval(invalidate, healthy ? safetyMs : recoveryMs);
+    stopFallback?.();
+    stopFallback = visibleInterval(invalidate, healthy ? safetyMs : recoveryMs);
   };
-  const visible = (): void => {
-    if (page?.visibilityState !== 'hidden') invalidate();
-  };
-  const page = typeof document === 'undefined' ? undefined : document;
-  page?.addEventListener?.('visibilitychange', visible);
   resourceListeners.set(changed, health);
   health(rosterHealthy);
   try {
@@ -468,12 +484,15 @@ export function observeResource(
   } catch {
     health(false);
   }
+  if (readOnMount) {
+    clearTimeout(pending);
+    void read();
+  }
   return () => {
     if (disposed) return;
     disposed = true;
     clearTimeout(pending);
-    clearInterval(recovery);
-    page?.removeEventListener?.('visibilitychange', visible);
+    stopFallback?.();
     resourceListeners.delete(changed);
     releaseUnusedSource();
   };

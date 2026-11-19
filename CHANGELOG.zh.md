@@ -138,9 +138,9 @@ Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连
 
 - 新增默认关闭、有容量上限的本地 Host 调度诊断，可关联消息转向交付、Memory 扫描、工作线程或直接命令完成及准入后的心跳处理，不记录消息或命令内容（[#3638](https://github.com/BotHarness/BotHarness/issues/3638)）。
 
-- Web Bot 私聊新增 GenUI 文档候选：组合自包含 HTML、图表和关系图，通过 direct Tool 预览，由 Host 恢复已注册个人视图，并以普通消息续问或刷新；版本 1 比较报告保持可读。脚本资源硬隔离、性能、桌面及已安装原生端验收仍是未关闭的发布门槛（[#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685)、[CLI 指南](docs/bot-cli.md#genui-documents-in-a-bot-dm)、[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+- Web Bot 私聊新增 GenUI 文档候选：组合自包含 HTML、图表和关系图，通过 direct Tool 预览，由 Host 恢复已注册个人视图，并以普通消息续问或刷新；版本 1 比较报告保持可读。脚本资源硬隔离、性能、桌面及已安装原生端验收仍是未关闭的发布门槛（[#3685](https://github.com/BotHarness/DeepSeekBot/issues/3685)、[CLI 指南](docs/bot-cli.md#genui-documents-in-a-bot-dm)、[ADR-0301](docs/decisions/genui.md#adr-0301)）。
 
-- GenUI 新增无边框色块默认样式、八色分类色板，以及采用固定版本 Pele 的离线 `genui_diagram` 创作工具。Agent 可将有界 Mermaid 编译为 SVG，预览完整 HTML 后通过既有消息 owner 显式发布；Web／桌面／原生发布与执行资源隔离仍分别验收（[#3691](https://github.com/BotHarness/DeepSeekBot/issues/3691)、[ADR-0302](docs/adr/0302-genui-diagrams-compile-before-publication.md)）。
+- GenUI 新增无边框色块默认样式、八色分类色板，以及采用固定版本 Pele 的离线 `genui_diagram` 创作工具。Agent 可将有界 Mermaid 编译为 SVG，预览完整 HTML 后通过既有消息 owner 显式发布；Web／桌面／原生发布与执行资源隔离仍分别验收（[#3691](https://github.com/BotHarness/DeepSeekBot/issues/3691)、[ADR-0302](docs/decisions/genui.md#adr-0302)）。
 
 - 可以问 Bot 之前任意一通电话里的某个时刻：Bot 按通话标识和该通话内的时间（如 00:13 到 00:40，或第 5 分钟）读取，按时间顺序拿到你说的话、它的回复和摄像头/屏幕记录，多通电话互不串。`deepseekbot call-list` 列出 DM 里的通话，`deepseekbot call-read` 用同样方式读取一通（[#3693](https://github.com/BotHarness/DeepSeekBot/issues/3693)）。
 
@@ -872,7 +872,7 @@ Tobs 1.7.0：Bot 通话、手机历史记录与搜索、丰富文档，以及连
 
 - 记录机器直调 Assignment 的拟议契约，区分创建、持久投递准入、处理结果与生命周期；运行时实现及协议参数仍待完成（[ADR-0297](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/sessions.md#adr-0297)、[#3578](https://github.com/BotHarness/DeepSeekBot/issues/3578)）。
 
-- GenUI 架构目标调整为 T3 Code 式隔离 HTML 文档，以支持更丰富的可视化与交互内容，同时保留普通消息归属和受控操作边界。现有 Web 比较报告候选不代表 HTML 或原生验收已通过（[#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)、[ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)）。
+- GenUI 架构目标调整为 T3 Code 式隔离 HTML 文档，以支持更丰富的可视化与交互内容，同时保留普通消息归属和受控操作边界。现有 Web 比较报告候选不代表 HTML 或原生验收已通过（[#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684)、[ADR-0301](docs/decisions/genui.md#adr-0301)）。
 
 - 商店隐私指南区分系统听写、Bot 通话音频与共享摄像头画面，补充待审查的密码数据路径，并明确旧答卷需要按准确候选包重新核对后才能提交（[#2733](https://github.com/BotHarness/DeepSeekBot/issues/2733)）。
 
@@ -1855,7 +1855,7 @@ Tobs 使用带作用域的 npm 包并保留兼容的 deepseekbot 入口，统一
 
 - 发布可重复执行的 Activity、工作区授权、记忆和浏览器验证路径，关联 CLI 与源码版本证据，并明确覆盖范围限制 ([#1972](https://github.com/BotHarness/DeepSeekBot/issues/1972), [#1973](https://github.com/BotHarness/DeepSeekBot/issues/1973), [#1974](https://github.com/BotHarness/DeepSeekBot/issues/1974), [#1975](https://github.com/BotHarness/DeepSeekBot/issues/1975), [#1976](https://github.com/BotHarness/DeepSeekBot/issues/1976)).
 - GitHub README 和安装指南改为安装 `deepseekbot@1.3.1`，并列出它的亮点（[#1771](https://github.com/BotHarness/DeepSeekBot/pull/1771)）。
-- 明确 DSB 软件与 npm 共用发布身份、QA 产物不可替换、手机／依赖独立版本及渠道／重试门槛；运行校验仍待实现（[#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979)、[规范](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/version-policy.md)、[ADR-0216](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0216-dsb-product-versions-identify-immutable-package-sets.md)）。
+- 明确 DSB 软件与 npm 共用发布身份、QA 产物不可替换、手机／依赖独立版本及渠道／重试门槛；运行校验仍待实现（[#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979)、[规范](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/version-policy.md)、[ADR-0216](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/release.md#adr-0216)）。
 
 ## [1.3.1] - 2026-10-14
 
@@ -1971,15 +1971,15 @@ Bot 模式整体迁移到统一的 StyleX 设计系统，Channel 配置移入设
 - 新建的 PersonaBot 会按名字从全部物种、部件和服装中随机生成初始形象，已有的 PersonaBot 保持原来的样子（[#1214](https://github.com/BotHarness/DeepSeekBot/issues/1214)）。
 - 绑定应用窗口可通过兼容 Provider 的配置能力创建 Lark／飞书应用或开始微信扫码配对，并绑定已验证身份，凭证不经过 BotHarness；旧 Provider 继续使用 IM 设置路径。内联配置会保留已有微信账号，避免替换原有配对。[Lark 配置清单](docs/lark-connection.md) 补充受保护回复所需的原消息读取权限（[#1111](https://github.com/BotHarness/DeepSeekBot/issues/1111)）。
 - 外部编程智能体无需点击即可创建 PersonaBot：`deepseekbot create` 支持空白、Bot 包（目录或 zip）与 GitHub 三种来源，可指向任意 DSH_HOME，并向标准输出打印机器可读的 JSON（Bot id、私聊通道、数据目录、步骤状态、下一步操作）；名字只是标签，重复名字会生成新的 Bot，密钥只能走环境变量或标准输入。见 [Bot 命令行指南](docs/bot-cli.md)（[#1304](https://github.com/BotHarness/DeepSeekBot/issues/1304)，[ADR-0156](docs/adr/0156-programmatic-bot-creation-is-a-machine-first-cli-over-registry-creation.md)）。
-- 同一 CLI 现在可无界面管理模型：`model-presets` 列出预设，`model-preset-create` 用显式路由新建预设，`model-preset-apply` 应用到 Bot，`model-plan` 查看生效方案与 deferred 就绪状态；路由离线做形状加 provider 存在性检查，密钥有效性仍在 Host 侧。见 [Bot 命令行指南](docs/bot-cli.md)（[#1310](https://github.com/BotHarness/DeepSeekBot/issues/1310)，[ADR-0157](docs/adr/0157-cli-model-validation-is-tiered-key-validity-stays-host-side.md)）。
+- 同一 CLI 现在可无界面管理模型：`model-presets` 列出预设，`model-preset-create` 用显式路由新建预设，`model-preset-apply` 应用到 Bot，`model-plan` 查看生效方案与 deferred 就绪状态；路由离线做形状加 provider 存在性检查，密钥有效性仍在 Host 侧。见 [Bot 命令行指南](docs/bot-cli.md)（[#1310](https://github.com/BotHarness/DeepSeekBot/issues/1310)，[ADR-0157](docs/decisions/release.md#adr-0157)）。
 - 同一 CLI 现在覆盖 Bot 生命周期与人类命名：`pause`/`resume` 开关执行，`update` 改名/简介/标签，`human-name-set` 写人类显示名，`channel-human-name-set` 写分 channel 人类昵称，全离线可用、错误按码返回。见 [Bot 命令行指南](docs/bot-cli.md)（[#1312](https://github.com/BotHarness/DeepSeekBot/issues/1312)）。
 - 同一 CLI 现在可读 Channel、管理授权与计划、查看配对：`channels` 与 `channel-messages` 看历史，授权的列出/撤销/写开关，计划的增删改查、历史、手动触发与预渲染，`pairings` 看 IM 配对状态；新建授权仍是 Host 侧动作。见 [Bot 命令行指南](docs/bot-cli.md)（[#1313](https://github.com/BotHarness/DeepSeekBot/issues/1313)）。
 - 同一 CLI 现在可零点击配置密钥：`secret-put` 只从标准输入读值，以行级编辑写入 `$DSH_HOME/.credentials.yaml`（备份加回读校验），`secret-list` 只列名字不返回值，`secret-unset` 删除条目。见 [Bot 命令行指南](docs/bot-cli.md)（[#1314](https://github.com/BotHarness/DeepSeekBot/issues/1314)，[ADR-0158](docs/decisions/secrets.md#adr-0158)）。
-- 在线 CLI 动词将走 DSH HTTP 单次调用通道（每次调用做 token 到 cookie 登录），永不直连 operational database；bridge 与 gateway 错误码原样透出。见 [ADR-0159](docs/adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)（[#1315](https://github.com/BotHarness/DeepSeekBot/issues/1315)）。
+- 在线 CLI 动词将走 DSH HTTP 单次调用通道（每次调用做 token 到 cookie 登录），永不直连 operational database；bridge 与 gateway 错误码原样透出。见 [ADR-0159](docs/decisions/release.md#adr-0159)（[#1315](https://github.com/BotHarness/DeepSeekBot/issues/1315)）。
 - 同一 CLI 现在可自发现：`search` 按词在实际分发的动词表里找命令，`--compact` 把标准输出 JSON 压成一行供智能体使用。见 [Bot 命令行指南](docs/bot-cli.md)（[#1316](https://github.com/BotHarness/DeepSeekBot/issues/1316)）。
 - 同一 CLI 现在可无界面读写 Bot 记忆：`memory-snapshot`、`memory-file`、`memory-history`、`memory-diff` 读取记忆库，`memory-save` 写一个文件并提交（支持 compare-and-swap head 与幂等 edit id）；冲突与非法 sha 按错误码失败。见 [Bot 命令行指南](docs/bot-cli.md)（[#1311](https://github.com/BotHarness/DeepSeekBot/issues/1311)）。
 - 本机 Bot 浏览器现在像 Computer 一样支持人工接管：Host 直供的实时画面支持点击、滚动和键盘输入（小屏幕默认触控板模式），需要验证时 Bot 按 ask-permission 流程发起接管——生成带说明的一次性链接，等待完成后校验页面状态再继续。输入的密码只留在实时画面里，不会进入聊天或日志；每次接管都留下审计记录与会话录制（[#1322](https://github.com/BotHarness/DeepSeekBot/issues/1322)，[ADR-0163](docs/decisions/browser.md#adr-0163)）。
-- 全新安装的 `deepseekbot` 现在随 Core、Client 和已验证的 IM Provider 默认附带 Browser 与 Computer Bundle，新 Profile 无需额外安装即可浏览网页和操作电脑；IM 账号在添加应用凭据前保持未连接，每个 Bot 的 Browser／Computer Access 在显式开启前保持关闭。已有 Profile 升级后即获得新的默认 Bundle；如曾单独启用 Browser 或 Computer Bundle，请先移除其独立 Bundle 条目，保留已存数据（[#1328](https://github.com/BotHarness/DeepSeekBot/issues/1328)，[ADR-0160](docs/adr/0160-deepseekbot-default-bundles-browser-computer-and-im-provider.md)）。
+- 全新安装的 `deepseekbot` 现在随 Core、Client 和已验证的 IM Provider 默认附带 Browser 与 Computer Bundle，新 Profile 无需额外安装即可浏览网页和操作电脑；IM 账号在添加应用凭据前保持未连接，每个 Bot 的 Browser／Computer Access 在显式开启前保持关闭。已有 Profile 升级后即获得新的默认 Bundle；如曾单独启用 Browser 或 Computer Bundle，请先移除其独立 Bundle 条目，保留已存数据（[#1328](https://github.com/BotHarness/DeepSeekBot/issues/1328)，[ADR-0160](docs/decisions/release.md#adr-0160)）。
 - 兼容的 Provider 可列出 Lark、Slack、Discord 应用当前可达的群，并在没有保存目标时发帖；应用的群选择器、滚动每小时限额与既有 Outbox 保留屏蔽、最终授权和未知结果。旧 Provider 会显示更新提示，已有保存目标仍可使用；合格 Provider `.20` 已发布到 `next`，精确包归档已核验（[#1115](https://github.com/BotHarness/DeepSeekBot/issues/1115)）。
 - 已开启的外部连接器不可用时，聊天顶部的 ··· 菜单和其中的「频道设置」会显示红点，打开频道设置会直接进入该分区（[#1518](https://github.com/BotHarness/DeepSeekBot/issues/1518)）。
 - 记忆演化可以在 Git 图的任意提交方块里「恢复到这次提交」：未提交的改动先自动存成一个提交，任意提交都能用 Git tag 起个版本名，记忆演化可切换为已命名版本列表，再以新提交恢复所选记忆，记忆文件列表随即刷新；标题下分为「演化 / 版本 / 分支」三个标签；原恢复检查点列表移到齿轮菜单的「从自动备份恢复…」（[#1558](https://github.com/BotHarness/DeepSeekBot/pull/1558)）。
@@ -2282,7 +2282,7 @@ PersonaBot 可设置并自行管理定时任务，每个会话都会带上 Bot �
 - 增加源码预览微信图片链路，支持 Inbox 原消息气泡内自动加载的 checked 图片预览、原生模型图片输入与本身份原生图片回复，Human 已确认原私聊收到内容一致的图片（[#904](https://github.com/BotHarness/BotHarness/issues/904)，[连接指南](docs/wechat-connection.md)）。
 - PersonaBot 新增定时任务（Bot Schedule）：Channel 侧栏的「定时任务」分区可新建、编辑、暂停和删除按分钟、按小时或每天执行的任务；每次触发进入 Bot 收件箱并唤醒 Orchestrator，每个任务可查看最近 20 次触发及处理它的会话（[#960](https://github.com/BotHarness/BotHarness/issues/960)，[ADR-0133](docs/decisions/inbox.md#adr-0133)）。
 - DeepSeekBot 现在会在创建 Bot 时，自动在它的 Memory 里写入 `.botharness/bot.json`，之后改名称、岗位或头像时同步更新；已有的 Bot 会在下次启动时补上。分享出去的 Bot 在 Bot 市场里显示的名称、岗位和头像，和侧栏里一致（[#966](https://github.com/BotHarness/BotHarness/issues/966)、[教程](docs/share-bot.md)）。
-- DeepSeekBot 由 DSH 后台发送匿名使用统计，只关联一个随机安装 ID：`plugin_started`（插件和 DSH 版本、操作系统、架构），`bot_created`、`bot_archived`、`bot_deleted`、`marketplace_bot_installed`、`connector_enabled`（只含连接器类型）、`avatar_edited`，每天一次的 `daily_usage` 汇总（PersonaBot、会话和消息数量及统计时长），以及 BotHarness 后台未处理错误的 `$exception` 报告（错误类型和只保留包内文件名的调用栈，从不含错误信息或文件路径）；Bot 模式会弹出一次说明，并链接隐私说明和源码。可在 Bot 设置中关掉「匿名使用统计」开关，立即生效、无需重启，并会被记住；在 core 插件配置中设置 `telemetry: false`，或设置 `DO_NOT_TRACK=1`、`BOTHARNESS_TELEMETRY=0`，会强制关闭并锁定该开关（[#951](https://github.com/BotHarness/BotHarness/issues/951)，[#952](https://github.com/BotHarness/BotHarness/issues/952)，[ADR-0132](docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md)，[教程](docs/settings.md)）。
+- DeepSeekBot 由 DSH 后台发送匿名使用统计，只关联一个随机安装 ID：`plugin_started`（插件和 DSH 版本、操作系统、架构），`bot_created`、`bot_archived`、`bot_deleted`、`marketplace_bot_installed`、`connector_enabled`（只含连接器类型）、`avatar_edited`，每天一次的 `daily_usage` 汇总（PersonaBot、会话和消息数量及统计时长），以及 BotHarness 后台未处理错误的 `$exception` 报告（错误类型和只保留包内文件名的调用栈，从不含错误信息或文件路径）；Bot 模式会弹出一次说明，并链接隐私说明和源码。可在 Bot 设置中关掉「匿名使用统计」开关，立即生效、无需重启，并会被记住；在 core 插件配置中设置 `telemetry: false`，或设置 `DO_NOT_TRACK=1`、`BOTHARNESS_TELEMETRY=0`，会强制关闭并锁定该开关（[#951](https://github.com/BotHarness/BotHarness/issues/951)，[#952](https://github.com/BotHarness/BotHarness/issues/952)，[ADR-0132](docs/decisions/release.md#adr-0132)，[教程](docs/settings.md)）。
 - PersonaBot 可以自己管理定时任务：让 Bot「每小时检查一下 X」或「每天早上总结」，它会自己创建定时任务，侧栏里标为 Bot 创建；它也可以修改或删除你没有锁定的任务。你可以在任务行或编辑弹窗里锁定任务；每个 Bot 最多同时启用 20 个；Bot 改动后侧栏立即刷新；Orchestrator 中 DSH 自带的 `schedule_*` 工具会被拒绝，确保每个 Bot 只有一套定时任务（[#961](https://github.com/BotHarness/BotHarness/issues/961)）。
 - 定时任务新增每周（选择星期几）、单次（指定日期和时间，触发后自动停用）和 5 段 Cron 三种频率，均按任务自己的时区计算；编辑弹窗会预览接下来三次触发时间，Bot 的定时任务工具也支持这些频率；任务行上的「立即运行」会马上唤醒 Orchestrator，且不改变下一次计划时间。新增[定时任务使用指南](docs/channel-sidebar/schedules.md)，说明各种频率、立即运行、暂停与锁定（[#962](https://github.com/BotHarness/BotHarness/issues/962)）。
 - Bot 设置可以通过 DSH 的插件管理一键安装新版本 DeepSeekBot。Web 版装完点「立即重启」，`dsh web` 会在同一个终端里重启，页面自动重新连接；DSH Desktop 会提示退出后重新打开。插件管理不可用或安装失败时，会显示原因和手动更新命令。新增[更新 DeepSeekBot](docs/update-deepseekbot.md)教程，说明每一步（[#986](https://github.com/BotHarness/BotHarness/issues/986)）。
@@ -2594,7 +2594,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - 将 DM 与 group Channel composer 重构为响应式 floating island，支持多行输入，并提供可访问、仅消费投影的 PersonaBot activity region（[#129](https://github.com/BotHarness/BotHarness/issues/129)）。
 - 为独立的 DeepSeekBot 与 DSH Skill release train 新增确定性、只读的 GitHub Release draft 准备流程（[指南](docs/agents/changelog.md#preparing-a-github-release-draft)、[#103](https://github.com/BotHarness/BotHarness/issues/103)）。
 - 新增 Computer 导出与迁移指南，覆盖跨机器单文件迁移、必须随迁移保留的文件所遵循的持久 `~/workspace` 约定，以及体积/耗时预期（[#154](https://github.com/BotHarness/BotHarness/issues/154)）。
-- 侧栏 **+** 菜单新增 Bot 市场：贴入带 `botharness-bot` 话题的公开 GitHub 仓库即可收录，可浏览已收录的 Bot，并在显示最新提交与第三方风险提示的确认后安装为新的 PersonaBot（[#916](https://github.com/BotHarness/BotHarness/issues/916)，[ADR-0131](docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)）。
+- 侧栏 **+** 菜单新增 Bot 市场：贴入带 `botharness-bot` 话题的公开 GitHub 仓库即可收录，可浏览已收录的 Bot，并在显示最新提交与第三方风险提示的确认后安装为新的 PersonaBot（[#916](https://github.com/BotHarness/BotHarness/issues/916)，[ADR-0131](docs/decisions/marketplace.md#adr-0131)）。
 - 给仓库加上 `botharness-bot` 话题后，无需贴链接，下一次每日定时发现就会把它收录进 Bot 市场；已收录条目每小时刷新，移除话题、归档、删除或改为私有会隐藏条目，仓库改名或转移仍保留同一条目（[#917](https://github.com/BotHarness/BotHarness/issues/917)）。
 - Bot 市场支持按最近更新或 Star 数排序，可按相关度搜索名称、描述、话题和 README（支持中文），并可点话题标签筛选（[#918](https://github.com/BotHarness/BotHarness/issues/918)）。
 - 在 Bot 市场点开条目会显示详情：README 按 GitHub 的样子渲染（相对路径的图片和链接按收录时的提交解析，脚本、事件属性和不安全链接会被移除），并显示 Star、更新时间、话题、GitHub 链接和安装按钮（[#919](https://github.com/BotHarness/BotHarness/issues/919)）。
@@ -2661,7 +2661,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 - Computer entry 的 Access 开关移入可折叠标题栏；与 Browser entry 一样，开关关闭时该区块无法展开（[#493](https://github.com/BotHarness/BotHarness/issues/493)）。
 - Browser entry 的 Browser Access 开关现在位于可折叠标题栏中，开关关闭时无法展开；正文改为干净的标签列表，配一个默认跟随 Bot 的焦点预览（关闭跟随后点击列表项即可切换预览）；Bot 标签以后台标签开在共享 Bot Browser 里，不再弹新窗口、不抢焦点。原「接管」改为 **暂停 Bot**——只让该 Bot 停手，不暗示你需要授权才能操作窗口（[#490](https://github.com/BotHarness/BotHarness/issues/490)、[#492](https://github.com/BotHarness/BotHarness/issues/492)、[#496](https://github.com/BotHarness/BotHarness/issues/496)、[ADR-0095](docs/decisions/browser.md#adr-0095)）。
 - 记忆文件阅读区采用与正文区分底色的通栏标题栏，以及简洁的返回和刷新图标；提交及工作区差异以可折叠的文件卡片显示新旧行号、增删行数和与 Git 图一致的状态标识。历史节点的分支按钮明确说明会新建并切换分支（[#441](https://github.com/BotHarness/BotHarness/issues/441)、[#512](https://github.com/BotHarness/BotHarness/issues/512)）。
-- BotHarness 现在以 SemVer 范围（`>=0.2.0-rc.1 <0.3.0-0`）声明 DSH 兼容性，以已验证的宿主行为下限，取代精确锁定；运行时行为不变（[ADR-0087](docs/adr/0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md)、[#423](https://github.com/BotHarness/BotHarness/issues/423)）。
+- BotHarness 现在以 SemVer 范围（`>=0.2.0-rc.1 <0.3.0-0`）声明 DSH 兼容性，以已验证的宿主行为下限，取代精确锁定；运行时行为不变（[ADR-0087](docs/decisions/release.md#adr-0087)、[#423](https://github.com/BotHarness/BotHarness/issues/423)）。
 
 - BotHarness 现以 DSH 0.2.0 RC1 为目标：工作区依赖与 `engines.dsh` 从 0.1.7 RC2 迁移到新 RC，隔离开发 Profile 需按新 RC 重建（[#419](https://github.com/BotHarness/BotHarness/issues/419)）。
 
@@ -2676,7 +2676,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 
 - Group Channel 的 @PersonaBot 与 Bot 间私聊提示现允许 Bot 在无需回应时直接结束；「已处理」仍表示回合完成，不表示已发出确认消息（[#302](https://github.com/BotHarness/BotHarness/issues/302)）。
 
-- 本地 Desktop 的 Client 改动现在可经 DSH Client HMR 更新已打开的 PersonaBot 私聊；未发布的 UI Bundle 改名为 `@botharness/ui`，使 RC2 能正确解析插件图（[#272](https://github.com/BotHarness/BotHarness/issues/272)、[ADR-0066](docs/adr/0066-rc2-client-bundle-identity.md)）。HMR 后整页刷新仍可能触发 RC2 Web 启动失败；请按[开发指南](docs/client-bridge.md)重启应用及 Host。
+- 本地 Desktop 的 Client 改动现在可经 DSH Client HMR 更新已打开的 PersonaBot 私聊；未发布的 UI Bundle 改名为 `@botharness/ui`，使 RC2 能正确解析插件图（[#272](https://github.com/BotHarness/BotHarness/issues/272)、[ADR-0066](docs/decisions/release.md#adr-0066)）。HMR 后整页刷新仍可能触发 RC2 Web 启动失败；请按[开发指南](docs/client-bridge.md)重启应用及 Host。
 - PersonaBot 私聊顶部现在稳定显示 Bot 名称，即使 Channel 记录中的名称是 ID；右侧 Channel 栏不再重复显示该标题（[#263](https://github.com/BotHarness/BotHarness/issues/263)）。
 - BotHarness 本地开发现支持 DSH 0.1.7 RC2 Web Profile：Client 改动可自动刷新，Host 改动有明确的重启步骤（[#265](https://github.com/BotHarness/BotHarness/issues/265)）。
 
@@ -2868,7 +2868,7 @@ DeepSeekBot 首个 npm 正式版本：拥有各自身份的 PersonaBots、Git Me
 
 ### Documentation
 
-- 记录已接受的 Bot Marketplace 顺序，先作为 GitHub 索引目录上线：仓库通过 `botharness-bot` topic 加入，Cloudflare Worker/D1 抓取后在 harness modal 中搜索，安装复用 Git URL 创建 Bot；账号、上传、收藏与导入计数放到第二阶段（[#18](https://github.com/BotHarness/BotHarness/issues/18)、[ADR-0131](docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)）。
+- 记录已接受的 Bot Marketplace 顺序，先作为 GitHub 索引目录上线：仓库通过 `botharness-bot` topic 加入，Cloudflare Worker/D1 抓取后在 harness modal 中搜索，安装复用 Git URL 创建 Bot；账号、上传、收藏与导入计数放到第二阶段（[#18](https://github.com/BotHarness/BotHarness/issues/18)、[ADR-0131](docs/decisions/marketplace.md#adr-0131)）。
 
 - README 与 npm 页面与像素风官网保持一致：分享卡片、桌面端与命令行安装、已支持的 IM 平台、像素头像与社区入口（[#895](https://github.com/BotHarness/BotHarness/pull/895)、[官网](https://deepseekbot.botharness.ai)）。
 

@@ -93,6 +93,7 @@ function RootNavigator() {
     ['models', t.modelSettings.title],
     ['model-picker', undefined],
     ['model-preset', undefined],
+    ['routing-group', undefined],
     ['prompts', t.prompts.title],
     ['notifications', t.notifications],
     ['storage', t.storage.title],

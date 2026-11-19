@@ -11,6 +11,7 @@ import {
   type EngineModel,
   type EngineSendOptions,
   type EngineSession,
+  type EngineStartOptions,
   type EngineTurnEnd,
   EngineRefusal,
   engineEffort,
@@ -306,7 +307,8 @@ interface OpenQuery {
 const SESSION_GONE = /no conversation found|session(?: id)? [\w-]+ (?:not found|does not exist)/iu;
 const DENIED = 'The Human did not approve this tool call.';
 
-export interface ClaudeEngineOptions extends ClaudeProcessOptions {
+export interface ClaudeEngineOptions
+  extends ClaudeProcessOptions, Pick<EngineStartOptions, 'contextSeed'> {
   query: ClaudeQueryFactory;
   resume?: string;
   newSessionId?: () => string;
@@ -358,7 +360,7 @@ export class ClaudeEngineSession implements EngineSession {
     return open.sessionId;
   }
 
-  async send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
+  async send(currentInput: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
     const open = this.#current;
     if (open === undefined) throw new Error('Claude Code session is not started');
     if (this.#turn !== undefined) throw new Error('A Claude Code turn is already running');
@@ -367,6 +369,7 @@ export class ClaudeEngineSession implements EngineSession {
       return { status: 'failed', message: `${this.#metered}, which bills per use` };
     if (this.#outdated !== undefined) return { status: 'failed', message: this.#outdated };
     if (options.signal?.aborted === true) return { status: 'interrupted' };
+    const input = (this.#options.contextSeed?.() ?? '') + currentInput;
     let active!: ActiveTurn;
     const ended = new Promise<EngineTurnEnd>((resolve) => {
       active = { options, resolve };

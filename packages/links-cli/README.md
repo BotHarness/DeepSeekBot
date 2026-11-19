@@ -1,6 +1,6 @@
 # @botharness/links
 
-`bh-links`: manage [go.tobs.app](https://go.tobs.app) Campaign short links from the command line ([ADR-0132](https://github.com/BotHarness/BotHarness/blob/main/docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#955](https://github.com/BotHarness/BotHarness/issues/955)). A **Campaign** owns many **Campaign Links**; each link is a short URL that redirects to the DeepSeekBot site with `utm_campaign`, `utm_source` (platform), `utm_medium` (media) and `utm_content` (link slug) and counts its clicks.
+`bh-links`: manage [go.tobs.app](https://go.tobs.app) Campaign short links from the command line ([ADR-0132](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/release.md#adr-0132), [#955](https://github.com/BotHarness/BotHarness/issues/955)). A **Campaign** owns many **Campaign Links**; each Campaign Link is a short link that redirects to the DeepSeekBot site with `utm_campaign`, `utm_source` (platform), `utm_medium` (media) and `utm_content` (link slug) and counts its clicks.
 
 It is a thin client over the links Worker's `/v1` API, typed with the same zod schemas that publish [`/openapi.json`](https://go.tobs.app/openapi.json). Requires Node.js 22 or later and has no runtime dependencies.
 

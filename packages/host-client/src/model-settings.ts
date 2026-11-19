@@ -18,11 +18,15 @@ import {
   type ModelSettingsClient,
 } from './bot-settings';
 import { recordFeature } from './telemetry/features';
+import { answerRecord, record } from './host-answer';
 import {
   modelCatalogGroupEfforts,
   modelCatalogGroupFront,
   modelEffortChoices,
+  parseRoutingGroup,
   serialWrites,
+  type RoutingGroup,
+  type RoutingGroupMember,
 } from './model-catalog';
 import {
   createModelPreset,
@@ -57,6 +61,7 @@ export function modelScopeKey(scope: ModelScope): string {
 }
 
 const owners = new WeakMap<ModelSettingsClient, QueryClient>();
+const modelSettingsKey = ['mobile-model-settings'];
 const favoriteWriters = new WeakMap<
   ModelSettingsClient,
   (choice: ModelChoice, favorite: boolean) => Promise<ModelChoice[]>
@@ -80,7 +85,7 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
     owners.set(client, queries);
   }
   const owner = queries;
-  const queryKey = ['mobile-model-settings', modelScopeKey(scope)];
+  const queryKey = [...modelSettingsKey, modelScopeKey(scope)];
   return {
     peek: () => owner.getQueryData<ModelSettingsState>(queryKey),
     write: async (work: () => Promise<void>) => {
@@ -88,17 +93,17 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
       await work();
       await owner.cancelQueries({ queryKey, exact: true });
       await owner.invalidateQueries({
-        queryKey: ['mobile-model-settings'],
+        queryKey: modelSettingsKey,
         refetchType: 'none',
       });
     },
     favorite: async (choice: ModelChoice, favorite: boolean) => {
       const favorites = await writeFavorite(client)(choice, favorite);
-      owner.setQueriesData<ModelSettingsState>({ queryKey: ['mobile-model-settings'] }, (old) =>
+      owner.setQueriesData<ModelSettingsState>({ queryKey: modelSettingsKey }, (old) =>
         old === undefined ? old : { ...old, favorites },
       );
       await owner.invalidateQueries({
-        queryKey: ['mobile-model-settings'],
+        queryKey: modelSettingsKey,
         refetchType: 'none',
       });
       return favorites;
@@ -387,6 +392,61 @@ export async function setModelGroup(
     state.plan?.revision ?? state.revision,
   );
   recordFeature('model:plan_update', { via: 'group' });
+}
+
+export type ModelGroupInput = { name: string; members: RoutingGroupMember[] };
+
+export async function loadModelGroup(
+  client: ModelSettingsClient,
+  id: string,
+): Promise<RoutingGroup> {
+  const answer = answerRecord(await client.call('modelGroup', { id }), 'modelGroup');
+  const group = parseRoutingGroup(answer['group']);
+  if (group === undefined || group.id !== id)
+    throw new HostAnswerInvalid('modelGroup returned an invalid Routing Group.');
+  return group;
+}
+
+async function writeModelGroup(
+  client: ModelSettingsClient,
+  method: 'modelGroupCreate' | 'modelGroupUpdate' | 'modelGroupDelete',
+  args: Record<string, unknown>,
+): Promise<void> {
+  await client.call(method, args);
+  const owner = owners.get(client);
+  await owner?.cancelQueries({ queryKey: modelSettingsKey });
+  await owner?.invalidateQueries({ queryKey: modelSettingsKey, refetchType: 'none' });
+}
+
+export function createModelGroup(
+  client: ModelSettingsClient,
+  input: ModelGroupInput,
+): Promise<void> {
+  return writeModelGroup(client, 'modelGroupCreate', input);
+}
+
+export function updateModelGroup(
+  client: ModelSettingsClient,
+  id: string,
+  revision: number,
+  input: ModelGroupInput,
+): Promise<void> {
+  return writeModelGroup(client, 'modelGroupUpdate', { ...input, id, expectedRevision: revision });
+}
+
+export function deleteModelGroup(
+  client: ModelSettingsClient,
+  id: string,
+  revision: number,
+): Promise<void> {
+  return writeModelGroup(client, 'modelGroupDelete', { id, expectedRevision: revision });
+}
+
+export function modelGroupReferences(details: unknown): string[] {
+  const references = record(details)?.['references'];
+  return Array.isArray(references)
+    ? references.filter((reference): reference is string => typeof reference === 'string')
+    : [];
 }
 
 function groupDefaultEffort(

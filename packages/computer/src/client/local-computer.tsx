@@ -1,3 +1,5 @@
+import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
+import { cancelled, watchComputerStatus } from './status-live.js';
 import { Button } from '../../../client/src/client/ds/button.js';
 import { Tag } from '../../../client/src/client/ds/tag.js';
 import { localSetupFailure } from './local-setup-copy.js';
@@ -44,7 +46,13 @@ interface LocalStatus {
   install?: { state?: string; packages?: string[]; percent?: number; text?: string };
 }
 
-export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactElement {
+export function LocalComputerStatus({
+  t,
+  observeResource,
+}: {
+  t: ComputerTranslate;
+  observeResource?: ObserveResource | undefined;
+}): ReactElement {
   const [payload, setPayload] = useState<LocalStatus>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -60,27 +68,17 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
       setError((old) => (old === 'request-failed' ? undefined : old));
     }
   }, []);
-  const resource = useMountedResource<HTMLDivElement>(() => {
-    const controller = new AbortController();
-    let pending = false;
-    const poll = async (): Promise<void> => {
-      if (pending || controller.signal.aborted) return;
-      pending = true;
-      try {
-        await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
-      } catch {
-        if (!controller.signal.aborted) setError('request-failed');
-      } finally {
-        pending = false;
-      }
-    };
-    void poll();
-    const timer = setInterval(() => void poll(), 2000);
-    return () => {
-      controller.abort();
-      clearInterval(timer);
-    };
-  }, [refresh]);
+  const resource = useMountedResource<HTMLDivElement>(
+    () =>
+      watchComputerStatus(observeResource, async (signal) => {
+        try {
+          await refresh(signal);
+        } catch {
+          if (!cancelled(signal)) setError('request-failed');
+        }
+      }),
+    [observeResource, refresh],
+  );
   const installing = payload?.install?.state === 'installing';
   const preparing = busy || installing || payload?.status?.phase === 'starting';
   const missing = payload?.status?.missing;

@@ -34,6 +34,29 @@ window.__ModuleLoader__.load({
 		_deepseek_ai_dsh_client_ui_primitives = __toESM(_deepseek_ai_dsh_client_ui_primitives, 1);
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
+		//#region packages/client/src/client/visible-interval.ts
+		function visibleInterval(run, ms, page = typeof document === "undefined" ? void 0 : document) {
+			let timer;
+			let hidden = page?.visibilityState === "hidden";
+			const start = () => {
+				clearInterval(timer);
+				timer = hidden ? void 0 : setInterval(run, ms);
+			};
+			const changed = () => {
+				const next = page?.visibilityState === "hidden";
+				if (next === hidden) return;
+				hidden = next;
+				if (!hidden) run();
+				start();
+			};
+			page?.addEventListener?.("visibilitychange", changed);
+			start();
+			return () => {
+				clearInterval(timer);
+				page?.removeEventListener?.("visibilitychange", changed);
+			};
+		}
+		//#endregion
 		//#region packages/client/src/client/channel-sidebar-icon.tsx
 		/**
 		* Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
@@ -15061,10 +15084,10 @@ window.__ModuleLoader__.load({
 			const base = `${OBSERVATION_ENDPOINT}?slug=${encodeURIComponent(botSlug ?? "")}`;
 			return tabId === void 0 || tabId === "" ? base : `${base}&tab=${encodeURIComponent(tabId)}`;
 		}
-		function createObservationStore(botSlug) {
+		function createObservationStore(botSlug, observeResource) {
 			let value;
 			let tab;
-			let timer;
+			let stopObserving;
 			let refreshing = false;
 			let revision = 0;
 			let refreshAgain = false;
@@ -15078,10 +15101,10 @@ window.__ModuleLoader__.load({
 				const requestedTab = tab;
 				const requestedRevision = revision;
 				try {
-					const next = await requestJson(observationUrl(botSlug, requestedTab));
+					const next = await requestJson(observationUrl(botSlug, requestedTab), { signal: AbortSignal.timeout(1e4) });
 					if (tab === requestedTab && revision === requestedRevision) value = next;
-				} catch {
-					if (tab === requestedTab && revision === requestedRevision) value = void 0;
+				} catch (cause) {
+					if (!(cause?.name === "TimeoutError") && tab === requestedTab && revision === requestedRevision) value = void 0;
 				} finally {
 					refreshing = false;
 				}
@@ -15095,14 +15118,16 @@ window.__ModuleLoader__.load({
 				subscribe(listener) {
 					listeners.add(listener);
 					if (listeners.size === 1) {
-						refresh();
-						timer = setInterval(() => void refresh(), 1500);
+						const stopEvents = observeResource?.("browser", refresh);
+						if (stopEvents === void 0) refresh();
+						const stopKeepAlive = visibleInterval(() => void refresh(), 2e4);
+						stopObserving = () => (stopEvents?.(), stopKeepAlive());
 					}
 					return () => {
 						listeners.delete(listener);
-						if (listeners.size === 0 && timer !== void 0) {
-							clearInterval(timer);
-							timer = void 0;
+						if (listeners.size === 0) {
+							stopObserving?.();
+							stopObserving = void 0;
 						}
 					};
 				},
@@ -15189,8 +15214,8 @@ window.__ModuleLoader__.load({
 				}) : null]
 			});
 		}
-		function BrowserBody({ botSlug, t }) {
-			const [store] = (0, react.useState)(() => createObservationStore(botSlug));
+		function BrowserBody({ botSlug, t, observeResource }) {
+			const [store] = (0, react.useState)(() => createObservationStore(botSlug, observeResource));
 			const infoStore = botInfoStore(botSlug);
 			const observation = (0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot);
 			const info = (0, react.useSyncExternalStore)(infoStore.subscribe, infoStore.getSnapshot);
@@ -15637,7 +15662,7 @@ window.__ModuleLoader__.load({
 				]
 			});
 		}
-		function createBrowserBody(t) {
+		function createBrowserBody(t, observeResource) {
 			return function BrowserBodyView(props) {
 				(0, react.useState)(() => recordViewerOpen(connectionRpc, "browser"));
 				const store = botInfoStore(props.botSlug);
@@ -15647,7 +15672,8 @@ window.__ModuleLoader__.load({
 				});
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(BrowserBody, {
 					...props,
-					t
+					t,
+					observeResource
 				});
 			};
 		}
@@ -15696,7 +15722,7 @@ window.__ModuleLoader__.load({
 					label: t("entry.label"),
 					order: 41,
 					scope: "personabot",
-					component: createBrowserBody(t),
+					component: createBrowserBody(t, sidebarCtx.get?.("botharnessResourceObserver")),
 					headerAction: createBrowserHeader(t),
 					badge: createBrowserBadge(t),
 					tab: "screen"
@@ -15705,6 +15731,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		exports.apply = apply;
+		exports.createObservationStore = createObservationStore;
 		exports.inject = inject;
 		exports.name = name;
 		return module.exports;
