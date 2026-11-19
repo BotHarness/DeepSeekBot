@@ -54,6 +54,7 @@ export interface EngineToolApproval {
 
 export interface EngineToolContext {
   session: Session;
+  readonly assignmentInputRevision?: number | undefined;
   ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
 }
 
