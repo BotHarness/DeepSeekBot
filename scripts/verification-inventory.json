@@ -2694,9 +2694,9 @@
       "path": "scripts/e2e-timeline-navigation.mjs",
       "category": "mapped",
       "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
-      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. TB6 waits for the existing button paint transition to settle.",
       "task": 2748,
-      "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
+      "sha256": "af0c66233ecd12f6c5b5d41e2fbf67bda63a4b8f27f496db50222ba70ec2d262"
     },
     {
       "path": "scripts/e2e-mobile-deletion-web.mjs",

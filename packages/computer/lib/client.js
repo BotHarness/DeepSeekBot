@@ -11121,13 +11121,15 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		});
-		(0, react.forwardRef)(function HiddenFileInput(props, ref) {
+		(0, react.forwardRef)(function HiddenFileInput({ className, ...props }, ref) {
+			const appearance = { className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft" };
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 				ref,
 				...props,
 				type: "file",
 				tabIndex: -1,
-				className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft"
+				...appearance,
+				className: joinClass(appearance.className, className)
 			});
 		});
 		//#endregion
