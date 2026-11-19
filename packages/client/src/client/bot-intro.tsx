@@ -248,6 +248,12 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
   },
+  choices: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tobsSpace.x2,
+    marginTop: tobsSpace.x2,
+  },
   providers: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -1153,22 +1159,24 @@ function ModelStep({
             </details>
           ) : null}
           {canConnect && openProviders !== undefined ? (
-            <ChoiceButton
-              title={t('botSettings.section.modelProviders')}
-              leading={<Icon name="settings" />}
-              description={
-                <span {...stylex.props(styles.providers)}>
-                  {[...connected].slice(0, 3).map(([id, { name, brand }]) => (
-                    <span key={id} {...stylex.props(styles.provider)}>
-                      <ModelBrandIcon brand={brand} />
-                      {name}
-                    </span>
-                  ))}
-                  {connected.size > 3 ? <span>+{connected.size - 3}</span> : null}
-                </span>
-              }
-              onClick={openProviders}
-            />
+            <div {...stylex.props(styles.choices)}>
+              <ChoiceButton
+                title={t('botSettings.section.modelProviders')}
+                leading={<Icon name="settings" />}
+                description={
+                  <span {...stylex.props(styles.providers)}>
+                    {[...connected].slice(0, 3).map(([id, { name, brand }]) => (
+                      <span key={id} {...stylex.props(styles.provider)}>
+                        <ModelBrandIcon brand={brand} />
+                        {name}
+                      </span>
+                    ))}
+                    {connected.size > 3 ? <span>+{connected.size - 3}</span> : null}
+                  </span>
+                }
+                onClick={openProviders}
+              />
+            </div>
           ) : null}
           {engines.loadFailed ? (
             <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
@@ -1185,9 +1193,10 @@ function ModelStep({
           </ReadFailure>
         )
       ) : canConnect ? (
-        <>
+        <div {...stylex.props(styles.choices)}>
           <ChoiceButton
             title={t('intro.model.enterKey')}
+            description={t('intro.model.enterKeyHint')}
             leading={<Icon name="shield-check" />}
             onClick={() => setConnection('key')}
           />
@@ -1197,6 +1206,7 @@ function ModelStep({
             ) : (
               <ChoiceButton
                 title={t('intro.model.signIn')}
+                description={t('intro.model.signInHint')}
                 leading={<Icon name="plug" />}
                 onClick={() => setConnection('subscription')}
               />
@@ -1209,7 +1219,7 @@ function ModelStep({
               {t('engine.loadFailed')}
             </ReadFailure>
           ) : null}
-        </>
+        </div>
       ) : viewer !== undefined ? (
         <Note>{t('intro.model.ownerConnects')}</Note>
       ) : null}
