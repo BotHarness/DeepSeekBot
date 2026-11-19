@@ -10,7 +10,7 @@ import {
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
-import type { RoutingGroupMember } from '../../../core/src/models/routing-groups.js';
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import {
   humanAvatarVersionOf,
   parseHumanAvatars,
@@ -396,7 +396,10 @@ export async function loadModelPlanState(
   return loadHostModelPlanState(bridgeHost(call), slug);
 }
 
-export type RoutingGroupMemberView = RoutingGroupMember;
+export type RoutingGroupMemberView =
+  | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
+  | { kind: 'group'; id: string }
+  | RoutingGroupEngineMember;
 
 export interface RoutingGroupView {
   id: string;
