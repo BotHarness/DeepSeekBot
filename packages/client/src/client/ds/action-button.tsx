@@ -1,11 +1,12 @@
 import { Icon } from './icon.js';
 import { Button } from './button.js';
 import type { ActionSymbol } from '../../shared/action-presentation.js';
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactElement, ReactNode, Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
-import { layer, state, style } from './tobs.stylex.js';
+import { joinClass } from './class-name.js';
+import { ink, layer, radius, state, style } from './tobs.stylex.js';
 import { actionColor, color, space, text } from './tokens.stylex.js';
 
 const spin = stylex.keyframes({ to: { transform: 'rotate(360deg)' } });
@@ -41,6 +42,12 @@ const styles = stylex.create({
   },
   selected: { opacity: { default: 1, ':disabled': 1 } },
   primary: { backgroundColor: color.accent, color: color.onAccent },
+  pill: { borderRadius: radius.full },
+  pillPrimary: { backgroundColor: ink.primary, color: layer.canvas },
+  pillSecondary: {
+    backgroundColor: { default: actionColor.secondary, ':hover:enabled': actionColor.hover },
+    backgroundImage: 'none',
+  },
   danger: {
     backgroundColor: actionColor.danger,
     color: actionColor.dangerLabel,
@@ -66,6 +73,7 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style'
   tone?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   size?: 'sm' | 'md';
+  pill?: boolean;
 };
 export function ActionButton({
   children,
@@ -74,9 +82,18 @@ export function ActionButton({
   busy = false,
   disabled,
   size: buttonSize = 'sm',
+  pill = false,
   type = 'button',
   ...rest
 }: Props): ReactElement {
+  const appearance = [
+    styles.button,
+    styles[tone],
+    pill && styles.pill,
+    pill && tone === 'primary' && styles.pillPrimary,
+    pill && tone === 'secondary' && styles.pillSecondary,
+    rest['aria-pressed'] === true && styles.selected,
+  ];
   return (
     <Button
       {...rest}
@@ -84,11 +101,7 @@ export function ActionButton({
       size={buttonSize}
       disabled={disabled || busy}
       aria-busy={busy || rest['aria-busy']}
-      {...stylex.props(
-        styles.button,
-        styles[tone],
-        rest['aria-pressed'] === true && styles.selected,
-      )}
+      {...(pill ? { xstyle: appearance } : stylex.props(...appearance))}
     >
       <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
         {busy || icon === 'refresh' ? (
@@ -104,9 +117,20 @@ export function ActionButton({
 export function ActionGroup({
   children,
   stack = false,
+  className,
+  groupRef,
 }: {
   children: ReactNode;
   stack?: boolean;
+  className?: string;
+  groupRef?: Ref<HTMLDivElement>;
 }): ReactElement {
-  return <div {...stylex.props(styles.group, stack && styles.stack)}>{children}</div>;
+  return (
+    <div
+      ref={groupRef}
+      className={joinClass(stylex.props(styles.group, stack && styles.stack).className, className)}
+    >
+      {children}
+    </div>
+  );
 }

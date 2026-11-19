@@ -1,8 +1,16 @@
+import * as stylex from '@stylexjs/stylex';
 import { observeHostResource } from './messaging-defaults-live.js';
 import { useMessageHost } from './message-host.js';
-import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
-import { ActionButton } from './ds/action-button.js';
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { hooked } from './ds/hooked.js';
+import {
+  RequestHeading,
+  RequestOption,
+  RequestOptions,
+  RequestOutcome,
+  requestCardStyles as styles,
+} from './ds/request-card.js';
 import { useContext, useId, useRef, useState, type ReactElement } from 'react';
 import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
@@ -11,7 +19,6 @@ import type { ChannelMessage } from './store.js';
 import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { MessageDeveloperMode } from './message-developer-mode.js';
 
 export function UserQuestionCard({
@@ -22,10 +29,12 @@ export function UserQuestionCard({
   companionTarget,
   channelId: sourceChannelId,
   hostScoped = false,
+  inset = false,
 }: {
   message: ChannelMessage;
   actions: Pick<BridgeActions, 'requestHost' | 'userQuestionStatus' | 'answerUserQuestion'>;
   hostScoped?: boolean;
+  inset?: boolean;
   channelId?: string | undefined;
   resolution?: 'answered' | 'cancelled' | undefined;
   t: BotHarnessTranslate;
@@ -204,27 +213,24 @@ export function UserQuestionCard({
     status === 'expired'
       ? status
       : undefined;
-  const head = (
-    <div className="bh-request-head">
-      <span className="bh-request-category">{only?.header ?? t('question.category')}</span>
-      <span className="bh-request-pill" data-state="pending">
-        {t('question.outcome.pending')}
-      </span>
-    </div>
+  const cardStyle = hooked(
+    'bh-question-card',
+    styles.card,
+    styles.question,
+    compact && styles.compact,
+    inset && styles.inset,
   );
 
   if (settled !== undefined)
     return (
       <div
         ref={questionMount}
-        className="bh-question-card"
+        {...cardStyle}
         data-compact={compact || undefined}
         data-settled={settled}
       >
-        <div
-          role="status"
-          className="bh-request-done"
-          data-state={settled}
+        <RequestOutcome
+          outcome={settled}
           title={
             settled === 'expired'
               ? t('question.expired')
@@ -236,9 +242,9 @@ export function UserQuestionCard({
           {request.questions.map((question) => question.question).join(' · ') +
             ' · ' +
             t(`question.outcome.${settled}`)}
-        </div>
+        </RequestOutcome>
         {error === undefined ? null : (
-          <div className="bh-error" role="alert">
+          <div {...stylex.props(styles.caption, styles.error)} role="alert">
             {error}
           </div>
         )}
@@ -246,12 +252,14 @@ export function UserQuestionCard({
     );
 
   return (
-    <div ref={questionMount} className="bh-question-card" data-compact={compact || undefined}>
-      {head}
+    <div ref={questionMount} {...cardStyle} data-compact={compact || undefined}>
+      <RequestHeading pending={t('question.outcome.pending')}>
+        {only?.header ?? t('question.category')}
+      </RequestHeading>
       {developerMode ? (
-        <details className="bh-question-source">
+        <details {...hooked('bh-question-source', styles.caption)}>
           <summary>{t('question.source')}</summary>
-          <code>{request.sessionId}</code>
+          <code {...stylex.props(styles.preview)}>{request.sessionId}</code>
         </details>
       ) : null}
       {request.questions.map((question) => {
@@ -274,60 +282,44 @@ export function UserQuestionCard({
           />
         );
         return (
-          <div className="bh-question-item" key={question.id}>
+          <div {...hooked('bh-question-item', styles.group)} key={question.id}>
             {only === undefined && question.header !== undefined ? (
-              <div className="bh-note">{question.header}</div>
+              <div {...stylex.props(styles.caption)}>{question.header}</div>
             ) : null}
-            <div className="bh-question-prompt">{question.question}</div>
+            <div {...hooked('bh-question-prompt', styles.prompt)}>{question.question}</div>
             {question.detail === undefined || !detailed ? null : (
-              <div className="bh-note">{question.detail}</div>
+              <div {...stylex.props(styles.caption)}>{question.detail}</div>
             )}
             {question.options?.length ? (
               <>
-                <SidebarCardList
-                  label={question.question}
-                  className={
-                    tapAnswer ? 'bh-message-card-list bh-question-lettered' : 'bh-message-card-list'
-                  }
-                >
+                <RequestOptions label={question.question}>
                   {question.options.map((option, index) => (
-                    <SidebarCardRow
+                    <RequestOption
                       key={option.label}
-                      leading={
-                        tapAnswer ? undefined : (
-                          <span
-                            className="bh-question-letter"
-                            data-multiple={question.multiSelect === true || undefined}
-                            aria-hidden="true"
-                          >
-                            {String.fromCharCode(65 + (index % 26))}
-                          </span>
-                        )
-                      }
+                      letter={String.fromCharCode(65 + (index % 26))}
                       title={option.label}
-                      meta={detailed ? option.description : undefined}
-                      selection={
-                        tapAnswer
-                          ? undefined
-                          : {
-                              checked: (selected[question.id] ?? []).includes(option.label),
-                              multiple: question.multiSelect === true,
-                            }
+                      description={detailed ? option.description : undefined}
+                      selected={
+                        tapAnswer ? undefined : (selected[question.id] ?? []).includes(option.label)
                       }
+                      multiple={question.multiSelect === true}
                       disabled={disabled}
-                      onClick={() =>
+                      onChoose={() =>
                         tapAnswer
                           ? submit({ id: question.id, label: option.label })
                           : choose(question.id, option.label, question.multiSelect === true)
                       }
                     />
                   ))}
-                </SidebarCardList>
+                </RequestOptions>
                 {field}
               </>
             ) : (
               <>
-                <label className="bh-question-custom" htmlFor={inputId + '-' + question.id}>
+                <label
+                  {...hooked('bh-question-custom', styles.caption)}
+                  htmlFor={inputId + '-' + question.id}
+                >
                   {t('question.custom')}
                 </label>
                 {field}
@@ -338,10 +330,11 @@ export function UserQuestionCard({
       })}
       {status === 'pending' ? (
         showSubmit || showToggle ? (
-          <div className="bh-message-card-actions">
+          <ActionGroup>
             {showSubmit ? (
               <ActionButton
                 icon="check"
+                pill
                 tone="primary"
                 size={compact ? 'sm' : 'md'}
                 busy={busy}
@@ -354,6 +347,7 @@ export function UserQuestionCard({
             {showToggle ? (
               <ActionButton
                 icon="info"
+                pill
                 size="sm"
                 aria-expanded={expanded}
                 onClick={() => setExpanded((current) => !current)}
@@ -361,15 +355,16 @@ export function UserQuestionCard({
                 {t('companion.details')}
               </ActionButton>
             ) : null}
-          </div>
+          </ActionGroup>
         ) : null
       ) : (
-        <div className="bh-note" role="status">
+        <div {...stylex.props(styles.caption)} role="status">
           {statusError ? (
             <>
               {t('question.statusUnavailable')}
               <ActionButton
                 icon="refresh"
+                pill
                 disabled={companionTarget !== undefined && !qualified()}
                 onClick={() => setStatusRetry((current) => current + 1)}
               >
@@ -382,7 +377,7 @@ export function UserQuestionCard({
         </div>
       )}
       {error === undefined ? null : (
-        <div className="bh-error" role="alert">
+        <div {...stylex.props(styles.caption, styles.error)} role="alert">
           {error}
         </div>
       )}

@@ -47,7 +47,7 @@ import {
   GroupChannelHeader,
 } from './group-channel-header.js';
 import { GroupChannelIcon } from './group-avatar-stack.js';
-import { MobileConversationHeader } from './mobile-conversation-header.js';
+import { MobileConversationHeader, CompactNavigationHeader } from './mobile-conversation-header.js';
 import { useDmComposerContext } from './dm-composer-context.js';
 import { useGroupComposerContext } from './group-composer-context.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -248,6 +248,8 @@ import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
+import { hooked } from './ds/hooked.js';
+import { bubble } from './ds/chat-chrome.js';
 import { DmCallControl } from './dm-call.js';
 import { color, radius, text } from './ds/tokens.stylex.js';
 import type { ReleaseNotesController } from './release-notes.js';
@@ -991,7 +993,11 @@ const MessageGroupView = memo(function MessageGroupView({
                   </button>
                 )}
                 <div
-                  className={`bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`}
+                  {...hooked(
+                    `bh-bubble${human ? ' bh-bubble-me' : ''}${message.pending === true || message.streaming === true ? ' bh-bubble-pending' : ''}${message.failed === undefined ? '' : ' bh-bubble-failed'}`,
+                    bubble.surface,
+                    human && bubble.human,
+                  )}
                   data-group-position={position}
                   data-bubble-media={bubbleMedia(message)}
                 >
@@ -1039,10 +1045,10 @@ const MessageGroupView = memo(function MessageGroupView({
                   t={t}
                 />
                 <BubbleToolbar>
-                  <div className="bh-bubble-actions">
+                  <div {...hooked('bh-bubble-actions', bubble.toolbar)}>
                     {stamp === undefined ? null : (
                       <time
-                        className="bh-bubble-toolbar-time"
+                        {...hooked('bh-bubble-toolbar-time', bubble.time)}
                         data-bubble-time=""
                         dateTime={message.at}
                         title={fullTime(message.at, t)}
@@ -1340,7 +1346,7 @@ function ConversationView({
   messageHost,
   unavailable,
   onRetryConversation,
-  onMobileBack,
+  openCompactSidebar,
   scopeKey,
   state,
   actions,
@@ -1358,7 +1364,7 @@ function ConversationView({
   messageHost?: MessageHost | undefined;
   unavailable: boolean;
   onRetryConversation?: (() => void) | undefined;
-  onMobileBack?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   scopeKey: string;
   state: ConversationStateView;
   actions: BridgeActions;
@@ -3145,7 +3151,7 @@ function ConversationView({
     primaryAction: { label: string; icon: ReactNode; run(): void },
     anchor: (menu: ChannelMenuTrigger | undefined) => ReactNode,
   ): ReactNode =>
-    onMobileBack !== undefined || channel === undefined ? (
+    openCompactSidebar !== undefined || channel === undefined ? (
       anchor(undefined)
     ) : (
       <ChannelHeaderMenu
@@ -3230,10 +3236,10 @@ function ConversationView({
       >
         {!workspaceEnabled && (
           <>
-            {onMobileBack !== undefined ? (
+            {openCompactSidebar !== undefined ? (
               <MobileConversationHeader
                 title={title}
-                onBack={onMobileBack}
+                openSidebar={openCompactSidebar}
                 onSettings={sidebar.toggle}
                 onFiles={channelId === undefined ? undefined : () => setFilesOpen(!filesOpen)}
                 filesOpen={filesOpen}
@@ -3367,7 +3373,7 @@ function ConversationView({
                 )}
               </span>
             )}
-            {!workspaceEnabled && onMobileBack === undefined && channelId !== undefined && (
+            {!workspaceEnabled && openCompactSidebar === undefined && channelId !== undefined && (
               <span className="bh-channel-island-wrap">
                 <IconButton
                   aria-label={t('generatedFiles.title')}
@@ -3380,7 +3386,7 @@ function ConversationView({
             )}
             {!workspaceEnabled &&
               messageHost === undefined &&
-              onMobileBack === undefined &&
+              openCompactSidebar === undefined &&
               channel?.type === 'dm' &&
               profileBot !== undefined &&
               profileBot.deleted !== true && (
@@ -3391,7 +3397,7 @@ function ConversationView({
                   t={t}
                 />
               )}
-            {!workspaceEnabled && onMobileBack === undefined && inboxAvailable && (
+            {!workspaceEnabled && openCompactSidebar === undefined && inboxAvailable && (
               <span className="bh-channel-island-wrap">
                 <IconButton
                   aria-label={t('entry.botInbox')}
@@ -4565,7 +4571,7 @@ function ConversationSource({
 }
 
 function BotMainContent({
-  onMobileBack,
+  openCompactSidebar,
   actions,
   companion,
   nativeSessions,
@@ -4575,7 +4581,7 @@ function BotMainContent({
   nativeChatT,
   t = zhTranslate,
 }: {
-  onMobileBack?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
   channelSidebar: ChannelSidebarRegistry;
@@ -4624,6 +4630,13 @@ function BotMainContent({
     return (
       <>
         <span ref={sourceMount} hidden />
+        {openCompactSidebar !== undefined && (
+          <CompactNavigationHeader
+            title={t('panel.brand')}
+            openSidebar={openCompactSidebar}
+            t={t}
+          />
+        )}
         <Welcome state={state} t={t} />
       </>
     );
@@ -4631,6 +4644,13 @@ function BotMainContent({
     return (
       <>
         <span ref={sourceMount} hidden />
+        {openCompactSidebar !== undefined && (
+          <CompactNavigationHeader
+            title={t('activityCenter.title')}
+            openSidebar={openCompactSidebar}
+            t={t}
+          />
+        )}
         <ActivityCenterView actions={actions} t={t} registry={dockPanels} />
       </>
     );
@@ -4652,7 +4672,7 @@ function BotMainContent({
         messageHost={source?.host}
         unavailable={remote !== undefined && (source === undefined || !source.available())}
         onRetryConversation={source?.retry}
-        onMobileBack={onMobileBack}
+        openCompactSidebar={openCompactSidebar}
         scopeKey={`${sourceScope}:${scopeKey}:${state.conversation.channel?.id ?? ''}`}
         nativeSessions={remote === undefined ? nativeSessions : undefined}
         state={state}
@@ -4776,7 +4796,7 @@ export function BotMain({
 export function BotPanel({
   appearance,
   wallpaper,
-  onMobileBack,
+  openCompactSidebar,
   workspace,
   prefs,
   actions,
@@ -4790,7 +4810,7 @@ export function BotPanel({
   telemetryNotice,
   t,
 }: {
-  onMobileBack?: (() => void) | undefined;
+  openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
   prefs?: Pick<BotModePrefs, 'source'> | undefined;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
@@ -4830,7 +4850,7 @@ export function BotPanel({
       <BotMain
         appearance={appearance}
         workspace={workspace}
-        onMobileBack={onMobileBack}
+        openCompactSidebar={openCompactSidebar}
         prefs={prefs}
         actions={actions}
         companion={companion}

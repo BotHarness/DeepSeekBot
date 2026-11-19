@@ -27,6 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => {
     root.unmount();
   });
@@ -101,18 +102,22 @@ it('shows a load failure', async () => {
   expect(host.textContent).toContain('无法加载应用列表');
 });
 
-it('hands off to DSH settings and shows a notice when it could not be opened', async () => {
-  const manage = vi.fn();
-  await render(async () => [], manage, 'settings-unavailable');
-  expect(host.textContent).toContain('无法打开 DSH 设置中的 IM 机器人页面');
-  const button = [...host.querySelectorAll('button')].find(
-    (candidate) => candidate.textContent === '在 DSH 设置中管理',
-  );
-  act(() => {
-    button?.click();
-  });
-  expect(manage).toHaveBeenCalledOnce();
-});
+it.each([400, 1280])(
+  'opens IM settings and reports an unavailable handoff at %i px',
+  async (width) => {
+    vi.stubGlobal('innerWidth', width);
+    const manage = vi.fn();
+    await render(async () => [], manage, 'settings-unavailable');
+    expect(host.textContent).toContain('无法打开 DSH 设置中的 IM 机器人页面');
+    const button = [...host.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === '在 DSH 设置中管理',
+    );
+    act(() => {
+      button?.click();
+    });
+    expect(manage).toHaveBeenCalledOnce();
+  },
+);
 
 it('closes Bot Settings for DSH settings and reopens at IM apps when it returns', () => {
   const settings = new BotSettings();
@@ -132,9 +137,10 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
   imApps.manage();
   expect(settings.getSnapshot().open).toBe(false);
   returned?.();
-  expect(settings.getSnapshot()).toEqual({
+  expect(settings.getSnapshot()).toMatchObject({
     open: true,
     sectionId: 'im-apps',
+    compactList: false,
     pairPhone: false,
     joinComputer: false,
   });
@@ -142,9 +148,10 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
 
   imApps.manage();
   unavailable?.();
-  expect(settings.getSnapshot()).toEqual({
+  expect(settings.getSnapshot()).toMatchObject({
     open: true,
     sectionId: 'im-apps',
+    compactList: false,
     pairPhone: false,
     joinComputer: false,
   });

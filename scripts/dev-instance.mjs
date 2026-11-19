@@ -18,6 +18,7 @@ import {
 import { spawn } from 'node:child_process';
 import {
   constants,
+  copyFileSync,
   fchmodSync,
   existsSync,
   mkdirSync,
@@ -30,6 +31,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseDocument } from 'yaml';
 
 import {
   devSecretEnvironment,
@@ -55,6 +57,21 @@ import {
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function patchPinnedFileReference(source, runtime, version) {
+  if (version !== '0.2.2-rc.1') return source;
+  const patch = 'patches/@deepseek-ai__dsh-file-reference-local@0.2.2-rc.1.patch';
+  const destination = join(runtime, patch);
+  mkdirSync(dirname(destination), { recursive: true });
+  copyFileSync(join(repoRoot, patch), destination);
+  const document = parseDocument(source);
+  document.setIn(
+    ['patchedDependencies', '@deepseek-ai/dsh-file-reference-local@0.2.2-rc.1'],
+    patch,
+  );
+  return String(document);
+}
+
 export function dshCommand(worktree) {
   const installedRoot = join(worktree, 'node_modules', '@deepseek-ai', 'dsh');
   const cli = join(installedRoot, 'lib', 'bin.js');
@@ -104,6 +121,7 @@ export function parseArgs(argv) {
     dshVersion: null,
     json: false,
     noAxModel: false,
+    noDeepSeekSecret: process.env.BOTHARNESS_NO_DEEPSEEK_SECRET === '1',
     trustedHosts: [],
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
   };
@@ -178,6 +196,9 @@ export function parseArgs(argv) {
         break;
       case '--no-ax-model':
         options.noAxModel = true;
+        break;
+      case '--no-deepseek-secret':
+        options.noDeepSeekSecret = true;
         break;
       default:
         throw new Error(`unknown option: ${flag}`);
@@ -289,9 +310,13 @@ async function launch(options) {
     ...process.env,
     DSH_HOME: options.home,
     BOTHARNESS_CLIENT_DIAGNOSTICS: options.clientDiagnostics ? '1' : '0',
-    ...devSecretEnvironment(),
+    ...(options.noDeepSeekSecret ? {} : devSecretEnvironment()),
     ...axModelEnvironment(options.axModel),
   };
+  if (options.noDeepSeekSecret) {
+    delete env.DEEPSEEK_API_KEY;
+    delete env.DSH_DEV_SECRET_SOURCE;
+  }
   const runtime = options.runtime ?? options.worktree;
   const [command, cli] = dshCommand(runtime);
 
@@ -387,7 +412,7 @@ async function main() {
   options.lease = lease;
   options.copyRecoveries = [];
   try {
-    const secret = resolveDevSecret();
+    const secret = options.noDeepSeekSecret ? undefined : resolveDevSecret();
     options.axModel = options.noAxModel ? undefined : resolveAxModel();
     mkdirSync(options.home, { recursive: true });
     if (options.productArtifacts || options.axModel || options.dshVersion || options.noAxModel) {
@@ -420,7 +445,11 @@ async function main() {
           );
         writeFileSync(
           runtimeWorkspace,
-          withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
+          patchPinnedFileReference(
+            withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
+            options.runtime,
+            version,
+          ),
         );
         writeFileSync(
           join(options.runtime, 'package.json'),
@@ -476,7 +505,7 @@ async function main() {
       writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
     }
     const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
-    if (!options.axModel && secret === undefined && !profileCredential)
+    if (!options.noDeepSeekSecret && !options.axModel && secret === undefined && !profileCredential)
       console.error(devSecretInstructions());
     const runtimeDescription = describeRuntime(options);
     const { child, logPath } = await launch(options);

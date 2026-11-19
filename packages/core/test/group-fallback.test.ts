@@ -10,6 +10,7 @@ import {
 import { createGroupFallback } from '../src/models/group-fallback.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../src/models/presets.js';
 import { createRouteRests } from '../src/models/route-rest.js';
+import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { createCore } from '../src/plugin.js';
 import {
   createBotRequestRetry,
@@ -22,6 +23,42 @@ const SPENT = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const FORBIDDEN = { provider: 'openrouter', model: 'deepseek-v4.1-flash' };
 const DEEPSEEK = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 const key = (route: ModelRoute) => `${route.provider}/${route.model}`;
+
+it('picks the first eligible DSH model from a mixed Routing Group', async () => {
+  const root = createTempRoot('bh-mixed-group-fallback-');
+  const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  try {
+    const groups = createRoutingGroupStore({ database });
+    const nested = groups.create({
+      name: 'Nested',
+      members: [
+        { kind: 'engine', engine: 'claude' },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    const mixed = groups.create({
+      name: 'Mixed',
+      members: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+        { kind: 'group', id: nested.id },
+      ],
+    });
+    const checked: ModelRoute[] = [];
+    const fallback = createGroupFallback({
+      plan: () => undefined,
+      routes: (id) => groups.routes(id),
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: (_slug, route) => {
+        checked.push(route);
+      },
+      validate: async () => undefined,
+    });
+    expect(await fallback.pick('ada', mixed.id)).toEqual({ kind: 'route', route: DEEPSEEK });
+    expect(checked).toEqual([DEEPSEEK]);
+  } finally {
+    database.close();
+  }
+});
 
 function plan(groupId: string | undefined): PersonaBotModelPlan {
   return {

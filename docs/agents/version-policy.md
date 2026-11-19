@@ -1,6 +1,6 @@
 # DeepSeekBot product version policy
 
-[中文](version-policy.zh.md) · [Decision](../adr/0216-dsb-product-versions-identify-immutable-package-sets.md)
+[中文](version-policy.zh.md) · [Decision](../decisions/release.md#adr-0216)
 · [Implementation map](https://github.com/BotHarness/DeepSeekBot/issues/1979)
 
 **Accepted policy, not completed enforcement.** Follow the issue map for current delivery status.

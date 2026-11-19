@@ -44,7 +44,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
-import { modelEntryLabel, modelFamilyKey, restingLabel, restingNotice } from './composer-labels';
+import { modelFamilyKey, restingNotice } from './composer-labels';
 import { AllowedEffortLinks, AllowedEffortPage } from './allowed-efforts';
 import { GroupNotes } from './group-notes';
 import { PickerLink, RouteIcon } from './model-route-label';
@@ -59,9 +59,9 @@ import {
   presetFront,
   routeEffortLabel,
   routeLabel,
-  shortModelName,
 } from './model-route-text';
-import { ModelBrandIcon } from './model-brand-icon';
+import { ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
+import { RoutingGroupLink, type RoutingGroupLinkItem } from './routing-group-links';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
@@ -631,46 +631,15 @@ export function ModelsView({
               const isFavorite = starredRow(row);
               return (
                 <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
-                  <SettingsRow
-                    on={SHEET_GROUP}
+                  <ModelGroupPickerRow
+                    group={group}
+                    front={front}
+                    models={value.models}
+                    groups={value.groups ?? []}
+                    usable={usable}
+                    showCount={picker !== 'orchestrator'}
+                    note={picker === 'allowed' ? note : undefined}
                     testID={`model-group-${group.id}`}
-                    {...(front === undefined || group.restingUntil !== undefined
-                      ? {}
-                      : {
-                          accessibilityLabel: `${group.name}, ${t.modelSettings.groupFront(
-                            `${front.modelName} · ${front.providerName}`,
-                          )}`,
-                        })}
-                    leading={
-                      front === undefined || group.restingUntil !== undefined ? (
-                        <RowIcon
-                          name="model"
-                          size={theme.type.title.line}
-                          color={usable ? theme.color.fg : theme.color.muted}
-                        />
-                      ) : (
-                        <ModelBrandIcon
-                          brand={modelEntryLabel(front).brand}
-                          size={theme.type.title.line}
-                          color={usable ? theme.color.fg : theme.color.muted}
-                        />
-                      )
-                    }
-                    title={group.name}
-                    detail={[
-                      ...(picker === 'orchestrator'
-                        ? []
-                        : [t.modelSettings.count(group.routes.length)]),
-                      group.restingUntil !== undefined
-                        ? restingLabel(group.restingUntil)
-                        : t.modelSettings.groupFront(
-                            front === undefined
-                              ? (group.routes[0]?.model ?? '')
-                              : shortModelName(front),
-                          ),
-                      ...(picker === 'allowed' && note !== undefined ? [note] : []),
-                    ].join(' · ')}
-                    tone={usable ? 'fg' : 'muted'}
                     selected={selected}
                     control={selected ? { kind: 'check' } : undefined}
                     accessory={
@@ -730,27 +699,8 @@ export function ModelsView({
             const isFavorite = starredRow(row);
             return (
               <SettingsGroupItem first={first(index)} last={last(index)} on={SHEET_GROUP}>
-                <SettingsRow
-                  on={SHEET_GROUP}
-                  leading={
-                    <ModelBrandIcon
-                      brand={modelEntryLabel(item).brand}
-                      size={theme.type.title.line}
-                      color={usable ? theme.color.fg : theme.color.muted}
-                    />
-                  }
-                  title={modelEntryLabel(item).name}
-                  accessibilityLabel={`${item.modelName}, ${item.providerName}`}
-                  detail={
-                    item.credential === 'missing'
-                      ? t.modelNeedsKey(item.providerName)
-                      : item.credential === 'invalid'
-                        ? t.modelKeyInvalid(item.providerName)
-                        : item.restingUntil !== undefined
-                          ? `${item.providerName} · ${restingLabel(item.restingUntil)}`
-                          : item.providerName
-                  }
-                  tone={usable ? 'fg' : 'muted'}
+                <ModelPickerRow
+                  entry={item}
                   selected={selected}
                   control={selected ? { kind: 'check' } : undefined}
                   accessory={
@@ -802,6 +752,11 @@ export function ModelsView({
 
   const showPreset = scope.kind === 'preset';
   const presets = showPreset ? [] : value.presets;
+  const settingsRows: (ModelPreset | RoutingGroupLinkItem)[] = [...presets];
+  if (scope.kind === 'global') {
+    for (const group of value.groups ?? []) settingsRows.push({ kind: 'group', group });
+    settingsRows.push({ kind: 'add' });
+  }
   const groupName = (id: string | undefined) =>
     id === undefined ? undefined : (value.groups?.find((group) => group.id === id)?.name ?? id);
   const orchestratorGroup =
@@ -958,37 +913,59 @@ export function ModelsView({
   return frame(
     <FlatList
       style={{ flex: 1 }}
-      data={presets}
+      data={settingsRows}
       renderScrollComponent={renderKeyboardFormScroll}
-      keyExtractor={(preset) => preset.id}
+      keyExtractor={(item) =>
+        'kind' in item
+          ? item.kind === 'add'
+            ? 'group-add'
+            : `group:${item.group.id}`
+          : `preset:${item.id}`
+      }
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       ListHeaderComponent={form}
       contentContainerStyle={{ paddingVertical: space.x3 }}
-      renderItem={({ item, index }) => (
-        <SettingsGroupItem first={index === 0} last={index === presets.length - 1} on={SHEET_GROUP}>
-          <SettingsRow
-            on={SHEET_GROUP}
-            title={item.name}
-            leading={<RouteIcon value={value} route={presetFront(value, item)} />}
-            detail={presetDetail(value, item)}
-            disclosure={scope.kind === 'global'}
-            selected={scope.kind === 'bot' && value.plan?.sourcePresetId === item.id}
-            onPress={
-              models.busy
-                ? undefined
-                : () => {
-                    if (scope.kind === 'global')
-                      router.push({ pathname: '/settings/model-preset', params: { id: item.id } });
-                    else if (scope.kind === 'bot')
-                      models.run(async () => {
-                        await applyModelPreset(client, scope.slug, item.id);
-                      });
-                  }
-            }
+      renderItem={({ item, index }) =>
+        'kind' in item ? (
+          <RoutingGroupLink
+            item={item}
+            first={index === presets.length}
+            models={value.models}
+            groups={value.groups ?? []}
           />
-        </SettingsGroupItem>
-      )}
+        ) : (
+          <SettingsGroupItem
+            first={index === 0}
+            last={index === presets.length - 1}
+            on={SHEET_GROUP}
+          >
+            <SettingsRow
+              on={SHEET_GROUP}
+              title={item.name}
+              leading={<RouteIcon value={value} route={presetFront(value, item)} />}
+              detail={presetDetail(value, item)}
+              disclosure={scope.kind === 'global'}
+              selected={scope.kind === 'bot' && value.plan?.sourcePresetId === item.id}
+              onPress={
+                models.busy
+                  ? undefined
+                  : () => {
+                      if (scope.kind === 'global')
+                        router.push({
+                          pathname: '/settings/model-preset',
+                          params: { id: item.id },
+                        });
+                      else if (scope.kind === 'bot')
+                        models.run(async () => {
+                          await applyModelPreset(client, scope.slug, item.id);
+                        });
+                    }
+              }
+            />
+          </SettingsGroupItem>
+        )
+      }
     />,
   );
 }

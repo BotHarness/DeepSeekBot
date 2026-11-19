@@ -65,6 +65,13 @@
       "check": "scripts/check-pr-provenance.mjs"
     },
     {
+      "id": "pr-needs-human",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915324149",
+      "fix": "leave any PR labeled `needs-human` for a human maintainer to merge.",
+      "check": "scripts/check-needs-human.mjs"
+    },
+    {
       "id": "source-policy",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/pull/4329",
@@ -120,8 +127,9 @@
       "id": "agent-prose",
       "layer": "L1 health",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
-      "fix": "keep always-loaded agent prose (AGENTS.md, CLAUDE.md, apps/mobile/AGENTS.md) short: move a runbook into an on-demand doc or skill behind a one-line pointer, or turn the rule into a check. CI warns when a change makes them longer.",
-      "check": "scripts/health.mjs"
+      "fix": "keep the combined size of AGENTS.md, CLAUDE.md and apps/mobile/AGENTS.md within the byte cap. Move runbooks behind a one-line pointer or encode the rule in a check. Run node scripts/health.mjs --update to lower the cap and refresh the rule table.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
     },
     {
       "id": "feature-sources",

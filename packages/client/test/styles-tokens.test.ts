@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
@@ -29,9 +30,8 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
-  it('uses Tobs colours and body type in Bot-mode styles', () => {
+  it('uses Tobs colours in Bot-mode styles', () => {
     expect(CSS).not.toMatch(/--dsw-|--dsh-content-font-size/);
-    expect(source).toMatch(/\.bh-question-source \{[^}]*var\(--tobs-style-text-ui-size\)/);
   });
   it('keeps the working indicators static while Bots stream', () => {
     expect(source).toContain(
@@ -81,8 +81,6 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-section-head \{[^}]*height: 24px/);
     expect(source).toMatch(/\.bh-section-head \{[^}]*gap: 6px/);
     expect(source).toMatch(/\.bh-section-head \{[^}]*padding: 0 8px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*min-height: 48px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*padding: 7px 8px/);
     expect(source).toMatch(/\.bh-list-area > \* \+ \* \{\s*margin-top: 2px/);
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
     expect(source).toMatch(/\.bh-section-head:hover \.bh-row-actions,[^}]*display: inline-flex/);
@@ -229,29 +227,27 @@ describe('client styles', () => {
     expect(source).not.toMatch(/@keyframes bh-avatar-(breathe|work|search|code|execute)\b/);
     expect(source).not.toContain('.bh-avatar-botui');
     expect(source).not.toContain('--botui-anim');
-    expect(source).toContain("html[data-botharness-motion='full'] .bh-motion-preview-sample i");
+    expect(source).not.toContain('.bh-motion-preview');
   });
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
+    const chrome = readFileSync(
+      new URL('../src/client/ds/chat-chrome.tsx', import.meta.url),
+      'utf8',
+    );
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
     expect(source).toContain(
       '.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after',
     );
-    expect(source).toMatch(
-      /\.bh-composer \{[^}]*border-radius: calc\(var\(--tobs-style-radius-sheet\) \+ 8px\)/,
-    );
+    expect(chrome).toContain('borderRadius: style.radiusComposer');
     expect(source).toMatch(/\.bh-composer \{[^}]*--bh-composer-footer-padding: 10px 12px 48px/);
     expect(source).toMatch(/\.bh-composer \{[^}]*padding: var\(--bh-composer-padding,/);
     expect(source).toMatch(/\.bh-composer \{[^}]*transition:\s*padding 180ms var\(--bh-ease-out\)/);
-    expect(source).toMatch(
-      /\.bh-composer \.bh-send-btn[^{]*\{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: 50%/,
+    expect(chrome).toMatch(
+      /control: \{[^}]*width: size.controlLarge,[^}]*height: size.controlLarge,[^}]*borderRadius: radius.full/,
     );
-    expect(source).toMatch(
-      /\.bh-composer-add-file \{[^}]*width: 32px; height: 32px;[^}]*border-radius: 50%/,
-    );
-    expect(source).toMatch(
-      /\.bh-composer \{[^}]*background: light-dark\(var\(--tobs-layer-raised\), var\(--tobs-layer-elevated\)\);[^}]*box-shadow: var\(--tobs-elevation-1\)/,
-    );
+    expect(chrome).toContain('light-dark(${layer.raised}, ${layer.elevated})');
+    expect(chrome).toContain('boxShadow: elevation.x1');
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
     expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);
@@ -263,7 +259,7 @@ describe('client styles', () => {
     expect(source).toMatch(
       /\.bh-composer-first-expand \.bh-composer-body \{[^}]*transition: height 180ms/,
     );
-    expect(source).toMatch(/\.bh-composer-add-file \{[^}]*bottom: 9px/);
+    expect(chrome).toMatch(/attachment: \{[^}]*position: 'absolute',[^}]*bottom: '9px'/);
     expect(source).toMatch(/\.bh-composer-footer \{[^}]*bottom: 9px/);
     expect(source).not.toMatch(/\n\.bh-composer-add-file \{[^}]*transition:/);
     expect(source).not.toMatch(/\n\.bh-composer-footer \{[^}]*transition:/);

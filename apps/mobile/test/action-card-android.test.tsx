@@ -94,7 +94,15 @@ describe('ActionCard on Android', () => {
     expect(all(view, 'RNHostView')).toHaveLength(0);
     const card = all(view, 'Card')[0]!;
     expect(card.getAttribute('data-border')).toBeNull();
-    expect(card.getAttribute('data-colors')).toBeNull();
+    expect(JSON.parse(card.getAttribute('data-colors')!)).toEqual({
+      containerColor: 'surface',
+      contentColor: 'fg',
+    });
+    expect(
+      all(card, 'Text')
+        .find((text) => text.textContent === 'Needs you')
+        ?.getAttribute('data-color'),
+    ).toBe('warning');
     expect(modifiers(card)).toContainEqual({ testID: 'action-card' });
     expect(texts(card)).toEqual(
       expect.arrayContaining(['Terminal', 'Needs you', 'Run this command', 'git status']),
@@ -343,7 +351,26 @@ it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
         : outcome === 'allowed-always-tool'
           ? 'approval-always-allow'
           : 'approval-deny';
-    const controls = [...all(view, 'FilledButton'), ...all(view, 'FilledTonalButton')];
+    const controls = [...all(view, 'FilledButton'), ...all(view, 'TextButton')].filter((node) =>
+      modifiers(node).some(
+        (modifier) =>
+          typeof modifier.testID === 'string' && modifier.testID.startsWith('approval-'),
+      ),
+    );
+    const always = controls.find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-always-allow'),
+    );
+    const deny = controls.find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-deny'),
+    );
+    expect(always?.getAttribute('data-compose')).toBe('TextButton');
+    expect(JSON.parse(always?.getAttribute('data-colors') ?? '{}')).toEqual({
+      contentColor: 'accentText',
+    });
+    expect(deny?.getAttribute('data-compose')).toBe('TextButton');
+    expect(JSON.parse(deny?.getAttribute('data-colors') ?? '{}')).toEqual({
+      contentColor: 'danger',
+    });
     const chosen = controls.find((node) =>
       modifiers(node).some((modifier) => modifier.testID === chosenID),
     );

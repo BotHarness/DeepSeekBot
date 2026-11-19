@@ -1,64 +1,74 @@
-import { Icon } from './ds/icon.js';
-import type { ReactElement } from 'react';
+import type { MouseEventHandler, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { hooked } from './ds/hooked.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { Icon } from './ds/icon.js';
+import { IconButton } from './ds/icon-button.js';
+import { ink, layer, size, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-
-const TOUCH = '44px';
 
 const styles = stylex.create({
   header: {
-    display: 'grid',
-    gridTemplateColumns: `${TOUCH} minmax(0, 1fr) auto`,
+    boxSizing: 'border-box',
+    display: 'flex',
     alignItems: 'center',
-    gap: space.x3,
+    gap: space.x2,
     width: '100%',
     minWidth: 0,
-    paddingTop: `max(${space.x3}, env(safe-area-inset-top))`,
-    paddingInline: space.x4,
-    paddingBottom: space.x3,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: color.divider,
-    backgroundColor: color.base,
+    paddingTop: `max(${space.x2}, env(safe-area-inset-top))`,
+    paddingInline: space.x3,
+    paddingBottom: space.x2,
+    backgroundColor: layer.raised,
     pointerEvents: 'auto',
   },
   actions: { display: 'flex', alignItems: 'center' },
   title: {
+    flexGrow: 1,
     margin: 0,
     minWidth: 0,
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
-    textAlign: 'center',
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    color: ink.primary,
+    fontSize: type.titleSize,
+    lineHeight: type.titleLine,
+    fontWeight: type.titleWeight,
   },
-  button: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: TOUCH,
-    minWidth: TOUCH,
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.sm,
-    backgroundColor: 'transparent',
-    color: color.fg,
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '-2px',
-  },
+  action: { width: size.rowLarge, height: size.rowLarge },
 });
+
+export function CompactNavigationHeader({
+  title,
+  openSidebar,
+  children,
+  t,
+}: {
+  title: string;
+  openSidebar: MouseEventHandler<HTMLButtonElement>;
+  children?: ReactNode;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <header {...hooked('bh-mobile-conversation-header', styles.header)}>
+      <IconButton
+        aria-label={t('panel.sidebar.open')}
+        aria-haspopup="dialog"
+        xstyle={styles.action}
+        onClick={openSidebar}
+      >
+        <Icon name="panel-left" size={20} />
+      </IconButton>
+      <h1 {...stylex.props(styles.title)} title={title}>
+        {title}
+      </h1>
+      {children}
+    </header>
+  );
+}
 
 export function MobileConversationHeader({
   title,
-  onBack,
+  openSidebar,
   onSettings,
   settingsOpen,
   onFiles,
@@ -68,7 +78,7 @@ export function MobileConversationHeader({
   t,
 }: {
   title: string;
-  onBack(): void;
+  openSidebar: MouseEventHandler<HTMLButtonElement>;
   onSettings(): void;
   settingsOpen: boolean;
   onFiles?: (() => void) | undefined;
@@ -78,65 +88,38 @@ export function MobileConversationHeader({
   t: BotHarnessTranslate;
 }): ReactElement {
   return (
-    <header {...hooked('bh-mobile-conversation-header', styles.header)}>
-      <button
-        type="button"
-        {...stylex.props(styles.button)}
-        onClick={onBack}
-        aria-label={t('mobile.back')}
-        title={t('mobile.back')}
-      >
-        <Icon name="chevron-left" size={22} />
-      </button>
-      <h1 {...stylex.props(styles.title)} title={title}>
-        {title}
-      </h1>
+    <CompactNavigationHeader title={title} openSidebar={openSidebar} t={t}>
       <div {...stylex.props(styles.actions)}>
         {onInbox && (
-          <button
-            type="button"
-            {...stylex.props(styles.button)}
+          <IconButton
+            xstyle={styles.action}
             onClick={onInbox}
             aria-label={t('entry.botInbox')}
             aria-expanded={inboxOpen}
           >
-            <ChannelSidebarIcon name="inbox" size={22} />
-          </button>
+            <Icon name="inbox" size={20} />
+          </IconButton>
         )}
         {onFiles && (
-          <button
-            type="button"
-            {...stylex.props(styles.button)}
+          <IconButton
+            xstyle={styles.action}
             onClick={onFiles}
             aria-label={t('generatedFiles.title')}
             aria-expanded={filesOpen}
           >
-            <ChannelSidebarIcon name="file" size={22} />
-          </button>
+            <Icon name="file" size={20} />
+          </IconButton>
         )}
-        <button
-          type="button"
-          {...stylex.props(styles.button)}
+        <IconButton
+          xstyle={styles.action}
           onClick={onSettings}
           aria-label={t('mobile.channelSettings')}
-          title={t('mobile.channelSettings')}
           aria-controls="bh-channel-sidebar"
           aria-expanded={settingsOpen}
         >
-          <svg
-            width={22}
-            height={22}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+          <Icon name="panel-right" size={20} />
+        </IconButton>
       </div>
-    </header>
+    </CompactNavigationHeader>
   );
 }

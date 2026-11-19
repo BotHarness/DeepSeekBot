@@ -1,15 +1,11 @@
-export type EngineId = 'codex' | 'claude';
+import type { EngineId } from '@botharness/host-protocol/subscription-engine';
 
-export const ENGINE_DEFINITIONS = {
-  codex: { displayName: 'Codex' },
-  claude: { displayName: 'Claude Code' },
-} satisfies Record<EngineId, { displayName: string }>;
-
-export const ENGINE_IDS: readonly EngineId[] = ['codex', 'claude'];
-
-export function isEngineId(value: unknown): value is EngineId {
-  return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
-}
+export {
+  ENGINE_DEFINITIONS,
+  ENGINE_IDS,
+  isEngineId,
+  type EngineId,
+} from '@botharness/host-protocol/subscription-engine';
 
 export type EngineAccount =
   | { kind: 'subscription'; engine: EngineId; plan: string }
@@ -34,6 +30,8 @@ export interface EngineChoice {
   model?: string;
   effort?: string;
 }
+
+export type EngineWorkspaceMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 
 const EFFORT_NAMES: Record<string, string> = {
   none: 'None',
@@ -79,12 +77,14 @@ export interface EngineGatewayEndpoint {
 export interface EngineStartOptions {
   cwd: string;
   instructions: string;
+  contextSeed?(): string | undefined;
   gateway: EngineGatewayEndpoint;
 }
 
 export interface EngineSendOptions {
   onEvent(event: EngineEvent): void;
   signal?: AbortSignal;
+  verbatimInput?: boolean;
 }
 
 export interface EngineSession {
@@ -94,6 +94,7 @@ export interface EngineSession {
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;
+  steer?(input: string): Promise<boolean>;
   answer(approvalId: string, decision: EngineApprovalDecision): void;
   models(): Promise<EngineModel[]>;
   close(): Promise<void>;
@@ -131,7 +132,9 @@ export class EngineRefusal extends Error {
       | 'engine-signed-out'
       | 'engine-not-subscription'
       | 'engine-thread-gone'
-      | 'engine-failed',
+      | 'engine-failed'
+      | 'unknown-model'
+      | 'unknown-effort',
     message: string,
   ) {
     super(message);

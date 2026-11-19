@@ -42,7 +42,36 @@ export interface ModelPlan extends ModelPlanGroups {
   appliedAt?: string;
 }
 
-export interface ModelPreset extends ModelPlanGroups {
+export interface SubscriptionModel {
+  engine: 'codex' | 'claude';
+  model?: string;
+  effort?: string;
+}
+
+export interface ModelPresetEngines {
+  orchestratorEngine?: SubscriptionModel;
+  assignmentEngine?: SubscriptionModel;
+}
+
+export interface ModelPresetEngineInput {
+  orchestratorEngine?: SubscriptionModel | null;
+  assignmentEngine?: SubscriptionModel | null;
+}
+
+function parseSubscriptionModel(value: unknown): SubscriptionModel | undefined {
+  const row = record(value);
+  const engine = row?.['engine'];
+  if (engine !== 'codex' && engine !== 'claude') return undefined;
+  const model = row?.['model'];
+  const effort = row?.['effort'];
+  return {
+    engine,
+    ...(text(model) ? { model } : {}),
+    ...(text(effort) ? { effort } : {}),
+  };
+}
+
+export interface ModelPreset extends ModelPlanGroups, ModelPresetEngines {
   id: string;
   name: string;
   revision: number;
@@ -165,9 +194,13 @@ export function parseModelPreset(value: unknown): ModelPreset | undefined {
     assignmentDefault === undefined
   )
     return undefined;
+  const orchestratorEngine = parseSubscriptionModel(row['orchestratorEngine']);
+  const assignmentEngine = parseSubscriptionModel(row['assignmentEngine']);
   return {
     id: row['id'],
     name: row['name'],
+    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
     revision: row['revision'],
     orchestrator,
     assignmentDefault,
@@ -318,7 +351,8 @@ export async function setModelPlan(
 
 export type ModelPresetInput = Pick<ModelRoutes, 'assignmentDefault'> &
   Partial<Pick<ModelRoutes, 'orchestrator' | 'assignmentModels' | 'openAssignmentModels'>> &
-  ModelPlanGroupsInput & {
+  ModelPlanGroupsInput &
+  ModelPresetEngineInput & {
     name: string;
   };
 
@@ -330,6 +364,10 @@ export async function createModelPreset(
     await host.call('modelPresetCreate', {
       name: input.name,
       ...routes(input),
+      ...(input.orchestratorEngine === undefined
+        ? {}
+        : { orchestratorEngine: input.orchestratorEngine }),
+      ...(input.assignmentEngine === undefined ? {} : { assignmentEngine: input.assignmentEngine }),
     }),
     'modelPresetCreate',
   );
@@ -347,6 +385,10 @@ export async function updateModelPreset(
       expectedRevision,
       name: input.name,
       ...routes(input),
+      ...(input.orchestratorEngine === undefined
+        ? {}
+        : { orchestratorEngine: input.orchestratorEngine }),
+      ...(input.assignmentEngine === undefined ? {} : { assignmentEngine: input.assignmentEngine }),
     }),
     'modelPresetUpdate',
   );

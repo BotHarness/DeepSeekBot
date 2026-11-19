@@ -689,7 +689,7 @@ try {
     `input[aria-label="${labelFor('Search settings')}"]`,
     chinese ? '间距' : 'spacing',
   );
-  await page.click('.bh-settings-search-results button');
+  await page.click('[data-settings-search-results] button');
   await page.waitForSelector('[data-settings-highlight]');
   assert.equal(
     await page.$eval('[data-settings-content]', (node) => node.dataset.settingsContent),

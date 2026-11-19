@@ -1,6 +1,6 @@
 # 团队模式：一台 Host，多位 Host Member
 
-Human 在 2026-11-13 完成 Q1–Q35 并确认的目标设计，不代表已实现或已验收。规范性决定见 [ADR-0336](../adr/0336-hosts-have-members.md)。与[环境面板设计](environment-panel.zh.md)正交（后者是一个 Human、多台 Host）。[English](team-mode.md)。
+这份设计记录包含 Human 于 2026-11-13 确认的 Q1–Q35 及后续交付修订。[Team mode 决策](../decisions/team-mode.md#adr-0336)说明当前 Host 实现和验证方式。[环境面板设计](environment-panel.zh.md)涵盖一个 Human 使用多台 Host 的场景。[English](team-mode.md)。
 
 ## 为什么
 

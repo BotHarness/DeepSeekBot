@@ -38,6 +38,7 @@ const MODEL_FAMILIES: readonly (readonly [ModelBrand, RegExp])[] = [
 ];
 
 const PROVIDER_BRANDS: readonly (readonly [ModelBrand, RegExp])[] = [
+  ['opencode', /opencode(?:-go)?/],
   ['deepseek', /deepseek/],
   ['openai', /openai|azure/],
   ['claude', /anthropic|claude/],
@@ -84,6 +85,16 @@ function familyOf(text: string): ModelBrand | undefined {
   return MODEL_FAMILIES.find(([, pattern]) => pattern.test(lower))?.[0];
 }
 
+export function providerBrand(provider: string | undefined, name?: string): ModelBrand | undefined {
+  for (const value of [provider, name]) {
+    const normalized = value?.toLowerCase();
+    if (!normalized) continue;
+    const brand = PROVIDER_BRANDS.find(([, pattern]) => pattern.test(normalized))?.[0];
+    if (brand !== undefined) return brand;
+  }
+  return undefined;
+}
+
 export function modelBrand(identity: ModelIdentity): ModelBrand | undefined {
   const named = [identity.model, identity.name].filter(
     (value): value is string => value !== undefined && value !== '',
@@ -92,9 +103,7 @@ export function modelBrand(identity: ModelIdentity): ModelBrand | undefined {
     const brand = familyOf(text);
     if (brand !== undefined) return brand;
   }
-  const provider = identity.provider?.toLowerCase();
-  if (provider === undefined || provider === '') return undefined;
-  return PROVIDER_BRANDS.find(([, pattern]) => pattern.test(provider))?.[0];
+  return providerBrand(identity.provider);
 }
 
 export function modelShortName(label: string, brand: ModelBrand | undefined): string {

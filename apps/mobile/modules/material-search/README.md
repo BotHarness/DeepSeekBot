@@ -17,7 +17,7 @@ not replace the native text field; theme and text-size changes keep its composit
 Submit forwards the native query directly, so Marketplace does not depend on the last React
 render having received the final keystroke. Both platform adapters share that callback contract.
 
-Colours come from the Host's Material theme seeded by the accent (ADR-0266); shape, typography,
+Colours come from the Host's Material theme seeded by the accent ([ADR-0266](../../../../docs/decisions/mobile-ui.md#adr-0266)); shape, typography,
 input, clear/back icon buttons and ripple come from Material 3. The view takes no colour props.
 System font scaling stays enabled. Compose owns Back handling. Host keeps its composition while
 React Native Screens detaches an inactive screen, so the Back handler is enabled only while the

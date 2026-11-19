@@ -27,7 +27,7 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。团队模式下每个 Host Member 有自己的私有 Tob，权限不超过该成员。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。Team mode 下，只有当前 Host Owner 拥有 Tob。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
@@ -561,7 +561,7 @@ _避免使用_：upload、push、submit
 _避免使用_：client、connector、bridge identity、caller-supplied sender
 
 **Human ID**：
-一个 Human 在一台 Host（DSH Profile）内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。Host Owner 沿用原有的 `local-human` ID，每个 Host Member 有自己的 ID（ADR-0336）。
+一个 Human 在一台 Host（DSH Profile）内的稳定身份，跨 Channel、改名和 Human Channel nickname 保持不变。初始 Host Owner 沿用原有的 `local-human` ID。转让 Host 所有权不改变 Host Member 的 ID。见 [Team mode 决策](docs/decisions/team-mode.md#adr-0336)。
 _避免使用_：display name、nickname、browser tab
 
 **Human display name**：
@@ -569,7 +569,7 @@ _避免使用_：display name、nickname、browser tab
 _避免使用_：Human ID、login name
 
 **Host Owner**：
-拥有一台 Host 的唯一 Human，即原来的本地 Human；不经 Host Role 即拥有全部 Host Permission。所有权可以转让，但不能删除；本机 Desktop、loopback 与 CLI 默认以 Host Owner 身份访问（ADR-0336）。
+拥有一台 Host 的唯一 Human，无需 Host Role 即拥有全部 Host Permission。原来的本地 Human 是初始 Host Owner，所有权可以转让。本机 Desktop、loopback 与 CLI 默认以当前 Host Owner 的身份访问。见 [Team mode 决策](docs/decisions/team-mode.md#adr-0336)。
 _避免使用_：admin、root、超级用户
 
 **Host Member**：
@@ -597,7 +597,7 @@ _避免使用_：Behavior permission item、自然语言权限、scope
 _避免使用_：权限、ACL、强制规则
 
 **Audience containment**：
-中文为"受众包含"。团队模式规则：内容只能流向受众不大于其自身受众的 Bot、Channel 或 Workspace Grant。
+中文为"受众包含"。团队模式规则：内容只能流向受众为其自身受众的子集的 Bot、Channel 或 Workspace Grant。
 _避免使用_：尽力过滤、提示词规则
 
 **Workspace root**：
@@ -1180,7 +1180,7 @@ _避免使用_：secret、API key、token
 _避免使用_：Telemetry、多选消息导出、自动错误上报
 
 **Mobile Telemetry**：
-Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，独立于 Host 统计。只观察配对、实时连接和首次聊天结果，不拥有产品权威，不包含聊天内容或领域标识（ADR-0214）。
+Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，独立于 Host 统计。只观察配对、实时连接和首次聊天结果，不拥有产品权威，不包含聊天内容或领域标识（[ADR-0214](docs/decisions/mobile.md#adr-0214)）。
 
 **Mobile Install ID**：
 启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
@@ -1267,7 +1267,7 @@ _避免使用_：登录、设置向导
 
 iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
 
-讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
+讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 [ADR-0266](docs/decisions/mobile-ui.md#adr-0266) 决定。
 
 **Component term**：
 平台设计系统给组件起的确切名称：Android 用 Material 3 名称，iOS 用 HIG 名称；中英文术语表里都写英文原名。代码中用 API 名（`ModalBottomSheet`、`.sheet`），行文中用设计名（modal bottom sheet、sheet）。
@@ -1286,7 +1286,7 @@ _避免使用_：看起来像原生的 view、RN 仿制品（指原生组件时�
 _避免使用_：原生组件、自定义组件
 
 **Custom surface**：
-没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（ADR-0235）。
+没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（[ADR-0235](docs/decisions/mobile-ui.md#adr-0235)）。
 _避免使用_：仿制品（指已记录的自定义界面时）
 
 **Navigation bar**：
@@ -1298,7 +1298,7 @@ _避免使用_：底栏、顶栏 / header（平台讨论中）、不带平台的
 _避免使用_：单独的 Host（指 Expo UI view 时）
 
 **Platform design language**：
-Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 ADR-0266 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
+Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 [ADR-0266](docs/decisions/mobile-ui.md#adr-0266) 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
 _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态、Android 上的 iOS 风格、iOS 上的 Material 风格
 
 按职能列出的对应组件。Android 列用 Material 3 名称，iOS 列用 HIG 名称，API 列给出代码名。「—」表示该平台没有承担此职能的组件。
@@ -1355,6 +1355,6 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
 - 应用外的 Bot 通话：Android ongoing call notification（`Notification.CallStyle`）加上显示在其他应用上层的自定义通话悬浮球 ↔ iOS Live Activity（ADR-0305）。
 - Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
-- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
+- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，[ADR-0235](docs/decisions/mobile-ui.md#adr-0235)）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

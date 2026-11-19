@@ -113,7 +113,6 @@
     "packages/core/test/messaging-inbound.test.ts",
     "packages/core/test/messaging-weixin-dm-mirror.test.ts",
     "packages/core/test/operational-database.test.ts",
-    "packages/core/test/plugin.test.ts",
     "packages/core/test/private-inputs.test.ts",
     "packages/core/test/private-tunnel.test.ts",
     "packages/core/test/push-delivery.test.ts",
@@ -184,5 +183,6 @@
     "apps/mobile/test/swipe-chat-target.test.ts",
     "apps/mobile/test/viewer-header.test.tsx",
     "apps/mobile/test/workspace-panel-root.test.ts"
-  ]
+  ],
+  "agent-prose-bytes": 20525
 }

@@ -6,9 +6,10 @@ import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import { referencedIds } from './quotes.js';
 import {
-  OWNER_ONLY_RESOURCES,
+  RESTRICTED_RESOURCES,
   RESOURCE_CHANGED_EVENT,
   sameResource,
+  type LiveResource,
   type ScopedResource,
   type UnscopedResource,
   type ResourceChange,
@@ -308,7 +309,7 @@ export function createChannelLiveHub(
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
   watchAttention?: (changed: () => void) => () => void,
-  isOwner: (human: HumanContext) => boolean = (human) =>
+  isOwner: (human: HumanContext, resource?: LiveResource) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
   ownsBot?: (human: HumanContext, slug: string) => boolean,
   canRead?: (human: HumanContext, channelId: string) => boolean,
@@ -1187,7 +1188,7 @@ export function createChannelLiveHub(
     publishResourceChanged(resource) {
       const change = { resource, revision: ++resourceRevision };
       for (const subscriber of rosterSubscribers)
-        if (!OWNER_ONLY_RESOURCES.has(resource) || isOwner(subscriber.human))
+        if (!RESTRICTED_RESOURCES.has(resource) || isOwner(subscriber.human, resource))
           subscriber.resource(change);
     },
     publishScopedResourceChanged(change, visible) {

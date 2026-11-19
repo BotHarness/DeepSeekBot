@@ -2,6 +2,8 @@ export const SECRET_ROUTE_METHODS = [
   'botharness/privateInputSubmit',
   'botharness/privateInputReplace',
   'botharness/cloudConnections',
+  'botharness/modelProviderAdd',
+  'botharness/modelProviderEdit',
   'credentials/set',
   'settings/update',
   'settings/replace',

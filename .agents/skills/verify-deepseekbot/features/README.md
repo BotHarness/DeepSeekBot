@@ -23,12 +23,13 @@
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
 | Global search: Alt/Option+K, settings results and pinyin matching | no | `verify-app` Bot mode path | [global-search.md](global-search.md) |
-| Team mode: Owner password, members, member sign-in, automatic Channel membership, M15 security suite | no | `verify-app` Owner path + member browser + `deepseekbot --as`, `scripts/e2e-team-auto-join.mjs`, `scripts/e2e-team-human-dm.mjs`, `scripts/e2e-team-profile-setup.mjs`, `scripts/e2e-team-security.mjs` | [team-mode.md](team-mode.md) |
+| Team mode: Owner password, members, member sign-in, automatic Channel membership, M15 security suite | no | `verify-app` Owner path + member browser + `deepseekbot --as`, `scripts/e2e-team-auto-join.mjs`, `scripts/e2e-team-human-dm.mjs`, `scripts/e2e-team-profile-setup.mjs`, `scripts/e2e-team-security.mjs`, `scripts/e2e-team-security-engines.mjs` | [team-mode.md](team-mode.md) |
 | DeepSeekBot device-local appearance | no | `scripts/e2e-local-appearance.mjs` | [local-appearance.md](local-appearance.md) |
 | Functional Panel appearance | no | `scripts/e2e-panel-appearance.mjs`, `scripts/e2e-nested-appearance.mjs` | [panel-appearance.md](panel-appearance.md) |
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
 | Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
+| Session context across a Subscription Engine switch | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
 
@@ -37,6 +38,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot mode entry and the default DeepSeek Bot                                                        | no                         | `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-bot-mode-exit.mjs`                                                                   | [bot-mode.md](bot-mode.md)                           |
 | Bot mode dock (desktop layout, unified Sessions, Channel header, Profile, settings, files and Inbox) | no | `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-channel-sessions.mjs`, `scripts/e2e-bot-subpanels.mjs`, `scripts/e2e-browser-computer-subpanels.mjs`, `scripts/e2e-panel-size-persistence.mjs`, `scripts/e2e-panel-resize-stability.mjs`, `scripts/e2e-nested-channel-panels.mjs`, `scripts/e2e-channel-sessions-desktop.mjs`, `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-subpanel-drag.mjs`, `scripts/e2e-avatar-scroll.mjs` | [bot-mode-dock.md](bot-mode-dock.md) |
 | Composer main/task model settings, presets and Orchestrator shortcuts | yes, for reply evidence | none | [orchestrator-model-switch.md](orchestrator-model-switch.md) |
+| Model providers and permission | yes, for reply evidence | `scripts/e2e-team-security.mjs` (C3) | [model-providers.md](model-providers.md) |
+| Subscription Engines in Routing Groups | no | `verify-app` model settings and `deepseekbot model-group-create` / `model-group-update` | [routing-group-engine-members.md](routing-group-engine-members.md) |
 | Native model settings handoff | no | `verify-app` settings path | [native-settings-handoff.md](native-settings-handoff.md) |
 | Live IM Bot pickers | no | `verify-app` settings path | [im-bot-pickers.md](im-bot-pickers.md) |
 | Private input with mixed local/IM sources | yes, for native tool/approval proof | `scripts/e2e-private-input-origin.mjs` | [private-input-origin.md](private-input-origin.md) |
@@ -58,6 +61,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android launch, sheets, shell and chat presentation | no | Launch: queued native check; interactions: `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
+| Phone Routing Group editing | no | shared-device queue and Host CLI readback | [phone-routing-groups.md](phone-routing-groups.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |
 | Bot Browser on the phone                                                                           | no                         | `scripts/e2e-mobile-browser-web.mjs`                                                                 | [phone-browser.md](phone-browser.md)                 |
 | Token usage on the phone                                                                           | yes                        | `scripts/e2e-mobile-usage-web.mjs`                                                                   | [phone-usage.md](phone-usage.md)                     |
@@ -78,6 +82,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Activity Center: shared header Environment selector, per-item source badges, approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
 
 | Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
+| Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
 
 ## Coverage and maintenance
 

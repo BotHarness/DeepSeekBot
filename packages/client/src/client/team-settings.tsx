@@ -3,7 +3,6 @@ import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { MemberInvitationPanel } from './team-invitation.js';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeCall } from './bridge.js';
 import { Callout } from './ds/callout.js';
@@ -11,7 +10,7 @@ import { FieldStack, TextField } from './ds/field.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { ink, layer, space, style, type as text } from './ds/tobs.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { TeamUsageSection } from './team-usage-section.js';
 import { USAGE_VIEW } from './team-usage.js';
@@ -55,9 +54,9 @@ import { font } from './ds/tobs.stylex.js';
 const styles = stylex.create({
   members: { display: 'flex', flexDirection: 'column', minWidth: 0 },
   memberMeta: {
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
   },
   urls: {
     display: 'flex',
@@ -67,9 +66,9 @@ const styles = stylex.create({
   },
   url: {
     fontFamily: font.familyMono,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    color: color.fg,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
+    color: ink.primary,
     overflowWrap: 'anywhere',
   },
   secret: {
@@ -77,16 +76,16 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
     padding: space.x4,
-    borderRadius: radius.md,
-    backgroundColor: color.well,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
   },
   secretValue: {
     flex: 1,
     minWidth: 0,
     fontFamily: font.familyMono,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    color: color.fg,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
+    color: ink.primary,
     overflowWrap: 'anywhere',
     userSelect: 'all',
   },
@@ -96,14 +95,17 @@ const styles = stylex.create({
     gridTemplateColumns: 'auto 1fr',
     columnGap: space.x4,
     rowGap: space.x1,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
-  factLabel: { color: color.muted },
-  factValue: { margin: 0, color: color.fg, overflowWrap: 'anywhere' },
+  factLabel: { color: ink.secondary },
+  factValue: { margin: 0, color: ink.primary, overflowWrap: 'anywhere' },
 });
 
-export type TeamSectionProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface TeamSectionProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+}
 
 const REFUSAL_COPY: Record<TeamRefusal, BotHarnessKey> = {
   'owner-password-required': 'team.error.ownerPasswordRequired',

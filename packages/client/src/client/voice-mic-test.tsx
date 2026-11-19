@@ -13,7 +13,8 @@ import {
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { StatusGroup, StatusList, StatusListRow } from './ds/status-block.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { Slider } from './ds/slider.js';
+import { accent, ink, layer, radius, space, type as text } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { VoiceSpeechThresholdView } from './voice-bridge.js';
@@ -33,10 +34,7 @@ const styles = stylex.create({
     minWidth: 0,
     height: '8px',
     borderRadius: radius.sm,
-    backgroundColor: color.well,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
+    backgroundColor: layer.well,
     overflow: 'hidden',
   },
   fill: {
@@ -44,14 +42,14 @@ const styles = stylex.create({
     insetBlock: 0,
     insetInlineStart: 0,
     width: '0%',
-    backgroundColor: color.subtle,
+    backgroundColor: ink.quiet,
   },
   marker: {
     position: 'absolute',
     insetBlock: 0,
     width: '2px',
     transform: 'translateX(-50%)',
-    backgroundColor: color.accent,
+    backgroundColor: accent.solid,
   },
   readout: {
     display: 'flex',
@@ -59,13 +57,12 @@ const styles = stylex.create({
     flexShrink: 0,
     minWidth: '9em',
     justifyContent: 'flex-end',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    color: color.muted,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
+    color: ink.secondary,
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
   },
-  range: { flexGrow: 1, minWidth: 0, margin: 0, accentColor: color.accent },
 });
 
 type MicProblem = 'denied' | 'missing' | undefined;
@@ -312,22 +309,19 @@ export function VoiceMicTest({
             }
           >
             <div {...stylex.props(styles.meterLine)}>
-              <input
-                {...stylex.props(styles.range)}
+              <Slider
                 id="voice-speech-threshold"
-                aria-label={t('voice.mic.threshold')}
-                type="range"
+                label={t('voice.mic.threshold')}
+                fluid
                 min={threshold.min}
                 max={threshold.max}
                 step={1}
                 value={value}
                 disabled={save === undefined || busy}
-                onChange={(event) => setDraft(Number(event.currentTarget.value))}
-                onPointerUp={release}
-                onKeyUp={release}
-                onBlur={release}
+                valueLabel={t('voice.mic.dbfs', { value })}
+                onChange={setDraft}
+                onCommit={release}
               />
-              <span {...stylex.props(styles.readout)}>{t('voice.mic.dbfs', { value })}</span>
             </div>
             {error === undefined ? null : <Note tone="danger">{error}</Note>}
           </StatusListRow>,

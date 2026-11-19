@@ -120,7 +120,7 @@ describe('remote Host rows', () => {
     expect(html).toContain('data-effect="coding"');
     expect(html).toContain('2 条未读');
     expect(html).toContain('3 条未读');
-    expect(html.match(/bh-unread-corner/g)).toHaveLength(2);
+    expect(html.match(/class="bh-unread-count"/g)).toHaveLength(2);
     expect(html).toContain('bh-group-avatar-stack');
     expect(html.match(/src="blob:studio-tob"/g)).toHaveLength(2);
     expect(html).toContain('Studio preview');

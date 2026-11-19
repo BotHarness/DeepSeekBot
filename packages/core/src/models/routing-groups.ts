@@ -1,16 +1,24 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  isRoutingGroupEngineMember,
+  type RoutingGroupEngineMember,
+} from '@botharness/host-protocol/subscription-engine';
+
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { isModelRoute, type ModelRoute } from './presets.js';
 
 export const ROUTING_GROUP_MEMBERS_MAX = 20;
 export const ROUTING_GROUP_DEPTH_MAX = 8;
 
-export type RoutingGroupMember =
+export type ModelChoice =
   | { kind: 'model'; provider: string; model: string; reasoningEffort?: string }
   | { kind: 'group'; id: string };
 
-export type ModelChoice = RoutingGroupMember;
+export type RoutingGroupMember = ModelChoice | RoutingGroupEngineMember;
+
+export const ROUTING_GROUP_MEMBER_SHAPES =
+  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?}';
 
 export interface RoutingGroup {
   id: string;
@@ -76,6 +84,7 @@ export function isRoutingGroupMember(value: unknown): value is RoutingGroupMembe
       typeof member['id'] === 'string' &&
       member['id'].trim().length > 0
     );
+  if (member['kind'] === 'engine') return isRoutingGroupEngineMember(member);
   if (member['kind'] !== 'model') return false;
   const { kind: _kind, ...route } = member;
   return (
@@ -101,6 +110,12 @@ function isRoutingGroup(value: unknown): value is RoutingGroup {
 
 function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
   if (member.kind === 'group') return { kind: 'group', id: member.id.trim() };
+  if (member.kind === 'engine')
+    return {
+      kind: 'engine',
+      engine: member.engine,
+      ...(member.model === undefined ? {} : { model: member.model.trim() }),
+    };
   return {
     kind: 'model',
     provider: member.provider.trim(),
@@ -112,6 +127,8 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
 }
 
 export function memberLabel(member: RoutingGroupMember): string {
+  if (member.kind === 'engine')
+    return member.model === undefined ? member.engine : `${member.engine}/${member.model}`;
   return member.kind === 'group'
     ? `group ${member.id}`
     : `${member.provider}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
@@ -142,6 +159,7 @@ export function expandRoutingGroup(
         visit(member.id, [...path, groupId]);
         continue;
       }
+      if (member.kind === 'engine') continue;
       const key = JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -195,7 +213,7 @@ export function createRoutingGroupStore(options: RoutingGroupStoreOptions): Rout
     if (!Array.isArray(input.members) || !input.members.every(isRoutingGroupMember))
       throw new RoutingGroupError(
         'invalid-input',
-        'Each member is {kind:"model",provider,model,reasoningEffort?} or {kind:"group",id}',
+        `Each member must match one of these shapes: ${ROUTING_GROUP_MEMBER_SHAPES}`,
       );
     if (input.members.length === 0)
       throw new RoutingGroupError('empty-group', 'A Routing Group needs at least one member');

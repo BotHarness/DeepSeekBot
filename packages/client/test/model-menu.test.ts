@@ -7,10 +7,17 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
   (await import('./primitive-mocks.js')).comboboxPrimitives(),
 );
 
+import type { ModelCatalogGroupView } from '../src/client/bridge.js';
+import type { EngineStatusView } from '../src/client/engine-choice.js';
 import { modelFamilies } from '@botharness/host-client/shared/model-brand';
 import type { ModelCatalogEntryView } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { ModelMenu, catalogMenuItems, presetMenuItems } from '../src/client/model-menu.js';
+import {
+  ModelMenu,
+  catalogMenuItems,
+  engineMenuItems,
+  presetMenuItems,
+} from '../src/client/model-menu.js';
 import { rememberModelFavorites } from '../src/client/model-favorites.js';
 
 const catalog: ModelCatalogEntryView[] = [
@@ -312,7 +319,7 @@ it('lists Routing Groups in their own column with the member in front, and stars
   ]);
   const daily = document.body.querySelector("[data-picker-option='group:daily']");
   expect(daily?.getAttribute('aria-label')).toBe(
-    `Daily · ${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1 · OpenAI' })}`,
+    `Daily · ${zhTranslate('modelMenu.groupFront', { model: 'GPT-6.1 · OpenAI' })} · DeepSeek V4.1 Flash · OpenCode Go · GPT-6.1 · OpenAI`,
   );
   expect(daily?.querySelector('[data-model-brand]')).not.toBeNull();
   expect(
@@ -390,4 +397,87 @@ it('lists Presets in their own column with main and side models, checks the sour
   expect(write).toHaveBeenCalledWith({ kind: 'preset', id: 'fast' }, true);
   await act(async () => (option('fast') as HTMLButtonElement).click());
   expect(onSelect).toHaveBeenCalledWith('preset:fast');
+});
+
+it('filters subscription models by engine and exposes only applicable actions', async () => {
+  const engines = [
+    { engine: 'codex', installed: true, available: true },
+    { engine: 'claude', installed: true, available: false, reason: 'signed-out' },
+  ] satisfies EngineStatusView[];
+  const models = { codex: [{ id: 'gpt-6', name: 'GPT-6 Subscription', efforts: [] }] };
+  const items = engineMenuItems(engines, models, undefined, zhTranslate);
+  expect(items).toMatchObject([
+    {
+      value: 'engine:codex:gpt-6',
+      engine: 'codex',
+      brand: 'openai',
+      hint: zhTranslate('engine.subscription', { engine: 'Codex' }),
+    },
+    { value: 'engine-signin:claude', engine: 'claude', brand: 'claude', disabled: false },
+  ]);
+  expect(
+    engineMenuItems(
+      [{ engine: 'codex', installed: false, available: false, reason: 'not-installed' }],
+      {},
+      undefined,
+      zhTranslate,
+    ),
+  ).toMatchObject([
+    {
+      engine: 'codex',
+      disabled: true,
+      hint: zhTranslate('engine.notInstalled', { engine: 'Codex' }),
+    },
+  ]);
+  expect(engineMenuItems([], {}, undefined, zhTranslate)).toEqual([]);
+  const { rows, onSelect } = await render({
+    items: [...catalogMenuItems(catalog, zhTranslate), ...items],
+  });
+  const rail = document.querySelector<HTMLButtonElement>('[data-picker-filter="engine:codex"]')!;
+  expect(rail.getAttribute('aria-label')).toBe('Codex 订阅');
+  expect(
+    rail.querySelector('[data-engine-brand="openai"] [data-model-brand="openai"]'),
+  ).not.toBeNull();
+  expect(
+    document.querySelector(
+      '[data-picker-filter]:not([data-picker-filter^="engine:"]) [data-engine-brand]',
+    ),
+  ).toBeNull();
+  await act(async () => rail.click());
+  expect(rows()).toEqual(['GPT-6 SubscriptionCodex 订阅Ctrl+1']);
+  const signInFilter = document.querySelector<HTMLButtonElement>(
+    '[data-picker-filter="engine:claude"]',
+  )!;
+  await act(async () => signInFilter.click());
+  await act(async () =>
+    document
+      .querySelector<HTMLButtonElement>('[data-picker-option="engine-signin:claude"]')!
+      .click(),
+  );
+  expect(onSelect).toHaveBeenCalledExactlyOnceWith('engine-signin:claude');
+});
+
+it('announces the current target and the full saved member order without displaying the backup engines', async () => {
+  const front = catalog[0]!;
+  const groups: ModelCatalogGroupView[] = [
+    {
+      id: 'mixed',
+      name: 'Mixed',
+      revision: 1,
+      routes: [{ provider: front.provider, model: front.model }],
+      members: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+        { kind: 'model', provider: front.provider, model: front.model },
+        { kind: 'engine', engine: 'claude' },
+      ],
+    },
+  ];
+  await render({ items: catalogMenuItems(catalog, zhTranslate, groups) });
+  const option = document.body.querySelector('[data-picker-option="group:mixed"]');
+  expect(option?.textContent).toContain('当前：V4.1 Flash');
+  expect(option?.textContent).not.toMatch(/Codex|Claude/);
+  expect(option?.getAttribute('aria-label')).toBe(
+    'Mixed · 当前：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
+  );
+  expect(option?.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
 });

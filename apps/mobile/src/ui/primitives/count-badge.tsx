@@ -29,7 +29,7 @@ export function CountBadge({
         : theme.color.accent;
   const ink =
     tone === 'needs-you'
-      ? theme.color[theme.scheme === 'dark' ? 'base' : 'fg']
+      ? theme.color.onWarning
       : tone === 'muted'
         ? theme.color.muted
         : theme.color.onAccent;

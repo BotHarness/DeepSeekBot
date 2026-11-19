@@ -53,7 +53,7 @@ import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
-import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
+import { EngineBrandIcon, ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
 import {
   ModelMenu,
   catalogMenuItems,
@@ -64,9 +64,7 @@ import {
 } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
 
-const styles = stylex.create({
-  runnerIcons: { display: 'inline-flex', alignItems: 'center', gap: space.x1 },
-});
+const styles = stylex.create({});
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -601,12 +599,7 @@ function DmComposerContextView({
             data-composer-chip="model"
             data-runner={runner.engine}
             collapseLabel
-            icon={
-              <span {...stylex.props(styles.runnerIcons)}>
-                <ChannelSidebarIcon name="plug" size={14} />
-                <ModelBrandIcon brand={runnerBrand} />
-              </span>
-            }
+            icon={<EngineBrandIcon brand={runnerBrand} />}
             label={runnerChipLabel}
             title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runner.model}`}
             tabIndex={-1}

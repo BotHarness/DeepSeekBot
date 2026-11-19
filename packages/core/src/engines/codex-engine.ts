@@ -13,6 +13,7 @@ import {
   type EngineSession,
   type EngineStartOptions,
   type EngineTurnEnd,
+  type EngineWorkspaceMode,
   EngineRefusal,
   engineEffort,
   engineEnvironment,
@@ -219,6 +220,12 @@ export const CODEX_TURN_SANDBOX = {
   excludeSlashTmp: true,
 } as const;
 
+const TURN_SANDBOX = {
+  'read-only': { type: 'readOnly', networkAccess: false },
+  'workspace-write': CODEX_TURN_SANDBOX,
+  'danger-full-access': { type: 'dangerFullAccess' },
+} as const satisfies Record<EngineWorkspaceMode, object>;
+
 const SERVER_APPROVALS = new Set([
   'item/commandExecution/requestApproval',
   'item/fileChange/requestApproval',
@@ -227,9 +234,12 @@ const SERVER_APPROVALS = new Set([
 interface ActiveTurn {
   options: EngineSendOptions;
   resolve(end: EngineTurnEnd): void;
+  started?: Promise<string>;
   failure?: string;
   stopping?: boolean;
 }
+
+class CodexRequestRefused extends Error {}
 
 const REQUEST_TIMEOUT_MS = 60_000;
 const THREAD_GONE =
@@ -240,7 +250,9 @@ export class CodexEngineSession implements EngineSession {
   readonly #transport: CodexTransport;
   readonly #cwd: string;
   readonly #instructions: string;
+  readonly #contextSeed: EngineStartOptions['contextSeed'];
   readonly #choice: EngineChoice;
+  readonly #workspaceMode: EngineWorkspaceMode;
   #next = 1;
   readonly #pending = new Map<number, { resolve(value: unknown): void; reject(e: Error): void }>();
   readonly #approvals = new Map<string, number | string>();
@@ -254,12 +266,14 @@ export class CodexEngineSession implements EngineSession {
 
   constructor(
     transport: CodexTransport,
-    options: Pick<EngineStartOptions, 'cwd' | 'instructions'> &
-      EngineChoice & { requestTimeoutMs?: number },
+    options: Pick<EngineStartOptions, 'cwd' | 'instructions' | 'contextSeed'> &
+      EngineChoice & { requestTimeoutMs?: number; workspaceMode?: EngineWorkspaceMode },
   ) {
     this.#transport = transport;
     this.#cwd = options.cwd;
     this.#instructions = options.instructions;
+    this.#contextSeed = options.contextSeed;
+    this.#workspaceMode = options.workspaceMode ?? 'workspace-write';
     this.#choice = {
       ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.effort === undefined ? {} : { effort: options.effort }),
@@ -297,8 +311,8 @@ export class CodexEngineSession implements EngineSession {
     await this.#initialize();
     const common = {
       cwd: this.#cwd,
-      approvalPolicy: 'on-request',
-      sandbox: 'workspace-write',
+      approvalPolicy: this.#approvalPolicy,
+      sandbox: this.#workspaceMode,
       developerInstructions: this.#instructions,
       ...(this.#choice.model === undefined ? {} : { model: this.#choice.model }),
     };
@@ -322,10 +336,15 @@ export class CodexEngineSession implements EngineSession {
     return id;
   }
 
-  async send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
+  get #approvalPolicy(): 'on-request' | 'never' {
+    return this.#workspaceMode === 'workspace-write' ? 'on-request' : 'never';
+  }
+
+  async send(currentInput: string, options: EngineSendOptions): Promise<EngineTurnEnd> {
     if (this.#threadId === undefined) throw new Error('Codex thread is not started');
     if (this.#turn !== undefined) throw new Error('A Codex turn is already running');
     if (options.signal?.aborted === true) return { status: 'interrupted' };
+    const input = (this.#contextSeed?.() ?? '') + currentInput;
     const threadId = this.#threadId;
     let active!: ActiveTurn;
     const ended = new Promise<EngineTurnEnd>((resolve) => {
@@ -349,15 +368,14 @@ export class CodexEngineSession implements EngineSession {
     };
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
-      const started = record(
-        await this.#request('turn/start', {
-          threadId,
-          input: [{ type: 'text', text: input, text_elements: [] }],
-          sandboxPolicy: CODEX_TURN_SANDBOX,
-          ...this.#choice,
-        }),
-      );
-      turnId = text(record(started['turn'])['id']) || undefined;
+      active.started = this.#request('turn/start', {
+        threadId,
+        input: [{ type: 'text', text: input, text_elements: [] }],
+        sandboxPolicy: TURN_SANDBOX[this.#workspaceMode],
+        approvalPolicy: this.#approvalPolicy,
+        ...this.#choice,
+      }).then((response) => text(record(record(response)['turn'])['id']));
+      turnId = (await active.started) || undefined;
       acknowledged = true;
       if (active.stopping === true) interrupt();
       return await ended;
@@ -367,6 +385,25 @@ export class CodexEngineSession implements EngineSession {
       return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
     } finally {
       options.signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  async steer(input: string): Promise<boolean> {
+    const turn = this.#turn;
+    if (turn?.started === undefined || turn.stopping === true) return false;
+    const expectedTurnId = await turn.started;
+    if (expectedTurnId === '' || this.#turn !== turn || turn.options.signal?.aborted === true)
+      return false;
+    try {
+      await this.#request('turn/steer', {
+        threadId: this.#threadId,
+        expectedTurnId,
+        input: [{ type: 'text', text: input, text_elements: [] }],
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof CodexRequestRefused) return false;
+      throw error;
     }
   }
 
@@ -450,7 +487,7 @@ export class CodexEngineSession implements EngineSession {
       if (pending === undefined) return;
       const error = record(message['error']);
       if (message['error'] !== undefined)
-        pending.reject(new Error(text(error['message']) || 'Codex request failed'));
+        pending.reject(new CodexRequestRefused(text(error['message']) || 'Codex request failed'));
       else pending.resolve(message['result']);
       return;
     }
@@ -502,6 +539,10 @@ export class CodexEngineSession implements EngineSession {
 
   #serverRequest(id: number | string, method: string, params: Json): void {
     if (SERVER_APPROVALS.has(method)) {
+      if (this.#approvalPolicy === 'never') {
+        this.#transport.send({ id, result: { decision: 'decline' } });
+        return;
+      }
       const itemId = text(params['itemId']);
       const approvalId = `${itemId}:${text(params['approvalId']) || String(id)}`;
       this.#approvals.set(approvalId, id);

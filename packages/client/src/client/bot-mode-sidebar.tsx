@@ -2,7 +2,6 @@ import { Icon } from './ds/icon.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
-import { isDarwinDesktop } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
 
@@ -17,7 +16,10 @@ import type { ClientState } from './store.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
 import { ACTIVITY_CENTER_PANEL, type DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
+import { IconButton } from './ds/icon-button.js';
+import { NavItem } from './ds/nav-item.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { size } from './ds/tobs.stylex.js';
 import { ExitIcon } from './exit-icon.js';
 import { InboxIcon } from './inbox-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -43,6 +45,7 @@ export interface BotModeSidebarProps {
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
   exitBotMode?: (() => void) | undefined;
   toggleSidebar: () => void;
+  closeDrawer?: (() => void) | undefined;
   openBotSettings: (sectionId?: string) => void;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   t: BotHarnessTranslate;
@@ -57,7 +60,7 @@ const selectSidebarNavigation = (state: ClientState) => ({
 });
 
 export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
-  const { collapsed, actions, useBotModePrefs, t } = props;
+  const { collapsed, actions, closeDrawer, useBotModePrefs, t } = props;
   const wide = !collapsed;
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
   const navigation = useClientStore(selectSidebarNavigation, shallowEqual);
@@ -70,8 +73,15 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   ];
   const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
   const inboxCurrent = navigation.inboxCurrent;
-  const toggleLabel = t(collapsed ? 'panel.sidebar.open' : 'panel.sidebar.collapse');
-  const darwin = isDarwinDesktop();
+  const toggleLabel = t(
+    closeDrawer
+      ? 'panel.sidebar.close'
+      : collapsed
+        ? 'panel.sidebar.open'
+        : 'panel.sidebar.collapse',
+  );
+  const darwin =
+    closeDrawer === undefined && document.documentElement.dataset.platform === 'darwin';
   const exitLabel = t('panel.exit');
   const [logoHover, setLogoHover] = useState(false);
   const [logoFocus, setLogoFocus] = useState(false);
@@ -93,40 +103,44 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
     } = {},
   ): ReactElement => (
     <Tooltip label={label} side="right" delayMs={500} disabled={wide}>
-      <button
-        type="button"
-        {...hooked(
-          'bh-mode-sidebar-row',
-          styles.row,
-          collapsed && styles.railRow,
-          extra.current === true && styles.current,
-        )}
-        data-bh-tour={extra.tour}
+      <NavItem
+        className="bh-mode-sidebar-row"
+        label={label.split(' · ')[0]}
         aria-label={label}
-        aria-current={extra.current === true ? 'page' : undefined}
-        onClick={onClick}
-      >
-        <span {...stylex.props(styles.glyph)}>
-          {glyph}
-          {collapsed && extra.dot === true ? <span {...stylex.props(styles.dot)} /> : null}
-        </span>
-        {wide ? <span {...stylex.props(styles.label)}>{label.split(' · ')[0]}</span> : null}
-        {wide ? extra.trailing : null}
-      </button>
+        current={extra.current === true}
+        iconOnly={collapsed}
+        xstyle={collapsed ? styles.railItem : undefined}
+        trailing={wide ? extra.trailing : undefined}
+        icon={
+          <span {...stylex.props(styles.glyph)}>
+            {glyph}
+            {collapsed && extra.dot === true ? (
+              <span data-sidebar-attention="" {...stylex.props(styles.dot)} />
+            ) : null}
+          </span>
+        }
+        data={{ 'data-bh-tour': extra.tour }}
+        onSelect={onClick}
+      />
     </Tooltip>
   );
 
   return (
     <div
       ref={rootMount}
-      {...hooked('bh-root bh-mode-sidebar', styles.root, collapsed && styles.rootCollapsed)}
+      {...hooked(
+        'bh-root bh-mode-sidebar',
+        styles.root,
+        collapsed && styles.rootCollapsed,
+        closeDrawer !== undefined && styles.rootDrawer,
+      )}
       data-collapsed={collapsed ? 'true' : undefined}
       aria-label={t('panel.label')}
       role="navigation"
     >
       {darwin && wide ? <div {...stylex.props(styles.darwinStrip)} data-window-drag /> : null}
       <div {...stylex.props(styles.logoRow, collapsed && styles.logoRowCollapsed)} data-window-drag>
-        {props.exitBotMode === undefined ? (
+        {props.exitBotMode === undefined || closeDrawer !== undefined ? (
           <span {...hooked('bh-mode-sidebar-logo', styles.logo, collapsed && styles.logoCollapsed)}>
             <span {...stylex.props(styles.morph)}>
               <BotIcon icon={icon} size={24} />
@@ -159,19 +173,22 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           </Tooltip>
         )}
         {wide ? <span {...stylex.props(styles.brandName)}>{t('panel.brand')}</span> : null}
-        <Tooltip label={toggleLabel} side="right" delayMs={500}>
-          <button
-            type="button"
-            {...hooked(
-              'bh-mode-sidebar-toggle',
-              styles.iconButton,
-              collapsed && styles.iconButtonCollapsed,
-            )}
+        <Tooltip
+          label={toggleLabel}
+          side="right"
+          delayMs={500}
+          disabled={closeDrawer !== undefined}
+        >
+          <IconButton
+            xstyle={
+              closeDrawer ? styles.drawerAction : collapsed ? styles.iconButtonCollapsed : undefined
+            }
             aria-label={toggleLabel}
             onClick={props.toggleSidebar}
+            data-modal-autofocus={closeDrawer === undefined ? undefined : ''}
           >
-            <Icon name="panel-left" size={wide ? 16 : 18} />
-          </button>
+            <Icon name={closeDrawer ? 'x' : 'panel-left'} size={wide ? 16 : 18} />
+          </IconButton>
         </Tooltip>
       </div>
       {props.dockPanels === undefined ? (
@@ -180,6 +197,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
             inboxLabel,
             <InboxIcon size={wide ? 16 : 18} />,
             () => {
+              closeDrawer?.();
               void actions.openActivityCenter();
             },
             {
@@ -226,6 +244,14 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           quickSwitcherSettings={props.quickSwitcherSettings}
           setSortMode={props.setSortMode}
           setSectionSortMode={props.setSectionSortMode}
+          onOpenConversation={closeDrawer}
+          onViewProfile={
+            closeDrawer &&
+            ((slug) => {
+              closeDrawer();
+              void actions.openBot(slug, 'profile');
+            })
+          }
           dockPanels={props.dockPanels}
           t={t}
         />
@@ -241,9 +267,18 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           t('panel.settings'),
           <Icon name="settings" size={wide ? 16 : 18} />,
           () => {
+            closeDrawer?.();
             props.openBotSettings();
           },
           { tour: 'bot-settings' },
+        )}
+        {closeDrawer !== undefined && props.exitBotMode !== undefined && (
+          <NavItem
+            label={t('panel.exit')}
+            icon={<ExitIcon size={16} />}
+            onSelect={props.exitBotMode}
+            data={{ 'data-bh-tour': 'bot-mode' }}
+          />
         )}
       </div>
     </div>
@@ -268,6 +303,7 @@ const styles = stylex.create({
     paddingTop: space.x5,
     paddingInline: space.x3,
   },
+  rootDrawer: { paddingTop: `max(${space.x2}, env(safe-area-inset-top))` },
   darwinStrip: {
     flexShrink: 0,
     height: '40px',
@@ -353,35 +389,13 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
   },
-  iconButton: {
-    display: 'inline-flex',
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '28px',
-    height: '28px',
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: 'none',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-    outlineOffset: '-2px',
-    borderRadius: radius.sm,
-    color: color.muted,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-    },
-    cursor: 'pointer',
-  },
   iconButtonCollapsed: {
-    width: '36px',
-    height: '36px',
+    width: size.rowMedium,
+    height: size.rowMedium,
     borderRadius: radius.md,
     color: color.fg,
   },
+  drawerAction: { width: size.rowLarge, height: size.rowLarge },
   list: {
     display: 'flex',
     flexDirection: 'column',
@@ -398,43 +412,7 @@ const styles = stylex.create({
     marginTop: space.x2,
     marginBottom: 0,
   },
-  row: {
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minHeight: '36px',
-    marginInline: space.x1,
-    paddingBlock: space.x3,
-    paddingInline: space.x3,
-    borderWidth: 0,
-    borderStyle: 'none',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-    outlineOffset: '-2px',
-    borderRadius: radius.md,
-    color: color.fg,
-    font: 'inherit',
-    lineHeight: text.bodyLine,
-    textAlign: 'start',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-    },
-    cursor: 'pointer',
-  },
-  railRow: {
-    justifyContent: 'center',
-    width: '36px',
-    height: '36px',
-    margin: 0,
-    padding: 0,
-  },
-  current: {
-    backgroundColor: color.hover,
-  },
+  railItem: { width: size.rowMedium, minHeight: size.rowMedium },
   glyph: {
     position: 'relative',
     display: 'inline-flex',
@@ -451,13 +429,7 @@ const styles = stylex.create({
     borderRadius: radius.round,
     backgroundColor: color.danger,
   },
-  label: {
-    flexGrow: 1,
-    minWidth: 0,
-    overflow: 'hidden',
-    whiteSpace: 'nowrap',
-    textOverflow: 'ellipsis',
-  },
+
   count: {
     flexShrink: 0,
     minWidth: '18px',

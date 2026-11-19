@@ -152,6 +152,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
       engine: 'codex',
       nativeId: '019a7f10-0000-7000-8000-000000000001',
       account: 'ChatGPT pro',
+      lastTurn: 1,
     });
     expect(host.orchestratorRunner('ada')).toEqual({
       engine: 'codex',

@@ -25,9 +25,11 @@ export interface FilterPickerOption {
   readonly hintIcon?: ReactNode;
   readonly hintLabel?: string | undefined;
   readonly icon?: ReactNode;
+  readonly marker?: ReactNode;
   readonly disabled?: boolean | undefined;
   readonly filter?: string | undefined;
   readonly search?: readonly string[] | undefined;
+  readonly searchByTerms?: boolean | undefined;
   readonly favorite?: boolean | undefined;
   readonly selected?: boolean | undefined;
   readonly exclusive?: boolean | undefined;
@@ -44,6 +46,13 @@ export interface FilterPickerFilter {
   readonly key: string;
   readonly label: string;
   readonly icon: ReactNode;
+  readonly onActivate?: () => void;
+  readonly status?:
+    | {
+        readonly message: string;
+        readonly retry?: { readonly label: string; onPress(): void };
+      }
+    | undefined;
 }
 
 export interface FilterPickerSide {
@@ -141,20 +150,22 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   rowHint: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x1,
     flexShrink: 1,
     minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     color: color.muted,
     fontSize: text.metaSize,
     fontWeight: text.regular,
   },
-  hintIcon: {
-    display: 'inline-flex',
-    verticalAlign: 'middle',
-    marginInlineEnd: space.x1,
+  rowHintText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
+  hintIcon: { display: 'inline-flex', flexShrink: 0 },
   rowCheck: { display: 'inline-flex', color: color.accentText },
   rowLine: { display: 'flex', alignItems: 'center', gap: space.x1 },
   rowMain: { flexGrow: 1, minWidth: 0 },
@@ -208,6 +219,12 @@ const styles = stylex.create({
     color: color.danger,
     fontSize: text.metaSize,
   },
+  filterStatus: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x2,
+  },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -247,6 +264,7 @@ export function FilterPicker({
   favorites,
   notice,
   anchorRef,
+  portalContainer,
   onClose,
 }: {
   label: string;
@@ -265,10 +283,12 @@ export function FilterPicker({
   favorites?: FilterPickerFavorites | undefined;
   notice?: string | undefined;
   anchorRef: RefObject<HTMLElement | null>;
+  portalContainer?: Element | null;
   onClose(): void;
 }): ReactElement {
   const listId = useId();
   const panel = useRef<HTMLDivElement | null>(null);
+  const searchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState(() =>
     favorites !== undefined &&
     options.some((option) => option.favorite === true && option.disabled !== true)
@@ -304,6 +324,7 @@ export function FilterPicker({
     [anchorRef],
   );
   const focusSearch = useMountedResource<HTMLInputElement>((node) => {
+    searchInput.current = node;
     let frame = 0;
     const attempt = (left: number) => {
       node.focus({ preventScroll: true });
@@ -311,17 +332,28 @@ export function FilterPicker({
         frame = requestAnimationFrame(() => attempt(left - 1));
     };
     frame = requestAnimationFrame(() => attempt(5));
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      searchInput.current = null;
+      cancelAnimationFrame(frame);
+    };
   }, []);
   const needle = query.trim().toLowerCase();
+  const terms = needle.split(/\s+/u);
+  const filterStatus = filters.find((entry) => entry.key === filter)?.status;
+  const matches = (option: FilterPickerOption) => {
+    if (needle === '') return true;
+    const fields = [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])];
+    if (option.searchByTerms === true) {
+      const text = fields.join(' ').toLowerCase();
+      return terms.every((term) => text.includes(term));
+    }
+    return fields.some((part) => part.toLowerCase().includes(needle));
+  };
   const matched = options.filter(
     (option) =>
       ((filter === allFilter.key && (option.exclusive !== true || needle !== '')) ||
         (filter === favoriteKey ? needle !== '' || listed(option) : option.filter === filter)) &&
-      (needle === '' ||
-        [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])].some(
-          (part) => part.toLowerCase().includes(needle),
-        )),
+      matches(option),
   );
   const shown =
     favorites === undefined || filter === favoriteKey
@@ -414,6 +446,7 @@ export function FilterPicker({
                 aria-label={entry.label}
                 title={entry.label}
                 onClick={() => {
+                  if (filter !== entry.key) entry.onActivate?.();
                   setFilter(entry.key);
                   setActive(undefined);
                   setHeld(undefined);
@@ -450,7 +483,7 @@ export function FilterPicker({
             />
           </div>
           <div id={listId} role="listbox" aria-label={label} {...stylex.props(styles.list)}>
-            {shown.length === 0 ? (
+            {shown.length === 0 && filterStatus === undefined ? (
               <div role="presentation" {...stylex.props(styles.empty)}>
                 {emptyLabel}
               </div>
@@ -496,10 +529,11 @@ export function FilterPicker({
                             {option.hintIcon === undefined ? null : (
                               <span {...stylex.props(styles.hintIcon)}>{option.hintIcon}</span>
                             )}
-                            {option.hint}
+                            <span {...stylex.props(styles.rowHintText)}>{option.hint}</span>
                           </span>
                         )}
                       </span>
+                      {option.marker}
                       {selected ? check : null}
                       {jump >= 0 && jump < 9 ? (
                         <span aria-hidden {...stylex.props(styles.shortcut)}>
@@ -507,7 +541,9 @@ export function FilterPicker({
                         </span>
                       ) : null}
                     </button>
-                    {favorites === undefined || option.filter === undefined ? null : (
+                    {favorites === undefined ||
+                    option.filter === undefined ||
+                    option.favorite === undefined ? null : (
                       <button
                         type="button"
                         aria-pressed={option.favorite === true}
@@ -549,6 +585,25 @@ export function FilterPicker({
               })
             )}
           </div>
+          {filterStatus === undefined ? null : (
+            <div {...stylex.props(styles.empty, styles.filterStatus)}>
+              <span role={filterStatus.retry === undefined ? 'status' : 'alert'}>
+                {filterStatus.message}
+              </span>
+              {filterStatus.retry === undefined ? null : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    searchInput.current?.focus();
+                    filterStatus.retry?.onPress();
+                  }}
+                  {...stylex.props(styles.footerButton)}
+                >
+                  {filterStatus.retry.label}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {side === undefined || side.options.length <= 1 ? null : (
           <div role="radiogroup" aria-label={side.label} {...stylex.props(styles.efforts)}>
@@ -594,6 +649,6 @@ export function FilterPicker({
         </div>
       )}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }

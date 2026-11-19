@@ -1,6 +1,6 @@
 # Team mode M1 runtime boundaries
 
-This is the application-defined implementation of the M1 wire contract in #4140, under the accepted target design in ADR-0336 and spec #4137. It does not qualify the later private Bot, role, Workspace or offboarding slices.
+This is the application-defined implementation of the M1 wire contract in #4140, under the [Team mode decisions](../decisions/team-mode.md#adr-0336) and spec #4137. It does not qualify the later private Bot, role, Workspace or offboarding slices.
 
 `TeamService` owns canonical SQLite identities (`humans`), credentials (`member_credentials`), grants (`member_grants`) and the Team settings singleton. The Owner retains `local-human`. Existing paired devices acquire that Human ID without changing their credential. Public visibility is an indexed-column-sized addition to group Channel records; membership stays in `channel_human_members`.
 

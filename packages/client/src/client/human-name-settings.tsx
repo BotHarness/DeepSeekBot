@@ -2,7 +2,7 @@ import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import type { BotHarnessTranslate } from './locale.js';
 import {
   loadHumanIdentity,
   setHumanDefaultName,
@@ -24,12 +24,12 @@ const styles = stylex.create({
   },
 });
 
-export type HumanNameSettingsProps = PropsLocale<'botharness'> &
-  InjectFace<{
-    call: BridgeCall;
-    store: ClientStore;
-    onSaved(): Promise<void>;
-  }>;
+export interface HumanNameSettingsProps {
+  t: BotHarnessTranslate;
+  call: BridgeCall;
+  store: ClientStore;
+  onSaved(): Promise<void>;
+}
 
 export function HumanNameSettings({
   call,

@@ -1,3 +1,5 @@
+import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
+import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
@@ -301,6 +303,7 @@ import {
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
+  bridgeHost,
   loadModelCatalog,
   setModelFavorite,
   loadModelPresets,
@@ -660,6 +663,7 @@ export interface BridgeActions extends BotModeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  routingGroupEngines(): ReturnType<typeof loadRoutingGroupEngines>;
   setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
   routingGroups(): Promise<{
@@ -683,6 +687,7 @@ export interface BridgeActions extends BotModeActions {
     assignmentModels?: AssignmentModelOptionView[],
     openAssignmentModels?: boolean,
     groups?: ModelPlanGroupsView,
+    engines?: ModelPresetEngines,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -2205,13 +2210,22 @@ export function createActions(
     setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
+    routingGroupEngines: () => loadRoutingGroupEngines(bridgeHost(call)),
     createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
     updateRoutingGroup: (id, expectedRevision, name, members) =>
       updateRoutingGroup(call, id, expectedRevision, name, members),
     deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open, groups) =>
+    createModelPreset: (
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      open,
+      groups,
+      engines,
+    ) =>
       createModelPreset(
         call,
         name,
@@ -2220,6 +2234,7 @@ export function createActions(
         assignmentModels,
         open,
         groups,
+        engines,
       ),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),

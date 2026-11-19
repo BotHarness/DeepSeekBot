@@ -85,28 +85,8 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         ...(typeof model === 'string' ? { model } : {}),
         ...(typeof effort === 'string' ? { effort } : {}),
       };
-      if (engine !== null && (choice.model !== undefined || choice.effort !== undefined)) {
-        const models = await host.models(engine);
-        const picked =
-          choice.model === undefined
-            ? (models.find((entry) => entry.isDefault === true) ?? models[0])
-            : models.find((entry) => entry.id === choice.model);
-        if (picked === undefined)
-          return refusal(
-            'unknown-model',
-            `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
-          );
-        if (
-          choice.effort !== undefined &&
-          !picked.efforts.some((option) => option.id === choice.effort)
-        )
-          return refusal(
-            'unknown-effort',
-            picked.efforts.length === 0
-              ? `${picked.id} takes no effort level`
-              : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
-          );
-      }
+      if (engine !== null && (choice.model !== undefined || choice.effort !== undefined))
+        await host.validateChoice(engine, choice);
       host.use(bot, role, engine ?? undefined, {
         fallback: fallback === true,
         ...choice,
@@ -155,7 +135,12 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
     }
     return refusal('invalid-input', 'action must be login, models, use, tools or tool');
   } catch (error) {
-    if (error instanceof EngineRefusal) return refusal(error.code, error.message, 409);
+    if (error instanceof EngineRefusal)
+      return refusal(
+        error.code,
+        error.message,
+        error.code === 'unknown-model' || error.code === 'unknown-effort' ? 400 : 409,
+      );
     throw error;
   }
 }

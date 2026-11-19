@@ -1,3 +1,5 @@
+import { canManageModelProviders } from './team-bridge.js';
+import { currentTeamMode } from './team-state.js';
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { markOriginActions } from './origin-actions.js';
 import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
@@ -97,8 +99,7 @@ import {
   AccountSection,
   GeneralSection,
   MessagingSection,
-  ModelsSection,
-  AutoApprovalSection,
+  registerModelSettingsSections,
   PromptsSection,
   VoiceSection,
 } from './bot-settings-sections.js';
@@ -107,15 +108,11 @@ import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
-import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js';
-import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
+import { MobileBotPanel } from './mobile-bot-panel.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
 import { BotModeSidebar } from './bot-mode-sidebar.js';
-import {
-  botModeSidebarViewport,
-  subscribeBotModeSidebarViewport,
-} from './bot-mode-sidebar-viewport.js';
+import { getWindowClass, subscribeWindowClass } from './ds/window-class.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
 import { HostAcknowledgements, installHostAcknowledgements } from './host-acknowledgements.js';
 import {
@@ -182,6 +179,7 @@ import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
 import { registerModeShadow, registerShadowEntry } from './mode.js';
 import { browserSystemMotionSource, mountMotionPolicyAttribute } from './motion-preference.js';
+import { trackDialogInput } from './ds/dialog-input.js';
 import { defaultStorage, loadRosterConfig } from './roster-config.js';
 import { mountDevClientRefresh } from './dev-client-refresh.js';
 import { saveHmrView, takeHmrView } from './hmr-view.js';
@@ -464,7 +462,18 @@ export function apply(ctx: ClientContext): void {
     },
   };
   const quickSwitcherSettings: QuickSwitcherSettings = {
-    search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
+    search: (query) =>
+      searchSettings(
+        botSettingsSections
+          .getSnapshot()
+          .filter(
+            ({ id }) =>
+              id !== BOT_SETTINGS_SECTIONS.modelProviders ||
+              canManageModelProviders(currentTeamMode(call)?.viewer),
+          ),
+        query,
+        t,
+      ),
     open: (result) => botSettings.open(result.section, result.target),
     launcher: createQuickSwitcherLauncher(),
   };
@@ -476,6 +485,7 @@ export function apply(ctx: ClientContext): void {
         locale: LOCALE_NS,
         inject: () => ({
           botSettings,
+          call,
           sections: botSettingsSections,
           environments: member ? undefined : remoteHosts(t),
           pins: member ? undefined : settingsPins,
@@ -699,6 +709,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => prefs.attachSystemMotion(browserSystemMotionSource()),
     'botharness: system motion preference',
+  );
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : trackDialogInput(document)),
+    'botharness: dialog input modality',
   );
   ctx.effect(() => {
     if (typeof document === 'undefined') return () => {};
@@ -1064,32 +1078,7 @@ export function apply(ctx: ClientContext): void {
         KeyboardSettings,
       ),
     );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.models,
-          order: 10,
-          label: () => t('botSettings.section.models'),
-          locale: LOCALE_NS,
-          inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
-        },
-        ModelsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.autoApproval,
-          order: 15,
-          label: () => t('botSettings.section.autoApproval'),
-          locale: LOCALE_NS,
-          inject: () => ({ actions, call, store }),
-        },
-        AutoApprovalSection,
-      ),
-    );
+    registerModelSettingsSections(settingsCtx, { t, prefs, actions, call, store });
     settingsCtx.slots.inject('botharness.settings.section', () =>
       settingsCtx.slots.register(
         {
@@ -1308,6 +1297,7 @@ export function apply(ctx: ClientContext): void {
           exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
+          shortcutBindings,
         }),
       },
       MobileBotPanel,
@@ -1404,9 +1394,9 @@ export function apply(ctx: ClientContext): void {
       ),
     store,
     {
-      enabled: () => botModeSidebarViewport() && !nativeSettingsNavigation.getSnapshot(),
+      enabled: () => getWindowClass() === 'expanded' && !nativeSettingsNavigation.getSnapshot(),
       subscribe: (listener) => {
-        const viewport = subscribeBotModeSidebarViewport(listener);
+        const viewport = subscribeWindowClass(listener);
         const navigation = nativeSettingsNavigation.subscribe(listener);
         return () => {
           viewport();
@@ -1438,8 +1428,8 @@ export function apply(ctx: ClientContext): void {
       ),
     store,
     {
-      enabled: () => !mobileBotViewport(),
-      subscribe: subscribeMobileBotViewport,
+      enabled: () => getWindowClass() === 'expanded',
+      subscribe: subscribeWindowClass,
     },
   );
   registerModeShadow(
@@ -1506,7 +1496,6 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(
       () =>
         watchPrivateInputNavigation(store, privateLocator, (channelId, messageId) => {
-          expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openChannelAtMessage(channelId, messageId).catch(() => {
             ctx.logger.warn('botharness: private input card locator unavailable');
@@ -1528,7 +1517,6 @@ export function apply(ctx: ClientContext): void {
             requestCreation(target.kind === 'new-bot' ? 'bot' : 'channel');
             return;
           }
-          if (target.kind !== 'home') expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           if (target.kind === 'home') return;
           const opening =

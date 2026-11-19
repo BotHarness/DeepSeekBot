@@ -39,7 +39,7 @@ Enforced by: [schema migration lint](../../scripts/check-schema-migrations.mjs),
 
 _Formerly ADR-0063._
 
-The logging module owns the write connection to `$DSH_HOME/botharness/logs.db`. It keeps bounded, structured diagnostic evidence with owner scope and optional causation fields. The in-memory ring serves immediate reads and persistence supplies the durable tail. Retention runs on writes and caps the store at 50,000 rows and 30 days. An unusable store can rebuild empty without putting the Operational Database in recovery. Profile Backup excludes it. Owner scope (`profile-shared` or a Bot slug) is a read boundary only for surfaces that enforce it, such as viewer filtering; the database does not enforce it, and agent and Developer Mode reads ([ADR-0064](../adr/0064-agent-log-access-without-a-tool.md)) are outside it. Direct diagnostic readers use the [read-only log contract](../dev/guides/reading-operational-logs.md).
+The logging module owns the write connection to `$DSH_HOME/botharness/logs.db`. It keeps bounded, structured diagnostic evidence with owner scope and optional causation fields. The in-memory ring serves immediate reads and persistence supplies the durable tail. Retention runs on writes and caps the store at 50,000 rows and 30 days. An unusable store can rebuild empty without putting the Operational Database in recovery. Profile Backup excludes it. Owner scope (`profile-shared` or a Bot slug) is a read boundary only for surfaces that enforce it, such as viewer filtering; the database does not enforce it, and agent and Developer Mode reads ([ADR-0064](release.md#adr-0064)) are outside it. Direct diagnostic readers use the [read-only log contract](../dev/guides/reading-operational-logs.md).
 
 Why: diagnostics are high-volume and disposable. Keeping them in their own file avoids adding log traffic to operational writes and lets a Human export bounded evidence for support without sharing roster, Inbox or policy data.
 
@@ -99,9 +99,11 @@ Enforced by: [purge tests](../../packages/core/test/content-purge.test.ts) and [
 
 _Formerly ADR-0027 and ADR-0093. ADR-0019, ADR-0020 and ADR-0040 are retired._
 
-Applying a Model Preset copies its choices into an independent PersonaBot Model Plan. Profile Backup carries plans without credentials. Sharing a [Memory repository](memory.md#adr-0002) or [Bot Zip](../adr/0135-a-bot-moves-between-people-as-a-zip-of-its-memory-files.md) leaves model choice with the recipient. SoulSnapshot, the hosted Soul registry and the per-Bot PersonaBot Export are retired. Whole-Profile recovery uses the package described above.
+Applying a Model Preset copies its choices into an independent PersonaBot Model Plan. Profile Backup carries plans without credentials. Sharing a [Memory repository](memory.md#adr-0002) or [Bot Zip](bots.md#adr-0135) leaves model choice with the recipient. SoulSnapshot, the hosted Soul registry and the per-Bot PersonaBot Export are retired. Whole-Profile recovery uses the package described above.
 
 New Orchestrator turns and Assignment requests resolve their choices under the current plan and the Host's execution checks. An existing Assignment keeps its retained route until an authorized switch. A plan may fix only the Orchestrator and inherit the Profile's Assignment policy. Open Assignment mode admits additional catalog routes subject to role and credential checks. Presets and plans can reference a [Routing Group](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md) by ID, so edits to that group's membership can take effect at request boundaries without changing the applied preset snapshot.
+
+A Model Preset may also store a local Subscription Engine, model and effort for either role. Applying it validates the subscription choices before updating the Bot's DSH Model Plan and writes the engine selections through the Subscription Engine owner. A preset that omits an engine for a role preserves the Bot's existing engine setting for that role.
 
 Why: each Host has its own available providers, budget and credentials. Copying the template protects existing Bots from unrelated preset edits while preserving the Human's ability to manage a deliberately shared Routing Group.
 

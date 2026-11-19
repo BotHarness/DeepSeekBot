@@ -47,7 +47,7 @@ describe('Channel composer', () => {
     );
 
     expect(markup).not.toContain('bh-composer-activity-status');
-    expect(markup).toContain('class="bh-composer bh-composer-compact"');
+    expect(markup).toContain('data-layout="compact"');
     expect(markup).toContain('disabled=""');
   });
 

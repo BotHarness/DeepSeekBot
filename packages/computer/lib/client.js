@@ -334,6 +334,20 @@ window.__ModuleLoader__.load({
 				kKwaWg: "bhx18o3ruo bhxfdnnug",
 				$$css: true
 			},
+			preview: {
+				kVAEAm: "bhx1n2onr6",
+				kXwgrk: "bhxdt5ytf",
+				kzqmXN: "bhxh8yej3",
+				kZKoxP: "bhxt7dq6l",
+				kOBAk4: "bhx2ebxmi",
+				kmVPX3: "bhx1717udv",
+				kVQacm: "bhxb3r6kr",
+				kaIpWk: "bhxov8xcf",
+				kInvED: "bhxkmyskz",
+				kWkggS: "bhxp02wjs bhxqta4pg bhxl8ll33",
+				kMwMTN: "bhx14lg19 bhx3h2lrv",
+				$$css: true
+			},
 			icon: {
 				k1xSpc: "bhx3nfvp2",
 				kzqmXN: "bhx1x2ywmj",
@@ -343,11 +357,16 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, children, ...rest }, ref) {
+		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
+			const styled = props(styles$3.base, styles$3[size], styles$3[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
-				className: joinClass(props(styles$3.base, styles$3[size], styles$3[variant]).className, className),
+				className: joinClass(styled.className, className),
+				style: styled.style === void 0 ? style : {
+					...styled.style,
+					...style
+				},
 				children: [icon == null ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "bhx3nfvp2 bhx1x2ywmj bhx6nhqxt bhx6s0dn4 bhxl56j7k",
 					children: icon
@@ -357,6 +376,12 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
 		const styles$2 = {
+			wrap: {
+				khDVqt: "bhxeaf4i8",
+				kHjlTd: "bhxj0a0fe",
+				ks0D6T: "bhx193iq5w",
+				$$css: true
+			},
 			tag: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -410,13 +435,14 @@ window.__ModuleLoader__.load({
 				$$css: true
 			}
 		};
-		function Tag({ tone = "neutral", className, children }) {
+		const Tag = (0, react.forwardRef)(function Tag({ tone = "neutral", className, wrap = false, ...props$1 }, ref) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				...props$1,
+				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$2.tag, styles$2[tone]).className, className),
-				children
+				className: joinClass(props(styles$2.tag, styles$2[tone], wrap && styles$2.wrap).className, className)
 			});
-		}
+		});
 		//#endregion
 		//#region packages/client/src/client/channel-sidebar-icon.tsx
 		/**
@@ -10879,7 +10905,7 @@ window.__ModuleLoader__.load({
 				k1xSpc: "bhx78zum5",
 				kGNEyG: "bhx6s0dn4 bhx4bgz6 bhx15bqsqq",
 				kXwgrk: "bhx1q0g3np bhxcxmu7o bhx1uptv2i",
-				kOIVth: "bhx1mckxr8 bhx1kwkzks bhxv0lzym",
+				kOIVth: "bhxfe3e77 bhx1bsqh3l bhx32nsh3",
 				k7Eaqz: "bhxeuugli",
 				kAzted: "bhx1bciaxd",
 				kB7OPa: "bhx9f619",
@@ -10887,13 +10913,13 @@ window.__ModuleLoader__.load({
 				kg3NbH: "bhx1avbwx3",
 				kaIpWk: "bhx1voi8sm",
 				kWkggS: "bhx1auanwt",
-				kt9PQ7: "bhxrvphhj",
+				kt9PQ7: "bhxxobqf9",
 				kfdmCh: "bhx1q0q8m5",
 				kL6WhQ: "bhx16stqrj bhx79v8zp bhx2jbcm5",
 				$$css: true
 			}
 		};
-		function SettingsRow({ title, description, info, control, children, rootRef, data }) {
+		function SettingsRow({ title, icon, description, info, control, children, rootRef, data }) {
 			const id = (0, react.useId)();
 			const titleId = `${id}-title`;
 			const descriptionId = `${id}-description`;
@@ -10906,32 +10932,39 @@ window.__ModuleLoader__.load({
 				"data-settings-row": "",
 				...data,
 				...{
-					0: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1voi8sm bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5" },
-					1: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1auanwt bhxrvphhj bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5 bhxdylm0v" }
+					0: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhxfe3e77 bhx1bsqh3l bhx32nsh3 bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1voi8sm bhx1auanwt bhxxobqf9 bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5" },
+					1: { className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhxfe3e77 bhx1bsqh3l bhx32nsh3 bhxeuugli bhx1bciaxd bhx9f619 bhx1nxcsqp bhx1avbwx3 bhx1auanwt bhxxobqf9 bhx1q0q8m5 bhx16stqrj bhx79v8zp bhx2jbcm5 bhxdylm0v" }
 				}[!!!grouped << 0],
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
-					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "bhx78zum5 bhx6s0dn4 bhx12e6dxb bhxeuugli",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								id: titleId,
-								className: "bhx24dycr bhx5g6txa bhx3350y7 bhx1knm1co bhxj0a0fe",
-								children: title
-							}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
-								label: info.label,
-								text: info.text
-							})]
-						}),
-						description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							id: descriptionId,
-							className: "bhxwq55zj bhxgowt09 bhx12cu2lo bhxj0a0fe",
-							children: description
-						}),
-						children
-					]
+					className: "bhx78zum5 bhx1cy8zhl bhx1iyjqo2 bhxeuugli bhxvdlyrv",
+					children: [icon === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						"aria-hidden": "true",
+						className: "bhxrvj5dj bhx1ku5rj1 bhx2lah0s bhxtbbyp4 bhxe2ximv bhx14lg19",
+						children: icon
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "bhx78zum5 bhxdt5ytf bhx1c459s5 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "bhx78zum5 bhx6s0dn4 bhx1e5nl48 bhxeuugli",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									id: titleId,
+									className: "bhx103lb5k bhx1779mkw bhxe5wb2f bhx134zi0a bhxj0a0fe",
+									children: title
+								}), info === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(InfoTip, {
+									label: info.label,
+									text: info.text
+								})]
+							}),
+							description === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								id: descriptionId,
+								className: "bhx1axu3v7 bhxh82noc bhx1g71p44 bhxj0a0fe",
+								children: description
+							}),
+							children
+						]
+					})]
 				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
+					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhxvdlyrv bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
 					children: control
 				})]
 			});
@@ -11093,6 +11126,17 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		});
+		(0, react.forwardRef)(function HiddenFileInput({ className, ...props }, ref) {
+			const appearance = { className: "bhx10l6tqk bhx1i1rx1s bhxjm9jq1 bhxb3r6kr bhx1hyvwdk bhxuxw1ft" };
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+				ref,
+				...props,
+				type: "file",
+				tabIndex: -1,
+				...appearance,
+				className: joinClass(appearance.className, className)
+			});
+		});
 		//#endregion
 		//#region packages/client/src/client/ds/switch.tsx
 		function Switch({ checked, onChange, label, disabled = false, title, className }) {
@@ -11126,49 +11170,6 @@ window.__ModuleLoader__.load({
 				cleanup.current = void 0;
 				if (node !== null) cleanup.current = start(node) || void 0;
 			}, dependencies);
-		}
-		//#endregion
-		//#region packages/client/src/client/ds/note.tsx
-		const styles = {
-			note: {
-				kogj98: "bhx1ghz6dp",
-				kGuDYH: "bhxgowt09",
-				kLWn49: "bhx12cu2lo",
-				kHjlTd: "bhxj0a0fe",
-				$$css: true
-			},
-			inset: {
-				k8WAf4: "bhx89kiln",
-				kg3NbH: "bhx1w8vjyx",
-				$$css: true
-			},
-			muted: {
-				kMwMTN: "bhxr3raxm",
-				$$css: true
-			},
-			subtle: {
-				kMwMTN: "bhxwq55zj",
-				$$css: true
-			},
-			danger: {
-				kMwMTN: "bhx8ay0r6",
-				$$css: true
-			},
-			success: {
-				kMwMTN: "bhx1pideu2",
-				$$css: true
-			},
-			warning: {
-				kMwMTN: "bhxz9v26x",
-				$$css: true
-			}
-		};
-		function Note({ tone = "muted", inset = false, children }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-				role: tone === "danger" ? "alert" : "status",
-				...props(styles.note, inset && styles.inset, styles[tone]),
-				children
-			});
 		}
 		//#endregion
 		//#region node_modules/.pnpm/@base-ui+react@1.9.0_@date-fns+tz@1.5.0_@types+react@18.3.31_date-fns@4.4.0_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/@base-ui/react/menu/positioner/MenuPositionerContext.mjs
@@ -13500,7 +13501,7 @@ window.__ModuleLoader__.load({
 		function firstButton(node) {
 			return node?.querySelector("button, [tabindex]:not([tabindex=\"-1\"])") ?? node;
 		}
-		function Menu$1({ open, anchor, items = [], children, footer, selectedId, selectedIds, onSelect, onClose, align = "start", side = "bottom", portal = false, closeOnPointerLeave = false, dense = false, compact = false, selection = "check", autoFocus = false, returnFocus, anchorRef, point, container, className, listClassName }) {
+		function Menu({ open, anchor, items = [], children, footer, selectedId, selectedIds, onSelect, onClose, align = "start", side = "bottom", portal = false, closeOnPointerLeave = false, dense = false, compact = false, selection = "check", autoFocus = false, returnFocus, anchorRef, point, container, className, listClassName }) {
 			const wrapper = (0, react.useRef)(null);
 			const popup = (0, react.useRef)(null);
 			const previousFocus = (0, react.useRef)(null);
@@ -13627,9 +13628,52 @@ window.__ModuleLoader__.load({
 			});
 		});
 		//#endregion
+		//#region packages/client/src/client/ds/note.tsx
+		const styles = {
+			note: {
+				kogj98: "bhx1ghz6dp",
+				kGuDYH: "bhxgowt09",
+				kLWn49: "bhx12cu2lo",
+				kHjlTd: "bhxj0a0fe",
+				$$css: true
+			},
+			inset: {
+				k8WAf4: "bhx89kiln",
+				kg3NbH: "bhx1w8vjyx",
+				$$css: true
+			},
+			muted: {
+				kMwMTN: "bhxr3raxm",
+				$$css: true
+			},
+			subtle: {
+				kMwMTN: "bhxwq55zj",
+				$$css: true
+			},
+			danger: {
+				kMwMTN: "bhx8ay0r6",
+				$$css: true
+			},
+			success: {
+				kMwMTN: "bhx1pideu2",
+				$$css: true
+			},
+			warning: {
+				kMwMTN: "bhxz9v26x",
+				$$css: true
+			}
+		};
+		function Note({ tone = "muted", inset = false, children }) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+				role: tone === "danger" ? "alert" : "status",
+				...props(styles.note, inset && styles.inset, styles[tone]),
+				children
+			});
+		}
+		//#endregion
 		//#region packages/client/src/client/ds/pointer-menu.tsx
 		function PointerMenu({ point, container, align = "start", ...props }) {
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Menu$1, {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Menu, {
 				...props,
 				open: true,
 				point,
@@ -14163,7 +14207,7 @@ window.__ModuleLoader__.load({
 				disabled: disabled === true,
 				onClick: onToggle,
 				children: [label, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+					className: "bhx3nfvp2 bhx2lah0s bhx14lg19",
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
 						name: "chevron-down",
 						size: 12
@@ -14175,7 +14219,6 @@ window.__ModuleLoader__.load({
 			const snapshot = (0, react.useSyncExternalStore)(prefs.subscribe, prefs.getSnapshot);
 			const [targetError, setTargetError] = (0, react.useState)();
 			const [targetSaving, setTargetSaving] = (0, react.useState)(false);
-			const [idleOpen, setIdleOpen] = (0, react.useState)(false);
 			const [importOpen, setImportOpen] = (0, react.useState)(false);
 			const [archives, setArchives] = (0, react.useState)(void 0);
 			const [busy, setBusy] = (0, react.useState)(void 0);
@@ -14189,6 +14232,7 @@ window.__ModuleLoader__.load({
 			const [download, setDownload] = (0, react.useState)(void 0);
 			const [uploadName, setUploadName] = (0, react.useState)(void 0);
 			const uploadFile = (0, react.useRef)(null);
+			const settingsPart = (0, react.useRef)(null);
 			const [pickerBroken, setPickerBroken] = (0, react.useState)(false);
 			const [hostDir, setHostDir] = (0, react.useState)(void 0);
 			const [livePhase, setLivePhase] = (0, react.useState)(void 0);
@@ -14368,222 +14412,210 @@ window.__ModuleLoader__.load({
 				openDirectory(exportDir).catch((error) => setDirNote(String(error)));
 			}, [exportDir, openDirectory]);
 			const selectedFile = uploadName ?? (confirming === "import" ? archives?.[0] : void 0);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsGroupPart, { children: [
-				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					hidden: true,
-					ref: hostDirResource
-				}),
-				busy === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					hidden: true,
-					ref: busyResource
-				}),
-				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-					title: t("rows.target.title"),
-					description: t("rows.target.description"),
-					control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
-						label: t("rows.target.title"),
-						value: snapshot.target,
-						options: ["local", "container"].map((id) => ({
-							value: id,
-							label: t(`rows.target.${id}`)
-						})),
-						disabled: !writable || targetSaving,
-						onChange: (id) => {
-							setTargetSaving(true);
-							setTargetError(void 0);
-							prefs.setTarget(id).catch((error) => setTargetError(String(error))).finally(() => setTargetSaving(false));
-						}
-					})
-				}),
-				targetError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
-					tone: "danger",
-					children: targetError
-				}),
-				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-					title: t("rows.autoAllow.title"),
-					description: t("rows.autoAllow.description"),
-					control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Switch, {
-						checked: snapshot.autoAllowActions,
-						disabled: !writable,
-						onChange: (next) => {
-							prefs.setAutoAllowActions(next);
-						},
-						label: t("rows.autoAllow.title")
-					})
-				}),
-				snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
-					t,
-					observeResource
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-						title: t("rows.exportDir.title"),
-						description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
-						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-							canAdjust ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PillButton, {
-								disabled: !writable,
-								onClick: pickExportDir,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
-									name: "folder-open",
-									size: 14
-								}), t("rows.exportDir.pick")]
-							}) : null,
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-								disabled: !hasDir,
-								onClick: openDir,
-								children: t("rows.exportDir.open")
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-								disabled: !writable,
-								onClick: () => {
-									setManualOpen((value) => !value);
-									setManualPath(exportDir);
-								},
-								children: t("rows.exportDir.manual")
-							})
-						] })
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(SettingsGroupPart, {
+				rootRef: settingsPart,
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						hidden: true,
+						ref: hostDirResource
 					}),
-					manualOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "bhx78zum5 bhx6s0dn4 bhx1mckxr8 bhxeuugli bhxe74ayl bhxrvphhj bhx1q0q8m5 bhxnoyelg",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input, {
-							className: { className: "bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli" }.className ?? "",
-							value: manualPath,
-							placeholder: "/absolute/path",
-							"aria-label": t("rows.exportDir.manual"),
-							onChange: (event) => {
-								setManualPath(event.target.value);
-							}
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-							disabled: !writable || saving || manualPath.trim() === "",
-							onClick: saveManualPath,
-							children: saving ? t("rows.exportDir.saving") : t("rows.exportDir.save")
-						})]
-					}) : null,
-					dirNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: dirNote }),
+					busy === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						hidden: true,
+						ref: busyResource
+					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-						title: t("rows.idle.title"),
-						description: t("rows.idle.description"),
-						control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-							listClassName: "bh-appearance-scope",
-							open: idleOpen,
-							portal: true,
-							align: "end",
-							items: IDLE_OPTIONS.map((minutes) => ({
-								id: String(minutes),
-								label: t("rows.idle.minutes", { minutes })
+						title: t("rows.target.title"),
+						description: t("rows.target.description"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
+							label: t("rows.target.title"),
+							value: snapshot.target,
+							options: ["local", "container"].map((id) => ({
+								value: id,
+								label: t(`rows.target.${id}`)
 							})),
-							selectedId: String(snapshot.idleStopMinutes),
-							onSelect: (id) => {
-								setIdleOpen(false);
-								prefs.setIdleStopMinutes(Number(id));
-							},
-							onClose: () => {
-								setIdleOpen(false);
-							},
-							anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
-								label: t("rows.idle.minutes", { minutes: snapshot.idleStopMinutes }),
-								open: idleOpen,
-								disabled: !writable,
-								onToggle: () => {
-									setIdleOpen((value) => !value);
-								}
-							})
+							disabled: !writable || targetSaving,
+							onChange: (id) => {
+								setTargetSaving(true);
+								setTargetError(void 0);
+								prefs.setTarget(id).catch((error) => setTargetError(String(error))).finally(() => setTargetSaving(false));
+							}
 						})
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-						title: t("rows.exportSection.title"),
-						description: t("rows.exportSection.description"),
-						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-							onClick: () => {
-								setConfirming(void 0);
-							},
-							children: t("entry.cancel")
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-							onClick: runExport,
-							children: t("rows.authorizeExport")
-						})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-							disabled: !hasDir && !canAdjust || busy !== void 0,
-							onClick: startExport,
-							children: busy === "export" ? t("rows.exporting") : canAdjust ? t("rows.exportTo") : t("rows.export")
-						}), download === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-							onClick: () => {
-								globalThis.location?.assign(downloadUrl(download.token));
-							},
-							children: t("rows.download")
-						})] })
+					targetError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, {
+						tone: "danger",
+						children: targetError
 					}),
-					confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.exportTarget", { dir: exportTarget ?? exportDir }) }) : null,
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
-						title: t("rows.importSection.title"),
-						description: t("rows.importSection.description"),
-						control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-							uploadName !== void 0 ? null : confirming === "import" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+						title: t("rows.autoAllow.title"),
+						description: t("rows.autoAllow.description"),
+						control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Switch, {
+							checked: snapshot.autoAllowActions,
+							disabled: !writable,
+							onChange: (next) => {
+								prefs.setAutoAllowActions(next);
+							},
+							label: t("rows.autoAllow.title")
+						})
+					}),
+					snapshot.target === "local" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LocalComputerStatus, {
+						t,
+						observeResource
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+							title: t("rows.exportDir.title"),
+							description: hasDir ? t("rows.exportDir.current", { dir: exportDir }) : t("rows.exportDir.empty"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+								canAdjust ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(PillButton, {
+									disabled: !writable,
+									onClick: pickExportDir,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, {
+										name: "folder-open",
+										size: 14
+									}), t("rows.exportDir.pick")]
+								}) : null,
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									disabled: !hasDir,
+									onClick: openDir,
+									children: t("rows.exportDir.open")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									disabled: !writable,
+									onClick: () => {
+										setManualOpen((value) => !value);
+										setManualPath(exportDir);
+									},
+									children: t("rows.exportDir.manual")
+								})
+							] })
+						}),
+						manualOpen ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "bhx78zum5 bhx6s0dn4 bhxfe3e77 bhxeuugli bhxagcfdd bhx1a02dak",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Input, {
+								className: { className: "bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli" }.className ?? "",
+								value: manualPath,
+								placeholder: "/absolute/path",
+								"aria-label": t("rows.exportDir.manual"),
+								onChange: (event) => {
+									setManualPath(event.target.value);
+								}
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: !writable || saving || manualPath.trim() === "",
+								onClick: saveManualPath,
+								children: saving ? t("rows.exportDir.saving") : t("rows.exportDir.save")
+							})]
+						}) : null,
+						dirNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: dirNote }),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+							title: t("rows.idle.title"),
+							description: t("rows.idle.description"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Select, {
+								label: t("rows.idle.title"),
+								value: String(snapshot.idleStopMinutes),
+								options: IDLE_OPTIONS.map((minutes) => ({
+									value: String(minutes),
+									label: t("rows.idle.minutes", { minutes })
+								})),
+								disabled: !writable,
+								onChange: (value) => prefs.setIdleStopMinutes(Number(value))
+							})
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+							title: t("rows.exportSection.title"),
+							description: t("rows.exportSection.description"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
 								onClick: () => {
 									setConfirming(void 0);
 								},
-								children: t("rows.cancelImport")
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-								listClassName: "bh-appearance-scope",
-								open: importOpen,
-								portal: true,
-								align: "end",
-								items: (archives ?? []).map((file) => ({
-									id: file,
-									label: file
-								})),
-								onSelect: (id) => {
-									setConfirming("import");
-									setArchives([id]);
-								},
-								onClose: () => {
-									setImportOpen(false);
-								},
-								anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
-									label: busy === "import" ? t("rows.importing") : t("rows.import"),
-									open: importOpen,
-									disabled: !hasDir || busy !== void 0,
-									onToggle: openImport
-								})
-							}),
-							uploadName === void 0 && confirming === "import" && archives?.[0] !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-								disabled: busy !== void 0,
-								onClick: () => {
-									const file = archives[0];
-									if (file !== void 0) runImport(file);
-								},
-								children: t("rows.authorizeImportConfirm")
-							}) : null,
-							uploadName !== void 0 || confirming === "import" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillFileButton, {
-								accept: ".tar,application/x-tar",
-								disabled: busy !== void 0,
-								onChange: (event) => {
-									const file = event.target.files?.[0] ?? null;
-									event.target.value = "";
-									takeUploadFile(file);
-								},
-								children: t("rows.chooseFile")
-							}),
-							uploadName === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-								onClick: () => {
-									setUploadName(void 0);
-									uploadFile.current = null;
-								},
 								children: t("entry.cancel")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
-								disabled: busy !== void 0,
-								onClick: runUpload,
-								children: busy === "upload" ? t("rows.importing") : t("rows.authorizeImportConfirm")
+								onClick: runExport,
+								children: t("rows.authorizeExport")
+							})] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								disabled: !hasDir && !canAdjust || busy !== void 0,
+								onClick: startExport,
+								children: busy === "export" ? t("rows.exporting") : canAdjust ? t("rows.exportTo") : t("rows.export")
+							}), download === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+								onClick: () => {
+									globalThis.location?.assign(downloadUrl(download.token));
+								},
+								children: t("rows.download")
 							})] })
-						] })
-					}),
-					selectedFile === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: "bhx1ghz6dp bhxb3r6kr bhxlyipyv bhxuxw1ft bhxr3raxm bhxgowt09 bhx12cu2lo",
-						children: selectedFile
-					}),
-					busy !== void 0 && phaseKey !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: `${t(phaseKey)} · ${t("entry.elapsed", { seconds: liveElapsed })}` }) : null
-				] }),
-				snapshot.status === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.noSettings") }) : null,
-				snapshot.target !== "container" || transferNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: transferNote })
-			] });
+						}),
+						confirming === "export" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.exportTarget", { dir: exportTarget ?? exportDir }) }) : null,
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SettingsRow, {
+							title: t("rows.importSection.title"),
+							description: t("rows.importSection.description"),
+							control: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+								uploadName !== void 0 ? null : confirming === "import" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									onClick: () => {
+										setConfirming(void 0);
+									},
+									children: t("rows.cancelImport")
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Menu, {
+									open: importOpen,
+									portal: true,
+									autoFocus: true,
+									container: settingsPart.current?.closest("[role=\"dialog\"]") ?? void 0,
+									align: "end",
+									items: (archives ?? []).map((file) => ({
+										id: file,
+										label: file
+									})),
+									onSelect: (id) => {
+										setConfirming("import");
+										setArchives([id]);
+									},
+									onClose: () => {
+										setImportOpen(false);
+									},
+									anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Selector, {
+										label: busy === "import" ? t("rows.importing") : t("rows.import"),
+										open: importOpen,
+										disabled: !hasDir || busy !== void 0,
+										onToggle: openImport
+									})
+								}),
+								uploadName === void 0 && confirming === "import" && archives?.[0] !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									disabled: busy !== void 0,
+									onClick: () => {
+										const file = archives[0];
+										if (file !== void 0) runImport(file);
+									},
+									children: t("rows.authorizeImportConfirm")
+								}) : null,
+								uploadName !== void 0 || confirming === "import" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillFileButton, {
+									accept: ".tar,application/x-tar",
+									disabled: busy !== void 0,
+									onChange: (event) => {
+										const file = event.target.files?.[0] ?? null;
+										event.target.value = "";
+										takeUploadFile(file);
+									},
+									children: t("rows.chooseFile")
+								}),
+								uploadName === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									onClick: () => {
+										setUploadName(void 0);
+										uploadFile.current = null;
+									},
+									children: t("entry.cancel")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PillButton, {
+									disabled: busy !== void 0,
+									onClick: runUpload,
+									children: busy === "upload" ? t("rows.importing") : t("rows.authorizeImportConfirm")
+								})] })
+							] })
+						}),
+						selectedFile === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "bhx1ghz6dp bhxb3r6kr bhxlyipyv bhxuxw1ft bhx14lg19 bhxh82noc bhx1g71p44",
+							children: selectedFile
+						}),
+						busy !== void 0 && phaseKey !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: `${t(phaseKey)} · ${t("entry.elapsed", { seconds: liveElapsed })}` }) : null
+					] }),
+					snapshot.status === "unavailable" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("rows.noSettings") }) : null,
+					snapshot.target !== "container" || transferNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: transferNote })
+				]
+			});
 		}
 		//#endregion
 		//#region packages/client/src/client/telemetry-surface.ts
@@ -14617,7 +14649,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/stylex-css.ts
-		const STYLEX_CSS = "\n.bhx-level-0{}\n@keyframes bhx18re5ia-B{from{opacity:0;}to{opacity:1;}}\n.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}\n.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}\n.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}\n.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}\n.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}\n.bhx-level-1:not(#\\#){}\n.bhxln7xf2:not(#\\#){font:inherit}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1717udv:not(#\\#){padding:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}\n.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}\n.bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhx1y0btm7:not(#\\#):not(#\\#){border-style:solid}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}\n.bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx1e5nl48:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx14t6loe:not(#\\#):not(#\\#){margin-block:2px}\n.bhx14zrpzh:not(#\\#):not(#\\#){margin-inline:2px}\n.bhxw7g2o2:not(#\\#):not(#\\#){margin-inline:4px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhx7giv3:not(#\\#):not(#\\#){overflow:clip}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}\n.bhxe74ayl:not(#\\#):not(#\\#){padding-block:12px}\n.bhxgxqyfi:not(#\\#):not(#\\#){padding-block:1px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx7em7do:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx14i569m:not(#\\#):not(#\\#){padding-inline:8px}\n.bhx1j7gxbw:not(#\\#):not(#\\#){padding-inline:8px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxup6t74:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}\n.bhx1decy8s:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}\n.bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}\n.bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}\n.bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}\n.bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}\n.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}\n.bhx1m3nrc0:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhx1nycijx:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}\n.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}\n.bhx1tfgve3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-line-divider)}\n.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}\n.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}\n.bhx17wyupo:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-track, var(--tobs-style-on-page-track))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxxt5fwl:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-selected)}\n.bhxw91tbh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-tint)}\n.bhx1q91288:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-success-tint)}\n.bhxl8vzxm:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-warning-tint)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx1x7efqg:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-switch-thumb-off-fill)}\n.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}\n.bhx1yc4nx5:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 0 0 .5px var(--tobs-style-list-group-edge)}\n.bhx1dm6lkz:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 1px 2px var(--tobs-style-switch-thumb-off-shadow)}\n.bhx1hle45t:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhxnyootd:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}\n.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}\n.bhx1gnnqk1:not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}\n.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}\n.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhxyja9ir:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-solid)}\n.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx14lg19:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwm96u7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-layer-canvas)}\n.bhx1btfezm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-state-selected-ink)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxcz3oas:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-ink)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx65eiyc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-ink)}\n.bhxv008iy:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-button-secondary-ink)}\n.bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}\n.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx1lliihq:not(#\\#):not(#\\#):not(#\\#){display:block}\n.bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}\n.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx1knm1co:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}\n.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}\n.bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}\n.bhxtrec30:not(#\\#):not(#\\#):not(#\\#){transition-duration:120ms}\n.bhxjk0iim:not(#\\#):not(#\\#):not(#\\#){transition-property:transform,width,height,background-color}\n.bhxtp3wbg:not(#\\#):not(#\\#):not(#\\#){transition-timing-function:cubic-bezier(0.2, 0, 0, 1)}\n.bhx87ps6o:not(#\\#):not(#\\#):not(#\\#){user-select:none}\n.bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}\n.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}\n.bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxd7xfip:is([data-danger] *):not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhx6vyjea:has(> section):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}\n.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}\n.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}\n.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx16stqrj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n.bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-line-divider)}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1odvp7i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-color:var(--tobs-line-divider)}\n.bhx13fuv20:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-style:solid}\n.bhxgm6bnx:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-width:1px}\n.bhx121clqe:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhx17rw0jw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:22px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}\n.bhx5ej1o7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-height)}\n.bhx15ro3sd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-off)}\n.bhx1xd5puz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-on)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhxes3if4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){margin-top:2px}\n.bhx8l92br:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:var(--available-height,70vh)}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx74h4c1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:min(320px,calc(100vw - 32px))}\n.bhx2lwn1j:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:0}\n.bhxov48po:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:24px}\n.bhxpjic2s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:28px}\n.bhx1ty6q3q:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:32px}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1i9suas:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:120px}\n.bhx1d77m7x:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:140px}\n.bhx1oslful:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:22px}\n.bhx1odjw0f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){overflow-y:auto}\n.bhxexzqx0:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx1f2dah2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:2px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx1bev70i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:calc(100% - 2px * 2)}\n.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}\n.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}\n.bhx16m33ld:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-off)}\n.bhxxbn18l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-on)}\n.bhxhtpqs2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-width)}\n.bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n.bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-6:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-7:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-8:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1t6c47z:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#)::placeholder{color:var(--tobs-ink-tertiary)}\n";
+		const STYLEX_CSS = "\n@property --x-backgroundColor { syntax: \"*\"; inherits: false;}\n.bhx-level-0{}\n@keyframes bhx18re5ia-B{from{opacity:0;}to{opacity:1;}}\n.bhxvn5hdi{--tobs-on-field:var(--tobs-style-on-card-field)}\n.bhxwe5oui{--tobs-on-field-edge:var(--tobs-style-on-card-field-edge)}\n.bhxweo6jt{--tobs-on-secondary:var(--tobs-style-on-card-secondary)}\n.bhx1f506l2{--tobs-on-secondary-edge:var(--tobs-style-on-card-secondary-edge)}\n.bhxgbxpun{--tobs-on-track:var(--tobs-style-on-card-track)}\n.bhx-level-1:not(#\\#){}\n.bhxln7xf2:not(#\\#){font:inherit}\n.bhx10a8y8t:not(#\\#){inset:0}\n.bhx1ghz6dp:not(#\\#){margin:0}\n.bhx1717udv:not(#\\#){padding:0}\n.bhx1tsjn1a:not(#\\#){padding:16px}\n.bhx-level-2:not(#\\#):not(#\\#){}\n.bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}\n.bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}\n.bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}\n.bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}\n.bhxdylm0v:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-group-radius)}\n.bhx1voi8sm:not(#\\#):not(#\\#){border-radius:var(--tobs-style-list-item-radius)}\n.bhxov8xcf:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-card)}\n.bhx10e1no3:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-container)}\n.bhxamr80a:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhxvz6vxc:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-control)}\n.bhx1i9s7pd:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-menu)}\n.bhx4g09nt:not(#\\#):not(#\\#){border-radius:var(--tobs-style-radius-small)}\n.bhxbsl7fq:not(#\\#):not(#\\#){border-style:dashed}\n.bhx1y0btm7:not(#\\#):not(#\\#){border-style:solid}\n.bhxc342km:not(#\\#):not(#\\#){border-width:0}\n.bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}\n.bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}\n.bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}\n.bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}\n.bhxfe3e77:not(#\\#):not(#\\#){gap:12px}\n.bhx1c459s5:not(#\\#):not(#\\#){gap:2px}\n.bhx5v8n67:not(#\\#):not(#\\#){gap:2px}\n.bhx12e6dxb:not(#\\#):not(#\\#){gap:4px}\n.bhx1e5nl48:not(#\\#):not(#\\#){gap:4px}\n.bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}\n.bhxvdlyrv:not(#\\#):not(#\\#){gap:8px}\n.bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}\n.bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}\n.bhx14t6loe:not(#\\#):not(#\\#){margin-block:2px}\n.bhx14zrpzh:not(#\\#):not(#\\#){margin-inline:2px}\n.bhxw7g2o2:not(#\\#):not(#\\#){margin-inline:4px}\n.bhx1a2a7pz:not(#\\#):not(#\\#){outline:none}\n.bhx7giv3:not(#\\#):not(#\\#){overflow:clip}\n.bhxb3r6kr:not(#\\#):not(#\\#){overflow:hidden}\n.bhxt970qd:not(#\\#):not(#\\#){padding-block:0}\n.bhxagcfdd:not(#\\#):not(#\\#){padding-block:12px}\n.bhxgxqyfi:not(#\\#):not(#\\#){padding-block:1px}\n.bhx1tv32aw:not(#\\#):not(#\\#){padding-block:24px}\n.bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}\n.bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}\n.bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}\n.bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}\n.bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}\n.bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}\n.bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}\n.bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}\n.bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx7em7do:not(#\\#):not(#\\#){padding-inline:4px}\n.bhx14i569m:not(#\\#):not(#\\#){padding-inline:8px}\n.bhx1j7gxbw:not(#\\#):not(#\\#){padding-inline:8px}\n.bhxpd76p7:not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxf5xh8h:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-group-padding-inline)}\n.bhx1avbwx3:not(#\\#):not(#\\#){padding-inline:var(--tobs-style-list-item-padding)}\n.bhx1ku5rj1:not(#\\#):not(#\\#){place-items:center}\n.bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}\n.bhxup6t74:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}\n.bhx1decy8s:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}\n.bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}\n.bhx38levs:has(:focus-visible):not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}\n.bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}\n.bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}\n@media (max-width: 648px){.bhx32nsh3.bhx32nsh3:not(#\\#):not(#\\#){gap:8px}}\n@container bh-settings (max-width: 480px){.bhx1bsqh3l.bhx1bsqh3l:not(#\\#):not(#\\#){gap:8px}}\n.bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}\n.bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--tobs-accent-solid)}\n.bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}\n.bhx1cy8zhl:not(#\\#):not(#\\#):not(#\\#){align-items:flex-start}\n.bhx1qjc9v5:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}\n.bhx1cbrp87:not(#\\#):not(#\\#):not(#\\#){animation-duration:120ms}\n.bhxpv5g7k:not(#\\#):not(#\\#):not(#\\#){animation-name:bhx18re5ia-B}\n.bhx2ebxmi:not(#\\#):not(#\\#):not(#\\#){aspect-ratio:16 / 10}\n.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 8%, var(--tobs-layer-raised))}\n.bhxjbqb8w:not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhxn8qxt5:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-on-solid)}\n.bhx1rolmtn:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid)}\n.bhx1m3nrc0:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhx1nycijx:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-tint)}\n.bhxdoljrk:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-ink-primary)}\n.bhx1k5awnc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxibs1lc:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-elevated)}\n.bhxp02wjs:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-layer-well)}\n.bhx1tfgve3:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-line-divider)}\n.bhxym0p2z:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-field, var(--tobs-style-on-page-field))}\n.bhxooed33:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-secondary, var(--tobs-style-on-page-secondary))}\n.bhx17wyupo:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-on-track, var(--tobs-style-on-page-track))}\n.bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxxt5fwl:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-selected)}\n.bhxw91tbh:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-danger-tint)}\n.bhx1q91288:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-success-tint)}\n.bhxl8vzxm:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-status-warning-tint)}\n.bhx18mhnxz:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-group-fill)}\n.bhx1auanwt:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-list-item-fill)}\n.bhx1x7efqg:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-switch-thumb-off-fill)}\n.bhxl8spv7:not(#\\#):not(#\\#):not(#\\#){background-color:var(--x-backgroundColor)}\n.bhx18o3ruo:not(#\\#):not(#\\#):not(#\\#){background-image:none}\n.bhx1yc4nx5:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 0 0 .5px var(--tobs-style-list-group-edge)}\n.bhx1dm6lkz:not(#\\#):not(#\\#):not(#\\#){box-shadow:0 1px 2px var(--tobs-style-switch-thumb-off-shadow)}\n.bhx1hle45t:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhxnyootd:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-edge)}\n.bhx19f2fol:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-line-strong)}\n.bhx1ikcoup:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-field-edge, var(--tobs-style-on-page-field-edge))}\n.bhx1nopuv3:not(#\\#):not(#\\#):not(#\\#){box-shadow:inset 0 0 0 1px var(--tobs-on-secondary-edge, var(--tobs-style-on-page-secondary-edge))}\n.bhx1gnnqk1:not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxjtbsy0:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-1)}\n.bhxb3z3mx:not(#\\#):not(#\\#):not(#\\#){box-shadow:var(--tobs-elevation-2)}\n.bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}\n.bhx1hyvwdk:not(#\\#):not(#\\#):not(#\\#){clip-path:inset(50%)}\n.bhx1heor9g:not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhxigofnc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-ink)}\n.bhx14w2d3c:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-on-solid)}\n.bhxyja9ir:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-accent-solid)}\n.bhx103lb5k:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-primary)}\n.bhx14lg19:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhxr3raxm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n.bhx1axu3v7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwq55zj:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-tertiary)}\n.bhxwm96u7:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-layer-canvas)}\n.bhx1btfezm:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-state-selected-ink)}\n.bhx8ay0r6:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-base)}\n.bhx1cq2c6i:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-danger-ink)}\n.bhx1pideu2:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-base)}\n.bhxcz3oas:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-success-ink)}\n.bhxz9v26x:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-base)}\n.bhx65eiyc:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-status-warning-ink)}\n.bhxv008iy:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-button-secondary-ink)}\n.bhx19wxcwi:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-text-section-title)}\n.bhx1146j2:not(#\\#):not(#\\#):not(#\\#){cursor:help}\n.bhx1ypdohk:not(#\\#):not(#\\#):not(#\\#){cursor:pointer}\n.bhx1lliihq:not(#\\#):not(#\\#):not(#\\#){display:block}\n.bhxjp7ctv:not(#\\#):not(#\\#):not(#\\#){display:contents}\n.bhx78zum5:not(#\\#):not(#\\#):not(#\\#){display:flex}\n.bhxrvj5dj:not(#\\#):not(#\\#):not(#\\#){display:grid}\n.bhx3nfvp2:not(#\\#):not(#\\#):not(#\\#){display:inline-flex}\n.bhx1r8uery:not(#\\#):not(#\\#):not(#\\#){flex-basis:0}\n.bhxdt5ytf:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}\n.bhx1q0g3np:not(#\\#):not(#\\#):not(#\\#){flex-direction:row}\n.bhx1iyjqo2:not(#\\#):not(#\\#):not(#\\#){flex-grow:1}\n.bhx2lah0s:not(#\\#):not(#\\#):not(#\\#){flex-shrink:0}\n.bhxs83m0k:not(#\\#):not(#\\#):not(#\\#){flex-shrink:1}\n.bhx1a02dak:not(#\\#):not(#\\#):not(#\\#){flex-wrap:wrap}\n.bhxjb2p0i:not(#\\#):not(#\\#):not(#\\#){font-family:inherit}\n.bhxmz2490:not(#\\#):not(#\\#):not(#\\#){font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}\n.bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}\n.bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}\n.bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}\n.bhx134zi0a:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}\n.bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxc9sfzf:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}\n.bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}\n.bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}\n.bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}\n.bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}\n.bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}\n.bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}\n.bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}\n.bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}\n.bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}\n.bhxg01cxk:not(#\\#):not(#\\#):not(#\\#){opacity:0}\n.bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}\n.bhx1g40iwv:not(#\\#):not(#\\#):not(#\\#){outline-offset:-1px}\n.bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}\n.bhx18n8c13:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}\n.bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}\n.bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}\n.bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}\n.bhxocwxb3:not(#\\#):not(#\\#):not(#\\#){padding-inline-start:8px}\n.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}\n.bhx10l6tqk:not(#\\#):not(#\\#):not(#\\#){position:absolute}\n.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}\n.bhx1n2onr6:not(#\\#):not(#\\#):not(#\\#){position:relative}\n.bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}\n.bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}\n.bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}\n.bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}\n.bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}\n.bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}\n.bhxtrec30:not(#\\#):not(#\\#):not(#\\#){transition-duration:120ms}\n.bhxjk0iim:not(#\\#):not(#\\#):not(#\\#){transition-property:transform,width,height,background-color}\n.bhxtp3wbg:not(#\\#):not(#\\#):not(#\\#){transition-timing-function:cubic-bezier(0.2, 0, 0, 1)}\n.bhx87ps6o:not(#\\#):not(#\\#):not(#\\#){user-select:none}\n.bhxxymvpz:not(#\\#):not(#\\#):not(#\\#){vertical-align:middle}\n.bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}\n.bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}\n.bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}\n.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}\n.bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}\n.bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxl8ll33:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-style-choice-selected-fill)}\n.bhxd7xfip:is([data-danger] *):not(#\\#):not(#\\#):not(#\\#){color:inherit}\n.bhx3h2lrv:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-choice-selected-ink)}\n.bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}\n.bhx6vyjea:has(> section):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}\n.bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}\n.bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}\n.bhx1lfpgzf:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.4}\n.bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}\n.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--tobs-ink-primary) 13%, var(--tobs-layer-raised))}\n.bhx1a36vn4:hover:not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-ink-secondary)}\n@media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@media (prefers-reduced-motion: reduce){.bhx1u6grsq.bhx1u6grsq:not(#\\#):not(#\\#):not(#\\#){animation-duration:0s}}\n@media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}\n.bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}\n.bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}\n.bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}\n@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}\n@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}\n@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}\n.bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx16stqrj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}\n.bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}\n.bhxxobqf9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}\n.bhx1odvp7i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-color:var(--tobs-line-divider)}\n.bhx13fuv20:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-style:solid}\n.bhxgm6bnx:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-top-width:1px}\n.bhx5yr21d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:100%}\n.bhx121clqe:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhxjm9jq1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}\n.bhx17rw0jw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:22px}\n.bhxm58u58:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:24px}\n.bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}\n.bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}\n.bhxt7dq6l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:auto}\n.bhx1cbrj4c:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height-large)}\n.bhxisypcw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-control-height)}\n.bhx6nhqxt:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-size)}\n.bhxe2ximv:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-icon-slot)}\n.bhx5ej1o7:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-height)}\n.bhx15ro3sd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-off)}\n.bhx1xd5puz:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:var(--tobs-style-switch-thumb-on)}\n.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}\n.bhxes3if4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){margin-top:2px}\n.bhx8l92br:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-height:var(--available-height,70vh)}\n.bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}\n.bhx1jkqq1h:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:280px}\n.bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}\n.bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}\n.bhx74h4c1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:min(320px,calc(100vw - 32px))}\n.bhx2lwn1j:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:0}\n.bhxov48po:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:24px}\n.bhxpjic2s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:28px}\n.bhx1ty6q3q:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:32px}\n.bhx1bciaxd:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-height:var(--tobs-style-row-list)}\n.bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}\n.bhx1i9suas:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:120px}\n.bhx1d77m7x:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:140px}\n.bhx1oslful:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:22px}\n.bhx1odjw0f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){overflow-y:auto}\n.bhx6qpzc:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:8px}\n.bhx8hsu8p:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}\n.bhx1f2dah2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:2px}\n.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}\n.bhxwa60dl:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:50%}\n.bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}\n.bhx1i1rx1s:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}\n.bhx13k4gh1:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:20px}\n.bhx1lify8o:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:24px}\n.bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}\n.bhx1bev70i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:calc(100% - 2px * 2)}\n.bhxezivpi:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:max-content}\n.bhx1x2ywmj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-size)}\n.bhxtbbyp4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-icon-slot)}\n.bhx16m33ld:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-off)}\n.bhxxbn18l:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-thumb-on)}\n.bhxhtpqs2:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:var(--tobs-style-switch-width)}\n.bhx2jbcm5.bhx2jbcm5:where(.bhx-default-marker:has(~ :is([data-settings-row], [data-settings-part])) *):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx79v8zp:has(~ :is([data-settings-row], [data-settings-part])):not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--tobs-style-list-separator)}\n.bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}\n@media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}\n.bhx-level-5:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-6:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-7:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx-level-8:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#){}\n.bhx1t6c47z:not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#):not(#\\#)::placeholder{color:var(--tobs-ink-tertiary)}\n";
 		//#endregion
 		//#region packages/computer/src/client/index.tsx
 		const ACCESS_STYLE = `

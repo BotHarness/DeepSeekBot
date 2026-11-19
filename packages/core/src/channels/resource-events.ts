@@ -11,6 +11,7 @@ const unscopedResources = z.enum([
   'reachable-posts',
   'onboarding',
   'account',
+  'model-providers',
 ]);
 
 const cardResources = z.enum(['tool-approval', 'user-question']);
@@ -29,7 +30,7 @@ export const resourceChangeSchema = z.discriminatedUnion('resource', [
 
 export type LiveResource = z.infer<typeof liveResourceSchema>;
 
-export const OWNER_ONLY_RESOURCES: ReadonlySet<LiveResource> = new Set([
+export const RESTRICTED_RESOURCES: ReadonlySet<LiveResource> = new Set([
   'devices',
   'relationships',
   'computer',
@@ -37,6 +38,7 @@ export const OWNER_ONLY_RESOURCES: ReadonlySet<LiveResource> = new Set([
   'reachable-posts',
   'onboarding',
   'account',
+  'model-providers',
 ]);
 export type ResourceChange = z.infer<typeof resourceChangeSchema>;
 export type UnscopedResource = z.infer<typeof unscopedResources>;

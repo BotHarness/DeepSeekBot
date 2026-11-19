@@ -6,8 +6,9 @@ import * as stylex from '@stylexjs/stylex';
 import { Note } from './ds/note.js';
 import { Input } from './ds/input.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { radius, size, space } from './ds/tobs.stylex.js';
+import { PreviewChoices } from './ds/preview-choice.js';
+import { Icon } from './ds/icon.js';
 import { HostGlyph } from './host-glyph.js';
 import { hostLooks, useHostLook, useHostLookError } from './host-looks.js';
 import { useBotColorScheme } from './bot-color-scheme.js';
@@ -25,37 +26,20 @@ import {
   type HostLook,
 } from '@botharness/host-client/ui/design/host-look';
 
-const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
 const styles = stylex.create({
-  nameField: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
-  editor: { display: 'flex', flexDirection: 'column', gap: space.x5 },
-  emoji: { fontSize: text.titleSize, lineHeight: text.metaLine },
-  section: { display: 'flex', flexDirection: 'column', gap: space.x2 },
-  sectionName: { color: color.subtle, fontSize: text.metaSize, lineHeight: text.metaLine },
-  grid: { display: 'flex', flexWrap: 'wrap', gap: space.x1 },
-  choice: {
-    display: 'inline-flex',
+  recovery: {
+    display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: space.x3,
+  },
+  nameField: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
+  swatch: (value: string) => ({
+    display: 'block',
     width: size.icon,
     height: size.icon,
-    padding: 0,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: 'transparent',
-    borderRadius: radius.sm,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.fg,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    outline: focusRing,
-    outlineOffset: '-2px',
-  },
-  chosen: { borderColor: color.accent, backgroundColor: color.selected },
-  swatch: (value: string) => ({
-    width: text.titleSize,
-    height: text.titleSize,
-    borderRadius: radius.round,
+    borderRadius: radius.full,
     backgroundColor: value,
   }),
 });
@@ -190,116 +174,69 @@ export function HostLookSettings({
   };
   return (
     <SettingsSection title={title}>
-      <div {...stylex.props(styles.editor)}>
-        {error || storageError ? (
-          <div {...stylex.props(styles.section)}>
-            <Note tone="danger">
-              {t(
-                storageError === 'host-look-lock-unavailable'
-                  ? 'remoteHosts.look.unsupported'
-                  : 'remoteHosts.look.failed',
-              )}
-            </Note>
-            <ActionButton
-              icon="refresh"
-
-              onClick={() => {
-                void refresh();
-              }}
-            >
-              {t('remoteHosts.look.refresh')}
-            </ActionButton>
-          </div>
-        ) : null}
-        <HostNameField hostId={hostId} name={name} saved={look.name} change={change} t={t} />
-        <div {...stylex.props(styles.section)}>
-          <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.symbols')}</span>
-          <div
-            {...stylex.props(styles.grid)}
-            role="radiogroup"
-            aria-label={t('remoteHosts.look.symbols')}
+      {error || storageError ? (
+        <div {...stylex.props(styles.recovery)}>
+          <Note tone="danger">
+            {t(
+              storageError === 'host-look-lock-unavailable'
+                ? 'remoteHosts.look.unsupported'
+                : 'remoteHosts.look.failed',
+            )}
+          </Note>
+          <ActionButton
+            icon="refresh"
+            onClick={() => {
+              void refresh();
+            }}
           >
-            {HOST_SYMBOL_IDS.map((id) => {
-              const chosen = icon.kind === 'symbol' && icon.id === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={chosen}
-                  aria-label={t(`remoteHosts.look.symbol.${id}`)}
-                  data-host-look-symbol={id}
-                  {...stylex.props(styles.choice, chosen && styles.chosen)}
-                  onClick={() =>
-                    void change((current) => withHostIcon(current, { kind: 'symbol', id }))
-                  }
-                >
-                  <HostGlyph look={{ ...look, icon: { kind: 'symbol', id } }} />
-                </button>
-              );
-            })}
-          </div>
+            {t('remoteHosts.look.refresh')}
+          </ActionButton>
         </div>
-        <div {...stylex.props(styles.section)}>
-          <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.emoji')}</span>
-          <div
-            {...stylex.props(styles.grid)}
-            role="radiogroup"
-            aria-label={t('remoteHosts.look.emoji')}
-          >
-            {HOST_EMOJI.map((emoji) => {
-              const chosen = icon.kind === 'emoji' && icon.emoji === emoji;
-              return (
-                <button
-                  key={emoji}
-                  type="button"
-                  role="radio"
-                  aria-checked={chosen}
-                  aria-label={emoji}
-                  {...stylex.props(styles.choice, chosen && styles.chosen)}
-                  onClick={() =>
-                    void change((current) => withHostIcon(current, { kind: 'emoji', emoji }))
-                  }
-                >
-                  <span {...stylex.props(styles.emoji)}>{emoji}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div {...stylex.props(styles.section)}>
-          <span {...stylex.props(styles.sectionName)}>{t('remoteHosts.look.color')}</span>
-          <div
-            {...stylex.props(styles.grid)}
-            role="radiogroup"
-            aria-label={t('remoteHosts.look.color')}
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={look.color === undefined}
-              aria-label={t('remoteHosts.look.noColor')}
-              {...stylex.props(styles.choice, look.color === undefined && styles.chosen)}
-              onClick={() => void change((current) => withHostColor(current, undefined))}
-            >
-              <ChannelSidebarIcon name="ban" size={14} />
-            </button>
-            {HOST_COLOR_IDS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={look.color === id}
-                aria-label={t(`remoteHosts.look.color.${id}`)}
-                {...stylex.props(styles.choice, look.color === id && styles.chosen)}
-                onClick={() => void change((current) => withHostColor(current, id))}
-              >
-                <span {...stylex.props(styles.swatch(HOST_COLORS[id][scheme]))} />
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      ) : null}
+      <HostNameField hostId={hostId} name={name} saved={look.name} change={change} t={t} />
+      <SettingsRow title={t('remoteHosts.look.symbols')}>
+        <PreviewChoices
+          variant="glyph"
+          label={t('remoteHosts.look.symbols')}
+          value={icon.kind === 'symbol' ? icon.id : undefined}
+          options={HOST_SYMBOL_IDS.map((id) => ({
+            id,
+            label: t(`remoteHosts.look.symbol.${id}`),
+            preview: <HostGlyph look={{ ...look, icon: { kind: 'symbol', id } }} />,
+            data: { 'data-host-look-symbol': id },
+          }))}
+          onChange={(id) => void change((current) => withHostIcon(current, { kind: 'symbol', id }))}
+        />
+      </SettingsRow>
+      <SettingsRow title={t('remoteHosts.look.emoji')}>
+        <PreviewChoices
+          variant="glyph"
+          label={t('remoteHosts.look.emoji')}
+          value={icon.kind === 'emoji' ? icon.emoji : undefined}
+          options={HOST_EMOJI.map((emoji) => ({ id: emoji, label: emoji, preview: emoji }))}
+          onChange={(emoji) =>
+            void change((current) => withHostIcon(current, { kind: 'emoji', emoji }))
+          }
+        />
+      </SettingsRow>
+      <SettingsRow title={t('remoteHosts.look.color')}>
+        <PreviewChoices<(typeof HOST_COLOR_IDS)[number] | 'none'>
+          variant="glyph"
+          label={t('remoteHosts.look.color')}
+          value={look.color ?? 'none'}
+          options={[
+            { id: 'none', label: t('remoteHosts.look.noColor'), preview: <Icon name="ban" /> },
+            ...HOST_COLOR_IDS.map((id) => ({
+              id,
+              label: t(`remoteHosts.look.color.${id}`),
+              preview: <span {...stylex.props(styles.swatch(HOST_COLORS[id][scheme]))} />,
+            })),
+          ]}
+          onChange={(id) =>
+            void change((current) => withHostColor(current, id === 'none' ? undefined : id))
+          }
+        />
+      </SettingsRow>
     </SettingsSection>
   );
 }

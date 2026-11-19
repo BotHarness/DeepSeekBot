@@ -1,5 +1,11 @@
+import type {
+  EngineId,
+  RoutingGroupEngineUnavailable,
+} from '@botharness/host-protocol/subscription-engine';
 import type { SessionEngine, SessionEngineQuota } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
+
+export const ENGINE_MARKER_ICON = 'puzzle';
 
 export function shortTime(at: string): string {
   return new Date(at).toLocaleString(undefined, {
@@ -14,6 +20,25 @@ export function engineName(engine: string): string {
   if (engine === 'codex') return 'Codex';
   if (engine === 'claude') return 'Claude Code';
   return engine;
+}
+
+export function routingGroupEngineReason(
+  engine: EngineId,
+  reason: RoutingGroupEngineUnavailable,
+  t: BotHarnessTranslate,
+): string {
+  switch (reason) {
+    case 'host-not-local':
+      return t('engine.localOnly');
+    case 'not-installed':
+      return t('engine.notInstalled', { engine: engineName(engine) });
+    case 'signed-out':
+      return t('engine.signInLabel', { engine: engineName(engine) });
+    case 'not-subscription':
+      return t('engine.notSubscription');
+    case 'login-unknown':
+      return t('engine.loginUnknown');
+  }
 }
 
 export function engineQuotaText(

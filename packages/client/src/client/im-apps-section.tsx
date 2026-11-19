@@ -3,7 +3,8 @@ import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 
 import { closeTopShellLayer } from './ds/shell-layer.js';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { Icon } from './ds/icon.js';
+import type { BotHarnessTranslate } from './locale.js';
 
 import type { BridgeActions } from './actions.js';
 import { BOT_SETTINGS_SECTIONS, type BotSettings } from './bot-settings.js';
@@ -119,8 +120,12 @@ export function ImAppsSection({
   store,
   call,
   t,
-}: PropsLocale<'botharness'> &
-  InjectFace<{ imApps: ImAppsFace; store: ClientStore; call: BridgeCall }>): ReactElement {
+}: {
+  t: BotHarnessTranslate;
+  imApps: ImAppsFace;
+  store: ClientStore;
+  call: BridgeCall;
+}): ReactElement {
   const bots = useStoreSlice(
     store,
     (state) => state.bots.filter((bot) => !bot.deleted),
@@ -213,6 +218,7 @@ export function ImAppsSection({
       <SettingsSection>
         <SettingsRow
           title={t('imApps.allApps')}
+          icon={<Icon name="plug" />}
           description={t('imApps.description')}
           control={
             <>

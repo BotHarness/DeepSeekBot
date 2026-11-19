@@ -7,7 +7,14 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 let member = false;
-vi.mock('../src/client/team-state.js', () => ({ useTeamMember: () => member }));
+let canManageProviders = false;
+vi.mock('../src/client/team-state.js', () => ({
+  useTeamMember: () => member,
+  useTeamMode: () => ({
+    viewer: { owner: !member, permissions: canManageProviders ? ['modelSources.manage'] : [] },
+  }),
+  refreshTeamMode: async () => {},
+}));
 
 vi.mock('../src/client/target-name.js', () => ({
   TargetName: ({ name }: { name: string }) => name,
@@ -80,6 +87,7 @@ let rendered: {
 
 beforeEach(() => {
   member = false;
+  canManageProviders = false;
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   host = document.createElement('div');
   document.body.append(host);
@@ -361,7 +369,7 @@ it('notifies subscribers only on change', () => {
 
 function frameWidth(narrow: boolean): void {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: narrow && query.includes('max-width'),
+    matches: !narrow && query.includes('min-width'),
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
   }));
@@ -380,48 +388,58 @@ it('renders only the rail in wide frames', () => {
   vi.unstubAllGlobals();
 });
 
-it('renders only a section dropdown in narrow frames and switches sections from it', () => {
+it('opens a compact settings list and keeps detail editors off the list', async () => {
   frameWidth(true);
   const settings = new BotSettings();
   mount(settings);
-  act(() => {
-    settings.open('models');
-  });
-  expect(document.querySelector('nav')).toBeNull();
-  expect(document.querySelector('h2')).toBeNull();
-  const picker = document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
-  expect(picker?.textContent).toBe('模型与运行');
-  expect(picker?.hasAttribute('data-modal-autofocus')).toBe(true);
-  expect(picker?.getAttribute('aria-haspopup')).toBe('menu');
-  expect(picker?.getAttribute('aria-label')).toBe('Bot 设置分区：模型与运行');
+  act(() => settings.open());
+  expect(document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page')).toBe(
+    'list',
+  );
+  expect(navLabels()).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
+  expect(shownSection()).toBeNull();
 
-  act(() => {
-    picker?.click();
+  await click('[data-settings-section="models"]');
+  expect(document.querySelector('nav')).toBeNull();
+  expect(shownSection()).toBe('models');
+
+  await click('[aria-label="返回设置列表"]');
+  expect(shownSection()).toBeNull();
+  expect(document.activeElement?.getAttribute('data-settings-section')).toBe('models');
+});
+
+it('opens directly to a compact detail when a specific section is requested', async () => {
+  frameWidth(true);
+  const settings = new BotSettings();
+  mount(settings);
+  act(() => settings.open('models'));
+  expect(document.querySelector('h2')?.textContent).toBe('模型与运行');
+  expect(shownSection()).toBe('models');
+  await click('[aria-label="返回设置列表"]');
+  expect(shownSection()).toBeNull();
+  expect(document.activeElement?.getAttribute('data-settings-section')).toBe('models');
+});
+
+it('moves keyboard focus to the compact detail heading and back to its row', async () => {
+  frameWidth(true);
+  const settings = new BotSettings();
+  mount(settings);
+  act(() => settings.open());
+  const section = document.querySelector<HTMLButtonElement>('[data-settings-section="about"]')!;
+  section.focus();
+  expect(document.activeElement).toBe(section);
+  expect(section.tabIndex).toBe(0);
+  await act(() => {
+    section.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
   });
-  expect(picker?.getAttribute('aria-expanded')).toBe('true');
-  expect(
-    document
-      .querySelector('[role="dialog"]')
-      ?.contains(document.querySelector('[data-pointer-menu]')),
-  ).toBe(true);
-  expect(document.querySelector('[role="menuitem"][data-selected]')?.textContent).toBe(
-    '模型与运行',
-  );
-  expect(
-    [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),
-  ).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);
-  const about = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find(
-    (item) => item.textContent === '关于',
-  );
-  act(() => {
-    about?.click();
+  expect(document.activeElement).toBe(document.querySelector('h2'));
+  const back = document.querySelector<HTMLButtonElement>('[aria-label="返回设置列表"]')!;
+  back.focus();
+  expect(back.tabIndex).toBe(0);
+  await act(() => {
+    back.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
   });
-  expect(shownSection()).toBe('about');
-  expect(
-    document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.textContent,
-  ).toBe('关于');
-  expect(document.querySelector('[role="menuitem"]')).toBeNull();
-  vi.unstubAllGlobals();
+  expect(document.activeElement?.getAttribute('data-settings-section')).toBe('about');
 });
 
 it('searches another page and focuses the matching setting after navigation', () => {
@@ -455,7 +473,9 @@ it('searches another page and focuses the matching setting after navigation', ()
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '间距');
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  const result = document.querySelector<HTMLButtonElement>('.bh-settings-search-results button')!;
+  const result = document.querySelector<HTMLButtonElement>(
+    '[data-settings-search-results] button',
+  )!;
   expect(result.textContent).toContain('面板间距');
   act(() => result.click());
   expect(settings.getSnapshot().sectionId).toBe('appearance');
@@ -559,7 +579,7 @@ it('intersects member access with Client preferences for navigation, search and 
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, query);
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(document.querySelectorAll('.bh-settings-search-results button')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-settings-search-results] button')).toHaveLength(0);
   }
 });
 
@@ -638,6 +658,26 @@ it('switches the Host group to a remote Host from the top-right switcher and kee
   await click('[data-settings-section="environment-models"]');
   await click('[data-env="local"]');
   expect(groupHeadings()).toEqual(['此设备', '本机']);
+  expect(shownSection()).toBe('models');
+});
+
+it('keeps the environment selector reachable in both compact pages', async () => {
+  frameWidth(true);
+  const settings = new BotSettings();
+  mount(settings, fullRows(), remoteEnvironments());
+  act(() => settings.open('models'));
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('local');
+  await click('[aria-label="返回设置列表"]');
+  await click('[data-env="studio"]');
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  expect(groupHeadings()).toEqual(['此设备', 'Studio']);
+  expect(document.querySelector('[data-remote-section]')).toBeNull();
+  await click('[data-settings-section="environment-models"]');
+  expect(document.querySelector('[data-switcher]')?.getAttribute('data-switcher')).toBe('studio');
+  expect(document.querySelector('[data-remote-section]')?.getAttribute('data-remote-section')).toBe(
+    'environment-models',
+  );
+  await click('[data-env="local"]');
   expect(shownSection()).toBe('models');
 });
 
@@ -795,7 +835,8 @@ it('opens on Pinned, which leads the sidebar and opens each pinned page from its
   expect(shownSection()).toBe('appearance');
 });
 
-it('pins the open page from the header star and unpins it from its card', async () => {
+it.each([400, 1280])('pins and unpins a settings section at %i px', async (width) => {
+  frameWidth(width < 600);
   const settings = new BotSettings();
   const pins = memoryPins(['models']);
   mount(settings, fullRows(), undefined, pins);
@@ -808,6 +849,7 @@ it('pins the open page from the header star and unpins it from its card', async 
   expect(pins.saved).toEqual([['models', 'about']]);
   expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
 
+  if (width < 600) await click('[aria-label="返回设置列表"]');
   await click('[data-settings-section="home"]');
   await click('[data-settings-pin="models"] [aria-label="从常用移除models"]');
   expect(pins.saved.at(-1)).toEqual(['about']);
@@ -920,4 +962,21 @@ it('opens About from the old Plugins page id', () => {
   });
   expect(current()).toBe('关于');
   expect(shownSection()).toBe('about');
+});
+
+it('shows Model providers above Models & execution and hides it from members without permission', () => {
+  const row = { id: 'model-providers', label: '模型提供商', order: 9 };
+  const settings = new BotSettings();
+  act(() => settings.open());
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent?.indexOf('模型提供商')).toBeGreaterThan(-1);
+  expect(document.body.textContent?.indexOf('模型提供商')).toBeLessThan(
+    document.body.textContent?.indexOf('模型与运行') ?? -1,
+  );
+  member = true;
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent).not.toContain('模型提供商');
+  canManageProviders = true;
+  mount(settings, [...ROWS, row]);
+  expect(document.body.textContent).toContain('模型提供商');
 });

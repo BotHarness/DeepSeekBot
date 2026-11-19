@@ -1,7 +1,14 @@
+import { readFile } from 'node:fs/promises';
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelFavorite } from '../models/favorites.js';
-import type { ModelPreset, ModelRoute } from '../models/presets.js';
+import { isEngineId } from '../engines/engine-session.js';
+import type {
+  ModelPreset,
+  ModelPresetEngine,
+  ModelPresetEngineInput,
+  ModelRoute,
+} from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -11,6 +18,20 @@ import { isUsageOverviewPeriod, usageOverviewPeriods } from '../usage/overview.j
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
 export const MODELS_USAGE_COMMANDS = [
+  { command: 'model-providers', description: 'list API key providers and their revisions' },
+  {
+    command: 'model-provider-add',
+    description:
+      'add an API key provider (--template, --name, --key-stdin or --key-file, --expected-revision)',
+  },
+  {
+    command: 'model-provider-edit',
+    description: 'rename or replace the key of an API key provider at its revision',
+  },
+  {
+    command: 'model-provider-remove',
+    description: 'remove an unused API key provider at its revision (--confirm)',
+  },
   {
     command: 'home-model-set',
     description:
@@ -52,11 +73,12 @@ export const MODELS_USAGE_COMMANDS = [
   },
   {
     command: 'model-groups',
-    description: 'list Routing Groups: named, ordered model routes a Bot can run on',
+    description:
+      'list Routing Groups and their ordered model, Routing Group and Subscription Engine members',
   },
   {
     command: 'model-group',
-    description: 'read one Routing Group and the routes it expands to, in order',
+    description: 'read one Routing Group and the DSH model routes it expands to, in order',
   },
   {
     command: 'model-group-create',
@@ -105,7 +127,18 @@ export const MODELS_USAGE_COMMANDS = [
 ] as const;
 
 export interface ModelsUsageValues {
+  'orchestrator-engine'?: string;
+  'orchestrator-engine-model'?: string;
+  'orchestrator-engine-effort'?: string;
+  'assignment-engine'?: string;
+  'assignment-engine-model'?: string;
+  'assignment-engine-effort'?: string;
   name?: string;
+  template?: string;
+  endpoint?: string;
+  'key-stdin'?: boolean;
+  'key-file'?: string;
+  confirm?: boolean;
   'orchestrator-provider'?: string;
   'orchestrator-model'?: string;
   'orchestrator-effort'?: string;
@@ -132,6 +165,8 @@ export interface ModelsUsageValues {
 }
 
 const NO_TARGET = new Set([
+  'model-providers',
+  'model-provider-add',
   'home-model-set',
   'model-catalog',
   'model-groups',
@@ -201,7 +236,7 @@ async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Prom
       : undefined;
   if (!Array.isArray(members) || Object.keys(input as object).length !== 1)
     usage(
-      'Members stdin must be {"members":[{"kind":"model","provider","model","reasoningEffort"?} or {"kind":"group","id"}]}.',
+      'Members stdin must be {"members":[...]} with model, Routing Group or engine member objects.',
     );
   return members;
 }
@@ -227,6 +262,34 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function presetEngineFlags(
+  values: ModelsUsageValues,
+  update = false,
+): ModelPresetEngineInput {
+  const read = (role: 'orchestrator' | 'assignment'): ModelPresetEngine | null | undefined => {
+    const engine = values[`${role}-engine`]?.trim();
+    const model = values[`${role}-engine-model`]?.trim();
+    const effort = values[`${role}-engine-effort`]?.trim();
+    if (engine === undefined && model === undefined && effort === undefined) return undefined;
+    if (update && engine === 'none' && model === undefined && effort === undefined) return null;
+    if (!isEngineId(engine) || model === '' || effort === '')
+      usage(
+        `--${role}-engine must be codex or claude${update ? ' (or none to clear)' : ''}; model and effort must be nonempty.`,
+      );
+    return {
+      engine,
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+    };
+  };
+  const orchestratorEngine = read('orchestrator');
+  const assignmentEngine = read('assignment');
+  return {
+    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
+  };
 }
 
 export function presetGroupFlags(values: {
@@ -305,6 +368,54 @@ export async function runModelsUsage(
   const target = rest[0]?.trim() ?? '';
   if (!noTarget && !target) usage(`${command} requires a nonempty target id.`);
   const expected = revision(values['expected-revision']);
+
+  if (command === 'model-providers') return (await connect())('modelProviders', {});
+  if (
+    command === 'model-provider-add' ||
+    command === 'model-provider-edit' ||
+    command === 'model-provider-remove'
+  ) {
+    if (expected === undefined) usage('Provide --expected-revision from model-providers.');
+    if (command === 'model-provider-remove') {
+      if (values.confirm !== true) usage('Add --confirm to remove the provider.');
+      return (await connect())('modelProviderRemove', { id: target, expectedRevision: expected });
+    }
+    const name = values.name?.trim();
+    if (values.name !== undefined && !name) usage('--name must not be empty.');
+    if (values['key-stdin'] && values['key-file'] !== undefined)
+      usage('Choose one key input: --key-stdin or --key-file.');
+    let key: string | undefined;
+    try {
+      if (values['key-stdin']) key = ((await io.readStdin?.()) ?? '').trim();
+      if (values['key-file'] !== undefined)
+        key = (await readFile(values['key-file'], 'utf8')).trim();
+    } catch {
+      usage('Could not read the API key.');
+    }
+    if (key === '') usage('The API key input is empty.');
+    if (command === 'model-provider-edit') {
+      if (name === undefined && key === undefined) usage('Provide a name or an API key input.');
+      return (await connect())('modelProviderEdit', {
+        id: target,
+        expectedRevision: expected,
+        ...(name === undefined ? {} : { name }),
+        ...(key === undefined ? {} : { key }),
+      });
+    }
+    const template = values.template;
+    if (template !== 'opencode-go' && template !== 'deepseek' && template !== 'custom')
+      usage('Choose --template opencode-go, deepseek or custom.');
+    if (name === undefined || key === undefined) usage('Provide a name and an API key input.');
+    if (template === 'custom' && (!values.endpoint || !values.model))
+      usage('The custom template requires --endpoint and --model.');
+    return (await connect())('modelProviderAdd', {
+      template,
+      name,
+      key,
+      expectedRevision: expected,
+      ...(template === 'custom' ? { endpoint: values.endpoint, model: values.model } : {}),
+    });
+  }
 
   if (command === 'home-model-set') {
     const group = values.group?.trim();
@@ -504,6 +615,7 @@ export async function runModelsUsage(
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
   }
   if (command === 'model-preset-update') {
+    const engines = presetEngineFlags(values, true);
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
@@ -557,6 +669,7 @@ export async function runModelsUsage(
       orchestratorGroupEffort,
       assignmentGroups,
       assignmentDefaultGroupId,
+      ...engines,
       ...plan,
       ...mode,
     });

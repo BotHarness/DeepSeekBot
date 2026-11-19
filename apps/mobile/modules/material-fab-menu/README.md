@@ -4,7 +4,7 @@ Local Expo UI extension wrapping Compose Material 3 Expressive `FloatingActionBu
 `ToggleFloatingActionButton`, registered with `ExpoUIView` and rendered inside `<Host>`. The Android Chats creation button uses it (#2953).
 
 SDK 58 Expo UI does not expose the FAB menu, so this adapter supplies it. It inherits the Host's
-`MaterialExpressiveTheme` seeded by the accent (ADR-0266) and its Expressive motion (standard under
+`MaterialExpressiveTheme` seeded by the accent ([ADR-0266](../../../../docs/decisions/mobile-ui.md#adr-0266)) and its Expressive motion (standard under
 Reduce Motion). The toggle morphs from `primaryContainer` to `primary`, and its plus turns into a
 close glyph halfway through the morph. Items are `primary` full pills with a Material Symbol path
 and a label; the test tags are `creation-menu-trigger` and `creation-<key>`.

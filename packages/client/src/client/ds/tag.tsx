@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import type { ReactElement, ReactNode } from 'react';
+import { forwardRef, type ComponentPropsWithoutRef } from 'react';
 
 import { joinClass } from './class-name.js';
 import { accent, edge, ink, layer, line, radius, space, status, type } from './tobs.stylex.js';
@@ -15,6 +15,7 @@ export type TagTone =
   | 'danger';
 
 const styles = stylex.create({
+  wrap: { whiteSpace: 'normal', overflowWrap: 'anywhere', maxWidth: '100%' },
   tag: {
     boxSizing: 'border-box',
     display: 'inline-flex',
@@ -40,19 +41,25 @@ const styles = stylex.create({
   danger: { backgroundColor: status.dangerTint, color: status.dangerInk },
 });
 
-export interface TagProps {
+export interface TagProps extends ComponentPropsWithoutRef<'span'> {
   readonly tone?: TagTone;
   readonly className?: string | undefined;
-  readonly children?: ReactNode;
+  readonly wrap?: boolean;
 }
 
-export function Tag({ tone = 'neutral', className, children }: TagProps): ReactElement {
+export const Tag = forwardRef<HTMLSpanElement, TagProps>(function Tag(
+  { tone = 'neutral', className, wrap = false, ...props },
+  ref,
+) {
   return (
     <span
+      {...props}
+      ref={ref}
       data-tone={tone}
-      className={joinClass(stylex.props(styles.tag, styles[tone]).className, className)}
-    >
-      {children}
-    </span>
+      className={joinClass(
+        stylex.props(styles.tag, styles[tone], wrap && styles.wrap).className,
+        className,
+      )}
+    />
   );
-}
+});

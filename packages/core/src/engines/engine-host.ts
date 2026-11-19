@@ -4,9 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
+import { AssignmentSteering } from './assignment-steering.js';
+import { readEngineAccount, requireSubscription, statusReport } from './engine-account.js';
 import {
   type CodexProcessOptions,
   type CodexTransport,
@@ -24,28 +25,29 @@ import {
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import { resolveEngineCommand } from './engine-launch.js';
+import { buildEngineContextSeed } from './engine-context.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
   type OpenedEngineDshSession,
   openEngineDshSession,
 } from './engine-dsh-session.js';
-import type {
-  EngineGateway,
-  EngineGatewayCallResult,
-  EngineGatewayTool,
-  EngineGrant,
+import {
+  type EngineGateway,
+  type EngineGatewayTool,
+  type EngineGrant,
+  engineGatewayResult,
 } from './engine-gateway.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
   ENGINE_DEFINITIONS,
-  type EngineAccount,
   type EngineChoice,
   type EngineEvent,
   type EngineId,
   type EngineModel,
   type EngineQuota,
   type EngineSession,
+  type EngineWorkspaceMode,
   EngineLimitError,
   EngineRefusal,
 } from './engine-session.js';
@@ -56,95 +58,32 @@ import {
   engineStorePath,
 } from './engine-store.js';
 
-export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
-  'bot_send_message',
-  'channel_read',
-  'inbox_resolve',
-  'tool_search',
-  'tool_call',
-  'report_to_orchestrator',
-]);
+import {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTurnRequest,
+  type EngineTurnOutcome,
+  type EngineToolApproval,
+  type EngineToolContext,
+  type EngineSessionState,
+  type EngineApprovalRequest,
+  type EngineSessionDescription,
+  type EngineQuotaView,
+  type EngineStatusReport,
+} from './engine-host-types.js';
 
-export interface EngineTool {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}
-
-export interface EngineTurnRequest {
-  botSlug: string;
-  role?: EngineRole;
-  cwd?: string;
-  sessionId: string;
-  channelId: string | undefined;
-  input: string;
-  instructions: string;
-  tools: readonly EngineTool[];
-  execute(
-    name: string,
-    args: Record<string, unknown>,
-    signal: AbortSignal,
-    context: EngineToolContext,
-  ): Promise<unknown>;
-  signal: AbortSignal;
-}
-
-export interface EngineTurnOutcome {
-  turn?: number;
-  endSeq?: number;
-  text?: string;
-}
-
-export interface EngineToolApproval {
-  toolName: string;
-  input: Record<string, unknown>;
-  reason?: string;
-  device?: { kind: 'computer' | 'browser'; authorizationScope?: () => string };
-}
-
-export interface EngineToolContext {
-  session: Session;
-  ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
-}
-
-export type EngineSessionState = 'starting' | 'running' | 'waiting-approval' | 'idle';
-
-export interface EngineApprovalRequest {
-  botSlug: string;
-  sessionId: string;
-  session: Session;
-  callId: string;
-  toolName: string;
-  input: Record<string, unknown>;
-  reason?: string;
-  device?: EngineToolApproval['device'];
-  signal: AbortSignal;
-}
-
-export interface EngineSessionDescription {
-  engine: EngineId;
-  account?: string;
-  state: EngineSessionState;
-  quota?: EngineQuotaView;
-}
-
-export interface EngineQuotaView {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
-
-export interface EngineStatusReport {
-  displayName: string;
-  engine: EngineId;
-  available: boolean;
-  reason?: 'host-not-local' | 'not-installed' | 'signed-out' | 'not-subscription' | 'login-unknown';
-  installed: boolean;
-  version?: string;
-  login: CodexStatus['login'] | ClaudeStatus['login'];
-  quota?: EngineQuotaView;
-}
+export {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTool,
+  type EngineTurnRequest,
+  type EngineTurnOutcome,
+  type EngineToolApproval,
+  type EngineToolContext,
+  type EngineSessionState,
+  type EngineApprovalRequest,
+  type EngineSessionDescription,
+  type EngineQuotaView,
+  type EngineStatusReport,
+} from './engine-host-types.js';
 
 export interface EngineHostOptions {
   root: string;
@@ -173,15 +112,19 @@ interface TurnScope {
   channelId: string | undefined;
   execute: EngineTurnRequest['execute'];
   context?: EngineToolContext;
+  signal: AbortSignal;
 }
 
 interface LiveEngineSession {
   botSlug: string;
-  choice: string;
+  configuration: string;
+  workspaceMode: EngineWorkspaceMode;
   engine: EngineSession;
   account: string;
   grant: EngineGrant;
   dsh: OpenedEngineDshSession;
+  nativeId: string;
+  seed: string | undefined;
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
@@ -198,22 +141,28 @@ function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string |
   return engine === undefined ? undefined : JSON.stringify([engine, choice.model, choice.effort]);
 }
 
-const SIGN_IN_HINTS: Record<EngineId, string> = {
-  codex:
-    'Sign the Bot in with your ChatGPT subscription: run `deepseekbot engine login codex` on this computer.',
-  claude:
-    'Sign the Bot in with your Claude subscription: run `deepseekbot engine login claude` on this computer.',
-};
+function workspaceModeFor(request: EngineTurnRequest): EngineWorkspaceMode {
+  return (
+    request.workspaceMode?.() ?? (request.role === 'assignment' ? 'read-only' : 'workspace-write')
+  );
+}
 
-const ENGINE_LABELS: Record<EngineId, string> = { codex: 'Codex', claude: 'Claude Code' };
+function sessionKey(
+  choice: string | undefined,
+  cwd: string | undefined,
+  mode: EngineWorkspaceMode,
+): string {
+  return JSON.stringify([choice, cwd, mode]);
+}
 
 export class EngineHost {
   readonly store: EngineStore;
   readonly #options: EngineHostOptions;
   readonly #live = new Map<string, LiveEngineSession>();
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
-  readonly #openingChoice = new Map<string, string>();
+  readonly #openingConfiguration = new Map<string, string>();
   readonly #roles = new Map<string, EngineRole>();
+  readonly #assignmentSteering = new Map<string, AssignmentSteering>();
   readonly #models = new Map<EngineId, { at: number; models: Promise<EngineModel[]> }>();
   readonly #states = new Map<string, EngineSessionDescription>();
   readonly #legacyAccounts = new Map<string, { engine: EngineId; account: string | undefined }>();
@@ -278,7 +227,8 @@ export class EngineHost {
     const engine = this.engineFor(botSlug);
     if (engine === undefined) return undefined;
     const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
-    const model = this.store.model(botSlug, engine);
+    const model =
+      this.store.choice(botSlug, 'orchestrator').model ?? this.store.model(botSlug, engine);
     return {
       engine,
       displayName: ENGINE_DEFINITIONS[engine].displayName,
@@ -395,8 +345,8 @@ export class EngineHost {
   async status(): Promise<EngineStatusReport[]> {
     if (!this.#options.local) return [];
     const [codex, claude] = await Promise.all([
-      (this.#options.detectCodex ?? detectCodex)(this.#codex),
-      (this.#options.detectClaude ?? detectClaude)(this.#claude),
+      probeStatus(() => (this.#options.detectCodex ?? detectCodex)(this.#codex)),
+      probeStatus(() => (this.#options.detectClaude ?? detectClaude)(this.#claude)),
     ]);
     return [
       statusReport('codex', codex, 'chatgpt', this.quota('codex')),
@@ -415,6 +365,30 @@ export class EngineHost {
         ? await (this.#options.startCodexLogin ?? startCodexLogin)(this.#codex)
         : await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude);
     return { engine, started: true, ...started };
+  }
+
+  async validateChoice(engine: EngineId, choice: EngineChoice): Promise<void> {
+    const models = await this.models(engine);
+    if (choice.model === undefined && choice.effort === undefined) return;
+    const picked =
+      choice.model === undefined
+        ? (models.find((entry) => entry.isDefault === true) ?? models[0])
+        : models.find((entry) => entry.id === choice.model);
+    if (picked === undefined)
+      throw new EngineRefusal(
+        'unknown-model',
+        `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
+      );
+    if (
+      choice.effort !== undefined &&
+      !picked.efforts.some((option) => option.id === choice.effort)
+    )
+      throw new EngineRefusal(
+        'unknown-effort',
+        picked.efforts.length === 0
+          ? `${picked.id} takes no effort level`
+          : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
+      );
   }
 
   async models(engine: EngineId): Promise<EngineModel[]> {
@@ -445,28 +419,17 @@ export class EngineHost {
           )
         : await this.#claudeSession({ cwd, instructions: '' });
     try {
-      requireSubscription(await this.#account(session));
+      requireSubscription(await readEngineAccount(session));
       return await session.models();
     } finally {
       await session.close().catch(() => undefined);
     }
   }
 
-  async #account(session: EngineSession): Promise<EngineAccount> {
-    const name = ENGINE_LABELS[session.engine];
-    return session.account().catch((error: unknown) => {
-      if (error instanceof EngineRefusal) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      throw /ENOENT/u.test(message)
-        ? new EngineRefusal('engine-not-installed', `${name} is not installed on this computer`)
-        : new EngineRefusal('engine-failed', `${name} did not start: ${message}`);
-    });
-  }
-
   async #claudeSession(
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode'
+      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
     >,
   ): Promise<ClaudeEngineSession> {
     const claude = this.#claude;
@@ -494,7 +457,29 @@ export class EngineHost {
     });
   }
 
+  steerAssignment(sessionId: string, text: string): boolean {
+    return this.#assignmentSteering.get(sessionId)?.offer(text) ?? false;
+  }
+
   async runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome> {
+    if (request.role !== 'assignment') return this.#runTurn(request);
+    const { sessionId, signal } = request;
+    if (this.#assignmentSteering.has(sessionId))
+      throw new EngineRefusal('engine-unavailable', 'This engine Assignment is already running');
+    const steering = new AssignmentSteering(() => !signal.aborted && !this.#closed);
+    this.#assignmentSteering.set(sessionId, steering);
+    return steering.run(
+      request.input,
+      (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
+      () => this.#assignmentSteering.delete(sessionId),
+    );
+  }
+
+  async #runTurn(
+    request: EngineTurnRequest,
+    steering?: AssignmentSteering,
+    continuation = false,
+  ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
     const selected = this.engineFor(request.botSlug, role);
@@ -531,23 +516,37 @@ export class EngineHost {
           throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
       } else if (!request.signal.aborted) {
         if (!accountChecked) live.account = requireSubscription(await live.engine.account());
+        if (!current())
+          throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
         if (request.signal.aborted) return outcome;
+        let mode: EngineWorkspaceMode;
+        try {
+          mode = workspaceModeFor(request);
+        } catch (error) {
+          broken = true;
+          throw error;
+        }
+        if (live.workspaceMode !== mode) return this.#runTurn(request, steering, continuation);
         if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
+        const input = steering?.takeInput(request.input) ?? request.input;
         const stop = new AbortController();
         live.stop = stop;
-        const scope: TurnScope = { channelId: request.channelId, execute: request.execute };
+        const signal = AbortSignal.any([request.signal, stop.signal]);
+        const scope: TurnScope = { channelId: request.channelId, execute: request.execute, signal };
         live.turn = scope;
         this.#setState(
           request.sessionId,
           { engine, account: live.account, state: 'running' },
           live.botSlug,
         );
-        const log = new EngineTurnLog(live.dsh, engine, live.account, request.input);
+        const log = new EngineTurnLog(live.dsh, engine, live.account, input);
         outcome.turn = log.turn;
         let limitedNow = false;
-        const signal = AbortSignal.any([request.signal, stop.signal]);
         scope.context = {
           session: live.dsh.session,
+          get assignmentInputRevision() {
+            return steering?.inputRevision;
+          },
           ask: (approval) =>
             this.#ask(
               live,
@@ -559,8 +558,9 @@ export class EngineHost {
             ),
         };
         try {
-          const end = await live.engine.send(request.input, {
+          const sending = live.engine.send(input, {
             signal,
+            verbatimInput: continuation,
             onEvent: (event) => {
               log.accept(event);
               if (event.kind === 'text') outcome.text = event.text;
@@ -573,22 +573,41 @@ export class EngineHost {
               }
             },
           });
+          const steered =
+            steering === undefined
+              ? undefined
+              : await steering.duringTurn({ sending, engine: live.engine, signal, stop, log });
+          const end = steered?.end ?? (await sending);
           if (role === 'orchestrator')
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
+            broken = live.seed !== undefined && end.status !== 'completed';
+            if (!broken) {
+              this.store.rememberNativeSession(
+                request.sessionId,
+                engine,
+                live.nativeId,
+                live.account,
+                log.turn,
+              );
+              live.seed = undefined;
+            }
           } catch (error) {
             broken = true;
             throw error;
           }
+          if (steered?.failure !== undefined) throw steered.failure.error;
           const last = live.dsh.session.snapshotEvents().at(-1);
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine) : undefined;
             if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
-            throw new EngineRefusal('engine-failed', end.message);
+            if (steered?.replacing !== true || !current())
+              throw new EngineRefusal('engine-failed', end.message);
           }
         } finally {
+          if (!current()) steering?.discard();
           if (live.turn === scope) live.turn = undefined;
           if (live.stop === stop) live.stop = undefined;
         }
@@ -606,7 +625,7 @@ export class EngineHost {
         void this.release(request.sessionId);
       }
     }
-    if (reopen) return this.runTurn(request);
+    if (reopen) return this.#runTurn(request, steering, continuation);
     return outcome;
   }
 
@@ -726,7 +745,9 @@ export class EngineHost {
   }
 
   isLive(sessionId: string): boolean {
-    return this.#live.has(sessionId) || this.#opening.has(sessionId);
+    return (
+      this.#live.has(sessionId) || this.#opening.has(sessionId) || this.#releasing.has(sessionId)
+    );
   }
 
   #role(sessionId: string): EngineRole {
@@ -742,26 +763,33 @@ export class EngineHost {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
     const role = request.role ?? 'orchestrator';
-    const selected = this.choiceFor(request.botSlug, role);
-    if (live !== undefined && !live.engine.ended && live.choice === selected) return live;
+    let mode: EngineWorkspaceMode;
+    try {
+      mode = workspaceModeFor(request);
+    } catch (error) {
+      if (live !== undefined) await this.release(request.sessionId);
+      throw error;
+    }
+    const selected = sessionKey(this.choiceFor(request.botSlug, role), request.cwd, mode);
+    if (live !== undefined && !live.engine.ended && live.configuration === selected) return live;
     if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const engineId = this.engineFor(request.botSlug, role);
     const choice = this.store.choice(request.botSlug, role);
-    const key = choiceKey(engineId, choice);
+    const key = sessionKey(choiceKey(engineId, choice), request.cwd, mode);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
-      if (this.#openingChoice.get(request.sessionId) === key) return pending;
+      if (this.#openingConfiguration.get(request.sessionId) === key) return pending;
       await pending.catch(() => undefined);
       return this.#open(request);
     }
-    const opening = this.#start(request, engineId, choice).finally(() => {
+    const opening = this.#start(request, engineId, choice, mode, key).finally(() => {
       this.#opening.delete(request.sessionId);
-      this.#openingChoice.delete(request.sessionId);
+      this.#openingConfiguration.delete(request.sessionId);
     });
     this.#opening.set(request.sessionId, opening);
-    if (key !== undefined) this.#openingChoice.set(request.sessionId, key);
+    this.#openingConfiguration.set(request.sessionId, key);
     return opening;
   }
 
@@ -769,6 +797,8 @@ export class EngineHost {
     request: EngineTurnRequest,
     engineId: EngineId | undefined,
     choice: EngineChoice,
+    mode: EngineWorkspaceMode,
+    key: string,
   ): Promise<LiveEngineSession> {
     const { botSlug, sessionId } = request;
     if (engineId === undefined)
@@ -776,6 +806,7 @@ export class EngineHost {
         'engine-unavailable',
         'This Bot does not run on a Subscription Engine',
       );
+    this.#roles.set(sessionId, request.role ?? 'orchestrator');
     this.#setState(sessionId, { engine: engineId, state: 'starting' }, botSlug);
     const holder: { live?: LiveEngineSession } = {};
     let grant: EngineGrant | undefined;
@@ -806,27 +837,41 @@ export class EngineHost {
           const turn = holder.live?.turn;
           if (turn?.context === undefined)
             return { text: 'refused: session-not-running', isError: true };
-          return engineGatewayResult(await turn.execute(name, args, signal, turn.context));
+          const callSignal =
+            request.role === 'assignment' ? AbortSignal.any([signal, turn.signal]) : signal;
+          return engineGatewayResult(await turn.execute(name, args, callSignal, turn.context));
         },
       });
       const stored = this.store.nativeSession(sessionId);
-      const resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      let resume = stored?.engine === engineId ? stored.nativeId : undefined;
+      if (resume !== undefined && stored?.lastTurn !== undefined) {
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
+        if (last?.data.turn !== stored.lastTurn) resume = undefined;
+      }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
+      const contextSeed = () => holder.live?.seed;
       let opened: EngineSession;
       if (engineId === 'codex') {
         const options: CodexProcessOptions = { ...this.#codex, cwd, gateway: gatewayEndpoint };
         const transport = (this.#options.openCodex ?? spawnCodexTransport)(options);
         opened = new CodexEngineSession(transport, {
           cwd,
+          workspaceMode: mode,
           instructions: request.instructions,
+          contextSeed,
           ...choice,
         });
       } else {
         opened = await this.#claudeSession({
           cwd,
           instructions: request.instructions,
+          contextSeed,
           gateway: gatewayEndpoint,
-          ...(request.role === 'assignment' ? { permissionMode: 'acceptEdits' as const } : {}),
+          workspaceMode: mode,
+          ...(request.role === 'assignment' && mode === 'workspace-write'
+            ? { permissionMode: 'acceptEdits' as const }
+            : {}),
           ...choice,
           ...(resume === undefined ? {} : { resume }),
         });
@@ -835,7 +880,7 @@ export class EngineHost {
       const started = opened;
       this.#cancels.set(sessionId, () => void started.close());
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-      const account = await this.#account(opened);
+      const account = await readEngineAccount(opened);
       const label = requireSubscription(account);
       this.#rememberAccount(botSlug, opened.engine, label);
       let nativeId: string;
@@ -843,19 +888,22 @@ export class EngineHost {
         nativeId = await opened.start(resume);
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
+        resume = undefined;
         nativeId = await opened.start();
       }
-      this.store.rememberNativeSession(sessionId, engineId, nativeId, label);
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
-        choice: choiceKey(engineId, choice) ?? '',
+        configuration: key,
+        workspaceMode: mode,
         engine: opened,
         account: label,
         grant,
         dsh,
+        nativeId,
+        seed: resume === undefined ? buildEngineContextSeed(dsh.session) : undefined,
         turn: undefined,
         stop: undefined,
         closing: false,
@@ -881,32 +929,6 @@ export class EngineHost {
 
 const RELEASE_GRACE_MS = 10_000;
 
-export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
-  if (typeof value === 'string') return { text: value, isError: false };
-  const content =
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as { content?: unknown }).content)
-      ? ((value as { content: unknown[] }).content.filter(
-          (part) =>
-            typeof part === 'object' &&
-            part !== null &&
-            (((part as { type?: unknown }).type === 'text' &&
-              typeof (part as { text?: unknown }).text === 'string') ||
-              ((part as { type?: unknown }).type === 'image' &&
-                typeof (part as { data?: unknown }).data === 'string' &&
-                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
-        ) as EngineGatewayCallResult['content'])
-      : undefined;
-  if (content !== undefined && content.length > 0)
-    return {
-      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
-      content,
-      isError: (value as { isError?: unknown }).isError === true,
-    };
-  return { text: JSON.stringify(value) ?? 'null', isError: false };
-}
-
 async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   const settled = await Promise.race([
@@ -922,46 +944,10 @@ async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boo
   return settled;
 }
 
-export function requireSubscription(account: EngineAccount): string {
-  const hint = SIGN_IN_HINTS[account.engine];
-  if (account.kind === 'subscription')
-    return account.engine === 'codex'
-      ? `ChatGPT ${account.plan}`
-      : `Claude ${account.plan.replace(/^claude\s+/iu, '')}`;
-  if (account.kind === 'metered')
-    throw new EngineRefusal(
-      'engine-not-subscription',
-      `${account.detail}, which bills per use. ${hint}`,
-    );
-  throw new EngineRefusal(
-    'engine-signed-out',
-    `${ENGINE_LABELS[account.engine]} is not signed in. ${hint}`,
-  );
-}
-
-function statusReport(
-  engine: EngineId,
-  detected: CodexStatus | ClaudeStatus,
-  subscription: string,
-  quota: EngineQuotaView | undefined,
-): EngineStatusReport {
-  const reason: EngineStatusReport['reason'] = !detected.installed
-    ? 'not-installed'
-    : detected.login === subscription
-      ? undefined
-      : detected.login === 'api-key'
-        ? 'not-subscription'
-        : detected.login === 'unknown'
-          ? 'login-unknown'
-          : 'signed-out';
-  return {
-    engine,
-    displayName: ENGINE_DEFINITIONS[engine].displayName,
-    available: reason === undefined,
-    ...(reason === undefined ? {} : { reason }),
-    installed: detected.installed,
-    ...(detected.version === undefined ? {} : { version: detected.version }),
-    login: detected.login,
-    ...(quota === undefined ? {} : { quota }),
-  };
+async function probeStatus(detect: () => Promise<CodexStatus | ClaudeStatus>) {
+  try {
+    return await detect();
+  } catch {
+    return { installed: true, login: 'unknown' } satisfies CodexStatus | ClaudeStatus;
+  }
 }

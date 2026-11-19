@@ -424,7 +424,8 @@ async function clickText(label: string): Promise<void> {
   await act(async () => button.click());
 }
 
-it('requires an explicit source before showing the blank three-part editor and does not apply on opening', async () => {
+it.each([400, 1280])('opens template creation without applying at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   const calls: string[] = [];
   const call: BridgeCall = async (endpoint) => {
     calls.push(endpoint);

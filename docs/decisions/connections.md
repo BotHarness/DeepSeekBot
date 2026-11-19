@@ -1,6 +1,6 @@
 # Connection decisions
 
-How phones, browsers and other Hosts reach a Host: the device gateway and its per-device credential, the one Host Feed every client reads, the routes (LAN, Tailscale, Tobs Connect, private tunnels and relays, SSH), the encrypted channel that runs over all of them except loopback and plain Tailscale, the hosted Connect service, and the durable Host Relationships between a Human's own Hosts. How it works lives in [the architecture](../architecture/botharness-architecture.md), the [Connect channel wire contract](../architecture/connect-channel-v1.md), the [LAN contract](../architecture/lan-phone-v1.md) and the [Environment panel design](../architecture/environment-panel.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0199, 0241, 0242, 0243, 0244, 0246, 0253, 0309, 0313, 0325, 0326, 0327, 0333, 0334, 0335, 0337, 0338, 0339, 0340 and 0350, and each section lists the ADRs it absorbed. Team mode (ADR-0336) has its own record.
+How phones, browsers and other Hosts reach a Host: the device gateway and its per-device credential, the one Host Feed every client reads, the routes (LAN, Tailscale, Tobs Connect, private tunnels and relays, SSH), the encrypted channel that runs over all of them except loopback and plain Tailscale, the hosted Connect service, and the durable Host Relationships between a Human's own Hosts. How it works lives in [the architecture](../architecture/botharness-architecture.md), the [Connect channel wire contract](../architecture/connect-channel-v1.md), the [LAN contract](../architecture/lan-phone-v1.md) and the [Environment panel design](../architecture/environment-panel.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0199, 0241, 0242, 0243, 0244, 0246, 0253, 0309, 0313, 0316, 0325, 0326, 0327, 0333, 0334, 0335, 0337, 0338, 0339, 0340 and 0350, and each section lists the ADRs it absorbed. Host member identity and sign-in are covered in the [Team mode decisions](team-mode.md#adr-0336).
 
 Two rules run through every section:
 
@@ -128,3 +128,15 @@ Enforced by: `verification/enrollment/Enrollment.tla`, checked by `node scripts/
 - A grant whose reply was lost is eventually revoked, assuming cleanup keeps getting a turn (weak fairness). The model does not bound attempts. In the code, automatic cleanup stops after 8 failed attempts; a manual cleanup attempt resets that budget, and revocation needs a cleanup that succeeds.
 
 Other tests: `packages/core/test/host-relationships.test.ts`, `account-relationships.test.ts`, `relationship-admission.test.ts`, `relationship-control.test.ts`, `cli-relationships.test.ts`, `cli-relationship-deadline.test.ts`, `cli-relationship-private-file.test.ts`.
+
+## 8. Host capabilities degrade or fail with an actionable code
+
+<a id="adr-0316"></a>
+
+Tobs keeps the [DSH admission floor](release.md#adr-0087) and probes tool API shapes in the Host compatibility adapter. Missing optional tool presentation or a signature `TypeError` lets setup continue and records `botharness.host_capability.degraded` with the capability and DSH version. Model-selection installation is also optional. Missing required native execution reports `HOST_INCOMPATIBLE` with update guidance and retains the original error when present. Other refusals propagate through the selected API.
+
+The daily canary checks the npm `next` release until that version passes. It starts a Bot DM and accepts a reply or a model-credential refusal as evidence that Orchestrator setup reached the model boundary. Any degraded capability in the canary run fails qualification.
+
+Why: An open floor admits compatible Hosts as they ship. Capability-specific handling preserves working turns across API changes, and the canary exposes a degraded setup before it becomes routine.
+
+Enforced by: [native API compatibility](../../packages/core/test/native-agent-compat.test.ts), [Host cast guard](../../scripts/check-host-casts.mjs), [canary results](../../scripts/test/dsh-canary.test.mjs), and [scheduled canary](../../.github/workflows/dsh-canary.yml).

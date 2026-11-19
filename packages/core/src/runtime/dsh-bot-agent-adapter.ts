@@ -88,6 +88,7 @@ import {
   type EngineTurnRequest,
 } from '../engines/engine-host.js';
 import { engineAssignmentInstructions, engineInstructions } from '../engines/engine-persona.js';
+import type { EngineWorkspaceMode } from '../engines/engine-session.js';
 import {
   ENGINE_LISTED_TOOLS,
   ENGINE_UNSUPPORTED_TOOLS,
@@ -551,6 +552,10 @@ export interface DshBotAgentAdapterOptions {
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
   observeDirectToolCleanupFailure?: (event: { sessionId: string; durationMs: number }) => void;
   engines?: DshBotEngines;
+  engineWorkspaceMode?(
+    slug: string,
+    permission?: AssignmentAgentRun['permission'],
+  ): EngineWorkspaceMode;
   enginePersona?: (bot: PersonaBotRecord) => { soul?: string; coreMemory?: string };
   engineTools?: EngineToolSource;
   engineToolGate?: EngineToolGate;
@@ -560,6 +565,7 @@ export interface DshBotEngines {
   engineFor(botSlug: string, role?: 'orchestrator' | 'assignment'): string | undefined;
   runsOnEngine?(botSlug: string, role?: 'orchestrator' | 'assignment'): boolean;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
+  steerAssignment?(sessionId: string, text: string): boolean;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
 }
@@ -820,6 +826,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #observeDirectToolCleanupFailure: DshBotAgentAdapterOptions['observeDirectToolCleanupFailure'];
   readonly #engines: DshBotEngines | undefined;
   readonly #enginePersona: DshBotAgentAdapterOptions['enginePersona'];
+  readonly #engineWorkspaceMode: DshBotAgentAdapterOptions['engineWorkspaceMode'];
   readonly #engineTools: EngineToolSource | undefined;
   readonly #engineToolGate: EngineToolGate | undefined;
   readonly #engineStops = new Map<string, AbortController>();
@@ -867,6 +874,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
     this.#engines = options.engines;
     this.#enginePersona = options.enginePersona;
+    this.#engineWorkspaceMode = options.engineWorkspaceMode;
     this.#engineTools = options.engineTools;
     this.#engineToolGate = options.engineToolGate;
   }
@@ -1150,6 +1158,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.inputAccepted?.();
       await engines.runTurn({
         botSlug: run.bot.slug,
+        workspaceMode: () => this.#engineWorkspaceMode?.(run.bot.slug) ?? 'workspace-write',
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
@@ -1476,6 +1485,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       }
       return { delivery: 'steer' };
     }
+    if (active?.role === 'assignment' && this.#engines?.steerAssignment?.(run.sessionId, run.text))
+      return { delivery: 'steer' };
     let accept!: () => void;
     let refuse!: (error: unknown) => void;
     const accepted = new Promise<void>((resolve, reject) => {
@@ -1642,6 +1653,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       stop.signal.aborted ||
       this.#stopping.has(run.sessionId) ||
       this.#stoppedBots.has(run.bot.slug);
+    let terminalReport:
+      | { inputRevision: number; published: ReturnType<AssignmentAgentRun['report']> }
+      | undefined;
     try {
       const native = this.#handles.get(run.sessionId);
       if (native !== undefined) {
@@ -1661,6 +1675,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           botSlug: run.bot.slug,
           role: 'assignment',
           cwd: run.permission.primaryCwd,
+          workspaceMode: () =>
+            this.#engineWorkspaceMode?.(run.bot.slug, run.permission) ?? 'read-only',
           sessionId: run.sessionId,
           channelId: undefined,
           input: `${run.text}\n\n[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}`,
@@ -1673,7 +1689,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             }),
           ].join('\n\n'),
           tools: [ENGINE_REPORT_TOOL],
-          execute: async (name, args, _signal, context) => {
+          execute: async (name, args, signal, context) => {
             if (name !== ENGINE_REPORT_TOOL.name)
               throw new Error(`refused: ${name} is not available to this Assignment`);
             const state = typeof args['state'] === 'string' ? args['state'] : '';
@@ -1683,29 +1699,54 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               );
             if (typeof args['summary'] !== 'string')
               throw new Error('report_to_orchestrator: summary must be a string');
-            const active = this.#runs.get(run.sessionId);
-            if (active?.role !== 'assignment')
-              throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            const assertActive = () => {
+              if (signal.aborted || this.#runs.get(run.sessionId) !== entry)
+                throw new Error('report_to_orchestrator: Assignment run is unavailable');
+            };
+            assertActive();
+            const terminal = state === 'completed' || state === 'failed';
+            const inputRevision = context.assignmentInputRevision ?? 0;
+            const prior = terminalReport;
+            if (terminal && prior?.inputRevision === inputRevision) {
+              await prior.published;
+              return 'Terminal report already delivered to the Orchestrator.';
+            }
             const start = context.session
               .snapshotEvents()
               .findLast((event) => event.type === 'turn/start');
             if (start === undefined)
               throw new Error('Assignment Report has no native Turn identity');
-            await active.run.report(
-              {
-                state,
-                summary: args['summary'],
-                ...(args['expects_reply'] === undefined
-                  ? {}
-                  : { expectsReply: args['expects_reply'] === true }),
-              },
-              { turn: start.data.turn },
-            );
-            active.reported = true;
+            const summary = args['summary'];
+            const expectsReply = args['expects_reply'];
+            const publish = async () => {
+              assertActive();
+              return run.report(
+                {
+                  state,
+                  summary,
+                  ...(expectsReply === undefined ? {} : { expectsReply: expectsReply === true }),
+                },
+                { turn: start.data.turn },
+              );
+            };
+            const report =
+              terminal && prior !== undefined
+                ? prior.published.catch(() => undefined).then(publish)
+                : publish();
+            if (terminal) terminalReport = { inputRevision, published: report };
+            try {
+              await report;
+            } catch (error) {
+              if (terminalReport?.published === report) terminalReport = undefined;
+              throw error;
+            }
+            entry.reported = true;
             return 'Report delivered to the Orchestrator.';
           },
           signal: stop.signal,
         })) ?? {};
+      if (stopped()) return;
+      await terminalReport?.published.catch(() => undefined);
       if (stopped()) return;
       if (outcome.turn !== undefined && outcome.endSeq !== undefined)
         run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });
@@ -2343,7 +2384,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(args.key === undefined ? {} : { key: args.key }),
             ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
-              ? { model: picked, modelGroupId: groupId }
+              ? {
+                  model: picked,
+                  modelGroupId: groupId,
+                  ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
+                }
               : args.provider === undefined
                 ? {}
                 : {
@@ -2746,6 +2791,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             assignments.unarchive !== undefined
           ) {
             await assignments.unarchive(args.session_id);
+            if (input.model === undefined) await assignments.refreshRoute?.(input.sessionId);
             outcome = assignments.request(input);
             unarchived = outcome.delivery !== 'refused';
           }

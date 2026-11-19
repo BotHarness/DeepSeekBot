@@ -158,3 +158,11 @@ test server/channel and current start/stop window, and inspect other task/device
 Saved names, IDs, `CONSOLE_READY` and timestamps are operator metadata, never an authenticated
 identity, an idle indication or a continuing lease. Stop only the exact task-owned receiver;
 keep production configuration and unrelated sessions intact.
+
+## IM browser QA (AX)
+
+For Discord and Lark message/reaction tests, prefer their signed-in web clients in the **Codex in-app browser**. Discover the current tabs and verify the account and designated test conversation each run; login state is session-local. Reuse the existing login in place, with the Human completing login when it expires.
+
+Within the Human-authorized destination and test cases, the agent can compose and send uniquely marked messages, inspect the actual replies/reactions, and capture cropped evidence in the browser. Correlate that visible result with canonical Source Event, Admission and Outbox facts; a successful API call alone does not verify rendering. Ask the Human to send manually only when browser interaction is unavailable or blocked.
+
+Keep credentials and login tokens machine-local and crop unrelated conversations from published evidence. App permission changes and exclusive production-receiver windows still require their specific authorization; prepare cutoff/restore guards before cutover and verify normal replies after restoration.
