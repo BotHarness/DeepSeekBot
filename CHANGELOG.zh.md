@@ -1611,7 +1611,7 @@ Tobs 使用带作用域的 npm 包并保留兼容的 deepseekbot 入口，统一
 - 移动端市场卡片和 Bot 详情保留简介内容，不再显示“AI 生成的简介”标注（[#2646](https://github.com/BotHarness/DeepSeekBot/issues/2646)）。
 - 移动端市场直接展示排序和常用标签，加入 iOS 悬浮玻璃导航与底部确认搜索，并对齐主题筛选面板的关闭按钮（[#2648](https://github.com/BotHarness/DeepSeekBot/issues/2648)）。
 - 聊天列表的创建按钮改用 iOS 原生菜单和 Material 3 菜单，直接显示四个 Bot 来源，去掉重复标题；附件按钮改为原生弹出菜单，两个加号菜单在触感开启时仅展开轻震一次（[#2650](https://github.com/BotHarness/DeepSeekBot/issues/2650)）。
-- 将 Android 底部导航改为圆角悬浮岛，与安全区边缘保持 16dp 间距，去掉高度与阴影，并保留选中指示和系统字体缩放（[ADR-0235](docs/adr/0235-mobile-creation-shares-the-existing-tab-navigator.md)，[#2655](https://github.com/BotHarness/DeepSeekBot/issues/2655)）。
+- 将 Android 底部导航改为圆角悬浮岛，与安全区边缘保持 16dp 间距，去掉高度与阴影，并保留选中指示和系统字体缩放（[ADR-0235](docs/decisions/mobile-ui.md#adr-0235)，[#2655](https://github.com/BotHarness/DeepSeekBot/issues/2655)）。
 - Android 的市场排序等行内选项改用 Material 3 按钮组，保留单选、触觉反馈和大字体下的可读选项；标签筛选使用无边框 chips（[#2656](https://github.com/BotHarness/DeepSeekBot/issues/2656)）。
 - iOS Computer 查看页改用透明原生顶部栏，显示电脑名称及连接、控制状态图标，并采用突出接管操作的原生工具栏、独立多指触控板与系统键盘输入、仅转圈的等待状态、纯黑画布，以及区分左右键的已接收点击波纹（[#2662](https://github.com/BotHarness/DeepSeekBot/issues/2662)）。
 - iOS Computer 改为在画面上单指移动指针，配合原生鼠标图标按钮和固定的单指滚动图标区，操作区不随字号或画面缩放而放大；Android 复用左右键与滚轮 SVG，保留原生按钮和手势；人工远控入口不再要求开启 Bot 的电脑工具（[#2662](https://github.com/BotHarness/DeepSeekBot/issues/2662)）。
