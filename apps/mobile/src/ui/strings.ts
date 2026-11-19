@@ -3540,7 +3540,7 @@ const zh: typeof en = {
       'host-not-local': '这台电脑不支持订阅引擎。',
       'not-installed': '这台电脑上未安装',
       'signed-out': '请在这台电脑上登录',
-      'not-subscription': '请使用订阅账号登录',
+      'not-subscription': '使用订阅账号登录',
       'login-unknown': '无法确认登录状态',
     },
     moveUp: (name: string) => `上移 ${name}`,

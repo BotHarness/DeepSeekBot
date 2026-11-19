@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ComponentRef } from 'react';
 import { FlatList, Keyboard, View } from 'react-native';
 
 import {
@@ -61,7 +61,7 @@ export function RoutingGroupMemberPicker({
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<'models' | 'engines'>('models');
   const [engines, setEngines] = useState<RoutingGroupEngineOptions[]>();
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ComponentRef<typeof View>>(() => {
     if (source !== 'engines' || engines !== undefined) return;
     let active = true;
     void loadRoutingGroupEngines(client).then(
