@@ -787,6 +787,11 @@ export class EngineHost {
       const sessionCwd = request.sessionCwd ?? cwd;
       if (request.cwd === undefined) mkdirSync(cwd, { recursive: true });
       await this.#options.gateway.start();
+      request.signal.throwIfAborted();
+      if (await request.releaseNativeSession?.()) {
+        request.signal.throwIfAborted();
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+      }
       const tools: EngineGatewayTool[] = request.tools
         .filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name))
         .map((tool) => ({
@@ -812,7 +817,7 @@ export class EngineHost {
       const stored = this.store.nativeSession(sessionId);
       let resume = stored?.engine === engineId ? stored.nativeId : undefined;
       if (resume !== undefined && stored?.lastTurn !== undefined) {
-        dsh = await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+        dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
         const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
         if (last?.data.turn !== stored.lastTurn) resume = undefined;
       }

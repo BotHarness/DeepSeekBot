@@ -45,7 +45,7 @@ For the group picker, open the global default model picker on desktop or a Bot's
 
 ### Quota fallback
 
-Run the replay first to verify continuation with a completed tool result, deduplication when a reply has already been delivered, and exhaustion without consuming subscription quota. The replay also checks that a read-only Workspace Grant keeps both the first Codex target and the Claude Code continuation read-only.
+Run the replay first to verify continuation with a completed tool result, deduplication when a reply has already been delivered, and exhaustion without consuming subscription quota. The native-first replay holds the real DSH writer during teardown, checks that neither steer nor engine startup can enter during handoff, then verifies one reply and DSH resume with the recorded engine turn. It also covers explicit `engine use` switches and read-only Workspace Grants in both routing directions.
 
 ```sh
 pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts

@@ -24,6 +24,16 @@ Fiber teardown. The pinned workspace and managed AX runtime patch that listener 
 the return before handling asynchronous errors. Verify the disposal edge on a running Host
 using the diagnostic log. A successful engine reply alone does not establish clean disposal.
 
+### Borrowed Agent handoff to a Subscription Engine (#4645)
+
+On DSH `0.2.2-rc.1`, disposing the Agent's scoped Fiber leaves its Agent and
+Session registrations live. A borrowed Agent also lacks the owner's `AgentHandle`.
+The pinned AgentLoop patch exposes `releaseIdleAgent` to run that exact Agent's
+normal teardown. It refuses active or queued work and seals native input while
+the writer closes. The managed AX runtime applies the same patch. A Host without
+the release capability can still switch Agents BotHarness owns through their
+handles. A borrowed Agent on that Host must finish under its native owner.
+
 ### Native Session identity across an isolated CLI and a worktree Plugin (#4144)
 
 An AX Profile can load DSH from its isolated `ax-cli` while the linked Plugin resolves its own

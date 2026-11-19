@@ -1,6 +1,21 @@
 import { join } from 'node:path';
 
-import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { Context } from '@deepseek-ai/cordis';
+import { AgentRegistry } from '@deepseek-ai/dsh-agent';
+import { AgentLoop } from '@deepseek-ai/dsh-agent-loop';
+import {
+  createUserMessage,
+  LlmAdapter,
+  LlmError,
+  LlmRuntime,
+  ToolCallId,
+  type GenerateOptions,
+  type StreamChunk,
+} from '@deepseek-ai/dsh-llm';
+import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
+import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
+import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
+import { ToolRuntime } from '@deepseek-ai/dsh-tools';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { dmChannelId } from '../src/channels/channel.js';
@@ -78,7 +93,106 @@ function limitAfter(tool: 'channel_read' | 'bot_send_message'): typeof LIMIT {
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
-  await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
+
+class NativeReplay extends LlmAdapter {
+  readonly requests: GenerateOptions[] = [];
+
+  constructor(private readonly hitQuota: boolean) {
+    super();
+  }
+
+  override async resolveModel(provider: string, id: string) {
+    return { provider, id, name: id, context: { contextWindow: 200_000 } };
+  }
+
+  override async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    this.requests.push(options);
+    if (this.hitQuota && this.requests.length === 2)
+      throw new LlmError('Fixture quota', 'QUOTA_EXHAUSTED');
+    if (this.requests.length > 1) {
+      yield { type: 'finish', reason: { kind: 'stop' } };
+      return;
+    }
+    const block = {
+      type: 'tool-call' as const,
+      id: ToolCallId('native-read'),
+      name: 'channel_read',
+      arguments: JSON.stringify({ channel_id: dmChannelId('ada') }),
+    };
+    yield { type: 'block-start', index: 0, blockType: block.type };
+    yield { type: 'block-end', index: 0, block };
+    yield { type: 'finish', reason: { kind: 'tool-calls' } };
+  }
+}
+
+async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () => Promise<void>) {
+  const ctx = new Context();
+  cleanups.push(() => ctx.fiber.dispose());
+  await ctx.plugin(LlmRuntime).await();
+  ctx.get('llm')!.registerAdapter([API.provider], model);
+  await ctx.plugin(SessionStore).await();
+  const dsh = memoryDsh();
+  const persistence = {
+    ...dsh.persistence,
+    create: async (...args: Parameters<typeof dsh.persistence.create>) => {
+      const handle = await dsh.persistence.create(...args);
+      return {
+        ...handle,
+        close: async () => {
+          await beforeWriterClose?.();
+          await handle.close();
+        },
+      };
+    },
+  };
+  ctx.provide('sessionPersistence', persistence as never);
+  ctx.on(
+    'session/event',
+    (session, event) => {
+      const entry = dsh.stored.get(session.id);
+      if (entry === undefined || entry.events.length !== Number(event.seq))
+        throw new Error('The replay expects one writer with a contiguous Session log');
+      entry.events.push(structuredClone(event));
+    },
+    { global: true },
+  );
+  await ctx.plugin(SystemPrompt, {}).await();
+  new SessionProjectionRegistry(ctx);
+  await ctx.plugin(AgentRegistry).await();
+  await ctx.plugin(ToolRuntime, {}).await();
+  await ctx.plugin(AgentLoop, {}).await();
+  return {
+    ctx,
+    agents: ctx.agents,
+    dsh: { ...dsh, store: ctx.sessions },
+    releaseNativeAgent: (agent: Parameters<typeof ctx.agentLoop.releaseIdleAgent>[0]) =>
+      ctx.agentLoop.releaseIdleAgent(agent),
+  };
+}
+
+const CODEX_REPLY = CODEX_DM.map((line) => {
+  const params = line.msg['params'];
+  if (params === null || typeof params !== 'object' || !('item' in params)) return line;
+  const item = params.item;
+  if (
+    item === null ||
+    typeof item !== 'object' ||
+    !('tool' in item) ||
+    item.tool !== 'bot_send_message'
+  )
+    return line;
+  return {
+    ...line,
+    msg: {
+      ...line.msg,
+      params: {
+        ...params,
+        item: { ...item, arguments: { body: 'Hello from Codex', channel_id: dmChannelId('ada') } },
+      },
+    },
+  };
 });
 
 function setup(options: {
@@ -90,6 +204,12 @@ function setup(options: {
   nativeReply?: string;
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
+  nativeFirst?: boolean;
+  nativeRuntime?: Pick<
+    Awaited<ReturnType<typeof nativeRuntime>>,
+    'agents' | 'dsh' | 'releaseNativeAgent'
+  >;
+  beforeNativeHandle?(sessionId: string, cwd: string): Promise<void>;
 }) {
   const clock = { now: START };
   const root = createTempRoot('routing-group-engine-');
@@ -99,7 +219,7 @@ function setup(options: {
     title: 'Fixture',
     status: async () => 'ok' as const,
   };
-  const dsh = memoryDsh();
+  const dsh = options.nativeRuntime?.dsh ?? memoryDsh();
   const replies = vi.fn();
   const native = new FakeAgentHost(undefined, {
     restoreSession: (id) =>
@@ -161,15 +281,25 @@ function setup(options: {
     validate: async () => undefined,
   });
   const memoryDirectory = join(root, 'memory', 'ada');
-  const prepareModelRoute = vi.fn(async () => {});
+  const prepareModelRoute = vi.fn(async () => {
+    const id = core.runtime.currentOrchestratorSessionId('ada');
+    if (id !== undefined) await options.beforeNativeHandle?.(id, memoryDirectory);
+  });
   const adapter = createDshBotAgentAdapter({
-    agents: native,
+    agents: options.nativeRuntime?.agents ?? native,
+    ...(options.nativeRuntime === undefined
+      ? {}
+      : { releaseNativeAgent: options.nativeRuntime.releaseNativeAgent }),
     engines: host,
     engineWorkspaceMode: (slug): ReturnType<typeof engineWorkspaceMode> =>
       engineWorkspaceMode(core, slug),
     orchestratorCwd: () => memoryDirectory,
     ensureWorkspace: () => {},
     prepareModelRoute,
+    observeTurnFailure: (provider, code) => {
+      if (provider === API.provider && code === 'QUOTA_EXHAUSTED')
+        routeRests.rest(API, clock.now + 1_000, 'quota');
+    },
     hasSession: async (id) =>
       dsh.stored.has(id) || native.sessions.some((session) => session.id === id),
     defaultModel: { currentSelection: () => API },
@@ -193,9 +323,12 @@ function setup(options: {
     core.operationalDatabase.close();
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
+  const nativeMember = { kind: 'model', ...API } as const;
   const group = core.routingGroups.create({
     name: 'Fallback',
-    members: [...options.members, { kind: 'model', ...API }],
+    members: options.nativeFirst
+      ? [nativeMember, ...options.members]
+      : [...options.members, nativeMember],
   });
   if (options.inherited) core.routingGroups.setDefaultGroup(group.id, 0);
   else expect(core.registry.customizeModelPlan('ada', API, 0, group.id).ok).toBe(true);
@@ -216,6 +349,7 @@ function setup(options: {
   }
   return {
     host,
+    adapter,
     dsh,
     codex,
     claude,
@@ -233,6 +367,122 @@ function setup(options: {
     held: () => core.runtime.heldCause?.('ada'),
   };
 }
+
+it('continues a native quota turn on an engine, then resumes DSH on the same Session', async () => {
+  const model = new NativeReplay(true);
+  const writerClosing = vi.fn();
+  const allowClose = Promise.withResolvers<void>();
+  const runtime = await nativeRuntime(model, async () => {
+    writerClosing();
+    await allowClose.promise;
+  });
+  const { ctx, dsh } = runtime;
+  const bot = setup({
+    members: [CODEX],
+    nativeFirst: true,
+    codexRecording: CODEX_REPLY,
+    nativeRuntime: runtime,
+    beforeNativeHandle: async (id, cwd) => {
+      if (dsh.stored.has(id)) return;
+      await ctx.agents.create({ sessionId: SessionId(id), meta: { cwd }, agentOptions: API });
+    },
+  });
+  expect(await bot.grantWorkspace()).toMatchObject({ orchestratorWrite: false });
+  const first = bot.message('first', 'Read the DM before replying. My lucky word is orchid.');
+  try {
+    await vi.waitFor(() => expect(writerClosing).toHaveBeenCalledTimes(1));
+    const old = ctx.agents.get(SessionId(bot.sessionId()));
+    expect(old).toBeDefined();
+    expect(bot.adapter.steerOrchestrator?.('ada', 'Arrived during the handoff')).toBe(false);
+    expect(() =>
+      old?.followup(
+        createUserMessage({
+          content: [{ type: 'text', text: 'Native concurrent input' }],
+          source: { kind: 'user' },
+        }),
+      ),
+    ).toThrow('releasing its Session');
+    expect(bot.codex).toHaveLength(0);
+  } finally {
+    allowClose.resolve();
+    await first;
+  }
+  const id = bot.sessionId();
+  expect(bot.channelMessages().flatMap((message) => message.sessionFailure ?? [])).toEqual([]);
+  expect(bot.codex[0]?.mismatches).toEqual([]);
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Hello from Codex' }],
+  });
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start')).toMatchObject({
+    params: { sandbox: 'read-only', approvalPolicy: 'never' },
+  });
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'turn/start')).toMatchObject({
+    params: {
+      input: [
+        {
+          text: expect.stringMatching(
+            /Tool result \(native-read\)[\s\S]+orchid[\s\S]+Continue from where you stopped/u,
+          ),
+        },
+      ],
+      sandboxPolicy: { type: 'readOnly', networkAccess: false },
+      approvalPolicy: 'never',
+    },
+  });
+  expect(ctx.agents.get(SessionId(id))).toBeUndefined();
+  expect(bot.host.isLive(id)).toBe(true);
+  expect(bot.channelMessages().filter((message) => message.modelSwitch)).toMatchObject([
+    { modelSwitch: { sessionId: id, from: API, to: { provider: 'codex' } } },
+  ]);
+
+  bot.clock.now += 1_001;
+  await bot.message('second', 'Continue on DSH');
+  expect(bot.sessionId()).toBe(id);
+  expect(bot.host.isLive(id)).toBe(false);
+  expect(ctx.agents.get(SessionId(id))?.session).toBe(dsh.store.get(SessionId(id)));
+  expect(model.requests[2]?.messages).toContainEqual(
+    expect.objectContaining({
+      role: 'assistant',
+      content: expect.arrayContaining([{ type: 'text', text: 'I replied in the DM.' }]),
+    }),
+  );
+  expect(
+    dsh.stored
+      .get(id)
+      ?.events.flatMap((event) => (event.type === 'turn/start' ? [event.data.turn] : [])),
+  ).toEqual([1, 2, 3]);
+});
+
+it('keeps the manual engine use switch working after a native turn', async () => {
+  const model = new NativeReplay(false);
+  const runtime = await nativeRuntime(model);
+  const { ctx } = runtime;
+  const bot = setup({ members: [], codexRecording: CODEX_REPLY, nativeRuntime: runtime });
+  await bot.message('first', 'Remember orchid');
+  const id = bot.sessionId();
+  expect(ctx.agents.get(SessionId(id))).toBeDefined();
+
+  bot.host.use('ada', 'orchestrator', 'codex');
+  await bot.message('second', 'Use the selected engine');
+  expect(bot.sessionId()).toBe(id);
+  expect(bot.sendStatus('second')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Hello from Codex' }],
+  });
+  expect(ctx.agents.get(SessionId(id))).toBeUndefined();
+
+  bot.host.use('ada', 'orchestrator', undefined);
+  await bot.message('third', 'Return to DSH');
+  expect(bot.sessionId()).toBe(id);
+  expect(ctx.agents.get(SessionId(id))).toBeDefined();
+  expect(model.requests[2]?.messages).toContainEqual(
+    expect.objectContaining({
+      role: 'assistant',
+      content: expect.arrayContaining([{ type: 'text', text: 'I replied in the DM.' }]),
+    }),
+  );
+});
 
 it('answers the first Human message on DSH when the engine hits quota before output', async () => {
   const bot = setup({ members: [CODEX], nativeReply: 'Orchid noted.' });

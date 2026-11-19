@@ -31,6 +31,7 @@ export interface EngineTurnRequest {
   cwd?: string;
   sessionCwd?: string;
   workspaceMode?(): EngineWorkspaceMode;
+  releaseNativeSession?(): Promise<boolean>;
   sessionId: string;
   channelId: string | undefined;
   input: string;

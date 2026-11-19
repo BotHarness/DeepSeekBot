@@ -163,6 +163,7 @@ import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './compa
 
 import type { Context } from '@deepseek-ai/cordis';
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type {} from '@deepseek-ai/dsh-agent-loop';
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -1923,6 +1924,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
+    releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),

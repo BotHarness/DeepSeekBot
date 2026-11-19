@@ -532,6 +532,7 @@ export interface DshBotAgentAdapterOptions {
   publishDraft?: (event: ChannelDraftEvent) => void;
 
   authorizeBorrow?: (agent: Agent, role: 'orchestrator' | 'assignment') => void;
+  releaseNativeAgent?: (agent: Agent) => Promise<boolean> | undefined;
 
   admitSession?: (agent: Agent) => void;
 
@@ -830,6 +831,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #engineTools: EngineToolSource | undefined;
   readonly #engineToolGate: EngineToolGate | undefined;
   readonly #engineStops = new Map<string, AbortController>();
+  readonly #borrowedOrchestrators = new WeakSet<AgentHandle>();
+  readonly #releaseNativeAgent: DshBotAgentAdapterOptions['releaseNativeAgent'];
   readonly #engineChannels = new Map<string, string>();
   readonly #preparationVisibleMs: number;
   readonly #drafts: ChannelDraftTracker;
@@ -860,6 +863,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#defaultAgentPresetOf =
       typeof defaultAgentPreset === 'function' ? defaultAgentPreset : () => defaultAgentPreset;
     this.#authorizeBorrow = options.authorizeBorrow;
+    this.#releaseNativeAgent = options.releaseNativeAgent;
     this.#admitSession = options.admitSession;
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
@@ -952,6 +956,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
+    if (this.#runs.has(run.sessionId) || this.#preparations.has(run.sessionId))
+      throw new DirectBotToolError('bot-busy', 'The Orchestrator Session already has active work');
     const entry: ActiveRun = {
       role: 'orchestrator',
       run,
@@ -1142,11 +1148,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       this.#engineChannels.set(run.sessionId, run.inboundChannelId);
     void abandoned.then(() => stop.abort());
     try {
-      const native = this.#handles.get(run.sessionId);
-      if (native !== undefined) {
-        this.#forgetHandle(run.sessionId);
-        await native.dispose();
-      }
       if (stop.signal.aborted) return;
       run.setExecutionReady?.(true);
       run.requireContent?.();
@@ -1168,6 +1169,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
         ...(sessionCwd === undefined ? {} : { sessionCwd }),
         workspaceMode: () => this.#engineWorkspaceMode?.(run.bot.slug) ?? 'workspace-write',
+        releaseNativeSession: () => this.#releaseNativeOrchestrator(run.sessionId),
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
@@ -1209,6 +1211,30 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#engineChannels.delete(run.sessionId);
       }
     }
+  }
+
+  async #releaseNativeOrchestrator(sessionId: string): Promise<boolean> {
+    const handle = this.#liveHandle(sessionId);
+    const agent = handle?.agent ?? this.#agents.get?.(SessionId(sessionId));
+    if (agent === undefined) return false;
+    this.#authorizeBorrow?.(agent, 'orchestrator');
+    const release = this.#releaseNativeAgent?.(agent);
+    if (release !== undefined) {
+      if (!(await release))
+        throw new DirectBotToolError('bot-busy', 'The native Agent could not release its Session');
+    } else if (handle !== undefined && !this.#borrowedOrchestrators.has(handle)) {
+      if (
+        agent.status === 'running' ||
+        agent.inbox?.nextTurn.length ||
+        agent.inbox?.nextStep.length
+      )
+        throw new DirectBotToolError('bot-busy', 'The native Agent has pending work');
+      await handle.dispose();
+    } else {
+      throw new Error('This DSH Host cannot release a borrowed Agent for a Subscription Engine');
+    }
+    if (this.#handles.get(sessionId) === handle) this.#forgetHandle(sessionId);
+    return true;
   }
 
   async #engineCatalog(run: OrchestratorAgentRun, signal: AbortSignal): Promise<EngineBotTool[]> {
@@ -1407,6 +1433,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (
         active.role !== 'orchestrator' ||
         active.direct ||
+        this.#engineStops.has(sessionId) ||
         active.run.tobCliTurn !== undefined ||
         active.run.bot.slug !== botSlug
       )
@@ -1790,6 +1817,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   async loadOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
+    if (this.#engineStops.has(run.sessionId))
+      throw new DirectBotToolError('bot-busy', 'The Orchestrator Session is running on an engine');
     if (this.#hasSession && !(await this.#hasSession(run.sessionId))) {
       const error = new Error('Original Session is unavailable');
       error.name = 'SessionUnavailableError';
@@ -1947,6 +1976,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           for (const dispose of borrowedDisposers.reverse()) await dispose();
         },
       };
+      this.#borrowedOrchestrators.add(borrowed);
       this.#handles.set(run.sessionId, borrowed);
       this.#orchestratorSelections.set(run.sessionId, selection);
       return borrowed;
