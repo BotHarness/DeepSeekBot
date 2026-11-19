@@ -4128,11 +4128,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       mountCardContextLive(ctx, core, bridgeMethods, toolApproval, userQuestions, (slug, id) => {
         const request =
           id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
-        const { provider, model } =
+        const route =
           request ??
           core.registry.get(slug)?.modelPlan?.orchestrator ??
-          defaultModel.currentSelection();
-        return [provider, model, request?.maxTokens, compactionPolicy()];
+          defaultModel?.currentSelection();
+        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
       }),
     'botharness: card and context changes',
   );

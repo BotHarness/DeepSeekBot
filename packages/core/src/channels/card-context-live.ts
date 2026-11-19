@@ -96,9 +96,14 @@ export function mountCardContextLive(
     return JSON.stringify([sessionId, contextRoute(slug, sessionId)]);
   };
   const refreshContext = (slug: string, force = false): void => {
-    const key = contextKey(slug);
-    if (force || (contexts.has(slug) && contexts.get(slug) !== key)) publishContext(slug);
-    contexts.set(slug, key);
+    if (!core.registry.get(slug)) return;
+    try {
+      const key = contextKey(slug);
+      if (force || (contexts.has(slug) && contexts.get(slug) !== key)) publishContext(slug);
+      contexts.set(slug, key);
+    } catch {
+      ctx.logger.warn('botharness.bot-context-live phase=snapshot-failed');
+    }
   };
   const refreshContexts = () => {
     const slugs = new Set(core.registry.list().map((bot) => bot.slug));
