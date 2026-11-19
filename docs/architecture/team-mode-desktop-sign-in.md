@@ -1,6 +1,6 @@
 # Desktop Team sign-in contract
 
-Issue [#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201), stacked on M8 [#4165](https://github.com/BotHarness/DeepSeekBot/pull/4165). This contract supplies logic for the desktop sign-in stepper; Claude owns its visual components. It implements the identity and transport boundaries of [ADR-0336](../adr/0336-hosts-have-members.md).
+Issue [#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201), stacked on M8 [#4165](https://github.com/BotHarness/DeepSeekBot/pull/4165). This contract supplies logic for the desktop sign-in stepper; Claude owns its visual components. It implements the identity and transport boundaries of [Team mode decisions](../decisions/team-mode.md#adr-0336).
 
 ## Packages and ownership
 
