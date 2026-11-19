@@ -260,10 +260,7 @@ export class EngineHost {
     return this.store.selection(botSlug, role);
   }
 
-  #turnSelection(request: EngineTurnRequest): {
-    engine: EngineId | undefined;
-    choice: EngineChoice;
-  } {
+  #turnSelection(request: EngineTurnRequest) {
     const role = request.role ?? 'orchestrator';
     const target = request.target;
     if (target !== undefined && role === 'orchestrator' && this.#options.local)
