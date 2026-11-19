@@ -121,6 +121,7 @@ export interface NavItemProps extends Omit<
   'children' | 'style' | 'type' | 'aria-current' | 'onSelect'
 > {
   readonly icon?: ReactNode;
+  readonly iconDecorative?: boolean;
   readonly label: ReactNode;
   readonly description?: string | undefined;
   readonly current?: boolean;
@@ -136,6 +137,7 @@ export interface NavItemProps extends Omit<
 export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavItem(
   {
     icon,
+    iconDecorative = true,
     label,
     description,
     current = false,
@@ -178,7 +180,10 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
       {...stylesForButton}
       className={joinClass(className, stylesForButton.className)}
     >
-      <span aria-hidden="true" {...stylex.props(styles.slot, current && styles.slotCurrent)}>
+      <span
+        aria-hidden={iconDecorative || undefined}
+        {...stylex.props(styles.slot, current && styles.slotCurrent)}
+      >
         {icon}
       </span>
       {iconOnly ? null : (

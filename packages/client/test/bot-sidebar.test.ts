@@ -2575,6 +2575,11 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
     const avatar = row.slice(0, row.indexOf('class="bh-body"'));
     const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-bottom"'));
     const bottom = row.slice(row.indexOf('class="bh-bottom"'), row.indexOf('</button>'));
+    const container = document.createElement('div');
+    container.innerHTML = markup;
+    const portrait = container.querySelector(`[data-channel-id="${DM_CHANNEL.id}"] [role="img"]`);
+    expect(portrait?.getAttribute('aria-label')).toContain(BOT.displayName);
+    expect(portrait?.closest('[aria-hidden="true"]')).toBeNull();
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-avatar-botui');

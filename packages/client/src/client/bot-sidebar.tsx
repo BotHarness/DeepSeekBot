@@ -714,6 +714,7 @@ function BotRow({
           const rect = event.currentTarget.getBoundingClientRect();
           onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
         }}
+        iconDecorative={false}
         icon={
           <span className="bh-row-avatar">
             <PersonaBotAvatar
