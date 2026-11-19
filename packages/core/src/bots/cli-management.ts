@@ -294,7 +294,8 @@ export async function runOnlineManagement(
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
-  if (command === 'model-presets') return rpc('modelPresets', {});
+  if (command === 'model-presets')
+    return rpc('modelPresets', values['include-usage'] ? { includeUsage: true } : {});
   if (command === 'model-preset-create') return rpc('modelPresetCreate', { ...presetInput! });
   if (command === 'model-preset-apply') {
     const revisions: Record<string, number> = {};

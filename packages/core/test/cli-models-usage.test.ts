@@ -103,6 +103,38 @@ const noGroups = {
 };
 
 describe('Model commands', () => {
+  it('lists preset usage and requires a confirmed revision for deletion', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value: method === 'modelPresets' ? { presets: [], usage: [] } : { id: 'preset-1' },
+    }));
+    expect((await invoke(['model-presets', '--include-usage'], live.url)).json).toMatchObject({
+      usage: [],
+    });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--expected-revision', '2'], live.url))
+        .json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--confirm'], live.url)).json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (
+        await invoke(
+          ['model-preset-delete', 'preset-1', '--confirm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({ id: 'preset-1' });
+    expect(live.calls).toEqual([
+      { method: 'modelPresets', args: { includeUsage: true } },
+      {
+        method: 'modelPresetDelete',
+        args: { id: 'preset-1', expectedRevision: 2, confirmed: true },
+      },
+    ]);
+  });
+
   it('reads the model catalog from the live Host', async () => {
     const live = await host(() => ({
       ok: true,

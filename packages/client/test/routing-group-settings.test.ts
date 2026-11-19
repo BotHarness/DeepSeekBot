@@ -76,8 +76,10 @@ function harness(initial: RoutingGroupView[]) {
   return actions;
 }
 
-async function render(actions: ReturnType<typeof harness>): Promise<void> {
-  await act(async () => root.render(createElement(RoutingGroupSettings, { actions, t })));
+async function render(actions: ReturnType<typeof harness>, canConfigure = true): Promise<void> {
+  await act(async () =>
+    root.render(createElement(RoutingGroupSettings, { actions, canConfigure, t })),
+  );
   await act(async () => undefined);
 }
 
@@ -101,6 +103,14 @@ it('lists groups with their members in order and marks a resting member', async 
   const row = host.querySelector('[data-routing-group="g-1"]')!;
   expect(row.textContent).toContain('DeepSeek');
   expect(row.textContent).toMatch(/V4\.1 Flash.*休息至 .*→V4 Pro/u);
+});
+
+it('shows the Routing Group chain without controls in read-only settings', async () => {
+  const actions = harness([group]);
+  await render(actions, false);
+  expect(host.querySelector('[data-routing-group="g-1"]')?.textContent).toContain('DeepSeek');
+  expect(host.querySelector('button')).toBeNull();
+  expect(actions.routingGroups).toHaveBeenCalledTimes(1);
 });
 
 it('creates a group from models picked in order', async () => {

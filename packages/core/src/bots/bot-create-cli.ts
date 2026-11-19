@@ -160,7 +160,8 @@ Usage:
   tobs bot-zip-import --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --operation-key <key> --name <name> --host <url>
   tobs bot-zip-import-status --archive-sha256 <hash> --operation-key <key> --name <name> --host <url>
   tobs show <id> [--home <dsh-home>]
-  tobs model-presets [--home <dsh-home>]
+  tobs model-presets [--home <dsh-home>] [--include-usage (online)]
+  tobs model-preset-delete <preset-id> --expected-revision <n> --confirm
   tobs model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
                                   [--orchestrator-effort <e>] --assignment-provider <p>
                                   --assignment-model <m> [--assignment-effort <e>] [--home <dsh-home>]
@@ -2845,6 +2846,8 @@ export async function runBotCreateCli(
     }
     if (command === 'model-presets') {
       if (rest.length > 0) throw usageError('model-presets takes no bot id.');
+      if (values['include-usage'])
+        throw usageError('--include-usage requires an online Host target.');
       out.stdout(JSON.stringify(runModelPresets(values, io), null, 2));
       return 0;
     }

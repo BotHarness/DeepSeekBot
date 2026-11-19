@@ -1112,6 +1112,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/model-providers.md",
       "task": 4657,
       "gap": "Run provider CRUD, branding and member visibility in the Web Client and M15 C3 for member bridge and CLI refusals."
+    },
+    {
+      "id": "settings.model-presets",
+      "label": "Model Presets settings and Team model configuration permission",
+      "source": "packages/client/src/client/model-presets-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/model-presets.md",
+      "task": 4657,
+      "gap": "Run preset CRUD and application in the Web Client and M15 C4 for the Member and Admin CLI authorization paths."
     }
   ],
   "scripts": [
@@ -2773,10 +2781,10 @@
     {
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
-      "behaviors": ["team.security-suite", "settings.model-providers"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant.",
+      "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups.",
       "task": 4197,
-      "sha256": "718e2aef0b7f4744468b0cdeaa5f0b30034a384ed5a1a4ded315dc289e63af98"
+      "sha256": "ee68cf22b1d367fca8e5c8ad9880c5a7092f7bc25f7abf7f455a8fe8bb185085"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

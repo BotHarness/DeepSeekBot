@@ -321,6 +321,7 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
+    openModelPresets: () => botSettings.open(BOT_SETTINGS_SECTIONS.modelPresets),
     ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
     fileOpenPreferences: createFileOpenPreferences({
       storage,

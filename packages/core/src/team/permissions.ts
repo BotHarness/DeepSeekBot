@@ -12,6 +12,7 @@ export const PERMISSION_CATALOG = [
   { id: 'bots.createPublic', group: 'bots' },
   { id: 'bots.manageAll', group: 'bots' },
   { id: 'models.use', group: 'compute' },
+  { id: 'models.configure', group: 'compute' },
   { id: 'modelSources.manage', group: 'compute' },
   { id: 'im.bind', group: 'bots' },
   { id: 'workspaces.manageShared', group: 'compute' },

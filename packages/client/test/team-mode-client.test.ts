@@ -152,18 +152,19 @@ describe('Team change-password page', () => {
 });
 
 describe('member view of Bot settings', () => {
-  it('keeps Host configuration sections with the Owner', () => {
-    for (const id of ['account', 'general', 'appearance', 'notifications', 'shortcuts', 'team'])
-      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
+  it('shows shared model settings and keeps other Host configuration with the Owner', () => {
     for (const id of [
+      'account',
+      'general',
+      'appearance',
+      'notifications',
+      'shortcuts',
+      'team',
       'models',
-      'im-apps',
-      'devices',
-      'data-privacy',
-      'advanced',
-      'plugins',
-      'auto-approval',
+      'model-presets',
     ])
+      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
+    for (const id of ['im-apps', 'devices', 'data-privacy', 'advanced', 'plugins', 'auto-approval'])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
   });
 

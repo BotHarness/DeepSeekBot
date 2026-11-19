@@ -555,6 +555,18 @@ it('limits App preferences navigation and section mounting to Client-local owner
   expect(rendered.at(-1)).toMatchObject({ id: 'models', clientOnly: false });
 });
 
+it('keeps Model Presets directly below Models and runtime', () => {
+  const settings = new BotSettings();
+  mount(settings, [
+    { id: 'model-presets', order: 11, label: '模型预设' },
+    { id: 'models', order: 10, label: '模型与运行' },
+    { id: 'model-providers', order: 9, label: '模型提供商' },
+  ]);
+  act(() => settings.open('model-presets'));
+  expect(navLabels()).toEqual(['模型提供商', '模型与运行', '模型预设']);
+  expect(shownSection()).toBe('model-presets');
+});
+
 it('intersects member access with Client preferences for navigation, search and direct section requests', () => {
   member = true;
   const settings = new BotSettings();

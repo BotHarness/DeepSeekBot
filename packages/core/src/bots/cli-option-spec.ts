@@ -162,6 +162,7 @@ export const MESSAGING_OPTIONS = {
 } as const;
 
 export const MODELS_USAGE_OPTIONS = {
+  'include-usage': { type: 'boolean' },
   template: { type: 'string' },
   endpoint: { type: 'string' },
   'key-stdin': { type: 'boolean' },

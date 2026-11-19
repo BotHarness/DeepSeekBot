@@ -1,5 +1,4 @@
 import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
-import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
@@ -310,7 +309,6 @@ import {
   loadModelPlan,
   loadModelPlanState,
   type ModelPlanStateView,
-  createModelPreset,
   createRoutingGroup,
   deleteRoutingGroup,
   loadRoutingGroups,
@@ -318,7 +316,6 @@ import {
   type RestingRouteView,
   type RoutingGroupMemberView,
   type RoutingGroupView,
-  updateModelPreset,
   applyModelPreset,
   customizeModelPlan,
   chooseModelPlanGroup,
@@ -473,6 +470,7 @@ export interface HostDirectoryListing {
 
 export interface BridgeActions extends BotModeActions {
   readonly teamCall?: BridgeCall;
+  readonly openModelPresets?: () => void;
   genuiDocumentView(
     channelId: string,
     messageId: string,
@@ -680,22 +678,6 @@ export interface BridgeActions extends BotModeActions {
   deleteRoutingGroup(id: string, expectedRevision: number): Promise<RoutingGroupView>;
   modelPlan(slug: string): Promise<ModelPlanView | undefined>;
   modelPlanState(slug: string): Promise<ModelPlanStateView>;
-  createModelPreset(
-    name: string,
-    orchestrator: ModelRouteView,
-    assignmentDefault: ModelRouteView,
-    assignmentModels?: AssignmentModelOptionView[],
-    openAssignmentModels?: boolean,
-    groups?: ModelPlanGroupsView,
-    engines?: ModelPresetEngines,
-  ): Promise<ModelPresetView>;
-  updateModelPreset(
-    id: string,
-    expectedRevision: number,
-    name: string,
-    orchestrator: ModelRouteView,
-    assignmentDefault: ModelRouteView,
-  ): Promise<ModelPresetView>;
   applyModelPreset(slug: string, presetId: string): Promise<ModelPlanView>;
   customizeModelPlan(
     slug: string,
@@ -1360,6 +1342,7 @@ export function createActions(
     nativeFiles?: NativeHostFiles;
     fileOpenPreferences?: FileOpenPreferences;
     submissions?: ComposerSubmissionStore;
+    openModelPresets?(): void;
   },
   resources?: { download(path: string, name: string): Promise<void> },
 ): BridgeActions {
@@ -2030,6 +2013,9 @@ export function createActions(
   const actions: BridgeActions = {
     ...botModeActions(call),
     teamCall: call,
+    ...(folderAccess?.openModelPresets === undefined
+      ? {}
+      : { openModelPresets: folderAccess.openModelPresets }),
     genuiDocumentView: (channelId, messageId, document) =>
       loadGenuiDocumentView(call, channelId, messageId, document),
     saveGenuiDocumentView: (channelId, messageId, document, expectedVersion, state) =>
@@ -2215,27 +2201,6 @@ export function createActions(
     deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (
-      name,
-      orchestrator,
-      assignmentDefault,
-      assignmentModels,
-      open,
-      groups,
-      engines,
-    ) =>
-      createModelPreset(
-        call,
-        name,
-        orchestrator,
-        assignmentDefault,
-        assignmentModels,
-        open,
-        groups,
-        engines,
-      ),
-    updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
-      updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
       recorded(applyModelPreset(call, slug, presetId), () =>
         actions.telemetryEvent('model:plan_update', { via: 'preset' }),

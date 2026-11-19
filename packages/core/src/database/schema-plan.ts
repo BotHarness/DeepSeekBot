@@ -3998,6 +3998,38 @@ const ASSIGNMENT_MODEL_EFFORT_MIGRATION: SchemaMigration = {
   },
 };
 
+const MODELS_CONFIGURE_PERMISSION_MIGRATION: SchemaMigration = {
+  id: 'models-configure-permission',
+  module: 'team',
+  description: 'Grant shared model configuration to the built-in Admin with its default grants',
+  migrate(database) {
+    const previousAdmin = [
+      'members.manage',
+      'roles.manage',
+      'team.settings',
+      'channels.create',
+      'channels.manageAll',
+      'dm.humans',
+      'bots.createPrivate',
+      'bots.createPublic',
+      'bots.manageAll',
+      'models.use',
+      'im.bind',
+      'workspaces.manageShared',
+      'approvals.opaqueTools',
+      'usage.view',
+      'audit.view',
+    ];
+    database
+      .prepare(`UPDATE host_roles SET permissions_json = json_insert(permissions_json, '$[#]', ?)
+      WHERE builtin = 'admin' AND json_array_length(permissions_json) = ?
+      AND NOT EXISTS (
+        SELECT value FROM json_each(?) EXCEPT SELECT value FROM json_each(permissions_json)
+      )`)
+      .run('models.configure', previousAdmin.length, JSON.stringify(previousAdmin));
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4171,4 +4203,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_AGENT_PRESET_MIGRATION,
   ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
   ASSIGNMENT_MODEL_EFFORT_MIGRATION,
+  MODELS_CONFIGURE_PERMISSION_MIGRATION,
 ]);

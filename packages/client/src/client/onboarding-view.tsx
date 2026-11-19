@@ -822,9 +822,11 @@ export function OnboardingSetting({
 
 export function DefaultModelSettings({
   actions,
+  canConfigure,
   t,
 }: {
   actions: BridgeActions;
+  canConfigure: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [open, setOpen] = useState(false);
@@ -846,37 +848,46 @@ export function DefaultModelSettings({
   };
   const mount = useMountedResource<HTMLDivElement>(load, [actions]);
   const item = catalogMenuItems(models, t, groups).find((entry) => entry.value === current);
+  const label = (
+    <>
+      {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
+      {item?.group === undefined ? null : <ChannelSidebarIcon name="git-branch" size={16} />}
+      {item?.label ??
+        (current === ''
+          ? t('modelPreset.noDefault')
+          : current === undefined
+            ? t('onboarding.model')
+            : groupMenuId(current) !== undefined
+              ? t('modelPreset.routeUnavailable')
+              : (JSON.parse(current) as string[]).join(' / '))}
+    </>
+  );
   return (
     <SettingsRow
       rootRef={mount}
       title={t('onboarding.defaultTitle')}
       description={t('onboarding.defaultDescription')}
       control={
-        <Button
-          variant="outline"
-          size="sm"
-          title={item?.name}
-          aria-label={
-            item === undefined
-              ? t('onboarding.defaultTitle')
-              : `${t('onboarding.defaultTitle')} · ${item.name}`
-          }
-          onClick={() => setOpen(true)}
-        >
-          {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
-          {item?.group === undefined ? null : <ChannelSidebarIcon name="git-branch" size={16} />}
-          {item?.label ??
-            (current === ''
-              ? t('modelPreset.noPlan')
-              : current === undefined
-                ? t('onboarding.model')
-                : groupMenuId(current) !== undefined
-                  ? t('modelPreset.routeUnavailable')
-                  : (JSON.parse(current) as string[]).join(' / '))}
-        </Button>
+        canConfigure ? (
+          <Button
+            variant="outline"
+            size="sm"
+            title={item?.name}
+            aria-label={
+              item === undefined
+                ? t('onboarding.defaultTitle')
+                : `${t('onboarding.defaultTitle')} · ${item.name}`
+            }
+            onClick={() => setOpen(true)}
+          >
+            {label}
+          </Button>
+        ) : (
+          <Tag tone="neutral">{label}</Tag>
+        )
       }
     >
-      {open ? (
+      {canConfigure && open ? (
         <OnboardingModelDialog
           actions={actions}
           title={t('onboarding.defaultTitle')}

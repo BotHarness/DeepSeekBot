@@ -72,6 +72,10 @@ export const MODELS_USAGE_COMMANDS = [
     description: 'rename or change the routes of a Model Preset',
   },
   {
+    command: 'model-preset-delete',
+    description: 'delete a Model Preset at its revision and keep applied Bot plans (--confirm)',
+  },
+  {
     command: 'model-groups',
     description:
       'list Routing Groups and their ordered model, Routing Group and Subscription Engine members',
@@ -613,6 +617,16 @@ export async function runModelsUsage(
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
+  }
+  if (command === 'model-preset-delete') {
+    if (values.confirm !== true) usage('Add --confirm to delete the Model Preset.');
+    if (expected === undefined || expected < 1)
+      usage('Provide --expected-revision from model-presets.');
+    return (await connect())('modelPresetDelete', {
+      id: target,
+      expectedRevision: expected,
+      confirmed: true,
+    });
   }
   if (command === 'model-preset-update') {
     const engines = presetEngineFlags(values, true);

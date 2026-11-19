@@ -11,7 +11,18 @@ export const MEMBER_BOT_IMPORT_METHODS = [
   'marketplaceInstall',
 ] as const;
 
+export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
+  'onboardingModel',
+  'modelGroupCreate',
+  'modelGroupUpdate',
+  'modelGroupDelete',
+  'modelPresetCreate',
+  'modelPresetUpdate',
+  'modelPresetDelete',
+]);
+
 export const MEMBER_GLOBAL_METHODS = [
+  ...MODEL_CONFIGURATION_METHODS,
   'botVisibility',
   'botVisibilitySet',
   'botSwitches',
