@@ -1,5 +1,7 @@
+import * as stylex from '@stylexjs/stylex';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
+import { space, text } from './ds/tokens.stylex.js';
 import {
   selectConversationChannel,
   selectConversationSending,
@@ -25,6 +27,10 @@ import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 const ONBOARDING_MEMORY_FIELDS = ['bots'] as const;
+
+const styles = stylex.create({
+  form: { display: 'grid', gap: space.x5, minWidth: 0, lineHeight: text.bodyLine },
+});
 
 export const OnboardingMemoryNavigation = createContext<
   | {
@@ -136,7 +142,9 @@ export function OnboardingMemory({
             </>
           }
         >
-          <div className="bh-root bh-onboarding-model-form">
+          <div
+            className={`bh-root bh-onboarding-model-form ${stylex.props(styles.form).className ?? ''}`}
+          >
             <p className="bh-note">{t('onboarding.memory.truth')}</p>
             {page === 'overview' ? (
               <>
