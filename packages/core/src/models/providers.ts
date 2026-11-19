@@ -5,6 +5,7 @@ import {
   type CredentialRef,
 } from '@deepseek-ai/dsh-credentials';
 import { ReasoningEffortId, type LlmRuntime } from '@deepseek-ai/dsh-llm';
+import { SessionId } from '@deepseek-ai/dsh-session';
 import type { SettingsForms, SettingsPathOp } from '@deepseek-ai/dsh-settings';
 import { z } from 'zod';
 import type { RestingRoute } from './route-rest.js';
@@ -47,6 +48,23 @@ const templates = {
     ],
   },
 };
+
+type GoRequest = Readonly<{ provider: string; baseURL: string; sessionId?: string }>;
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    'llm-pi-ai/request-headers'(request: GoRequest, headers: Headers, next: () => Headers): Headers;
+  }
+}
+
+export function setOpenCodeGoSessionHeader(request: GoRequest, headers: Headers): void {
+  if (
+    request.sessionId !== undefined &&
+    /^opencode-go(?:-\d+)?$/u.test(request.provider) &&
+    request.baseURL === templates['opencode-go'].baseURL
+  )
+    headers.set('x-opencode-session', request.sessionId);
+}
 
 const keyInput = z
   .string()
@@ -540,6 +558,7 @@ export async function testProviderReply(
     messages: [{ role: 'user', content: [{ type: 'text', text: 'Reply with OK.' }] }],
     ...(off === undefined ? {} : { reasoningEffort: ReasoningEffortId('off') }),
     maxTokens: 128,
+    sessionId: SessionId(randomUUID()),
     signal,
   })) {
     if (chunk.type === 'text-delta' && chunk.text.trim()) hasText = true;

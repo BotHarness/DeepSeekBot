@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import type { SettingsPathOp } from '@deepseek-ai/dsh-settings';
-import { createModelProviders } from '../src/models/providers.js';
+import { createModelProviders, setOpenCodeGoSessionHeader } from '../src/models/providers.js';
 
 const settingsNs = 'llm-pi-ai';
 const secret = 'test-secret-1234';
@@ -172,4 +172,23 @@ it('returns independent save outcomes and does not probe without any listed mode
     testReply: 'failed',
   });
   expect(keys.size).toBe(1);
+});
+
+it('sends a separate session header for each conversation on an additional OpenCode Go route', () => {
+  const request = {
+    provider: 'opencode-go-2',
+    baseURL: 'https://opencode.ai/inference/go/v1',
+  };
+  const first = new Headers({ 'x-opencode-session': 'overridden' });
+  const second = new Headers();
+  const other = new Headers();
+  setOpenCodeGoSessionHeader({ ...request, sessionId: 'first-conversation' }, first);
+  setOpenCodeGoSessionHeader({ ...request, sessionId: 'second-conversation' }, second);
+  setOpenCodeGoSessionHeader(
+    { ...request, baseURL: 'https://elsewhere.example/v1', sessionId: 'first-conversation' },
+    other,
+  );
+  expect(first.get('x-opencode-session')).toBe('first-conversation');
+  expect(second.get('x-opencode-session')).toBe('second-conversation');
+  expect(other.has('x-opencode-session')).toBe(false);
 });

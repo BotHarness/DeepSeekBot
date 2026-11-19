@@ -268,7 +268,11 @@ import { createCredentialReadiness } from './models/credential-readiness.js';
 import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createGroupFallback } from './models/group-fallback.js';
-import { createModelProviders, testProviderReply } from './models/providers.js';
+import {
+  createModelProviders,
+  setOpenCodeGoSessionHeader,
+  testProviderReply,
+} from './models/providers.js';
 import { createRouteRests } from './models/route-rest.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
@@ -1832,6 +1836,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
   const providerCredentials = createProviderCredentialHealth();
+  ctx.on(
+    'llm-pi-ai/request-headers',
+    (request, _initial, next) => {
+      const headers = next();
+      setOpenCodeGoSessionHeader(request, headers);
+      return headers;
+    },
+    { global: true },
+  );
+
   const forgetCredentialFailures = (): void => providerCredentials.reset();
   const events = ctx as unknown as {
     on(event: string, listener: () => void): () => void;
