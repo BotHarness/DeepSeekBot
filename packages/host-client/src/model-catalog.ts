@@ -1,3 +1,9 @@
+import {
+  ENGINE_DEFINITIONS,
+  isRoutingGroupEngineMember,
+  type RoutingGroupEngineMember,
+} from '@botharness/host-protocol/subscription-engine';
+
 export interface ModelCatalogRoute {
   provider: string;
   model: string;
@@ -30,7 +36,13 @@ export interface ModelCatalogGroup {
   name: string;
   revision: number;
   routes: ModelCatalogRoute[];
+  engineMembers?: RoutingGroupEngineMember[];
   restingUntil?: string;
+}
+
+export function routingGroupEngineLabel(member: RoutingGroupEngineMember): string {
+  const name = ENGINE_DEFINITIONS[member.engine].displayName;
+  return member.model === undefined ? name : `${name} (${member.model})`;
 }
 
 export type ModelChoice =
@@ -145,11 +157,14 @@ export function modelCatalogGroup(value: unknown): ModelCatalogGroup | undefined
     return parsed === undefined ? [] : [parsed];
   });
   if (routes.length === 0) return undefined;
+  const members = row['members'];
+  const engineMembers = Array.isArray(members) ? members.filter(isRoutingGroupEngineMember) : [];
   return {
     id,
     name: filled(row['name']) ? row['name'] : id,
     revision: typeof revision === 'number' && Number.isSafeInteger(revision) ? revision : 0,
     routes,
+    ...(engineMembers.length === 0 ? {} : { engineMembers }),
     ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
   };
 }

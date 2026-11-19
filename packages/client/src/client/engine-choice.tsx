@@ -1,3 +1,4 @@
+import { isEngineId, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState, type ReactElement } from 'react';
 
 import { Button } from './ds/button.js';
@@ -8,7 +9,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { engineName } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
-export type EngineId = 'codex' | 'claude';
+export type { EngineId } from '@botharness/host-protocol/subscription-engine';
 export type EngineRole = 'orchestrator' | 'assignment';
 
 export type EngineUnavailableReason =
@@ -42,7 +43,6 @@ export interface EngineApi {
 }
 
 const ENGINES = './api/botharness/engines';
-const ENGINE_IDS: readonly string[] = ['codex', 'claude'];
 const ROLES: readonly string[] = ['orchestrator', 'assignment'];
 const REASONS: readonly string[] = [
   'host-not-local',
@@ -60,10 +60,9 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
 function parseStatus(value: unknown): EngineStatusView | undefined {
   const entry = record(value);
   const engine = entry?.['engine'];
-  if (entry === undefined || typeof engine !== 'string' || !ENGINE_IDS.includes(engine))
-    return undefined;
+  if (entry === undefined || !isEngineId(engine)) return undefined;
   const base = {
-    engine: engine as EngineId,
+    engine,
     installed: entry['installed'] === true,
     ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),
   };
@@ -93,11 +92,10 @@ export function parseEngines(value: unknown): EnginesView {
       const role = entry?.['role'];
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
-        typeof engine === 'string' &&
-        ENGINE_IDS.includes(engine) &&
+        isEngineId(engine) &&
         typeof role === 'string' &&
         ROLES.includes(role)
-        ? [{ botSlug: entry['botSlug'], role: role as EngineRole, engine: engine as EngineId }]
+        ? [{ botSlug: entry['botSlug'], role: role as EngineRole, engine }]
         : [];
     }),
   };
