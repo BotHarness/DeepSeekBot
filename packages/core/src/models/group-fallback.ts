@@ -44,13 +44,22 @@ export interface GroupFallback {
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   start(botSlug: string, sessionId: string): Promise<void>;
   pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
-  pickMixedOrchestrator(botSlug: string): Promise<MixedGroupPick | undefined>;
+  pickMixedOrchestrator(
+    botSlug: string,
+    attempted?: ReadonlySet<string>,
+  ): Promise<MixedGroupPick | undefined>;
   inherited(): string | undefined;
   inheritedEffort(): string | undefined;
 }
 
 const same = (left: RouteKey, right: RouteKey) =>
   left.provider === right.provider && left.model === right.model;
+
+export function routingTargetRestKey(target: RoutingTarget): string {
+  return target.kind === 'engine'
+    ? JSON.stringify(['engine', target.engine])
+    : JSON.stringify(['route', target.route.provider, target.route.model]);
+}
 
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
@@ -181,7 +190,7 @@ export function createGroupFallback(options: {
       }
       return { kind: 'exhausted', rests };
     },
-    async pickMixedOrchestrator(botSlug) {
+    async pickMixedOrchestrator(botSlug, attempted) {
       const engines = options.engines;
       const groupId = groupOf(botSlug);
       if (groupId === undefined || engines === undefined || !engines.canRoute(botSlug))
@@ -206,7 +215,11 @@ export function createGroupFallback(options: {
             continue;
           }
           const limit = engines.limit(target.engine);
-          if (limit === undefined) return { kind: 'target', target };
+          if (limit === undefined) {
+            if (!attempted?.has(routingTargetRestKey(target))) return { kind: 'target', target };
+            unavailable = true;
+            continue;
+          }
           if (!restingEngines.has(target.engine)) {
             restingEngines.add(target.engine);
             if (subscription === undefined || limit.until < subscription.until)
@@ -229,7 +242,10 @@ export function createGroupFallback(options: {
           }
           continue;
         }
-        if (await isUsable(botSlug, target.route))
+        if (
+          !attempted?.has(routingTargetRestKey(target)) &&
+          (await isUsable(botSlug, target.route))
+        )
           return {
             kind: 'target',
             target: { kind: 'route', route: await withEffort(target.route, effortOf(botSlug)) },

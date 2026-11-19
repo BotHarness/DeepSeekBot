@@ -136,6 +136,7 @@ export class EngineLimitError extends Error {
     readonly engine: EngineId,
     readonly account: string,
     readonly until: string,
+    readonly inputRecorded = false,
   ) {
     super(`ENGINE_LIMIT: the ${engine} subscription (${account}) is used up until ${until}`);
     this.name = 'EngineLimitError';

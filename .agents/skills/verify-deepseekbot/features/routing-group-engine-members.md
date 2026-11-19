@@ -21,7 +21,7 @@
 - The CLI saves a Codex or Claude Code target with an optional engine model in an ordered Routing Group. Listing and showing the group return those members in order.
 - Routing Group settings display the engine by name. Desktop and phone model choices show engine names as part of the group's description.
 - The phone editor shows saved engine rows as read-only and preserves them in the ordered member list when saving other edits.
-- The local Orchestrator runs the first ready target in a mixed group. After quota, the next turn uses the next ready engine or DSH model in the same Session. Assignment and Subagent choices use the group's DSH route projection.
+- The local Orchestrator runs the first ready target in a mixed group. After quota, the next ready engine or DSH model continues the same request in the same Session, using completed tool results. A reply already sent for the original Source Event is protected against a second send. Assignment and Subagent choices use the group's DSH route projection.
 - The Channel shows a limit card when every target rests. The card gives the earliest reset time.
 
 ## How to get to it (user POV)
@@ -44,7 +44,7 @@ For quota fallback, first use the replay test so the run uses no subscription qu
 pnpm exec vitest run --maxWorkers 2 packages/core/test/routing-group-engine-fallback.test.ts packages/client/test/bridge-turn-stop.test.ts
 ```
 
-For a live follow-up on an isolated local Host, select the group using `model-plan-customize <bot> --orchestrator-group <id>` and send a DM. After an engine limit, check `engine status` for the reset and `channel-timeline <channel>` for the switch notice. Send a new DM and check that it uses the same Session ID. With every target resting, open the DM and verify the limit card's earliest reset against `turnStop.rests[0].until`. Exercise this journey using a replay transport if a real engine quota window is unavailable.
+For a live follow-up on an isolated local Host, select the group using `model-plan-customize <bot> --orchestrator-group <id>` and send a DM. After an engine limit, check `engine status` for the reset and `channel-timeline <channel>` for the switch notice. Check that the original DM gets one reply in the same Session without another Human message. In the replay that hits quota after a tool call, verify that the next target sees its completed result. In the replay with an earlier reply, verify that only that reply is delivered. With every target resting, open the DM and verify the limit card's earliest reset against `turnStop.rests[0].until`. Exercise this journey using a replay transport if a real engine quota window is unavailable.
 
 ## Gotchas
 

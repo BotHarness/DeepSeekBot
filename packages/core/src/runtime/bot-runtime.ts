@@ -117,7 +117,12 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { RestingRoute, RouteRests } from '../models/route-rest.js';
-import type { GroupFallback, ModelSwitch, SubscriptionRest } from '../models/group-fallback.js';
+import {
+  type GroupFallback,
+  type ModelSwitch,
+  type SubscriptionRest,
+  routingTargetRestKey,
+} from '../models/group-fallback.js';
 import type { RoutingTarget } from '../models/routing-groups.js';
 import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
 import { isValidSlug } from '../bots/slug.js';
@@ -1636,6 +1641,7 @@ const TRANSIENT_FAILURE_CODES = new Set([
 ]);
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
 const FAILURE_HOLD_THRESHOLD = 3;
+const MAX_MIXED_GROUP_ATTEMPTS = 32;
 
 export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
 
@@ -1653,19 +1659,13 @@ class RouteRestingError extends Error {
   }
 }
 
-class RoutingGroupSwitchError extends Error {
-  readonly code = 'ROUTING_GROUP_SWITCHED';
-  constructor(cause: unknown) {
-    super('The Routing Group switched targets for the next turn.', { cause });
-  }
-}
-
 class RoutingGroupUnavailableError extends Error {
   readonly code = 'ROUTING_GROUP_UNAVAILABLE';
-  constructor(cause?: unknown) {
-    super('The Routing Group has no usable target. Check its model permissions and credentials.', {
-      cause,
-    });
+  constructor(
+    cause?: unknown,
+    message = 'The Routing Group has no usable target. Check its model permissions and credentials.',
+  ) {
+    super(message, { cause });
   }
 }
 
@@ -1746,12 +1746,15 @@ type DmContinuation =
   | { kind: 'failure'; code?: string; autoAttempts: number }
   | { kind: 'host-restart'; autoAttempts: number };
 
+const CONTINUE_FROM_SESSION =
+  "The tool calls and results it completed are in this Session's history. Continue from where you stopped instead of starting over. A tool call with no recorded result has an unknown outcome: check its effect before repeating it.";
+
 function continuationNote(continuation: DmContinuation): string {
   const cause =
     continuation.kind === 'host-restart'
       ? 'the Host restarted'
       : `it failed${continuation.code === undefined ? '' : ` with ${continuation.code}`}`;
-  return `[Host: your earlier turn for the message below stopped before it finished because ${cause}. The tool calls and results it completed are in this Session's history. Continue from where you stopped instead of starting over. A tool call with no recorded result has an unknown outcome: check its effect before repeating it.]\n\n`;
+  return `[Host: your earlier turn for the message below stopped before it finished because ${cause}. ${CONTINUE_FROM_SESSION}]\n\n`;
 }
 
 class BotRuntimeImplementation implements BotRuntime {
@@ -1815,6 +1818,7 @@ class BotRuntimeImplementation implements BotRuntime {
     { step: Promise<boolean>; signal: AbortSignal }
   >();
   readonly #stoppedTurns = new Set<string>();
+  readonly #switchingRoutingGroups = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
   readonly #held = new Map<string, BotHoldCause>();
   readonly #failureStreaks = new Map<string, number>();
@@ -6756,10 +6760,6 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<void> {
     const code = sessionFailureDetails(error).code;
     if (this.#held.has(botSlug)) return;
-    if (error instanceof RoutingGroupSwitchError) {
-      this.#failureStreaks.delete(botSlug);
-      return;
-    }
     if (await this.#holdForRestingRoute(botSlug, channelId, error)) return;
     if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
       this.#failureStreaks.delete(botSlug);
@@ -6804,7 +6804,9 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#closed || turn === undefined || active === undefined) return undefined;
     const sessionId =
       this.#agents.stopOrchestratorTurn?.(botSlug) ??
-      (this.#memoryTurnOperations.has(botSlug) ? turn.sessionId : undefined);
+      (this.#memoryTurnOperations.has(botSlug) || this.#switchingRoutingGroups.has(botSlug)
+        ? turn.sessionId
+        : undefined);
     if (sessionId === undefined) return undefined;
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
@@ -7035,10 +7037,6 @@ class BotRuntimeImplementation implements BotRuntime {
     } catch (error) {
       this.#setObserved(collected.eventIds, null, bot.slug);
       this.#markSourceEventFailed(claim.sourceEventId);
-      if (error instanceof RoutingGroupSwitchError) {
-        this.#failureStreaks.delete(bot.slug);
-        throw error;
-      }
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
@@ -7316,7 +7314,6 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
       const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
-        ...(routingTarget === undefined ? {} : { routingTarget }),
         ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
         setExecutionReady: (ready) => {
           if (ready) {
@@ -7379,18 +7376,8 @@ class BotRuntimeImplementation implements BotRuntime {
           modelContent: body + '\n' + inbox,
         }),
       };
-      try {
-        await this.#agents.runOrchestrator(run);
-      } catch (error) {
-        if (routingTarget === undefined) throw error;
-        throw await this.#mixedGroupTurnFailure(
-          bot.slug,
-          orchestrator.sessionId,
-          channelId,
-          routingTarget,
-          error,
-        );
-      }
+      if (routingTarget === undefined) await this.#agents.runOrchestrator(run);
+      else await this.#runMixedGroupTurn(run, routingTarget, sourceEventId);
       this.#requireTurnAccess(bot.slug, turnSources);
       if (acceptNativeInput === undefined) envelope?.commit();
       if (tobCliTurn !== undefined && sourceEventId !== undefined)
@@ -7439,34 +7426,165 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  async #mixedGroupTurnFailure(
+  async #runMixedGroupTurn(
+    run: OrchestratorAgentRun,
+    target: RoutingTarget,
+    sourceEventId: string | undefined,
+  ): Promise<void> {
+    const { acceptNativeInput, ...initial } = run;
+    const { bot, sessionId, inboundChannelId: channelId } = initial;
+    const attempted = new Set<string>();
+    let current = initial;
+    let accepted = false;
+    let inputRecorded = false;
+    try {
+      for (;;) {
+        attempted.add(routingTargetRestKey(target));
+        let inputAccepted = false;
+        try {
+          await this.#agents.runOrchestrator({
+            ...current,
+            routingTarget: target,
+            inputAccepted: () => {
+              inputAccepted = true;
+              run.inputAccepted?.();
+            },
+            ...(accepted || acceptNativeInput === undefined
+              ? {}
+              : { acceptNativeInput: () => (accepted = acceptNativeInput()) }),
+          });
+          return;
+        } catch (error) {
+          const rest =
+            target.kind === 'engine'
+              ? error instanceof EngineLimitError
+                ? error.rests[0]
+                : undefined
+              : this.#routeRests?.restingUntil(target.route);
+          if (rest === undefined) throw error;
+          this.#switchingRoutingGroups.add(bot.slug);
+          const next = await this.#groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
+          if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
+          if (next?.kind === 'exhausted')
+            throw new RouteRestingError(next.rests, next.subscription);
+          if (next?.kind !== 'target') throw new RoutingGroupUnavailableError(error);
+          if (
+            attempted.size >= MAX_MIXED_GROUP_ATTEMPTS ||
+            attempted.has(routingTargetRestKey(next.target))
+          )
+            throw new RoutingGroupUnavailableError(
+              error,
+              'The Routing Group reached its continuation limit for this turn.',
+            );
+          inputRecorded ||= error instanceof EngineLimitError ? error.inputRecorded : inputAccepted;
+          current = this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded);
+          this.#failureStreaks.delete(bot.slug);
+          await this.#appendModelSwitch(bot.slug, sessionId, channelId, {
+            kind: 'switch',
+            from: routingTargetKey(target),
+            to: routingTargetKey(next.target),
+            reason: rest.reason ?? 'quota',
+            until: rest.until,
+          });
+          if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
+          this.#requireExecution?.(bot.slug);
+          target = next.target;
+        }
+      }
+    } finally {
+      this.#switchingRoutingGroups.delete(bot.slug);
+    }
+  }
+
+  #mixedGroupContinuation(
+    run: OrchestratorAgentRun,
+    sourceEventId: string | undefined,
+    rest: RestingRoute,
+    inputRecorded: boolean,
+  ): OrchestratorAgentRun {
+    const priorReply = this.#routingGroupReplyState(run.bot.slug, run.sessionId, sourceEventId);
+    const replyInstruction =
+      priorReply === 'delivered'
+        ? 'The previous target already delivered a reply to this Source Event. Continue any remaining work without answering it again.'
+        : priorReply === 'uncertain'
+          ? 'The previous reply may have been sent. Check its delivery receipt before considering another send.'
+          : 'Reply to the original request if it still needs an answer.';
+    const source = sourceEventId === undefined ? '' : ` Source Event ${sourceEventId}.`;
+    const cause = rest.reason === 'credential' ? 'lost its credentials' : 'reached its limit';
+    const note = `[Host: the previous target ${cause} mid-turn.${source} ${CONTINUE_FROM_SESSION} Use completed tool results without repeating their calls. Verify the effects of any interrupted tool before retrying. ${replyInstruction}]`;
+    const continuation: OrchestratorAgentRun = {
+      ...run,
+      resume: true,
+      message: inputRecorded ? note : `${note}\n\n${run.message}`,
+      inbox: inputRecorded ? '' : run.inbox,
+    };
+    if (priorReply === undefined) return continuation;
+
+    const refuseDuplicate = (): never => {
+      throw new Error(replyInstruction);
+    };
+    const channelId = run.inboundChannelId;
+    continuation.channels = {
+      ...run.channels,
+      send: (input) => {
+        if (
+          (input.replySourceEventId ?? sourceEventId) === sourceEventId &&
+          (input.channelId ?? channelId) === channelId
+        )
+          refuseDuplicate();
+        return run.channels.send(input);
+      },
+    };
+    const external = run.externalMessaging;
+    if (external !== undefined)
+      continuation.externalMessaging = {
+        ...external,
+        reply: (id, text, key) =>
+          id === sourceEventId ? refuseDuplicate() : external.reply(id, text, key),
+        replyFile: (id, file, key) =>
+          id === sourceEventId ? refuseDuplicate() : external.replyFile(id, file, key),
+      };
+    return continuation;
+  }
+
+  #routingGroupReplyState(
     botSlug: string,
     sessionId: string,
-    channelId: string | undefined,
-    target: RoutingTarget,
-    error: unknown,
-  ): Promise<unknown> {
-    const rest =
-      target.kind === 'engine'
-        ? error instanceof EngineLimitError
-          ? error.rests[0]
-          : undefined
-        : this.#routeRests?.restingUntil(target.route);
-    if (rest === undefined) return error;
-    const next = await this.#groupFallback?.pickMixedOrchestrator?.(botSlug);
-    if (next?.kind === 'exhausted') return new RouteRestingError(next.rests, next.subscription);
-    if (next?.kind !== 'target') return new RoutingGroupUnavailableError(error);
-    const to = routingTargetKey(next.target);
-    const from = routingTargetKey(target);
-    if (from.provider !== to.provider || from.model !== to.model)
-      await this.#appendModelSwitch(botSlug, sessionId, channelId, {
-        kind: 'switch',
-        from,
-        to,
-        reason: rest.reason ?? 'quota',
-        until: rest.until,
-      });
-    return new RoutingGroupSwitchError(error);
+    sourceEventId: string | undefined,
+  ): 'delivered' | 'uncertain' | undefined {
+    if (sourceEventId === undefined) return undefined;
+    return this.#database.read((db) => {
+      const output = db
+        .prepare(`
+        SELECT 1 FROM channel_output_origins origin
+        JOIN source_events output ON output.source_event_id = origin.source_event_id
+        JOIN source_events request ON request.source_event_id = origin.request_source_event_id
+        WHERE origin.request_source_event_id = ? AND origin.session_id = ?
+          AND output.channel_id = request.channel_id AND output.source_kind = 'bot-message'
+        LIMIT 1
+      `)
+        .get(sourceEventId, sessionId);
+      if (output !== undefined) return 'delivered';
+      const request = db
+        .prepare(
+          "SELECT 1 FROM source_events WHERE source_event_id = ? AND source_kind = 'bridge-message'",
+        )
+        .get(sourceEventId);
+      if (request === undefined) return undefined;
+      const reply = db
+        .prepare(`
+        SELECT state FROM messaging_outbox
+        WHERE bot_slug = ? AND json_extract(body, '$.sourceEventId') = ?
+          AND state IN ('provider-accepted', 'pending', 'in-flight', 'unknown-outcome')
+        ORDER BY state = 'provider-accepted' DESC, created_at DESC LIMIT 1
+      `)
+        .get(botSlug, sourceEventId);
+      return reply === undefined
+        ? undefined
+        : reply['state'] === 'provider-accepted'
+          ? 'delivered'
+          : 'uncertain';
+    });
   }
 
   #orchestratorServices(
@@ -7863,8 +7981,7 @@ class BotRuntimeImplementation implements BotRuntime {
     progress?: SessionFailureProgress | undefined;
     autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
-    if (input.error instanceof RouteRestingError || input.error instanceof RoutingGroupSwitchError)
-      return;
+    if (input.error instanceof RouteRestingError) return;
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,

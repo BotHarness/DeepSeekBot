@@ -2,6 +2,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, it, vi } from 'vitest';
 
+import { dmChannelId } from '../src/channels/channel.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
@@ -14,6 +15,7 @@ import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { claudeReplay, readClaudeRecording } from './fixtures/claude-replay.js';
 import { codexReplay, readCodexRecording, type CodexReplay } from './fixtures/codex-replay.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';
+import { executeFixtureNativeTool } from './fixtures/native-tools.js';
 import { createTempRoot } from './helpers.js';
 
 const START = 1_795_010_000_000;
@@ -22,6 +24,7 @@ const API = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 const CODEX = { kind: 'engine', engine: 'codex', model: 'gpt-6-astra' } as const;
 const CLAUDE = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
 const LIMIT = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-limit-turn.jsonl'));
+const CODEX_DM = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-dm-turn.jsonl'));
 const CLAUDE_REPLY = readClaudeRecording(
   join(import.meta.dirname, 'fixtures', 'claude-dm-turn.jsonl'),
 ).filter(
@@ -30,6 +33,45 @@ const CLAUDE_REPLY = readClaudeRecording(
     line.kind === 'await-input' ||
     (line.kind === 'message' && ['system', 'result'].includes(String(line.msg['type']))),
 );
+const CLAUDE_LIMIT: typeof CLAUDE_REPLY = [
+  ...CLAUDE_REPLY.slice(0, -1),
+  {
+    kind: 'message',
+    msg: {
+      type: 'rate_limit_event',
+      rate_limit_info: { status: 'rejected', resetsAt: Date.parse(RESETS_AT) / 1000 + 60 },
+    },
+  },
+  { kind: 'message', msg: { type: 'result', subtype: 'error_during_execution', is_error: true } },
+];
+
+function limitAfter(tool: 'channel_read' | 'bot_send_message'): typeof LIMIT {
+  const lines = CODEX_DM.flatMap((line) => {
+    const params = line.msg['params'];
+    const item = params && typeof params === 'object' && 'item' in params ? params.item : null;
+    if (item === null || typeof item !== 'object' || !('tool' in item) || item.tool !== tool)
+      return [];
+    return tool === 'bot_send_message'
+      ? [
+          {
+            ...line,
+            msg: {
+              ...line.msg,
+              params: {
+                ...params,
+                item: {
+                  ...item,
+                  arguments: { body: 'Hello from Codex', channel_id: dmChannelId('ada') },
+                },
+              },
+            },
+          },
+        ]
+      : [line];
+  });
+  const firstLimit = LIMIT.findIndex((line) => line.msg['method'] === 'account/rateLimits/updated');
+  return [...LIMIT.slice(0, firstLimit), ...lines, ...LIMIT.slice(firstLimit)];
+}
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -41,15 +83,40 @@ function setup(options: {
   allowed?: (route: typeof API) => void;
   enginesAllowed?: boolean;
   codexRecording?: typeof LIMIT;
+  claudeRecording?: typeof CLAUDE_REPLY;
+  nativeReply?: string;
+  beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
 }) {
   const clock = { now: START };
   const root = createTempRoot('routing-group-engine-');
   const dsh = memoryDsh();
-  const native = new FakeAgentHost();
+  const replies = vi.fn();
+  const native = new FakeAgentHost(undefined, {
+    restoreSession: (id) =>
+      (dsh.stored.get(id)?.events ?? []).map((event) => ({
+        ...event,
+        seq: Number(event.seq),
+      })),
+    onTurn: async (_session, tools) => {
+      if (options.nativeReply === undefined) return;
+      replies(
+        await executeFixtureNativeTool(
+          {
+            name: 'bot_send_message',
+            arguments: { body: options.nativeReply, channel_id: dmChannelId('ada') },
+            callId: 'native-reply',
+            signal: new AbortController().signal,
+          },
+          tools,
+          [],
+        ),
+      );
+    },
+  });
   const gateway = createEngineGateway();
   const codex: CodexReplay[] = [];
-  const claude = claudeReplay([CLAUDE_REPLY]);
+  const claude = claudeReplay([options.claudeRecording ?? CLAUDE_REPLY]);
   const host = new EngineHost({
     root: join(root, 'engines'),
     local: true,
@@ -75,7 +142,10 @@ function setup(options: {
       targets: (id) => core.routingGroups.targets(id),
       canRoute: (slug) => host.engineFor(slug) === undefined,
       allowed: () => options.enginesAllowed ?? true,
-      limit: (engine) => host.limit(engine),
+      limit: (engine) => {
+        options.beforeEngineLimit?.(engine, clock);
+        return host.limit(engine);
+      },
     },
     rests: routeRests,
     requireAllowed: (_slug, route) => options.allowed?.(route),
@@ -138,16 +208,18 @@ function setup(options: {
     clock,
     routeRests,
     prepareModelRoute,
+    replies,
     memoryDirectory,
     message,
     sessionId: () => core.runtime.currentOrchestratorSessionId?.('ada')!,
     channelMessages: () => core.channels.readMessages(channel.id),
+    sendStatus: (messageId: string) => core.channels.humanSendStatus?.(channel.id, messageId),
     held: () => core.runtime.heldCause?.('ada'),
   };
 }
 
-it('runs an engine-first group, then resumes the same DSH Session on its model after quota', async () => {
-  const bot = setup({ members: [CODEX] });
+it('answers the first Human message on DSH when the engine hits quota before output', async () => {
+  const bot = setup({ members: [CODEX], nativeReply: 'Orchid noted.' });
   await bot.message('first', 'My lucky word is orchid');
   const sessionId = bot.sessionId();
   expect(bot.codex).toHaveLength(1);
@@ -156,8 +228,18 @@ it('runs an engine-first group, then resumes the same DSH Session on its model a
     params: { model: CODEX.model },
   });
   expect(bot.native.createOptions).toEqual([]);
-  expect(bot.native.resumeOptions).toEqual([]);
+  expect(bot.native.resumeOptions).toMatchObject([
+    { resumeSessionId: sessionId, agentOptions: API },
+  ]);
+  expect(bot.native.received.get(sessionId)?.[0]?.content).toContainEqual({
+    type: 'text',
+    text: expect.stringContaining('Continue from where you stopped'),
+  });
   expect(bot.held()).toBeUndefined();
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Orchid noted.' }],
+  });
   expect(
     bot.channelMessages().filter((message) => message.turnStop || message.sessionFailure),
   ).toEqual([]);
@@ -165,31 +247,58 @@ it('runs an engine-first group, then resumes the same DSH Session on its model a
     { modelSwitch: { sessionId, from: { provider: 'codex' }, to: API, until: RESETS_AT } },
   ]);
   expect(bot.dsh.stored.get(sessionId)?.header.cwd).toBe(bot.memoryDirectory);
-  expect(bot.dsh.stored.get(sessionId)?.events.at(-1)?.type).toBe('turn/end');
-
-  await bot.message('second', 'Use the model');
-  expect(bot.sessionId()).toBe(sessionId);
-  expect(bot.native.resumeOptions).toMatchObject([
-    { resumeSessionId: sessionId, agentOptions: API },
-  ]);
-  expect(bot.native.createOptions).toEqual([]);
   expect(bot.codex[0]?.closed).toBe(true);
   expect(bot.prepareModelRoute).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', API);
   expect(bot.host.store.selections()).toEqual([]);
   expect(bot.host.quota('codex')?.limitedUntil).toBe(RESETS_AT);
 });
 
-it('seeds the next engine from the same Session after Codex runs out', async () => {
-  const bot = setup({ members: [CODEX, CLAUDE] });
+it('continues from the completed engine tool call and result in the same DSH Session', async () => {
+  const bot = setup({
+    members: [CODEX],
+    codexRecording: limitAfter('channel_read'),
+    nativeReply: 'I used the Channel read.',
+  });
+  await bot.message('first', 'Read the Channel before replying');
+  const sessionId = bot.sessionId();
+  expect(bot.codex[0]?.gatewayCalls.map((call) => call.tool)).toEqual(['channel_read']);
+  const events = bot.native.sessions.find((session) => session.id === sessionId)?.snapshotEvents();
+  expect(events?.filter((event) => event.type === 'tool/result')).toMatchObject([
+    {
+      data: {
+        message: {
+          toolCallId: 'item-mcp-read',
+          content: [
+            { type: 'text', text: expect.stringContaining('Read the Channel before replying') },
+          ],
+        },
+      },
+    },
+  ]);
+  expect(bot.native.received.get(sessionId)?.[0]?.content).not.toContainEqual({
+    type: 'text',
+    text: expect.stringContaining('Read the Channel before replying'),
+  });
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'I used the Channel read.' }],
+  });
+});
+
+it('carries Session context through Codex to Claude Code to DSH in the same turn chain', async () => {
+  const bot = setup({
+    members: [CODEX, CLAUDE],
+    codexRecording: limitAfter('channel_read'),
+    claudeRecording: CLAUDE_LIMIT,
+    nativeReply: 'The lucky word is orchid.',
+  });
   await bot.message('first', 'My lucky word is orchid');
   const sessionId = bot.sessionId();
-  expect(bot.claude.prompts).toEqual([]);
-  await bot.message('second', 'Recall the lucky word');
-
-  expect(bot.sessionId()).toBe(sessionId);
   expect(bot.claude.options).toMatchObject([{ model: CLAUDE.model }]);
   expect(bot.claude.prompts).toEqual([
-    expect.stringMatching(/My lucky word is orchid[\s\S]+Recall the lucky word/u),
+    expect.stringMatching(
+      /My lucky word is orchid[\s\S]+Tool result \(item-mcp-read\)[\s\S]+Current input:[\s\S]+Continue from where you stopped/u,
+    ),
   ]);
   expect([...bot.dsh.stored.keys()]).toEqual([sessionId]);
   expect(
@@ -199,11 +308,60 @@ it('seeds the next engine from the same Session after Codex runs out', async () 
       .map((event) => event.data.turn),
   ).toEqual([1, 2]);
   expect(bot.native.createOptions).toEqual([]);
-  expect(bot.native.resumeOptions).toEqual([]);
-  expect(bot.channelMessages().filter((message) => message.turnStop)).toEqual([]);
-  expect(bot.channelMessages().filter((message) => message.modelSwitch)).toMatchObject([
-    { modelSwitch: { sessionId, from: { provider: 'codex' }, to: { provider: 'claude' } } },
+  expect(bot.native.resumeOptions).toMatchObject([
+    { resumeSessionId: sessionId, agentOptions: API },
   ]);
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'The lucky word is orchid.' }],
+  });
+  expect(bot.channelMessages().filter((message) => message.turnStop)).toEqual([]);
+  expect(
+    bot
+      .channelMessages()
+      .filter((message) => message.modelSwitch)
+      .reverse(),
+  ).toMatchObject([
+    { modelSwitch: { sessionId, from: { provider: 'codex' }, to: { provider: 'claude' } } },
+    { modelSwitch: { sessionId, from: { provider: 'claude' }, to: API } },
+  ]);
+});
+
+it('blocks a second reply when the engine delivered one before quota', async () => {
+  const bot = setup({
+    members: [CODEX],
+    codexRecording: limitAfter('bot_send_message'),
+    nativeReply: 'Duplicate reply from DSH',
+  });
+  await bot.message('first', 'Please say hello');
+  expect(bot.codex[0]?.gatewayCalls.map((call) => call.tool)).toEqual(['bot_send_message']);
+  expect(bot.native.received.get(bot.sessionId())?.[0]?.content).toContainEqual({
+    type: 'text',
+    text: expect.stringContaining('already delivered a reply'),
+  });
+  expect(bot.replies).toHaveBeenCalledWith(expect.objectContaining({ isError: true }));
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Hello from Codex' }],
+  });
+});
+
+it('does not revisit an engine whose rest ends during the same quota chain', async () => {
+  const bot = setup({
+    members: [CODEX, { ...CODEX, model: 'gpt-6-mini' }, CLAUDE],
+    claudeRecording: CLAUDE_LIMIT,
+    beforeEngineLimit: (engine, clock) => {
+      if (engine === 'claude') clock.now = Date.parse(RESETS_AT) + 1;
+    },
+    nativeReply: 'Finished without looping.',
+  });
+  await bot.message('first', 'Continue when limits change');
+  expect(bot.codex).toHaveLength(1);
+  expect(bot.claude.prompts).toHaveLength(1);
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Finished without looping.' }],
+  });
 });
 
 it('posts one limit card when every target rests and retries the first available target after reset', async () => {

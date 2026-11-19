@@ -1207,7 +1207,7 @@ deepseekbot group-activity <group-channel>
 
 启用订阅引擎的本地 Host 会在每轮开始时为 Orchestrator 选择混合路由组中第一个未在休息的目标。Host 会检查 DSH 候选路由是否符合所有者的角色权限、凭据是否就绪。订阅引擎沿用订阅登录检查，并使用成员中保存的可选模型 ID。角色若只允许指定的 DSH 模型，Host 只会选用这些模型。显式设置的 `engine use` 优先，并沿用自身的 `--fallback` 设置。Assignment 和 Subagent 使用组中的 DSH 路由。
 
-混合路由组的目标额度用完时，下一轮会在同一个 DSH Session 使用下一个就绪的目标。用 `deepseekbot send <bot> --body ...` 发送新消息即可继续私聊。新引擎线程会接收该 Session 的上下文。引擎在整个 Host 上休息到自报的重置时间，未报告时间时休息一小时。用 `deepseekbot engine status` 查看引擎的 `quota.limitedUntil`，用 `deepseekbot model-groups` 查看 DSH 路由的休息状态，用 `deepseekbot channel-timeline <channel>` 查看切换通知。只有所有目标都在休息时，Channel 才会显示带 `turnStop.routingGroup` 和 `turnStop.rests` 的额度卡片，休息列表按重置时间排序。首次重置后可发送消息重试，也可在 Bot 方案中指定一个已就绪的路由。
+混合路由组的目标额度用完时，Orchestrator 会在同一个 DSH Session 自动切到下一个就绪的目标，继续处理原请求。继续时会使用 Session 中已记录的工具调用和结果，跳过本次请求已尝试的目标，并拦截对同一 Source Event 已成功发送的重复回复。新引擎线程会收到有长度限制的 Session 上下文。引擎在整个 Host 上休息到自报的重置时间，未报告时间时休息一小时。用 `deepseekbot engine status` 查看引擎的 `quota.limitedUntil`，用 `deepseekbot model-groups` 查看 DSH 路由的休息状态，用 `deepseekbot channel-timeline <channel>` 查看切换通知。只有所有目标都在休息时，Channel 才会显示带 `turnStop.routingGroup` 和 `turnStop.rests` 的额度卡片，休息列表按重置时间排序。首次重置后可发送消息重试，也可在 Bot 方案中指定一个已就绪的路由。
 
 仅包含 DSH 模型的组在额度用完、凭据被拒或限流超过重试等待时，沿用原有的路由回退流程。Channel 用 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}` 记录切换。该系统消息不发送提醒，也不计入未读。
 

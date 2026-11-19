@@ -559,7 +559,8 @@ export class EngineHost {
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine) : undefined;
-            if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
+            if (limit !== undefined)
+              throw new EngineLimitError(engine, limit.account, limit.until, true);
             if (steered?.replacing !== true || !current())
               throw new EngineRefusal('engine-failed', end.message);
           }
