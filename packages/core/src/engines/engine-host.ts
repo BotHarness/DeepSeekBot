@@ -296,7 +296,8 @@ export class EngineHost {
     const engine = this.engineFor(botSlug);
     if (engine === undefined) return undefined;
     const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
-    const model = this.store.model(botSlug, engine);
+    const model =
+      this.store.choice(botSlug, 'orchestrator').model ?? this.store.model(botSlug, engine);
     return {
       engine,
       displayName: ENGINE_DEFINITIONS[engine].displayName,
@@ -401,6 +402,30 @@ export class EngineHost {
         ? await (this.#options.startCodexLogin ?? startCodexLogin)(this.#codex)
         : await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude);
     return { engine, started: true, ...started };
+  }
+
+  async validateChoice(engine: EngineId, choice: EngineChoice): Promise<void> {
+    const models = await this.models(engine);
+    if (choice.model === undefined && choice.effort === undefined) return;
+    const picked =
+      choice.model === undefined
+        ? (models.find((entry) => entry.isDefault === true) ?? models[0])
+        : models.find((entry) => entry.id === choice.model);
+    if (picked === undefined)
+      throw new EngineRefusal(
+        'unknown-model',
+        `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
+      );
+    if (
+      choice.effort !== undefined &&
+      !picked.efforts.some((option) => option.id === choice.effort)
+    )
+      throw new EngineRefusal(
+        'unknown-effort',
+        picked.efforts.length === 0
+          ? `${picked.id} takes no effort level`
+          : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
+      );
   }
 
   async models(engine: EngineId): Promise<EngineModel[]> {

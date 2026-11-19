@@ -103,6 +103,8 @@ Applying a Model Preset copies its choices into an independent PersonaBot Model 
 
 New Orchestrator turns and Assignment requests resolve their choices under the current plan and the Host's execution checks. An existing Assignment keeps its retained route until an authorized switch. A plan may fix only the Orchestrator and inherit the Profile's Assignment policy. Open Assignment mode admits additional catalog routes subject to role and credential checks. Presets and plans can reference a [Routing Group](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md) by ID, so edits to that group's membership can take effect at request boundaries without changing the applied preset snapshot.
 
+A Model Preset may also store a local Subscription Engine, model and effort for either role. Applying it validates the subscription choices before updating the Bot's DSH Model Plan and writes the engine selections through the Subscription Engine owner. A preset that omits an engine for a role preserves the Bot's existing engine setting for that role.
+
 Why: each Host has its own available providers, budget and credentials. Copying the template protects existing Bots from unrelated preset edits while preserving the Human's ability to manage a deliberately shared Routing Group.
 
 Enforced by: [preset persistence tests](../../packages/core/test/model-preset-database.test.ts), [Routing Group preset tests](../../packages/core/test/model-preset-groups.test.ts), [open Assignment tests](../../packages/core/test/open-assignment-models.test.ts), and [backup round trips](../../packages/core/test/profile-backup.test.ts).

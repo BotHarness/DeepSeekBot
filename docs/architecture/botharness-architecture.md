@@ -320,6 +320,8 @@ Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，Pers
 
 新建 Assignment 的模型选择由当前 Bot Model Plan 管理：Human 在 Profile 保存精确 provider／model 集合、各模型允许及默认的 effort 和整体默认路由，Host Bridge 在写入前对照 DSH 当前 Model Catalog 校验并递增 Bot 计划修订。Orchestrator 通过 `list_assignment_models` 读取该集合，再在 `create_assignment` 中省略选择以使用整体默认值，或指定获准的模型与 effort；Host 在认领 Session 和启动工作前拒绝越界选择。选定路由随 Assignment ownership 记录保存在 `botharness.db`，并通过该 Assignment 独有的 DSH Agent-scoped Model Selection 进入真实请求；读取 Assignment 或 Host 重启不会把选择改为后来更新的 Bot 默认值。这个切片不修改 Orchestrator 路由或 DSH 部署默认值（#504）。
 
+使用路由组的 Assignment 在自身记录中分别保存组 ID、选定的推理强度和当前成员路由。Host 在模型回退和恢复时用已选强度解析可用成员，成员固定的强度优先。显式换成单一模型时同时清除组 ID 和组强度（[ADR-0355](../adr/0355-model-fallback-is-host-owned-at-step-boundaries.md)，#4497）。
+
 PersonaBot 的 Assignment 会话提供 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`；Orchestrator 会话不提供这些工具，改用 `create_assignment` 委派，调用原生或 Bot Subagent 工具会被拒绝（ADR-0265）。Host 在每次启动子代理时从该 Bot 的最新 Model Plan 验证路由，并用 DSH LLM Service 预检可用性，再交给 DSH Subagent Service 创建真正的子会话。Bot scope 拒绝绕过计划的原生 Subagent 工具调用。省略路由时，获准的父路由被继承；已从当前计划移除的旧 Assignment 路由改用当前 Assignment 默认值，并在工具结果中告知父 Agent。子代理沿用根会话的 Workspace Grant 与工作目录；DSH 子会话原生的 `never` 审批策略不放宽根会话的模式约束（#508）。
 
 Model Route Readiness 在 Profile 查询及 Orchestrator／Assignment 新 Turn 入口读取同一 PersonaBot Registry。旧 `model` 字符串只有在 DSH Model Catalog 唯一匹配且路由配置有效时才迁移为独立 Model Plan；有歧义或缺失则保留旧值并等待 Human 选择，绝不拼接部署默认 provider。修复状态即时计算，不是第二套策略存储。请求前校验精确 provider／model／effort；provider 在真正执行时拒绝凭据则通过 DSH `turn/end` 和现有 Channel Session failure 通知给出修复指引。成功应用 Model Preset 后移除旧字段，保持 Agent preset 不变，下一次 Turn 使用修复后的路由（#500）。
@@ -1807,6 +1809,7 @@ Expo 移动端复用 Web 的 `skill-refs` 解析、`rankSkillEntries` 排序与 
 
 PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在 **Subscription Engine** 上：Human 本机上未修改的官方 agent CLI（首批 Claude Code、Codex；ChatGPT 订阅是用 Codex 自己的 `codex login` 登录的 Codex，token 留在 CLI 内），使用 Human 自己的订阅登录，由 Host 驱动。只在本地 Host 提供，Cloud 与 VPS 不提供。
 
+- **模型选择**：本机 Host 的主模型和任务模型选择器各有订阅分组，提供该引擎的模型、推理强度及登录入口。模型预设可为任一角色保存引擎选择；应用预设时，Host 先验证订阅模型，再更新 Bot 的 DSH Model Plan 与两种角色的引擎设置。未保存引擎选择的角色切回预设中的 DSH 路由。
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
 - **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。

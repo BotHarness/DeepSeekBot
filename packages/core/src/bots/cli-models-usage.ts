@@ -1,7 +1,13 @@
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelFavorite } from '../models/favorites.js';
-import type { ModelPreset, ModelRoute } from '../models/presets.js';
+import { isEngineId } from '../engines/engine-session.js';
+import type {
+  ModelPreset,
+  ModelPresetEngine,
+  ModelPresetEngineInput,
+  ModelRoute,
+} from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -106,6 +112,12 @@ export const MODELS_USAGE_COMMANDS = [
 ] as const;
 
 export interface ModelsUsageValues {
+  'orchestrator-engine'?: string;
+  'orchestrator-engine-model'?: string;
+  'orchestrator-engine-effort'?: string;
+  'assignment-engine'?: string;
+  'assignment-engine-model'?: string;
+  'assignment-engine-effort'?: string;
   name?: string;
   'orchestrator-provider'?: string;
   'orchestrator-model'?: string;
@@ -226,6 +238,34 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function presetEngineFlags(
+  values: ModelsUsageValues,
+  update = false,
+): ModelPresetEngineInput {
+  const read = (role: 'orchestrator' | 'assignment'): ModelPresetEngine | null | undefined => {
+    const engine = values[`${role}-engine`]?.trim();
+    const model = values[`${role}-engine-model`]?.trim();
+    const effort = values[`${role}-engine-effort`]?.trim();
+    if (engine === undefined && model === undefined && effort === undefined) return undefined;
+    if (update && engine === 'none' && model === undefined && effort === undefined) return null;
+    if (!isEngineId(engine) || model === '' || effort === '')
+      usage(
+        `--${role}-engine must be codex or claude${update ? ' (or none to clear)' : ''}; model and effort must be nonempty.`,
+      );
+    return {
+      engine,
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+    };
+  };
+  const orchestratorEngine = read('orchestrator');
+  const assignmentEngine = read('assignment');
+  return {
+    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
+  };
 }
 
 export function presetGroupFlags(values: {
@@ -503,6 +543,7 @@ export async function runModelsUsage(
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
   }
   if (command === 'model-preset-update') {
+    const engines = presetEngineFlags(values, true);
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
@@ -556,6 +597,7 @@ export async function runModelsUsage(
       orchestratorGroupEffort,
       assignmentGroups,
       assignmentDefaultGroupId,
+      ...engines,
       ...plan,
       ...mode,
     });

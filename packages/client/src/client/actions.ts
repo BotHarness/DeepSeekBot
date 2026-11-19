@@ -1,3 +1,4 @@
+import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
 import { subscribeSkillCatalog } from './messaging-defaults-live.js';
@@ -683,6 +684,7 @@ export interface BridgeActions extends BotModeActions {
     assignmentModels?: AssignmentModelOptionView[],
     openAssignmentModels?: boolean,
     groups?: ModelPlanGroupsView,
+    engines?: ModelPresetEngines,
   ): Promise<ModelPresetView>;
   updateModelPreset(
     id: string,
@@ -2209,7 +2211,15 @@ export function createActions(
     deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels, open, groups) =>
+    createModelPreset: (
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      open,
+      groups,
+      engines,
+    ) =>
       createModelPreset(
         call,
         name,
@@ -2218,6 +2228,7 @@ export function createActions(
         assignmentModels,
         open,
         groups,
+        engines,
       ),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),

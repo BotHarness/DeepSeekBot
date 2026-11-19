@@ -162,6 +162,12 @@ export const MESSAGING_OPTIONS = {
 } as const;
 
 export const MODELS_USAGE_OPTIONS = {
+  'orchestrator-engine': { type: 'string' },
+  'orchestrator-engine-model': { type: 'string' },
+  'orchestrator-engine-effort': { type: 'string' },
+  'assignment-engine': { type: 'string' },
+  'assignment-engine-model': { type: 'string' },
+  'assignment-engine-effort': { type: 'string' },
   'expected-revision': { type: 'string' },
   'plan-stdin': { type: 'boolean' },
   'assignment-models': { type: 'string' },

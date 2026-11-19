@@ -57,6 +57,7 @@ import { createMemoryService, type MemoryService } from '../memory/service.js';
 import { createSessionOwnership } from '../sessions/ownership.js';
 import {
   createModelPresetStore,
+  hasPresetEngines,
   type ModelPreset,
   type ModelRoute,
   type PersonaBotModelPlan,
@@ -166,6 +167,8 @@ Usage:
                                   [--assignment-models open|listed] [--plan-stdin (online Host only)]
                                   [--orchestrator-group <id> instead of the Orchestrator route]
                                   [--assignment-groups <id,id> [--assignment-default-group <id>]]
+                                  [--orchestrator-engine codex|claude] [--assignment-engine codex|claude]
+                                  [--<role>-engine-model <id>] [--<role>-engine-effort <level>]
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
   tobs engine list|status --host <url>
@@ -317,6 +320,8 @@ Usage:
                                   [--plan-stdin] [--expected-revision <n>]
                                   [--orchestrator-group <id>|''] [--assignment-groups <id,id>|'']
                                   [--assignment-default-group <id>|'']
+                                  [--<role>-engine codex|claude|none] [--<role>-engine-model <id>]
+                                  [--<role>-engine-effort <level>]
   tobs overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
   tobs overview-memory [--after <bot-cursor>]
   tobs activity-overview
@@ -1202,6 +1207,12 @@ async function finishCreate(
     const minted = { id: slug, name: record.displayName };
     assertKnownProvider(preset.orchestrator.provider, { steps, bot: minted });
     assertKnownProvider(preset.assignmentDefault.provider, { steps, bot: minted });
+    if (hasPresetEngines(preset))
+      throw new CliFailure(
+        'engine-unavailable',
+        'Apply this Subscription Engine preset through the online Host.',
+        1,
+      );
     const applied = registry.applyModelPreset(slug, preset);
     if (!applied.ok) {
       throw new CliFailure('unknown-preset', `Unknown model preset: ${presetId}`, 1, steps, {
@@ -1309,6 +1320,8 @@ function parseRoute(values: CreateValues, prefix: 'orchestrator' | 'assignment')
 }
 
 function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { preset: ModelPreset } {
+  if (Object.keys(values).some((key) => /^(orchestrator|assignment)-engine(?:-|$)/u.test(key)))
+    throw usageError('Model Preset Subscription Engines require an online Host target.');
   if (values['plan-stdin'])
     throw usageError('Model Preset plan stdin requires an online Host target.');
   if (
@@ -1373,6 +1386,12 @@ function runModelPresetApply(
     }
     assertKnownProvider(preset.orchestrator.provider);
     assertKnownProvider(preset.assignmentDefault.provider);
+    if (hasPresetEngines(preset))
+      throw new CliFailure(
+        'engine-unavailable',
+        'Apply this Subscription Engine preset through the online Host.',
+        1,
+      );
     const applied = registry.applyModelPreset(slug, preset);
     if (!applied.ok) {
       throw new CliFailure('unknown-preset', `Unknown model preset: ${presetId}`, 1);

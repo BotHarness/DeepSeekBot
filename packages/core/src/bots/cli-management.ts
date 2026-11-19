@@ -10,6 +10,7 @@ import {
   type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
+  type ModelPresetEngineInput,
   type ModelRoute,
 } from '../models/presets.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
@@ -21,7 +22,7 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-import { assignmentModelsMode, presetGroupFlags } from './cli-models-usage.js';
+import { assignmentModelsMode, presetEngineFlags, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 import type { PersonaBotDeletionPreview } from './deletion.js';
 
@@ -152,7 +153,7 @@ export async function runOnlineManagement(
   const limit = values.limit === undefined ? 50 : Number(values.limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) usage('--limit must be 1–100.');
   let presetInput:
-    | {
+    | ({
         name: string;
         orchestrator?: ModelRoute;
         assignmentDefault: ModelRoute;
@@ -163,7 +164,7 @@ export async function runOnlineManagement(
         assignmentGroups?: string[];
         assignmentDefaultGroupId?: string | null;
         assignmentGroupOptions?: AssignmentGroupOption[];
-      }
+      } & ModelPresetEngineInput)
     | undefined;
   if (command === 'model-preset-create') {
     const name = values.name?.trim();
@@ -186,6 +187,7 @@ export async function runOnlineManagement(
       assignmentDefault: route(values, 'assignment'),
       ...assignmentModelsMode(values['assignment-models']),
       ...groups,
+      ...presetEngineFlags(values),
     };
     if (values['plan-stdin']) {
       let input: unknown;
@@ -293,7 +295,7 @@ export async function runOnlineManagement(
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
   if (command === 'model-presets') return rpc('modelPresets', {});
-  if (command === 'model-preset-create') return rpc('modelPresetCreate', presetInput!);
+  if (command === 'model-preset-create') return rpc('modelPresetCreate', { ...presetInput! });
   if (command === 'model-preset-apply') {
     const revisions: Record<string, number> = {};
     for (const [flag, field] of [

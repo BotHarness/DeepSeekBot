@@ -20,7 +20,9 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ComboboxOption } from './combobox.js';
 import { FilterPicker } from './ds/filter-picker.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
+import type { EngineId, EngineModelView, EngineStatusView } from './engine-choice.js';
+import { engineName } from './session-engine.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
@@ -28,8 +30,10 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly name: string;
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
+  readonly engine?: EngineId;
   readonly group?: string | undefined;
   readonly preset?: string | undefined;
+  readonly hidden?: boolean;
   readonly checked?: boolean | undefined;
   readonly hintBrand?: ModelBrand | undefined;
   readonly hintLabel?: string | undefined;
@@ -206,6 +210,87 @@ export function catalogMenuItems(
   ];
 }
 
+const ENGINE_BRAND = { codex: 'openai', claude: 'claude' } as const;
+
+export const engineMenuKey = (engine: EngineId, model: string): string =>
+  `engine:${engine}:${model}`;
+
+export const engineSignInKey = (engine: EngineId): string => `engine-signin:${engine}`;
+
+export function engineMenuItems(
+  engines: readonly EngineStatusView[],
+  models: Partial<Record<EngineId, readonly EngineModelView[]>>,
+  signingIn: EngineId | undefined,
+  t: BotHarnessTranslate,
+): ModelMenuItem[] {
+  return engines.flatMap((status): ModelMenuItem[] => {
+    const { engine } = status;
+    const base = { engine, brand: ENGINE_BRAND[engine] };
+    const name = engineName(engine);
+    if (status.available) {
+      const entries = models[engine];
+      if (entries !== undefined && entries.length > 0)
+        return entries.map((model) => ({
+          ...base,
+          value: engineMenuKey(engine, model.id),
+          name: model.name,
+          label: model.name,
+          hint: t('engine.subscription', { engine: name }),
+          model: model.id,
+        }));
+      const label = t(entries === undefined ? 'modelPreset.loading' : 'engine.noModels');
+      return [{ ...base, value: `engine-status:${engine}`, name: label, label, disabled: true }];
+    }
+    if (!status.installed || status.reason === 'host-not-local')
+      return [
+        {
+          ...base,
+          value: `engine-status:${engine}`,
+          name,
+          label: name,
+          hint: t(status.reason === 'host-not-local' ? 'engine.localOnly' : 'engine.notInstalled', {
+            engine: name,
+          }),
+          disabled: true,
+        },
+      ];
+    const label = t(signingIn === engine ? 'engine.signingIn' : 'engine.signInLabel', {
+      engine: name,
+    });
+    return [
+      {
+        ...base,
+        value: engineSignInKey(engine),
+        name: label,
+        label,
+        ...(status.reason === 'not-subscription' ? { hint: t('engine.notSubscription') } : {}),
+        ...(status.reason === 'login-unknown' ? { hint: t('engine.loginUnknown') } : {}),
+        disabled: signingIn !== undefined,
+      },
+    ];
+  });
+}
+
+export function selectedEngineMenuItem(
+  choice: { engine: EngineId; model?: string },
+  model: EngineModelView | undefined,
+  t: BotHarnessTranslate,
+): ModelMenuItem {
+  const id = choice.model ?? model?.id ?? '';
+  const name = model?.name ?? (id || engineName(choice.engine));
+  return {
+    value: engineMenuKey(choice.engine, id),
+    name,
+    label: name,
+    hint: t('engine.subscription', { engine: engineName(choice.engine) }),
+    model: id,
+    engine: choice.engine,
+    brand: ENGINE_BRAND[choice.engine],
+    disabled: true,
+    hidden: true,
+  };
+}
+
 export function presetMenuItems(
   presets: readonly ModelPresetView[],
   catalog: readonly ModelCatalogEntryView[],
@@ -230,8 +315,14 @@ export function presetMenuItems(
     preset: preset.id,
     checked: preset.id === sourcePresetId,
     hint: t('modelMenu.presetRoutes', {
-      main: part(preset.orchestratorGroupId, preset.orchestrator),
-      side: part(preset.assignmentDefaultGroupId, preset.assignmentDefault),
+      main:
+        preset.orchestratorEngine === undefined
+          ? part(preset.orchestratorGroupId, preset.orchestrator)
+          : (preset.orchestratorEngine.model ?? engineName(preset.orchestratorEngine.engine)),
+      side:
+        preset.assignmentEngine === undefined
+          ? part(preset.assignmentDefaultGroupId, preset.assignmentDefault)
+          : (preset.assignmentEngine.model ?? engineName(preset.assignmentEngine.engine)),
     }),
   }));
 }
@@ -267,7 +358,10 @@ export function ModelMenu({
   onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const models = items.filter((item) => item.model !== undefined);
+  const models = items.filter((item) => item.model !== undefined && item.engine === undefined);
+  const engines = new Set(
+    items.flatMap((item) => (item.engine === undefined ? [] : [item.engine])),
+  );
   const groups = items.filter((item) => item.group !== undefined);
   const presets = items.filter((item) => item.preset !== undefined);
   const favorites = useModelFavorites();
@@ -278,35 +372,48 @@ export function ModelMenu({
       value={value}
       onSelect={onSelect}
       closeOnSelect={efforts === undefined || efforts.length <= 1}
-      options={items.map((item) => ({
-        value: item.value,
-        label: item.name,
-        hint: item.hint,
-        ...(item.hintLabel === undefined ? {} : { hintLabel: item.hintLabel }),
-        ...(item.hintBrand === undefined
-          ? {}
-          : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
-        disabled: item.disabled,
-        search: [item.value],
-        favorite:
-          (item.model !== undefined || item.group !== undefined || item.preset !== undefined) &&
-          favorites.keys.has(item.value),
-        ...(item.preset !== undefined
-          ? {
-              icon: <ChannelSidebarIcon name="package" size={16} />,
-              filter: PRESETS,
-              exclusive: true,
-              selected: item.checked === true,
-            }
-          : item.group !== undefined
-            ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
-            : item.model === undefined
-              ? {}
-              : {
-                  icon: <ModelBrandIcon brand={item.brand} size={16} />,
-                  filter: familyKey(item.brand),
-                }),
-      }))}
+      options={items
+        .filter((item) => !item.hidden)
+        .map((item) => ({
+          value: item.value,
+          label: item.name,
+          hint: item.hint,
+          ...(item.hintLabel === undefined ? {} : { hintLabel: item.hintLabel }),
+          ...(item.hintBrand === undefined
+            ? {}
+            : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
+          disabled: item.disabled,
+          search: [item.value],
+          ...(item.engine === undefined
+            ? {
+                favorite:
+                  (item.model !== undefined ||
+                    item.group !== undefined ||
+                    item.preset !== undefined) &&
+                  favorites.keys.has(item.value),
+              }
+            : {}),
+          ...(item.preset !== undefined
+            ? {
+                icon: <ChannelSidebarIcon name="package" size={16} />,
+                filter: PRESETS,
+                exclusive: true,
+                selected: item.checked === true,
+              }
+            : item.group !== undefined
+              ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
+              : item.engine !== undefined
+                ? {
+                    icon: <EngineBrandIcon brand={ENGINE_BRAND[item.engine]} size={16} />,
+                    filter: `engine:${item.engine}`,
+                  }
+                : item.model === undefined
+                  ? {}
+                  : {
+                      icon: <ModelBrandIcon brand={item.brand} size={16} />,
+                      filter: familyKey(item.brand),
+                    }),
+        }))}
       filters={[
         ...(presets.length === 0
           ? []
@@ -326,6 +433,11 @@ export function ModelMenu({
                 icon: <ChannelSidebarIcon name="git-branch" size={16} />,
               },
             ]),
+        ...[...engines].map((engine) => ({
+          key: `engine:${engine}`,
+          label: t('engine.subscription', { engine: engineName(engine) }),
+          icon: <EngineBrandIcon brand={ENGINE_BRAND[engine]} size={16} />,
+        })),
         ...modelFamilies(models).map((family) => ({
           key: familyKey(family.brand),
           label: family.title ?? t('modelMenu.other'),

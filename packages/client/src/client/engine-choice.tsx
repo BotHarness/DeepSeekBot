@@ -1,13 +1,8 @@
+import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { isEngineId, type EngineId } from '@botharness/host-protocol/subscription-engine';
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState } from 'react';
 
-import { Button } from './ds/button.js';
-import { Note } from './ds/note.js';
-import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
-import { engineName } from './session-engine.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 export type { EngineId } from '@botharness/host-protocol/subscription-engine';
 export type EngineRole = 'orchestrator' | 'assignment';
@@ -25,10 +20,10 @@ export type EngineStatusView = {
   version?: string;
 } & ({ available: true } | { available: false; reason: EngineUnavailableReason });
 
-export interface EngineSelectionView {
+export interface EngineSelectionView extends SubscriptionModel {
   botSlug: string;
   role: EngineRole;
-  engine: EngineId;
+  fallback?: boolean;
 }
 
 export interface EnginesView {
@@ -36,14 +31,27 @@ export interface EnginesView {
   selections: EngineSelectionView[];
 }
 
+export interface EngineModelView {
+  id: string;
+  name: string;
+  efforts: { id: string; name: string }[];
+  defaultEffort?: string;
+  isDefault?: boolean;
+}
+
 export interface EngineApi {
   read(): Promise<EnginesView>;
-  use(bot: string, role: EngineRole, engine: EngineId | null): Promise<void>;
+  models(engine: EngineId): Promise<EngineModelView[]>;
+  use(
+    bot: string,
+    role: EngineRole,
+    engine: EngineId | null,
+    options?: { model?: string; effort?: string; fallback?: boolean },
+  ): Promise<void>;
   login(engine: EngineId): Promise<{ url?: string }>;
 }
 
 const ENGINES = './api/botharness/engines';
-const ROLES: readonly string[] = ['orchestrator', 'assignment'];
 const REASONS: readonly string[] = [
   'host-not-local',
   'not-installed',
@@ -93,9 +101,17 @@ export function parseEngines(value: unknown): EnginesView {
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
         isEngineId(engine) &&
-        typeof role === 'string' &&
-        ROLES.includes(role)
-        ? [{ botSlug: entry['botSlug'], role: role as EngineRole, engine }]
+        (role === 'orchestrator' || role === 'assignment')
+        ? [
+            {
+              botSlug: entry['botSlug'],
+              role,
+              engine,
+              ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),
+              ...(typeof entry['effort'] === 'string' ? { effort: entry['effort'] } : {}),
+              ...(typeof entry['fallback'] === 'boolean' ? { fallback: entry['fallback'] } : {}),
+            },
+          ]
         : [];
     }),
   };
@@ -124,8 +140,34 @@ export const engineApi: EngineApi = {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return parseEngines(await response.json());
   },
-  async use(bot, role, engine) {
-    await post({ action: 'use', bot, role, engine });
+  async models(engine) {
+    const { models } = await post({ action: 'models', engine });
+    if (!Array.isArray(models)) throw new Error('Invalid Subscription Engine models');
+    return models.flatMap((value): EngineModelView[] => {
+      const row = record(value);
+      if (typeof row?.['id'] !== 'string' || typeof row['name'] !== 'string') return [];
+      return [
+        {
+          id: row['id'],
+          name: row['name'],
+          efforts: Array.isArray(row['efforts'])
+            ? row['efforts'].flatMap((value) => {
+                const effort = record(value);
+                return typeof effort?.['id'] === 'string' && typeof effort['name'] === 'string'
+                  ? [{ id: effort['id'], name: effort['name'] }]
+                  : [];
+              })
+            : [],
+          ...(typeof row['defaultEffort'] === 'string'
+            ? { defaultEffort: row['defaultEffort'] }
+            : {}),
+          ...(row['isDefault'] === true ? { isDefault: true } : {}),
+        },
+      ];
+    });
+  },
+  async use(bot, role, engine, options) {
+    await post({ action: 'use', bot, role, engine, ...options });
   },
   async login(engine) {
     const result = await post({ action: 'login', engine });
@@ -133,261 +175,181 @@ export const engineApi: EngineApi = {
   },
 };
 
-const ENGINE_BRANDS = { codex: 'openai', claude: 'claude' } as const;
 const SIGN_IN_POLL_MS = 3000;
 const SIGN_IN_POLL_DEADLINE_MS = 3 * 60_000;
 
-function statusText(status: EngineStatusView, t: BotHarnessTranslate): string {
-  if (status.available)
-    return status.version === undefined
-      ? t('engine.signedIn')
-      : t('engine.signedInVersion', { version: status.version });
-  switch (status.reason) {
-    case 'not-installed':
-      return t('engine.notInstalled', { engine: engineName(status.engine) });
-    case 'not-subscription':
-      return t('engine.notSubscription');
-    case 'login-unknown':
-      return t('engine.loginUnknown');
-    case 'signed-out':
-    case 'host-not-local':
-      return t('engine.signedOut');
-  }
-}
+export const engineRoles = ['orchestrator', 'assignment'] as const;
 
-export function EngineChoice({
-  slug,
-  role,
-  t,
-  api = engineApi,
-  onChange,
-}: {
-  slug: string;
-  role: EngineRole;
-  t: BotHarnessTranslate;
-  api?: EngineApi;
-  onChange?: ((engine: EngineId | undefined) => void) | undefined;
-}): ReactElement {
+type EngineModels = Partial<Record<EngineId, readonly EngineModelView[]>>;
+type ModelLoads = Partial<Record<EngineId, { state: 'pending' | 'ready' | 'failed' }>>;
+
+export function useSubscriptionEngines(enabled: boolean, api = engineApi) {
   const [view, setView] = useState<EnginesView>();
-  const [busy, setBusy] = useState<EngineId | 'clear'>();
-  const [signingIn, setSigningIn] = useState<EngineId>();
-  const [error, setError] = useState<string>();
+  const [models, setModels] = useState<EngineModels>({});
   const [loadFailed, setLoadFailed] = useState(false);
+  const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const [signingIn, setSigningIn] = useState<EngineId>();
   const [signInUrl, setSignInUrl] = useState<string>();
-  const alive = useRef(true);
+  const [error, setError] = useState<string>();
+  const alive = useRef(false);
   const generation = useRef(0);
+  const loads = useRef<ModelLoads>({});
   const poll = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const signInDeadline = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const deadline = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const activeLogin = useRef<symbol>(undefined);
 
-  const refresh = (): Promise<EnginesView | undefined> => {
-    const current = generation.current;
-    return api.read().then(
-      (next) => {
-        if (!alive.current || generation.current !== current) return undefined;
-        setView(next);
-        setLoadFailed(false);
-        return next;
-      },
-      () => {
-        if (alive.current && generation.current === current) setLoadFailed(true);
-        return undefined;
-      },
-    );
+  const refresh = async (retry = true): Promise<EnginesView | undefined> => {
+    if (!enabled) return undefined;
+    const current = ++generation.current;
+    try {
+      const next = await api.read();
+      if (!alive.current || generation.current !== current) return undefined;
+      setView(next);
+      setLoadFailed(false);
+      const source = loads.current;
+      for (const status of next.engines) {
+        const { engine, available } = status;
+        if (!available) {
+          delete source[engine];
+          setModels((previous) => {
+            if (previous[engine] === undefined) return previous;
+            const { [engine]: _removed, ...remaining } = previous;
+            return remaining;
+          });
+          continue;
+        }
+        const loaded = source[engine];
+        if (loaded !== undefined && (loaded.state !== 'failed' || !retry)) continue;
+        const request = { state: 'pending' } as const;
+        source[engine] = request;
+        void api.models(engine).then(
+          (values) => {
+            if (!alive.current || loads.current !== source || source[engine] !== request) return;
+            source[engine] = { state: 'ready' };
+            setModels((previous) => ({ ...previous, [engine]: values }));
+            setModelLoadFailed(Object.values(source).some((load) => load.state === 'failed'));
+          },
+          () => {
+            if (!alive.current || loads.current !== source || source[engine] !== request) return;
+            source[engine] = { state: 'failed' };
+            setModelLoadFailed(true);
+          },
+        );
+      }
+      setModelLoadFailed(Object.values(source).some((load) => load.state === 'failed'));
+      return next;
+    } catch {
+      if (alive.current && generation.current === current) setLoadFailed(true);
+      return undefined;
+    }
   };
 
   const mount = useMountedResource<HTMLDivElement>(() => {
+    if (!enabled) return;
     alive.current = true;
     void refresh();
     return () => {
       alive.current = false;
+      generation.current += 1;
+      loads.current = {};
+      activeLogin.current = undefined;
       clearTimeout(poll.current);
-      clearTimeout(signInDeadline.current);
+      clearTimeout(deadline.current);
     };
-  }, [slug]);
+  }, [enabled, api]);
 
-  if (view === undefined)
-    return (
-      <div ref={mount} data-engine-choice={role}>
-        {loadFailed ? <Note tone="warning">{t('engine.loadFailed')}</Note> : null}
-      </div>
-    );
-
-  const selected = view.selections.find(
-    (entry) => entry.botSlug === slug && entry.role === role,
-  )?.engine;
-
-  const choose = (engine: EngineId | null): void => {
+  const saveSelection = async (
+    botSlug: string,
+    role: EngineRole,
+    choice: SubscriptionModel | null,
+    fallback?: boolean,
+  ): Promise<void> => {
     generation.current += 1;
-    setBusy(engine ?? 'clear');
-    setError(undefined);
-    api
-      .use(slug, role, engine)
-      .then(
-        () =>
-          refresh().then((next) => {
-            if (next !== undefined) onChange?.(engine ?? undefined);
-          }),
-        (cause: unknown) => {
-          if (alive.current) setError(cause instanceof Error ? cause.message : String(cause));
-        },
-      )
-      .finally(() => {
-        if (alive.current) setBusy(undefined);
-      });
+    const { engine, ...options } = choice ?? { engine: null };
+    await api.use(botSlug, role, engine, {
+      ...options,
+      ...(role === 'orchestrator' && engine !== null && fallback !== undefined ? { fallback } : {}),
+    });
+    generation.current += 1;
+    if (!alive.current) return;
+    setView((previous) =>
+      previous === undefined
+        ? previous
+        : {
+            ...previous,
+            selections: [
+              ...previous.selections.filter(
+                (item) => item.botSlug !== botSlug || item.role !== role,
+              ),
+              ...(choice === null
+                ? []
+                : [
+                    {
+                      botSlug,
+                      role,
+                      ...choice,
+                      ...(fallback === undefined ? {} : { fallback }),
+                    },
+                  ]),
+            ],
+          },
+    );
   };
 
   const signIn = (engine: EngineId): void => {
+    if (activeLogin.current !== undefined) return;
     const tab = window.open('', '_blank');
+    if (tab !== null) tab.opener = null;
+    const attempt = Symbol();
+    activeLogin.current = attempt;
     setSigningIn(engine);
     setSignInUrl(undefined);
     setError(undefined);
-    api.login(engine).then(
+    void api.login(engine).then(
       ({ url }) => {
-        if (url === undefined) tab?.close();
+        if (!alive.current || activeLogin.current !== attempt || url === undefined) tab?.close();
         else if (tab === null || tab.closed) setSignInUrl(url);
-        else {
-          tab.opener = null;
-          tab.location.href = url;
-        }
+        else tab.location.href = url;
+        if (!alive.current || activeLogin.current !== attempt) return;
         let done = false;
         const finish = (ready: boolean): void => {
           done = true;
+          activeLogin.current = undefined;
           clearTimeout(poll.current);
-          clearTimeout(signInDeadline.current);
+          clearTimeout(deadline.current);
           setSigningIn(undefined);
           if (ready) setSignInUrl(undefined);
         };
-        signInDeadline.current = setTimeout(() => {
-          if (alive.current) finish(false);
-        }, SIGN_IN_POLL_DEADLINE_MS);
-        const check = (): void => {
-          if (done) return;
-          void refresh().then((next) => {
-            if (!alive.current || done) return;
-            if (next?.engines.find((entry) => entry.engine === engine)?.available === true)
-              finish(true);
-            else poll.current = setTimeout(check, SIGN_IN_POLL_MS);
-          });
+        deadline.current = setTimeout(() => finish(false), SIGN_IN_POLL_DEADLINE_MS);
+        const check = async (): Promise<void> => {
+          const next = await refresh(false);
+          if (!alive.current || done || activeLogin.current !== attempt) return;
+          if (next?.engines.some((entry) => entry.engine === engine && entry.available))
+            finish(true);
+          else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
         };
-        poll.current = setTimeout(check, SIGN_IN_POLL_MS);
+        poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
       },
       (cause: unknown) => {
         tab?.close();
-        if (!alive.current) return;
+        if (!alive.current || activeLogin.current !== attempt) return;
+        activeLogin.current = undefined;
         setSigningIn(undefined);
         setError(cause instanceof Error ? cause.message : String(cause));
       },
     );
   };
 
-  const heading = (
-    <div className="bh-model-picker-heading">
-      <strong>{t('engine.title')}</strong>
-      <span>
-        {t(role === 'orchestrator' ? 'engine.orchestratorHint' : 'engine.assignmentHint')}
-      </span>
-    </div>
-  );
-
-  if (view.engines.length === 0)
-    return (
-      <div
-        ref={mount}
-        className="bh-model-picker"
-        role="group"
-        aria-label={t('engine.title')}
-        data-engine-choice={role}
-      >
-        {heading}
-        <Note>{t('engine.localOnly')}</Note>
-      </div>
-    );
-
-  return (
-    <div
-      ref={mount}
-      className="bh-model-picker"
-      role="group"
-      aria-label={t('engine.title')}
-      data-engine-choice={role}
-    >
-      {heading}
-      <SidebarCardList label={t('engine.title')}>
-        {view.engines.map((status) => {
-          const name = engineName(status.engine);
-          const checked = selected === status.engine;
-          const canSignIn =
-            status.installed &&
-            !status.available &&
-            (status.reason === 'signed-out' ||
-              status.reason === 'not-subscription' ||
-              status.reason === 'login-unknown');
-          const stop = checked ? (
-            <Button
-              variant="ghost"
-              disabled={busy !== undefined}
-              onClick={() => choose(null)}
-              aria-label={t('engine.stopUsingLabel', { engine: name })}
-            >
-              {t('engine.stopUsing')}
-            </Button>
-          ) : null;
-          const login = canSignIn ? (
-            <Button
-              variant="outline"
-              disabled={signingIn !== undefined}
-              onClick={() => signIn(status.engine)}
-              aria-label={t('engine.signInLabel', { engine: name })}
-            >
-              {t(signingIn === status.engine ? 'engine.signingIn' : 'engine.signIn')}
-            </Button>
-          ) : null;
-          const trailing =
-            stop === null && login === null ? undefined : (
-              <>
-                {login}
-                {stop}
-              </>
-            );
-          return (
-            <SidebarCardRow
-              key={status.engine}
-              leading={<ModelBrandIcon brand={ENGINE_BRANDS[status.engine]} size={16} />}
-              title={name}
-              selection={{ checked }}
-              state={status.available ? 'ready' : status.reason}
-              meta={
-                <span className="bh-card-meta-line">
-                  {busy === status.engine
-                    ? t('engine.switching')
-                    : checked
-                      ? t('engine.inUse', { status: statusText(status, t) })
-                      : statusText(status, t)}
-                </span>
-              }
-              trailing={trailing}
-              disabled={!status.available || busy !== undefined}
-              {...(status.available && !checked ? { onClick: () => choose(status.engine) } : {})}
-            />
-          );
-        })}
-      </SidebarCardList>
-      {signInUrl === undefined ? null : (
-        <Note>
-          <a href={signInUrl} target="_blank" rel="noopener noreferrer">
-            {t('engine.openSignIn')}
-          </a>
-        </Note>
-      )}
-      {loadFailed ? (
-        <Note tone="danger">
-          {t('engine.loadFailed')}{' '}
-          <Button variant="ghost" onClick={() => void refresh()}>
-            {t('engine.reload')}
-          </Button>
-        </Note>
-      ) : null}
-      {error === undefined ? null : <Note tone="danger">{error}</Note>}
-    </div>
-  );
+  return {
+    mount,
+    view,
+    models,
+    signIn,
+    signingIn,
+    signInUrl,
+    loadFailed: loadFailed || modelLoadFailed,
+    refresh,
+    saveSelection,
+    error,
+  };
 }

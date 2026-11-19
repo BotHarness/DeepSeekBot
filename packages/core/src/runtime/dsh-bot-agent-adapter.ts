@@ -2354,7 +2354,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(args.key === undefined ? {} : { key: args.key }),
             ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
-              ? { model: picked, modelGroupId: groupId }
+              ? {
+                  model: picked,
+                  modelGroupId: groupId,
+                  ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
+                }
               : args.provider === undefined
                 ? {}
                 : {
@@ -2757,6 +2761,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             assignments.unarchive !== undefined
           ) {
             await assignments.unarchive(args.session_id);
+            if (input.model === undefined) await assignments.refreshRoute?.(input.sessionId);
             outcome = assignments.request(input);
             unarchived = outcome.delivery !== 'refused';
           }

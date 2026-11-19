@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
+import { isEngineId, type EngineChoice, type EngineId } from '../engines/engine-session.js';
 
 export interface ModelRoute {
   provider: string;
@@ -27,7 +28,59 @@ export interface AssignmentGroupOption {
   note?: string;
 }
 
-export interface ModelPreset {
+export interface ModelPresetEngine extends EngineChoice {
+  engine: EngineId;
+}
+
+export interface ModelPresetEngines {
+  orchestratorEngine?: ModelPresetEngine;
+  assignmentEngine?: ModelPresetEngine;
+}
+
+export interface ModelPresetEngineInput {
+  orchestratorEngine?: ModelPresetEngine | null;
+  assignmentEngine?: ModelPresetEngine | null;
+}
+
+export function isModelPresetEngine(value: unknown): value is ModelPresetEngine {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    isEngineId(row['engine']) &&
+    [row['model'], row['effort']].every(
+      (entry) => entry === undefined || (typeof entry === 'string' && entry.trim() !== ''),
+    )
+  );
+}
+
+export function hasPresetEngines(preset: ModelPresetEngines): boolean {
+  return preset.orchestratorEngine !== undefined || preset.assignmentEngine !== undefined;
+}
+
+function presetEngines(
+  input: ModelPresetEngineInput,
+  current: ModelPresetEngines = {},
+): ModelPresetEngines {
+  const clean = (choice: ModelPresetEngine): ModelPresetEngine => {
+    if (!isModelPresetEngine(choice)) throw new Error('Invalid Model Preset Subscription Engine');
+    const { engine, model, effort } = choice;
+    return {
+      engine,
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+    };
+  };
+  const orchestrator =
+    input.orchestratorEngine === undefined ? current.orchestratorEngine : input.orchestratorEngine;
+  const assignment =
+    input.assignmentEngine === undefined ? current.assignmentEngine : input.assignmentEngine;
+  return {
+    ...(orchestrator == null ? {} : { orchestratorEngine: clean(orchestrator) }),
+    ...(assignment == null ? {} : { assignmentEngine: clean(assignment) }),
+  };
+}
+
+export interface ModelPreset extends ModelPresetEngines {
   id: string;
   name: string;
   revision: number;
@@ -220,6 +273,7 @@ export interface ModelPresetStore {
     assignmentModels?: AssignmentModelOption[];
     openAssignmentModels?: boolean;
     groups?: ModelPresetGroups;
+    engines?: ModelPresetEngineInput;
   }): ModelPreset;
   update(
     id: string,
@@ -231,6 +285,7 @@ export interface ModelPresetStore {
       assignmentModels?: AssignmentModelOption[];
       openAssignmentModels?: boolean;
       groups?: ModelPresetGroups;
+      engines?: ModelPresetEngineInput;
     },
   ): ModelPreset | undefined;
 }
@@ -416,6 +471,9 @@ function isModelPreset(value: unknown): value is ModelPreset {
     isModelRoute(preset['assignmentDefault']) &&
     (preset['openAssignmentModels'] === undefined || preset['openAssignmentModels'] === true) &&
     isModelPresetGroups(preset) &&
+    (preset['orchestratorEngine'] === undefined ||
+      isModelPresetEngine(preset['orchestratorEngine'])) &&
+    (preset['assignmentEngine'] === undefined || isModelPresetEngine(preset['assignmentEngine'])) &&
     (preset['assignmentModels'] === undefined ||
       isAssignmentModelsForDefault(preset['assignmentDefault'], preset['assignmentModels']))
   );
@@ -454,6 +512,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
         }),
     ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
     ...presetGroups(preset),
+    ...presetEngines(preset),
   };
 }
 
@@ -562,6 +621,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
             }),
         ...(input.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         ...presetGroups(input.groups ?? {}),
+        ...presetEngines(input.engines ?? {}),
         createdAt: now().toISOString(),
       };
       if (!isModelPresetGroups(preset as unknown as Record<string, unknown>))
@@ -596,6 +656,8 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         assignmentGroups: currentGroups,
         assignmentDefaultGroupId: currentDefaultGroup,
         assignmentGroupOptions: currentGroupOptions,
+        orchestratorEngine: _orchestratorEngine,
+        assignmentEngine: _assignmentEngine,
         ...rest
       } = current;
       const open = input.openAssignmentModels ?? currentOpen === true;
@@ -634,6 +696,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
             }),
         ...(open ? { openAssignmentModels: true } : {}),
         ...groups,
+        ...presetEngines(input.engines ?? {}, current),
       };
       write(updated);
       return updated;
