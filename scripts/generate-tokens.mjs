@@ -398,7 +398,12 @@ function mobileScheme(mode, resolve) {
   const statusInk = (seed, extra = []) => reach(seed, [...surfaces, ...extra], 4.5, light);
   const onSolid = neutral(100, 7);
   const danger = reach(statusInk(dangerous, [dangerTint]), [onSolid], 4.5, light);
-  const warning = reach(statusInk(amber, [warningSoft]), [onSolid], 4.5, light);
+  const warning = reach(
+    reach(amber, [...surfaces, warningSoft], 4.6, light),
+    [onSolid],
+    4.5,
+    light,
+  );
   const edge = reach(base, surfaces, 3, light);
 
   return {

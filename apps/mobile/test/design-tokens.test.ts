@@ -5,6 +5,7 @@ import { mobileAccents, palette } from '@botharness/host-client/ui/design/palett
 import {
   BUTTON_TONES,
   buttonColors,
+  cardDecisionInk,
   settingsColors,
   messageColors,
 } from '../src/ui/design/controls';
@@ -116,10 +117,9 @@ describe.each(schemes)('Tobs mobile contrast in %s mode', (scheme) => {
       [color.onAccent, color.accent],
       [color.onDanger, color.danger],
       [color.onWarning, color.warning],
-      [color.warning, color.warningSoft],
       [color.accentText, color.accentTint],
       [color.muted, theme.layer.canvas.inset],
-    ])
+    ] as const)
       expect(
         contrastOf(foreground, background),
         `${foreground} on ${background}`,
@@ -130,6 +130,25 @@ describe.each(schemes)('Tobs mobile contrast in %s mode', (scheme) => {
     for (const background of [band.top, band.bottom])
       expect(contrastOf(color[band.ink], background)).toBeGreaterThanOrEqual(4.5);
   });
+
+  it.each([undefined, ...presets, '#b84124', '#ffd60a', '#000000', '#ffffff'])(
+    'keeps action card text and decision symbols legible for %s',
+    (accent) => {
+      const theme = resolveTheme(scheme, accent === undefined ? {} : { accent });
+      expect(
+        contrastOf(theme.color.warning, theme.color.warningSoft),
+        'warning pill',
+      ).toBeGreaterThanOrEqual(4.5);
+
+      for (const [decision, tone] of [
+        ['Always allow', 'secondary'],
+        ['Deny', 'danger'],
+      ] as const) {
+        const ratio = contrastOf(cardDecisionInk(theme, tone), theme.layer.raised.fill);
+        expect(ratio, `${decision} label and symbol`).toBeGreaterThanOrEqual(4.5);
+      }
+    },
+  );
 
   it('swaps only the accent roles for a preset', () => {
     expect(resolveTheme(scheme).color).toEqual(palette[scheme]);

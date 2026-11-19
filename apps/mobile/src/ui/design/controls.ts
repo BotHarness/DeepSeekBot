@@ -83,6 +83,10 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
   };
 }
 
+export function cardDecisionInk(theme: DesignTheme, tone: ButtonTone): string {
+  return tone === 'danger' ? theme.color.danger : theme.color.accentText;
+}
+
 export type SwitchColors = {
   trackOn: string;
   trackOff: string;

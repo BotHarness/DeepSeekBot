@@ -13,7 +13,7 @@ export const palette = {
     onDanger: '#ffffff',
     dangerEdge: '#d0302c',
     dangerSoft: '#d0302c17',
-    warning: '#9c6200',
+    warning: '#9a6000',
     onWarning: '#ffffff',
     warningEdge: '#c77e00',
     warningSoft: '#faf1e0',
