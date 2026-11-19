@@ -191,6 +191,7 @@ function ProviderKeyField({
         <Input
           type="password"
           autoComplete="off"
+          required={!replace}
           aria-label={t('modelProviders.apiKey')}
           placeholder={replace ? t('modelProviders.replacePlaceholder') : undefined}
           value={value}
@@ -261,14 +262,16 @@ export function AddModelProvider({
   onAdded,
   onClose,
   onConflict,
+  onSavingChange,
   inline = false,
   t,
 }: {
   call: BridgeCall;
-  revision: number;
+  revision: number | undefined;
   onAdded(receipt: ModelProviderSave): void;
   onClose(): void;
   onConflict?(): void;
+  onSavingChange?(saving: boolean): void;
   inline?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -280,8 +283,14 @@ export function AddModelProvider({
   const endpoint = draft.endpoint.trim();
   const model = draft.model.trim();
   const custom = draft.template === 'custom';
+  const changeDraft = (patch: Partial<Draft>) => {
+    setDraft((previous) => ({ ...previous, ...patch }));
+    setError(undefined);
+  };
   const save = async () => {
+    if (busy || revision === undefined) return;
     setBusy(true);
+    onSavingChange?.(true);
     setError(undefined);
     try {
       const result = await bridgeHost(call).call<ModelProviderSave>('modelProviderAdd', {
@@ -298,6 +307,7 @@ export function AddModelProvider({
       if (cause instanceof BridgeCallError && cause.code === 'provider-conflict') onConflict?.();
     } finally {
       setBusy(false);
+      onSavingChange?.(false);
     }
   };
   if (receipt !== undefined)
@@ -317,9 +327,14 @@ export function AddModelProvider({
       labels={{ cancel: t('common.cancel'), close: t('common.close') }}
       submitLabel={t('modelProviders.save')}
       busy={busy}
-      submitDisabled={!name || !draft.key.trim() || (custom && (!endpoint || !model))}
+      submitDisabled={
+        revision === undefined || !name || !draft.key.trim() || (custom && (!endpoint || !model))
+      }
       error={error}
       onCancel={onClose}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
       onSubmit={() => void save()}
     >
       <SettingsRows>
@@ -336,11 +351,10 @@ export function AddModelProvider({
                 { value: 'custom', label: t('modelProviders.custom') },
               ]}
               onChange={(template) =>
-                setDraft((previous) => ({
-                  ...previous,
+                changeDraft({
                   template,
                   name: template === 'custom' ? '' : templateNames[template],
-                }))
+                })
               }
             />
           }
@@ -350,10 +364,11 @@ export function AddModelProvider({
           control={
             <Input
               aria-label={t('modelProviders.name')}
+              required
               value={draft.name}
               maxLength={100}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              onChange={(event) => changeDraft({ name: event.target.value })}
             />
           }
         />
@@ -365,9 +380,10 @@ export function AddModelProvider({
                 <Input
                   type="url"
                   aria-label={t('modelProviders.endpoint')}
+                  required
                   value={draft.endpoint}
                   disabled={busy}
-                  onChange={(event) => setDraft({ ...draft, endpoint: event.target.value })}
+                  onChange={(event) => changeDraft({ endpoint: event.target.value })}
                 />
               }
             />
@@ -376,9 +392,10 @@ export function AddModelProvider({
               control={
                 <Input
                   aria-label={t('modelProviders.model')}
+                  required
                   value={draft.model}
                   disabled={busy}
-                  onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+                  onChange={(event) => changeDraft({ model: event.target.value })}
                 />
               }
             />
@@ -387,7 +404,7 @@ export function AddModelProvider({
         <ProviderKeyField
           value={draft.key}
           busy={busy}
-          onChange={(key) => setDraft({ ...draft, key })}
+          onChange={(key) => changeDraft({ key })}
           t={t}
         />
       </SettingsRows>

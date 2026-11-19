@@ -12,6 +12,7 @@ import { createTestRosterStore } from './roster-fixture.js';
 import { createUsageProjection } from '../src/usage/usage.js';
 import { requireBotModel } from '../src/team/models.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
+import type { ModelCatalogEntry } from '../src/models/catalog.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -58,13 +59,13 @@ function fixture() {
     botOwner: (slug) => registry.get(slug)?.ownerHumanId ?? team.ownerContext().humanId,
   });
   const catalog = {
-    list: vi.fn(async () => [
+    list: vi.fn(async (): Promise<ModelCatalogEntry[]> => [
       {
         ...permitted,
         providerName: 'Provider',
         modelName: 'Allowed',
         efforts: [],
-        credential: 'missing' as const,
+        credential: 'missing',
       },
     ]),
     validate: vi.fn(async () => {}),
@@ -827,6 +828,38 @@ describe('M10 member usage and role models', () => {
     ).toMatchObject({ ok: true });
     expect(f.methods.modelPlanInherit({ slug: 'ada', expectedRevision: 2 })).toMatchObject({
       ok: true,
+    });
+  });
+
+  it('excludes Routing Groups with a credential-gated route from the member catalog', async () => {
+    const f = fixture();
+    const available = { provider: 'provider', model: 'available' };
+    f.catalog.list.mockResolvedValue([
+      ...(await f.catalog.list()),
+      { ...available, providerName: 'Provider', modelName: 'Available', efforts: [] },
+    ]);
+    const selector = f.team.roles.create(owner, 'Model selector', ['models.use'], {
+      kind: 'all',
+    }).role;
+    f.team.roles.set(owner, f.member.humanId, ['member', selector.roleId]);
+    const usable = f.deps.routingGroups.create({
+      name: 'Usable',
+      members: [{ kind: 'model', ...available }],
+    });
+    const mixed = f.deps.routingGroups.create({
+      name: 'Credential required',
+      members: [
+        { kind: 'model', ...available },
+        { kind: 'model', ...permitted },
+      ],
+    });
+    expect(await f.methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { models: [available], groups: [{ id: usable.id }] },
+    });
+    expect(await f.ownerMethods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { groups: expect.arrayContaining([expect.objectContaining({ id: mixed.id })]) },
     });
   });
 

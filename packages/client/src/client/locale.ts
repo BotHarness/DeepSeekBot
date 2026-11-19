@@ -917,6 +917,8 @@ export const zh = {
   'intro.model.saved': '已保存',
   'intro.model.advanced': '进阶',
   'intro.model.advancedSame': '主模型和副模型相同',
+  'intro.model.assignmentUnavailable': '副模型或思考强度不可用，重新选择。',
+  'intro.model.useMainForAssignment': '副模型改用主模型',
   'intro.model.advancedSplit': '托布的副模型单独设置',
   'intro.model.assignmentHint':
     '托布分派出去的任务用这个副模型。和主模型不同时，托布不再跟随默认模型。',
@@ -7251,6 +7253,8 @@ export const en = {
   'intro.model.saved': 'Saved',
   'intro.model.advanced': 'Advanced',
   'intro.model.advancedSame': 'Main and task models are the same',
+  'intro.model.assignmentUnavailable': 'Task model or effort unavailable. Choose again.',
+  'intro.model.useMainForAssignment': 'Use the main model for tasks',
   'intro.model.advancedSplit': 'Tob uses a separate task model',
   'intro.model.assignmentHint':
     'Tob runs delegated tasks on this model. When it differs from the main model, Tob stops following the default model.',

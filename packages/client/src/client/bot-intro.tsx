@@ -16,8 +16,10 @@ import {
   useLayoutEffect,
   useState,
   useSyncExternalStore,
+  type Dispatch,
   type ReactElement,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
@@ -456,12 +458,17 @@ export function BotIntro({
   const intro = state.intro;
   const [model, setModel] = useState<ModelStepBinding>();
   const [busy, setBusy] = useState(false);
+  const [providerSaving, setProviderSaving] = useState(false);
+  const modelDraft = useState<ModelStepDraft>(EMPTY_MODEL_DRAFT);
+  const navigationBusy = busy || providerSaving;
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneDevice, setPhoneDevice] = useState<string>();
   const [phoneRead, setPhoneRead] = useState(false);
   const startPicks = useState<StartPicks>(NO_PICKS);
   const close = (outcome?: IntroOutcome): Promise<void> => {
+    if (navigationBusy) return Promise.resolve();
     startPicks[1](NO_PICKS);
+    modelDraft[1](EMPTY_MODEL_DRAFT);
     setPhoneOpen(false);
     setPhoneDevice(undefined);
     setPhoneRead(false);
@@ -523,11 +530,17 @@ export function BotIntro({
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
+  const modelAdvanceBlocked = step === 'model' && model?.canAdvance !== true;
   const go = async (next: number) => {
-    if (next > intro.step && step === 'model' && model) {
-      setBusy(true);
-      const saved = await model.save().finally(() => setBusy(false));
-      if (!saved) return;
+    if (navigationBusy) return;
+    if (step === 'model') {
+      if (next > intro.step) {
+        if (model?.canAdvance !== true) return;
+        setBusy(true);
+        const saved = await model.save().finally(() => setBusy(false));
+        if (!saved) return;
+      }
+      if (next !== intro.step) modelDraft[1](EMPTY_MODEL_DRAFT);
     }
     controller.setIntroStep(next);
   };
@@ -568,9 +581,9 @@ export function BotIntro({
                 type="button"
                 aria-label={`${index + 1} ${t(`intro.step.${id}`)}`}
                 aria-current={index === intro.step ? 'step' : undefined}
-                disabled={busy}
-                onClick={() => void go(index)}
                 {...stylex.props(styles.stepButton, index === intro.step && styles.stepCurrent)}
+                disabled={navigationBusy || (index > intro.step && modelAdvanceBlocked)}
+                onClick={() => void go(index)}
               >
                 <span
                   {...stylex.props(styles.stepDot, index <= intro.step && styles.stepDotActive)}
@@ -592,6 +605,7 @@ export function BotIntro({
         <IconButton
           aria-label={t('common.close')}
           size="icon"
+          disabled={navigationBusy}
           onClick={() => void close({ via: 'close' })}
         >
           <ChannelSidebarIcon name="x" size={16} />
@@ -621,7 +635,9 @@ export function BotIntro({
             call={call}
             member={member}
             t={t}
+            draft={modelDraft}
             bind={setModel}
+            onProviderSavingChange={setProviderSaving}
             openProviders={
               botSettings === undefined
                 ? undefined
@@ -683,14 +699,18 @@ export function BotIntro({
           })}
         </span>
         {last || step === 'phone' ? null : (
-          <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
+          <Button
+            variant="ghost"
+            disabled={navigationBusy}
+            onClick={() => void close({ via: 'skip' })}
+          >
             {t('intro.skip')}
           </Button>
         )}
         {intro.step > 0 ? (
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={navigationBusy}
             onClick={() => void go(intro.step - 1)}
             {...stylex.props(styles.soft)}
           >
@@ -705,7 +725,7 @@ export function BotIntro({
                 : 'primary'
             }
             data-modal-autofocus={step !== 'phone'}
-            disabled={busy}
+            disabled={navigationBusy || modelAdvanceBlocked}
             onClick={() => void go(intro.step + 1)}
           >
             {t(step === 'phone' && !phoneRead ? 'intro.phone.skip' : 'intro.next')}
@@ -863,33 +883,43 @@ function ThemeStep({
 
 interface ModelStepBinding {
   keyForm: boolean;
+  canAdvance: boolean;
   save(): Promise<boolean>;
 }
+
+interface ModelStepDraft {
+  route?: ModelRouteView | undefined;
+  subscription?: SubscriptionModel | null;
+  assignment?: ModelRouteView | undefined;
+  advanced: boolean;
+}
+
+const EMPTY_MODEL_DRAFT: ModelStepDraft = { advanced: false };
 
 function ModelStep({
   actions,
   call,
   member,
   t,
+  draft: [{ route: draftRoute, subscription, assignment, advanced }, setDraft],
   bind,
+  onProviderSavingChange,
   openProviders,
 }: {
   actions: BridgeActions;
   call: BridgeCall | undefined;
   member: boolean;
   t: BotHarnessTranslate;
+  draft: [ModelStepDraft, Dispatch<SetStateAction<ModelStepDraft>>];
   bind(model: ModelStepBinding | undefined): void;
+  onProviderSavingChange(saving: boolean): void;
   openProviders: (() => void) | undefined;
 }): ReactElement {
   const viewer = useTeamMode(call)?.viewer;
-  const owner = viewer?.owner ?? (call === undefined && !member);
+  const owner = call === undefined ? !member : viewer?.owner;
   const canConnect = canManageModelProviders(viewer);
   const engines = useSubscriptionEngines(viewer?.owner === true);
   const [catalog, setCatalog] = useState<ModelCatalogView>();
-  const [draftRoute, setDraftRoute] = useState<ModelRouteView>();
-  const [subscription, setSubscription] = useState<SubscriptionModel | null>();
-  const [assignment, setAssignment] = useState<ModelRouteView>();
-  const [advanced, setAdvanced] = useState(false);
   const [planned, setPlanned] = useState<string>();
   const [connection, setConnection] = useState<'key' | 'subscription'>();
   const [readError, setReadError] = useState<string>();
@@ -923,16 +953,22 @@ function ModelStep({
   }, [actions, refresh]);
 
   const models = (catalog?.models ?? []).filter((model) => model.credential === undefined);
-  const isUsable = (route: ModelRouteView | undefined) =>
-    route !== undefined && models.some((model) => routeKey(model) === routeKey(route));
-  const first = models.find((model) => model.restingUntil === undefined) ?? models[0];
-  const route = isUsable(draftRoute)
-    ? draftRoute
-    : isUsable(catalog?.default)
-      ? catalog?.default
-      : first === undefined
-        ? undefined
-        : { provider: first.provider, model: first.model };
+  const usableRoute = (route: ModelRouteView | undefined): ModelRouteView | undefined => {
+    if (route === undefined) return undefined;
+    const entry = models.find(
+      (model) => model.provider === route.provider && model.model === route.model,
+    );
+    if (entry === undefined || entry.restingUntil !== undefined) return undefined;
+    return route.reasoningEffort === undefined ||
+      entry.efforts.some(({ id }) => id === route.reasoningEffort)
+      ? route
+      : { provider: route.provider, model: route.model };
+  };
+  const first = models.find((model) => model.restingUntil === undefined);
+  const route =
+    usableRoute(draftRoute) ??
+    usableRoute(catalog?.default) ??
+    (first === undefined ? undefined : { provider: first.provider, model: first.model });
   const tob = onboardingFor(actions).getSnapshot().receipt?.defaultBotSlug;
   const availableEngines = owner
     ? (engines.view?.engines.filter((engine) => engine.available) ?? [])
@@ -941,15 +977,56 @@ function ModelStep({
     (choice) => choice.botSlug === tob && choice.role === 'orchestrator',
   );
   const [firstEngine] = availableEngines;
+  const draftEngine = availableEngines.find(({ engine }) => engine === subscription?.engine);
+  const draftEngineModels =
+    draftEngine === undefined ? undefined : engines.models[draftEngine.engine];
+  const draftEngineModel = draftEngineModels?.find(({ id }) => id === subscription?.model);
+  const validatedSubscription =
+    subscription && draftEngine && (subscription.model === undefined || draftEngineModel)
+      ? {
+          engine: subscription.engine,
+          ...(subscription.model === undefined ? {} : { model: subscription.model }),
+          ...(subscription.effort !== undefined &&
+          draftEngineModel?.efforts.some(({ id }) => id === subscription.effort)
+            ? { effort: subscription.effort }
+            : {}),
+        }
+      : subscription === null
+        ? null
+        : undefined;
   const engineChoice: SubscriptionModel | null =
-    subscription !== undefined
-      ? subscription
+    validatedSubscription !== undefined
+      ? validatedSubscription
       : savedEngine !== undefined &&
           availableEngines.some((status) => status.engine === savedEngine.engine)
         ? savedEngine
         : route === undefined && firstEngine !== undefined
           ? { engine: firstEngine.engine }
           : null;
+  const waitingForEngineSelection =
+    owner === true &&
+    call !== undefined &&
+    tob !== undefined &&
+    subscription !== undefined &&
+    (engines.view === undefined ||
+      (draftEngine !== undefined &&
+        subscription?.model !== undefined &&
+        draftEngineModels === undefined));
+  const availableAssignment = usableRoute(assignment);
+  const invalidAssignment =
+    advanced &&
+    assignment !== undefined &&
+    catalog !== undefined &&
+    (availableAssignment === undefined ||
+      availableAssignment.reasoningEffort !== assignment.reasoningEffort);
+  const waitingForCatalog =
+    catalog === undefined && (draftRoute !== undefined || (advanced && assignment !== undefined));
+  const canAdvance =
+    owner !== undefined &&
+    (!owner ||
+      editingKey ||
+      (!waitingForEngineSelection &&
+        (engineChoice !== null || (!waitingForCatalog && !invalidAssignment))));
   const hasProvider = models.length > 0 || availableEngines.length > 0;
   const local =
     engines.view === undefined
@@ -964,6 +1041,7 @@ function ModelStep({
       : false;
 
   const save = async (): Promise<boolean> => {
+    if (!canAdvance) return false;
     if (!owner || connection === 'key') return true;
     setSaveError(undefined);
     try {
@@ -1021,10 +1099,11 @@ function ModelStep({
     }
   };
   const bindSave = useMountedResource<HTMLSpanElement>(() => {
-    bind({ keyForm: editingKey, save });
+    bind({ keyForm: editingKey, canAdvance, save });
     return () => bind(undefined);
   }, [
     owner,
+    canAdvance,
     editingKey,
     connection,
     route?.provider,
@@ -1082,14 +1161,15 @@ function ModelStep({
             ? 'intro.model.connectTitle'
             : engineChoice !== null
               ? 'intro.model.tobModel'
-              : owner
-                ? 'intro.model.title'
-                : 'intro.model.memberTitle',
+              : owner === false
+                ? 'intro.model.memberTitle'
+                : 'intro.model.title',
         )}
       </h2>
       {editingKey ? (
         <InlineModelProvider
           call={call}
+          onSavingChange={onProviderSavingChange}
           onClose={() => setConnection(undefined)}
           onAdded={() => {
             setConnection(undefined);
@@ -1111,10 +1191,9 @@ function ModelStep({
             choice={{ key: route ? routeKey(route) : '', effort: route?.reasoningEffort ?? '' }}
             catalog={models}
             options={options}
-            onChange={(choice) => {
-              setDraftRoute(parse(choice));
-              setSubscription(null);
-            }}
+            onChange={(choice) =>
+              setDraft((previous) => ({ ...previous, route: parse(choice), subscription: null }))
+            }
             disabled={false}
             subscription={
               availableEngines.length === 0 || tob === undefined
@@ -1123,7 +1202,8 @@ function ModelStep({
                     choice: engineChoice,
                     items: engineMenuItems(availableEngines, engines.models, engines.signingIn, t),
                     models: engines.models,
-                    onChange: setSubscription,
+                    onChange: (choice) =>
+                      setDraft((previous) => ({ ...previous, subscription: choice })),
                     signIn: engines.signIn,
                   }
             }
@@ -1133,7 +1213,12 @@ function ModelStep({
             <details
               {...stylex.props(styles.advanced)}
               open={advanced}
-              onToggle={(event) => setAdvanced(event.currentTarget.open)}
+              onToggle={(event) => {
+                const { open } = event.currentTarget;
+                setDraft((previous) =>
+                  previous.advanced === open ? previous : { ...previous, advanced: open },
+                );
+              }}
               data-intro-model-advanced
             >
               <summary {...stylex.props(styles.advancedSummary)}>
@@ -1151,7 +1236,9 @@ function ModelStep({
                 }}
                 catalog={models}
                 options={options}
-                onChange={(choice) => setAssignment(parse(choice))}
+                onChange={(choice) =>
+                  setDraft((previous) => ({ ...previous, assignment: parse(choice) }))
+                }
                 disabled={false}
                 t={t}
               />
@@ -1184,13 +1271,7 @@ function ModelStep({
           ) : null}
         </>
       ) : catalog === undefined ? (
-        readError === undefined ? (
-          <Note>{t('modelPreset.loading')}</Note>
-        ) : (
-          <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
-            {readError}
-          </ReadFailure>
-        )
+        readError === undefined ? <Note>{t('modelPreset.loading')}</Note> : null
       ) : canConnect ? (
         <div {...stylex.props(styles.choices)}>
           <ChoiceButton
@@ -1222,6 +1303,22 @@ function ModelStep({
       ) : viewer !== undefined ? (
         <Note>{t('intro.model.ownerConnects')}</Note>
       ) : null}
+      {readError === undefined ? null : (
+        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
+          {readError}
+        </ReadFailure>
+      )}
+      {!editingKey && owner && engineChoice === null && invalidAssignment ? (
+        <div>
+          <Note tone="warning">{t('intro.model.assignmentUnavailable')}</Note>
+          <Button
+            variant="outline"
+            onClick={() => setDraft((previous) => ({ ...previous, assignment: undefined }))}
+          >
+            {t('intro.model.useMainForAssignment')}
+          </Button>
+        </div>
+      ) : null}
       {saveError === undefined ? null : <Note tone="danger">{saveError}</Note>}
     </div>
   );
@@ -1231,23 +1328,33 @@ function InlineModelProvider({
   call,
   onClose,
   onAdded,
+  onSavingChange,
   t,
 }: {
   call: BridgeCall;
   onClose(): void;
   onAdded(): void;
+  onSavingChange(saving: boolean): void;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [view, setView] = useState<ModelProvidersView>();
   const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [retry, setRetry] = useState(0);
+  const reload = () => {
+    setFailed(false);
+    setRefreshing(true);
+    setRetry((count) => count + 1);
+  };
   const mount = useMountedResource<HTMLDivElement>(() => {
     const request = new AbortController();
     void bridgeHost(call, request.signal)
       .call<ModelProvidersView>('modelProviders')
       .then(
         (result) => {
-          if (!request.signal.aborted) setView(result);
+          if (request.signal.aborted) return;
+          setView(result);
+          setRefreshing(false);
         },
         () => {
           if (!request.signal.aborted) setFailed(true);
@@ -1260,9 +1367,11 @@ function InlineModelProvider({
       {view?.revision !== undefined ? (
         <AddModelProvider
           call={call}
-          revision={view.revision}
+          revision={refreshing ? undefined : view.revision}
           onAdded={onAdded}
           onClose={onClose}
+          onConflict={reload}
+          onSavingChange={onSavingChange}
           inline
           t={t}
         />
@@ -1270,17 +1379,7 @@ function InlineModelProvider({
         <div {...stylex.props(styles.section)}>
           {view !== undefined ? (
             <Note>{t('modelProviders.readOnly')}</Note>
-          ) : failed ? (
-            <ReadFailure
-              retryLabel={t('engine.reload')}
-              onRetry={() => {
-                setFailed(false);
-                setRetry((count) => count + 1);
-              }}
-            >
-              {t('modelProviders.readFailed')}
-            </ReadFailure>
-          ) : (
+          ) : failed ? null : (
             <Note>{t('modelProviders.loading')}</Note>
           )}
           <Button variant="outline" onClick={onClose}>
@@ -1288,6 +1387,11 @@ function InlineModelProvider({
           </Button>
         </div>
       )}
+      {failed ? (
+        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
+          {t('modelProviders.readFailed')}
+        </ReadFailure>
+      ) : null}
     </div>
   );
 }

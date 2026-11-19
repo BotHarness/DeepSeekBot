@@ -4360,6 +4360,9 @@ function buildBridgeMethods(
           const allowed = deps.team.roles.modelsAllowed(human);
           const isAllowed = (route: { provider: string; model: string }) =>
             allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`);
+          const credentialGated = new Set(
+            models.filter((route) => route.credential !== undefined).map(routeKey),
+          );
           return {
             ok: true,
             value: {
@@ -4367,7 +4370,10 @@ function buildBridgeMethods(
                 .filter((route) => route.credential === undefined && isAllowed(route))
                 .map(({ credential: _credential, ...route }) => catalogEntry(route, rests)),
               ...favoritesOf(),
-              ...catalogGroups(rests, isAllowed),
+              ...catalogGroups(
+                rests,
+                (route) => isAllowed(route) && !credentialGated.has(routeKey(route)),
+              ),
             },
           };
         }
