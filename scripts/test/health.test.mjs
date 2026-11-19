@@ -50,6 +50,14 @@ describe('codebase health ratchets', () => {
     );
   });
 
+  it('counts agent prose the same in CRLF and LF checkouts', () => {
+    const lf = { 'AGENTS.md': 'a\nb\n' };
+    const crlf = { 'AGENTS.md': 'a\r\nb\r\n' };
+    expect(collect((path) => crlf[path], [])['agent-prose-bytes']).toEqual(
+      collect((path) => lf[path], [])['agent-prose-bytes'],
+    );
+  });
+
   it('fails a new file over the limit and a new tsc exclusion, not a baselined file that grew', () => {
     const baseline = {
       'long-files': ['old.ts'],

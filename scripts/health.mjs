@@ -38,7 +38,7 @@ export function collect(read, paths) {
   const prose = {};
   for (const path of PROSE) {
     const text = read(path);
-    if (text !== undefined) prose[path] = Buffer.byteLength(text);
+    if (text !== undefined) prose[path] = Buffer.byteLength(text.replaceAll('\r\n', '\n'));
   }
   return {
     'file-lines': sorted(lines),
@@ -226,7 +226,7 @@ export const collectWorktree = () => collect(readWorktree, tracked());
 
 function main(argv) {
   const base = argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
-  const agents = readWorktree('AGENTS.md');
+  const agents = readWorktree('AGENTS.md')?.replaceAll('\r\n', '\n');
   const { guardrails } = JSON.parse(readWorktree(REGISTRY));
   const syncedAgents = syncGuardrailTable(agents, guardrails);
   const updating = argv.includes('--update');
