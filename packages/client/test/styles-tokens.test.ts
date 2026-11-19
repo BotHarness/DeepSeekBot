@@ -229,7 +229,7 @@ describe('client styles', () => {
     expect(source).not.toMatch(/@keyframes bh-avatar-(breathe|work|search|code|execute)\b/);
     expect(source).not.toContain('.bh-avatar-botui');
     expect(source).not.toContain('--botui-anim');
-    expect(source).toContain("html[data-botharness-motion='full'] .bh-motion-preview-sample i");
+    expect(source).not.toContain('.bh-motion-preview');
   });
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {

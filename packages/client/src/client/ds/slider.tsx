@@ -24,6 +24,7 @@ const styles = stylex.create({
 
 export interface SliderProps {
   readonly label: string;
+  readonly id?: string;
   readonly value: number;
   readonly min: number;
   readonly max: number;
@@ -35,6 +36,7 @@ export interface SliderProps {
 
 export function Slider({
   label,
+  id,
   value,
   min,
   max,
@@ -48,6 +50,7 @@ export function Slider({
     <span {...stylex.props(styles.wrap)}>
       <input
         type="range"
+        id={id}
         aria-label={label}
         aria-valuetext={shown}
         min={min}

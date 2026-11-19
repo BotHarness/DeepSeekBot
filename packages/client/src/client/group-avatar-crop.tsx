@@ -136,6 +136,7 @@ export function GroupAvatarCropModal({
     >
       <div ref={sourceMount} {...stylex.props(styles.frame)}>
         <div
+          data-group-avatar-crop-viewport=""
           {...stylex.props(styles.viewport)}
           role="img"
           tabIndex={0}
@@ -193,6 +194,7 @@ export function GroupAvatarCropModal({
           title={t('group.avatarCrop.zoom')}
           control={
             <Slider
+              id="bh-group-avatar-zoom"
               label={t('group.avatarCrop.zoom')}
               min={1}
               max={3}
