@@ -81,10 +81,7 @@ import {
   type SimpleLayout,
   type SubpanelColumn,
 } from './layout-mode.js';
-import {
-  botModeSidebarViewport,
-  subscribeBotModeSidebarViewport,
-} from './bot-mode-sidebar-viewport.js';
+import { useChannelDockViewport } from './dock-viewport.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ComposerContextPlacementContext } from './composer-context-placement.js';
 import {
@@ -173,7 +170,7 @@ const DOCK_THEME: DockviewTheme = {
 };
 
 export function useChannelDockActive(): boolean {
-  return useSyncExternalStore(subscribeBotModeSidebarViewport, botModeSidebarViewport, () => false);
+  return useChannelDockViewport();
 }
 
 interface EntryRuntime {

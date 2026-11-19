@@ -1,8 +1,8 @@
 # Approval decisions
 
-How a Bot's tool call gets approved: who may answer, in what order, what a saved answer covers, and what an Approval Template and its Reviewer may and may not do. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); DSH permission modes and full access are in [Session decisions](sessions.md#adr-0205); secret tools are in [Secret decisions](secrets.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0207, 0238, 0239, 0249 and 0342, and each section lists the ADRs it absorbed.
+How a Bot's tool call gets approved: who may answer, in what order, what a saved answer covers, and what an Approval Template and its Reviewer may and may not do. How it works lives in [the architecture](../architecture/botharness-architecture.md); terms live in [`GLOSSARY.md`](../../GLOSSARY.md); DSH permission modes and full access are in [Session decisions](sessions.md#adr-0205); secret tools are in [Secret decisions](secrets.md). Each section states the current decision, the reasons a reader cannot get from the code, and what enforces it. History is in Git: this file replaces ADR-0207, 0238, 0239, 0249 and 0342 and 0346, and each section lists the ADRs it absorbed.
 
-Two rules run through every section:
+Two rules govern tool approvals:
 
 - **One owner decides, from one pure function.** `ChannelToolApproval` is the only approval owner. Every path it takes (Full Access, a saved rule, the Reviewer, a Human card) comes from `decideToolApproval` in `workspaces/tool-effects.ts`; the Web card, phone card, IM card and online CLI all submit decisions to that owner. There is no second approval queue or permission store.
 - **Only a Human loosens policy.** Changing who or what answers approvals (template selection, a template a Bot uses, the Reviewer model, directory write authority) needs a Human decision or a rule the Human saved for exactly that operation. Neither the model Reviewer nor Full Access can answer it.
@@ -104,3 +104,15 @@ An Assignment cannot bypass its Grant's disabled write permission, and it keeps 
 Why: a Human approved a folder and the Bot still could not write, because the Client created a read-only Grant and sent a separate success reply. One transaction makes "approved" and "can write" the same fact.
 
 Enforced by: `grant-request-approval.test.ts`.
+
+## 8. Skill Invocation snapshots text and leaves routing explicit
+
+<a id="adr-0346"></a>
+
+The conversation's `/` menu offers commands before Skills. It lists Host Skills and Project Skills from each eligible PersonaBot's Memory Repository and active Workspace Grants, with one PersonaBot in a DM. Workspace ownership is keyed by the stable Workspace ID. A same-named command keeps the bare name. Automatic model discovery follows the Bot's own catalog and does not pick up the other conversation participants' Skills.
+
+On send, the Host resolves each selected Skill and stores its name, owner, path and text in a typed Channel Message part. Each Bot Inbox recipient gets the same `<skill_invocation>` snapshot. Ordinary Channel routing and explicit mentions still choose recipients. Recipients' present [file access rules](workspaces.md#adr-0067) govern access to the referenced files, and external IM mirrors use the plain `/name`.
+
+Why: An explicit selection fixes the text at send time even if the Skill changes later. Independent routing lets a Human send one Bot the text of another Bot's Skill while keeping file access with its existing owner.
+
+Enforced by: [Host catalog, routing and snapshots](../../packages/core/test/skill-invocation.test.ts), [Workspace Skill lookup and revocation](../../packages/core/test/workspace-skills.test.ts), and [Channel file access](../../packages/core/test/grant-execution.test.ts).

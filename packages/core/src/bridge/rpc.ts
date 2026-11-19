@@ -4,6 +4,7 @@ import type {
   ModelProviderSave,
   ModelProviderRemoval,
 } from '@botharness/host-client/model-providers';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 
 import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
@@ -1275,13 +1276,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
   }
 
-  modelCatalog(): Promise<{
+  modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
     defaultRevision?: number;
     favorites?: ModelFavorite[];
+    routingGroupEngines?: RoutingGroupEngineOptions[];
   }> {
-    return unwrapAsync(this.methods.modelCatalog({}));
+    return unwrapAsync(
+      this.methods.modelCatalog(
+        includeRoutingGroupEngines === true ? { includeRoutingGroupEngines } : {},
+      ),
+    );
   }
 
   modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {

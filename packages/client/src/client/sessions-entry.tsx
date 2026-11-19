@@ -50,7 +50,7 @@ import {
   SessionMetaChip,
   TodoProgressChip,
 } from './session-progress-view.js';
-import { engineChipLabel, sessionEngineText } from './session-engine.js';
+import { ENGINE_MARKER_ICON, engineChipLabel, sessionEngineText } from './session-engine.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -481,7 +481,7 @@ function SessionsPanel({
                   {row.engine === undefined ? null : (
                     <SessionMetaChip
                       kind="engine"
-                      icon={<Icon name="puzzle" size={12} />}
+                      icon={<Icon name={ENGINE_MARKER_ICON} size={12} />}
                       label={engineChipLabel(row.engine, t)}
                       title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
                     />

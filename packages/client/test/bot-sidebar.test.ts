@@ -315,6 +315,7 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected IM send');
     }),
     modelCatalog: vi.fn(async () => ({ models: [] })),
+    routingGroupEngines: vi.fn(async () => []),
     modelPresets: vi.fn(async () => []),
     routingGroups: vi.fn(async () => ({ groups: [], rests: [] })),
     createRoutingGroup: vi.fn(),
@@ -1366,7 +1367,7 @@ describe('bot sidebar rows', () => {
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
     expect(wide).toMatch(
-      /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
+      /<span class="bh-bottom">.*?<span class="bh-unread-count" aria-label="3 条未读">3<\/span>/u,
     );
     expect(wide).toContain('data-status="done-unread"');
     store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 120 } });
@@ -1380,7 +1381,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
-    expect(markup).toContain('bh-unread-count bh-unread-corner bh-unread-count-muted');
+    expect(markup).toContain('bh-unread-count bh-unread-count-muted');
   });
 
   it('shows recent activity for a bodyless latest DM message', () => {
@@ -2575,6 +2576,11 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
     const avatar = row.slice(0, row.indexOf('class="bh-body"'));
     const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-bottom"'));
     const bottom = row.slice(row.indexOf('class="bh-bottom"'), row.indexOf('</button>'));
+    const container = document.createElement('div');
+    container.innerHTML = markup;
+    const portrait = container.querySelector(`[data-channel-id="${DM_CHANNEL.id}"] [role="img"]`);
+    expect(portrait?.getAttribute('aria-label')).toContain(BOT.displayName);
+    expect(portrait?.closest('[aria-hidden="true"]')).toBeNull();
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-avatar-botui');

@@ -15,13 +15,15 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   };
 });
 
-const ownSidebar = vi.hoisted(() => ({ desktop: false }));
-vi.mock('../src/client/bot-mode-sidebar-viewport.js', () => ({
-  botModeSidebarViewport: () => ownSidebar.desktop,
-  subscribeBotModeSidebarViewport: () => () => undefined,
+const viewport = vi.hoisted(() => ({ windowClass: 'expanded' as WindowClass }));
+vi.mock('../src/client/ds/window-class.js', async (original) => ({
+  ...(await original<typeof import('../src/client/ds/window-class.js')>()),
+  getWindowClass: () => viewport.windowClass,
+  subscribeWindowClass: () => () => undefined,
 }));
 
 import { apply, PANEL_ID } from '../src/client/index.js';
+import type { WindowClass } from '../src/client/ds/window-class.js';
 import { store } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import * as environments from '../src/client/environment-panel.js';
@@ -288,25 +290,25 @@ describe('client apply', () => {
       'conversation.session.header.actions',
       'sidebar.session.row.leading',
       'sidebar.workspaces.session.menu.item',
+      'sidebar',
       'sidebar.workspaces',
       'main',
     ]);
-    expect(specs[5]).toMatchObject({
+    expect(specs[6]).toMatchObject({
       name: 'sidebar.workspaces',
       priority: -101,
       locale: 'botharness',
     });
-    expect(specs[6]).toMatchObject({ name: 'main', key: 'conversation', priority: -101 });
+    expect(specs[7]).toMatchObject({ name: 'main', key: 'conversation', priority: -101 });
 
     store.setMode('dsh');
-    expect(disposed.map((spec) => spec.name)).toEqual(['sidebar.workspaces', 'main']);
+    expect(disposed.map((spec) => spec.name)).toEqual(['sidebar', 'sidebar.workspaces', 'main']);
     for (const overlay of registrations.filter((spec) => spec.name === 'shell.overlay'))
       expect(disposed).not.toContain(overlay);
   });
 
   it('shadows the whole sidebar at -2 in desktop Bot mode and returns it on exit', () => {
     store.setMode('dsh');
-    ownSidebar.desktop = true;
     try {
       const registrations: Spec[] = [];
       const disposed: Spec[] = [];
@@ -325,10 +327,26 @@ describe('client apply', () => {
       store.setMode('dsh');
       expect(disposed.map((spec) => spec.name)).toContain('sidebar');
     } finally {
-      ownSidebar.desktop = false;
       store.setMode('dsh');
     }
   });
+
+  it.each(['compact', 'medium'] as const)(
+    'keeps the native sidebar slots unshadowed at %s width',
+    (windowClass) => {
+      viewport.windowClass = windowClass;
+      try {
+        const registrations: Spec[] = [];
+        apply(createScoped(registrations, []) as never);
+        store.setMode('bot');
+        expect(registrations.some((spec) => spec.name === 'sidebar')).toBe(false);
+        expect(registrations.some((spec) => spec.name === 'sidebar.workspaces')).toBe(false);
+      } finally {
+        store.setMode('dsh');
+        viewport.windowClass = 'expanded';
+      }
+    },
+  );
 
   it('registers Bot Settings on the overlay and its sections only while configForms is served', () => {
     store.setMode('dsh');

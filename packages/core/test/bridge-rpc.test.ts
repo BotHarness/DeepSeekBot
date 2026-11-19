@@ -40,7 +40,10 @@ afterEach(() => {
 
 function setup(
   sourcePolicy?: BotSourcePolicyStore,
-  extras: Pick<BridgeMethodsDeps, 'channelManagement' | 'tob'> = {},
+  extras: Pick<
+    BridgeMethodsDeps,
+    'channelManagement' | 'tob' | 'modelCatalog' | 'routingGroupEngineOptions'
+  > = {},
   operational = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-rpc-'));
@@ -97,6 +100,21 @@ describe('bridge typert service', () => {
     expect(secondMethods.humanIdentity({})).toMatchObject({
       ok: true,
       value: { humanId: second.humanId },
+    });
+  });
+
+  it('advertises and forwards the optional Routing Group engine read on the catalog RPC', async () => {
+    const { service } = setup(undefined, {
+      modelCatalog: { list: async () => [], validate: async () => undefined },
+      routingGroupEngineOptions: async () => [
+        { engine: 'codex', available: false, reason: 'not-installed' },
+      ],
+    });
+    expect(parameterNames(service.modelCatalog)).toEqual(['includeRoutingGroupEngines']);
+    await expect(service.modelCatalog()).resolves.toEqual({ models: [] });
+    await expect(service.modelCatalog(true)).resolves.toEqual({
+      models: [],
+      routingGroupEngines: [{ engine: 'codex', available: false, reason: 'not-installed' }],
     });
   });
 

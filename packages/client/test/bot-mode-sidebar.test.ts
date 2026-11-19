@@ -319,7 +319,7 @@ it.each([false, true])('hides excluded local action dots with pinned cards=%s', 
     const entry = node.querySelector('[data-bh-tour="inbox"]');
     expect(entry?.getAttribute('aria-label')).toBe('Activity');
     if (pinned) expect(entry?.querySelector('[data-pinned-panel-dot]')).toBeNull();
-    else expect(entry?.firstElementChild?.querySelector('span')).toBeNull();
+    else expect(entry?.querySelector('[data-sidebar-attention]')).toBeNull();
   } finally {
     act(() => store.setActivityList(before));
   }

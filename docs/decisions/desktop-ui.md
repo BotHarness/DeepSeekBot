@@ -42,17 +42,29 @@ Enforced by: [package boundaries](../../scripts/check-package-boundaries.mjs), [
 <a id="adr-0194"></a>
 <a id="adr-0348"></a>
 
-[#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) supersedes the DSH token and primitive requirements for Bot mode. The DTCG resolver at `design/tokens/tobs.resolver.json` composes shared core values, Web semantic roles, colour modes and style sets. The generator emits CSS custom properties and StyleX constants. The shared `ds/` components own row alignment and content controls. Existing DSH imports and token references follow a shrinking migration baseline. [Base UI overlays](../adr/0349-tobs-overlays-are-built-on-base-ui.md) use the shell layer for focus and keyboard ownership. DSH-owned surfaces retain their own components, and the docs site uses COSS.
+[#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) supersedes the DSH token and primitive requirements for Bot mode. The DTCG resolver at `design/tokens/tobs.resolver.json` composes shared core values, Web semantic roles, colour modes and style sets. The generator emits CSS custom properties and StyleX constants. The shared `ds/` components own row alignment and content controls. Existing DSH imports and token references follow a shrinking migration baseline. [Base UI overlays](#adr-0349) use the shell layer for focus and keyboard ownership. DSH-owned surfaces retain their own components, and the docs site uses COSS.
 
 Why: Tobs needs to set its own hierarchy, alignment and colours while living inside the native shell. Central roles keep the same controls consistent across Panels, and one overlay seam preserves keyboard order across both owners.
 
 Enforced by: [resolver and generated outputs](../../scripts/generate-tokens.mjs), [migration guard](../../scripts/check-design-tokens.mjs), [UI rules](../../scripts/check-ui-rules.mjs), [dialog and shell layering](../../packages/client/test/tobs-dialog.test.tsx).
 
+## Tobs overlays use Base UI and share the DSH layer stack
+
+<a id="adr-0349"></a>
+
+Tobs overlays use `@base-ui/react` for structure and Tobs tokens for styling. The pinned UI dependency is inlined in the Client Bundle. `ds/shell-layer.ts` is the sole DSH overlay-stack seam, so the top layer owns Escape, Tab and focus return across Tobs and DSH. In the settings dialog, Base UI handles the portal, accessibility and lifecycle in non-modal mode. The shell handles the keyboard, and the scrim alone handles pointer dismissal outside the dialog.
+
+Existing DSH overlays migrate through the shrinking import baseline. DSH-owned pages keep their own controls, and the docs site uses COSS.
+
+Why: Base UI gives Tobs control of overlay markup and styling. The shared shell stack keeps keyboard and focus behavior coherent when either owner opens a layer above the other.
+
+Enforced by: [Client Bundle inlining](../../packages/client/test/client-bundle.test.ts), [dialog behavior](../../packages/client/test/tobs-dialog.test.tsx), and [DSH import guard](../../scripts/check-design-tokens.mjs).
+
 ## Style, colour mode and accent resolve independently
 
 <a id="adr-0351"></a>
 
-The Client Appearance owner resolves colour mode, style and accent separately. Default, Apple and Material styles use shared roles for control height, type, grouping, radius, selected state and chat geometry. A style selects aliases from shared scales. Accent presets supply generated semantic roles, while a custom colour resolves at runtime. Material can tint neutral layers and muted ink and checks the result for contrast. Text roles meet 4.5:1, and `ink.quiet` is reserved for icons and decoration at 3:1. Surfaces are separated by gaps that show the canvas, not by lines; borders remain only for inputs, focus rings and the row separators inside the Apple style's grouped cards. Focus rings are 2px in every style, drawn outside controls and inset on list rows, using the `edge.focus-offset` token. Selection leaves geometry intact. Narrow Web shares the same style contract, and the native apps use their own platform chrome with shared colours.
+The Client Appearance owner resolves colour mode, style and accent separately. Default, Apple and Material styles use shared roles for control height, type, grouping, radius, selected state and chat geometry. A style selects aliases from shared scales. Accent presets supply generated semantic roles, while a custom colour resolves at runtime. Material can tint neutral layers and muted ink and checks the result for contrast. Text roles meet 4.5:1, and `ink.quiet` is reserved for icons and decoration at 3:1. Surfaces are separated by gaps that show the canvas, not by lines; borders remain only for inputs, focus rings and the row separators inside the Apple style's grouped cards. Focus rings are 2px in every style, drawn outside controls and inset on list rows, using the `edge.focus-offset` token. Selection leaves geometry intact. Narrow Web shares the style contract. Below 600px, Bot mode opens the sidebar as a modal drawer and shared dialogs as bottom sheets. Settings retains its full-screen list and detail views. At 600px the sidebar docks beside the conversation, and at 840px the expanded shell can use the native sidebar or the workspace when qualified. Native apps use their own platform controls with shared colours.
 
 Why: Independent axes let a Human change the accent without replacing the layout language. Shared roles apply one choice across Panels and let contrast checks exercise every shipped combination.
 

@@ -144,3 +144,24 @@ The issue/PR reports **Simulator**, **physical Release**, and **Human QA** indep
 PASS / FAIL / UNTESTED, with INVALID samples listed separately. Source tests, CI, Web evidence
 and a video do not replace native performance acceptance. Restore changed settings, revoke only
 test-owned pairings and release only owned resources; preserve the evidence and unresolved failures.
+
+## Mobile performance workload and acceptance
+
+**The bar.** In a Release build on a ProMotion iPhone, a DM holds 120 FPS (8.3 ms frames) while a reply streams, while the user scrolls long history, and while both happen at once ([#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)). No frame may hitch over 16.7 ms. Numbers from a development build or the Simulator are evidence for a change, not proof that the bar is met.
+
+Validate the workload, attribute the cost to the relevant JS, React, native or display layer, and
+run the [matched physical Release comparison](#matched-physical-device-ab-acceptance) after the
+smallest fix. Keep Simulator, physical Release and Human QA results separate, and preserve failed
+or invalid samples.
+
+Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
+Instruments serve different measurement layers. `scripts/rn-profile.mjs` is diagnostic scaffolding:
+its React-hook requirement, fixed-60Hz JS rAF drop estimate and base-duration accumulation are
+not native FPS or exact current-update CPU measurements. Development-build improvement ratios
+must be revalidated in Release. See the AX workflow for commands, supported-tool checks,
+provenance, low-overhead instrumentation and required evidence.
+
+Cover streaming a long reply, scrolling hundreds of messages including tables/code, and both
+at once. Include keyboard, draft, anchor and accessibility regressions when affected. Follow
+[shared device QA](./device-qa.md) for resource ownership and
+[QA evidence](./qa-evidence.md) for retained captures.

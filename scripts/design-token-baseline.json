@@ -60,9 +60,6 @@
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
     "dshImport": 1
   },
-  "packages/client/src/client/bot-mode-sidebar.tsx": {
-    "dshImport": 1
-  },
   "packages/client/src/client/bot-prompt-viewer.tsx": {
     "rawControl": 1,
     "lineBorder": 1
@@ -75,7 +72,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/bot-sidebar.tsx": {
-    "rawControl": 13,
+    "rawControl": 11,
     "legacyCss": 2
   },
   "packages/client/src/client/bot-skills-card.tsx": {
@@ -252,7 +249,7 @@
     "rawControl": 3
   },
   "packages/client/src/client/host-tabs.tsx": {
-    "rawControl": 2
+    "rawControl": 1
   },
   "packages/client/src/client/idle-compaction-setting.tsx": {
     "dshImport": 1
@@ -354,17 +351,8 @@
     "legacyCss": 21,
     "lineBorder": 3
   },
-  "packages/client/src/client/mobile-bot-panel.tsx": {
-    "rawControl": 4,
-    "lineBorder": 2
-  },
   "packages/client/src/client/mobile-bot-styles.ts": {
-    "legacyCss": 22,
-    "lineBorder": 1
-  },
-  "packages/client/src/client/mobile-conversation-header.tsx": {
-    "rawControl": 4,
-    "lineBorder": 1
+    "legacyCss": 10
   },
   "packages/client/src/client/model-preset-profile.tsx": {
     "lineBorder": 1
@@ -447,7 +435,7 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1899,
+    "legacyCss": 1892,
     "lineBorder": 103
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
