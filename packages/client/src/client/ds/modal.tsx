@@ -60,6 +60,7 @@ const styles = stylex.create({
 
 interface ModalBaseProps {
   open: boolean;
+  animate?: boolean | undefined;
   onClose: () => void;
   title: string;
   description?: string;
@@ -100,6 +101,7 @@ export function Modal(props: ModalProps): ReactElement | null {
   return (
     <Dialog
       open
+      animate={props.animate}
       onClose={onClose}
       title={title}
       className={className}

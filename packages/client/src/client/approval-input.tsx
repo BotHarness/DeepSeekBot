@@ -6,14 +6,15 @@ import {
 } from '@botharness/host-client/shared/approval-diff';
 import type { BotHarnessTranslate } from './locale.js';
 import { Button } from './ds/button.js';
+import { dimension } from './ds/dimensions.stylex.js';
 import { hooked } from './ds/hooked.js';
 import { requestCardStyles as card } from './ds/request-card.js';
 import { ink, space, status } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   noMargin: { margin: 0 },
-  input: { maxHeight: 'min(420px, 60vh)', overflow: 'auto' },
-  compact: { maxHeight: '160px' },
+  input: { maxHeight: `min(${dimension.approvalPreviewMaxHeight}, 60vh)`, overflow: 'auto' },
+  compact: { maxHeight: dimension.compactApprovalPreviewMaxHeight },
   folded: { maxHeight: 'none', overflow: 'hidden' },
   toggle: { justifySelf: 'start' },
   file: { display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: space.x2 },
