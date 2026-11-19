@@ -6,6 +6,8 @@ At 961px and wider on a structurally qualified rc.2 Web/macOS/Windows shell, the
 
 - `packages/client/src/client/{channel-dock,channel-dock-layout,channel-dock-styles,dock-panels,dockview-css}.{ts,tsx}`
 - `scripts/dockview-css-plugin.mjs`
+- `packages/client/src/client/{bot-settings,keyboard-settings}.tsx`
+- `packages/client/src/client/ds/{settings-dialog.tsx,window-class.ts}`
 
 ## Terms
 
@@ -71,7 +73,7 @@ For native macOS, install the task Bundle into a separate rc.2 Desktop Profile a
 - `channel-switch-stability`: Alt+1/2 and roster clicks change the active Channel without replacing the control rail, Channel list or Activity Center DOM. Channel-specific transient search/menu/profile state resets; per-Channel drafts stay separate. Test loading → ready and repeated store updates as well as switching back.
 
 
-- `settings-navigation`: the rail gear opens Bot Settings. Search its sidebar for “spacing” / “间距” from General, select the result, and verify Appearance scrolls to the highlighted slider. Search results must only reference registered pages. Repeat at 600px using the same search above the page picker; no horizontal overflow.
+- `settings-navigation`: the rail gear opens Bot Settings. Search its sidebar for “spacing” / “间距” from General, select the result, and verify Appearance scrolls to the highlighted slider. Search results must only reference registered pages. At 400px, the gear opens a full-screen section list with search. Use Tab and Enter to open Appearance, then use Back or Shift+Tab and Enter to return focus to the Appearance row. The environment selector stays available on the list and each detail when a remote Host is present. Search from the list and check the matching row receives focus in the detail. At 600px, the navigation and detail appear together. Check that neither layout overflows horizontally.
 - `settings-preferences`: Appearance owns the DSH-native Light/Dark/System preference and language, plus motion, Bot icon and layout. Change theme/language and reload to verify native persistence. Messaging owns default name, Enter/Shift+Enter/Ctrl-or-Command+Enter send behavior, and IM defaults; it no longer repeats Channel sorting. Notifications has its own page. Browser/Computer navigation is 浏览器控制/电脑控制 in Chinese.
 - `settings-shortcuts`: open Keyboard shortcuts, filter Panel and conversation commands, edit a Panel binding, reload and verify its keycaps and dispatch, then reset. Conflicts/reserved keys and failed saves must retain the accepted binding. Bot help shortcut opens this page without a second modal. Native recorder interception still requires actual Desktop qualification.
 - `settings-tour`: General → Onboarding tutorial → Show me around starts driver.js over the Control Rail, Channels, Messages, workspace resizing and additional Panels. Hidden Channels/Messages use their visible rail switches as targets. Finishing or cancelling returns control; narrow layout retains its original tutorial.

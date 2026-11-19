@@ -388,7 +388,8 @@ async function dismissOverlays(page) {
     const clicked = await page.evaluate((labels) => {
       const button = [...document.querySelectorAll('button')].find(
         (node) =>
-          labels.includes(node.textContent?.trim() ?? '') &&
+          (labels.includes(node.textContent?.trim() ?? '') ||
+            node.matches('.bh-internal-tour .bh-internal-tour-skip')) &&
           node.offsetParent !== null &&
           node.closest('.bh-session-failure-row') === null,
       );
@@ -452,15 +453,20 @@ async function withClient(options, paths, label, work) {
     await page.goto(instance.url, { waitUntil: 'networkidle2' });
     await page.waitForFunction(
       () =>
-        [...document.querySelectorAll('button')].some((node) =>
-          ['Settings', '设置', 'More', '更多'].includes(node.textContent?.trim() ?? ''),
+        [...document.querySelectorAll('button')].some(
+          (node) =>
+            ['Settings', '设置', 'More', '更多'].includes(node.textContent?.trim() ?? '') ||
+            ['Open sidebar', '打开侧边栏'].includes(node.getAttribute('aria-label')),
         ),
       { timeout: 30_000 },
     );
     if (!options.keepOverlays) await dismissOverlays(page);
     if (options.botMode) {
-      if ((await page.$('.bh-root.bh-main')) === null)
+      if ((await page.$('.bh-root.bh-main')) === null) {
+        const sidebar = aria(options.locale === 'zh' ? '打开侧边栏' : 'Open sidebar');
+        if (await page.$(sidebar)) await page.locator(sidebar).click();
         await page.locator(aria(options.locale === 'zh' ? 'Bot 模式' : 'Bot mode')).click();
+      }
       await page.waitForSelector('.bh-root.bh-main', { timeout: 30_000 });
       steps.push('entered Bot mode');
       await new Promise((done) => setTimeout(done, 1500));
