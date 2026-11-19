@@ -25,7 +25,7 @@
 
 ## How to get to it (user POV)
 
-Open Bot Settings, then Model providers. Add an API key provider, enter its name and key, and select Save. After viewing the three outcomes, open a Bot DM and choose a model from the new provider.
+Open Bot Settings, then Model providers. Add an API key provider, enter its name and key, and select Save. After viewing the three outcomes, open a Bot DM and choose a model route from the new provider.
 
 ## Driving it with verify-app
 
