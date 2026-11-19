@@ -160,7 +160,7 @@ Every component that reads the desktop Client store follows [UI state subscripti
 
 **Name the component.** When discussing, planning, reviewing or implementing UI (issues, PRs, commits, code comments, chat), name the concrete component by its platform term from `GLOSSARY.md` → Native UI components: the Material 3 name on Android, the HIG name on iOS, and the API name (Compose, SwiftUI, UIKit, `@expo/ui`) when you mean code. Say "Android `ModalBottomSheet`" or "iOS pull-down button", not "popup", "弹窗", "drawer", "dropdown" or "the bottom thing". When a change covers both platforms, name both sides of the pair (Android `ModalBottomSheet` ↔ iOS form sheet). If a job has no counterpart, say so and name the custom surface recorded in `apps/mobile/DESIGN.md`. A component missing from the table is added to `GLOSSARY.md` and `GLOSSARY.zh.md` in the same change.
 
-Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
+For in-harness UI, use the [`dsh-ui` skill](.agents/skills/dsh-ui/SKILL.md) for Tobs components and tokens, DSH Slot integration and measured shell geometry. The [Desktop/Web UI decisions](docs/decisions/desktop-ui.md#adr-0348) link the token, style theme and Base UI overlay contracts.
 
 ### Motion
 
