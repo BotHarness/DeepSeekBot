@@ -63,8 +63,15 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 async function call(
   connect: Connect,
   body?: Record<string, unknown>,
+  selection = false,
 ): Promise<Record<string, unknown>> {
-  const result = await (await connect()).http(PATH, body);
+  const host = await connect();
+  if (selection && host.rpc) {
+    const value = await host.rpc('engineSelection', { request: body ?? { action: 'status' } });
+    if (!isObject(value)) throw protocolError();
+    return value;
+  }
+  const result = await host.http(PATH, body);
   let value: unknown;
   try {
     value = JSON.parse(new TextDecoder().decode(result.bytes));
@@ -90,6 +97,7 @@ export async function runEngineCommand(
     role?: string[];
     name?: string;
     account?: string;
+    as?: string;
     confirm?: boolean;
     'expected-revision'?: string;
     fallback?: string;
@@ -110,6 +118,7 @@ export async function runEngineCommand(
     const value = await call(
       connect,
       rest.length === 0 ? undefined : { action: 'status', engine: rest[0] },
+      values.as !== undefined,
     );
     const engines = value['engines'];
     if (!Array.isArray(engines) || !engines.every(isObject) || !Array.isArray(value['selections']))
@@ -231,7 +240,7 @@ export async function runEngineCommand(
   if (command === 'engine-models') {
     if (rest.length !== 1)
       throw new CliLiveError('usage', 'engine models needs one engine or account ID.');
-    const value = await call(connect, { action: 'models', engine: rest[0] });
+    const value = await call(connect, { action: 'models', engine: rest[0] }, true);
     if (!Array.isArray(value['models']) || !value['models'].every(isObject)) throw protocolError();
     return value;
   }
@@ -256,16 +265,20 @@ export async function runEngineCommand(
     const { model, effort, account } = values;
     if ((model !== undefined || effort !== undefined || account !== undefined) && engine === 'none')
       throw new CliLiveError('usage', 'engine use none takes no --model, --effort or --account.');
-    const value = await call(connect, {
-      action: 'use',
-      bot,
-      role: chosen,
-      engine: engine === 'none' ? null : engine,
-      ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
-      ...(model === undefined ? {} : { model }),
-      ...(effort === undefined ? {} : { effort }),
-      ...(account === undefined ? {} : { accountId: account }),
-    });
+    const value = await call(
+      connect,
+      {
+        action: 'use',
+        bot,
+        role: chosen,
+        engine: engine === 'none' ? null : engine,
+        ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
+        ...(model === undefined ? {} : { model }),
+        ...(effort === undefined ? {} : { effort }),
+        ...(account === undefined ? {} : { accountId: account }),
+      },
+      true,
+    );
     if (value['bot'] !== bot || value['role'] !== chosen) throw protocolError();
     return value;
   }

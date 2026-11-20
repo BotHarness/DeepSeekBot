@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   createModelPreset,
@@ -9,7 +9,6 @@ import {
   type ModelPresetUsage,
   type SubscriptionModel,
 } from '@botharness/host-client/model-plans';
-import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
 import type { BridgeActions } from './actions.js';
 import { bridgeHost, errorMessage, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
@@ -19,7 +18,7 @@ import { ReadFailure } from './ds/read-failure.js';
 import { SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { TextField } from './ds/field.js';
 import { space } from './ds/tokens.stylex.js';
-import { useSubscriptionEngines, type EngineRole, type EngineStatusView } from './engine-choice.js';
+import { bridgeEngineApi, useSubscriptionEngines, type EngineRole } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
@@ -129,40 +128,15 @@ function PresetEditor({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const engines = useSubscriptionEngines(owner);
-  const [hostEngines, setHostEngines] = useState<
-    Awaited<ReturnType<typeof loadRoutingGroupEngines>>
-  >([]);
-  const mountHostEngines = useMountedResource<HTMLDivElement>(() => {
-    if (owner) return;
-    let active = true;
-    void loadRoutingGroupEngines(bridgeHost(call)).then(
-      (choices) => {
-        if (active) setHostEngines(choices);
-      },
-      () => {},
-    );
-    return () => {
-      active = false;
-    };
-  }, [call, owner]);
-  const availableEngines = hostEngines.filter((choice) => choice.available);
-  const statuses = owner
-    ? (engines.view?.engines ?? [])
-    : availableEngines.map(({ engine }): EngineStatusView => ({
-        engine,
-        available: true,
-        installed: true,
-      }));
-  const engineModels = owner
-    ? engines.models
-    : Object.fromEntries(
-        availableEngines.map(({ engine, models }) => [
-          engine,
-          models.map((model) => ({ ...model, efforts: [] })),
-        ]),
-      );
-  const items = engineMenuItems(statuses, engineModels, engines.signingIn, t);
+  const api = useMemo(() => bridgeEngineApi(call), [call]);
+  const engines = useSubscriptionEngines(true, api, true, true);
+  const items = engineMenuItems(
+    engines.view?.engines ?? [],
+    engines.models,
+    engines.signingIn,
+    t,
+    owner,
+  );
   const changeEngine = (role: EngineRole, choice: SubscriptionModel | null) =>
     setEngineDraft((current) => ({ ...current, [role]: choice }));
   const updateDraft = (change: (current: ModelDraft) => Partial<ModelDraft>) =>
@@ -248,14 +222,14 @@ function PresetEditor({
         subscription={(role) => ({
           choice: engineDraft[role],
           items,
-          models: engineModels,
+          models: engines.models,
           onChange: (choice) => changeEngine(role, choice),
           signIn: engines.signIn,
         })}
         clearEngine={(role) => changeEngine(role, null)}
         t={t}
       />
-      <div ref={owner ? engines.mount : mountHostEngines}>
+      <div ref={engines.mount}>
         {engines.signInUrl === undefined ? null : (
           <Note>
             <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">

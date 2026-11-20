@@ -260,6 +260,7 @@ export function engineMenuItems(
   models: EngineModels,
   signingIn: string | undefined,
   t: BotHarnessTranslate,
+  canSignIn = true,
 ): ModelMenuItem[] {
   return engines.flatMap((status): ModelMenuItem[] => {
     const { engine, accountId, accountName } = status;
@@ -308,12 +309,12 @@ export function engineMenuItems(
     return [
       {
         ...base,
-        value: engineSignInKey(engine, accountId),
+        value: canSignIn ? engineSignInKey(engine, accountId) : `engine-status:${key}`,
         name: label,
         label,
         ...(status.reason === 'not-subscription' ? { hint: t('engine.notSubscription') } : {}),
         ...(status.reason === 'login-unknown' ? { hint: t('engine.loginUnknown') } : {}),
-        disabled: signingIn !== undefined,
+        disabled: !canSignIn || signingIn !== undefined,
       },
     ];
   });

@@ -13,7 +13,13 @@ import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
 import { TeamError } from './team/error.js';
-import { botIsHostOwner, botModelFilter, requireBotModel } from './team/models.js';
+import {
+  botModelGrants,
+  botModelFilter,
+  requireBotEngineAccount,
+  requireBotModel,
+} from './team/models.js';
+import { allowsEngineAccount, allowsModel } from './team/permissions.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -1866,6 +1872,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const engineHost = new EngineHost({
     root: join(dshHome, 'botharness', 'engines'),
     local: localEngines,
+    requireAccountGrant: (slug, id) =>
+      requireBotEngineAccount(core.team, core.registry.get(slug), id),
     gateway: engineGateway,
     accountsChanged: () => core.live.publishResourceChanged('model-providers'),
     accountUses: (id) => {
@@ -2291,16 +2299,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const routeRests = createRouteRests();
-  const canUseRoutingEngine = (slug: string): boolean => {
-    const bot = core.registry.get(slug);
-    return localEngines && bot !== undefined && botIsHostOwner(core.team, bot);
-  };
   function allowedGroupTargets(slug: string, groupId: string) {
     try {
       const targets = core.routingGroups.targets(groupId);
-      const allowed = botModelFilter(core.team, core.registry.get(slug));
+      const bot = core.registry.get(slug);
+      if (bot === undefined) return;
+      const allowed = botModelGrants(core.team, bot);
       return targets.every((target) =>
-        target.kind === 'route' ? allowed(target.route) : canUseRoutingEngine(slug),
+        target.kind === 'route'
+          ? allowsModel(allowed, target.route)
+          : localEngines &&
+            allowsEngineAccount(allowed, engineAccountKey(target.engine, target.accountId)),
       )
         ? targets
         : undefined;
@@ -2315,7 +2324,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     routes: (groupId) => core.routingGroups.routes(groupId),
     engines: {
       targets: (groupId) => core.routingGroups.targets(groupId),
-      allowed: canUseRoutingEngine,
+      allowed: (slug, target) => {
+        if (!localEngines) return false;
+        const id = engineAccountKey(target.engine, target.accountId);
+        requireBotEngineAccount(core.team, core.registry.get(slug), id);
+        return true;
+      },
       limit: (engine, accountId) => engineHost.limit(engine, accountId),
     },
     allowsGroup: (slug, id) => allowedGroupTargets(slug, id) !== undefined,
@@ -3978,8 +3992,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
     engineAccounts: engineHost,
+    engineSelection: engineHost,
     localSubscriptionEngines: localEngines,
-    routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
+    routingGroupEngineOptions: (allowed) =>
+      routingGroupEngineOptions(engineHost, localEngines ? allowed : undefined),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
     routingGroups: core.routingGroups,

@@ -291,7 +291,7 @@ import { HumanAvatarImage } from './human-avatar.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { bubbleMedia } from './message-album.js';
 import { ReplyQuoteThumb, replyQuoteText } from './reply-quote-media.js';
-import { TurnStopLine } from './turn-stop-line.js';
+import { switchEngineToModel, TurnStopLine } from './turn-stop-line.js';
 import { VoiceCallRecordBubble } from './voice-call-record.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 import { reportFailure } from './diagnostic-log.js';
@@ -3622,7 +3622,15 @@ function ConversationView({
                           t={t}
                         />
                       ) : first.turnStop !== undefined ? (
-                        <TurnStopLine messageId={first.id} stop={first.turnStop} t={t} />
+                        <TurnStopLine
+                          messageId={first.id}
+                          stop={first.turnStop}
+                          t={t}
+                          switchToModel={(slug) =>
+                            actions.subscriptionEngine?.use(slug, 'orchestrator', null) ??
+                            switchEngineToModel(slug)
+                          }
+                        />
                       ) : first.memberDeparture !== undefined ? (
                         <div className="bh-member-departure" data-message-id={first.id}>
                           <span>

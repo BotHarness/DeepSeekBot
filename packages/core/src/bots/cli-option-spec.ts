@@ -268,6 +268,7 @@ export const TEAM_OPTIONS = {
   audience: { type: 'string' },
   models: { type: 'string' },
   'model-providers': { type: 'string' },
+  'engine-accounts': { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },

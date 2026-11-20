@@ -680,7 +680,9 @@ export function ModelProvidersSettings({
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}
       </SettingsSection>
-      {canManageModelProviders(team?.viewer) ? <SubscriptionAccounts call={call} t={t} /> : null}
+      {canManageModelProviders(team?.viewer) ? (
+        <SubscriptionAccounts call={call} roles={roles} t={t} />
+      ) : null}
       {editor}
     </>
   );

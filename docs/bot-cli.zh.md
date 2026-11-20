@@ -2209,13 +2209,18 @@ deepseekbot usage members --period week [--as <username>]
 deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
 deepseekbot roles update <roleId> --model-providers <provider-id>,<provider-id> [--models <provider-id>/<model-id>] [--as <username>]
+deepseekbot roles create --name workers --permissions models.use --models all --engine-accounts <id>,<id>
+deepseekbot roles update <roleId> --models all --engine-accounts <id>,<id>
 deepseekbot models allowed [--as <username>]
 ```
 
-`roles create` 与 `roles update` 用这两个选项替换模型授权。`--model-providers` 授权指定提供商 ID
-的所有模型，包括以后新增的模型。同一命令加上 `--models` 可同时授权具体模型。指定任一选项时，省略的列表
-视为空。单独使用 `--models all` 可恢复全部模型。`roles list` 在受限角色中返回 `models.providers` 和
-`models.routes`，`models allowed` 返回调用者各角色模型授权的并集。
+`roles create` 与 `roles update` 用这些选项替换模型授权。`--model-providers` 授权指定提供商
+的所有模型，包括以后新增的模型。`--models` 指定具体模型，或用 `all` 授权全部 API 模型。
+`--engine-accounts` 授权 `engine accounts` 中的指定订阅账号 ID。指定模型授权时，省略的列表视为空。
+`roles list` 显示已保存的授权，`models allowed` 返回调用者各角色授权的并集。
+角色管理员只能授予自己可用的账号。在本地 Host 上，可用 `--as <username>` 运行 `engine status`、
+`engine models <id>` 和 `engine use <bot> <engine> --account <id> --role <role>`，
+查看成员可用的账号并为其 Bot 选择订阅模型。
 
 ### Tobs Connect 本机公网自检
 

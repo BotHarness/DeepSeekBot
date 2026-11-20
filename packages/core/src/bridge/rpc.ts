@@ -1281,6 +1281,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.engineAccounts({}));
   }
 
+  engineSelection(request: import('../engines/engine-selection-bridge.js').EngineSelectionRequest) {
+    return unwrapAsync(this.methods.engineSelection(request));
+  }
+
   engineAccountAdd(engine: string, name: string, expectedRevision: number) {
     return unwrapAsync(this.methods.engineAccountAdd({ engine, name, expectedRevision }));
   }
@@ -3635,6 +3639,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',
   'engineAccountRemove',

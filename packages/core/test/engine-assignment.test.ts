@@ -25,6 +25,8 @@ import {
   type DshBotEngines,
 } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import { requireBotEngineAccount } from '../src/team/models.js';
+import { teamModelFixture } from './team-model-fixture.js';
 import {
   type ClaudeRecordedLine,
   claudeReplay,
@@ -84,7 +86,7 @@ afterEach(async () => {
 
 function hostSetup(
   recordings: ClaudeRecordedLine[][],
-  options?: Pick<EngineHostOptions, 'openCodex'>,
+  options?: Pick<EngineHostOptions, 'openCodex' | 'requireAccountGrant'>,
 ) {
   const root = createTempRoot('engine-assignment-');
   const grant = join(root, 'project');
@@ -305,6 +307,64 @@ describe('Assignments on a Subscription Engine', () => {
     expect(host.orchestratorRunner('ada')).toBeUndefined();
     await host.close();
   });
+
+  it.each(['explicit', 'routing-group'] as const)(
+    'rechecks the Bot owner’s grant for an %s Assignment account',
+    async (selection) => {
+      const f = teamModelFixture();
+      const {
+        host,
+        replay,
+        grant: cwd,
+      } = hostSetup([assignmentRecording(true)], {
+        requireAccountGrant: (slug, id) =>
+          requireBotEngineAccount(f.team, f.registry.get(slug), id),
+      });
+      try {
+        const { id: accountId } = host.addAccount('claude', 'Work', 0);
+        const grant = (engineAccounts: string[]) =>
+          f.team.roles.update(OWNER_HUMAN_CONTEXT, 'member', {
+            models: { kind: 'all', engineAccounts },
+          });
+        grant([accountId]);
+        if (selection === 'explicit') host.use('ada', 'assignment', 'claude', { accountId });
+        const request: EngineTurnRequest = {
+          botSlug: 'ada',
+          role: 'assignment',
+          sessionId: 'allowed-assignment',
+          ...(selection === 'routing-group'
+            ? { target: { kind: 'engine', engine: 'claude', accountId } }
+            : {}),
+          cwd,
+          workspaceMode: () => 'workspace-write',
+          channelId: undefined,
+          input: 'Fix the export button',
+          instructions: 'You are an Assignment Agent.',
+          tools: [
+            {
+              name: 'report_to_orchestrator',
+              description: 'Report',
+              parameters: { type: 'object' },
+            },
+          ],
+          execute: async () => 'Report delivered to the Orchestrator.',
+          signal: AbortSignal.timeout(10_000),
+        };
+        await expect(host.runTurn(request)).resolves.toMatchObject({ turn: 1 });
+        expect(replay.prompts).toHaveLength(1);
+        grant([]);
+        await expect(
+          host.runTurn({ ...request, sessionId: 'revoked-assignment' }),
+        ).rejects.toMatchObject({
+          code: 'model-not-allowed',
+          details: { route: accountId },
+        });
+        expect(replay.prompts).toHaveLength(1);
+      } finally {
+        await host.close();
+      }
+    },
+  );
 
   it('chooses the Assignment engine through the route and the CLI', async () => {
     const { host } = hostSetup([assignmentRecording(true)]);

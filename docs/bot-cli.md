@@ -2291,14 +2291,19 @@ deepseekbot usage members --period week [--as <username>]
 deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
 deepseekbot roles update <roleId> --model-providers <provider-id>,<provider-id> [--models <provider-id>/<model-id>] [--as <username>]
+deepseekbot roles create --name workers --permissions models.use --models all --engine-accounts <id>,<id>
+deepseekbot roles update <roleId> --models all --engine-accounts <id>,<id>
 deepseekbot models allowed [--as <username>]
 ```
 
 On `roles create` and `roles update`, these flags replace the model grant. `--model-providers`
-grants every route from the named provider IDs, including future models. Use `--models` in the
-same command to include exact routes. Omitted lists are empty when either flag is set. Use
-`--models all` alone for unrestricted access. `roles list` returns `models.providers` and
-`models.routes` for restricted roles. `models allowed` returns the caller's union across roles.
+grants every route from the named provider IDs, including future models. `--models` accepts
+exact routes or `all` for all API models. `--engine-accounts` grants the exact subscription
+account IDs from `engine accounts`. Omitted lists are empty when specifying a model grant.
+`roles list` returns the saved grants, and `models allowed` returns the caller's union across roles.
+A role manager can grant only accounts they can use. On a local Host, use
+`engine status`, `engine models <id>` and `engine use <bot> <engine> --account <id> --role <role>`
+with `--as <username>` to check the member's account access and select a model for their Bot.
 
 ### Bot access and Role Policy (M7)
 

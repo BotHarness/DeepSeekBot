@@ -393,7 +393,12 @@ describe('M10 member usage and role models', () => {
 
   it('persists model restrictions through roleCreate and preserves creation permissions', async () => {
     const f = teamModelFixture();
-    const models = { kind: 'only', providers: [], routes: ['provider/allowed'] };
+    const models = {
+      kind: 'only',
+      providers: [],
+      routes: ['provider/allowed'],
+      engineAccounts: [],
+    };
     const created = await f.ownerMethods.roleCreate({
       name: 'Restricted',
       permissions: [],
@@ -407,6 +412,7 @@ describe('M10 member usage and role models', () => {
     ).toEqual(models);
     expect(f.team.roles.modelsAllowed(f.member)).toEqual({
       all: false,
+      engineAccounts: [],
       providers: [],
       routes: ['provider/allowed'],
     });
@@ -439,11 +445,11 @@ describe('M10 member usage and role models', () => {
     const f = teamModelFixture();
     expect(f.team.roles.list(owner).every((role) => role.models.kind === 'all')).toBe(true);
     const role = f.team.roles.create(owner, 'Extra', []).role;
-    expect(role.models).toEqual({ kind: 'all' });
+    expect(role.models).toEqual({ kind: 'all', engineAccounts: [] });
     f.restrict();
     expect(await f.methods.modelsAllowed({})).toEqual({
       ok: true,
-      value: { all: false, providers: [], routes: ['provider/allowed'] },
+      value: { all: false, providers: [], routes: ['provider/allowed'], engineAccounts: [] },
     });
     f.team.roles.update(owner, role.roleId, {
       models: { kind: 'only', routes: ['provider/extra', 'provider/extra'] },
@@ -451,11 +457,12 @@ describe('M10 member usage and role models', () => {
     f.team.roles.set(owner, f.member.humanId, ['member', role.roleId]);
     expect(f.team.mode(f.member).viewer.models).toEqual({
       all: false,
+      engineAccounts: [],
       providers: [],
       routes: ['provider/allowed', 'provider/extra'],
     });
     f.team.roles.update(owner, role.roleId, { models: { kind: 'all' } });
-    expect(f.team.roles.modelsAllowed(f.member)).toEqual({ all: true });
+    expect(f.team.roles.modelsAllowed(f.member)).toEqual({ all: true, engineAccounts: [] });
     expect(() =>
       f.team.roles.update(owner, 'admin', { models: { kind: 'only', routes: [] } }),
     ).toThrow('role-builtin');
@@ -766,7 +773,7 @@ describe('M10 member usage and role models', () => {
     });
   });
 
-  it('offers nested mixed Routing Groups only to the local Host owner', async () => {
+  it('requires an explicit account grant to offer nested mixed Routing Groups', async () => {
     const f = teamModelFixture();
     f.catalog.list.mockResolvedValue([
       { ...permitted, providerName: 'Provider', modelName: 'Allowed', efforts: [] },
