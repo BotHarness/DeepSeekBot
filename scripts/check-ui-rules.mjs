@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogueExports, desktopComposition, renderCatalogue } from './ui-rule-composition.mjs';
 import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
@@ -13,6 +14,9 @@ const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 
 export const BASELINE = join(root, 'scripts/ui-rules-baseline.json');
+const DS = 'packages/client/src/client/ds';
+const CATALOGUE = `${DS}/README.md`;
+const CATALOGUE_DATA = `${DS}/catalogue.json`;
 const SCAN = ['packages/client/src', 'apps/mobile/app', 'apps/mobile/src/ui'];
 const MOBILE = /^apps\/mobile\//u;
 const PRESSABLE = /^(?:Pressable|Touchable\w*)$/u;
@@ -67,6 +71,22 @@ export const RULES = {
   disabledStyle: {
     help: 'apply a distinct disabled style with :disabled, data-disabled, or aria-disabled',
     section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
+  },
+  catalogue: {
+    help: 'record what each export replaces in ds/catalogue.json, remove retired entries and regenerate ds/README.md with pnpm lint:fix',
+    section: 'G1 rule 7, docs/agents/ui-design.md § Design rule 7',
+  },
+  duplicateComponent: {
+    help: 'compose or extend the matching primitive in ds/README.md and give product components a distinct name',
+    section: 'G1 rule 7, docs/agents/ui-design.md § Design rule 7',
+  },
+  settingsRow: {
+    help: 'give each SettingsRow one title, one optional short description and one control; move additional controls to another row',
+    section: 'G1 rule 11, docs/decisions/desktop-ui.md § Tobs owns Bot mode’s design system',
+  },
+  primaryAction: {
+    help: 'keep one primary Button per dialog, including its built-in submit action; use an outline button for secondary actions',
+    section: 'G1 rule 11, docs/decisions/desktop-ui.md § Tobs owns Bot mode’s design system',
   },
   jsxCopy: {
     help: 'move visible text into locale.ts (Web) or strings.ts (mobile)',
@@ -178,8 +198,45 @@ function files(directory) {
   });
 }
 
+export function readCatalogueExports() {
+  return files(DS).flatMap((file) => {
+    const source = readFileSync(join(root, file), 'utf8');
+    return catalogueExports(parseSource(source, file), file, walk);
+  });
+}
+
+function checkCatalogue(components, write) {
+  const metadata = JSON.parse(readFileSync(join(root, CATALOGUE_DATA), 'utf8'));
+  const { markdown, missing, stale } = renderCatalogue(components, metadata);
+  const path = join(root, CATALOGUE);
+  const found = [
+    ...missing,
+    ...stale.map((text) => ({
+      rule: 'catalogue',
+      file: CATALOGUE_DATA,
+      line: 1,
+      text: `retired export ${text}`,
+    })),
+  ];
+  if (found.length) return found;
+  if (existsSync(path) && readFileSync(path, 'utf8') === markdown) return [];
+  if (write) writeFileSync(path, markdown);
+  else
+    found.push({
+      rule: 'catalogue',
+      file: CATALOGUE,
+      line: 1,
+      text: 'generated catalogue is stale',
+    });
+  return found;
+}
+
 export function scan(fix = false) {
-  return SCAN.flatMap(files)
+  const components = readCatalogueExports();
+  const catalogue = checkCatalogue(components, fix);
+  if (fix && catalogue.length) return catalogue;
+  const catalogueNames = new Set(components.map(({ name }) => name));
+  const sourceFindings = SCAN.flatMap(files)
     .sort()
     .flatMap((file) => {
       const path = join(root, file);
@@ -202,8 +259,14 @@ export function scan(fix = false) {
         }
       }
       const copy = file.endsWith('.tsx') ? jsxCopy(source, file, ast) : [];
-      return [...copy, ...styles, ...desktopControls(source, file, ast, walk)];
+      return [
+        ...copy,
+        ...styles,
+        ...desktopControls(source, file, ast, walk),
+        ...desktopComposition(file, ast, walk, catalogueNames),
+      ];
     });
+  return [...catalogue, ...sourceFindings];
 }
 
 export function findings(found) {
@@ -289,9 +352,20 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.log('UI rules baseline only shrank.');
     process.exit(0);
   }
+  if (process.argv.includes('--write-catalogue')) {
+    const found = checkCatalogue(readCatalogueExports(), true);
+    for (const line of compare(found, {}).problems) console.error(`ui rules: ${line}`);
+    process.exit(found.length ? 1 : 0);
+  }
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
   if (fix && !process.argv.includes('--write')) {
+    const problems = compare(
+      found.filter(({ rule }) => rule === 'catalogue'),
+      {},
+    ).problems;
+    for (const line of problems) console.error(`ui rules: ${line}`);
+    if (problems.length) process.exit(1);
     console.log(
       'Applied desktop UI autofixes. Run the checker and use --write to clear fixed baseline entries.',
     );

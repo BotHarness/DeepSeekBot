@@ -24,11 +24,15 @@ These apply to every implementation, not only one feature.
 4. **Reveal detail when it is useful.** Keep secondary explanations, background and diagnostics behind a clearly labelled disclosure or help entry. Keep information needed for the current decision visible beside its action. Do not add a disclosure just to hide essential instructions or consequences.
 5. **Retain essential text and facts.** Short labels, units, current values, permission scope, privacy limits, irreversible consequences and actionable errors remain explicit. Security comparisons must expose the complete required values before confirmation. Simplicity never means truncating a fingerprint, silently choosing for the user or weakening consent.
 6. **Keep the design usable across modes.** Preserve reading order, keyboard/focus access, screen-reader names and reachable actions. Allow wrapping and scrolling at large text sizes. Apply the same hierarchy in both themes and maintained languages; use each platform's controls rather than copying another platform's appearance.
-7. **One design language across panels.** The [Desktop/Web UI decisions](../decisions/desktop-ui.md#adr-0028) link the active design-system contracts. Web and desktop panels compose the shared `ds/` primitives (`NavItem`, `SettingsSection`, `SettingsRow`, controls, dialogs), which read the style tokens in `ds/tobs.stylex.ts` (`style.*`, [ADR-0351](../decisions/desktop-ui.md#adr-0351)). A selection changes colour and label weight only, never borders or size. Surfaces are separated by a gap that shows the canvas, not a line; borders belong to inputs and focus rings.
+7. **One design language across panels.** The [Desktop/Web UI decisions](../decisions/desktop-ui.md#adr-0028) link the active design-system contracts. A selection changes colour and label weight only, never borders or size. Surfaces are separated by a gap that shows the canvas, not a line; borders belong to inputs and focus rings.
 
 Desktop style literals, viewport breakpoints and motion are enforced by [UI rules 1, 2 and 6](../../scripts/check-ui-rules.mjs) and the [design token guard](../../scripts/check-design-tokens.mjs).
 
 Desktop icon sources, accessible names, status labels, focus rings and disabled styles are enforced by [UI rules 3–5](../../scripts/check-ui-rules.mjs). Review the rendered names and focus order for composed controls.
+
+Use the shared primitives in the [desktop/Web component catalogue](../../packages/client/src/client/ds/README.md), enforced by [UI rule 7](../../scripts/check-ui-rules.mjs). Review whether differently named components duplicate a catalogue primitive.
+
+Settings-row slots and primary actions within one dialog are enforced by [UI rule 11](../../scripts/check-ui-rules.mjs). Review descriptions at large text sizes and verify one primary action per surface, including actions added by separate components or runtime data.
 
 ## Examples
 
