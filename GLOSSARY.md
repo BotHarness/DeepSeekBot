@@ -475,9 +475,21 @@ _Avoid_: Channel authority, database backup, live inbox
 An inactive imported reference describing a provider account or authority the Human may reconnect and reauthorize locally; until then it cannot admit events, wake a PersonaBot, or execute a Service Action.
 _Avoid_: credential, Service Grant, automatic reconnect
 
-**Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
+**Marketplace**:
+The hosted catalog the harness opens to browse, search and take shareable things: Bots to install, Marketplace Avatars to apply and, later, Skills. Each kind keeps its own search results and action, while navigation, author identity and reporting are shared.
 _Avoid_: store, hub, Soul registry
+
+**Bot Marketplace**:
+The Bots section of the Marketplace, where shareable Bots are browsed, searched and installed. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
+_Avoid_: store, hub, Soul registry
+
+**Marketplace Avatar**:
+A still image a signed-in author publishes to the Marketplace with a name, tags and a description, so that Humans can apply it to Bots they may edit. The image comes from a file or from the stored Avatar image of a PersonaBot the author may edit; a generated Blobatar is never published. Its text can be edited but its image never changes; a new image is a new Marketplace Avatar. Deleting it, deleting the author's account, or a platform takedown stops it being found or applied, and never reaches copies already applied.
+_Avoid_: Avatar (for the Marketplace entry), Listing, sticker, skin, Avatar Appearance
+
+**Apply (a Marketplace Avatar)**:
+Setting a copy of a Marketplace Avatar's image as one PersonaBot's Avatar, replacing any Avatar Appearance it had. The applied copy belongs to that PersonaBot and stays when the Marketplace Avatar is later removed.
+_Avoid_: install, download, subscribe
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
@@ -495,6 +507,10 @@ _Avoid_: export, snapshot, redacted Memory
 The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
 _Avoid_: download, clone count, Telemetry event
 
+**Apply Count**:
+The number of distinct PersonaBots a Marketplace Avatar has ever been applied to. Applying it again to the same PersonaBot, or switching away and back, never adds to it, and deleting that PersonaBot or changing its Avatar never takes from it.
+_Avoid_: download count, install count, uses
+
 **Marketplace Digest**:
 The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
 _Avoid_: newsletter, push notification, blog post
@@ -508,7 +524,7 @@ The picture that stands for one Marketplace Digest, assembled from its listed Di
 _Avoid_: thumbnail, hero image, generated image
 
 **Marketplace Ranking**:
-One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+One of the three daily lists each Marketplace section keeps of its listed entries: Hot (most installs or applies in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs or applies over the week before). Bots rank by installs and Marketplace Avatars by applies. All are recomputed once a day and read from that day's snapshot.
 _Avoid_: section, shelf, chart, leaderboard
 
 **Bot Zip**:
