@@ -17,30 +17,16 @@ import { AssignmentSteering } from './assignment-steering.js';
 import { readEngineAccount, requireSubscription } from './engine-account.js';
 import {
   type CodexProcessOptions,
-  type CodexTransport,
   CodexEngineSession,
   spawnCodexTransport,
 } from './codex-engine.js';
-import type { CodexStatus } from './codex-status.js';
-import type { ClaudeQueryFactory } from './claude-engine.js';
-import type { ClaudeStatus } from './claude-status.js';
 import {
   buildEngineContextSeed,
   type EngineContextRecord,
   savedAssignmentRequest,
 } from './engine-context.js';
-import {
-  type EngineSessionPersistence,
-  type EngineSessionStore,
-  type OpenedEngineDshSession,
-  openEngineDshSession,
-} from './engine-dsh-session.js';
-import {
-  type EngineGateway,
-  type EngineGatewayTool,
-  type EngineGrant,
-  engineGatewayResult,
-} from './engine-gateway.js';
+import { type OpenedEngineDshSession, openEngineDshSession } from './engine-dsh-session.js';
+import { type EngineGatewayTool, type EngineGrant, engineGatewayResult } from './engine-gateway.js';
 import {
   ENGINE_GATEWAY_TOOLS,
   type EngineTurnRequest,
@@ -48,7 +34,7 @@ import {
   type EngineToolApproval,
   type EngineToolContext,
   type EngineSessionState,
-  type EngineApprovalRequest,
+  type EngineHostOptions,
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
@@ -81,43 +67,11 @@ export {
   type EngineToolContext,
   type EngineSessionState,
   type EngineApprovalRequest,
+  type EngineHostOptions,
   type EngineSessionDescription,
   type EngineQuotaView,
   type EngineStatusReport,
 } from './engine-host-types.js';
-
-export interface EngineHostOptions {
-  root: string;
-  local: boolean;
-  codexCommand?: string;
-  claudeCommand?: string;
-  env?: Readonly<Record<string, string | undefined>>;
-  gateway: EngineGateway;
-  routingGroupEffort?(botSlug: string): string | undefined;
-  sessions(): EngineSessionStore | undefined;
-  persistence(): EngineSessionPersistence | undefined;
-  sessionIdsForBot?(botSlug: string): readonly string[];
-  observeTurnTarget?(sessionId: string, turn: number, target: TurnTarget): void;
-  changed?(): void;
-  accountsChanged?(): void;
-  accountUses?(id: string): readonly string[];
-  observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
-  approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
-  idleMs?: number;
-  releaseGraceMs?: number;
-  now?: () => number;
-  openCodex?(options: CodexProcessOptions): CodexTransport;
-  detectCodex?(options: { command: string; home: string }): Promise<CodexStatus>;
-  startCodexLogin?(options: {
-    command: string;
-    home: string;
-    signal: AbortSignal;
-    onExit(): void;
-  }): Promise<{ url?: string }>;
-  openClaude?: ClaudeQueryFactory;
-  detectClaude?(options: { command: string; home: string }): Promise<ClaudeStatus>;
-  startClaudeLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
-}
 
 interface TurnScope {
   channelId: string | undefined;
