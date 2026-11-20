@@ -142,16 +142,14 @@ describe.each(schemes)('Tobs mobile contrast in %s mode', (scheme) => {
 
       for (const tone of ['primary', 'secondary', 'danger'] as const) {
         const resting = cardChoiceColors(theme, tone);
-        for (const state of ['rest', 'pressed', 'disabled'] as const) {
-          const { fill, ink, outline } = cardChoiceColors(theme, tone, state);
+        for (const state of ['rest', 'pressed', 'disabled', 'selected-disabled'] as const) {
+          const { fill, ink } = cardChoiceColors(theme, tone, state);
           expect(fill).toMatch(/^#[0-9a-f]{6}$/i);
           expect(contrastOf(ink, fill), `${tone} ${state} label and symbol`).toBeGreaterThanOrEqual(
             4.5,
           );
-          expect(
-            contrastOf(outline, theme.layer.raised.fill),
-            `${tone} ${state} outline`,
-          ).toBeGreaterThanOrEqual(3);
+          if (tone !== 'primary' && state === 'rest')
+            expect(distance(fill, theme.layer.raised.fill)).toBeGreaterThanOrEqual(SEPARATION);
           if (state === 'pressed')
             expect(contrastOf(resting.ink, fill)).toBeGreaterThanOrEqual(4.5);
           if (state !== 'rest') expect(fill).not.toBe(resting.fill);

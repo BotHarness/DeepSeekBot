@@ -11,10 +11,9 @@ it('preserves readable card choices with arbitrary Bot accents', () => {
       for (const scheme of ['light', 'dark'] as const) {
         const theme = resolveTheme(scheme, { accent });
         const resting = cardChoiceColors(theme, 'primary');
-        for (const state of ['rest', 'pressed', 'disabled'] as const) {
+        for (const state of ['rest', 'pressed', 'disabled', 'selected-disabled'] as const) {
           const paint = cardChoiceColors(theme, 'primary', state);
           expect(contrast(paint.ink, paint.fill)).toBeGreaterThanOrEqual(4.5);
-          expect(contrast(paint.outline, theme.layer.raised.fill)).toBeGreaterThanOrEqual(3);
           if (state === 'pressed')
             expect(contrast(resting.ink, paint.fill)).toBeGreaterThanOrEqual(4.5);
         }

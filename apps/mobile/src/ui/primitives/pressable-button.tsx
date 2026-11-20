@@ -21,7 +21,7 @@ import { controlCase } from '../platform-copy';
 import { buttonColors, cardChoiceColors, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { Text } from './text';
 import { LoadingIndicator } from './loading-indicator';
@@ -59,10 +59,9 @@ export function Button({
   const colors = buttonColors(theme, tone, on);
   const filled = variant === 'filled';
   const solid = variant === 'card-solid';
-  const unavailable = (disabled || busy) && !selected;
-  const choice = solid
-    ? cardChoiceColors(theme, tone, unavailable ? 'disabled' : 'rest')
-    : undefined;
+  const unavailable = disabled || busy;
+  const state = unavailable ? (selected ? 'selected-disabled' : 'disabled') : 'rest';
+  const choice = solid ? cardChoiceColors(theme, tone, state) : undefined;
   const pressedChoice = solid ? cardChoiceColors(theme, tone, 'pressed') : undefined;
   const labelColor =
     choice?.ink ??
@@ -75,7 +74,7 @@ export function Button({
       accessibilityState={{ disabled: disabled || busy, busy, selected }}
       disabled={disabled || busy}
       onPress={onPress}
-      android_ripple={{ color: pressTint(labelColor) }}
+      {...(solid ? {} : { android_ripple: { color: pressTint(labelColor) } })}
       style={({ pressed }) => {
         const paint = pressed && !unavailable ? pressedChoice : choice;
         return {
@@ -88,10 +87,7 @@ export function Button({
           gap: space.x3,
           paddingHorizontal: space.x5,
           paddingVertical: space.x3,
-          borderRadius: solid ? radius.md : radius.round,
-          ...(paint === undefined
-            ? {}
-            : { borderWidth: edge.hairline, borderColor: paint.outline }),
+          borderRadius: radius.round,
           backgroundColor:
             paint?.fill ?? (pressed ? colors.pressed : filled ? colors.fill : undefined),
           overflow: 'hidden',

@@ -86,8 +86,8 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
 export function cardChoiceColors(
   theme: DesignTheme,
   tone: ButtonTone,
-  state: 'rest' | 'pressed' | 'disabled' = 'rest',
-): { fill: string; ink: string; outline: string } {
+  state: 'rest' | 'pressed' | 'disabled' | 'selected-disabled' = 'rest',
+): { fill: string; ink: string } {
   const { color, layer } = theme;
   const primary = tone === 'primary';
   const danger = tone === 'danger';
@@ -108,15 +108,13 @@ export function cardChoiceColors(
         : color.fg;
   const pressToward =
     contrast(preferred, color.base) > contrast(preferred, color.fg) ? color.base : color.fg;
-  const fill = state === 'pressed' ? tint(solid, pressToward, 0.16) : solid;
-  return {
-    fill,
-    ink: readable(preferred, fill),
-    outline:
-      contrast(fill, layer.raised.fill) >= 3
-        ? fill
-        : readableColor(color.muted, layer.raised.fill, 3),
-  };
+  const fill =
+    state === 'pressed'
+      ? tint(solid, pressToward, 0.16)
+      : state === 'selected-disabled'
+        ? tint(solid, layer.raised.inset, 0.35)
+        : solid;
+  return { fill, ink: readable(preferred, fill) };
 }
 
 export type SwitchColors = {

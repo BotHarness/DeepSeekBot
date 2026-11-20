@@ -1,88 +1,13 @@
 import { Pressable, View } from 'react-native';
 
-import { toggleOption, typeCustom, type QuestionDraft } from '@botharness/host-client/requests';
+import { typeCustom, type QuestionDraft } from '@botharness/host-client/requests';
 import type { QuestionItem } from '@botharness/host-protocol/wire';
-import { cardChoiceColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
-import { letter } from './question-letter';
-
-function Option({
-  index,
-  label,
-  description,
-  chosen,
-  multiple,
-  disabled,
-  onPress,
-}: {
-  index: number;
-  label: string;
-  description?: string;
-  chosen: boolean;
-  multiple: boolean;
-  disabled: boolean;
-  onPress(): void;
-}) {
-  const t = useStrings();
-  const theme = useDesignTheme();
-  const tone = chosen ? 'primary' : 'secondary';
-  const colors = cardChoiceColors(theme, tone, disabled ? 'disabled' : 'rest');
-  const pressedColors = cardChoiceColors(theme, tone, 'pressed');
-  const badge = theme.type.body.line * theme.fontScale + space.x2;
-  return (
-    <Pressable
-      accessibilityRole={multiple ? 'checkbox' : 'radio'}
-      accessibilityLabel={t.option(letter(index), label)}
-      accessibilityHint={description}
-      accessibilityState={{ checked: chosen, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => {
-        const paint = pressed && !disabled ? pressedColors : colors;
-        return {
-          minHeight: theme.touch,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-          paddingHorizontal: space.x4,
-          paddingVertical: space.x3,
-          borderWidth: edge.hairline,
-          borderColor: paint.outline,
-          borderRadius: radius.md,
-          backgroundColor: paint.fill,
-        };
-      }}
-    >
-      <View
-        style={{
-          width: badge,
-          height: badge,
-          borderRadius: multiple ? radius.sm : radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderWidth: edge.hairline,
-          borderColor: colors.ink,
-        }}
-      >
-        <Text variant="meta" strong style={{ color: colors.ink }}>
-          {chosen ? '✓' : letter(index)}
-        </Text>
-      </View>
-      <View style={{ flexShrink: 1, gap: space.x1 }}>
-        <Text style={{ color: colors.ink }}>{label}</Text>
-        {description === undefined ? null : (
-          <Text variant="meta" style={{ color: colors.ink }}>
-            {description}
-          </Text>
-        )}
-      </View>
-    </Pressable>
-  );
-}
+import { QuestionOptions } from './question-options';
 
 export function QuestionFields({
   question,
@@ -130,26 +55,13 @@ export function QuestionFields({
           {t.multiSelectHint}
         </Text>
       ) : null}
-      {question.options?.length ? (
-        <View accessibilityLabel={question.question} style={{ gap: space.x2 }}>
-          {question.options.map((option, index) => (
-            <Option
-              key={option.label}
-              index={index}
-              label={option.label}
-              {...(option.description === undefined ? {} : { description: option.description })}
-              chosen={draft.selected.includes(option.label)}
-              multiple={multiple}
-              disabled={disabled}
-              onPress={() =>
-                onPick === undefined
-                  ? onChange(toggleOption(question, draft, option.label))
-                  : onPick(option.label)
-              }
-            />
-          ))}
-        </View>
-      ) : null}
+      <QuestionOptions
+        question={question}
+        draft={draft}
+        disabled={disabled}
+        onChange={onChange}
+        {...(onPick === undefined ? {} : { onPick })}
+      />
       {inChat ? (
         <Text variant="meta" tone="muted">
           {t.replyInChat}

@@ -1,30 +1,24 @@
-import { Box, Checkbox, Column, RadioButton, Row, Text } from '@expo/ui/jetpack-compose';
+import { Box, Column, RNHostView, Text } from '@expo/ui/jetpack-compose';
 import {
-  background,
   border,
   clickable,
   clip,
   defaultMinSize,
   fillMaxWidth,
   padding,
-  paddingAll,
-  selectableGroup,
   semantics,
   Shapes,
-  toggleable,
-  weight,
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ComponentProps } from 'react';
 
-import { toggleOption, typeCustom } from '@botharness/host-client/requests';
-import { cardChoiceColors } from '../design/controls';
+import { typeCustom } from '@botharness/host-client/requests';
 import { materialType, useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { CardField } from './action-card';
 import type { QuestionFields as SharedQuestionFields } from './question-fields';
-import { letter } from './question-letter';
+import { QuestionOptions } from './question-options';
 
 export function QuestionFields({
   question,
@@ -70,83 +64,15 @@ export function QuestionFields({
         </Text>
       ) : null}
       {question.options?.length ? (
-        <Column
-          verticalArrangement={{ spacedBy: space.x2 }}
-          modifiers={[
-            fillMaxWidth(),
-            ...(multiple ? [] : [selectableGroup()]),
-            semantics({ contentDescription: question.question }),
-          ]}
-        >
-          {question.options.map((option, index) => {
-            const chosen = draft.selected.includes(option.label);
-            const { fill, ink, outline } = cardChoiceColors(
-              theme,
-              chosen ? 'primary' : 'secondary',
-              disabled ? 'disabled' : 'rest',
-            );
-            const press = () =>
-              onPick === undefined
-                ? onChange(toggleOption(question, draft, option.label))
-                : onPick(option.label);
-            return (
-              <Row
-                key={option.label}
-                verticalAlignment="center"
-                horizontalArrangement={{ spacedBy: space.x4 }}
-                modifiers={[
-                  fillMaxWidth(),
-                  defaultMinSize({ minHeight: theme.touch }),
-                  clip(Shapes.RoundedCorner(radius.md)),
-                  background(outline),
-                  paddingAll(edge.hairline),
-                  clip(Shapes.RoundedCorner(radius.md - edge.hairline)),
-                  background(fill),
-                  toggleable(chosen, press, {
-                    role: multiple ? 'checkbox' : 'radioButton',
-                    enabled: !disabled,
-                  }),
-                  padding(0, space.x2, space.x2, space.x2),
-                ]}
-              >
-                {multiple ? (
-                  <Checkbox
-                    value={chosen}
-                    enabled={!disabled}
-                    colors={{
-                      checkedColor: ink,
-                      uncheckedColor: ink,
-                      disabledCheckedColor: ink,
-                      disabledUncheckedColor: ink,
-                      checkmarkColor: fill,
-                    }}
-                  />
-                ) : (
-                  <RadioButton
-                    selected={chosen}
-                    enabled={!disabled}
-                    colors={{
-                      selectedColor: ink,
-                      unselectedColor: ink,
-                      disabledSelectedColor: ink,
-                      disabledUnselectedColor: ink,
-                    }}
-                  />
-                )}
-                <Column verticalArrangement={{ spacedBy: space.x1 }} modifiers={[weight(1)]}>
-                  <Text color={ink} style={{ typography: materialType.body }}>
-                    {t.option(letter(index), option.label)}
-                  </Text>
-                  {option.description === undefined ? null : (
-                    <Text color={ink} style={{ typography: materialType.meta }}>
-                      {option.description}
-                    </Text>
-                  )}
-                </Column>
-              </Row>
-            );
-          })}
-        </Column>
+        <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
+          <QuestionOptions
+            question={question}
+            draft={draft}
+            disabled={disabled}
+            onChange={onChange}
+            {...(onPick === undefined ? {} : { onPick })}
+          />
+        </RNHostView>
       ) : null}
       {inChat ? (
         <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>

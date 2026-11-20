@@ -2,6 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { radius } from '../src/ui/design/tokens';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 
 type Modifier = Record<string, unknown>;
@@ -291,6 +292,13 @@ it('renders a flat card choice with the same accessible action when Liquid Glass
   );
   const button = host.querySelector<HTMLButtonElement>('[data-testid="allow"]')!;
   expect(button.getAttribute('aria-label')).toBe('Allow once');
+  for (const state of ['rest', 'pressed']) {
+    const style = JSON.parse(button.getAttribute(`data-${state}-style`) ?? '{}');
+    expect(style).toMatchObject({ borderRadius: radius.round, minHeight: 44, minWidth: 44 });
+    expect(Object.keys(style).filter((name) => /^(border|outline)/.test(name))).toEqual([
+      'borderRadius',
+    ]);
+  }
   expect(host.querySelector('[data-host]')).toBeNull();
   await act(async () => button.click());
   expect(onPress).toHaveBeenCalledOnce();

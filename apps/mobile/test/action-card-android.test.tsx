@@ -17,6 +17,7 @@ await vi.hoisted(async () => {
     }
 });
 
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('@expo/ui/jetpack-compose', async () => (await import('./compose-card-shim')).compose);
@@ -53,6 +54,7 @@ import { QuestionFields } from '../src/ui/chat/question-fields.android';
 import { Button } from '../src/ui/primitives/button.android';
 import { cardChoiceColors } from '../src/ui/design/controls';
 import { resolveTheme } from '../src/ui/design/resolve-theme';
+import { radius } from '../src/ui/design/tokens';
 import { t } from '../src/ui/strings';
 
 const theme = resolveTheme('light', {}, 'android');
@@ -75,6 +77,24 @@ function modifiers(element: Element | null): Modifier[] {
 }
 const all = (view: Element, name: string) => [...view.querySelectorAll(`[data-compose="${name}"]`)];
 const texts = (view: Element) => all(view, 'Text').map((text) => text.textContent);
+
+function expectCapsule(control: HTMLButtonElement, rest: string, pressed = rest) {
+  for (const [state, fill] of [
+    ['rest', rest],
+    ['pressed', pressed],
+  ]) {
+    const style = JSON.parse(control.getAttribute(`data-${state}-style`) ?? '{}');
+    expect(style).toMatchObject({
+      minHeight: theme.touch,
+      minWidth: theme.touch,
+      borderRadius: radius.round,
+      backgroundColor: fill,
+    });
+    expect(Object.keys(style).filter((name) => /^(border|outline)/.test(name))).toEqual([
+      'borderRadius',
+    ]);
+  }
+}
 
 describe('ActionCard on Android', () => {
   it('is one Material 3 card in one Host, with its buttons drawn in the same Compose tree', async () => {
@@ -220,7 +240,7 @@ describe('question options on Android', () => {
     options: [{ label: 'main', description: 'The default branch' }, { label: 'dev' }],
   };
 
-  it('answers a single choice from a native radio row', async () => {
+  it('answers a single choice from a React Native radio pressable', async () => {
     const pick = vi.fn();
     const view = await mount(
       <QuestionFields
@@ -233,22 +253,23 @@ describe('question options on Android', () => {
         onPick={pick}
       />,
     );
-    expect(all(view, 'RadioButton')).toHaveLength(2);
-    expect(all(view, 'Checkbox')).toHaveLength(0);
-    const rows = all(view, 'Row');
-    expect(modifiers(rows[0]!)).toContainEqual({
-      background: cardChoiceColors(theme, 'secondary').fill,
-    });
-    expect(texts(rows[0]!)).toEqual([t.option('A', 'main'), 'The default branch']);
-    expect(modifiers(rows[1]!)).toContainEqual({
-      toggleable: { value: false, role: 'radioButton', enabled: true },
-    });
-    await act(async () => (rows[1] as HTMLElement).click());
+    const rows = [...view.querySelectorAll<HTMLButtonElement>('button[role="radio"]')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.closest('[data-compose="RNHostView"]')).not.toBeNull();
+    expect(rows[0]!.getAttribute('aria-label')).toBe(t.option('A', 'main'));
+    expect(rows[0]!.textContent).toContain('The default branch');
+    expect(rows[1]!.getAttribute('aria-checked')).toBe('false');
+    expectCapsule(
+      rows[0]!,
+      cardChoiceColors(theme, 'secondary').fill,
+      cardChoiceColors(theme, 'secondary', 'pressed').fill,
+    );
+    await act(async () => rows[1]!.click());
     expect(pick).toHaveBeenCalledWith('dev');
     expect(view.querySelector('textarea')).not.toBeNull();
   });
 
-  it('toggles multiple choices with native checkboxes and locks them while busy', async () => {
+  it('toggles multiple choices with checkbox pressables and locks them while busy', async () => {
     const change = vi.fn();
     const multiple = { ...question, multiSelect: true };
     const draft = { ...emptyDraft(), selected: ['main'] };
@@ -262,13 +283,19 @@ describe('question options on Android', () => {
         onChange={change}
       />,
     );
-    expect(all(view, 'Checkbox').map((box) => box.getAttribute('data-value'))).toEqual([
+    const checkboxes = [...view.querySelectorAll<HTMLButtonElement>('button[role="checkbox"]')];
+    expect(checkboxes.map((checkbox) => checkbox.getAttribute('aria-checked'))).toEqual([
       'true',
       'false',
     ]);
+    expectCapsule(
+      checkboxes[0]!,
+      cardChoiceColors(theme, 'primary').fill,
+      cardChoiceColors(theme, 'primary', 'pressed').fill,
+    );
     expect(texts(view)).toEqual(expect.arrayContaining(['Which branch?', t.replyInChat]));
     expect(view.querySelector('textarea')).toBeNull();
-    await act(async () => (all(view, 'Row')[1] as HTMLElement).click());
+    await act(async () => checkboxes[1]!.click());
     expect(change).toHaveBeenCalledWith(expect.objectContaining({ selected: ['main', 'dev'] }));
 
     change.mockClear();
@@ -284,7 +311,10 @@ describe('question options on Android', () => {
         />,
       ),
     );
-    await act(async () => (all(view, 'Row')[1] as HTMLElement).click());
+    expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
+    expectCapsule(checkboxes[0]!, cardChoiceColors(theme, 'primary', 'selected-disabled').fill);
+    expectCapsule(checkboxes[1]!, cardChoiceColors(theme, 'secondary', 'disabled').fill);
+    await act(async () => checkboxes[1]!.click());
     expect(change).not.toHaveBeenCalled();
   });
 
@@ -330,7 +360,7 @@ it('draws an approval diff in Compose and shows the rest on demand', async () =>
 });
 
 it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
-  'keeps %s approval results in the Compose tree with a locked visible choice',
+  'keeps %s approval results with a locked, selected pressable',
   async (outcome) => {
     const request: ApprovalRequest = {
       channelId: 'dm-qa',
@@ -357,33 +387,28 @@ it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
         : outcome === 'allowed-always-tool'
           ? 'approval-always-allow'
           : 'approval-deny';
-    const controls = [...all(view, 'FilledButton'), ...all(view, 'TextButton')].filter((node) =>
-      modifiers(node).some(
-        (modifier) =>
-          typeof modifier.testID === 'string' && modifier.testID.startsWith('approval-'),
-      ),
-    );
-    const always = controls.find((node) =>
-      modifiers(node).some((modifier) => modifier.testID === 'approval-always-allow'),
-    );
-    const deny = controls.find((node) =>
-      modifiers(node).some((modifier) => modifier.testID === 'approval-deny'),
-    );
-    for (const [control, tone] of [
-      [always, 'secondary'],
-      [deny, 'danger'],
-    ] as const) {
-      expect(control?.getAttribute('data-compose')).toBe('FilledButton');
-      const { fill, ink } = cardChoiceColors(theme, tone);
-      expect(JSON.parse(control?.getAttribute('data-colors') ?? '{}')).toMatchObject({
-        containerColor: fill,
-        contentColor: ink,
-      });
+    const decisions = [
+      ['approval-allow-once', 'primary', t.allowOnce],
+      ['approval-always-allow', 'secondary', t.alwaysAllow],
+      ['approval-deny', 'danger', t.reject],
+    ] as const;
+    const controls = decisions.map(([id, tone, label]) => ({
+      id,
+      tone,
+      label,
+      control: view.querySelector<HTMLButtonElement>(`button[data-testid="${id}"]`)!,
+    }));
+    for (const { control, tone, label } of controls) {
+      expect(control.getAttribute('role')).toBe('button');
+      expect(control.getAttribute('aria-label')).toBe(label);
+      expect(control.closest('[data-compose="RNHostView"]')).not.toBeNull();
+      expectCapsule(
+        control,
+        cardChoiceColors(theme, tone).fill,
+        cardChoiceColors(theme, tone, 'pressed').fill,
+      );
     }
-    const chosen = controls.find((node) =>
-      modifiers(node).some((modifier) => modifier.testID === chosenID),
-    );
-    if (!(chosen instanceof HTMLElement)) throw new Error('Decision missing');
+    const chosen = controls.find(({ id }) => id === chosenID)!.control;
     await act(async () => chosen.click());
     expect(decide).toHaveBeenCalledExactlyOnceWith(outcome);
     expect(texts(view)).toContain('/qa/workspace');
@@ -393,7 +418,14 @@ it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     expect(result).toBeDefined();
     expect(result?.parentElement?.getAttribute('data-compose')).toBe('Column');
     expect(chosen.textContent).toContain(t.selectedChoice);
-    for (const control of controls) expect(control.getAttribute('data-enabled')).toBe('false');
+    for (const { control, tone } of controls) {
+      expect(control.disabled).toBe(true);
+      expect(control.getAttribute('aria-selected')).toBe(String(control === chosen));
+      expectCapsule(
+        control,
+        cardChoiceColors(theme, tone, control === chosen ? 'selected-disabled' : 'disabled').fill,
+      );
+    }
     await act(async () => chosen.click());
     expect(decide).toHaveBeenCalledOnce();
   },

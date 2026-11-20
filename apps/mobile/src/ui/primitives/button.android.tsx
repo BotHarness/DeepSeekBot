@@ -1,35 +1,30 @@
 import { useState, type ComponentProps } from 'react';
 import {
-  Box,
   Button as FilledButton,
   CircularProgressIndicator,
   FilledTonalButton,
   Host,
   Icon,
+  RNHostView,
   Row,
-  Shape,
   Text,
   TextButton,
 } from '@expo/ui/jetpack-compose';
 import {
-  background,
-  clip,
   defaultMinSize,
   fillMaxWidth,
-  paddingAll,
   semantics,
-  Shapes,
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { cardChoiceColors } from '../design/controls';
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
-import { edge, loadingIndicator, materialButton, radius } from '../design/tokens';
+import { loadingIndicator, materialButton } from '../design/tokens';
 import { controlCase } from '../platform-copy';
 import { useStrings } from '../strings';
 import type { Button as SharedButton, ButtonSymbol } from './button';
-import { useComposeTree } from './compose-tree';
+import { ComposeTreeContext, useComposeTree } from './compose-tree';
+import { Button as PressableButton } from './pressable-button';
 
 export type { ButtonTone } from '../design/controls';
 export type { ButtonSymbol } from './button';
@@ -51,7 +46,24 @@ const symbols: Record<ButtonSymbol, number> = {
   photo: require('../../../assets/button/photo.xml'),
 };
 
-export function Button({
+export function Button(props: ComponentProps<typeof SharedButton>) {
+  const tree = useComposeTree();
+  if (props.variant !== 'card-solid') return <NativeButton {...props} />;
+  if (tree === undefined) return <PressableButton {...props} />;
+  const fullWidth = tree.fill && !props.fit;
+  return (
+    <RNHostView
+      matchContents={fullWidth ? { vertical: true } : true}
+      {...(fullWidth ? { modifiers: [fillMaxWidth()] } : {})}
+    >
+      <ComposeTreeContext.Provider value={undefined}>
+        <PressableButton {...props} />
+      </ComposeTreeContext.Provider>
+    </RNHostView>
+  );
+}
+
+function NativeButton({
   label,
   onPress,
   tone = 'secondary',
@@ -70,13 +82,9 @@ export function Button({
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
   const text = variant === 'text';
-  const solid = variant === 'card-solid';
-  const resting = solid ? cardChoiceColors(theme, tone) : undefined;
-  const unavailable = solid && !selected ? cardChoiceColors(theme, tone, 'disabled') : resting;
-  const paint = disabled || busy ? unavailable : resting;
   const Control = text
     ? TextButton
-    : solid || tone === 'primary' || danger
+    : tone === 'primary' || danger
       ? FilledButton
       : FilledTonalButton;
   const chosenFill = danger
@@ -90,26 +98,18 @@ export function Button({
       ? roles.onPrimary
       : roles.onSecondaryContainer;
   const contentColor = danger ? roles.error : roles.primary;
-  const colors =
-    resting !== undefined && unavailable !== undefined
+  const colors = text
+    ? danger || selected
+      ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
+      : undefined
+    : danger || selected
       ? {
-          containerColor: resting.fill,
-          contentColor: resting.ink,
-          disabledContainerColor: unavailable.fill,
-          disabledContentColor: unavailable.ink,
+          ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+          ...(selected
+            ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+            : {}),
         }
-      : text
-        ? danger || selected
-          ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
-          : undefined
-        : danger || selected
-          ? {
-              ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
-              ...(selected
-                ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
-                : {}),
-            }
-          : undefined;
+      : undefined;
   const fullWidth = tree?.fill !== false && !fit;
   const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
@@ -117,21 +117,9 @@ export function Button({
       enabled={!disabled && !busy}
       onClick={onPress}
       {...(colors ? { colors } : {})}
-      {...(solid
-        ? {
-            shape: Shape.RoundedCorner({
-              cornerRadii: {
-                topStart: radius.md - edge.hairline,
-                topEnd: radius.md - edge.hairline,
-                bottomStart: radius.md - edge.hairline,
-                bottomEnd: radius.md - edge.hairline,
-              },
-            }),
-          }
-        : {})}
       modifiers={[
         ...(fullWidth ? [fillMaxWidth()] : []),
-        defaultMinSize({ ...(solid ? { minWidth: theme.touch } : {}), minHeight: theme.touch }),
+        defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
         ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}
@@ -153,22 +141,7 @@ export function Button({
       </Row>
     </Control>
   );
-  const content =
-    paint === undefined ? (
-      control
-    ) : (
-      <Box
-        modifiers={[
-          ...(fullWidth ? [fillMaxWidth()] : []),
-          clip(Shapes.RoundedCorner(radius.md)),
-          background(paint.outline),
-          paddingAll(edge.hairline),
-        ]}
-      >
-        {control}
-      </Box>
-    );
-  if (tree !== undefined) return content;
+  if (tree !== undefined) return control;
   if (fit)
     return (
       <Host
@@ -177,7 +150,7 @@ export function Button({
         seedColor={theme.color.accent}
         ignoreSafeAreaKeyboardInsets
       >
-        {content}
+        {control}
       </Host>
     );
   return (
@@ -189,7 +162,7 @@ export function Button({
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
       onLayoutContent={(event) => setHeight(event.nativeEvent.height)}
     >
-      {content}
+      {control}
     </Host>
   );
 }

@@ -49,6 +49,14 @@ export const Pressable = (props: Props) =>
       ...a11y(props),
       type: 'button',
       disabled: props['disabled'] === true,
+      'data-rest-style':
+        typeof props['style'] === 'function'
+          ? JSON.stringify(props['style']({ pressed: false }))
+          : undefined,
+      'data-pressed-style':
+        typeof props['style'] === 'function'
+          ? JSON.stringify(props['style']({ pressed: true }))
+          : undefined,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
       onContextMenu: () => (props['onLongPress'] as (() => void) | undefined)?.(),
     },
