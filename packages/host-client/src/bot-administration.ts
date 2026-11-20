@@ -5,6 +5,7 @@ export function readAdministrativeBot(value: unknown, method: string): WireAdmin
   const bot = record(value);
   if (
     !text(bot?.['slug']) ||
+    bot['slug'].length === 0 ||
     !text(bot['displayName']) ||
     !text(bot['ownerHumanId']) ||
     typeof bot['owner'] !== 'boolean' ||

@@ -11,7 +11,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 }));
 import { AvatarAppearanceEditor } from '../src/client/avatar-appearance-editor.js';
 import { PersonaBotAvatar } from '../src/client/avatar.js';
-import { parseBotSummaries } from '../src/client/bridge.js';
+import { parseBotSummaries, setBotAvatar } from '../src/client/bridge.js';
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
 import {
   AVATAR_HAIR_PARTS,
   AVATAR_HEADPIECES,
@@ -35,6 +36,29 @@ import { LINE_PARTS, seededLineRecipe } from '../../core/src/bots/avatar-line.js
 import { zhTranslate } from '../src/client/locale.js';
 
 describe('Profile Avatar Appearance editing', () => {
+  it('refuses to use a redacted avatar receipt to update the Bot profile', async () => {
+    await expect(
+      setBotAvatar(
+        async () => ({
+          ok: true,
+          value: {
+            metadataOnly: true,
+            bot: {
+              slug: 'ada',
+              displayName: 'Ada',
+              ownerHumanId: 'mia',
+              owner: false,
+              paused: false,
+              createdAt: '2026-11-20T00:00:00Z',
+            },
+          },
+        }),
+        'dm-ada',
+        null,
+      ),
+    ).rejects.toBeInstanceOf(HostAnswerInvalid);
+  });
+
   it('offers pixel design and image upload as two choices and marks the one in use', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');

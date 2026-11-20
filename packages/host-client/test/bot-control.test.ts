@@ -7,6 +7,7 @@ import {
   stopBot,
   stopSession,
 } from '../src/bot-control';
+import { readAdministrativeBot } from '../src/bot-administration';
 import { HostAnswerInvalid } from '../src/host-answer';
 
 const at = '2026-11-20T00:00:00Z';
@@ -125,10 +126,15 @@ describe('Bot avatar', () => {
       createdAt: at,
     };
     const reply = { metadataOnly: true, bot: metadata };
-    await expect(runAvatar(reply)).resolves.toEqual(reply);
-    await expect(runAvatar({ ...reply, bot: { ...metadata, owner: null } })).rejects.toBeInstanceOf(
+    const host = { call: vi.fn().mockResolvedValue(reply) };
+    const args = { channelId: 'dm-tea', avatar: null };
+    await expect(setBotAvatar(host, args, true)).resolves.toEqual(reply);
+    await expect(runAvatar(reply)).rejects.toBeInstanceOf(HostAnswerInvalid);
+    expect(() => readAdministrativeBot({ ...metadata, slug: '' }, 'botAvatarSet')).toThrow(
       HostAnswerInvalid,
     );
+    host.call.mockResolvedValue({ ...reply, bot: { ...metadata, owner: null } });
+    await expect(setBotAvatar(host, args, true)).rejects.toBeInstanceOf(HostAnswerInvalid);
     await expect(runAvatar({ metadataOnly: 'true', bot })).rejects.toBeInstanceOf(
       HostAnswerInvalid,
     );

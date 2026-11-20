@@ -446,6 +446,7 @@ export async function runProfileCommand(
     return setBotAvatar(
       { call: (name, payload = {}) => rpc(name, payload) },
       { channelId, avatar: args['avatar'] },
+      true,
     );
   const result = await rpc<unknown>(
     method,

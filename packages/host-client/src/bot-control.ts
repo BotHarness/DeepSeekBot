@@ -115,15 +115,25 @@ export async function readBotAttention(
   return answer(await host.call('botAttention', args), isAttentionPage, 'botAttention');
 }
 
+type BotAvatarArgs = { channelId: string; avatar: unknown };
+type AdministrativeAvatarReceipt = { metadataOnly: true; bot: WireAdministrativeBot };
+
+export function setBotAvatar(host: HostCall, args: BotAvatarArgs): Promise<ChangedBotAnswer>;
+export function setBotAvatar(
+  host: HostCall,
+  args: BotAvatarArgs,
+  allowMetadata: true,
+): Promise<ChangedBotAnswer | AdministrativeAvatarReceipt>;
 export async function setBotAvatar(
   host: HostCall,
-  args: { channelId: string; avatar: unknown },
-): Promise<ChangedBotAnswer | { metadataOnly: true; bot: WireAdministrativeBot }> {
+  args: BotAvatarArgs,
+  allowMetadata = false,
+): Promise<ChangedBotAnswer | AdministrativeAvatarReceipt> {
   const reply = record(await host.call('botAvatarSet', args));
-  if (reply?.['metadataOnly'] === true)
+  if (allowMetadata && reply?.['metadataOnly'] === true)
     return { metadataOnly: true, bot: readAdministrativeBot(reply['bot'], 'botAvatarSet') };
   if (reply?.['metadataOnly'] !== undefined)
-    throw new HostAnswerInvalid('botAvatarSet returned an invalid metadata flag.');
+    throw new HostAnswerInvalid('botAvatarSet returned unexpected administrative metadata.');
   return readChangedBot(reply, 'botAvatarSet');
 }
 

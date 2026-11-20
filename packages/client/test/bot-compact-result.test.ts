@@ -16,8 +16,8 @@ describe('manual compaction result', () => {
   });
 
   it('rejects an unknown outcome', () => {
-    expect(() => parseBotCompactResult({ outcome: 'done' })).toThrow(
-      'botCompact returned an invalid answer',
-    );
+    expect(() =>
+      parseBotCompactResult({ outcome: 'done', tokensBefore: 12, tokensAfter: 6 }),
+    ).toThrow('botCompact returned an invalid answer');
   });
 });
