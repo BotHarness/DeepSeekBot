@@ -7451,20 +7451,25 @@ export async function readMessagingSource(
     source?.['contextMessages'] !== undefined &&
     (!Array.isArray(source['contextMessages']) ||
       source['contextMessages'].length > 20 ||
-      !source['contextMessages'].every(
-        (value) =>
-          strings(asRecord(value), ['sourceEventId', 'messageId', 'senderId', 'at', 'text']) &&
-          (asRecord(value)?.['senderName'] === undefined ||
-            typeof asRecord(value)?.['senderName'] === 'string') &&
-          (asRecord(value)?.['mentions'] === undefined ||
-            (Array.isArray(asRecord(value)?.['mentions']) &&
-              (asRecord(value)?.['mentions'] as unknown[]).every(
-                (mention) =>
-                  strings(asRecord(mention), ['id', 'key']) &&
-                  (asRecord(mention)?.['name'] === undefined ||
-                    typeof asRecord(mention)?.['name'] === 'string'),
-              ))),
-      ))
+      !source['contextMessages'].every((value) => {
+        const message = asRecord(value);
+        const senderName = message?.['senderName'];
+        const mentions = message?.['mentions'];
+        return (
+          strings(message, ['sourceEventId', 'messageId', 'senderId', 'at', 'text']) &&
+          (senderName === undefined || typeof senderName === 'string') &&
+          (mentions === undefined ||
+            (Array.isArray(mentions) &&
+              mentions.every((value: unknown) => {
+                const mention = asRecord(value);
+                const name = mention?.['name'];
+                return (
+                  strings(mention, ['id', 'key']) &&
+                  (name === undefined || typeof name === 'string')
+                );
+              })))
+        );
+      }))
   )
     throw new BridgeCallError('invalid-response', 'Invalid context messages');
   return source as unknown as ExternalSource;

@@ -5,6 +5,8 @@ import type { DshSessionEvent } from '../sessions/source.js';
 import type { SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { ActivitySourceRole } from './tool-activity.js';
 
+import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
+
 export const TOOL_DETAIL_TTL_MS = 5 * 60_000;
 export const TOOL_DETAIL_MAX_REFS = 256;
 export const TOOL_DETAIL_MAX_BYTES = 64 * 1024;
@@ -185,7 +187,9 @@ export class ActivityToolDetails extends Service {
     const consumer =
       typeof name === 'string' && /^[A-Za-z0-9_.:/-]{1,128}$/.test(name) ? name : 'unknown';
     const result: ToolDetailRead =
-      fiber.state === 2 && consumer !== 'unknown' && this.consumers.includes(consumer)
+      fiber.state === ACTIVE_FIBER_STATE &&
+      consumer !== 'unknown' &&
+      this.consumers.includes(consumer)
         ? this.index.read(reference)
         : { ok: false, reason: 'unauthorized' };
     this.audit({

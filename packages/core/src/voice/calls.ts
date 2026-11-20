@@ -2350,6 +2350,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
               },
         };
       }
+      case undefined:
       default:
         throw new CallRefusal('invalid-input', 'Unknown call command.');
     }

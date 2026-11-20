@@ -12,18 +12,7 @@
     "apps/mobile/src/ui/chat/row-status-glyph.tsx": 1,
     "apps/mobile/src/ui/theme.ts": 1,
     "packages/browser/src/runtime/provision.ts": 1,
-    "packages/client/src/client/channel-message-body.tsx": 1,
-    "packages/client/src/client/desktop-notifications.ts": 1,
-    "packages/client/src/client/message-author-card.tsx": 1,
-    "packages/client/src/client/release-notes-view.tsx": 2,
-    "packages/client/src/client/team-password-dialog.tsx": 1,
-    "packages/client/src/client/update-run-view.tsx": 1,
-    "packages/computer/src/client/local-setup-copy.ts": 1,
-    "packages/core/src/bots/cli-effects.ts": 1,
-    "packages/core/src/tob/member-operations.ts": 1,
-    "packages/core/src/voice/call-view.ts": 1,
-    "packages/core/src/voice/calls.ts": 1,
-    "packages/host-client/src/bot-creation.ts": 1
+    "packages/computer/src/client/local-setup-copy.ts": 1
   },
   "typescript/only-throw-error": {},
   "typescript/prefer-promise-reject-errors": {},
@@ -35,16 +24,9 @@
     "scripts/test/desktop-zoom-package.test.mjs": 1,
     "scripts/test/release-ci.test.mjs": 1
   },
-  "typescript/no-unsafe-enum-comparison": {
-    "packages/client/src/client/channel-dock-layout.ts": 3,
-    "packages/client/src/client/workspace-layout.ts": 3,
-    "packages/core/src/credentials/secret-mcp.ts": 1,
-    "packages/core/src/state/tool-details.ts": 1,
-    "packages/core/src/workspaces/orchestrator-file-tools.ts": 2
-  },
+  "typescript/no-unsafe-enum-comparison": {},
   "eslint/preserve-caught-error": {},
   "eslint/no-unsafe-finally": {
-    "packages/core/src/diagnostics/client-observer.ts": 1,
     "packages/deepseekbot/src/desktop-zoom-setup.mjs": 1,
     "scripts/e2e-browser-lifecycle.mjs": 1,
     "scripts/e2e-hidden-channel-search.mjs": 1,
@@ -54,13 +36,8 @@
     "scripts/test/dev-instance-lifecycle.test.mjs": 1,
     "scripts/test/readme-status.test.mjs": 1
   },
-  "eslint/no-unsafe-optional-chaining": {
-    "packages/client/src/client/bridge.ts": 1,
-    "packages/client/test/apply.test.ts": 5
-  },
-  "eslint/no-constant-condition": {
-    "packages/core/test/assignment-report.test.ts": 1
-  },
+  "eslint/no-unsafe-optional-chaining": {},
+  "eslint/no-constant-condition": {},
   "unicorn/require-post-message-target-origin": {
     "packages/client/src/client/wallpaper-layer.ts": 1,
     "packages/core/src/channels/genui-worker-port.ts": 2,

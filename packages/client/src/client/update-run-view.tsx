@@ -98,7 +98,8 @@ function stepIndex(run: UpdateRun): number {
       return 2;
     case 'installed':
       return 3;
-    default:
+    case 'cancelled':
+    case 'failed':
       return run.commands.length > 0 ? 1 : 0;
   }
 }

@@ -9,6 +9,8 @@ import * as pwshTools from '@deepseek-ai/dsh-tool-pwsh';
 import type { DshAgentPresetHost } from '../runtime/dsh-bot-agent-adapter.js';
 import { NATIVE_FILE_TOOL_NAMES } from './grant-native-tools.js';
 
+import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
+
 type Policy = ReturnType<SandboxPolicyService['resolve']>;
 
 const NATIVE_SHELL_TOOLS = { bash: bashTools, pwsh: pwshTools } as const;
@@ -94,7 +96,10 @@ export async function installOrchestratorFileTools(
     );
     await files.await();
     for (const shellFiber of shellFibers) await shellFiber.await();
-    if (files.state !== 2 || shellFibers.some((shellFiber) => shellFiber.state !== 2))
+    if (
+      files.state !== ACTIVE_FIBER_STATE ||
+      shellFibers.some((shellFiber) => shellFiber.state !== ACTIVE_FIBER_STATE)
+    )
       throw new Error('Orchestrator native Tools failed to activate');
   } catch (error) {
     await fiber.dispose();

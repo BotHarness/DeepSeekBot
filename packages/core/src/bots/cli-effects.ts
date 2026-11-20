@@ -580,6 +580,8 @@ function familyEffects(
           return values['from-git'] ? externalWrite : write;
         case 'delete':
           return destructive;
+        case undefined:
+          return undefined;
         default:
           return botAccessEffects(action, values);
       }
