@@ -418,7 +418,9 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
     expect(host.querySelector('[data-platform="ios"] a')?.getAttribute('href')).toBe(
       'https://testflight.apple.com/join/sA9EznXr',
     );
-    expect(host.querySelector('[data-platform="android"] a')).not.toBeNull();
+    expect(host.querySelector('[data-platform="android"] a')?.getAttribute('href')).toBe(
+      'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile',
+    );
     expect(host.querySelector('[data-pair-qr]')).toBeNull();
     expect(posts).toEqual([]);
     await click(t('connections.phoneApp.ready'));

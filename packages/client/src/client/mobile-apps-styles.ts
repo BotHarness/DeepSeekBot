@@ -14,7 +14,7 @@ body.driver-active .bh-mobile-apps-hint,body:has([aria-modal='true']) .bh-mobile
 .bh-mobile-apps-caption {margin:${space.x2} 0 ${space.x4};font-size:${text.metaSize};line-height:${text.metaLine};color:${color.muted};}
 .bh-mobile-apps-hint .bh-mobile-apps-primary {width:100%;justify-content:center;}
 .bh-mobile-apps-section {padding-top:${space.x4};margin-top:${space.x4};border-top:${border.hairline} solid ${color.divider};}
-.bh-mobile-apps-section h3 {margin:0;font:inherit;font-weight:${text.strong};}
+.bh-mobile-apps-section h3 {margin:0 0 ${space.x2};font:inherit;font-weight:${text.strong};}
 .bh-mobile-apps-section .bh-mobile-apps-caption {margin-bottom:${space.x3};}
 .bh-mobile-apps-link {display:flex;align-items:center;gap:${space.x3};min-height:36px;box-sizing:border-box;padding:${space.x2} ${space.x3};border-radius:${radius.sm};background:${actionColor.secondary};color:inherit;text-decoration:none;}
 .bh-mobile-apps-link + .bh-mobile-apps-link {margin-top:${space.x2};}

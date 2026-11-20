@@ -20,6 +20,7 @@ import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/sA9EznXr';
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile';
 
 const SEEN_KEY = 'botharness/mobile-apps/seen';
 
@@ -276,7 +277,17 @@ export function MobileAppDownloads({ t }: { t: BotHarnessTranslate }): ReactElem
       </section>
       <section className="bh-mobile-apps-section" data-platform="android">
         <h3>{t('mobileApps.android')}</h3>
-        <p className="bh-mobile-apps-caption">{t('mobileApps.androidHint')}</p>
+        <a
+          className="bh-mobile-apps-link"
+          href={GOOGLE_PLAY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ChannelSidebarIcon name="smartphone" size={16} />
+          <span>{t('mobileApps.googlePlay')}</span>
+          <ChannelSidebarIcon name="external-link" size={14} />
+        </a>
+        <p className="bh-mobile-apps-caption">{t('mobileApps.androidBetaHint')}</p>
         <a
           className="bh-mobile-apps-link"
           href={COMMUNITY.discord}

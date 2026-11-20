@@ -44,7 +44,11 @@ it('hints at the mobile apps until the entry is opened once, then stays quiet', 
   expect(hint()).toBeNull();
   expect(first.entry.getAttribute('aria-expanded')).toBe('true');
   const links = [...panel()!.querySelectorAll('a')].map((a) => a.href);
-  expect(links).toEqual([TESTFLIGHT_URL, `${COMMUNITY.discord}`]);
+  expect(links).toEqual([
+    TESTFLIGHT_URL,
+    'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile',
+    COMMUNITY.discord,
+  ]);
   expect(panel()!.textContent).toContain(COMMUNITY.qqGroup);
 
   await act(async () =>
@@ -78,7 +82,9 @@ it('the hint action opens the ways to get each app', async () => {
   )!;
   await act(async () => action.click());
   expect(panel()?.querySelector('[data-platform="ios"]')?.textContent).toContain('TestFlight');
-  expect(panel()?.querySelector('[data-platform="android"]')?.textContent).toContain('Discord');
+  const android = panel()?.querySelector('[data-platform="android"]');
+  expect(android?.textContent).toContain('Google Play 安装');
+  expect(android?.textContent).toContain('Discord');
   await act(async () => root.unmount());
 });
 
