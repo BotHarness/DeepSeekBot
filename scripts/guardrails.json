@@ -111,6 +111,30 @@
       "baseline": "scripts/ui-rules-baseline.json"
     },
     {
+      "id": "tobs-icon-source",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "render product icons from ds/Icon; pnpm lint:fix rewrites mapped DSH JSX icons.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-control-names",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "give icon-only actions and meaningful status indicators a localized accessible name.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-focus-disabled",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "apply distinct focus-visible and disabled styles at the interactive ds/ control.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
       "id": "tobs-token-outputs",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",

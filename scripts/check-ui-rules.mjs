@@ -5,6 +5,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,6 +47,26 @@ export const RULES = {
   reducedMotion: {
     help: 'disable or shorten the motion in a prefers-reduced-motion override on the same style',
     section: 'G1 rule 6, docs/agents/ui-design.md § Component names and motion',
+  },
+  iconSource: {
+    help: 'use ds/Icon with a Lucide glyph name; run pnpm lint:fix for mapped DSH JSX imports',
+    section: 'G1 rule 3, docs/agents/ui-design.md § Design rule 2',
+  },
+  accessibleName: {
+    help: 'give the icon-only control a localized aria-label or aria-labelledby reference',
+    section: 'G1 rule 4, docs/agents/ui-design.md § Design rules 2 and 6',
+  },
+  statusLabel: {
+    help: 'pair the status with a localized label; use aria-hidden for a decorative duplicate of an existing label',
+    section: 'G1 rule 4, docs/agents/ui-design.md § Design rules 2 and 6',
+  },
+  focusVisible: {
+    help: 'apply a StyleX block with a visible :focus-visible ring using the focus token',
+    section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
+  },
+  disabledStyle: {
+    help: 'apply a distinct disabled style with :disabled, data-disabled, or aria-disabled',
+    section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
   },
   jsxCopy: {
     help: 'move visible text into locale.ts (Web) or strings.ts (mobile)',
@@ -167,13 +188,21 @@ export function scan(fix = false) {
       if (MOBILE.test(file))
         return [...jsxCopy(source, file, ast), ...pressables(source, file, ast)];
       let styles = desktopStyles(source, file, ast, walk);
-      if (fix && styles.some(({ edit }) => edit)) {
-        source = fixDesktopStyles(source, file, ast, styles);
-        writeFileSync(path, source);
-        ast = parseSource(source, file);
-        styles = desktopStyles(source, file, ast, walk);
+      if (fix) {
+        let next = styles.some(({ edit }) => edit)
+          ? fixDesktopStyles(source, file, ast, styles)
+          : source;
+        if (next !== source) ast = parseSource(next, file);
+        if (next.includes('@deepseek-ai/dsh-client-ui')) next = fixDesktopIcons(next, file, ast);
+        if (next !== source) {
+          ast = parseSource(next, file);
+          source = next;
+          writeFileSync(path, source);
+          styles = desktopStyles(source, file, ast, walk);
+        }
       }
-      return [...(file.endsWith('.tsx') ? jsxCopy(source, file, ast) : []), ...styles];
+      const copy = file.endsWith('.tsx') ? jsxCopy(source, file, ast) : [];
+      return [...copy, ...styles, ...desktopControls(source, file, ast, walk)];
     });
 }
 

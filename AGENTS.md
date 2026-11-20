@@ -28,7 +28,7 @@ Use `pnpm test:changed` for CI-selected tests against `origin/main` and `pnpm te
 - Use Node `.mjs` for repo scripts. [Lint and toolchain](docs/agents/development-scripts.md#lint-backlog-and-toolchain) covers the shell and spawn checks.
 - Memory terminology lives in `GLOSSARY.md`; durable memory choices live in ADR-0002/0003/0004/0012/0014/0021 and are integrated into the living architecture.
 - Record new decisions in the matching `docs/decisions/<topic>.md` section and integrate them into the living architecture.
-- Living architecture doc: `docs/architecture/botharness-architecture.md` (inline mermaid) — update it when modules, data flow, or boundaries change; it syncs to the docs site (`apps/docs`, botharness.ai) via `scripts/sync-docs.mjs`.
+- Update the [living architecture](docs/architecture/botharness-architecture.md) when modules, data flow or boundaries change.
 - Edit docs site sources and regenerate. Follow [docs site maintenance](docs/agents/docs-site-maintenance.md) for Markdown, diagrams, OG cards and local previews.
 - Follow [vendored skills](docs/agents/vendored-skills.md) before adding or syncing skills. Edit first-party skills in place and update third-party skills through their pinned upstream.
 - Follow [tracer-bullet delivery](docs/agents/issue-tracker.md#tracer-bullet-delivery) for production-shaped cross-layer slices, sequencing and Human feedback.
@@ -54,7 +54,7 @@ For Discord and Lark message and reaction tests, use the signed-in Codex in-app 
 
 ### Domain docs
 
-Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
+[Glossary](GLOSSARY.md) owns product terms. Follow [domain docs](docs/agents/domain.md) when changing terminology, decisions or architecture.
 
 ## Task runbooks
 
@@ -75,7 +75,7 @@ Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md
 
 ## Guardrails
 
-`pnpm lint` runs local checks, and CI runs the PR and scheduled checks. The table comes from [the registry](scripts/guardrails.json).
+[Rule registry](scripts/guardrails.json) records each check and its fix.
 
 <!-- guardrail-table:start -->
 
@@ -93,6 +93,9 @@ Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md
 | `tobs-style-literals`    | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
 | `tobs-breakpoint-tokens` | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
 | `tobs-motion-tokens`     | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-icon-source`       | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-control-names`     | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-focus-disabled`    | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
 | `tobs-token-outputs`     | [generate-tokens.mjs](scripts/generate-tokens.mjs)               |
 | `regression-proof`       | [check-regression-proof.mjs](scripts/check-regression-proof.mjs) |
 | `pr-body`                | [check-pr-body.mjs](scripts/check-pr-body.mjs)                   |
