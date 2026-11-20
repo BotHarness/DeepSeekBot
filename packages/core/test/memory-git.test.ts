@@ -13,7 +13,12 @@ function createRoot(): string {
 }
 
 function git(root: string, args: string[]): string {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 }
 
 function commitCount(root: string): number {

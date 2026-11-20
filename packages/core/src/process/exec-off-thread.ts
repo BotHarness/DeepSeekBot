@@ -41,7 +41,7 @@ const { parentPort } = require('node:worker_threads');
 const { execFile } = require('node:child_process');
 parentPort.on('message', ({ id, file, args, options }) => {
   try {
-    execFile(file, args, options, (error, stdout, stderr) => {
+    execFile(file, args, { ...options, shell: false, windowsHide: true }, (error, stdout, stderr) => {
       parentPort.postMessage({
         id,
         stdout,
@@ -135,7 +135,12 @@ function direct(
       execFile(
         file,
         [...args],
-        { ...rest, encoding: encoding === 'buffer' ? 'buffer' : 'utf8' },
+        {
+          ...rest,
+          encoding: encoding === 'buffer' ? 'buffer' : 'utf8',
+          shell: false,
+          windowsHide: true,
+        },
         (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
           recordSchedulingDiagnostic({
             kind: 'exec-settle',

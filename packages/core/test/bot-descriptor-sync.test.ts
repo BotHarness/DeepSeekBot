@@ -42,7 +42,11 @@ function tempRoot(): string {
 }
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  return execFileSync('git', ['-C', cwd, ...args], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
 }
 
 function descriptorOf(memoryDir: string): Record<string, unknown> {
