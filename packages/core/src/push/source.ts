@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { dmChannelId } from '../channels/channel.js';
 import type { HumanAttentionItem, HumanAttentionQuery } from '../runtime/human-attention.js';
 import type { PushCandidate, PushKind, PushSource } from './delivery.js';
@@ -7,16 +8,19 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'workspace-grant-request': 'approval',
   'auto-rejection': 'approval',
   'group-join-request': 'approval',
+  'pairing-request': 'approval',
   'assignment-waiting-human': 'question',
   'assignment-blocked': 'question',
   'user-question': 'question',
   'private-input': 'private-input',
+  'takeover-request': 'question',
   'channel-reply': 'reply',
   'channel-mention': 'reply',
 };
 
 const ACTION_LIMIT = 100;
-const REPLY_LIMIT = 30;
+const REPLY_LIMIT = 200;
+const PAGE_LIMIT = 100;
 const PREVIEW_LIMIT = 140;
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
@@ -70,7 +74,7 @@ function details(
   kind: PushKind,
   approval: PushApprovalLookup | undefined,
 ): { preview?: string; categoryId?: string } {
-  if (kind === 'private-input') return {};
+  if (item.approval?.masked || kind === 'private-input') return {};
   if (kind === 'approval' && item.kind === 'tool-approval') return approvalOf(item, approval);
   const preview = clip(item.summary);
   return preview === undefined ? {} : { preview };
@@ -91,6 +95,8 @@ function candidate(
       attentionKind: item.kind,
       botSlug: item.botSlug,
       createdAt: item.createdAt,
+      ...(item.author ? { author: item.author } : {}),
+      ...(item.approval ? { approval: item.approval } : {}),
       ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
       ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
       ...(channelName === undefined || channelName === '' ? {} : { channelName }),
@@ -99,21 +105,41 @@ function candidate(
   ];
 }
 
-export function humanInboxPushSource(
+function unreadReplies(
+  attention: Pick<HumanAttentionQuery, 'list'>,
+  human: HumanContext,
+): HumanAttentionItem[] {
+  const items: HumanAttentionItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = attention.list(human, {
+      category: 'replies',
+      unreadOnly: true,
+      limit: Math.min(PAGE_LIMIT, REPLY_LIMIT - items.length),
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor !== undefined && items.length < REPLY_LIMIT);
+  return items;
+}
+
+export function activityListPushSource(
   attention: Pick<HumanAttentionQuery, 'list' | 'actionCount' | 'dmReplies'>,
   botName: (slug: string) => string | undefined,
   approval?: PushApprovalLookup,
 ): PushSource {
   return {
-    pending() {
-      const action = attention.list({ category: 'action', limit: ACTION_LIMIT }).items;
-      const replies = attention
-        .list({ category: 'replies', limit: REPLY_LIMIT })
-        .items.filter((item) => item.isUnread !== false);
-      const dms = attention.dmReplies(REPLY_LIMIT);
+    pending(human = OWNER_HUMAN_CONTEXT) {
+      const action = attention.list(human, {
+        category: 'action',
+        limit: ACTION_LIMIT,
+      }).items;
+      const replies = unreadReplies(attention, human).filter((item) => item.isUnread !== false);
+      const dms = attention.dmReplies(human, REPLY_LIMIT);
       return {
         items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),
-        badge: attention.actionCount(),
+        badge: attention.actionCount(human),
       };
     },
     botName,

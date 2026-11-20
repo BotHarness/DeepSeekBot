@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
@@ -20,49 +21,55 @@ it('invalidates the shared carrier after canonical messages, reads, decisions an
   const abort = new AbortController();
   const snapshots: string[][] = [];
   const following = (async () => {
-    for await (const frame of core.live.followRoster(abort.signal)) {
+    for await (const frame of core.live.followRoster(OWNER_HUMAN_CONTEXT, abort.signal)) {
       if (frame.type === 'attention')
         snapshots.push(
           (['action', 'replies', 'unread'] as const).flatMap((category) =>
-            core.humanAttention.list({ category }).items.map((x) => category + ':' + x.messageId),
+            core.humanAttention
+              .list(OWNER_HUMAN_CONTEXT, { category })
+              .items.map((x) => category + ':' + x.messageId),
           ),
         );
     }
   })();
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-    await core.channels.appendMessage(dm.id, {
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'reply',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
       body: 'A real persisted reply',
     });
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).toContain('unread:reply');
-    const unread = core.humanAttention.list({ category: 'unread' }).items[0]!;
+    const unread = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items[0]!;
     expect(unread).toMatchObject({ channelId: dm.id, messageId: 'reply' });
     expect(unread.sourceEventId).toBeTruthy();
-    await core.channels.markRead(dm.id, 'reply');
-    await vi.advanceTimersByTimeAsync(1);
+    await core.channels.markRead(OWNER_HUMAN_CONTEXT, dm.id, 'reply');
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('unread:reply');
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'approval',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
       body: 'Please approve',
       grantRequest: true,
     });
-    await vi.advanceTimersByTimeAsync(1);
-    const action = core.humanAttention.list({ category: 'action' }).items[0]!;
+    await vi.advanceTimersByTimeAsync(300);
+    const action = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0]!;
     expect(snapshots.at(-1)).toContain('action:approval');
-    core.humanAttentionDecisions.snooze(action, new Date(Date.now() + 1000).toISOString());
-    await vi.advanceTimersByTimeAsync(1);
+    core.humanAttentionDecisions.snooze(
+      OWNER_HUMAN_CONTEXT,
+      action,
+      new Date(Date.now() + 1000).toISOString(),
+    );
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
-    await vi.advanceTimersByTimeAsync(1001);
+    await vi.advanceTimersByTimeAsync(1_300);
     expect(snapshots.at(-1)).toContain('action:approval');
-    core.humanAttentionDecisions.dismiss(action);
-    await vi.advanceTimersByTimeAsync(1);
+    core.humanAttentionDecisions.dismiss(OWNER_HUMAN_CONTEXT, action);
+    await vi.advanceTimersByTimeAsync(300);
     expect(snapshots.at(-1)).not.toContain('action:approval');
     const count = snapshots.length;
     await vi.advanceTimersByTimeAsync(60_000);
@@ -95,7 +102,7 @@ it('coalesces transient request owner signals and cancels queued work when the d
     signal();
     signal();
     expect(changed).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(300);
     expect(changed).toHaveBeenCalledTimes(1);
     signal();
     core.operationalDatabase.close();

@@ -1,0 +1,44 @@
+import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import { Platform } from 'react-native';
+
+import { dismissResolved, parsePushBadge, parsePushResolved } from './push-resolve';
+
+export const PUSH_RESOLVE_TASK = 'deepseekbot-push-resolve';
+
+const port = {
+  async presented() {
+    return (await Notifications.getPresentedNotificationsAsync()).map((notification) => ({
+      id: notification.request.identifier,
+      data: notification.request.content.data,
+    }));
+  },
+  async dismiss(id: string) {
+    await Notifications.dismissNotificationAsync(id);
+  },
+};
+
+TaskManager.defineTask<Notifications.NotificationTaskPayload>(
+  PUSH_RESOLVE_TASK,
+  async ({ data, error }) => {
+    if (error !== null || data === undefined) return;
+    if ('actionIdentifier' in data) {
+      const { answerResponse } = await import('./native-push-answer');
+      await answerResponse(data);
+      return;
+    }
+    const resolved = parsePushResolved(data);
+    if (resolved !== undefined) await dismissResolved(port, resolved).catch(() => undefined);
+    const badge = parsePushBadge(data);
+    if (Platform.OS !== 'android' && badge !== undefined)
+      await Notifications.setBadgeCountAsync(badge).catch(() => undefined);
+  },
+);
+
+let registered: Promise<unknown> | undefined;
+
+export function registerPushResolveTask(): void {
+  registered ??= Notifications.registerTaskAsync(PUSH_RESOLVE_TASK).catch(() => {
+    registered = undefined;
+  });
+}

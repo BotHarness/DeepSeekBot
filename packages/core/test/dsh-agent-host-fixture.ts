@@ -4,11 +4,15 @@ import type {
   Agent,
   AgentHandle,
   CreateAgentOptions,
+  ModelSelection,
   ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent';
 import { createAssistantMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
 import type { TurnEndReason } from '@deepseek-ai/dsh-session';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
+
+import { executeFixtureNativeTool } from './fixtures/native-tools.js';
+import type { DirectNativeCall } from '../src/runtime/native-agent-compat.js';
 
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import type { DshAgentHost } from '../src/runtime/dsh-bot-agent-adapter.js';
@@ -30,6 +34,7 @@ export interface FakeSession {
 }
 
 export interface FakeAgentHostHooks {
+  restoreSession?(sessionId: string): readonly FakeEvent[];
   sendMessage?: boolean;
   messageChannel?: string;
   assignmentTurnEnd?: TurnEndReason;
@@ -47,6 +52,7 @@ interface FakeScope {
   restrictions: Array<{ allow?: readonly string[]; deny?: readonly string[] }>;
   guards: Array<(execution: { name: string }) => string | undefined>;
   sections: Array<{ name: string; text: string }>;
+  skillProviders: Array<{ name: string; list(options: { cwd?: string }): Promise<unknown> }>;
   listeners: Map<string, (...args: unknown[]) => unknown>;
 }
 
@@ -95,14 +101,7 @@ export class FakeAgentHost implements DshAgentHost {
   }
 
   async selectedModel(sessionId: string): Promise<unknown> {
-    const scope = this.scopes.get(sessionId);
-    const assemble = scope?.listeners.get('system-prompt/assemble');
-    const request = scope?.listeners.get('agent/request');
-    if (assemble === undefined || request === undefined) {
-      throw new Error(`Model selection listeners unavailable for ${sessionId}`);
-    }
-    await assemble({}, {}, async () => ({ variables: {} }));
-    return request({}, async () => ({ provider: 'test', model: 'test' }));
+    return this.#live.get(sessionId)?.model.current();
   }
 
   constructor(
@@ -120,23 +119,30 @@ export class FakeAgentHost implements DshAgentHost {
   async resume(options: ResumeAgentOptions): Promise<AgentHandle> {
     this.resumeOptions.push(options);
     const sessionId = String(options.resumeSessionId);
-    return this.#start(sessionId, this.#cwdBySession.get(sessionId), options.setup);
+    return this.#start(
+      sessionId,
+      this.#cwdBySession.get(sessionId),
+      options.setup,
+      this.hooks.restoreSession?.(sessionId),
+    );
   }
 
   async #start(
     sessionId: string,
     cwd: string | undefined,
     setup: CreateAgentOptions['setup'] | ResumeAgentOptions['setup'],
+    history: readonly FakeEvent[] = [],
   ): Promise<AgentHandle> {
     const scope: FakeScope = {
       tools: [],
       restrictions: [],
       guards: [],
       sections: [],
+      skillProviders: [],
       listeners: new Map(),
     };
     const messages: Message[] = [];
-    const events: FakeEvent[] = [];
+    const events = [...history];
     const effects = new Set<() => void>();
     const session: FakeSession = {
       id: sessionId,
@@ -158,10 +164,17 @@ export class FakeAgentHost implements DshAgentHost {
         events.slice(fromSeq, toSeqExclusive),
     };
     let pending = Promise.resolve();
-    let turn = 0;
+    let selected: ModelSelection | undefined;
+    let turn = events.filter((event) => event.type === 'turn/start').length;
     const fakeAgent = {
       id: sessionId,
       session,
+      model: {
+        current: () => selected,
+        select: (value: ModelSelection) => {
+          selected = { ...value };
+        },
+      },
       followup: (message: UserMessage) => {
         const received = this.received.get(sessionId) ?? [];
         received.push(message);
@@ -198,8 +211,17 @@ export class FakeAgentHost implements DshAgentHost {
       },
       whenIdle: () => pending,
     };
+    const skills = {
+      list: async () => [],
+      get: async () => undefined,
+      registerProvider: (create: () => FakeScope['skillProviders'][number]) => {
+        const provider = create();
+        scope.skillProviders.push(provider);
+        return () => void scope.skillProviders.splice(scope.skillProviders.indexOf(provider), 1);
+      },
+    };
     const fakeContext = {
-      get: (_name: string) => undefined,
+      get: (name: string) => (name === 'skills' ? skills : undefined),
       effect: (setup: () => () => void) => {
         const dispose = setup();
         effects.add(dispose);
@@ -212,6 +234,8 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        execute: (input: DirectNativeCall) =>
+          executeFixtureNativeTool(input, scope.tools, scope.guards),
         get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined

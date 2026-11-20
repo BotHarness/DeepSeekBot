@@ -132,7 +132,14 @@ function startHost(home, port, build) {
       '--json',
       ...(build ? ['--build'] : []),
     ],
-    { cwd: repoRoot, encoding: 'utf8', timeout: 20 * 60_000, maxBuffer: 16 * 1024 * 1024 },
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 20 * 60_000,
+      maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    },
   );
   if (run.status !== 0) throw new Error(`Host launch failed: ${run.stderr.slice(-2000)}`);
   return JSON.parse(run.stdout);
@@ -176,6 +183,8 @@ function command(env, args, extra = ['--compact', '--timeout', '300']) {
     const child = spawn(process.execPath, [cli, ...args, ...extra], {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';

@@ -1,9 +1,9 @@
-import { useState, type ReactElement } from 'react';
-
-import { IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { ProfileActivitySection, ProfileCard, ProfilePanel } from './ds/profile-panel.js';
+import { useMemo, useState, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity } from './bridge.js';
+import type { BotSkillsSource } from './bot-skills-card.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import { ProfileHeader } from './profile-header.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -21,10 +21,10 @@ function ProfileCardLabel({
 }: ProfileCardProps & { card: ProfileCardDescriptor }): ReactElement {
   const help = card.help?.(props);
   return (
-    <span className="bh-profile-card-label">
+    <>
       {card.label}
       {help ? <MessagingHelp title={card.label} text={help} t={props.t} /> : null}
-    </span>
+    </>
   );
 }
 
@@ -48,13 +48,25 @@ export function ProfileView({
   onClose,
 }: ProfileViewProps): ReactElement {
   const [deleting, setDeleting] = useState(false);
-  const visibleCards = cards.list().filter((card) => card.visible?.(bot) ?? true);
+  const visibleCards =
+    bot.sharedBy === undefined ? cards.list().filter((card) => card.visible?.(bot) ?? true) : [];
+  const { botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog } = actions;
+  const skills = useMemo<BotSkillsSource | undefined>(
+    () =>
+      botSkills === undefined || skillDetail === undefined || botSkillRemove === undefined
+        ? undefined
+        : {
+            list: () => botSkills(bot.slug),
+            read: (name) => skillDetail(name, `bot:${bot.slug}`),
+            remove: (name) => botSkillRemove(bot.slug, name),
+            ...(subscribeSkillCatalog === undefined
+              ? {}
+              : { subscribe: (listener) => subscribeSkillCatalog(channel.id, listener) }),
+          },
+    [botSkills, skillDetail, botSkillRemove, subscribeSkillCatalog, bot.slug, channel.id],
+  );
   return (
-    <div className="bh-profile-view">
-      <button type="button" className="bh-profile-back" onClick={onClose}>
-        <IconChevronLeftOutlineRegular />
-        <span>{t('profile.close')}</span>
-      </button>
+    <ProfilePanel backLabel={t('profile.close')} onClose={onClose}>
       <ProfileHeader
         key={bot.slug}
         bot={bot}
@@ -73,28 +85,24 @@ export function ProfileView({
         />
       ) : null}
       {visibleCards.length === 0 ? null : (
-        <section className="bh-profile-section" aria-label={t('profile.activitySection')}>
-          <h2 className="bh-profile-section-title">{t('profile.activitySection')}</h2>
-          <div className="bh-profile-cards">
-            {visibleCards.map((card) => {
-              return (
-                <section key={card.id} className="bh-profile-card">
-                  <header className="bh-profile-card-head">
-                    <ProfileCardLabel card={card} bot={bot} activity={activity} t={t} />
-                  </header>
-                  {card.render({
-                    bot,
-                    activity,
-                    t,
-                    compact: false,
-                    loadUsage: (filter) => actions.profileUsage(channel.id, filter),
-                    loadActivity: (window) => actions.profileActivity(channel.id, window),
-                  })}
-                </section>
-              );
-            })}
-          </div>
-        </section>
+        <ProfileActivitySection title={t('profile.activitySection')}>
+          {visibleCards.map((card) => (
+            <ProfileCard
+              key={card.id}
+              label={<ProfileCardLabel card={card} bot={bot} activity={activity} t={t} />}
+            >
+              {card.render({
+                bot,
+                activity,
+                t,
+                compact: false,
+                loadUsage: (filter) => actions.profileUsage(channel.id, filter),
+                loadActivity: (window) => actions.profileActivity(channel.id, window),
+                ...(skills === undefined ? {} : { skills }),
+              })}
+            </ProfileCard>
+          ))}
+        </ProfileActivitySection>
       )}
       {bot.deleted ? (
         <PersonaBotDeletionView
@@ -106,6 +114,6 @@ export function ProfileView({
           history
         />
       ) : null}
-    </div>
+    </ProfilePanel>
   );
 }

@@ -16,6 +16,7 @@ export interface SheetFrameProps {
   children: ReactNode;
   avoidKeyboard: boolean;
   animationType: 'none' | 'slide' | 'fade';
+  fill?: boolean | undefined;
 }
 
 function Grabber() {

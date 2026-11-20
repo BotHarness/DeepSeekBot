@@ -1,11 +1,13 @@
+import type { ApprovalAuthority, ApprovalDecider } from '../team/approval-contract.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ToolApprovalActor } from './tool-approval-actor.js';
 export type { ToolApprovalActor } from './tool-approval-actor.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
-import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
+import type { ApprovalOutcome, ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -25,6 +27,17 @@ import {
   type ApprovalReviewResult,
 } from './approval-reviewer.js';
 import { requiresHumanDecision } from './approval-templates.js';
+import { decideToolApproval, toolEffects, type ToolEffects } from './tool-effects.js';
+
+export type ToolApprovalOriginQuery = {
+  sessionId: Agent['session']['id'];
+  callId: ToolExecution['callId'];
+};
+
+export type ToolApprovalOrigin = {
+  kind: 'turn' | 'direct';
+  channelId: string;
+};
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -33,7 +46,15 @@ export interface BotCreatePreview {
   avatarError?: string;
 }
 
+export type ToolApprovalReview =
+  | { kind: 'template-unavailable'; reason: string }
+  | { kind: 'review'; template: string; version: string; reason: string; fallback?: string };
+
 export interface ToolApprovalRequestCard {
+  effects?: ToolEffects;
+  approvalReview?: ToolApprovalReview;
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId: string;
   callId: string;
   toolName: string;
@@ -56,6 +77,7 @@ export interface ToolApprovalNotice extends ToolApprovalRequestCard {
 export interface ToolApprovalDecision {
   requestMessageId: string;
   actor?: ToolApprovalActor;
+  decidedBy?: ApprovalDecider;
   outcome:
     | 'allowed-once'
     | 'allowed-always-tool'
@@ -72,31 +94,33 @@ export interface ToolAutoApproval {
   log(entry: {
     botSlug: string;
     template: string;
+    templateVersion?: string;
     toolName: string;
     outcome: ApprovalReview['outcome'];
     latencyMs: number;
     model?: string;
     reviewSession?: string;
     fallback?: string;
-    detail?: string;
   }): void;
 }
 
-type TrackedCall = ToolApprovalRequestCard & {
-  botSlug: string;
-  agent: Agent;
-  scopeKey: string;
-  automatic?: boolean;
-  requireExplicitApproval?: boolean;
-  humanReviewed?: boolean;
-  reviewerApproved?: boolean;
-  authorizationScope?: () => string;
-  rememberable?: boolean;
-  remembered?: boolean;
-  execution: ToolExecution;
-  authorized?: () => boolean;
-  device?: 'computer' | 'browser';
-};
+type TrackedCall = ToolApprovalRequestCard &
+  ToolApprovalOriginQuery & {
+    botSlug: string;
+    agent: Agent;
+    scopeKey: string;
+    automatic?: boolean;
+    requireExplicitApproval?: boolean;
+    humanReviewed?: boolean;
+    reviewerApproved?: boolean;
+    authorizationScope?: () => string;
+    rememberable?: boolean;
+    remembered?: boolean;
+    execution: ToolExecution;
+
+    authorized?: () => boolean;
+    device?: 'computer' | 'browser';
+  };
 type Pending = {
   botSlug: string;
   channelId: string;
@@ -111,17 +135,7 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-export const AUTO_APPROVAL_CONSECUTIVE_REJECTIONS = 3;
-export const AUTO_APPROVAL_SESSION_REJECTIONS = 20;
-
-type Breaker = {
-  botSlug: string;
-  channelId: string;
-  template: string;
-  consecutive: number;
-  total: number;
-  paused: boolean;
-};
+const STOPPED_REQUEST_MEMORY = 500;
 
 export type AutoRejectionOverrideResult =
   | { ok: true; message: ChannelMessage }
@@ -178,9 +192,12 @@ export class ChannelToolApproval {
       ) => AssignmentApprovalWaitLease | undefined)
     | undefined;
   readonly #scope: (agent: Agent, owner: SessionOwnershipRecord) => string | undefined;
-  readonly #askChannel: ((sessionId: string) => string | undefined) | undefined;
+  readonly #origin:
+    | ((query: ToolApprovalOriginQuery) => ToolApprovalOrigin | undefined)
+    | undefined;
   readonly #tracked = new Map<string, TrackedCall>();
   readonly #pending = new Map<string, Pending>();
+  readonly #stopped = new Set<string>();
   readonly #listeners = new Set<
     (notice: ToolApprovalNotice, status: 'pending' | ApprovalOutcome) => void
   >();
@@ -189,8 +206,6 @@ export class ChannelToolApproval {
     | undefined;
   readonly #autoApproval: ToolAutoApproval | undefined;
   readonly #fullAccess: ((sessionId: string) => boolean) | undefined;
-  readonly #reviewRejections = new Map<string, string>();
-  readonly #breakers = new Map<string, Breaker>();
   readonly #overrides = new Set<string>();
   readonly #overridden = new Set<string>();
 
@@ -205,13 +220,15 @@ export class ChannelToolApproval {
       callId: string,
       signal: AbortSignal,
     ) => AssignmentApprovalWaitLease | undefined,
-    askChannel?: (sessionId: string) => string | undefined,
+    origin?: (query: ToolApprovalOriginQuery) => ToolApprovalOrigin | undefined,
     autoApproval?: ToolAutoApproval,
     fullAccess?: (sessionId: string) => boolean,
+    private readonly approvals?: ApprovalAuthority,
+    private readonly directInvocation?: (query: ToolApprovalOriginQuery) => boolean,
   ) {
     this.#fullAccess = fullAccess;
     this.#autoApproval = autoApproval;
-    this.#askChannel = askChannel;
+    this.#origin = origin;
     this.#channels = channels;
     this.#ownership = ownership;
     this.#rules = rules;
@@ -244,6 +261,7 @@ export class ChannelToolApproval {
     const scopeKey = this.#scope(agent, owner);
     if (scopeKey === undefined) return undefined;
     const key = callKey(agent.session.id, execution.callId);
+    const effects = toolEffects(execution.name, execution.arguments);
     const tracked: TrackedCall = {
       agent,
       botSlug: owner.botSlug,
@@ -256,6 +274,7 @@ export class ChannelToolApproval {
       scopeKey,
       ...(options?.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
       execution,
+      ...(effects === undefined ? {} : { effects }),
       externalDecision,
       ...(options?.requireExplicitApproval ? { requireExplicitApproval: true } : {}),
       ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
@@ -270,6 +289,54 @@ export class ChannelToolApproval {
         this.cancelInvalid();
       }
     };
+  }
+
+  async askEngine(request: {
+    session: Pick<Agent['session'], 'id' | 'header' | 'snapshotEvents'>;
+    callId: string;
+    toolName: string;
+    input: Record<string, unknown>;
+    reason?: string | undefined;
+    device?: { kind: 'computer' | 'browser'; authorizationScope?: () => string } | undefined;
+    signal: AbortSignal;
+  }): Promise<ApprovalOutcome> {
+    const agent = {
+      id: `engine:${request.session.id}`,
+      session: request.session,
+    } as unknown as Agent;
+    const execution = {
+      name: request.toolName,
+      callId: request.callId,
+      arguments: Object.freeze(structuredClone(request.input)),
+      agent,
+      signal: request.signal,
+    } as unknown as ToolExecution;
+    const untrack =
+      request.device === undefined
+        ? this.track(execution)
+        : this.track(
+            execution,
+            'operation',
+            false,
+            request.device.kind,
+            undefined,
+            request.device.authorizationScope === undefined
+              ? undefined
+              : { authorizationScope: request.device.authorizationScope },
+          );
+    if (untrack === undefined) return 'unavailable';
+    try {
+      return (
+        (await this.ask({
+          agent,
+          toolName: request.toolName,
+          callId: request.callId,
+          signal: request.signal,
+        })) ?? 'unavailable'
+      );
+    } finally {
+      untrack();
+    }
   }
 
   async ask(request: {
@@ -295,47 +362,81 @@ export class ChannelToolApproval {
       this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
-    const policyChange = this.#changesPolicy(tracked);
-    if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
-      tracked.externalDecision !== 'each-use' &&
-      this.#fullAccess?.(tracked.sessionId) === true
-    ) {
+    const query = { sessionId: tracked.sessionId, callId: tracked.callId };
+    const direct = this.directInvocation?.(query) === true;
+    const directOrigin = direct ? this.#origin?.(query) : undefined;
+    if (direct && directOrigin === undefined) return 'unavailable';
+    const policy = this.#decisionPolicy(tracked, {
+      fullAccess: this.#fullAccess?.(tracked.sessionId) === true,
+    });
+    if (policy.path === 'full-access') {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
     const standing =
       tracked.externalDecision === 'each-use' ? undefined : this.#matchingRule(tracked);
-    if (standing !== undefined) {
+    if (
+      standing !== undefined &&
+      this.#decisionPolicy(tracked, {
+        standingRule: this.#explicitRuleRequired(tracked) ? 'explicit' : 'ordinary',
+      }).path === 'standing-rule'
+    ) {
       tracked.automatic = true;
       this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
     }
     const origin =
-      tracked.role === 'orchestrator' ? this.#askChannel?.(tracked.sessionId) : undefined;
-    const originChannel = origin === undefined ? undefined : this.#channels.get(origin);
-    const channelId =
-      originChannel?.type === 'group' && originChannel.members.includes(tracked.botSlug)
-        ? originChannel.id
-        : dmChannelId(tracked.botSlug);
-    const channel = this.#channels.get(channelId) ?? this.#channels.getOrCreateDm(tracked.botSlug);
+      directOrigin ?? (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
+    if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
+      return 'unavailable';
+    const originChannel = origin === undefined ? undefined : this.#channels.get(origin.channelId);
+    const channel =
+      origin === undefined
+        ? (this.#channels.get(dmChannelId(tracked.botSlug)) ??
+          this.#channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, tracked.botSlug))
+        : originChannel;
     if (channel === undefined) return 'unavailable';
-    if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
     if (
-      !policyChange &&
-      !tracked.requireExplicitApproval &&
+      channel.type === 'group'
+        ? !channel.members.includes(tracked.botSlug)
+        : channel.botSlug !== tracked.botSlug
+    )
+      return 'unavailable';
+    const channelId = channel.id;
+    if (
+      this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer' &&
       this.#overrides.delete(overrideKey(tracked))
     ) {
       tracked.humanReviewed = true;
       return 'allowed-once';
     }
-    const template =
-      policyChange || tracked.requireExplicitApproval
-        ? undefined
-        : this.#autoApproval?.template(tracked.botSlug);
-    if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
-      const reviewed = await this.#review(tracked, template, channelId, request.signal);
+    let template: { name: string; text: string } | undefined;
+    try {
+      template =
+        this.#decisionPolicy(tracked, { reviewer: true }).path === 'reviewer'
+          ? this.#autoApproval?.template(tracked.botSlug)
+          : undefined;
+    } catch {
+      tracked.approvalReview = {
+        kind: 'template-unavailable',
+        reason: 'The selected approval template could not be read.',
+      };
+      try {
+        this.#autoApproval?.log({
+          botSlug: tracked.botSlug,
+          template: '',
+          toolName: tracked.toolName,
+          outcome: 'ask-human',
+          latencyMs: 0,
+          fallback: 'selected-template-unavailable',
+        });
+      } catch {}
+    }
+    if (template !== undefined) {
+      const reviewed = await this.#review(tracked, template, channelId, {
+        signal: request.signal,
+        includeSessionHistory: origin?.kind !== 'direct',
+      });
       if (reviewed !== undefined) return reviewed;
       if (request.signal?.aborted) return 'cancelled';
     }
@@ -351,8 +452,10 @@ export class ChannelToolApproval {
         role: tracked.role,
         cwd: tracked.cwd,
         input: tracked.input,
+        ...(tracked.effects === undefined ? {} : { effects: tracked.effects }),
+        ...(tracked.approvalReview === undefined ? {} : { approvalReview: tracked.approvalReview }),
         externalDecision: tracked.externalDecision ?? 'operation',
-        allowAlways: tracked.externalDecision !== 'each-use' || tracked.rememberable === true,
+        allowAlways: policy.rememberable,
         ...(tracked.botCreatePreview === undefined
           ? {}
           : { botCreatePreview: tracked.botCreatePreview }),
@@ -393,7 +496,7 @@ export class ChannelToolApproval {
           tracked.callId,
           request.signal ?? new AbortController().signal,
         );
-      const committed = await this.#channels.appendMessage(channelId, message);
+      const committed = await this.#channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, message);
       if (committed === undefined) return 'unavailable';
       if (this.#pending.get(message.id) === pending) {
         pending.committed = true;
@@ -543,8 +646,26 @@ export class ChannelToolApproval {
     return [...this.#pending.values()].map((pending) => pending.sessionId);
   }
 
-  status(botSlug: string, messageId: string): 'pending' | 'expired' {
-    return this.#pending.get(messageId)?.botSlug === botSlug ? 'pending' : 'expired';
+  status(botSlug: string, messageId: string): 'pending' | 'expired' | 'stopped' {
+    if (this.#pending.get(messageId)?.botSlug === botSlug) return 'pending';
+    return this.#stopped.has(messageId) ? 'stopped' : 'expired';
+  }
+
+  closeSessions(sessionIds: readonly string[]): string[] {
+    const ids = new Set(sessionIds);
+    const closed: string[] = [];
+    for (const [messageId, pending] of this.#pending) {
+      if (!ids.has(pending.sessionId)) continue;
+      this.#stopped.add(messageId);
+      while (this.#stopped.size > STOPPED_REQUEST_MEMORY) {
+        const oldest = this.#stopped.values().next().value;
+        if (oldest === undefined) break;
+        this.#stopped.delete(oldest);
+      }
+      closed.push(messageId);
+      this.#settle(messageId, 'cancelled');
+    }
+    return closed;
   }
 
   expiresAt(botSlug: string, messageId: string): string | undefined {
@@ -553,6 +674,7 @@ export class ChannelToolApproval {
   }
 
   async decide(
+    human: HumanContext,
     botSlug: string,
     messageId: string,
     outcome: ToolApprovalDecision['outcome'],
@@ -572,6 +694,7 @@ export class ChannelToolApproval {
       Date.parse(pending.notice.expiresAt) <= Date.now()
     )
       return false;
+    this.approvals?.requireRequest(human, pending.channelId, messageId);
     const eachUse = pending.notice.externalDecision === 'each-use';
     const remember =
       eachUse &&
@@ -689,11 +812,17 @@ export class ChannelToolApproval {
         replyTo: messageId,
         toolApprovalDecision: {
           requestMessageId: messageId,
+          decidedBy: this.approvals?.decider(human) ?? { humanId: human.humanId },
           outcome,
           ...(external ? { actor: external.actor } : {}),
         },
       };
-      if ((await this.#channels.appendMessage(pending.channelId, decision)) === undefined) {
+      if (
+        (await this.#channels.appendMessage(human, pending.channelId, decision, undefined, () => {
+          this.approvals?.requireRequest(human, pending.channelId, messageId);
+          return true;
+        })) === undefined
+      ) {
         if (rule !== undefined) this.#rules?.revoke(botSlug, rule.id);
         return false;
       }
@@ -723,10 +852,19 @@ export class ChannelToolApproval {
       if (external && outcome !== 'rejected')
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
+      if (!external && this.approvals && outcome !== 'rejected') {
+        tracked.authorized = () => {
+          try {
+            this.approvals?.requireRequest(human, pending.channelId, messageId);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+      }
       if (remember) tracked.remembered = true;
       if (outcome !== 'rejected') tracked.humanReviewed = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
-      if (outcome !== 'rejected') await this.#resume(tracked.sessionId);
       return true;
     } finally {
       pending.deciding = false;
@@ -736,17 +874,16 @@ export class ChannelToolApproval {
   close(): void {
     for (const id of this.#pending.keys()) this.#settle(id, 'cancelled');
     this.#tracked.clear();
-    this.#reviewRejections.clear();
-    this.#breakers.clear();
     this.#overrides.clear();
     this.#overridden.clear();
   }
 
-  autoApprovalPaused(sessionId: string): boolean {
-    return this.#breakers.get(sessionId)?.paused === true;
+  autoApprovalPaused(_sessionId: string): boolean {
+    return false;
   }
 
   async overrideRejection(
+    human: HumanContext,
     channelId: string,
     recordMessageId: string,
   ): Promise<AutoRejectionOverrideResult> {
@@ -771,7 +908,7 @@ export class ChannelToolApproval {
     };
     let appended: ChannelMessage | undefined;
     try {
-      appended = await this.#channels.appendMessage(channelId, message);
+      appended = await this.#channels.appendMessage(human, channelId, message);
     } catch {
       appended = undefined;
     }
@@ -782,86 +919,7 @@ export class ChannelToolApproval {
     bounded(this.#overridden, 1024);
     this.#overrides.add(overrideKey(record));
     bounded(this.#overrides, 256);
-    await this.#resume(record.sessionId);
     return { ok: true, message: appended };
-  }
-
-  async #trip(
-    tracked: TrackedCall,
-    template: string,
-    channelId: string,
-    allowed: boolean,
-  ): Promise<void> {
-    const breaker = this.#breakers.get(tracked.sessionId) ?? {
-      botSlug: tracked.botSlug,
-      channelId,
-      template,
-      consecutive: 0,
-      total: 0,
-      paused: false,
-    };
-    breaker.channelId = channelId;
-    breaker.template = template;
-    if (allowed) {
-      breaker.consecutive = 0;
-    } else {
-      breaker.consecutive += 1;
-      breaker.total += 1;
-    }
-    this.#breakers.delete(tracked.sessionId);
-    this.#breakers.set(tracked.sessionId, breaker);
-    if (this.#breakers.size > 1024) this.#breakers.delete(this.#breakers.keys().next().value!);
-    const reason =
-      breaker.consecutive >= AUTO_APPROVAL_CONSECUTIVE_REJECTIONS
-        ? 'consecutive'
-        : breaker.total >= AUTO_APPROVAL_SESSION_REJECTIONS
-          ? 'session'
-          : undefined;
-    if (reason === undefined || breaker.paused) return;
-    breaker.paused = true;
-    await this.#pauseNotice(tracked.sessionId, breaker, 'paused', reason);
-  }
-
-  async #resume(sessionId: string): Promise<void> {
-    const breaker = this.#breakers.get(sessionId);
-    if (breaker?.paused !== true) return;
-    this.#breakers.delete(sessionId);
-    await this.#pauseNotice(sessionId, breaker, 'resumed');
-  }
-
-  async #pauseNotice(
-    sessionId: string,
-    breaker: Breaker,
-    state: 'paused' | 'resumed',
-    reason?: 'consecutive' | 'session',
-  ): Promise<void> {
-    const body =
-      state === 'resumed'
-        ? 'Auto approval resumed for this Session.'
-        : reason === 'consecutive'
-          ? 'Auto approval paused for this Session after ' +
-            AUTO_APPROVAL_CONSECUTIVE_REJECTIONS +
-            ' rejections in a row. Every request posts a card until you approve one.'
-          : 'Auto approval paused for this Session after ' +
-            AUTO_APPROVAL_SESSION_REJECTIONS +
-            ' rejections. Every request posts a card until you approve one.';
-    try {
-      await this.#channels.appendMessage(breaker.channelId, {
-        id: randomUUID(),
-        at: new Date().toISOString(),
-        author: { kind: 'system' },
-        body,
-        toolAutoApprovalPause: {
-          botSlug: breaker.botSlug,
-          sessionId,
-          template: breaker.template,
-          state,
-          ...(reason === undefined ? {} : { reason }),
-        },
-      });
-    } catch {
-      this.#attention?.warn('auto-approval-pause-notice-failed');
-    }
   }
 
   #changesPolicy(tracked: TrackedCall): boolean {
@@ -882,58 +940,123 @@ export class ChannelToolApproval {
       : scope;
   }
 
+  #decisionPolicy(
+    tracked: TrackedCall,
+    options: {
+      fullAccess?: boolean;
+      standingRule?: 'none' | 'ordinary' | 'explicit';
+      reviewer?: boolean;
+    } = {},
+  ) {
+    return decideToolApproval(tracked.effects, {
+      stage: 'request',
+      legacyProtected: this.#changesPolicy(tracked),
+      explicitApproval: tracked.requireExplicitApproval === true,
+      eachUse: tracked.externalDecision === 'each-use',
+      device: tracked.device !== undefined,
+      fullAccess: options.fullAccess === true,
+      standingRule: options.standingRule ?? 'none',
+      reviewer: options.reviewer === true,
+      rememberable: tracked.rememberable === true,
+    });
+  }
+
   #explicitRuleRequired(tracked: TrackedCall): boolean {
-    return (
-      this.#changesPolicy(tracked) ||
-      tracked.requireExplicitApproval === true ||
-      tracked.device !== undefined
-    );
+    return this.#decisionPolicy(tracked).explicitRule;
   }
 
   #matchingRule(tracked: TrackedCall): ToolApprovalRule | undefined {
     return this.#rules?.match({ ...tracked, explicitOnly: this.#explicitRuleRequired(tracked) });
   }
 
-  takeReviewRejection(sessionId: string, callId: string): string | undefined {
-    const key = callKey(sessionId, callId);
-    const reason = this.#reviewRejections.get(key);
-    this.#reviewRejections.delete(key);
-    return reason;
+  takeReviewRejection(_sessionId: string, _callId: string): string | undefined {
+    return undefined;
   }
 
   async #review(
     tracked: TrackedCall,
     template: { name: string; text: string },
     channelId: string,
-    signal: AbortSignal | undefined,
-  ): Promise<'allowed-once' | 'rejected' | undefined> {
+    options: { signal: AbortSignal | undefined; includeSessionHistory: boolean },
+  ): Promise<'allowed-once' | undefined> {
+    const { signal } = options;
     const auto = this.#autoApproval;
     if (auto === undefined) return undefined;
+    template = { ...template };
+    const templateVersion = createHash('sha256').update(template.text).digest('hex');
+    tracked.approvalReview = {
+      kind: 'review',
+      template: template.name,
+      version: templateVersion,
+      reason: 'Automatic review unavailable.',
+    };
     const started = Date.now();
     let model: string | undefined;
     let reviewSession: string | undefined;
-    const log = (outcome: ApprovalReview['outcome'], fallback?: string, detail?: string) => {
+    const log = (outcome: ApprovalReview['outcome'], fallback?: string) => {
       try {
         auto.log({
           botSlug: tracked.botSlug,
           template: template.name,
+          templateVersion,
           toolName: tracked.toolName,
           outcome,
           latencyMs: Date.now() - started,
           ...(model === undefined ? {} : { model }),
           ...(reviewSession === undefined ? {} : { reviewSession }),
           ...(fallback === undefined ? {} : { fallback }),
-          ...(detail === undefined ? {} : { detail }),
         });
       } catch {
-        this.#attention?.warn('approval-review-log-failed');
+        try {
+          this.#attention?.warn('approval-review-log-failed');
+        } catch {}
+      }
+    };
+    const recordReview = async (
+      outcome: 'allowed' | 'ask-human',
+      reason: string,
+    ): Promise<boolean> => {
+      const key = callKey(tracked.sessionId, tracked.callId);
+      if (signal?.aborted || this.#tracked.get(key) !== tracked) return false;
+      const record: ChannelMessage = {
+        id: randomUUID(),
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body:
+          (outcome === 'allowed' ? 'Auto-approved by ' : 'Sent to Human by ') +
+          template.name +
+          ': ' +
+          reason,
+        toolAutoApproval: {
+          botSlug: tracked.botSlug,
+          sessionId: tracked.sessionId,
+          callId: tracked.callId,
+          toolName: tracked.toolName,
+          input: reviewerCallInput(tracked.toolName, tracked.input),
+          template: template.name,
+          templateVersion,
+          outcome,
+          reason,
+        },
+      };
+      try {
+        const appended = await this.#channels.appendMessage(
+          OWNER_HUMAN_CONTEXT,
+          channelId,
+          record,
+          undefined,
+          () => !signal?.aborted && this.#tracked.get(key) === tracked,
+        );
+        return appended !== undefined && !signal?.aborted && this.#tracked.get(key) === tracked;
+      } catch {
+        return false;
       }
     };
     let review: ApprovalReviewResult;
     try {
       review = await auto.review({
         botSlug: tracked.botSlug,
-        template,
+        template: { ...template, version: templateVersion },
         call: {
           toolName: tracked.toolName,
           input: reviewerCallInput(tracked.toolName, tracked.input),
@@ -945,7 +1068,7 @@ export class ChannelToolApproval {
             : { authorization: { device: tracked.device, sessionId: tracked.sessionId } }),
         },
         excerpt: approvalSessionExcerpt(
-          tracked.agent.session.snapshotEvents(),
+          options.includeSessionHistory ? tracked.agent.session.snapshotEvents() : [],
           tracked.callId,
           auto.excerptLimits?.(tracked.botSlug),
         ),
@@ -955,10 +1078,30 @@ export class ChannelToolApproval {
       const failure = error as
         | { code?: unknown; detail?: unknown; model?: unknown; sessionId?: unknown }
         | undefined;
-      const code = typeof failure?.code === 'string' ? failure.code : 'review-failed';
+      const code =
+        typeof failure?.code === 'string' &&
+        [
+          'no-model',
+          'model-unavailable',
+          'settings-invalid',
+          'llm-unavailable',
+          'timeout',
+          'model-error',
+          'unparseable',
+        ].includes(failure.code)
+          ? failure.code
+          : 'review-failed';
+      tracked.approvalReview = {
+        kind: 'review',
+        template: template.name,
+        version: templateVersion,
+        reason: 'Automatic review unavailable (' + code + ').',
+        fallback: code,
+      };
       if (typeof failure?.model === 'string') model = failure.model;
       if (typeof failure?.sessionId === 'string') reviewSession = failure.sessionId;
-      log('ask-human', code, typeof failure?.detail === 'string' ? failure.detail : undefined);
+      await recordReview('ask-human', tracked.approvalReview.reason);
+      log('ask-human', code);
       return undefined;
     }
     model = review.model;
@@ -967,54 +1110,24 @@ export class ChannelToolApproval {
       log('ask-human', 'cancelled');
       return undefined;
     }
-    if (review.outcome === 'ask-human') {
+    if (review.outcome !== 'allow') {
+      tracked.approvalReview = {
+        kind: 'review',
+        template: template.name,
+        version: templateVersion,
+        reason: review.reason,
+      };
+      await recordReview('ask-human', review.reason);
       log('ask-human');
       return undefined;
     }
-    const allowed = review.outcome === 'allow';
-    const key = callKey(tracked.sessionId, tracked.callId);
-    if (this.#tracked.get(key) !== tracked) {
-      log(review.outcome, 'call-changed');
-      return undefined;
-    }
-    const record: ChannelMessage = {
-      id: randomUUID(),
-      at: new Date().toISOString(),
-      author: { kind: 'system' },
-      body:
-        (allowed ? 'Auto-approved by ' : 'Auto-rejected by ') +
-        template.name +
-        ': ' +
-        review.reason,
-      toolAutoApproval: {
-        botSlug: tracked.botSlug,
-        sessionId: tracked.sessionId,
-        callId: tracked.callId,
-        toolName: tracked.toolName,
-        input: reviewerCallInput(tracked.toolName, tracked.input),
-        template: template.name,
-        outcome: allowed ? 'allowed' : 'rejected',
-        reason: review.reason,
-      },
-    };
-    try {
-      if ((await this.#channels.appendMessage(channelId, record)) === undefined) {
-        log(review.outcome, 'record-unavailable');
-        return undefined;
-      }
-    } catch {
-      log(review.outcome, 'record-failed');
+    if (!(await recordReview('allowed', review.reason))) {
+      log(review.outcome, 'record-unavailable');
       return undefined;
     }
     log(review.outcome);
-    await this.#trip(tracked, template.name, channelId, allowed);
-    if (allowed) tracked.reviewerApproved = true;
-    if (!allowed) {
-      if (this.#reviewRejections.size >= 256)
-        this.#reviewRejections.delete(this.#reviewRejections.keys().next().value!);
-      this.#reviewRejections.set(key, review.reason);
-    }
-    return allowed ? 'allowed-once' : 'rejected';
+    tracked.reviewerApproved = true;
+    return 'allowed-once';
   }
 
   rule(botSlug: string, ruleId: string): ToolApprovalRule | undefined {
@@ -1081,6 +1194,25 @@ export class ChannelToolApproval {
     pending.signal?.removeEventListener('abort', pending.abort);
     pending.resolve(outcome);
   }
+}
+
+export async function requestRequiredToolApproval({
+  approval,
+  channelApproval,
+  ownership,
+  request,
+  forceChannel,
+}: {
+  approval: Pick<ApprovalService, 'request'>;
+  channelApproval: Pick<ChannelToolApproval, 'ask'>;
+  ownership: Pick<SessionOwnership, 'resolve'>;
+  request: Parameters<ApprovalService['request']>[0];
+  forceChannel: boolean;
+}): Promise<ApprovalOutcome> {
+  const owner = ownership.resolve(request.agent.session.id);
+  if (forceChannel && owner !== undefined && owner.parentSessionId === undefined)
+    return (await channelApproval.ask(request)) ?? 'unavailable';
+  return approval.request(request);
 }
 
 export function registerChannelToolApproval(

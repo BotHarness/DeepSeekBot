@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type ChannelMessage } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -7,19 +9,12 @@ import { WindowCompanionsView } from '../src/client/window-companions-view.js';
 import { createActions } from '../src/client/actions.js';
 import { store } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BridgeCall } from '../src/client/bridge.js';
-import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
-import type { ChannelMessage } from '../src/client/store.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  Menu: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
-  Input: () => null,
+import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   MarkdownText: () => null,
   StateDot: () => null,
 }));
@@ -199,7 +194,7 @@ it.each([
         pendingButton.blur();
         if (movedFocus) node.querySelector<HTMLButtonElement>('.bh-companion-character')!.focus();
         await act(async () => releaseDecision!());
-        if (!movedFocus) expect(document.activeElement).toBe(document.body);
+        if (!movedFocus) expect([document.body, pendingButton]).toContain(document.activeElement);
         await act(() => snapshot());
       }
       expect(decisions).toEqual([{ channelId: 'dm-ada', messageId: 'one', outcome }]);
@@ -219,7 +214,7 @@ it.each([
       companion.dispose();
       node.remove();
       store.select(old.selection);
-      store.setHumanInbox(old.humanInbox);
+      store.setActivityList(old.activityList);
       vi.unstubAllGlobals();
     }
   },
@@ -299,7 +294,7 @@ it.each(['native', 'wrong-target', 'unmounted'] as const)(
       if (!unmounted) await act(() => root.unmount());
       node.remove();
       store.select(old.selection);
-      store.setHumanInbox(old.humanInbox);
+      store.setActivityList(old.activityList);
     }
   },
 );

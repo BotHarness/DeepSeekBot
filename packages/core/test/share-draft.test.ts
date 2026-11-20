@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -13,6 +14,7 @@ import { createCore } from '../src/plugin.js';
 import { createTobShareDraftOperations } from '../src/tob/cli-share-draft-operations.js';
 import { TobError } from '../src/tob/service.js';
 import { createTempRoot } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const closes: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -59,7 +61,7 @@ function fixture() {
     memoryDir: (slug) =>
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
   });
-  const bridge = createBridgeMethods({ ...core, shareDrafts: drafts });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, shareDrafts: drafts });
   const created = bridge.create({ displayName: 'Helper', operationKey: 'create-helper-01' });
   if (!created.ok) throw new Error(created.error.code);
   const slug = created.value.bot.slug;
@@ -67,9 +69,11 @@ function fixture() {
   write(memory, 'notes/today.md', 'Today I wrote a poem.');
   write(memory, 'notes/keys.md', 'Deploy key: sk-live0123456789abcdefghijkl\nUse it for the API.');
   write(memory, 'notes/contacts.md', 'Mail alice@example.com or call +1 415-555-0100.');
-  execFileSync('git', ['add', '-A'], { cwd: memory });
+  execFileSync('git', ['add', '-A'], { cwd: memory, shell: false, windowsHide: true });
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'seed'], {
     cwd: memory,
+    shell: false,
+    windowsHide: true,
   });
   return { core, bridge, drafts, slug, memory };
 }
@@ -86,7 +90,12 @@ describe('Share Draft', () => {
   it('copies the Memory into a draft, decides each file, and never changes the source', () => {
     const f = fixture();
     const before = tree(f.memory);
-    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: f.memory, encoding: 'utf8' });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: f.memory,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    });
     const started = f.bridge.shareDraftStart({ slug: f.slug });
     if (!started.ok) throw new Error(started.error.code);
     expect(started.value.state).toBe('reviewing');
@@ -138,11 +147,21 @@ describe('Share Draft', () => {
     expect(existsSync(join(source.value.dir, 'notes/keys.md'))).toBe(false);
 
     expect(tree(f.memory)).toEqual(before);
-    expect(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: f.memory, encoding: 'utf8' })).toBe(
-      head,
-    );
     expect(
-      execFileSync('git', ['status', '--porcelain'], { cwd: f.memory, encoding: 'utf8' }),
+      execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: f.memory,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
+    ).toBe(head);
+    expect(
+      execFileSync('git', ['status', '--porcelain'], {
+        cwd: f.memory,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
     ).toBe('');
   });
 
@@ -253,26 +272,28 @@ describe('share-draft CLI', () => {
 
   async function host() {
     const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-    const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-      if (req.method === 'GET') {
-        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-        res.writeHead(302, { location: '/' }).end();
-        return;
-      }
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = JSON.parse(Buffer.concat(chunks).toString());
-      const method = body.method.replace('botharness/', '');
-      calls.push({ method, args: body.payload.args });
-      res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({
-          type: 'server-response',
-          rpcId: body.rpcId,
-          result: { ok: true, value: { method } },
-        }),
-      );
-    });
+    const server = createServer(
+      requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'GET') {
+          res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+          res.writeHead(302, { location: '/' }).end();
+          return;
+        }
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const method = body.method.replace('botharness/', '');
+        calls.push({ method, args: body.payload.args });
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            type: 'server-response',
+            rpcId: body.rpcId,
+            result: { ok: true, value: { method } },
+          }),
+        );
+      }),
+    );
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();

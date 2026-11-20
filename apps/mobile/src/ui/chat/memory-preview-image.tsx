@@ -2,8 +2,8 @@ import { use, useState } from 'react';
 import { Pressable, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import { Image } from 'expo-image';
 
-import type { HostClient } from '../../host/client';
-import type { MessageAttachment } from '../../host/conversation';
+import type { HostClient } from '@botharness/host-client/client';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import {
   imageReferenceKind,
   loadPreviewImage,
@@ -11,8 +11,9 @@ import {
   type MemoryPreviewIO,
   type PreviewImage,
 } from '../../host/memory-preview';
-import type { MemoryImage, MemoryMarkdown } from '../../host/wire';
+import type { MemoryImage, MemoryMarkdown } from '@botharness/host-protocol/wire';
 import { shareAttachment } from '../../host/share-attachment';
+import { retainHostActivity } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -114,7 +115,7 @@ export function MemoryPreviewImage({
         };
   const share = async (value: MessageAttachment) => {
     try {
-      await shareAttachment(value);
+      await shareAttachment(value, undefined, () => retainHostActivity(client));
     } catch {
       setFailure('memory-image-share-failed');
     }

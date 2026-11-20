@@ -17,6 +17,7 @@ import type {
 } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ProfileCardDescriptor, ProfileCardViewProps } from './profile-cards.js';
+import { BotSkillsCard } from './bot-skills-card.js';
 import { useIdentityTones } from './model-usage-charts.js';
 import { ModelUsageBreakdown } from './model-usage-breakdown.js';
 import { profileTokenSummaryText } from './profile-token-summary.js';
@@ -681,6 +682,18 @@ export function createProfileCardBuiltins(
       label: t('profile.card.memory'),
       order: 20,
       render: (props) => <MemoryActivityCard {...props} />,
+    },
+    {
+      id: 'skills',
+      label: t('profile.card.skills'),
+      order: 30,
+      visible: (bot) => bot.deleted !== true,
+      render: ({ bot, skills, t }) =>
+        skills === undefined ? (
+          <div className="bh-profile-empty">{t('skills.empty', { name: bot.displayName })}</div>
+        ) : (
+          <BotSkillsCard source={skills} botName={bot.displayName} t={t} />
+        ),
     },
   ];
 }

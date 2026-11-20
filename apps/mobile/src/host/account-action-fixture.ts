@@ -1,21 +1,30 @@
-import { createConnectAccount } from './connect-account';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
 import { removeAccountConnections } from './account-connections';
-import type { AccountOwner } from './account-owner';
-import { parseSavedHosts, type SavedHost, type SavedHosts } from './hosts';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
+import { parseSavedHosts, type SavedHost, type SavedHosts } from '@botharness/host-client/hosts';
 
 export type AccountFixtureScenario =
+  | 'connection-diagnostics'
+  | 'connection-diagnostics-network'
+  | 'connection-diagnostics-session'
+  | 'connection-diagnostics-invalid'
+  | 'connection-diagnostics-list'
   | 'success'
   | 'delete-partial'
   | 'local-write'
   | 'session-write'
   | 'expired-retry'
   | 'completion-write'
+  | 'linked-computers'
+  | 'linked-computers-refresh-failure'
   | 'environments';
 
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 export function createAccountActionFixture(scenario: AccountFixtureScenario = 'success') {
+  const diagnostics = scenario.startsWith('connection-diagnostics');
+  const linked = scenario === 'linked-computers' || scenario === 'linked-computers-refresh-failure';
   const owner: AccountOwner = {
     issuer: 'https://api.workos.com',
     relay: 'https://fixture.invalid',
@@ -50,6 +59,7 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
   let failed = false;
   let remoteDeleted = false;
   let sequence = 0;
+  const unlinked = new Set<string>();
   const counters = {
     accountWrites: 0,
     pairingWrites: 0,
@@ -68,6 +78,7 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
       current: state.current ?? null,
       pending: state.pendingAccountRemoval?.map((host) => host.hostId) ?? [],
       remoteDeleted,
+      unlinked: [...unlinked],
     });
     for (const listener of listeners) listener();
   };
@@ -106,12 +117,78 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
           publish();
           if ((scenario === 'expired-retry' || scenario === 'completion-write') && failed)
             return response({}, 400);
+          if (scenario === 'connection-diagnostics-session' && counters.refreshes > 1)
+            return response({}, 502);
           return response({ access_token: 'fixture-access', user: { id: owner.subject } });
+        }
+        if (
+          scenario === 'linked-computers-refresh-failure' &&
+          url === `${owner.relay}/v1/hosts` &&
+          unlinked.size > 0 &&
+          !failed
+        ) {
+          failed = true;
+          return response({}, 502);
+        }
+        if (diagnostics && url.endsWith('/offer')) {
+          if (url.endsWith('/hlaptop/offer'))
+            return response({ error: { code: 'host-offline', cause: 'fixture-secret' } }, 409);
+          if (scenario === 'connection-diagnostics-network')
+            throw new Error(
+              'DNS lookup failed https://private.fixture.invalid?token=fixture-secret Authorization Bearer fixture-secret',
+            );
+          if (scenario === 'connection-diagnostics-invalid')
+            return response({ invalid: 'fixture-secret' });
+          return response(
+            {
+              error: {
+                code: 'upstream-unavailable',
+                message: 'Authorization Bearer fixture-secret',
+              },
+            },
+            502,
+          );
+        }
+        if (diagnostics && url === `${owner.relay}/v1/hosts`) {
+          if (scenario === 'connection-diagnostics-list' && counters.refreshes > 1)
+            return response({}, 503);
+          return response({
+            hosts: [
+              {
+                id: 'hstudio',
+                name: 'Studio Mac',
+                hostname: 'studio.fixture.invalid',
+                tunnel: true,
+              },
+              {
+                id: 'hlaptop',
+                name: 'Travel Laptop',
+                hostname: 'laptop.fixture.invalid',
+                tunnel: true,
+              },
+            ],
+          });
         }
         if (url === `${owner.relay}/v1/hosts`)
           return response({
-            hosts:
-              scenario === 'environments'
+            hosts: linked
+              ? [
+                  {
+                    id: 'hoffline',
+                    name: 'Offline laptop',
+                    hostname: 'offline.fixture.invalid',
+                    tunnel: false,
+                    sessionKnown: true,
+                  },
+                  {
+                    id: 'hlegacy',
+                    name: 'Older computer',
+                    hostname: 'legacy.fixture.invalid',
+                    tunnel: false,
+                    sessionKnown: false,
+                  },
+                ].filter((host) => !unlinked.has(host.id))
+              : scenario === 'environments'
                 ? [
                     {
                       id: 'studio',
@@ -140,6 +217,18 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
                   ]
                 : [],
           });
+        if (linked && init?.method === 'POST' && url.endsWith('/revoke')) {
+          const id = new URL(url).pathname.split('/')[3]!;
+          if (!['hoffline', 'hlegacy'].includes(id) || unlinked.has(id))
+            return response({ error: { code: 'host-not-found' } }, 404);
+          unlinked.add(id);
+          publish();
+          return response({
+            deleted: true,
+            sessionKnown: id !== 'hlegacy',
+            sessionRevoked: id !== 'hlegacy',
+          });
+        }
         if (url === `${owner.relay}/v1/account` && init?.method === 'DELETE') {
           counters.deletes++;
           remoteDeleted = true;

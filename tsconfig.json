@@ -18,14 +18,15 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  // Ordered on purpose: the client's session-store declaration must be
-  // processed before host packages that import `@deepseek-ai/dsh-agent`.
-  // Both augment `ctx.sessions` with different `list` types; the first
-  // declaration in program order wins, and an alphabetical `packages/*/src`
-  // put `packages/browser` first, which made `ctx.sessions.list` lose its
-  // store methods in `packages/client`.
+  // This mixed Host/Client program merges Cordis Context augmentations.
+  // Load the Client session-store declaration explicitly before Host imports:
+  // both name ctx.sessions, and the first declaration wins. include ordering
+  // alone is insufficient when an early Client file gains a Host import chain.
+  "files": ["packages/client/src/dsh-client-context.d.ts"],
   "include": [
     "packages/client/src",
+    "packages/host-client/src",
+    "packages/host-protocol/src",
     "packages/computer/src",
     "packages/vrm-companion/src",
     "packages/core/src",
@@ -38,39 +39,8 @@
     "packages/links-cli/src",
     "packages/connect-relay/src",
     "packages/*/test",
-    "apps/mobile/test",
+    "apps/mobile/test/host",
     "*.config.ts"
   ],
-  "exclude": [
-    "apps/mobile/test/posthog-sender.test.ts",
-    "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
-    "apps/mobile/test/native-telemetry.test.ts",
-    "apps/mobile/test/native-lan-socket.test.ts",
-    "apps/mobile/test/native-persistence.test.ts",
-    "apps/mobile/test/native-zip-import-file.test.ts",
-    "apps/mobile/test/share-attachment.test.ts",
-    "apps/mobile/test/haptic-feedback.test.ts",
-    "apps/mobile/test/native-chat-background.test.ts",
-    "apps/mobile/test/inbox-screens.test.ts",
-    "apps/mobile/test/action-cards.test.ts",
-    "apps/mobile/test/activity-feed.test.ts",
-    "apps/mobile/test/open-conversation.test.ts",
-    "apps/mobile/test/quick-action-routing.test.ts",
-    "apps/mobile/test/incoming-share.test.ts",
-    "apps/mobile/test/recent-chats.test.ts",
-    "apps/mobile/test/swipe-chat-target.test.ts",
-    "apps/mobile/test/grant-request-card.test.ts",
-    "apps/mobile/test/attention-actions.test.ts",
-    "apps/mobile/test/host-session-unpair.test.ts",
-    "apps/mobile/test/host-session-multiple.test.ts",
-    "apps/mobile/test/conversation-cache-host.test.ts",
-    "apps/mobile/test/reanimated-shim.ts",
-    "apps/mobile/test/motion-springs.test.ts",
-    "apps/mobile/test/back-owner.test.ts",
-    "apps/mobile/test/viewer-header.test.tsx",
-    "apps/mobile/test/chats-search-results.test.ts",
-    "apps/mobile/test/workspace-panel-root.test.ts",
-    "apps/mobile/test/platform-tokens.test.ts",
-    "apps/mobile/test/**/*.tsx"
-  ]
+  "exclude": []
 }

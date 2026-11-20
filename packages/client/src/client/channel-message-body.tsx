@@ -1,26 +1,41 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { InlineTokenButton } from './ds/inline-token-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
+import {
+  turnContinuationText,
+  useIsLatestMessage,
+  useNow,
+  useTurnContinuation,
+} from './turn-continuation.js';
+import { autoContinueSeconds } from '@botharness/host-client/shared/turn-continuation';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
+import { BridgeVideo } from './bridge-video.js';
 import { UserQuestionCard } from './user-question-card.js';
 import { PrivateInputCard } from './private-input-card.js';
+import { TakeoverCard } from './takeover-card.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
 import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { ClearedMessageAttachment, MessageAttachment } from './message-attachment.js';
+import { MessageAlbum, messageFileAttachments } from './message-album.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  FileTypeIcon,
   fileSizeText,
+  MarkdownDelegateProvider,
   MarkdownText,
   StateDot,
-  Tag,
+  useMarkdownDelegate,
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 
 import { errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -29,6 +44,7 @@ import { openModelsSettings } from './bot-settings-open.js';
 import { currentMentionLabel } from './actor-names.js';
 import type { ChannelHumanMember } from './store.js';
 import { referenceRuns } from './channel-refs.js';
+import { skillOwnerKey } from '../../../core/src/skills/entries.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions } from './actions.js';
@@ -41,12 +57,95 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
-import { store, type BotSummary, type ChannelMessage } from './store.js';
+import {
+  SessionLinkRail,
+  hasSessionMentions,
+  sessionMentionId,
+  useOpenSession,
+  withSessionMentionLinks,
+} from './session-links.js';
+import { type BotSummary, type ChannelMessage } from './store.js';
+import { sessionReferenceRuns } from './session-refs.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
+import { skillOwnerLabel, skillSummary, useSkillPeek } from './skill-preview.js';
+import { GenuiReportCard } from './genui-report.js';
+import { GenuiDocumentCard } from './genui-document.js';
 
 const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
 ) => ReactElement;
+
+export function MessageMarkdown({
+  text,
+  t,
+}: {
+  text: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const labels = useMemo<MarkdownLabels>(
+    () => ({
+      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      footnotes: t('message.footnotes'),
+    }),
+    [t],
+  );
+  return <ChannelMarkdownText text={text} labels={labels} />;
+}
+
+function SessionMentionScope({
+  enabled,
+  botSlug,
+  body,
+  children,
+}: {
+  enabled: boolean;
+  botSlug: string | undefined;
+  body: string;
+  children: ReactNode;
+}): ReactNode {
+  return enabled ? (
+    <SessionMentionDelegate botSlug={botSlug} body={body}>
+      {children}
+    </SessionMentionDelegate>
+  ) : (
+    children
+  );
+}
+
+function SessionMentionDelegate({
+  botSlug,
+  body,
+  children,
+}: {
+  botSlug: string | undefined;
+  body: string;
+  children: ReactNode;
+}): ReactNode {
+  const parent = useMarkdownDelegate();
+  const open = useOpenSession();
+  if (open === undefined) return children;
+  return (
+    <MarkdownDelegateProvider
+      {...parent}
+      openExternalLink={(href) => {
+        const sessionId = sessionMentionId(href);
+        if (sessionId !== undefined)
+          open(
+            botSlug,
+            sessionId,
+            sessionReferenceRuns(body).find((run) => run.session?.sessionId === sessionId)?.session
+              ?.title ?? '',
+          );
+        else if (parent.openExternalLink !== undefined) parent.openExternalLink(href);
+        else window.open(href, '_blank', 'noopener,noreferrer');
+      }}
+    >
+      {children}
+    </MarkdownDelegateProvider>
+  );
+}
 
 export type NativeChatFailureText = (key: 'message.turnError' | 'message.failure.auth') => string;
 
@@ -66,8 +165,10 @@ const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
     'failure.refused.permissionServicesHint',
   ],
   BOT_UNAVAILABLE: ['failure.refused.bot'],
+  'model-not-allowed': ['failure.refused.modelNotAllowed', 'failure.refused.modelNotAllowedHint'],
   SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
   SESSION_REFUSED: ['failure.refused.generic'],
+  HOST_INCOMPATIBLE: ['failure.hostIncompatible', 'failure.hostIncompatibleHint'],
 };
 
 function failureSummary(
@@ -98,6 +199,7 @@ function failureSummary(
       return t('failure.contextWindow');
     case 'OUTPUT_TOKEN_LIMIT':
       return t('failure.outputLimit');
+    case undefined:
     default:
       return t('failure.generic');
   }
@@ -125,7 +227,24 @@ function SessionFailureNotice({
     channelId,
     failure.role === 'orchestrator' ? botSlug : undefined,
   );
-  const busy = maintenance.pending !== undefined;
+  const continuation = useTurnContinuation(actions, {
+    channelId,
+    failureMessageId: message.id,
+    botSlug,
+    role: failure.role,
+    requestMessageId: failure.requestMessageId,
+  });
+  const latest = useIsLatestMessage(channelId, message.id);
+  const waiting =
+    continuation.available &&
+    latest &&
+    !continuation.settled &&
+    !continuation.cancelled &&
+    failure.autoContinue !== undefined;
+  const now = useNow(waiting);
+  const seconds = waiting ? autoContinueSeconds(failure.autoContinue, now) : undefined;
+  const progress = failure.progress;
+  const busy = maintenance.pending !== undefined || continuation.pending !== undefined;
   const canRecover = maintenance.available;
   const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
@@ -151,9 +270,39 @@ function SessionFailureNotice({
       {refusalHint === undefined ? null : (
         <div className="bh-session-failure-context">{t(refusalHint)}</div>
       )}
+      {failure.repeated === undefined || failure.repeated < 2 ? null : (
+        <div className="bh-session-failure-context">
+          {t('failure.repeated', { count: String(failure.repeated) })}
+        </div>
+      )}
       {failure.context === undefined ? null : (
         <div className="bh-session-failure-context">
           {t('failure.assignmentContext', { context: failure.context })}
+        </div>
+      )}
+      {progress === undefined ||
+      progress.completedSteps + (progress.lastTool ? 1 : 0) === 0 ? null : (
+        <div className="bh-session-failure-context">
+          {progress.lastTool === undefined
+            ? t('failure.progressNoTool', {
+                steps: String(progress.completedSteps),
+              })
+            : t('failure.progress', {
+                steps: String(progress.completedSteps),
+                tool: progress.lastTool,
+              })}
+          {progress.unknownTools === undefined
+            ? null
+            : ` · ${t('failure.unknownTools', { tools: progress.unknownTools.join(', ') })}`}
+        </div>
+      )}
+      {seconds === undefined || failure.autoContinue === undefined ? null : (
+        <div className="bh-session-failure-context">
+          {t('failure.autoContinue', {
+            seconds: String(seconds),
+            attempt: String(failure.autoContinue.attempt),
+            max: String(failure.autoContinue.maxAttempts),
+          })}
         </div>
       )}
       <details className="bh-session-failure-details">
@@ -169,13 +318,35 @@ function SessionFailureNotice({
         <code>{failure.sessionId}</code>
       </details>
       <ActionGroup>
+        {continuation.available && !continuation.settled ? (
+          <ActionButton
+            icon="refresh"
+            tone="primary"
+            title={t('failure.continueHint')}
+            disabled={busy}
+            busy={continuation.pending === 'continue'}
+            onClick={() => void continuation.continueTurn()}
+          >
+            {t('failure.continue')}
+          </ActionButton>
+        ) : null}
+        {seconds === undefined ? null : (
+          <ActionButton
+            icon="x"
+            disabled={busy}
+            busy={continuation.pending === 'cancel'}
+            onClick={() => void continuation.cancelAuto()}
+          >
+            {t('failure.autoContinueCancel')}
+          </ActionButton>
+        )}
         {canRecover ? (
           <>
             <ActionButton
               icon="archive"
               disabled={busy}
               busy={maintenance.pending === 'compact'}
-              onClick={() => recover('compact')}
+              onClick={() => void recover('compact')}
             >
               {t('composerContext.compactNow')}
             </ActionButton>
@@ -183,7 +354,7 @@ function SessionFailureNotice({
               icon="plus"
               busy={maintenance.pending === 'new-session'}
               disabled={busy}
-              onClick={() => recover('new-session')}
+              onClick={() => void recover('new-session')}
             >
               {t('composerCommand.newSession')}
             </ActionButton>
@@ -202,6 +373,9 @@ function SessionFailureNotice({
       </ActionGroup>
       {maintenance.notice ? (
         <p role="status">{sessionMaintenanceText(maintenance.notice, t)}</p>
+      ) : null}
+      {continuation.notice ? (
+        <p role="status">{turnContinuationText(continuation.notice, t)}</p>
       ) : null}
       {reportOpen && channelId ? (
         <MessageFeedbackDialog
@@ -317,12 +491,12 @@ export function GrantRequestCard({
       disabled={busy || opening}
       onClick={() => open()}
     >
-      {t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+      {t(compact ? 'activityList.grant.handle' : 'grant.requestChoose')}
     </ActionButton>
   );
   return (
     <div
-      className={compact ? 'bh-human-inbox-grant-action' : 'bh-grant-request-card'}
+      className={compact ? 'bh-activity-list-grant-action' : 'bh-grant-request-card'}
       ref={pickerTrigger}
     >
       {compact ? null : (
@@ -420,6 +594,7 @@ export function ChannelMessageBody({
     | undefined;
   userQuestionResolution?: 'answered' | 'cancelled' | undefined;
 }): ReactElement {
+  const store = useConversationStore();
   const labels = useMemo<MarkdownLabels>(
     () => ({
       code: {
@@ -431,6 +606,8 @@ export function ChannelMessageBody({
     [t],
   );
   const host = useMessageHost();
+  const skillPeek = useSkillPeek(t);
+  const openSession = useOpenSession();
   const approvalBody = toolApprovalText(storedMessage, t);
   const message =
     approvalBody === undefined ? storedMessage : { ...storedMessage, body: approvalBody };
@@ -440,7 +617,14 @@ export function ChannelMessageBody({
   const format =
     message.format ?? (message.author.kind === 'human' && !humanMarkdown ? 'text' : 'markdown');
   if (message.contentPurged) return <div className="bh-bubble-body">{t('purge.purged')}</div>;
-  if (requestCard !== undefined) return <>{requestCard}</>;
+  if (requestCard !== undefined)
+    return (
+      <>
+        <OpaqueToolWarning approval={message.approval} t={t} />
+        {requestCard}
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
+    );
   if (message.onboardingWelcome?.kind === 'tob')
     return (
       <div className="bh-bubble-body">
@@ -459,29 +643,45 @@ export function ChannelMessageBody({
         nativeChatT={nativeChatT}
       />
     );
+  if (message.approval?.masked === true)
+    return <MaskedApprovalCard approval={message.approval} t={t} />;
   if (message.toolApprovalRequest !== undefined && actions !== undefined) {
     return (
-      <ToolApprovalCard
-        message={message}
-        actions={actions}
-        decision={toolApprovalDecision}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <OpaqueToolWarning approval={message.approval} t={t} />
+        <ToolApprovalCard
+          message={message}
+          actions={actions}
+          decision={toolApprovalDecision}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.privateInputRequest !== undefined && actions !== undefined) {
-    return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
+    return (
+      <>
+        <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
+    );
   }
+  if (message.takeoverRequest !== undefined && actions !== undefined)
+    return <TakeoverCard message={message} channelId={channelId} actions={actions} t={t} />;
   if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
-      <UserQuestionCard
-        message={message}
-        actions={actions}
-        resolution={userQuestionResolution}
-        channelId={channelId}
-        t={t}
-      />
+      <>
+        <UserQuestionCard
+          message={message}
+          actions={actions}
+          resolution={userQuestionResolution}
+          channelId={channelId}
+          t={t}
+        />
+        <ApprovalDecider approval={message.approval} t={t} />
+      </>
     );
   }
   if (message.grantRequest === true && actions !== undefined) {
@@ -500,7 +700,20 @@ export function ChannelMessageBody({
     const media = message.bridgeMedia;
     const renderMedia = (id: string, index: number) => {
       const item = media.items.find((item) => item.id === id);
-      return item?.kind === 'audio' ? (
+      if (id === media.video?.posterAttachmentId) return null;
+      return item?.kind === 'video' ? (
+        <BridgeVideo
+          key={index}
+          channelId={channelId}
+          sourceEventId={message.bridgeOrigin!.sourceEventId}
+          attachmentId={id}
+          name={item.name}
+          sizeBytes={item.sizeBytes}
+          durationMs={media.video?.durationMs}
+          posterAttachmentId={media.video?.posterAttachmentId}
+          t={t}
+        />
+      ) : item?.kind === 'audio' ? (
         <BridgeAudio
           key={index}
           channelId={channelId}
@@ -658,23 +871,100 @@ export function ChannelMessageBody({
         </span>
       );
     return (
-      <button
+      <InlineTokenButton
         key={key}
-        type="button"
-        className="bh-inline-mention bh-inline-mention-sent bh-inline-mention-link"
         data-channel-id={ref.channelId}
         aria-label={`Open channel ${ref.label}`}
         onClick={() => void actions.openChannel(ref.channelId)}
       >
         {badge}
-      </button>
+      </InlineTokenButton>
     );
   };
-  const attachedFiles = messageAttachmentReferences(message.attachments ?? []);
+  const renderSkill = (
+    skill: NonNullable<ChannelMessage['skillInvocations']>[number],
+    key: number,
+  ) => {
+    const ownerBot =
+      skill.owner.kind === 'bot'
+        ? [...bots, ...store.getSnapshot().bots].find(
+            (bot) => skill.owner.kind === 'bot' && bot.slug === skill.owner.botSlug,
+          )
+        : undefined;
+    const owner = skillOwnerLabel(skill.owner, ownerBot, t);
+    const peek = { name: skill.name, owner, description: skillSummary(skill.content) };
+    return (
+      <InlineTokenButton
+        key={key}
+        className="bh-inline-skill"
+        data-skill-owner={skillOwnerKey(skill.owner)}
+        aria-label={`/${skill.name} · ${owner}`}
+        onPointerEnter={(event) => skillPeek.show(peek, event.currentTarget)}
+        onPointerLeave={skillPeek.hide}
+        onFocus={(event) => skillPeek.show(peek, event.currentTarget)}
+        onBlur={skillPeek.hide}
+        onClick={() =>
+          skillPeek.open({
+            ...peek,
+            owner: t('composer.skillSnapshot', { owner }),
+            description: '',
+            load: () => Promise.resolve({ description: '', content: skill.content }),
+          })
+        }
+      >
+        {skill.owner.kind === 'bot' && host === undefined ? (
+          <span className="bh-inline-mention-avatar" aria-hidden="true">
+            <PersonaBotAvatar
+              personaBotId={skill.owner.botSlug}
+              name={owner}
+              src={ownerBot?.avatar}
+              appearance={ownerBot?.appearance}
+              avatarSeed={ownerBot?.avatarSeed}
+              size={16}
+              indicator={false}
+              t={t}
+            />
+          </span>
+        ) : skill.owner.kind === 'workspace' && host === undefined ? (
+          <span className="bh-inline-mention-avatar" aria-hidden="true">
+            <Icon name="folder-open" size={16} />
+          </span>
+        ) : null}
+        <span>/{skill.name}</span>
+      </InlineTokenButton>
+    );
+  };
+  const voice = message.voice;
+  const {
+    voice: voiceAttachment,
+    images: albumImages,
+    files: fileAttachments,
+    all: allAttachments,
+  } = messageFileAttachments(message);
+  const attachedFiles = messageAttachmentReferences(allAttachments);
+  const channel = store.getSnapshot().conversation.channel;
+  const interactiveReport =
+    host === undefined && channel?.id === channelId && channel?.type === 'dm';
+  const renderSessionText = (text: string) =>
+    sessionReferenceRuns(text).map((part, index) => {
+      const session = part.session;
+      if (session === undefined) return <span key={index}>{part.text}</span>;
+      return (
+        <InlineTokenButton
+          key={index}
+          data-session-mention={session.sessionId}
+          disabled={openSession === undefined}
+          onClick={() => openSession?.(undefined, session.sessionId, session.title)}
+        >
+          <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />
+          <span>{session.title}</span>
+        </InlineTokenButton>
+      );
+    });
   const renderAttachmentText = (text: string) =>
     attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
       const item = part.attachment;
-      if (item === undefined) return <span key={index}>{part.text}</span>;
+      if (item === undefined) return <span key={index}>{renderSessionText(part.text)}</span>;
       return (
         <button
           key={index}
@@ -685,9 +975,10 @@ export function ChannelMessageBody({
             const attachmentIndex = attachedFiles.findIndex(
               (candidate) => candidate.id === item.id,
             );
-            const card = event.currentTarget
-              .closest('.bh-bubble-content')
-              ?.querySelector('.bh-message-attachments')?.children[attachmentIndex];
+            const content = event.currentTarget.closest('.bh-bubble-content');
+            const card =
+              content?.querySelector(`[data-attachment-index="${attachmentIndex}"]`) ??
+              content?.querySelector('.bh-message-album');
             card?.scrollIntoView({ block: 'nearest' });
             card?.querySelector<HTMLElement>('button, a')?.focus();
           }}
@@ -701,6 +992,41 @@ export function ChannelMessageBody({
     });
   return (
     <div className="bh-bubble-content">
+      {albumImages.length === 0 ? null : (
+        <MessageAlbum
+          images={albumImages}
+          channelId={channelId}
+          messageId={message.id}
+          actions={actions}
+          indexOf={(ref) => allAttachments.indexOf(ref)}
+          t={t}
+        />
+      )}
+      {voice === undefined ? null : (
+        <div className="bh-message-voice" data-voice-state={voice.state}>
+          {voiceAttachment !== undefined ? (
+            <MessageAttachment
+              attachment={voiceAttachment}
+              channelId={channelId}
+              messageId={message.id}
+              actions={actions}
+              displayName={t('message.voice.label')}
+              durationMs={voice.durationMs}
+              t={t}
+            />
+          ) : voice.state === 'pending' ? (
+            <span className="bh-message-voice-note" role="status">
+              {t('message.voice.pending')}
+            </span>
+          ) : voice.state === 'failed' ? (
+            <span className="bh-message-voice-note" role="status">
+              {t('message.voice.failed', {
+                reason: voice.error ?? voice.code ?? '',
+              })}
+            </span>
+          ) : null}
+        </div>
+      )}
       {message.body.length === 0 ? null : format === 'text' ? (
         <div className="bh-bubble-body">
           {referenceRuns(
@@ -708,8 +1034,17 @@ export function ChannelMessageBody({
             message.mentions ?? [],
             message.channelRefs ?? [],
             message.humanMentions ?? [],
+            message.skillInvocations ?? [],
           ).map((run, index) =>
-            run.mention !== undefined ? (
+            run.skill !== undefined ? (
+              renderSkill(
+                message.skillInvocations?.find((skill) => skill.start === run.skill.start) ?? {
+                  ...run.skill,
+                  content: '',
+                },
+                index,
+              )
+            ) : run.mention !== undefined ? (
               renderMention(run.mention, index)
             ) : run.humanMention !== undefined ? (
               renderMention(run.humanMention, index)
@@ -729,11 +1064,20 @@ export function ChannelMessageBody({
               </span>
             ),
           )}
+          {skillPeek.layer}
         </div>
       ) : (
         <div
           className={`bh-bubble-body bh-bubble-body-markdown${leading === undefined ? '' : ' bh-bubble-body-bot-mentions'}`}
         >
+          {message.author.kind === 'bot' && message.sessionLinks !== undefined ? (
+            <SessionLinkRail
+              botSlug={message.author.slug}
+              kind="sent"
+              links={message.sessionLinks}
+              t={t}
+            />
+          ) : null}
           {leading === undefined ? null : (
             <span className="bh-bot-mention-prefix">
               {leading.mentions.map((mention, index) => renderMention(mention, index))}
@@ -741,27 +1085,70 @@ export function ChannelMessageBody({
             </span>
           )}
           {leading === undefined || leading.text.length > 0 ? (
-            <ChannelMarkdownText
-              text={
-                humanMarkdown
-                  ? preserveHumanLineBreaks(leading?.text ?? message.body)
-                  : (leading?.text ?? message.body)
+            <SessionMentionScope
+              enabled={
+                (message.author.kind === 'bot' || humanMarkdown) && hasSessionMentions(message.body)
               }
-              streaming={message.streaming === true}
-              labels={labels}
+              botSlug={message.author.kind === 'bot' ? message.author.slug : undefined}
+              body={message.body}
+            >
+              <ChannelMarkdownText
+                text={
+                  humanMarkdown
+                    ? withSessionMentionLinks(
+                        preserveHumanLineBreaks(leading?.text ?? message.body),
+                      )
+                    : message.author.kind === 'bot'
+                      ? withSessionMentionLinks(leading?.text ?? message.body)
+                      : (leading?.text ?? message.body)
+                }
+                streaming={message.streaming === true}
+                labels={labels}
+              />
+            </SessionMentionScope>
+          ) : null}
+          {message.author.kind === 'bot' && message.sessionLinks !== undefined ? (
+            <SessionLinkRail
+              botSlug={message.author.slug}
+              kind="created"
+              links={message.sessionLinks}
+              t={t}
             />
           ) : null}
         </div>
       )}
-      {message.attachments?.length ? (
+      {message.genuiUnavailable && <p role="status">{t('genui.documentUnsupported')}</p>}
+      {message.genui !== undefined && (
+        <div className="bh-bubble-body">
+          {message.genui.version === 2 ? (
+            <GenuiDocumentCard
+              document={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          ) : (
+            <GenuiReportCard
+              report={message.genui}
+              channelId={channelId ?? ''}
+              messageId={message.id}
+              {...(interactiveReport && actions ? { actions } : {})}
+              t={t}
+            />
+          )}
+        </div>
+      )}
+      {fileAttachments.length ? (
         <div className="bh-message-attachments">
-          {message.attachments.map((ref, index) => (
+          {fileAttachments.map((ref, index) => (
             <MessageAttachment
               key={`${ref.fileId ?? ref.hash}-${index}`}
               attachment={ref}
               channelId={channelId}
               messageId={message.id}
               actions={actions}
+              index={allAttachments.indexOf(ref)}
               t={t}
             />
           ))}

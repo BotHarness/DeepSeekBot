@@ -1,0 +1,76 @@
+import { isValidSlug } from '../../core/src/bots/slug';
+import {
+  isSkillWorkspaceId,
+  type SkillCatalogEntry,
+  type SkillOwner,
+} from '../../core/src/skills/entries';
+import { HostAnswerInvalid, record, type HostCall } from './host-answer';
+import type { WireSkillInvocation } from '@botharness/host-protocol/wire';
+
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export function skillOwnerOf(value: unknown): SkillOwner | undefined {
+  const owner = record(value);
+  if (owner?.['kind'] === 'host') return { kind: 'host' };
+  if (
+    owner?.['kind'] === 'bot' &&
+    typeof owner['botSlug'] === 'string' &&
+    isValidSlug(owner['botSlug'])
+  )
+    return { kind: 'bot', botSlug: owner['botSlug'] };
+  if (
+    owner?.['kind'] === 'workspace' &&
+    isSkillWorkspaceId(owner['workspaceId']) &&
+    typeof owner['name'] === 'string'
+  )
+    return { kind: 'workspace', workspaceId: owner['workspaceId'], name: owner['name'] };
+  return undefined;
+}
+
+export function skillInvocationsOf(body: string, value: unknown): WireSkillInvocation[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const item = record(entry);
+    const name = item?.['name'];
+    const start = item?.['start'];
+    const end = item?.['end'];
+    const owner = skillOwnerOf(item?.['owner']);
+    if (
+      typeof name !== 'string' ||
+      !SKILL_NAME.test(name) ||
+      typeof start !== 'number' ||
+      typeof end !== 'number' ||
+      owner === undefined ||
+      body.slice(start, end) !== '/' + name
+    )
+      return [];
+    return [{ name, owner, start, end }];
+  });
+}
+
+function skillCatalogOf(value: unknown): SkillCatalogEntry[] {
+  const skills = record(value)?.['skills'];
+  if (!Array.isArray(skills)) throw new HostAnswerInvalid('invalid channelSkillCatalog response');
+  return skills.flatMap((entry) => {
+    const item = record(entry);
+    const name = item?.['name'];
+    const description = item?.['description'];
+    const owner = skillOwnerOf(item?.['owner']);
+    if (
+      typeof name !== 'string' ||
+      !SKILL_NAME.test(name) ||
+      typeof description !== 'string' ||
+      owner === undefined
+    )
+      return [];
+    const path = item?.['path'];
+    return [{ name, description, owner, ...(typeof path === 'string' ? { path } : {}) }];
+  });
+}
+
+export async function loadSkillCatalog(
+  client: HostCall,
+  channelId: string,
+): Promise<SkillCatalogEntry[]> {
+  return skillCatalogOf(await client.call('channelSkillCatalog', { channelId }));
+}

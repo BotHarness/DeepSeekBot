@@ -14,10 +14,12 @@ import { useStrings } from '../strings';
 
 export function AccountNameEditor({
   name,
+  placeholder,
   onSave,
   onClose,
 }: {
   name: string;
+  placeholder?: string | undefined;
   onSave(name: string): Promise<void>;
   onClose(): void;
 }) {
@@ -73,6 +75,7 @@ export function AccountNameEditor({
           label={copy.name}
           accessibilityLabel={copy.name}
           value={draft}
+          {...(placeholder === undefined ? {} : { placeholder })}
           maxLength={ACCOUNT_NAME_MAX}
           invalid={draft.length > 0 && !valid}
           {...(draft.length > 0 && !valid ? { supportingText: copy.nameInvalid } : {})}

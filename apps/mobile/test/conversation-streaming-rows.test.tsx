@@ -2,6 +2,7 @@
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { StyleSheet } from 'react-native';
 import type {
   FlatListProps,
   LayoutChangeEvent,
@@ -13,11 +14,16 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 let navigationHistory = channelNavigationHarness();
 import { RequestActivityControl } from '../src/ui/chat/request-activity-control';
 import { useHostSession } from '../src/host/host-session';
-import type { RosterBot } from '../src/host/client';
-import type { ConversationTimelineSnapshot } from '../src/host/conversation';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { ConversationTimelineSnapshot } from '@botharness/host-client/conversation';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
+import { pickFiles, type PickedFile } from '../src/host/pick-files';
 
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
+vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
@@ -147,12 +153,26 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   useRecentChat: () => () => {},
 }));
 vi.mock('../src/host/native-source-drafts', async () => {
-  const { useState } = await import('react');
+  const { useRef, useState } = await import('react');
   return {
-    useSourceDraft: () => [
-      ...useState(''),
-      { loaded: true, failed: false, retry: async () => true },
-    ],
+    useSourceDraft: () => {
+      const [value, setValue] = useState('');
+      const live = useRef(value);
+      const set = (next: string) => {
+        live.current = next;
+        setValue(next);
+      };
+      const take = () => {
+        const text = live.current;
+        set('');
+        return text;
+      };
+      return [
+        value,
+        set,
+        { loaded: true, failed: false, retry: async () => true, read: () => live.current, take },
+      ];
+    },
   };
 });
 vi.mock('expo-router', () => ({
@@ -164,6 +184,7 @@ vi.mock('expo-router', () => ({
     }: {
       options: {
         headerLeft?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
         unstable_headerLeftItems?: () => Array<{ element?: ReactNode }>;
         unstable_headerRightItems?: () => Array<{
           label: string;
@@ -173,6 +194,7 @@ vi.mock('expo-router', () => ({
       };
     }) => (
       <header>
+        {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
         {options
           .unstable_headerLeftItems?.()
           .map((item, index) => <span key={index}>{item.element}</span>) ??
@@ -276,6 +298,14 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-header-model', () => ({
+  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
+}));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
+}));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({ enabled: false, loaded: true, storageError: false }),
 }));
@@ -290,6 +320,8 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerContentScale: () => 1,
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   glassHeader: true,
   headerIslands: false,
   useHeaderOverlap: () => 80,
@@ -297,6 +329,23 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   useChatHeaderHeight: () => 56,
   titleChipFill: () => ({}),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
@@ -343,13 +392,33 @@ vi.mock('../src/ui/chat/chat-title', () => ({
   ChatTitle: ({ onPress }: { onPress(): void }) => <button onClick={onPress}>Open profile</button>,
 }));
 vi.mock('../src/ui/chat/composer', () => ({
-  Composer: ({ onChange, onSend }: { onChange(value: string): void; onSend(): void }) => (
+  Composer: ({
+    onChange,
+    onSend,
+    onPick,
+  }: {
+    onChange(value: string): void;
+    onSend(): void;
+    onPick(source: 'photos'): void;
+  }) => (
     <>
       <button type="button" onClick={() => onChange('What is six times seven?')}>
         Write question
       </button>
       <button type="button" onClick={onSend}>
         Send question
+      </button>
+      <button type="button" onClick={() => onPick('photos')}>
+        Attach photo
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onSend();
+          onSend();
+        }}
+      >
+        Send twice
       </button>
     </>
   ),
@@ -364,7 +433,8 @@ vi.mock('../src/ui/chat/clipboard-image', () => ({
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
 vi.mock('../src/ui/chat/message-bubble', async () => {
-  const { memo, useCallback, useSyncExternalStore } = await import('react');
+  const { memo, useCallback, useContext, useSyncExternalStore } = await import('react');
+  const { MarkdownViewportContext } = await import('../src/ui/markdown-viewport');
   return {
     PlaybackBubble: memo(function PlaybackBubble({
       queueKey,
@@ -379,7 +449,12 @@ vi.mock('../src/ui/chat/message-bubble', async () => {
         [queueKey],
       );
       const text = useSyncExternalStore(subscribe, () => stream.playback.getBubble(queueKey));
-      return <span data-testid={queueKey}>{text ?? message?.body}</span>;
+      const viewport = useContext(MarkdownViewportContext);
+      return (
+        <span data-testid={queueKey} data-markdown-inverted={viewport?.inverted === true}>
+          {text ?? message?.body}
+        </span>
+      );
     }),
   };
 });
@@ -529,6 +604,35 @@ const flushFrames = () =>
     }
   });
 
+it('sends picked attachments once when send runs twice before the composer re-renders', async () => {
+  const photo: PickedFile = {
+    id: 'photo-1',
+    kind: 'image',
+    uri: 'file:///photo.jpg',
+    name: 'photo.jpg',
+    read: async () => new Blob(),
+  };
+  vi.mocked(pickFiles).mockResolvedValue([photo]);
+  stream.publish({ messages: [], drafts: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const button = (label: string) =>
+    [...container.querySelectorAll('button')].find((node) => node.textContent === label)!;
+  try {
+    await act(async () =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    await act(async () => button('Attach photo').click());
+    await act(async () => button('Send twice').click());
+    expect(stream.conversation.send).toHaveBeenCalledOnce();
+    expect(stream.conversation.send.mock.calls[0]?.[1]).toEqual([photo]);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
 it('re-renders only the streaming row when a draft token arrives', async () => {
   const container = document.createElement('div');
   document.body.append(container);
@@ -606,7 +710,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     flushFrames();
     visible();
     expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: -80, animated: false });
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
 
     const press = (label: string) =>
       act(() => {
@@ -635,7 +739,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     expect(rows()).toEqual(['first-human', 'draft:first']);
     expect(container.querySelector('[data-testid="draft:first"]')?.textContent).toBe('42');
     visible();
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
 
     const reply = stream.history('first-reply', '42', 'bot');
     act(() => stream.publish({ messages: [human, reply], drafts: [] }));
@@ -649,14 +753,20 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     act(() => native.list?.onContentSizeChange?.(390, 1100));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: true });
     native.scrollToOffset.mockClear();
     act(() => {
       native.list?.onScrollBeginDrag?.(scrollEvent(300, 1100));
       native.list?.onScroll?.(scrollEvent(100, 1100));
       native.list?.onScrollEndDrag?.(scrollEvent(100, 1100));
     });
-    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
+    const anchorIndex = native.list!.maintainVisibleContentPosition!.minIndexForVisible;
+    const anchorKey = native.list!.keyExtractor!(native.list!.data![anchorIndex], anchorIndex);
+    const older = stream.history('older-human', 'Earlier in the same minute', 'human');
+    act(() => stream.publish({ messages: [older, human, reply] }));
+    const prependedKeys = Array.from(native.list!.data!).map(native.list!.keyExtractor!);
+    expect(prependedKeys).toContain(anchorKey);
+    expect(anchorKey).toBe(human.id);
     act(() =>
       stream.publish({ messages: [human, reply, stream.history('later', 'Later reply', 'bot')] }),
     );
@@ -669,10 +779,10 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
       native.list?.onScrollBeginDrag?.(scrollEvent(100, 1400));
       native.list?.onScrollEndDrag?.(scrollEvent(600, 1400));
     });
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
     act(() => native.list?.onContentSizeChange?.(390, 1500));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: true });
   } finally {
     act(() => root.unmount());
     container.remove();
@@ -695,9 +805,116 @@ it('keeps a known-empty DM visible when the first message arrives from another c
     act(() => stream.publish({ messages: [stream.history('remote-human', 'Hello', 'human')] }));
     expect(native.list?.style).toMatchObject({ opacity: 1 });
     expect(container.querySelector('[data-testid="remote-human"]')?.textContent).toBe('Hello');
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
     expect(stream.conversation.send).not.toHaveBeenCalled();
   } finally {
     act(() => root.unmount());
+  }
+});
+
+it('keeps Android latest history visible when content grows before another scroll event', () => {
+  state.os = 'android';
+  stream.publish({
+    messages: [stream.history('latest', 'Latest visible message', 'human')],
+    drafts: [],
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const scrollEvent = (offset: number, content: number): NativeSyntheticEvent<NativeScrollEvent> =>
+    ({
+      nativeEvent: {
+        contentOffset: { x: 0, y: offset },
+        contentSize: { width: 390, height: content },
+        layoutMeasurement: { width: 390, height: 904 },
+        velocity: { x: 0, y: 0 },
+        contentInset: { top: 0, bottom: 0, left: 0, right: 0 },
+        zoomScale: 1,
+      },
+    }) as NativeSyntheticEvent<NativeScrollEvent>;
+  try {
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    act(() => {
+      native.list?.onLayout?.({ nativeEvent: { layout: { height: 904 } } } as LayoutChangeEvent);
+      native.list?.onContentSizeChange?.(390, 9204.6669921875);
+      native.list?.onScroll?.(scrollEvent(0, 9204.6669921875));
+      native.list?.onContentSizeChange?.(390, 9302.6669921875);
+      if ((native.list?.scrollEventThrottle ?? 0) < 18)
+        native.list?.onScroll?.(scrollEvent(0, 9302.6669921875));
+    });
+    flushFrames();
+    expect(native.list?.style).toMatchObject({ opacity: 1 });
+    expect(container.querySelector('[data-testid="history-loading-retry"]')).toBeNull();
+    expect(native.list?.scrollEventThrottle).toBe(32);
+    expect(native.list?.inverted).toBe(true);
+    expect(
+      container.querySelector('[data-testid="latest"]')?.getAttribute('data-markdown-inverted'),
+    ).toBe('true');
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+it('keeps Android history content coordinates unchanged across connection notices', () => {
+  state.os = 'android';
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      description: '',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  stream.publish({ loadingOlder: false, olderError: true, hasOlder: true, drafts: [] });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const render = () =>
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+  try {
+    render();
+    const padding = StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop;
+    state.host.connection.status = 'unreachable';
+    render();
+    expect(StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop).toBe(padding);
+    expect(container.querySelector('[data-testid="history-retry"]')).not.toBeNull();
+    state.host.connection.status = 'connected';
+    render();
+    expect(StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop).toBe(padding);
+  } finally {
+    state.host.connection.status = 'connected';
+    act(() => root.unmount());
+    stream.publish({ loadingOlder: false, olderError: false, hasOlder: false });
+  }
+});
+
+it('keeps the history status and retry control mounted from loading through failure', () => {
+  state.os = 'android';
+  stream.publish({ loadingOlder: true, olderError: false, hasOlder: true, drafts: [] });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    const retry = container.querySelector<HTMLButtonElement>('[data-testid="history-retry"]');
+    expect(retry).not.toBeNull();
+    expect(retry!.disabled).toBe(true);
+    const status = retry!.parentElement;
+    act(() => stream.publish({ loadingOlder: false, olderError: true }));
+    expect(container.querySelector('[data-testid="history-retry"]')).toBe(retry);
+    expect(retry!.parentElement).toBe(status);
+    expect(retry!.disabled).toBe(false);
+  } finally {
+    act(() => root.unmount());
+    stream.publish({ loadingOlder: false, olderError: false, hasOlder: false });
   }
 });

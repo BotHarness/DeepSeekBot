@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
-import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
-import { encryptedCarrier } from '../src/host/encrypted-carrier';
-import type { HostSocketEvents } from '../src/host/carrier';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import type { HostSocketEvents } from '@botharness/host-protocol/carrier';
 
 afterEach(() => vi.unstubAllGlobals());
 

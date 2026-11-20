@@ -51,8 +51,28 @@ describe('PersonaBot Session projection', () => {
       ['orchestrator', 'Plan the release', 'idle'],
       ['active', 'Build the UI', 'running'],
       ['missing', 'missing', 'unavailable'],
+      ['stopped', 'Old task', 'idle'],
     ]);
     expect(rows[1]?.cwd).toBe('/projects/a');
+  });
+
+  it('carries the subscription engine a Session runs on onto its row', () => {
+    const rows = personaBotSessionRows(
+      owned.map((item) =>
+        item.sessionId === 'orchestrator'
+          ? { ...item, engine: { engine: 'codex', account: 'ChatGPT pro' } }
+          : item,
+      ),
+      native,
+      'current',
+    );
+    expect(rows.find((row) => row.sessionId === 'orchestrator')?.engine).toEqual({
+      engine: 'codex',
+      account: 'ChatGPT pro',
+    });
+    const active = rows.find((row) => row.sessionId === 'active');
+    expect(active).toBeDefined();
+    expect(active?.engine).toBeUndefined();
   });
 
   it('names an Assignment row by its Assignment Title before the native Session title', () => {
@@ -70,6 +90,7 @@ describe('PersonaBot Session projection', () => {
       ['orchestrator', 'Plan the release'],
       ['active', 'Fix Safari export'],
       ['missing', 'Audit exports'],
+      ['stopped', 'Old task'],
     ]);
     expect(rows[1]?.description).toBe('Make the export button work in Safari.');
     expect(rows[0]?.description).toBeUndefined();
@@ -86,7 +107,29 @@ describe('PersonaBot Session projection', () => {
       'current',
     );
     expect(rows.map((row) => [row.sessionId, row.status])).toContainEqual(['idle', 'idle']);
-    expect(rows.map((row) => row.sessionId)).not.toContain('stopped');
+    expect(rows.find((row) => row.sessionId === 'stopped')).toMatchObject({
+      status: 'idle',
+      section: 'idle',
+    });
+  });
+
+  it('keeps a stopped Assignment current and moves only an archived one to Resolved', () => {
+    const archived = owned.map((item) =>
+      item.sessionId === 'stopped' ? { ...item, assignmentArchived: true as const } : item,
+    );
+    expect(
+      personaBotSessionRows(archived, native, 'current').map((row) => row.sessionId),
+    ).not.toContain('stopped');
+    expect(
+      personaBotSessionRows(archived, native, 'all').find((row) => row.sessionId === 'stopped')
+        ?.section,
+    ).toBe('resolved');
+    const blocked = owned.map((item) =>
+      item.sessionId === 'stopped' ? { ...item, assignmentReportState: 'blocked' as const } : item,
+    );
+    expect(
+      personaBotSessionRows(blocked, native, 'current').find((row) => row.sessionId === 'stopped'),
+    ).toMatchObject({ status: 'idle', section: 'idle' });
   });
 
   it('pins the Orchestrator the runtime resumes, not a newer archived one', () => {
@@ -130,7 +173,7 @@ describe('PersonaBot Session projection', () => {
     ).toHaveLength(2);
   });
 
-  it('includes stopped Session history only in All and never treats cwd as Bot ownership', () => {
+  it('lists every owned Session in All and never treats cwd as Bot ownership', () => {
     const rows = personaBotSessionRows(owned, native, 'all');
     expect(rows.map((row) => row.sessionId)).toEqual([
       'orchestrator',
@@ -139,7 +182,7 @@ describe('PersonaBot Session projection', () => {
       'stopped',
     ]);
     expect(rows.find((row) => row.sessionId === 'stopped')).toMatchObject({
-      status: 'stopped',
+      status: 'idle',
       assignmentAccessMode: 'danger-full-access',
     });
     expect(rows).toHaveLength(owned.length);

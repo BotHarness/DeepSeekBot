@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({
@@ -34,7 +34,7 @@ vi.mock('react-native-reanimated', async () => ({
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
+vi.mock('expo-router', () => ({ router: { push: vi.fn() }, useIsFocused: () => true }));
 vi.mock('expo-router/js-tabs', () => ({
   Tabs: Object.assign(
     ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>
@@ -54,12 +54,6 @@ vi.mock('expo-router/js-tabs', () => ({
   ),
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
-vi.mock('../src/ui/shell/scroll-chrome', () => ({
-  ScrollChromeProvider: ({ children }: { children: ReactNode }) =>
-    createElement('div', null, children),
-  useChromeHidden: () => false,
-  useChromeProgress: () => ({ value: 0 }),
-}));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ saved: undefined }),
   hostSession: { getState: () => ({ saved: undefined }) },
@@ -83,6 +77,25 @@ afterEach(() => {
   played.length = 0;
 });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+it.each(['ios', 'android'])(
+  'shows no create button when nothing can be created on %s',
+  async (platform) => {
+    fixture.platform = platform;
+    fixture.scope = 'another-source';
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      expect(host.querySelector(`button[aria-label="${t.createHere}"]`)).toBeNull();
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      fixture.scope = 'all';
+    }
+  },
+);
+
 it.each(['ios', 'android'])(
   'acknowledges creation once and respects scope and preference on %s',
   async (platform) => {

@@ -1,3 +1,5 @@
+import type { PersonaBotDeletions } from '../bots/deletion.js';
+import { type HumanContext } from '../humans/context.js';
 import { z } from 'zod';
 import { ATTACHMENT_FILE_ID_PATTERN, ATTACHMENT_HASH_PATTERN } from '../attachments/ref.js';
 
@@ -11,6 +13,7 @@ export const purgeFactSchema = z
     author: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('human') }).strict(),
       z.object({ kind: z.literal('bot'), slug: identity }).strict(),
+      z.object({ kind: z.literal('remote-bot'), hostId: identity, slug: identity }).strict(),
       z.object({ kind: z.literal('bridged'), source: identity }).strict(),
       z.object({ kind: z.literal('system') }).strict(),
     ]),
@@ -24,7 +27,7 @@ export const purgeFactSchema = z
       .strict()
       .optional(),
     acceptedAt: z.iso.datetime(),
-    actor: z.literal('local-human'),
+    actor: identity,
     reason: z.literal('human-request'),
     managedFiles: z
       .array(
@@ -41,13 +44,29 @@ export const purgeFactSchema = z
   .strict();
 export type PurgeFact = z.infer<typeof purgeFactSchema>;
 
+export const deletedHumanSchema = z
+  .object({
+    humanId: identity,
+    deletedAt: z.iso.datetime(),
+    privateChannels: z.array(identity).max(1_000_000).optional(),
+    privateBots: z.array(identity).max(1_000_000).optional(),
+  })
+  .strict();
+
+export type DeletedHuman = z.infer<typeof deletedHumanSchema>;
+
 export const purgeCheckpointSchema = z
   .object({
     format: z.literal('botharness-purge'),
-    version: z.union([z.literal(1), z.literal(2)]),
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     facts: z.array(purgeFactSchema).max(1_000_000),
+    deletedHumans: z.array(deletedHumanSchema).max(1_000_000).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => !value.deletedHumans?.length || value.version === 3,
+    'Deleted Humans require checkpoint version 3',
+  );
 export type PurgeCheckpoint = z.infer<typeof purgeCheckpointSchema>;
 
 export interface ChannelHistoryItem {
@@ -118,18 +137,30 @@ export interface GroupDisbandResult {
 }
 
 export interface ContentPurge {
+  bindMemberBots(deletions: Pick<PersonaBotDeletions, 'memberPreview' | 'retry'>): void;
+  memberSettled(humanId?: string): Promise<void>;
+  memberPreview(
+    human: HumanContext,
+    humanId: string,
+  ): { token: string; counts: { channels: number; bots: number; messages: number; files: number } };
+  memberConfirm(human: HumanContext, humanId: string, token: string): void;
   redactions(): PurgedPlacement[];
-  history(): ChannelHistoryItem[];
-  sources(channelId: string, before?: string): { sources: PurgeSource[]; before?: string };
-  preview(channelId: string, sourceEventIds: readonly string[]): PurgePreview;
+  history(human: HumanContext): ChannelHistoryItem[];
+  sources(
+    human: HumanContext,
+    channelId: string,
+    before?: string,
+  ): { sources: PurgeSource[]; before?: string };
+  preview(human: HumanContext, channelId: string, sourceEventIds: readonly string[]): PurgePreview;
   confirm(
+    human: HumanContext,
     channelId: string,
     sourceEventIds: readonly string[],
     token: string,
   ): { accepted: number; cleanupPending?: number };
-  textPreview(scope: TextCleanupScope): TextCleanupPreview;
-  textConfirm(scope: TextCleanupScope, token: string): TextCleanupResult;
-  disband(channelId: string): GroupDisbandResult;
+  textPreview(human: HumanContext, scope: TextCleanupScope): TextCleanupPreview;
+  textConfirm(human: HumanContext, scope: TextCleanupScope, token: string): TextCleanupResult;
+  disband(human: HumanContext, channelId: string): GroupDisbandResult;
   checkpoint(): PurgeCheckpoint;
   withCheckpoint<T>(exportSnapshot: (checkpoint: PurgeCheckpoint) => T): T;
   close(): void;
@@ -139,6 +170,7 @@ export interface PurgedPlacement {
   sourceEventId: string;
   channelId: string;
   messageId: string;
+  fileIds?: string[];
 }
 
 export class ContentPurgeError extends Error {

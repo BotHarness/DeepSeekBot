@@ -61,7 +61,7 @@ describe('Channel delivery receipt Inbox drill-down', () => {
       expect(trigger?.getAttribute('aria-label')).toContain('1 未收到');
       expect(trigger?.getAttribute('aria-label')).toContain('1 已忽略');
       expect(view.host.querySelector('.bh-delivery-stack')?.innerHTML).toContain(
-        'var(--dsw-alias-state-warn-primary)',
+        'var(--tobs-status-warning-base)',
       );
       await act(async () => trigger?.click());
       expect(document.body.querySelector('.bh-delivery-bot')).toBeNull();

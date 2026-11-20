@@ -15,15 +15,28 @@ type NativeProps = {
   onPress?(): void;
 };
 
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.7.0',
+  nativeBuildVersion: '18',
+}));
+vi.mock('expo-device', () => ({ osVersion: '27.0' }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => {}) }));
+vi.mock(
+  '../src/ui/primitives/connection-failure-actions',
+  () => import('../src/ui/primitives/connection-failure-actions.ios'),
+);
+
 vi.mock('@expo/ui', () => ({
   Host: ({ children }: NativeProps) => <div>{children}</div>,
 }));
-vi.mock('@expo/ui/swift-ui/modifiers', () =>
-  Object.fromEntries(
+vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  shapes: { rectangle: () => ({ kind: 'rectangle' }) },
+  ...Object.fromEntries(
     [
       'accessibilityHidden',
       'accessibilityLabel',
       'buttonStyle',
+      'contentShape',
       'disabled',
       'font',
       'foregroundStyle',
@@ -35,7 +48,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () =>
       'tint',
     ].map((kind) => [kind, (value: unknown) => ({ kind, value })]),
   ),
-);
+}));
 vi.mock('@expo/ui/swift-ui', () => {
   const group = ({ children, icon }: NativeProps) => (
     <div>
@@ -156,6 +169,108 @@ async function render(scenario: AccountFixtureScenario = 'success') {
 }
 const button = (id: string) => host.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
 const click = (id: string) => act(async () => button(id).click());
+
+it('settles a confirmation when another device already unlinked the computer', async () => {
+  const { fixture } = await render('linked-computers');
+  await click('account-manage-computers');
+  await click('account-computer-hoffline');
+  await fixture.account.revokeHost((await fixture.account.actionKey())!, 'hoffline');
+  await act(async () => {
+    await expect(confirmations[0]!.confirm()).resolves.toBeUndefined();
+  });
+  expect(host.querySelector('[data-testid="account-computer-hoffline"]')).toBeNull();
+  expect(host.textContent).toContain(t.pairAccount.alreadyUnlinked);
+  expect(host.textContent).not.toContain(t.pairRefused['host-not-found']);
+});
+
+it('preserves the refresh failure and disables unlinking until a successful read', async () => {
+  const { fixture } = await render('linked-computers');
+  await click('account-manage-computers');
+  await click('account-computer-hoffline');
+  await fixture.account.revokeHost((await fixture.account.actionKey())!, 'hoffline');
+  vi.spyOn(fixture.account, 'hosts').mockResolvedValueOnce({
+    ok: false,
+    code: 'relay-unavailable',
+  });
+  await act(async () => {
+    await expect(confirmations[0]!.confirm()).rejects.toThrow(t.pairRefused['relay-unavailable']);
+  });
+  expect(button('account-computer-hoffline').disabled).toBe(true);
+  expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
+  expect(host.textContent).not.toContain(t.pairRefused['host-not-found']);
+  await act(async () => {
+    await expect(confirmations[0]!.confirm()).resolves.toBeUndefined();
+  });
+  expect(host.textContent).toContain(t.pairAccount.alreadyUnlinked);
+});
+
+it('discards a missing-computer refresh from the account that left the screen', async () => {
+  const { fixture } = await render('linked-computers');
+  await click('account-manage-computers');
+  await click('account-computer-hoffline');
+  await fixture.account.revokeHost((await fixture.account.actionKey())!, 'hoffline');
+  let finish!: (value: Awaited<ReturnType<typeof fixture.account.hosts>>) => void;
+  vi.spyOn(fixture.account, 'hosts').mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  let pending: unknown;
+  await act(async () => {
+    pending = confirmations[0]!.confirm();
+  });
+  const replacement = createAccountActionFixture();
+  await act(async () =>
+    root!.render(
+      <AccountHosts
+        account={replacement.account}
+        busy={false}
+        saved={[]}
+        results={{}}
+        onPair={vi.fn()}
+      />,
+    ),
+  );
+  await act(async () => {
+    finish({ ok: false, code: 'relay-unavailable' });
+    await pending;
+  });
+  expect(host.textContent).not.toContain(t.pairRefused['host-not-found']);
+  expect(host.textContent).not.toContain(t.pairRefused['relay-unavailable']);
+  expect(host.textContent).not.toContain(t.pairAccount.alreadyUnlinked);
+});
+
+it('unlinks an offline computer through the real account owner and iOS panel without clearing phone pairings', async () => {
+  const { fixture } = await render('linked-computers');
+  const before = JSON.parse(fixture.getSnapshot());
+  expect(button('account-computer-hoffline').disabled).toBe(false);
+  await click('account-manage-computers');
+  expect(button('account-computer-hoffline').disabled).toBe(false);
+  await click('account-computer-hoffline');
+  expect(confirmations[0]!.title).toBe(t.pairAccount.unlinkTitle('Offline laptop'));
+  expect(confirmations[0]!.message).toBe(t.pairAccount.unlinkMessage);
+  expect(JSON.parse(fixture.getSnapshot()).unlinked).toEqual([]);
+  await act(async () => {
+    await Promise.all([confirmations[0]!.confirm(), confirmations[0]!.confirm()]);
+  });
+  expect(JSON.parse(fixture.getSnapshot())).toMatchObject({
+    signedIn: true,
+    saved: before.saved,
+    unlinked: ['hoffline'],
+    deletes: 0,
+    pairingWrites: 0,
+    disconnects: 0,
+  });
+  expect(host.querySelector('[data-testid="account-computer-hoffline"]')).toBeNull();
+  expect(host.textContent).toContain(t.pairAccount.unlinked);
+  await click('account-computer-hlegacy');
+  expect(confirmations.at(-1)!.message).toBe(t.pairAccount.legacyUnlinkMessage);
+  await act(async () => {
+    await confirmations.at(-1)!.confirm();
+  });
+  expect(host.textContent).toContain(t.pairAccount.legacyUnlinked);
+});
 
 it.each(['sign-out', 'delete'] as const)(
   'keeps the iOS %s action inert until confirmation and rejects duplicate submission',
@@ -321,6 +436,8 @@ it('marks iOS Environment rows with one native checkmark and pins the add action
         onSignIn={vi.fn()}
         onSignOut={vi.fn()}
         onDelete={vi.fn()}
+        onManage={vi.fn()}
+        onRevoke={vi.fn()}
       />,
     );
   await act(async () => render(false, undefined));
@@ -341,4 +458,42 @@ it('marks iOS Environment rows with one native checkmark and pins the add action
   expect(button('account-computer-studio').textContent).toContain(t.pairAccount.pairing);
   expect(button('account-add-selected').dataset['busy']).toBe('true');
   expect(button('account-add-selected').disabled).toBe(true);
+});
+
+it('recovers the native QA scenario after unlink succeeds but refreshing the list fails', async () => {
+  await render('linked-computers-refresh-failure');
+  await click('account-manage-computers');
+  await click('account-computer-hoffline');
+  await act(async () => {
+    await confirmations[0]?.confirm();
+  });
+  expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hlegacy').disabled).toBe(true);
+  const refresh = host.querySelector<HTMLButtonElement>(
+    `button[aria-label="${t.pairAccount.refresh}"]`,
+  );
+  expect(refresh).not.toBeNull();
+  await act(async () => {
+    refresh?.click();
+  });
+  expect(host.textContent).not.toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hlegacy').disabled).toBe(false);
+  expect(host.querySelector('[data-testid="account-computer-hoffline"]')).toBeNull();
+});
+
+it('shows a safe, copyable account-list diagnostic after refresh fails', async () => {
+  const { fixture } = await render('connection-diagnostics-list');
+  await click('account-refresh');
+  const requestsBeforeDetails = fixture.getSnapshot();
+  expect(host.textContent).toContain(t.pairRefused['relay-unavailable']);
+  expect(button('account-computer-hstudio')).toBeTruthy();
+  await click('connection-details-account');
+  expect(host.textContent).toContain('stage: environment-list');
+  expect(host.textContent).toContain('http: 503');
+  expect(host.textContent).not.toContain('fixture-refresh');
+  await click('connection-copy-account');
+  const clipboard = await import('expo-clipboard');
+  expect(clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining('http: 503'));
+  expect(button('connection-copy-account').textContent).toBe(t.connectionDiagnostic.copied);
+  expect(fixture.getSnapshot()).toBe(requestsBeforeDetails);
 });

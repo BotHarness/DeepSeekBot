@@ -1,14 +1,17 @@
 // @vitest-environment jsdom
+import { type BridgeCall } from '../src/client/bridge.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createStore } from '../src/client/store.js';
 import { HumanNameSettings } from '../src/client/human-name-settings.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import { describe, expect, it, vi } from 'vitest';
 import { installBotNavIcon } from '../src/client/bot-icon-nav.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button', Input: 'input' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 
 describe('Human name settings navigation', () => {
   it('uses the existing roster stream in Bot mode and owns only one while native mode is open', async () => {

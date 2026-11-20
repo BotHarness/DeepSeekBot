@@ -1,5 +1,16 @@
 # Memory diffs
 
+## Sources
+
+- `packages/client/src/client/{memory-diff-model,memory-commit-line,memory-commit-view,memory-git-lanes}.{ts,tsx}`
+- `apps/mobile/src/host/memory-changes.ts`
+- `apps/mobile/src/ui/chat/memory-changes.tsx`
+
+## Terms
+
+- Memory Commit
+- Memory Repository
+
 ## Sub-features
 
 - Working changes and historical commits share the Memory diff renderer.

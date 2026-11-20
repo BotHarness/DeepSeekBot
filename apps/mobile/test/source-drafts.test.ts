@@ -230,3 +230,73 @@ it.each(['resolves', 'rejects'])(
     expect(drafts.getPersistence()).toEqual({ loaded: true, failed: false });
   },
 );
+
+describe('sending an unsent draft', () => {
+  const disk = () => {
+    let saved: Record<string, string> = {};
+    return {
+      read: async () => ({ ...saved }),
+      write: (value: Record<string, string>) => {
+        saved = { ...value };
+      },
+    };
+  };
+
+  it('takes the live text, so a second tap in the same render sends nothing', async () => {
+    const drafts = createSourceDrafts(disk());
+    await drafts.ready;
+    drafts.set('channel', 'No too');
+    drafts.set('channel', 'No tool');
+    expect(drafts.take('channel')).toBe('No tool');
+    expect(drafts.take('channel')).toBe('');
+  });
+
+  it('does not bring a sent message back from a late native echo, even after restart', async () => {
+    let clock = 1000;
+    const storage = disk();
+    const drafts = createSourceDrafts(storage, { now: () => clock });
+    await drafts.ready;
+    drafts.set('channel', 'No too');
+    expect(drafts.take('channel')).toBe('No too');
+    clock += 40;
+    drafts.set('channel', 'No tool');
+    expect(drafts.get('channel')).toBe('l');
+    clock += 40;
+    drafts.set('channel', 'No too');
+    expect(drafts.get('channel')).toBe('');
+
+    const reopened = createSourceDrafts(storage);
+    await reopened.ready;
+    expect(reopened.get('channel')).toBe('');
+  });
+
+  it('arms the echo guard with the sent text when the draft changed since it was read', async () => {
+    const drafts = createSourceDrafts(disk(), { now: () => 0 });
+    await drafts.ready;
+    drafts.set('channel', 'Hello ');
+    drafts.take('channel', 'Hello there');
+    drafts.set('channel', 'Hello there');
+    expect(drafts.get('channel')).toBe('');
+  });
+
+  it('keeps new typing that does not repeat the sent text', async () => {
+    const drafts = createSourceDrafts(disk(), { now: () => 0 });
+    await drafts.ready;
+    drafts.set('channel', 'ok');
+    drafts.take('channel');
+    drafts.set('channel', 'o');
+    drafts.set('channel', 'ok');
+    expect(drafts.get('channel')).toBe('ok');
+  });
+
+  it('lets the user type the same text again once the echo window has passed', async () => {
+    let clock = 0;
+    const drafts = createSourceDrafts(disk(), { now: () => clock });
+    await drafts.ready;
+    drafts.set('channel', 'again');
+    drafts.take('channel');
+    clock += 5000;
+    drafts.set('channel', 'again');
+    expect(drafts.get('channel')).toBe('again');
+  });
+});

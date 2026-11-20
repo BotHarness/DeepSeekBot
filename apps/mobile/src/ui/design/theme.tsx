@@ -2,7 +2,8 @@ import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNod
 import { Dimensions, Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
-import { glass, PRESS_TINT, type PlatformOS } from './tokens';
+import { parseColor, toHex, type Rgb } from '@botharness/host-client/shared/bot-name-color';
+import { glass, PRESS_TINT, replyQuote, type PlatformOS } from './tokens';
 import { interfacePreferences } from '../interface-preferences';
 
 export {
@@ -22,6 +23,25 @@ function platformOS(): PlatformOS {
 
 const AppearanceContext = createContext<Appearance>({});
 
+const resolvedAppearances = new WeakMap<
+  Appearance,
+  { scheme: ColorScheme; accent: string | undefined; os: PlatformOS; theme: DesignTheme }
+>();
+
+function sharedTheme(
+  owner: Appearance,
+  effective: Appearance,
+  system: ColorScheme,
+  os: PlatformOS,
+): DesignTheme {
+  const scheme = effective.scheme === 'system' ? system : (effective.scheme ?? system);
+  const previous = resolvedAppearances.get(owner);
+  if (previous?.scheme === scheme && previous.accent === effective.accent && previous.os === os)
+    return previous.theme;
+  const theme = resolveTheme(system, effective, os);
+  resolvedAppearances.set(owner, { scheme, accent: effective.accent, os, theme });
+  return theme;
+}
 const subscribeFontScale = (changed: () => void) => {
   const subscription = Dimensions.addEventListener('change', changed);
   return () => subscription.remove();
@@ -68,11 +88,11 @@ export function useDesignTheme(): DesignTheme {
   const fontScale = useSyncExternalStore(subscribeFontScale, fontScaleSnapshot, fontScaleSnapshot);
   return useMemo(
     () => ({
-      ...resolveTheme(system, effective, platformOS()),
+      ...sharedTheme(appearance, effective, system, platformOS()),
       fontScale,
       largeText: fontScale > 1.3,
     }),
-    [system, effective, fontScale],
+    [appearance, system, effective, fontScale],
   );
 }
 
@@ -87,6 +107,15 @@ export function pressTint(ink: string): string {
   return `${ink}${Math.round(PRESS_TINT * 255)
     .toString(16)
     .padStart(2, '0')}`;
+}
+
+export function quoteFill(ink: string, background: string): string {
+  const top = parseColor(ink);
+  const bottom = parseColor(background);
+  if (top === undefined || bottom === undefined) return background;
+  const share = replyQuote.tint * top.alpha;
+  const mix = (i: 0 | 1 | 2) => top.rgb[i] * share + bottom.rgb[i] * (1 - share);
+  return toHex([mix(0), mix(1), mix(2)] satisfies Rgb);
 }
 
 export function glassTint(base: string): string {

@@ -8,7 +8,10 @@ import {
 } from '../models/presets.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { assignmentModelsMode } from './cli-models-usage.js';
+import { parseAgentDiagnostics, TOB_DIAGNOSTIC_COMMAND_USAGE } from './cli-diagnostic-logs.js';
 import { parseAgentShareDraft, TOB_SHARE_DRAFT_COMMAND_USAGE } from './cli-share-draft.js';
+import { parseAgentVoice, TOB_AGENT_VOICE_COMMAND_USAGE } from './cli-agent-voice.js';
 
 export interface AgentManagementInvocation {
   command: string;
@@ -20,6 +23,8 @@ export const TOB_AGENT_COMMAND_USAGE: Readonly<Record<string, string>> = {
   ...TOB_AGENT_BOT_COMMAND_USAGE,
   ...TOB_AGENT_CHANNEL_COMMAND_USAGE,
   ...TOB_SHARE_DRAFT_COMMAND_USAGE,
+  ...TOB_DIAGNOSTIC_COMMAND_USAGE,
+  ...TOB_AGENT_VOICE_COMMAND_USAGE,
   list: 'deepseekbot list',
   'model-catalog': 'deepseekbot model-catalog',
   'model-plan': 'deepseekbot model-plan <bot-slug>',
@@ -27,17 +32,17 @@ export const TOB_AGENT_COMMAND_USAGE: Readonly<Record<string, string>> = {
   'home-model-set':
     'deepseekbot home-model-set --provider <provider> --model <model> [--orchestrator-effort <effort>] --expected-revision <observed-Host-default-revision>',
   'model-plan-customize':
-    'deepseekbot model-plan-customize <bot-slug> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --expected-revision <observed-Bot-plan-revision>',
+    'deepseekbot model-plan-customize <bot-slug> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --expected-revision <observed-Bot-plan-revision>; or --orchestrator-group <routing-group-id> [--orchestrator-effort <effort shared by its reasoning members>]',
   'model-plan-set':
-    'deepseekbot model-plan-set <bot-slug> --expected-revision <observed-Bot-plan-revision> --plan-stdin; stdin JSON: {orchestrator:{provider,model,reasoningEffort?},assignmentDefault:{provider,model,reasoningEffort?},assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}]}',
+    'deepseekbot model-plan-set <bot-slug> --expected-revision <observed-Bot-plan-revision> [--assignment-models open|listed] --plan-stdin; stdin JSON: {orchestrator:{provider,model,reasoningEffort?},assignmentDefault:{provider,model,reasoningEffort?},assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}]}',
   'model-plan-assignments-set':
-    'deepseekbot model-plan-assignments-set <bot-slug> --expected-revision <observed-Bot-plan-revision> --plan-stdin; stdin JSON: {assignmentDefault:{provider,model,reasoningEffort?},assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}]}',
+    'deepseekbot model-plan-assignments-set <bot-slug> --expected-revision <observed-Bot-plan-revision> [--assignment-models open|listed] --plan-stdin; stdin JSON: {assignmentDefault:{provider,model,reasoningEffort?},assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}],assignmentGroups?:string[],assignmentDefaultGroupId?,assignmentGroupOptions?:[{group,allowedEfforts?:string[] (levels every reasoning member shares),defaultEffort?,note?}]}',
   'model-plan-inherit':
     'deepseekbot model-plan-inherit <bot-slug> --expected-revision <observed-Bot-plan-revision>',
   'model-preset-create':
-    'deepseekbot model-preset-create --name <name> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --assignment-provider <provider> --assignment-model <model> [--assignment-effort <effort>] [--plan-stdin]; optional stdin JSON: {assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}]}',
+    'deepseekbot model-preset-create --name <name> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --assignment-provider <provider> --assignment-model <model> [--assignment-effort <effort>] [--assignment-models open|listed] [--orchestrator-group <routing-group-id> instead of --orchestrator-provider/--orchestrator-model; --orchestrator-effort then sets the group effort] [--assignment-groups <id,id>] [--assignment-default-group <id>] [--plan-stdin]; optional stdin JSON: {assignmentModels?:[{provider,model,allowedEfforts:string[],defaultEffort,note?}],assignmentGroupOptions?:[{group,allowedEfforts?:string[] (levels every reasoning member shares),defaultEffort?,note?}]}',
   'model-preset-update':
-    'deepseekbot model-preset-update <preset-id> --name <name> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --assignment-provider <provider> --assignment-model <model> [--assignment-effort <effort>] --expected-revision <observed-preset-revision> [--plan-stdin]; optional stdin JSON: {assignmentModels:[{provider,model,allowedEfforts:string[],defaultEffort,note?}]}',
+    'deepseekbot model-preset-update <preset-id> --name <name> --orchestrator-provider <provider> --orchestrator-model <model> [--orchestrator-effort <effort>] --assignment-provider <provider> --assignment-model <model> [--assignment-effort <effort>] [--assignment-models open|listed] [--orchestrator-group <routing-group-id> (empty clears; --orchestrator-effort then sets the group effort)] [--assignment-groups <id,id> (empty clears)] [--assignment-default-group <id> (empty clears)] --expected-revision <observed-preset-revision> [--plan-stdin]; optional stdin JSON: {assignmentModels?:[{provider,model,allowedEfforts:string[],defaultEffort,note?}],assignmentGroupOptions?:[{group,allowedEfforts?:string[] (levels every reasoning member shares),defaultEffort?,note?}]}',
   'model-preset-apply':
     'deepseekbot model-preset-apply <bot-slug> --preset <preset-id> --expected-revision <observed-Bot-plan-revision> --preset-revision <observed-preset-revision>',
   'telemetry-status': 'deepseekbot telemetry-status',
@@ -70,11 +75,17 @@ const OPTIONS: Readonly<Record<string, readonly string[]>> = {
     'orchestrator-effort',
     'expected-revision',
   ],
-  'model-plan-set': ['plan-stdin', 'expected-revision'],
-  'model-plan-assignments-set': ['plan-stdin', 'expected-revision'],
+  'model-plan-set': ['plan-stdin', 'assignment-models', 'expected-revision'],
+  'model-plan-assignments-set': ['plan-stdin', 'assignment-models', 'expected-revision'],
   'model-plan-inherit': ['expected-revision'],
-  'model-preset-create': ['name', ...ROUTE_FLAGS, 'plan-stdin'],
-  'model-preset-update': ['name', ...ROUTE_FLAGS, 'plan-stdin', 'expected-revision'],
+  'model-preset-create': ['name', ...ROUTE_FLAGS, 'assignment-models', 'plan-stdin'],
+  'model-preset-update': [
+    'name',
+    ...ROUTE_FLAGS,
+    'assignment-models',
+    'plan-stdin',
+    'expected-revision',
+  ],
   'model-preset-apply': ['preset', 'expected-revision', 'preset-revision'],
   'telemetry-status': [],
   'telemetry-set': ['enabled', 'disabled'],
@@ -213,6 +224,10 @@ export async function parseAgentManagement(
   if (bot) return bot;
   const draft = await parseAgentShareDraft(command, rest, values, io);
   if (draft) return draft;
+  const voice = parseAgentVoice(command, rest, values);
+  if (voice) return voice;
+  const diagnostics = parseAgentDiagnostics(command, rest, values);
+  if (diagnostics) return diagnostics;
   if (!Object.hasOwn(OPTIONS, command)) return undefined;
   const allowed = new Set(['compact', 'help', 'timeout', ...OPTIONS[command]!]);
   if (Object.entries(values).some(([key, value]) => value !== undefined && !allowed.has(key)))
@@ -274,6 +289,7 @@ export async function parseAgentManagement(
         ...(full ? { orchestrator: checkedRoute(input.orchestrator) } : {}),
         assignmentDefault,
         assignmentModels: assignments(assignmentDefault, input.assignmentModels),
+        ...assignmentModelsMode(values['assignment-models'] as string | undefined),
       });
       break;
     }
@@ -291,6 +307,7 @@ export async function parseAgentManagement(
         orchestrator,
         assignmentDefault,
         ...(expectedRevision === undefined ? {} : { id: target, expectedRevision }),
+        ...assignmentModelsMode(values['assignment-models'] as string | undefined),
       });
       if (values['plan-stdin'] !== undefined) {
         const input = await planInput(values, io, ['assignmentModels']);

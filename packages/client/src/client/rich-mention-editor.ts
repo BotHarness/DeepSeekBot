@@ -4,19 +4,44 @@ import { referenceRuns, type SelectedChannelRef } from './channel-refs.js';
 import type { BotSummary } from './store.js';
 import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { attachmentReferenceRuns, type ComposerAttachmentReference } from './attachment-refs.js';
+import type { SelectedSkill } from './skill-refs.js';
+import { parseSkillOwnerKey, skillOwnerKey } from '../../../core/src/skills/entries.js';
+import { sessionReferenceRuns, type ComposerSessionOption } from './session-refs.js';
+import { ASSIGNMENT_SESSION_ICON, channelSidebarIconElement } from './channel-sidebar-icon.js';
+import * as stylex from '@stylexjs/stylex';
+import { ink } from './ds/tobs.stylex.js';
 
-export interface MentionAvatarMount {
-  target: HTMLElement;
-  botSlug: string;
-  name: string;
-  src?: string | undefined;
-  appearance?: BotSummary['appearance'];
-  avatarSeed?: BotSummary['avatarSeed'];
+const sessionChip = stylex.create({
+  chip: { maxWidth: 'min(100%, 320px)' },
+  icon: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
+  title: { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+});
+
+function stylexClass(item: stylex.StyleXStyles): string {
+  return stylex.props(item).className ?? '';
 }
+
+function atomicText(node: Node): string | undefined {
+  if (!(node instanceof HTMLElement)) return undefined;
+  return node.dataset.attachmentText ?? node.dataset.sessionText;
+}
+
+export type MentionAvatarMount =
+  | {
+      kind?: 'bot';
+      target: HTMLElement;
+      botSlug: string;
+      name: string;
+      src?: string | undefined;
+      appearance?: BotSummary['appearance'];
+      avatarSeed?: BotSummary['avatarSeed'];
+    }
+  | { kind: 'workspace'; target: HTMLElement; workspaceId: string; name: string };
 export interface RichMentionDraft {
   value: string;
   mentions: SelectedMention[];
   channelRefs: SelectedChannelRef[];
+  skills: SelectedSkill[];
 }
 
 function token(
@@ -25,10 +50,17 @@ function token(
   | { kind: 'all-bots'; preview: AllBotPreview; label: string }
   | { kind: 'bot'; botSlug: string; label: string }
   | { kind: 'channel'; channelId: string; label: string }
+  | { kind: 'skill'; skill: Pick<SelectedSkill, 'name' | 'owner'>; label: string }
   | undefined {
   if (!(node instanceof HTMLElement)) return undefined;
   const label = node.dataset.mentionLabel;
   if (label === undefined) return undefined;
+  if (node.dataset.skillOwner !== undefined) {
+    const owner = parseSkillOwnerKey(node.dataset.skillOwner);
+    return owner === undefined
+      ? undefined
+      : { kind: 'skill', skill: { name: label, owner }, label };
+  }
   if (node.dataset.allBotPreview !== undefined) {
     try {
       return {
@@ -49,8 +81,8 @@ function token(
 
 function rawLength(node: Node): number {
   if (node instanceof HTMLBRElement && node.dataset.richPlaceholder !== undefined) return 0;
-  if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
-    return node.dataset.attachmentText.length;
+  const atomic = atomicText(node);
+  if (atomic !== undefined) return atomic.length;
   const mention = token(node);
   if (mention !== undefined) return mention.label.length + 1;
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
@@ -80,6 +112,17 @@ function syncTrailingLine(editor: HTMLElement): void {
   }
 }
 
+export function normalizeRichInput(editor: HTMLElement): void {
+  const last = editor.lastChild;
+  if (
+    editor.querySelector('br[data-rich-placeholder]') === null &&
+    last instanceof HTMLBRElement &&
+    (last.previousSibling === null || last.previousSibling instanceof HTMLBRElement)
+  )
+    last.remove();
+  syncTrailingLine(editor);
+}
+
 export function renderRichMentionDraft(
   editor: HTMLElement,
   value: string,
@@ -87,16 +130,94 @@ export function renderRichMentionDraft(
   bots: readonly BotSummary[],
   refs: readonly SelectedChannelRef[] = [],
   attachments: readonly ComposerAttachmentReference[] = [],
+  skills: readonly SelectedSkill[] = [],
+  sessions: readonly ComposerSessionOption[] = [],
 ): MentionAvatarMount[] {
   const document = editor.ownerDocument;
   const nodes: Node[] = [];
   const mounts: MentionAvatarMount[] = [];
   const named: Array<[HTMLElement, string | undefined]> = [];
-  for (const run of referenceRuns(value, mentions, refs)) {
+  for (const run of referenceRuns(value, mentions, refs, [], skills)) {
+    if (run.skill !== undefined) {
+      const skill = run.skill;
+      const badge = document.createElement('span');
+      badge.className =
+        'bh-inline-mention bh-inline-mention-sent bh-composer-inline-mention bh-inline-skill';
+      badge.contentEditable = 'false';
+      badge.dataset.skillOwner = skillOwnerKey(skill.owner);
+      badge.dataset.mentionLabel = skill.name;
+      const label = document.createElement('span');
+      label.textContent = '/' + skill.name;
+      if (skill.owner.kind === 'bot') {
+        const botSlug = skill.owner.botSlug;
+        const bot = bots.find((candidate) => candidate.slug === botSlug);
+        const avatar = document.createElement('span');
+        avatar.className = 'bh-inline-mention-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        badge.append(avatar, label);
+        mounts.push({
+          target: avatar,
+          botSlug,
+          name: bot?.displayName ?? botSlug,
+          src: bot?.avatar,
+          appearance: bot?.appearance,
+          avatarSeed: bot?.avatarSeed,
+        });
+      } else if (skill.owner.kind === 'workspace') {
+        const icon = document.createElement('span');
+        icon.className = 'bh-inline-mention-avatar';
+        icon.setAttribute('aria-hidden', 'true');
+        badge.title = skill.owner.name;
+        badge.append(icon, label);
+        mounts.push({
+          kind: 'workspace',
+          target: icon,
+          workspaceId: skill.owner.workspaceId,
+          name: skill.owner.name,
+        });
+      } else badge.append(label);
+      nodes.push(badge);
+      continue;
+    }
     if (run.mention === undefined && run.channelRef === undefined) {
       for (const part of attachmentReferenceRuns(run.text, attachments)) {
         if (part.attachment === undefined) {
-          nodes.push(...richTextNodes(document, part.text));
+          for (const piece of sessionReferenceRuns(part.text)) {
+            if (piece.session === undefined) {
+              nodes.push(...richTextNodes(document, piece.text));
+              continue;
+            }
+            const { sessionId, title } = piece.session;
+            const option = sessions.find((candidate) => candidate.sessionId === sessionId);
+            const badge = document.createElement('span');
+            badge.className = `bh-inline-mention bh-inline-mention-sent bh-composer-inline-mention bh-inline-session ${stylexClass(sessionChip.chip)}`;
+            badge.contentEditable = 'false';
+            badge.dataset.sessionText = piece.text;
+            badge.dataset.sessionId = sessionId;
+            badge.title = title;
+            if (option !== undefined) {
+              const avatar = document.createElement('span');
+              avatar.className = 'bh-inline-mention-avatar';
+              avatar.setAttribute('aria-hidden', 'true');
+              badge.append(avatar);
+              mounts.push({
+                target: avatar,
+                botSlug: option.botSlug,
+                name: option.bot?.displayName ?? option.botSlug,
+                src: option.bot?.avatar,
+                appearance: option.bot?.appearance,
+                avatarSeed: option.bot?.avatarSeed,
+              });
+            }
+            const icon = document.createElement('span');
+            icon.className = stylexClass(sessionChip.icon);
+            icon.append(channelSidebarIconElement(document, ASSIGNMENT_SESSION_ICON, 14));
+            const label = document.createElement('span');
+            label.className = stylexClass(sessionChip.title);
+            label.textContent = option?.title ?? title;
+            badge.append(icon, label);
+            nodes.push(badge);
+          }
           continue;
         }
         const item = part.attachment;
@@ -181,12 +302,20 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
   let value = '';
   const mentions: SelectedMention[] = [];
   const channelRefs: SelectedChannelRef[] = [];
+  const skills: SelectedSkill[] = [];
   const append = (node: Node): void => {
-    if (node instanceof HTMLElement && node.dataset.attachmentText !== undefined) {
-      value += node.dataset.attachmentText;
+    const atomic = atomicText(node);
+    if (atomic !== undefined) {
+      value += atomic;
       return;
     }
     const mention = token(node);
+    if (mention?.kind === 'skill') {
+      const start = value.length;
+      value += '/' + mention.label;
+      skills.push({ ...mention.skill, start, end: value.length });
+      return;
+    }
     if (mention !== undefined) {
       const start = value.length;
       value += (mention.kind === 'channel' ? '#' : '@') + mention.label;
@@ -220,7 +349,7 @@ export function readRichMentionDraft(editor: HTMLElement): RichMentionDraft {
     for (const child of node.childNodes) append(child);
   };
   for (const child of editor.childNodes) append(child);
-  return { value, mentions, channelRefs };
+  return { value, mentions, channelRefs, skills };
 }
 
 export function sameRichMentionDraft(
@@ -228,9 +357,12 @@ export function sameRichMentionDraft(
   value: string,
   mentions: readonly SelectedMention[],
   refs: readonly SelectedChannelRef[],
+  skills: readonly SelectedSkill[] = [],
 ): boolean {
   return (
     left.value === value &&
+    JSON.stringify(left.skills) ===
+      JSON.stringify(skills.map(({ name, owner, start, end }) => ({ name, owner, start, end }))) &&
     left.mentions.length === mentions.length &&
     left.mentions.every(
       (item, index) =>
@@ -263,10 +395,7 @@ function offsetAt(editor: HTMLElement, target: Node, offset: number): number {
       return true;
     }
     const mention = token(node);
-    if (
-      mention !== undefined ||
-      (node instanceof HTMLElement && node.dataset.attachmentText !== undefined)
-    ) {
+    if (mention !== undefined || atomicText(node) !== undefined) {
       count += rawLength(node);
       return node.contains(target);
     }
@@ -309,7 +438,7 @@ function pointAt(editor: HTMLElement, desired: number): { node: Node; offset: nu
         return { node: child, offset: Math.min(remaining, length) };
       if (
         token(child) !== undefined ||
-        (child instanceof HTMLElement && child.dataset.attachmentText !== undefined) ||
+        atomicText(child) !== undefined ||
         child instanceof HTMLBRElement
       )
         return { node: parent, offset: index + (remaining > 0 ? 1 : 0) };

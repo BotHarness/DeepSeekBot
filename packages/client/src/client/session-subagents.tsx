@@ -1,7 +1,7 @@
+import { Tag } from './ds/tag.js';
 import { useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { SessionModelRoute, SessionSubagent } from './bridge.js';

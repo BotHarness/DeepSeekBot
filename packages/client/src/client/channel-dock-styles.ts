@@ -72,6 +72,7 @@ html[data-platform="darwin"] .bh-dock .dv-tabs-and-actions-container,
 html[data-platform="darwin"] .bh-dock .dv-tabs-and-actions-container .dv-tab,
 html[data-platform="darwin"] .bh-dock .bh-dock-header { -webkit-app-region:drag; }
 html[data-platform="darwin"] .bh-dock .bh-dock-header [data-window-drag-recall],
+html[data-platform="darwin"] .bh-dock .bh-dock-header [data-composer-context],
 html[data-platform="darwin"] .bh-dock .bh-dock-header :is(button, a, input, select, textarea, [role="tab"]) { -webkit-app-region:no-drag; }
 .bh-dock .dv-tab:focus-visible,
 .bh-dock .dv-tab:focus-within { outline: none; }
@@ -97,7 +98,8 @@ html[data-platform="darwin"] .bh-dock .bh-dock-header :is(button, a, input, sele
 }
 .bh-dock-body > .bh-chat-pane { flex: 1 1 0; }
 .bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]):has([data-panel-empty]),
-.bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]) :has([data-panel-empty]) {
+.bh-dock [data-sidebar-entry-body] :has([data-panel-empty]),
+.bh-dock [data-dock-panel-body] :has([data-panel-empty]) {
   display: flex;
   flex-direction: column;
   flex: 1;

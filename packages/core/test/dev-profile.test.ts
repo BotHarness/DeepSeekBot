@@ -1,5 +1,9 @@
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { developmentProfileManifest } from '../../../scripts/dev-profile.mjs';
+
+const worktree = process.platform === 'win32' ? 'C:\\worktree' : '/worktree';
+const linked = (name: string) => `link:${join(worktree, 'packages', name)}`;
 
 it('retains installed optional Bundle composition and relinks only BotHarness packages', () => {
   const manifest = {
@@ -12,11 +16,11 @@ it('retains installed optional Bundle composition and relinks only BotHarness pa
       },
     },
   };
-  const updated = developmentProfileManifest(manifest, '/worktree');
+  const updated = developmentProfileManifest(manifest, worktree);
   expect(updated.dependencies['@xmanrui/dsh-im']).toBe('4.32.0');
-  expect(updated.dependencies.deepseekbot).toBe('link:/worktree/packages/deepseekbot');
-  expect(updated.dependencies['@botharness/browser']).toBe('link:/worktree/packages/browser');
-  expect(updated.dependencies['@botharness/computer']).toBe('link:/worktree/packages/computer');
+  expect(updated.dependencies.deepseekbot).toBe(linked('deepseekbot'));
+  expect(updated.dependencies['@botharness/browser']).toBe(linked('browser'));
+  expect(updated.dependencies['@botharness/computer']).toBe(linked('computer'));
   expect(updated.dsh.profile.bundles).toEqual([
     '@deepseek-ai/dsh-base',
     '@deepseek-ai/dsh-web-app',
@@ -43,7 +47,7 @@ it('migrates formerly separate browser/computer Bundles into the umbrella', () =
       },
     },
   };
-  const updated = developmentProfileManifest(manifest, '/worktree');
+  const updated = developmentProfileManifest(manifest, worktree);
   expect(updated.dsh.profile.bundles).toEqual([
     '@deepseek-ai/dsh-base',
     '@deepseek-ai/dsh-web-app',

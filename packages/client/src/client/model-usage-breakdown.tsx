@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconEllipsisOutlineRegular,
-  IconRefreshOutlineRegular,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { type MenuEntry } from './ds/menu.js';
 
 import { useMountedResource } from './mounted-resource.js';
 import type { UsageFilter, UsageQueryResult, ProfileModelUsageRow } from './bridge.js';
@@ -219,7 +217,7 @@ export function ModelUsageBreakdown({
                 disabled={disabled}
                 onClick={() => setMenuOpen((value) => !value)}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             }
             items={menuItems}
@@ -238,7 +236,7 @@ export function ModelUsageBreakdown({
               disabled={loading}
               onClick={() => setRefresh((value) => value + 1)}
             >
-              <IconRefreshOutlineRegular size={16} />
+              <Icon name="refresh-cw" size={16} />
             </button>
           ) : null}
         </div>

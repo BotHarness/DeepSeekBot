@@ -1,0 +1,533 @@
+import {
+  approveGrantRequest,
+  createGrant,
+  readAssignmentAccess,
+  readWorkspaceGrants,
+  revokeGrant,
+  writeAssignmentAccess,
+} from './access-readers';
+import type {
+  WireAssignmentAccessPreset,
+  WireWorkspaceGrant,
+} from '@botharness/host-protocol/wire';
+import { readApprovalTemplates, setBotApprovalTemplate } from './approval-readers';
+export { INHERIT_APPROVAL_TEMPLATE } from './approval-readers';
+import { MethodRefused, type HostClient } from './client';
+import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
+import {
+  modelChoice as favoriteChoice,
+  type ModelCatalogEntry,
+  type ModelCatalogGroup,
+  type ModelChoice,
+} from './model-catalog';
+import {
+  applyModelPreset,
+  customizeModelPlan,
+  loadModelCatalog,
+  loadModelPlanState,
+  loadModelPresets,
+  type ModelPlan,
+  type ModelPreset,
+  type ModelRoute,
+} from './model-plans';
+
+export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
+export type {
+  AssignmentGroupOption,
+  AssignmentModelOption,
+  ModelPlan,
+  ModelPlanGroups,
+  ModelPreset,
+  ModelRoute,
+} from './model-plans';
+export { applyModelPreset, HostAnswerInvalid };
+
+export type Loadable<T> =
+  | { status: 'loading' }
+  | { status: 'ready'; value: T }
+  | { status: 'failed'; error: string };
+
+export interface BotModel {
+  currentTarget?: import('@botharness/host-protocol/turn-target').TurnTarget;
+  revision: number;
+  defaultRevision?: number;
+  plan?: ModelPlan;
+  repair?: string;
+  models: ModelCatalogEntry[];
+  groups?: ModelCatalogGroup[];
+  defaultGroupId?: string;
+  defaultGroupEffort?: string;
+  defaultGroupRevision?: number;
+  favorites?: ModelChoice[];
+  fallback?: ModelRoute;
+  presets: ModelPreset[];
+}
+
+export interface WorkspaceGrant {
+  id: string;
+  workspaceId: string;
+  workspacePath: string;
+  workspaceTitle: string;
+  orchestratorWrite: boolean;
+  revokedAt?: string;
+}
+
+export interface WorkspaceOption {
+  id: string;
+  path: string;
+  title: string;
+}
+
+export interface HostFolder {
+  name: string;
+  path: string;
+  hidden: boolean;
+}
+
+export interface HostFolderListing {
+  path: string;
+  crumbs: HostFolder[];
+  entries: HostFolder[];
+  truncated: boolean;
+  roots: HostFolder[];
+}
+
+export type AccessMode = 'workspace-write' | 'danger-full-access';
+export type AccessScope = 'chat' | 'assignments';
+
+export interface AssignmentAccess {
+  mode: AccessMode;
+  scope: AccessScope;
+  revision: number;
+}
+
+export interface ApprovalTemplate {
+  name: string;
+  title: string;
+  description: string;
+}
+
+export interface ApprovalTemplates {
+  templates: ApprovalTemplate[];
+  selected: string | null;
+  globalDefault?: string | null;
+}
+
+export async function loadBotModel(
+  client: ModelSettingsClient,
+  slug: string,
+  requirePresets = false,
+): Promise<BotModel> {
+  const [state, catalog, presets] = await Promise.all([
+    loadModelPlanState(client, slug),
+    loadModelCatalog(client),
+    loadModelPresets(client).catch((cause: unknown) => {
+      if (requirePresets) throw cause;
+      return [];
+    }),
+  ]);
+  const {
+    models,
+    default: fallback,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupEffort,
+  } = catalog;
+  return {
+    revision: state.revision ?? state.plan?.revision ?? 0,
+    ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
+    ...(state.repair === undefined ? {} : { repair: state.repair.code }),
+    models,
+    ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(defaultGroupEffort === undefined ? {} : { defaultGroupEffort }),
+    ...(favorites === undefined ? {} : { favorites }),
+    ...(fallback === undefined ? {} : { fallback }),
+    presets,
+  };
+}
+
+export type ModelSettingsClient = HostCall;
+
+export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotModel> {
+  const [catalog, presets] = await Promise.all([
+    loadModelCatalog(client),
+    loadModelPresets(client),
+  ]);
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupEffort,
+    defaultGroupRevision,
+  } = catalog;
+  return {
+    revision: 0,
+    ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    ...(defaultGroupRevision === undefined ? {} : { defaultGroupRevision }),
+    models,
+    ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(defaultGroupEffort === undefined ? {} : { defaultGroupEffort }),
+    ...(favorites === undefined ? {} : { favorites }),
+    presets,
+    ...(fallback === undefined ? {} : { fallback }),
+  };
+}
+
+export async function setModelFavorite(
+  client: ModelSettingsClient,
+  choice: ModelChoice,
+  favorite: boolean,
+): Promise<ModelChoice[]> {
+  const answer = record(await client.call('modelFavoriteSet', { choice, favorite }));
+  if (!Array.isArray(answer?.['favorites']))
+    throw new HostAnswerInvalid('modelFavoriteSet returned no favorites.');
+  return some(answer['favorites'], favoriteChoice);
+}
+
+export function sameModel(
+  a: Pick<ModelRoute, 'provider' | 'model'>,
+  b: Pick<ModelRoute, 'provider' | 'model'> | undefined,
+): boolean {
+  return b !== undefined && a.provider === b.provider && a.model === b.model;
+}
+
+export function currentModel(model: BotModel): {
+  route?: ModelRoute;
+  name?: string;
+  group?: string;
+} {
+  const usableFallback =
+    model.fallback !== undefined &&
+    model.models.some((entry) => sameModel(entry, model.fallback) && entry.credential === undefined)
+      ? model.fallback
+      : undefined;
+  const current = model.plan?.orchestrator ?? usableFallback;
+  const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
+  const group =
+    groupId === undefined
+      ? undefined
+      : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
+  const named = group === undefined ? {} : { group };
+  if (current === undefined) return named;
+  return {
+    route: current,
+    name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
+    ...named,
+  };
+}
+
+export function modelChoice(
+  model: BotModel,
+  entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
+): {
+  expectedRevision: number;
+  orchestrator: ModelRoute;
+} {
+  const previous = model.plan?.orchestrator;
+  const effort = sameModel(entry, previous) ? previous?.reasoningEffort : undefined;
+  const orchestrator: ModelRoute = {
+    provider: entry.provider,
+    model: entry.model,
+    ...(effort === undefined ? {} : { reasoningEffort: effort }),
+  };
+  return {
+    expectedRevision: model.plan?.revision ?? model.revision,
+    orchestrator,
+  };
+}
+
+export async function chooseModel(
+  client: HostCall,
+  slug: string,
+  model: BotModel,
+  entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
+): Promise<ModelPlan> {
+  const { orchestrator, expectedRevision } = modelChoice(model, entry);
+  return customizeModelPlan(client, slug, { orchestrator }, expectedRevision);
+}
+
+function grantView(row: WireWorkspaceGrant): WorkspaceGrant {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    workspacePath: row.workspacePath,
+    workspaceTitle: row.workspaceTitle,
+    orchestratorWrite: row.orchestratorWrite === true,
+    ...(row.revokedAt === undefined ? {} : { revokedAt: row.revokedAt }),
+  };
+}
+
+export async function loadWorkspaceGrants(
+  client: HostClient,
+  slug: string,
+): Promise<WorkspaceGrant[]> {
+  const { grants } = await readWorkspaceGrants(client, { slug });
+  return grants.filter((row) => row.revokedAt === undefined).map(grantView);
+}
+
+export async function revokeWorkspaceGrant(
+  client: HostClient,
+  slug: string,
+  grantId: string,
+): Promise<WorkspaceGrant> {
+  return grantView((await revokeGrant(client, { slug, grantId })).grant);
+}
+
+function folder(value: unknown): HostFolder | undefined {
+  const row = record(value);
+  if (!text(row?.['name']) || !text(row['path'])) return undefined;
+  return {
+    name: row['name'],
+    path: row['path'],
+    hidden: row['hidden'] === true,
+  };
+}
+
+function listing(value: unknown): HostFolderListing {
+  const row = record(value);
+  if (!text(row?.['path'])) throw new HostAnswerInvalid('The folder list has no location.');
+  return {
+    path: row['path'],
+    crumbs: some(row['crumbs'], folder),
+    entries: some(row['entries'], folder),
+    truncated: row['truncated'] === true,
+    roots: some(row['roots'], folder),
+  };
+}
+
+export interface HostFolderBrowse extends HostFolderListing {
+  home: string;
+  nextOffset?: number;
+  nativePicker?: true;
+}
+
+function browsedFolders(items: unknown): HostFolder[] {
+  if (!Array.isArray(items)) throw new HostAnswerInvalid('folderBrowse returned no folder list.');
+  return items.map((item) => {
+    const row = record(item);
+    if (!text(row?.['name']) || !text(row['path']) || typeof row['hidden'] !== 'boolean')
+      throw new HostAnswerInvalid('folderBrowse returned an unreadable folder.');
+    return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+  });
+}
+
+export async function browseHostFolders(
+  client: HostCall,
+  path?: string,
+  offset?: number,
+): Promise<HostFolderBrowse> {
+  const value = record(
+    await client.call('folderBrowse', {
+      ...(path === undefined ? {} : { path }),
+      ...(offset === undefined || offset === 0 ? {} : { offset }),
+    }),
+  );
+  if (!text(value?.['path']) || !text(value['home']) || typeof value['truncated'] !== 'boolean')
+    throw new HostAnswerInvalid('folderBrowse returned no folder listing.');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: browsedFolders(value['crumbs']),
+    entries: browsedFolders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
+    roots: browsedFolders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true as const } : {}),
+  };
+}
+
+const systemPickerHosts = new WeakSet<HostClient>();
+
+export async function listHostFolders(
+  client: HostClient,
+  path?: string,
+): Promise<HostFolderListing> {
+  const args = path === undefined ? {} : { path };
+  if (!systemPickerHosts.has(client)) {
+    try {
+      return listing(await client.call<unknown>('directoryPicker/list', args));
+    } catch (error) {
+      if (!folderBrowsingUnavailable(error)) throw error;
+      try {
+        const value = await browseHostFolders(client, path);
+        systemPickerHosts.add(client);
+        return value;
+      } catch (fallback) {
+        if (fallback instanceof MethodRefused && fallback.code.startsWith('folder-browse/'))
+          throw fallback;
+        throw error;
+      }
+    }
+  }
+  return browseHostFolders(client, path);
+}
+
+function option(value: unknown): WorkspaceOption | undefined {
+  const row = record(value);
+  if (!text(row?.['id']) || !text(row['path']) || !text(row['title'])) return undefined;
+  return { id: row['id'], path: row['path'], title: row['title'] };
+}
+
+export async function loadWorkspaceOptions(client: HostCall): Promise<WorkspaceOption[]> {
+  const rows = record(await client.call('workspaceOptions', {}))?.['workspaces'];
+  if (!Array.isArray(rows)) throw new HostAnswerInvalid('workspaceOptions returned no list.');
+  return some(rows, option);
+}
+
+export async function createWorkspace(client: HostClient, path: string): Promise<string> {
+  const workspace = record(
+    record(await client.call<unknown>('workspace/create', { request: { path } }))?.['workspace'],
+  );
+  if (!text(workspace?.['workspaceId']))
+    throw new HostAnswerInvalid('The computer did not register the folder.');
+  return workspace['workspaceId'];
+}
+
+export async function resolveWorkspaceFolder(
+  client: HostClient,
+  path: string,
+): Promise<WorkspaceOption> {
+  const workspaceId = await createWorkspace(client, path);
+  const resolved = (await loadWorkspaceOptions(client)).find((row) => row.id === workspaceId);
+  if (resolved === undefined) throw new HostAnswerInvalid('The folder is not available to share.');
+  return resolved;
+}
+
+export async function createWorkspaceGrant(
+  client: HostClient,
+  slug: string,
+  workspaceId: string,
+): Promise<WorkspaceGrant> {
+  return grantView((await createGrant(client, { slug, workspaceId })).grant);
+}
+
+export async function authorizeWorkspacePath(
+  client: HostClient,
+  slug: string,
+  path: string,
+): Promise<WorkspaceGrant> {
+  return createWorkspaceGrant(client, slug, await createWorkspace(client, path));
+}
+
+export async function approveWorkspaceRequest(
+  client: HostClient,
+  slug: string,
+  channelId: string,
+  requestMessageId: string,
+  workspaceId: string,
+): Promise<WorkspaceGrant> {
+  return grantView(
+    (await approveGrantRequest(client, { slug, channelId, requestMessageId, workspaceId })).grant,
+  );
+}
+
+function accessView({
+  mode,
+  scope = 'chat',
+  revision,
+}: WireAssignmentAccessPreset): AssignmentAccess {
+  return { mode, scope, revision };
+}
+
+export async function loadAssignmentAccess(
+  client: HostClient,
+  slug: string,
+): Promise<AssignmentAccess> {
+  return accessView((await readAssignmentAccess(client, slug)).preset);
+}
+
+export async function setAssignmentAccess(
+  client: HostClient,
+  slug: string,
+  mode: AccessMode,
+  acknowledgeRisk: boolean,
+  scope?: AccessScope,
+): Promise<AssignmentAccess> {
+  return accessView(
+    (
+      await writeAssignmentAccess(client, {
+        slug,
+        mode,
+        acknowledgeRisk,
+        ...(scope === undefined ? {} : { scope }),
+      })
+    ).preset,
+  );
+}
+
+export async function loadApprovalTemplates(
+  client: HostClient,
+  slug: string,
+): Promise<ApprovalTemplates> {
+  const { templates, selected, globalDefault } = await readApprovalTemplates(client, slug);
+  return {
+    templates: templates.map(({ name, title, description }) => ({ name, title, description })),
+    selected: selected ?? null,
+    ...(globalDefault === undefined ? {} : { globalDefault }),
+  };
+}
+
+export async function setApprovalTemplate(
+  client: HostClient,
+  slug: string,
+  template: string | null,
+): Promise<void> {
+  await setBotApprovalTemplate(client, slug, template);
+}
+
+export interface BotSettings {
+  loadModel(): Promise<BotModel>;
+  chooseModel(model: BotModel, entry: ModelCatalogEntry): Promise<ModelPlan>;
+  applyPreset(presetId: string): Promise<ModelPlan>;
+  loadGrants(): Promise<WorkspaceGrant[]>;
+  revokeGrant(grantId: string): Promise<WorkspaceGrant>;
+  listFolders(path?: string): Promise<HostFolderListing>;
+  loadWorkspaceOptions(): Promise<WorkspaceOption[]>;
+  resolveFolder(path: string): Promise<WorkspaceOption>;
+  authorizeFolder(path: string, workspaceId?: string): Promise<WorkspaceGrant>;
+  loadAccess(): Promise<AssignmentAccess>;
+  setAccess(
+    mode: AccessMode,
+    acknowledgeRisk: boolean,
+    scope?: AccessScope,
+  ): Promise<AssignmentAccess>;
+  loadTemplates(): Promise<ApprovalTemplates>;
+  setTemplate(template: string | null): Promise<void>;
+}
+
+export function botSettings(client: HostClient, slug: string): BotSettings {
+  return {
+    loadModel: () => loadBotModel(client, slug),
+    chooseModel: (model, entry) => chooseModel(client, slug, model, entry),
+    applyPreset: (presetId) => applyModelPreset(client, slug, presetId),
+    loadGrants: () => loadWorkspaceGrants(client, slug),
+    revokeGrant: (grantId) => revokeWorkspaceGrant(client, slug, grantId),
+    listFolders: (path) => listHostFolders(client, path),
+    loadWorkspaceOptions: () => loadWorkspaceOptions(client),
+    resolveFolder: (path) => resolveWorkspaceFolder(client, path),
+    authorizeFolder: (path, workspaceId) =>
+      workspaceId === undefined
+        ? authorizeWorkspacePath(client, slug, path)
+        : createWorkspaceGrant(client, slug, workspaceId),
+    loadAccess: () => loadAssignmentAccess(client, slug),
+    setAccess: (mode, acknowledgeRisk, scope) =>
+      setAssignmentAccess(client, slug, mode, acknowledgeRisk, scope),
+    loadTemplates: () => loadApprovalTemplates(client, slug),
+    setTemplate: (template) => setApprovalTemplate(client, slug, template),
+  };
+}
+
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function folderBrowsingUnavailable(error: unknown): boolean {
+  return error instanceof MethodRefused && error.code === 'directory-picker/unavailable';
+}

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -73,20 +73,16 @@ function RenameBotSheet({
           )}
         </View>
         <SheetActions>
-          <View>
-            <Button label={t.cancel} disabled={busy} on="canvas" onPress={onClose} />
-          </View>
-          <View>
-            <Button
-              testID="bot-name-save"
-              label={t.botNameSave}
-              busy={busy}
-              disabled={next === '' || next === name}
-              tone="primary"
-              on="canvas"
-              onPress={() => void save()}
-            />
-          </View>
+          <Button label={t.cancel} disabled={busy} on="canvas" onPress={onClose} />
+          <Button
+            testID="bot-name-save"
+            label={t.botNameSave}
+            busy={busy}
+            disabled={next === '' || next === name}
+            tone="primary"
+            on="canvas"
+            onPress={() => void save()}
+          />
         </SheetActions>
       </KeyboardFormScroll>
     </Sheet>

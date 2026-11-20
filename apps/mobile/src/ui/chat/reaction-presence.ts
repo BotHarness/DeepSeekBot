@@ -1,4 +1,4 @@
-import type { ConversationReaction } from '../../host/conversation';
+import type { ConversationReaction } from '@botharness/host-client/conversation';
 
 export function shownReactions(
   shown: readonly ConversationReaction[],

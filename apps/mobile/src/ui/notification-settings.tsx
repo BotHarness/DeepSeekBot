@@ -1,18 +1,20 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, View, type ViewInstance } from 'react-native';
 
 import {
   PUSH_KINDS,
   PushRequestFailed,
+  type PushDelivery,
   type PushKind,
   type PushPreferences,
   type PushSettings,
-} from '../host/push';
+} from '@botharness/host-client/push';
 import type { PushStatus } from '../host/push-session';
-import type { DevicePreferenceSnapshot } from '../host/device-notification-preferences';
+import type { DevicePreferenceSnapshot } from '@botharness/host-client/device-notification-preferences';
 import { useMounted } from './mounted';
 import { SettingsForm } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
+import { PreferenceRow } from './primitives/preference-row';
 import { errorText } from './request-parts';
 import { useStrings, t } from './strings';
 
@@ -20,6 +22,7 @@ export interface NotificationSettingsPort {
   load(): Promise<PushSettings>;
   set(preferences: Partial<PushPreferences>): Promise<PushSettings | void>;
   setEnabled(enabled: boolean): Promise<PushSettings>;
+  setDelivery(delivery: PushDelivery): Promise<PushSettings>;
   test(): Promise<void>;
 }
 
@@ -34,6 +37,7 @@ export function NotificationSettings({
   preference,
   onEnable,
   onOpenSettings,
+  connectionSettings,
 }: {
   status: PushStatus;
   hostName: string;
@@ -41,12 +45,13 @@ export function NotificationSettings({
   preference?: DevicePreferenceSnapshot;
   onEnable(): void;
   onOpenSettings(): void;
+  connectionSettings?: ReactNode;
 }) {
   const t = useStrings();
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [test, setTest] = useState<
-    { state: 'sending' | 'sent' } | { state: 'failed'; error: string }
+    { state: 'sending' | 'sent' | 'seen' } | { state: 'failed'; error: string }
   >();
   const on = status.status === 'on';
 
@@ -55,10 +60,13 @@ export function NotificationSettings({
     setError(message);
     AccessibilityInfo.announceForAccessibility(message);
   }, []);
-  const load = useCallback(() => {
-    setError(undefined);
-    port.load().then(setSettings, reportFailure);
-  }, [port, reportFailure]);
+  const load = useCallback(
+    (keepError = false) => {
+      if (!keepError) setError(undefined);
+      port.load().then(setSettings, reportFailure);
+    },
+    [port, reportFailure],
+  );
   const mount = useMounted<ViewInstance>(() => {
     load();
   }, [on, load]);
@@ -81,13 +89,27 @@ export function NotificationSettings({
     );
   };
 
-  const allow = (enabled: boolean) => {
+  const deliver = (mode: PushDelivery | 'off') => {
     if (settings === undefined) return;
-    setSettings({ ...settings, enabled });
-    port.setEnabled(enabled).then(setSettings, (reason: unknown) => {
-      reportFailure(reason);
-      load();
-    });
+    const enabled = mode !== 'off';
+    const delivery = mode === 'off' ? settings.delivery : mode;
+    setSettings({ ...settings, enabled, delivery });
+    const save = async () => {
+      let next = settings;
+      if (enabled && next.delivery !== delivery) next = await port.setDelivery(delivery);
+      if (next.enabled !== enabled) next = await port.setEnabled(enabled);
+      return next;
+    };
+    save().then(
+      (next) => {
+        setError(undefined);
+        setSettings(next);
+      },
+      (reason: unknown) => {
+        reportFailure(reason);
+        load(true);
+      },
+    );
   };
 
   const sendTest = () => {
@@ -110,6 +132,16 @@ export function NotificationSettings({
   return (
     <View ref={mount} style={{ flex: 1 }}>
       <SettingsForm testID="notification-settings">
+        {connectionSettings}
+        {on && settings !== undefined ? (
+          <SettingsSection on="raised">
+            <SettingsRow
+              on="raised"
+              title={t.notificationCloudRegistration}
+              detail={settings.registered ? t.notificationRegistered : t.notificationNotRegistered}
+            />
+          </SettingsSection>
+        ) : null}
         {status.status === 'checking' || (on && settings === undefined && error === undefined) ? (
           <SettingsSection on="raised">
             <SettingsRow title={t.loading} on="raised" control={{ kind: 'busy' }} />
@@ -137,7 +169,14 @@ export function NotificationSettings({
         ) : null}
         {status.status === 'unavailable' ? (
           <SettingsSection on="raised">
-            <SettingsRow on="raised" title={t.notificationsUnavailable} />
+            <SettingsRow
+              on="raised"
+              title={
+                status.reason === 'missing-project-id'
+                  ? t.cloudPushUnavailable
+                  : t.notificationsRegistrationFailed
+              }
+            />
           </SettingsSection>
         ) : null}
         {hostFailed ? (
@@ -153,23 +192,45 @@ export function NotificationSettings({
         {on && settings !== undefined ? (
           <SettingsSection
             on="raised"
-            footer={settings.enabled ? undefined : t.allowNotificationsOff}
+            footer={
+              !settings.enabled
+                ? t.allowNotificationsOff
+                : settings.delivery === 'in-app'
+                  ? t.deliveryInAppHint
+                  : t.deliveryPushHint
+            }
           >
-            <SettingsRow
-              on="raised"
-              title={t.allowNotifications}
-              testID="notifications-allow"
-              control={{
-                kind: 'switch',
-                testID: 'notifications-allow',
-                value: settings.enabled,
-                onChange: allow,
-                disabled: !settings.registered,
-              }}
-            />
+            {settings.registered ? (
+              <PreferenceRow
+                on="raised"
+                title={t.deliveryTitle}
+                icon="notifications"
+                testID="notifications-delivery"
+                value={settings.enabled ? settings.delivery : 'off'}
+                options={[
+                  { value: 'push', label: t.deliveryPush, icon: 'notifications' },
+                  { value: 'in-app', label: t.deliveryInApp, icon: 'system' },
+                  { value: 'off', label: t.deliveryOff, icon: 'unpair' },
+                ]}
+                onChange={deliver}
+              />
+            ) : (
+              <SettingsRow
+                on="raised"
+                title={t.deliveryTitle}
+                detail={
+                  !settings.enabled
+                    ? t.deliveryOff
+                    : settings.delivery === 'in-app'
+                      ? t.deliveryInApp
+                      : t.deliveryPush
+                }
+              />
+            )}
           </SettingsSection>
         ) : null}
-        {preference?.preferences !== undefined || (on && settings?.enabled === true) ? (
+        {(preference?.preferences !== undefined || (on && settings?.enabled === true)) &&
+        settings?.enabled !== false ? (
           <SettingsSection
             on="raised"
             title={t.notifyAbout}
@@ -202,9 +263,23 @@ export function NotificationSettings({
               title={t.sendTest}
               testID="notifications-test"
               onPress={test?.state === 'sending' ? undefined : sendTest}
-              detail={test?.state === 'sent' ? t.testSent : undefined}
+              detail={
+                test?.state === 'seen'
+                  ? t.notificationLocalTestState.seen
+                  : test?.state === 'sent'
+                    ? t.testSent
+                    : undefined
+              }
               control={test?.state === 'sending' ? { kind: 'busy' } : undefined}
             />
+            {test?.state === 'sent' ? (
+              <SettingsRow
+                on="raised"
+                title={t.notificationSawTest}
+                testID="notification-cloud-test-seen"
+                onPress={() => setTest({ state: 'seen' })}
+              />
+            ) : null}
           </SettingsSection>
         ) : null}
       </SettingsForm>

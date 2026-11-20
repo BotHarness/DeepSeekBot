@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { useCallback, useSyncExternalStore } from 'react';
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useConversation } from '../../host/host-session';
 import { activityStartTarget } from '../../host/live-activity-routing';
 import { Button } from '../primitives/creation-button';

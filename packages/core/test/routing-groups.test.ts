@@ -1,0 +1,361 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createAttachmentStore } from '../src/attachments/store.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createChannelStore } from '../src/channels/store.js';
+import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { EngineRefusal } from '../src/engines/engine-session.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import type { ModelCatalog } from '../src/models/catalog.js';
+import { createModelPresetStore } from '../src/models/presets.js';
+import { createRoutingGroupStore, RoutingGroupError } from '../src/models/routing-groups.js';
+import type { RoutingGroupMember } from '../src/models/routing-groups.js';
+import { createBotStateTracker } from '../src/state/bot-state.js';
+import { createTestOwnership } from './helpers.js';
+import { createTestRegistry } from './registry-fixture.js';
+import { createTestRosterStore } from './roster-fixture.js';
+
+const GO = { kind: 'model' as const, provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+const DEEPSEEK = { kind: 'model' as const, provider: 'deepseek', model: 'deepseek-v4.1-flash' };
+const CODEX = { kind: 'engine', engine: 'codex', model: 'gpt-5.4' } satisfies RoutingGroupMember;
+const CLAUDE = { kind: 'engine', engine: 'claude' } satisfies RoutingGroupMember;
+const roots: string[] = [];
+const owners: OperationalDatabaseOwner[] = [];
+
+function mount(root = mkdtempSync(join(tmpdir(), 'bh-routing-groups-'))) {
+  if (!roots.includes(root)) roots.push(root);
+  const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  owners.push(database);
+  return { root, database };
+}
+
+afterEach(() => {
+  for (const owner of owners.splice(0)) owner.close();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+function refusal(run: () => unknown) {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof RoutingGroupError) return { code: error.code, message: error.message };
+    throw error;
+  }
+  throw new Error('Expected a Routing Group refusal');
+}
+
+describe('Routing Group store', () => {
+  it('keeps ordered members across a reopen and checks revisions and names', () => {
+    const { root, database } = mount();
+    const store = createRoutingGroupStore({ database });
+    const created = store.create({ name: ' Flash ', members: [GO, DEEPSEEK] });
+    expect(created).toMatchObject({ name: 'Flash', revision: 1, mode: 'order' });
+    expect(refusal(() => store.create({ name: 'flash', members: [GO] }))).toMatchObject({
+      code: 'name-conflict',
+    });
+    const updated = store.update(created.id, {
+      expectedRevision: 1,
+      name: 'Flash',
+      members: [DEEPSEEK, GO],
+    });
+    expect(updated.revision).toBe(2);
+    expect(
+      refusal(() =>
+        store.update(created.id, { expectedRevision: 1, name: 'Flash', members: [GO] }),
+      ),
+    ).toMatchObject({ code: 'stale-revision' });
+    database.close();
+    owners.splice(owners.indexOf(database), 1);
+    const reopened = createRoutingGroupStore({ database: mount(root).database });
+    expect(reopened.get(created.id)?.members).toEqual([DEEPSEEK, GO]);
+    expect(reopened.routes(created.id)).toEqual([
+      { provider: 'deepseek', model: 'deepseek-v4.1-flash' },
+      { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    ]);
+  });
+
+  it('expands nested groups in order without repeats and refuses cycles and empty groups', () => {
+    const store = createRoutingGroupStore({ database: mount().database });
+    const inner = store.create({ name: 'Inner', members: [CLAUDE, DEEPSEEK] });
+    const outer = store.create({
+      name: 'Outer',
+      members: [GO, { kind: 'group', id: inner.id }, DEEPSEEK],
+    });
+    expect(store.routes(outer.id)).toEqual([
+      { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      { provider: 'deepseek', model: 'deepseek-v4.1-flash' },
+    ]);
+    expect(
+      refusal(() =>
+        store.update(inner.id, {
+          expectedRevision: 1,
+          name: 'Inner',
+          members: [CLAUDE, { kind: 'group', id: outer.id }],
+        }),
+      ),
+    ).toMatchObject({ code: 'cycle', message: expect.stringContaining('Inner → Outer → Inner') });
+    expect(refusal(() => store.create({ name: 'Empty', members: [] }))).toMatchObject({
+      code: 'empty-group',
+    });
+    expect(
+      refusal(() => store.create({ name: 'Ghost', members: [{ kind: 'group', id: 'missing' }] })),
+    ).toMatchObject({ code: 'unknown-member' });
+    expect(refusal(() => store.delete(inner.id, 1))).toMatchObject({
+      code: 'in-use',
+      message: expect.stringContaining('Routing Group Outer'),
+    });
+    expect(store.delete(outer.id, 1).name).toBe('Outer');
+    expect(store.delete(inner.id, 1).name).toBe('Inner');
+    expect(store.list()).toEqual([]);
+  });
+
+  it('round-trips engine targets in order while preserving existing model-only records', () => {
+    const { root, database } = mount();
+    const store = createRoutingGroupStore({ database });
+    const legacy = store.create({ name: 'Existing', members: [GO] });
+    const mixed = store.create({ name: 'Mixed', members: [CODEX, DEEPSEEK] });
+    const codexDefault = { kind: 'engine', engine: 'codex' } satisfies RoutingGroupMember;
+    const updated = store.update(mixed.id, {
+      expectedRevision: mixed.revision,
+      name: mixed.name,
+      members: [CLAUDE, { ...CODEX, model: ' gpt-5.4 ' }, DEEPSEEK, codexDefault],
+    });
+    database.close();
+    owners.splice(owners.indexOf(database), 1);
+    const reopened = createRoutingGroupStore({ database: mount(root).database });
+    expect(reopened.list()).toEqual([legacy, updated]);
+    expect(reopened.get(mixed.id)?.members).toEqual([CLAUDE, CODEX, DEEPSEEK, codexDefault]);
+    expect(reopened.routes(mixed.id)).toEqual([
+      { provider: DEEPSEEK.provider, model: DEEPSEEK.model },
+    ]);
+  });
+
+  it('rejects duplicate engine members on create and update', () => {
+    const store = createRoutingGroupStore({ database: mount().database });
+    const original = store.create({ name: 'Mixed', members: [CODEX, GO] });
+    const members = [CODEX, GO, { ...CODEX, model: ' gpt-5.4 ' }];
+    expect(refusal(() => store.create({ name: 'Duplicate', members }))).toMatchObject({
+      code: 'invalid-input',
+      message: expect.stringContaining('unique'),
+    });
+    expect(
+      refusal(() => store.update(original.id, { name: 'Mixed', expectedRevision: 1, members })),
+    ).toMatchObject({ code: 'invalid-input', message: expect.stringContaining('unique') });
+    expect(store.get(original.id)).toEqual(original);
+    expect(refusal(() => store.create({ name: 'Engine only', members: [CLAUDE] }))).toMatchObject({
+      code: 'empty-group',
+    });
+  });
+});
+
+describe('Choosing a Routing Group as a Bot Orchestrator', () => {
+  function setup(
+    validate: ModelCatalog['validate'],
+    subscriptionEngines?: Parameters<typeof createBridgeMethods>[1]['subscriptionEngines'],
+  ) {
+    const { root, database } = mount();
+    const registry = createTestRegistry({ rootDir: root, database });
+    const routingGroups = createRoutingGroupStore({
+      database,
+      references: (groupId) =>
+        registry
+          .list()
+          .filter((bot) => bot.modelPlan?.orchestratorGroupId === groupId)
+          .map((bot) => `Bot ${bot.displayName}`),
+    });
+    const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      registry,
+      modelPresets: createModelPresetStore({ rootDir: root, database }),
+      routingGroups,
+      ...(subscriptionEngines === undefined ? {} : { subscriptionEngines }),
+      routeRests: {
+        list: () => [{ provider: 'opencode-go', model: 'x', until: '2026-11-22T00:00:00.000Z' }],
+      },
+      modelCatalog: {
+        list: async () =>
+          [GO, DEEPSEEK].map(({ provider, model }) => ({
+            provider,
+            providerName: provider,
+            model,
+            modelName: model,
+            efforts: [],
+          })),
+        validate,
+      },
+      states: createBotStateTracker(),
+      channels: createChannelStore({ rootDir: join(root, 'channels'), attachments }),
+      attachments,
+      ownership: createTestOwnership(),
+      roster: createTestRosterStore(),
+    });
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    return { registry, methods };
+  }
+
+  it('runs on the first member the catalog accepts, records the group and refuses deleting it', async () => {
+    const { registry, methods } = setup(async (route) => {
+      if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
+    });
+    const created = await methods.modelGroupCreate({
+      name: 'Flash',
+      members: [CODEX, GO, DEEPSEEK],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const id = created.value.group.id;
+    expect(methods.modelGroups({})).toMatchObject({
+      ok: true,
+      value: {
+        groups: [{ id, members: [CODEX, GO, DEEPSEEK] }],
+        rests: [{ provider: 'opencode-go', model: 'x' }],
+      },
+    });
+    expect(methods.modelGroup({ id })).toMatchObject({
+      ok: true,
+      value: {
+        group: { members: [CODEX, GO, DEEPSEEK] },
+        routes: [{ provider: 'opencode-go' }, { provider: 'deepseek' }],
+      },
+    });
+
+    expect(
+      await methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestratorGroupId: id,
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        plan: {
+          revision: 1,
+          orchestratorGroupId: id,
+          orchestrator: { provider: 'deepseek', model: 'deepseek-v4.1-flash' },
+        },
+      },
+    });
+    expect(methods.modelGroupDelete({ id, expectedRevision: 1 })).toMatchObject({
+      ok: false,
+      error: { code: 'routing-group-in-use', message: expect.stringContaining('Bot Ada') },
+    });
+
+    expect(
+      await methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestrator: { provider: 'deepseek', model: 'deepseek-v4.1-flash' },
+        expectedRevision: 1,
+      }),
+    ).toMatchObject({ ok: true, value: { plan: { revision: 2 } } });
+    expect(registry.get('ada')?.modelPlan?.orchestratorGroupId).toBeUndefined();
+    expect(methods.modelGroupDelete({ id, expectedRevision: 1 })).toMatchObject({ ok: true });
+  });
+
+  it('validates new engine effort, persists it and lets a saved unavailable member be reordered', async () => {
+    const validateChoice = vi.fn(async (_engine: string, choice: { effort?: string }) => {
+      if (choice.effort !== 'high')
+        throw new EngineRefusal('unknown-effort', 'GPT-5.4 takes effort high');
+    });
+    const { methods } = setup(async () => undefined, {
+      validateChoice,
+      use: vi.fn(),
+      fallsBack: () => false,
+      store: { selection: () => undefined },
+    });
+    const selected = { ...CODEX, reasoningEffort: 'high' };
+    const input = { name: 'Mixed effort', members: [selected, GO] };
+    const created = await methods.modelGroupCreate(input);
+    if (!created.ok) throw new Error('Expected the supported effort to save');
+    const { id, revision } = created.value.group;
+    expect(created.value.group.members).toEqual(input.members);
+    expect(validateChoice).toHaveBeenCalledWith('codex', { model: CODEX.model, effort: 'high' });
+    const invalid = { ...input, members: [{ ...selected, reasoningEffort: 'unknown' }, GO] };
+    await expect(
+      methods.modelGroupCreate({ ...invalid, name: 'Invalid effort' }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    await expect(
+      methods.modelGroupUpdate({ ...invalid, id, expectedRevision: revision }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    validateChoice.mockRejectedValue(new EngineRefusal('unknown-model', 'GPT-5.4 was removed'));
+    await expect(
+      methods.modelGroupUpdate({
+        ...input,
+        members: [GO, selected],
+        id,
+        expectedRevision: revision,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { group: { members: [GO, selected] } },
+    });
+    expect(validateChoice).toHaveBeenCalledTimes(3);
+  });
+
+  it('refuses invalid engine members at the Host boundary on create and update', async () => {
+    const { methods } = setup(async () => undefined);
+    const created = await methods.modelGroupCreate({ name: 'Mixed', members: [CLAUDE, GO] });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const { id, revision } = created.value.group;
+    for (const invalid of [
+      { ...CODEX, engine: 'unknown' },
+      { ...CODEX, model: ' ' },
+      { ...CLAUDE, reasoningEffort: 'high' },
+      { ...CODEX, reasoningEffort: ' ' },
+      { ...CODEX, provider: GO.provider },
+    ]) {
+      const input = { name: 'Invalid', members: [invalid, GO] };
+      expect(await methods.modelGroupCreate(input)).toMatchObject({
+        ok: false,
+        error: { code: 'invalid-input' },
+      });
+      expect(
+        await methods.modelGroupUpdate({ ...input, id, expectedRevision: revision }),
+      ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    }
+    expect(methods.modelGroup({ id })).toMatchObject({
+      ok: true,
+      value: { group: created.value.group },
+    });
+  });
+
+  it('refuses unknown models, a missing group and a group with no usable member', async () => {
+    const { registry, methods } = setup(async () => {
+      throw new Error('Provider has no API key');
+    });
+    expect(
+      await methods.modelGroupCreate({ name: 'Ghost', members: [{ ...GO, model: 'missing' }] }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input', message: expect.stringContaining('opencode-go/missing') },
+    });
+    const created = await methods.modelGroupCreate({ name: 'Flash', members: [GO, DEEPSEEK] });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(
+      await methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestratorGroupId: created.value.group.id,
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({ ok: false, error: { message: expect.stringContaining('API key') } });
+    expect(
+      await methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestratorGroupId: 'missing',
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'routing-group-not-found' } });
+    expect(registry.get('ada')?.modelPlan).toBeUndefined();
+  });
+});

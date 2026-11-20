@@ -1,14 +1,25 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+import { type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
+import { type TypedLive } from '../src/client/messaging-defaults-live.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
-  const stub = () => null;
+const scopedAttentionProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
+  snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
+}));
+vi.mock('../src/client/host-tabs.js', async (original) => ({
+  ...(await original<typeof import('../src/client/host-tabs.js')>()),
+  useRemoteHosts: () => scopedAttentionProbe.snapshot,
+}));
+
+const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
-    IconPanelLeftOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     isDarwinDesktop: () => false,
   };
 });
@@ -16,10 +27,19 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   const { createElement: h } = await import('react');
   const { store } = await import('../src/client/store.js');
   const { useSyncExternalStore } = await import('react');
+  const { useClientStore } = await import('../src/client/use-client-store.js');
   return {
     useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot),
-    BotSidebar: ({ wide }: { wide: boolean }) =>
-      h('div', { 'data-roster': wide ? 'wide' : 'rail' }),
+    BotSidebar: ({ wide }: { wide: boolean }) => {
+      const selection = useClientStore((state) => state.selection);
+      const query = useClientStore((state) => state.query);
+      rosterProbe.renders += 1;
+      return h('div', {
+        'data-roster': wide ? 'wide' : 'rail',
+        'data-roster-selection': selection?.kind,
+        'data-roster-query': query,
+      });
+    },
   };
 });
 vi.mock('../src/client/onboarding-checklist-view.js', () => ({
@@ -27,10 +47,10 @@ vi.mock('../src/client/onboarding-checklist-view.js', () => ({
 }));
 
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import { BotModeSidebar, type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
+import { BotModeSidebar } from '../src/client/bot-mode-sidebar.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
-import { installTypedLive, type TypedLive } from '../src/client/messaging-defaults-live.js';
+import { installTypedLive } from '../src/client/messaging-defaults-live.js';
 import { store } from '../src/client/store.js';
 
 const t = ((key: keyof typeof en, params?: Record<string, string>) =>
@@ -46,6 +66,7 @@ let container: HTMLDivElement | undefined;
 let root: ReturnType<typeof createRoot> | undefined;
 
 afterEach(() => {
+  scopedAttentionProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'local' };
   act(() => root?.unmount());
   container?.remove();
   container = undefined;
@@ -58,14 +79,14 @@ function render(overrides: Partial<BotModeSidebarProps> = {}) {
     toggleSidebar: vi.fn(),
     openBotSettings: vi.fn(),
     openActivityCenter: vi.fn(async () => undefined),
-    refreshHumanInboxStatus: vi.fn(async () => undefined),
+    refreshActivityListStatus: vi.fn(async () => undefined),
   };
   const props: BotModeSidebarProps = {
     collapsed: false,
     width: 280,
     actions: {
       openActivityCenter: calls.openActivityCenter,
-      refreshHumanInboxStatus: calls.refreshHumanInboxStatus,
+      refreshActivityListStatus: calls.refreshActivityListStatus,
     } as never,
     useBotModePrefs,
     setSortMode: () => undefined,
@@ -89,10 +110,48 @@ function render(overrides: Partial<BotModeSidebarProps> = {}) {
 }
 
 describe('Bot mode sidebar', () => {
+  it('skips conversation-only updates while keeping inbox badges and navigation live', () => {
+    const before = store.getSnapshot();
+    try {
+      act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
+      const { container: node } = render();
+      const initialRenders = rosterProbe.renders;
+      for (let draftRevision = 1; draftRevision <= 60; draftRevision += 1)
+        act(() => store.setConversation({ draftRevision }));
+      expect(rosterProbe.renders).toBe(initialRenders);
+      act(() => store.setQuery('Ada'));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-query')).toBe('Ada');
+      expect(rosterProbe.renders).toBe(initialRenders + 1);
+      act(() => store.setActivityList({ unreadCount: 3, hasAction: true }));
+      expect(rosterProbe.renders).toBe(initialRenders + 2);
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-label')).toContain(
+        '3',
+      );
+      act(() => store.select({ kind: 'inbox' }));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-selection')).toBe(
+        'inbox',
+      );
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-current')).toBe(
+        'page',
+      );
+      act(() => store.select(undefined));
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.hasAttribute('aria-current')).toBe(
+        false,
+      );
+    } finally {
+      act(() => {
+        store.select(before.selection);
+        store.setQuery(before.query);
+        store.setConversation(before.conversation);
+        store.setActivityList(before.activityList);
+      });
+    }
+  });
+
   it('leads out of Bot mode and drives the DSH column from its own controls', () => {
     const { calls, button, container: node } = render();
 
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(1);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(1);
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('wide');
     expect(node.textContent).toContain('Tobs');
     expect(node.textContent).not.toContain('Bot mode');
@@ -101,15 +160,19 @@ describe('Bot mode sidebar', () => {
     expect(logo.classList.contains('bh-mode-sidebar-logo')).toBe(true);
     expect(logo.getAttribute('data-bh-tour')).toBe('bot-mode');
     expect(logo.hasAttribute('data-exit')).toBe(false);
-    act(() => logo.dispatchEvent(new MouseEvent('pointerover', { bubbles: true })));
+    act(() => {
+      logo.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+    });
     expect(logo.getAttribute('data-exit')).toBe('true');
-    act(() => logo.dispatchEvent(new MouseEvent('pointerout', { bubbles: true })));
+    act(() => {
+      logo.dispatchEvent(new MouseEvent('pointerout', { bubbles: true }));
+    });
     expect(logo.hasAttribute('data-exit')).toBe(false);
 
     act(() => button('Exit Bot mode').click());
     act(() => button('Collapse sidebar').click());
     act(() => button('Bot settings').click());
-    act(() => button('Activity Center').click());
+    act(() => button('Activity').click());
 
     expect(calls.exitBotMode).toHaveBeenCalledTimes(1);
     expect(calls.toggleSidebar).toHaveBeenCalledTimes(1);
@@ -131,14 +194,14 @@ describe('Bot mode sidebar', () => {
     const dockPanels = createDockPanelRegistry();
     dockPanels.register({
       id: 'activity-center',
-      title: 'Activity Center',
+      title: 'Activity',
       icon: 'bell',
       scope: 'global',
       order: -100,
       component: () => null,
     });
     dockPanels.register({ id: 'todo', title: 'To-do', scope: 'global', component: () => null });
-    act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+    act(() => store.setActivityList({ unreadCount: 3, hasAction: true }));
     const { calls, container: node } = render({ dockPanels });
     const card = (id: string): HTMLButtonElement =>
       node.querySelector<HTMLButtonElement>(`[data-pinned-panel="${id}"]`)!;
@@ -151,7 +214,7 @@ describe('Bot mode sidebar', () => {
     ).toEqual(['activity-center', 'todo']);
     expect(card('activity-center').getAttribute('data-bh-tour')).toBe('inbox');
     expect(card('activity-center').getAttribute('aria-label')).toBe(
-      'Activity Center · 3 unread · Needs my action',
+      'Activity · 3 unread · Needs my action',
     );
     expect(card('activity-center').querySelector('[data-pinned-panel-count]')?.textContent).toBe(
       '3',
@@ -186,24 +249,24 @@ describe('Bot mode sidebar', () => {
     expect(card('todo').getAttribute('data-open')).toBe('true');
     expect(calls.openActivityCenter).toHaveBeenCalledTimes(1);
     act(() => detach());
-    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
   });
 
   it('stacks the pinned cards as icons on the collapsed rail', () => {
     const dockPanels = createDockPanelRegistry();
     dockPanels.register({
       id: 'activity-center',
-      title: 'Activity Center',
+      title: 'Activity',
       icon: 'bell',
       scope: 'global',
       component: () => null,
     });
-    act(() => store.setHumanInbox({ unreadCount: 2, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 2, hasAction: false }));
     const { container: node } = render({ dockPanels, collapsed: true, width: 56 });
     const card = node.querySelector('[data-pinned-panel="activity-center"]')!;
     expect(card.querySelector('[data-pinned-panel-count]')).toBeNull();
     expect(card.querySelector('[data-pinned-panel-dot]')).not.toBeNull();
-    act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: false }));
   });
 });
 
@@ -222,13 +285,13 @@ it('updates the entry badge from the shared live stream and releases it on unmou
     const { calls } = render();
     handlers.baseline([]);
     await vi.advanceTimersByTimeAsync(30);
-    const count = calls.refreshHumanInboxStatus.mock.calls.length;
+    const count = calls.refreshActivityListStatus.mock.calls.length;
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(count);
     handlers.attention?.();
     handlers.attention?.();
     await vi.advanceTimersByTimeAsync(30);
-    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count + 1);
+    expect(calls.refreshActivityListStatus).toHaveBeenCalledTimes(count + 1);
     act(() => root?.unmount());
     root = undefined;
     expect(stop).toHaveBeenCalledTimes(1);
@@ -237,5 +300,27 @@ it('updates the entry badge from the shared live stream and releases it on unmou
     root = undefined;
     uninstall();
     vi.useRealTimers();
+  }
+});
+
+it.each([false, true])('hides excluded local action dots with pinned cards=%s', (pinned) => {
+  const before = store.getSnapshot().activityList;
+  try {
+    scopedAttentionProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'remote-only' };
+    act(() => store.setActivityList({ unreadCount: 0, hasAction: true }));
+    const dockPanels = createDockPanelRegistry();
+    dockPanels.register({
+      id: 'activity-center',
+      title: 'Activity',
+      scope: 'global',
+      component: () => null,
+    });
+    const { container: node } = render({ collapsed: true, ...(pinned ? { dockPanels } : {}) });
+    const entry = node.querySelector('[data-bh-tour="inbox"]');
+    expect(entry?.getAttribute('aria-label')).toBe('Activity');
+    if (pinned) expect(entry?.querySelector('[data-pinned-panel-dot]')).toBeNull();
+    else expect(entry?.querySelector('[data-sidebar-attention]')).toBeNull();
+  } finally {
+    act(() => store.setActivityList(before));
   }
 });

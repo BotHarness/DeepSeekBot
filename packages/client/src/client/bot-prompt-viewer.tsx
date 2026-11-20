@@ -1,6 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import { errorMessage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -9,6 +11,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { PendingApply } from './pending-apply.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { font } from './ds/tobs.stylex.js';
 
 export type BotPromptView = 'system-prompt' | 'turn-input';
 
@@ -45,7 +48,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: color.divider,
     borderRadius: radius.sm,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',
@@ -79,7 +82,7 @@ function Explained({
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            <IconInfoOutlineRegular size={14} />
+            <Icon name="info" size={14} />
           </button>
         </Tooltip>
       </div>

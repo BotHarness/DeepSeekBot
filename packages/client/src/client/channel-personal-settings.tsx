@@ -1,5 +1,7 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { Switch } from './ds/switch.js';
 import { Fragment, useRef, useState, type ReactElement } from 'react';
-import { Button, Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useClientStore } from './use-client-store.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { ChannelSummary } from './store.js';

@@ -1,0 +1,26 @@
+{
+  "packages/client/src/client/connection-progress-log.tsx": {
+    "count": 1,
+    "reason": "Tails the local diagnostic collector, including connection failures while the live stream is down. The collector exposes a cursor read and has no append notification. Runs only while the panel is open and visible."
+  },
+  "packages/client/src/client/create-app-form.tsx": {
+    "count": 1,
+    "reason": "WeChat QR setup attempt: the scan happens on the external platform, which has no event source we can follow; stops once the attempt settles."
+  },
+  "packages/client/src/client/engine-choice.tsx": {
+    "count": 1,
+    "reason": "Browser sign-in for a Subscription Engine completes outside the client. The Host exposes CLI login status only through a read. Polling stops when sign-in succeeds or after three minutes."
+  },
+  "packages/client/src/client/live-snapshots.ts": {
+    "count": 1,
+    "reason": "Waits 5 s to reconnect when the live snapshot stream fails."
+  },
+  "packages/client/src/client/remote-viewer/index.tsx": {
+    "count": 1,
+    "reason": "Samples the remote viewer iframe DOM to detect a frozen stream; local page state, no Host read."
+  },
+  "packages/host-client/src/client.ts": {
+    "count": 1,
+    "reason": "Reopens a followed channel stream 1 s after the Host ends it while the client is still following."
+  }
+}

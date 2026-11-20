@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { HOST_SYMBOL_GLYPHS, useHostInk } from './host-looks.js';
-import type { HostLook } from '../../../../apps/mobile/src/ui/design/host-look.js';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import { text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({

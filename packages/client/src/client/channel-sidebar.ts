@@ -1,15 +1,16 @@
+import type { ConversationStateView } from './store.js';
 import type { ComponentType } from 'react';
 
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { ChannelSummary, ClientState } from './store.js';
+import type { ChannelSummary } from './store.js';
 import type { MemoryWorkingChange } from './bridge.js';
 import { channelSidebarScopeKey } from './channel-sidebar-prefs.js';
 import type { DockPanelHost } from './dock-panels.js';
 
 export type ChannelSidebarScope = 'channel' | 'personabot';
 
-export function resolveChannelSidebarContext(state: ClientState):
+export function resolveChannelSidebarContext(state: ConversationStateView):
   | {
       channel: ChannelSummary | undefined;
       scope: ChannelSidebarScope;
@@ -53,6 +54,8 @@ export interface ChannelSidebarEntryProps {
   onMemoryCommitSelect?: ((sha: string) => void) | undefined;
   selectedMemoryCommitSha?: string | undefined;
   onMemoryFileSelect?: ((path: string) => void) | undefined;
+  onSessionSelect?: ((sessionId: string, title: string) => void) | undefined;
+  selectedSessionId?: string | undefined;
   selectedMemoryFilePath?: string | undefined;
   onMemoryWorkingSelect?: ((change: MemoryWorkingChange) => void) | undefined;
   selectedMemoryWorking?: MemoryWorkingChange | undefined;
@@ -83,7 +86,7 @@ export interface ChannelSidebarEntry {
   headerLabel?: string;
   headerTabs?: ComponentType<ChannelSidebarEntryProps>;
   badge?: ComponentType<ChannelSidebarEntryProps>;
-  visible?: (state: ClientState) => boolean;
+  visible?: (state: ConversationStateView) => boolean;
   tab?: string;
   surface?: 'settings';
   attention?: ComponentType<ChannelSettingsAttentionProps>;

@@ -15,22 +15,29 @@ export interface PersonaBotSessionRow {
   description?: string;
   cwd: string | undefined;
   updatedAt: number;
-  status: 'running' | 'stopping' | 'attention' | 'stopped' | 'idle' | 'unavailable';
+  status: 'running' | 'stopping' | 'attention' | 'idle' | 'unavailable';
   section?: AssignmentSection;
   needs?: AssignmentNeed;
   archived?: true;
   triageOpenCount?: number;
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  engine?: {
+    engine: string;
+    account?: string;
+    quota?: import('./bridge.js').SessionEngineQuota;
+  };
+  mode?: string;
   subagentCount?: number;
 }
 
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
 
-export type AssignmentSection = 'needs-input' | 'working' | 'idle' | 'resolved';
+export type AssignmentSection = 'needs-input' | 'working' | 'stuck' | 'idle' | 'resolved';
 
 export const ASSIGNMENT_SECTIONS: readonly AssignmentSection[] = [
   'needs-input',
   'working',
+  'stuck',
   'idle',
   'resolved',
 ];
@@ -39,7 +46,8 @@ function assignmentSection(
   owned: OwnedSessionSummary,
   status: PersonaBotSessionRow['status'],
 ): { section: AssignmentSection; needs?: AssignmentNeed } {
-  if (owned.assignmentArchived === true || status === 'stopped') return { section: 'resolved' };
+  if (owned.assignmentArchived === true) return { section: 'resolved' };
+  if (owned.assignmentActivity === 'stopped') return { section: 'idle' };
   if (owned.assignmentExecutionWait === 'waiting-human')
     return { section: 'needs-input', needs: 'approval' };
   if (status === 'attention') return { section: 'needs-input', needs: 'error' };
@@ -55,7 +63,7 @@ function rowStatus(
   native: NativeSessionSummary | undefined,
 ): PersonaBotSessionRow['status'] {
   if (owned.assignmentActivity === 'stopping') return 'stopping';
-  if (owned.assignmentActivity === 'stopped') return 'stopped';
+  if (owned.assignmentActivity === 'stopped') return 'idle';
   if (native?.running) return 'running';
   if (owned.assignmentActivity === 'error') return 'attention';
   if (native === undefined) return 'unavailable';
@@ -106,6 +114,16 @@ export function personaBotSessionRows(
         ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
           ? {}
           : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
+        ...(item.engine === undefined
+          ? {}
+          : {
+              engine: {
+                engine: item.engine.engine,
+                ...(item.engine.account === undefined ? {} : { account: item.engine.account }),
+                ...(item.engine.quota === undefined ? {} : { quota: item.engine.quota }),
+              },
+            }),
+        ...(item.agentPreset === undefined ? {} : { mode: item.agentPreset }),
         ...(item.subagentCount === undefined ? {} : { subagentCount: item.subagentCount }),
       },
     ];

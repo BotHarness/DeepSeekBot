@@ -1,4 +1,4 @@
-import type { RemoteSource, RosterBot } from './client';
+import type { RemoteSource, RosterBot } from '@botharness/host-client/client';
 
 export interface ChannelCandidate extends Pick<
   RosterBot,

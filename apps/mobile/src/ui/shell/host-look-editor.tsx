@@ -17,7 +17,7 @@ import {
   type HostColorId,
   type HostIcon,
   type HostLook,
-} from '../design/host-look';
+} from '@botharness/host-client/ui/design/host-look';
 import { contrast } from '../design/resolve-theme';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';

@@ -1,15 +1,17 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
+import { useTeamMode } from './team-state.js';
+import { BotAccessEntry } from './bot-access-entry.js';
+import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import {
-  Button,
-  IconEllipsisOutlineRegular,
-  Tag,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModePrefs } from './bot-mode-prefs.js';
@@ -17,11 +19,15 @@ import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { AutoApprovalBadge, AutoApprovalSettingsEntry } from './approval-template-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
+import { BotModeSettingsEntry } from './bot-mode-settings.js';
+import { BotVoiceSettingsEntry } from './voice-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
-import { channelSettings } from './channel-settings-state.js';
+import { useChannelSettings } from './channel-settings-state.js';
+import { hasChannelBots } from './channel-kind.js';
 import { useMountedResource } from './mounted-resource.js';
+import { fetchMessageResource, useMessageHost } from './message-host.js';
 import { WakePolicyBadge, WakePolicyEntry } from './wake-policy-entry.js';
 import {
   ExternalConnectorsAttention,
@@ -73,7 +79,7 @@ import {
   type InboxSection,
 } from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotAttentionItem, ClientState } from './store.js';
+import type { BotAttentionItem } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -119,7 +125,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   viewTabSelected: {
@@ -130,6 +139,11 @@ const styles = stylex.create({
 });
 
 const inactiveSubscribe = (): (() => void) => () => {};
+const NO_NATIVE_SESSION_STATE = { ids: [], byId: {} };
+const NO_NATIVE_SESSIONS: NativeSessionCatalog = {
+  subscribe: inactiveSubscribe,
+  getSnapshot: () => NO_NATIVE_SESSION_STATE,
+};
 
 const INBOX_STATE_TONE = {
   pending: 'warning',
@@ -147,7 +161,7 @@ function inboxIcon(item: BotAttentionItem): string {
   if (item.sourceKind === 'schedule') return 'alarm-clock';
   if (item.sourceKind === 'memory-change') return 'git-branch';
   if (item.sourceKind === 'assignment-report' || item.assignmentSessionId !== undefined)
-    return 'list-checks';
+    return ASSIGNMENT_SESSION_ICON;
   if (item.externalOrigin !== undefined) return 'globe';
   if (item.authorKind === 'human') return 'user';
   if (item.authorKind === 'bot') return 'bot';
@@ -192,7 +206,7 @@ function GroupManagementHeaderForChannel({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </IconButton>
           </Tooltip>
         }
@@ -216,8 +230,22 @@ function GroupManagementHeaderForChannel({
 }
 
 function MembersBadge(): ReactElement {
-  const count = useClientStore((state) => state.conversation.channel?.members.length ?? 0);
+  const count = useClientStore(
+    (state) =>
+      (state.conversation.channel?.members.length ?? 0) +
+      (state.conversation.channel?.humanMembers?.length ?? 0),
+  );
   return <Tag tone="neutral">{count}</Tag>;
+}
+
+function sourcePreviewKind(
+  source: ExternalSource,
+  file: { mediaType?: string },
+): 'image' | 'video' | undefined {
+  if (source.platform === 'feishu' && source.event.video) return;
+  if (file.mediaType?.startsWith('image/')) return 'image';
+  if (source.event.video && file.mediaType?.startsWith('video/')) return 'video';
+  return;
 }
 
 export function BotInboxItemRow({
@@ -233,6 +261,7 @@ export function BotInboxItemRow({
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const authorName = useClientStore(
     (state) => state.bots.find((bot) => bot.slug === item.authorBotSlug)?.displayName,
   );
@@ -272,18 +301,16 @@ export function BotInboxItemRow({
     else if (preview === 'audio') setAudioErrors((value) => ({ ...value, [attachmentId]: false }));
     else if (preview) setImageErrors((value) => ({ ...value, [attachmentId]: false }));
     try {
-      const response = await fetch(
-        './api/botharness/attachment?' +
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
           new URLSearchParams({
             slug: item.botSlug,
             sourceEventId: item.id,
             attachmentId,
             ...(preview === 'audio' ? { representation: 'playback' } : {}),
           }),
-        {
-          credentials: 'same-origin',
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
-        },
+        AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
+        host,
       );
       if (!response.ok) throw new Error('Download unavailable');
       const blob = await response.blob();
@@ -378,8 +405,8 @@ export function BotInboxItemRow({
         setExternal(source);
         for (const file of source.event.attachments ?? []) {
           if (request !== externalRequest.current) return;
-          if (file.mediaType?.startsWith('image/')) await download(file.id, file.name, true);
-          else if (source.event.video && file.mediaType?.startsWith('video/'))
+          if (sourcePreviewKind(source, file) === 'image') await download(file.id, file.name, true);
+          else if (sourcePreviewKind(source, file) === 'video')
             await download(file.id, file.name, 'video');
         }
       } catch {
@@ -396,10 +423,11 @@ export function BotInboxItemRow({
     await actions.openAround(item.sourceChannelId, item.sourceMessageId);
   };
   const imageAttachments =
-    external?.event.attachments?.filter((file) => file.mediaType?.startsWith('image/')) ?? [];
-  const videoAttachments = external?.event.video
-    ? (external.event.attachments?.filter((file) => file.mediaType?.startsWith('video/')) ?? [])
-    : [];
+    external?.event.attachments?.filter((file) => sourcePreviewKind(external, file) === 'image') ??
+    [];
+  const videoAttachments =
+    external?.event.attachments?.filter((file) => sourcePreviewKind(external, file) === 'video') ??
+    [];
   const unavailable = !memoryChange && !item.sourceAvailable;
   const chips = [
     marker === undefined ? null : (
@@ -565,7 +593,10 @@ export function BotInboxItemRow({
                             src={videoPreviews[file.id]}
                             aria-label={t('im.videoPlayer')}
                             onError={() =>
-                              setVideoErrors((value) => ({ ...value, [file.id]: true }))
+                              setVideoErrors((value) => ({
+                                ...value,
+                                [file.id]: true,
+                              }))
                             }
                           />
                         ) : null}
@@ -599,7 +630,12 @@ export function BotInboxItemRow({
                           preload="metadata"
                           src={audioPreviews[file.id]}
                           aria-label={t('im.voiceAudioPlayer')}
-                          onError={() => setAudioErrors((value) => ({ ...value, [file.id]: true }))}
+                          onError={() =>
+                            setAudioErrors((value) => ({
+                              ...value,
+                              [file.id]: true,
+                            }))
+                          }
                         />
                       ) : null}
                       {!audioPreviews[file.id] || audioErrors[file.id] ? (
@@ -688,7 +724,10 @@ function BotInboxGroup({
       data-inbox-group=""
       open={expanded}
       onToggle={(event) =>
-        setExpansion({ signature: activeSignature, expanded: event.currentTarget.open })
+        setExpansion({
+          signature: activeSignature,
+          expanded: event.currentTarget.open,
+        })
       }
       {...stylex.props(styles.inboxGroup, flush && styles.flushInboxGroup)}
     >
@@ -954,7 +993,11 @@ function MemoryHeaderAction({
       <SidebarViewMenu
         label={t('memory.menu')}
         items={[
-          { type: 'label', id: 'terminology-label', text: t('memory.terminology') },
+          {
+            type: 'label',
+            id: 'terminology-label',
+            text: t('memory.terminology'),
+          },
           { id: 'memory', label: t('memory.terms.memory') },
           { id: 'git', label: t('memory.terms.git') },
           { type: 'separator', id: 'backups-separator' },
@@ -996,8 +1039,23 @@ function ModelEntry({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactEle
   const deleted = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === botSlug && bot.deleted === true),
   );
+  const disallowed = useClientStore((state) =>
+    state.bots.some((bot) => bot.slug === botSlug && bot.modelAllowed === false),
+  );
+  const team = useTeamMode(actions.teamCall);
+  const canChoose =
+    team?.viewer.owner === true || team?.viewer.permissions.includes('models.use') === true;
   if (botSlug === undefined || deleted) return <></>;
-  return <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />;
+  return (
+    <>
+      {disallowed ? (
+        <Note tone="warning">
+          {t(canChoose ? 'team.models.notAllowed' : 'team.models.notAllowedAsk')}
+        </Note>
+      ) : null}
+      <ModelPresetProfile key={botSlug} slug={botSlug} actions={actions} t={t} />
+    </>
+  );
 }
 
 function useModelPlan(
@@ -1009,16 +1067,16 @@ function useModelPlan(
   );
   const botSlug = deleted ? undefined : slug;
   const plan = useSyncExternalStore(
-    subscribeModelPlans,
-    () => modelPlanOf(botSlug),
-    () => modelPlanOf(botSlug),
+    (listener) => subscribeModelPlans(listener, actions),
+    () => modelPlanOf(botSlug, actions),
+    () => modelPlanOf(botSlug, actions),
   );
   const mount = useMountedResource<HTMLSpanElement>(() => {
-    if (botSlug === undefined || modelPlanOf(botSlug) !== undefined) return;
+    if (botSlug === undefined || modelPlanOf(botSlug, actions) !== undefined) return;
     let active = true;
     void actions.modelPlanState(botSlug).then(
       (state: ModelPlanStateView | undefined) => {
-        if (active) rememberModelPlan(botSlug, state?.plan);
+        if (active) rememberModelPlan(botSlug, state?.plan, actions);
       },
       () => {},
     );
@@ -1089,6 +1147,7 @@ function SessionsHeaderWithSettings({
   targetId: string | undefined;
 }): ReactElement {
   const { actions, t } = props;
+  const channelSettings = useChannelSettings();
   const botDeleted = useClientStore((state) =>
     state.bots.some((bot) => bot.slug === props.botSlug && bot.deleted === true),
   );
@@ -1121,8 +1180,15 @@ function SessionsHeaderWithSettings({
       ? []
       : [
           { type: 'separator' as const, id: 'limit-separator' },
-          { type: 'label' as const, id: 'limit-label', text: t('assignmentLimit.title') },
-          { id: 'limit:edit', label: t('sessions.limit.value', { count: limit }) },
+          {
+            type: 'label' as const,
+            id: 'limit-label',
+            text: t('assignmentLimit.title'),
+          },
+          {
+            id: 'limit:edit',
+            label: t('sessions.limit.value', { count: limit }),
+          },
         ]),
   ];
   return (
@@ -1159,8 +1225,20 @@ export function createChannelSidebarBuiltinTabs(
       order: 1,
       scope: 'personabot',
     },
-    { id: 'memory', icon: 'brain', label: t('tab.memory'), order: 2, scope: 'personabot' },
-    { id: 'screen', icon: 'monitor', label: t('tab.screen'), order: 3, scope: 'personabot' },
+    {
+      id: 'memory',
+      icon: 'brain',
+      label: t('tab.memory'),
+      order: 2,
+      scope: 'personabot',
+    },
+    {
+      id: 'screen',
+      icon: 'monitor',
+      label: t('tab.screen'),
+      order: 3,
+      scope: 'personabot',
+    },
   ];
 }
 
@@ -1173,14 +1251,20 @@ export function createChannelSidebarBuiltins(
   },
 ): readonly ChannelSidebarEntry[] {
   function SessionsWithNative(props: ChannelSidebarEntryProps): ReactElement {
-    const readLimit = () => prefs?.source.getSnapshot().assignmentConcurrencyLimit;
+    const host = useMessageHost();
+    const localPrefs = host === undefined ? prefs : undefined;
+    const readLimit = () => localPrefs?.source.getSnapshot().assignmentConcurrencyLimit;
     const assignmentLimit = useSyncExternalStore(
-      prefs?.source.subscribe ?? inactiveSubscribe,
+      localPrefs?.source.subscribe ?? inactiveSubscribe,
       readLimit,
       readLimit,
     );
     return (
-      <SessionsEntry {...props} nativeSessions={nativeSessions} assignmentLimit={assignmentLimit} />
+      <SessionsEntry
+        {...props}
+        nativeSessions={host === undefined ? nativeSessions : NO_NATIVE_SESSIONS}
+        assignmentLimit={assignmentLimit}
+      />
     );
   }
 
@@ -1192,6 +1276,7 @@ export function createChannelSidebarBuiltins(
     return <WorkspaceGrantsEntry {...props} developerMode={developerMode} />;
   }
   function SessionsHeader(props: ChannelSidebarEntryProps): ReactElement {
+    const host = useMessageHost();
     const target = useSessionTarget(props);
     const group = props.botSlug === undefined;
     const channel = useClientStore((state) =>
@@ -1210,7 +1295,11 @@ export function createChannelSidebarBuiltins(
       : undefined;
     const targetItems: MenuEntry[] = group
       ? [
-          { type: 'label', id: 'target-label', text: props.t('sessions.target.label') },
+          {
+            type: 'label',
+            id: 'target-label',
+            text: props.t('sessions.target.label'),
+          },
           { id: 'target:channel', label: props.t('sessions.target.channel') },
           ...bots.map((bot) => ({
             id: `target:bot:${bot.slug}`,
@@ -1232,7 +1321,7 @@ export function createChannelSidebarBuiltins(
         <SessionsHeaderWithSettings
           {...props}
           botSlug={target.kind === 'bot' ? target.slug : undefined}
-          prefs={group ? undefined : prefs}
+          prefs={group || host !== undefined ? undefined : prefs}
           targetItems={targetItems}
           targetId={targetId}
         />
@@ -1266,7 +1355,7 @@ export function createChannelSidebarBuiltins(
     },
     {
       id: 'sessions',
-      icon: 'text-quote',
+      icon: ASSIGNMENT_SESSION_ICON,
       label: t('entry.sessions'),
       order: 10,
       scope: 'both',
@@ -1302,7 +1391,8 @@ export function createChannelSidebarBuiltins(
       order: 1,
       scope,
       component: ChannelNicknameEntry,
-      visible: (state: ClientState) => state.conversation.channel?.humanNickname !== undefined,
+      visible: (state: ConversationStateView) =>
+        state.conversation.channel?.humanNickname !== undefined,
     })),
     {
       id: 'dm-trace',
@@ -1312,6 +1402,15 @@ export function createChannelSidebarBuiltins(
       order: 2,
       scope: 'personabot',
       component: ChannelTraceEntry,
+    },
+    {
+      id: 'bot-access',
+      surface: 'settings',
+      icon: 'users',
+      label: t('entry.botAccess'),
+      order: 19,
+      scope: 'personabot',
+      component: BotAccessEntry,
     },
     {
       id: 'workspace-grants',
@@ -1342,6 +1441,15 @@ export function createChannelSidebarBuiltins(
       component: BotPromptSettingsEntry,
     },
     {
+      id: 'voice',
+      surface: 'settings',
+      icon: 'audio-lines',
+      label: t('entry.voice'),
+      order: 24.5,
+      scope: 'personabot',
+      component: BotVoiceSettingsEntry,
+    },
+    {
       id: 'model',
       surface: 'settings',
       icon: 'cpu',
@@ -1350,6 +1458,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: ModelEntry,
       badge: ModelBadge,
+    },
+    {
+      id: 'mode',
+      surface: 'settings',
+      icon: 'sliders-horizontal',
+      label: t('entry.mode'),
+      order: 25.5,
+      scope: 'personabot',
+      component: BotModeSettingsEntry,
     },
     {
       id: 'wake-policy',
@@ -1407,7 +1524,7 @@ export function createChannelSidebarBuiltins(
       order: 12,
       scope: 'channel',
       component: GroupWakePolicyEntry,
-      visible: isGroupConversation,
+      visible: (state) => isGroupConversation(state) && hasChannelBots(state.conversation.channel),
     },
     {
       id: 'group-external-connectors',

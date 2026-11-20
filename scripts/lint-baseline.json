@@ -1,0 +1,34 @@
+{
+  "typescript/no-misused-promises": {},
+  "typescript/switch-exhaustiveness-check": {},
+  "typescript/only-throw-error": {},
+  "typescript/prefer-promise-reject-errors": {},
+  "typescript/no-implied-eval": {
+    "packages/browser/test/snapshot.test.ts": 1,
+    "packages/browser/test/type-editability.test.ts": 1,
+    "packages/browser/test/viewer-local.test.ts": 1,
+    "scripts/test/desktop-zoom-compat.test.mjs": 1,
+    "scripts/test/release-ci.test.mjs": 1
+  },
+  "typescript/no-unsafe-enum-comparison": {},
+  "eslint/preserve-caught-error": {},
+  "eslint/no-unsafe-finally": {},
+  "eslint/no-unsafe-optional-chaining": {},
+  "eslint/no-constant-condition": {},
+  "unicorn/require-post-message-target-origin": {
+    "packages/client/src/client/wallpaper-layer.ts": 1,
+    "packages/core/src/channels/genui-worker-port.ts": 2,
+    "packages/core/src/process/exec-off-thread.ts": 1,
+    "packages/core/src/runtime/genui-diagram-worker.ts": 2,
+    "packages/core/test/genui-execution-worker.test.ts": 2
+  },
+  "botharness/spawn-options": {
+    "apps/mobile/scripts/web-screenshot.mjs": 1,
+    "scripts/android-qa.mjs": 1,
+    "scripts/e2e-call-media.mjs": 1,
+    "scripts/e2e-desktop-call.mjs": 3,
+    "scripts/e2e-device-full-client.mjs": 1,
+    "scripts/e2e-device-viewers.mjs": 1
+  },
+  "botharness/no-api-intercept": {}
+}

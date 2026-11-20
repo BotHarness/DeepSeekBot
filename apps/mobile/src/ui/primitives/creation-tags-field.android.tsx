@@ -6,7 +6,7 @@ import {
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
-import { creationTags } from '../../host/bot-creation-tags';
+import { creationTags } from '@botharness/host-client/bot-creation-tags';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';

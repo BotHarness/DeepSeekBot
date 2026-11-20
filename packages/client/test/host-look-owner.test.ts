@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createHostLooks } from '../../../apps/mobile/src/host/host-look.js';
-import { DEFAULT_HOST_LOOK } from '../../../apps/mobile/src/ui/design/host-look.js';
+import { createHostLooks } from '@botharness/host-client/host-look';
+import { DEFAULT_HOST_LOOK } from '@botharness/host-client/ui/design/host-look';
 
 it('preserves the native synchronous set and one-time legacy migration contracts', async () => {
   const write = vi.fn();

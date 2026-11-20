@@ -1,16 +1,14 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
+import { ReceptionStatus } from './reception-status.js';
 import { CreateAppForm } from './create-app-form.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Button,
-  Switch,
-  Tag,
-  IconPlusOutlineRegular,
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingSnapshot } from '../../../core/src/messaging/outbound.js';
 import type {
@@ -104,6 +102,7 @@ export function ExternalIdentityList({
   conversation,
   rules,
   refresh,
+  discover,
   channels,
   sync,
   syncChannels,
@@ -119,6 +118,7 @@ export function ExternalIdentityList({
   conversation(input: MessagingConversationInput): Promise<void>;
   rules(grantId: string, input: GroupReceptionInput): Promise<void>;
   refresh(): Promise<void>;
+  discover?(): Promise<void>;
   channels?: { id: string; name: string }[];
   sync?: ConversationSync;
   syncChannels?: { id: string; name: string }[];
@@ -158,7 +158,7 @@ export function ExternalIdentityList({
     setRefreshing(true);
     setError('');
     try {
-      await refresh();
+      await (discover ?? refresh)();
     } catch {
       if (current()) setError(t('identity.refreshFailed'));
     } finally {
@@ -276,7 +276,11 @@ export function ExternalIdentityList({
                 ? { expectedDefaultRevision: selected.defaultRevision }
                 : {}),
             }
-          : { kind: mode, id: selected.id, expectedRevision: selected.revision },
+          : {
+              kind: mode,
+              id: selected.id,
+              expectedRevision: selected.revision,
+            },
       );
     }
   };
@@ -302,8 +306,20 @@ export function ExternalIdentityList({
                 })}`}
                 chips={
                   <>
-                    <Tag tone="neutral">{t(AVAILABILITY[row.availability])}</Tag>
-                    {row.platform === 'weixin' ? (
+                    <Tag tone="neutral">
+                      {t(
+                        snapshot?.checks === 'pending' && row.enabled
+                          ? 'im.checking'
+                          : AVAILABILITY[row.availability],
+                      )}
+                    </Tag>
+                    <ReceptionStatus
+                      reception={row.reception}
+                      recovery={row.recovery}
+                      checking={snapshot?.checks === 'pending'}
+                      t={t}
+                    />
+                    {row.platform === 'weixin' && snapshot?.checks !== 'pending' ? (
                       <span className="bh-bridge-secondary" role="status">
                         {t(
                           !row.typing?.supported
@@ -330,22 +346,47 @@ export function ExternalIdentityList({
                 disabled={busy}
                 onClick={() => open('edit', row)}
                 trailing={
-                  <Switch
-                    label={t('identity.enableFor', { name: row.name })}
-                    checked={row.enabled}
-                    disabled={busy}
-                    onChange={(enabled) =>
-                      void operate(() =>
-                        mutate({
-                          kind: 'update',
-                          id: row.id,
-                          expectedRevision: row.revision,
+                  <>
+                    {row.enabled && row.reception !== 'receiving' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t('identity.reconnectFor', {
                           name: row.name,
-                          enabled,
-                        }),
-                      )
-                    }
-                  />
+                        })}
+                        aria-busy={busy}
+                        disabled={busy}
+                        onClick={() =>
+                          void operate(() =>
+                            mutate({
+                              kind: 'reconnect',
+                              id: row.id,
+                              expectedRevision: row.revision,
+                            }),
+                          )
+                        }
+                      >
+                        {t('reception.reconnectNow')}
+                      </Button>
+                    ) : null}
+                    <Switch
+                      label={t('identity.enableFor', { name: row.name })}
+                      checked={row.enabled}
+                      disabled={busy}
+                      onChange={(enabled) =>
+                        void operate(() =>
+                          mutate({
+                            kind: 'update',
+                            id: row.id,
+                            expectedRevision: row.revision,
+                            name: row.name,
+                            enabled,
+                          }),
+                        )
+                      }
+                    />
+                  </>
                 }
               />
             ))}
@@ -415,7 +456,7 @@ export function ExternalIdentityList({
                   {...stylex.props(styles.link)}
                 >
                   {t(`identity.tutorial.${guide}`)}
-                  <IconRightUpOutlineRegular size={14} />
+                  <Icon name="arrow-up-right" size={14} />
                 </a>
               ))}
             </div>
@@ -493,7 +534,7 @@ export function ExternalIdentityList({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      icon={<IconRefreshOutlineRegular size={16} />}
+                      icon={<Icon name="refresh-cw" size={16} />}
                       aria-label={t('identity.refreshApps')}
                       aria-busy={refreshing}
                       disabled={busy || refreshing}
@@ -517,7 +558,7 @@ export function ExternalIdentityList({
                     type="button"
                     size="sm"
                     variant="ghost"
-                    icon={<IconPlusOutlineRegular size={16} />}
+                    icon={<Icon name="plus" size={16} />}
                     disabled={busy || refreshing}
                     onClick={openAppSettings}
                   >
@@ -613,6 +654,12 @@ export function ExternalIdentityList({
           <p {...stylex.props(styles.subject)}>
             {platform(selected.platform)} · {selected.name}
           </p>
+          <ReceptionStatus
+            checking={snapshot?.checks === 'pending'}
+            reception={identities.find((row) => row.id === selected.id)?.reception}
+            recovery={identities.find((row) => row.id === selected.id)?.recovery}
+            t={t}
+          />
           {selected.platform === 'feishu' ? (
             <div role="status" {...stylex.props(styles.block)}>
               <span {...stylex.props(styles.strong)}>{t('identity.feedback.title')}</span>
@@ -707,7 +754,9 @@ export function ExternalIdentityList({
                       onChange={setTypingEnabled}
                     />
                   )}
-                  {!selected.typing?.supported ? (
+                  {snapshot?.checks === 'pending' ? (
+                    <Note>{t('im.checking')}</Note>
+                  ) : !identities.find((row) => row.id === selected.id)?.typing?.supported ? (
                     <Note>{t('identity.typing.unavailable')}</Note>
                   ) : null}
                 </>
@@ -751,7 +800,10 @@ export function ExternalIdentityList({
                               ),
                             }),
                     },
-                    { value: 'auto', label: t('identity.newConversations.auto') },
+                    {
+                      value: 'auto',
+                      label: t('identity.newConversations.auto'),
+                    },
                     { value: 'ask', label: t('identity.newConversations.ask') },
                   ]}
                 />
@@ -762,6 +814,22 @@ export function ExternalIdentityList({
             {() => (
               <ExternalConversations
                 identity={selected}
+                reconnect={() => {
+                  const current = identities.find((row) => row.id === selected.id);
+                  if (!current?.enabled) return;
+                  void operate(async () => {
+                    await mutate({
+                      kind: 'reconnect',
+                      id: current.id,
+                      expectedRevision: current.revision,
+                    });
+                    setSelected((previous) =>
+                      previous?.id === current.id && previous.revision === current.revision
+                        ? { ...previous, revision: current.revision + 1 }
+                        : previous,
+                    );
+                  });
+                }}
                 snapshot={snapshot}
                 busy={busy}
                 t={t}

@@ -2,7 +2,7 @@
 
 日期：2026-10-08。问题：Coopanion 的角色为何有丰富动作、表情与消息气泡；这些机制能否用于 BotHarness 的像素角色，以及 DSH Desktop 的桌宠显示。
 
-设计状态：Human 已于 2026-10-08 在 Q23 确认完整共识与第二档默认范围。§1–10 保留最初桌宠调研，§11 是收敛后的窗口内方案；最终权威见 [ADR-0144](../adr/0144-window-companions-consume-owned-activity-and-scoped-output.md)、[实现规格 #1135](https://github.com/BotHarness/BotHarness/issues/1135) 与 [已确认 HTML](evidence/coopanion-animation/window-companion-design.html)。本文不表示运行功能已交付。
+设计状态：Human 已于 2026-10-08 在 Q23 确认完整共识与第二档默认范围。§1–10 保留最初桌宠调研，§11 是收敛后的窗口内方案；最终权威见 [ADR-0144](../decisions/desktop-ui.md#adr-0144)、[实现规格 #1135](https://github.com/BotHarness/BotHarness/issues/1135) 与 [已确认 HTML](evidence/coopanion-animation/window-companion-design.html)。本文不表示运行功能已交付。
 
 ## 证据范围
 
@@ -127,7 +127,7 @@ manifest 提供 `entry/export/model`、多语言名称、外观 axes/presets、`
 | 动画生命周期       | reduced motion、隐藏、离屏、stale、卸载都会停止或收敛动画                          | 桌宠仍需对接自己的窗口可见性，不能默认永远全速    |
 | 外观与活动分离     | 保存 recipe/revision；执行和 Human attention 消费 owning Projection                | 桌宠作为新 Consumer，共享身份与真实状态           |
 
-来源：[recipe](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/recipe.ts#L3-L132)、[像素 SVG](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/svg.ts#L1-L52)、[分层返回](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/figure.ts#L898-L927)、[Client 动画与清理](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/illustrated-avatar.tsx#L340-L454)、[ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md)。
+来源：[recipe](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/recipe.ts#L3-L132)、[像素 SVG](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/svg.ts#L1-L52)、[分层返回](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/figure.ts#L898-L927)、[Client 动画与清理](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/illustrated-avatar.tsx#L340-L454)、[ADR-0118](../decisions/bots.md#adr-0118)。
 
 **需要明确补齐的两处**：现有 `pixelFigure()` 把身体裁在圆角 tile 内，`pixelAvatarSvg()` 总是输出背景 tile；仅去掉背景还不能恢复被裁掉的像素。它也是头像比例的半身图，没有用于走路、挥手、坐姿的完整手脚资源。透明无框桌宠需要新增透明绘制模式或独立的全身 rig；这应作为显式资源/协议扩展保留旧 recipe 与静态头像兼容。[裁切与分层](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/figure.ts#L898-L927)、[固定 tile 输出](https://github.com/BotHarness/BotPixel/blob/df53fc8665eac2aa794dfdd8d4d03b7dd48eb92d/packages/avatar/src/svg.ts#L35-L44)
 
@@ -139,7 +139,7 @@ manifest 提供 `entry/export/model`、多语言名称、外观 axes/presets、`
 
 动作模拟可保持连续的位置、速度和计时，输出时对齐像素格；所有颜色、表情和位置不应简单把原鲸鱼 `warp` 改成 nearest filter 就算完成迁移。倾斜、弯腰、肢体遮挡需要像素关键帧或每帧低分辨率重绘。字符表情可以沿原 recipe 生成临时 face 层，但不能为播放一次开心而改写保存的 `eyes`/`mouth`。
 
-当前工作头像会变成工具符号；若桌宠希望工作时保持小人，可新增桌宠呈现变体，保留同一 Activity Projection，在身体旁显示小符号/attention。不要顺带改变所有侧栏头像已交付的动效。[现有符号 morph](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/illustrated-avatar.tsx#L292-L338)、[appearance/活动独立原则](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md)
+当前工作头像会变成工具符号；若桌宠希望工作时保持小人，可新增桌宠呈现变体，保留同一 Activity Projection，在身体旁显示小符号/attention。不要顺带改变所有侧栏头像已交付的动效。[现有符号 morph](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/illustrated-avatar.tsx#L292-L338)、[appearance/活动独立原则](../decisions/bots.md#adr-0118)
 
 ### 6.3 像素消息框如何接入真实对话
 
@@ -149,7 +149,7 @@ manifest 提供 `entry/export/model`、多语言名称、外观 axes/presets、`
 
 迁移时还需建立桌宠自己的有界订阅与队列：已有 `mountChannelLive()` 依赖主 Client 的 Bot mode 与 active Channel，不能原封不动运行后假设主窗口切换频道不会影响桌宠。首个切片只订阅 Human 选定的一个 PersonaBot 的 DM，按 `channelId + messageId` 去重、通过 revision 与查询恢复缺口；窗口创建时载入基线，不把全部历史重新演一遍。气泡正文来自提交后的 Channel output，不展示 reasoning、工具参数或其他 Channel 的信息。
 
-Coopanion 的 `beats/anchors` 可以作为后续“说到此处眨眼/点头”的 presentation 合同参考。BotHarness 当前没有这套动作元数据；首条路径先用真实消息配通用说话动作。后续如允许模型选择表情，以有界、验证后的动作元数据传递，不能把任意 Markdown 当动画命令或执行脚本。装饰表情独立于真实 thinking/working/attention，不能由一句“我完成了”推断任务成功。相同消息的重连补发也不应重复庆祝。[现有活动合同](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/activity-live.ts#L1-L110)、[ADR-0118](../adr/0118-editable-avatar-appearance-is-independent-of-activity.md)
+Coopanion 的 `beats/anchors` 可以作为后续“说到此处眨眼/点头”的 presentation 合同参考。BotHarness 当前没有这套动作元数据；首条路径先用真实消息配通用说话动作。后续如允许模型选择表情，以有界、验证后的动作元数据传递，不能把任意 Markdown 当动画命令或执行脚本。装饰表情独立于真实 thinking/working/attention，不能由一句“我完成了”推断任务成功。相同消息的重连补发也不应重复庆祝。[现有活动合同](https://github.com/BotHarness/BotHarness/blob/29dbcd0bd6b756606b8c9b77b7566742077eeac9/packages/client/src/client/activity-live.ts#L1-L110)、[ADR-0118](../decisions/bots.md#adr-0118)
 
 ## 7. Electron 桌宠的真实窗口机制
 
@@ -313,7 +313,7 @@ Human 已确认：
 - 首版采用已提交消息的并行逐字播放，不直播尚未提交的生成正文。
 - 对阅读时的 hover 行为，Human 回复“参考 Coopanion 来”，未明确接受上一轮提出的停止移动、暂停到期及暂缓新消息插入。
 
-根 CONTEXT.md 与 CONTEXT.zh.md 已记录 Window Companion 的产品定义；它是一种既有 PersonaBot 的 Binding，不是新身份或 Channel 置顶。尚未决定其偏好的存储范围；术语定义不承诺已交付实现。
+根 GLOSSARY.md 与 GLOSSARY.zh.md 已记录 Window Companion 的产品定义；它是一种既有 PersonaBot 的 Binding，不是新身份或 Channel 置顶。尚未决定其偏好的存储范围；术语定义不承诺已交付实现。
 
 再次核对显示，Coopanion 与 MIT 前身都不因 hover 自动暂停 roaming、逐字播放或气泡到期；hover 主要提供快捷工具的延迟隐藏和连续命中区。消息播放会影响随机 roaming 决策，但不等于 hover 阅读模式。它们又没有多气泡栈，所以不能凭“参考 Coopanion”确定新增列表的稳定阅读行为。[hover 工具](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/pet-app.js#L930-L1009)、[roaming 准入与移动](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/kit/body.js#L349-L398)、[逐字与到期](https://github.com/Pal-AI-Lab/Coopanion/blob/421e708a8e994897b2c99706284540c86f6bba37/packages/cortico-world-desktop-pet/web/pet-app.js#L310-L356)
 

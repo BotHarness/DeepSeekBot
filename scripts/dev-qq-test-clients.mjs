@@ -48,7 +48,9 @@ function update(path, operation) {
     mkdirSync(lock, { mode: 0o700 });
   } catch (error) {
     if (error.code === 'EEXIST')
-      throw new Error('QQ registry busy; inspect the current writer before recovering its lock');
+      throw new Error('QQ registry busy; inspect the current writer before recovering its lock', {
+        cause: error,
+      });
     throw error;
   }
   const temporary = join(dirname(path), `.qq-test-clients-${randomUUID()}.tmp`);
@@ -242,6 +244,8 @@ function git(...arguments_) {
   return execFileSync('git', ['rev-parse', ...arguments_], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   }).trim();
 }
 
@@ -362,7 +366,7 @@ async function main(argv) {
         worktree,
         '--im-provider',
       ],
-      { stdio: 'inherit' },
+      { stdio: 'inherit', shell: false, windowsHide: true },
     );
     if (result.error) throw result.error;
     process.exitCode = result.status ?? 1;

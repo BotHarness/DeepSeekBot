@@ -1,3 +1,5 @@
+import { type HumanContext } from '../humans/context.js';
+import { ownsBot } from '../team/bot-access.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
@@ -17,6 +19,7 @@ export interface GrantRequestApprovalResult {
 }
 
 export async function approveGrantRequest(
+  human: HumanContext,
   deps: {
     registry: PersonaBotRegistry;
     channels: ChannelStore;
@@ -37,12 +40,19 @@ export async function approveGrantRequest(
     const request = deps.channels.message(channelId, requestMessageId);
     if (
       !bot ||
+      !ownsBot(human, bot) ||
       bot.paused ||
       bot.createdAt !== initialBot?.createdAt ||
       !channel ||
       channel.deletedAt ||
       (channel.type === 'dm' ? channel.botSlug !== slug : !channel.members.includes(slug)) ||
       !request?.grantRequest ||
+      deps.channels.readHumanTimeline(human, channelId, {
+        direction: 'around',
+        around: requestMessageId,
+        olderLimit: 0,
+        newerLimit: 0,
+      }) === undefined ||
       request.author.kind !== 'bot' ||
       request.author.slug !== slug ||
       Date.parse(request.at) < Date.parse(bot.createdAt) ||
@@ -54,7 +64,8 @@ export async function approveGrantRequest(
     const resolution = deps.channels.grantRequestResolution?.(channelId, requestMessageId);
     if (!resolution) return;
     const grant = deps.grants.requireActive(slug, resolution.grantRequestResolution!.grantId);
-    if (grant.workspaceId !== workspaceId || grant.orchestratorWrite !== true)
+    const workspace = deps.grants.availableWorkspaces().find((entry) => entry.id === workspaceId);
+    if (workspace?.path !== grant.workspacePath || grant.orchestratorWrite !== true)
       fail('This request was already decided for different or no longer writable authority');
     return { grant, message: resolution };
   };
@@ -75,7 +86,7 @@ export async function approveGrantRequest(
     grantRequestResolution: { requestMessageId, grantId: prepared.grant.id },
   };
   const result = await deps.channels
-    .appendMessageOnce(channelId, message, undefined, undefined, prepared.commit)
+    .appendMessageOnce(human, channelId, message, undefined, undefined, prepared.commit)
     .catch((error: unknown) => {
       if (error instanceof OperationalDatabaseError && error.cause instanceof WorkspaceGrantError)
         throw error.cause;
@@ -90,7 +101,7 @@ export async function approveGrantRequest(
     if (deps.channels.get(channelId)?.type === 'group')
       deps.runtime?.admitGroupMessage(channelId, result.message.id);
     else
-      deps.runtime?.admitDmMessage({
+      deps.runtime?.admitDmMessage(human, {
         channelId,
         messageId: result.message.id,
         body: result.message.body,

@@ -248,15 +248,31 @@ try {
         };
       });
     const idle = await paint();
+    const waitForPaint = (property, previous) =>
+      page.waitForFunction(
+        (property, previous) => {
+          const button = document.querySelector('.bh-timeline-new');
+          return (
+            button !== null &&
+            getComputedStyle(button)[property] !== previous &&
+            button.getAnimations().every((animation) => animation.playState === 'finished')
+          );
+        },
+        { timeout: 5000 },
+        property,
+        previous,
+      );
     assert.equal(idle.alpha, 255, 'idle surface is opaque');
     assert.equal(idle.opacity, '1');
     await page.hover('.bh-timeline-new');
+    await waitForPaint('color', idle.color);
     const hover = await paint();
     assert.equal(hover.alpha, 255, 'hover surface is opaque');
     assert.notEqual(hover.background, idle.background, 'hover changes background');
     assert.notEqual(hover.color, idle.color, 'hover changes icon colour');
     await capture('hover');
     await page.mouse.down();
+    await waitForPaint('backgroundColor', hover.background);
     const pressed = await paint();
     assert.equal(pressed.alpha, 255, 'pressed surface is opaque');
     assert.notEqual(pressed.background, hover.background, 'press has distinct background');

@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 import { defaultStorage, type ConfigStorage } from './roster-config.js';
 import { ASSIGNMENT_SECTIONS, type AssignmentSection } from './session-rows.js';
 
@@ -8,6 +10,7 @@ export type SessionStatusSection = AssignmentSection;
 export interface SessionViewPreference {
   scope: SessionScope;
   layout: SessionLayout;
+  links: boolean;
   collapsedWorkspaces: string[];
   collapsedSections: SessionStatusSection[];
 }
@@ -45,6 +48,7 @@ export function readSessionViewPreference(
   return {
     scope: record?.['scope'] === 'all' ? 'all' : 'current',
     layout: record?.['layout'] === 'workspace' ? 'workspace' : 'status',
+    links: record?.['links'] !== false,
     collapsedSections: Array.isArray(sections)
       ? ASSIGNMENT_SECTIONS.filter((section) => sections.includes(section))
       : ['resolved'],
@@ -98,4 +102,12 @@ export function updateSessionViewPreference(
   entry.snapshot = update(entry.snapshot);
   writeSessionViewPreference(botSlug, entry.snapshot);
   entry.listeners.forEach((listener) => listener());
+}
+
+export function useSessionViewPreference(botSlug: string): SessionViewPreference {
+  return useSyncExternalStore(
+    (listener) => subscribeSessionViewPreference(botSlug, listener),
+    () => sessionViewPreferenceSnapshot(botSlug),
+    () => sessionViewPreferenceSnapshot(botSlug),
+  );
 }

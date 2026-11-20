@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { rpc, verifyPaths } from './verify-app.mjs';
+import { cookieFor, rpc, verifyPaths } from './verify-app.mjs';
+import { installed } from './e2e-assignment-probe.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,7 +24,9 @@ from the Host's usage records, so a design change can be judged on cost as well 
 Options:
   --name <n>            verify-app instance to use (default llm-e2e).
   --launch              Launch that instance first (after pnpm build) and stop it afterwards.
-  --scenario <id>       Run only this scenario (repeatable). Default: all.
+  --scenario <id>       Run only this scenario (repeatable). Default: every scenario except
+                        the external ones (real websites such as YouTube), which run only
+                        when named here and need a Host whose Bot Browser can reach them.
   --changed-from <ref>  Run only scenarios whose areas changed since this Git ref.
   --attempts <n>        Attempts per scenario, 1-5 (default 2). A scenario passes when any
                         attempt passes; the report keeps every attempt so flakiness stays visible.
@@ -97,6 +100,80 @@ export const SCENARIOS = [
               ctx.isBot(message, 'aura') && message.body.trim() === '42' && !message.sessionFailure,
           ),
       );
+    },
+  },
+  {
+    id: 'dm-reply-schema-filled',
+    summary:
+      'A model that fills every optional bot_send_message field with an empty value still gets its DM reply committed on the first call (#3296).',
+    areas: RUNTIME_AREAS,
+    bots: ['aura'],
+    async run(ctx) {
+      const dm = await ctx.dm('aura');
+      await ctx.humanSend(
+        dm,
+        [
+          'This is a tool-argument compatibility test. Reply with exactly the digits 42 by calling bot_send_message once.',
+          'Fill in EVERY parameter of bot_send_message explicitly: source_event_id is this message\'s Source Event ID and body is "42";',
+          'every other parameter must still be present with an empty value, exactly:',
+          'attachments: [], binding_id: "", bot_id: "", channel_id: "", conversation_id: "", draft_id: "", grant_id: "", observation_id: "",',
+          'mention_bot_ids: [], mention_human_ids: [], recover: false, resolve_inbox_ids: [], freshness_override: {"draftVersion": 0, "reason": ""}.',
+          'If the call returns an error, do not retry and do not drop any parameter; stop.',
+        ].join(' '),
+      );
+      const sendCalls = async () => {
+        const calls = (await ctx.toolCalls('aura')).filter(
+          (call) => call.name === 'bot_send_message',
+        );
+        ctx.note({ botSendMessageCalls: calls });
+        return calls;
+      };
+      try {
+        await ctx.waitFor('Bot reply with 42', () =>
+          ctx
+            .messages(dm)
+            .find(
+              (message) =>
+                ctx.isBot(message, 'aura') &&
+                message.body.trim() === '42' &&
+                !message.sessionFailure,
+            ),
+        );
+      } catch (error) {
+        const refused = (await sendCalls()).find((call) => call.isError);
+        throw refused ? new Error(`no reply; bot_send_message refused: ${refused.result}`) : error;
+      }
+      const first = await ctx.waitFor(
+        'a recorded result for the first bot_send_message call',
+        async () => {
+          const [call] = await sendCalls();
+          return call?.hasResult ? call : undefined;
+        },
+      );
+      const expected = {
+        body: '42',
+        attachments: [],
+        binding_id: '',
+        bot_id: '',
+        channel_id: '',
+        conversation_id: '',
+        draft_id: '',
+        grant_id: '',
+        observation_id: '',
+        mention_bot_ids: [],
+        mention_human_ids: [],
+        recover: false,
+        resolve_inbox_ids: [],
+        freshness_override: { draftVersion: 0, reason: '' },
+      };
+      const missing = Object.entries(expected)
+        .filter(([key, value]) => JSON.stringify(first?.arguments?.[key]) !== JSON.stringify(value))
+        .map(([key]) => key);
+      if (missing.length > 0)
+        throw new Error(
+          `the first bot_send_message call did not send the empty fields (${missing.join(', ')}); nothing was tested`,
+        );
+      if (first.isError) throw new Error(`the schema-filled call was refused: ${first.result}`);
     },
   },
   {
@@ -398,6 +475,8 @@ export const SCENARIOS = [
         execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@local', ...args], {
           cwd: memory,
           encoding: 'utf8',
+          shell: false,
+          windowsHide: true,
         });
       git('add', '-A');
       git('commit', '-q', '-m', 'e2e share fixture');
@@ -426,10 +505,19 @@ export const SCENARIOS = [
               const wanted = aboutSecret ? /drop|删|移除|不分享/iu : /keep|保留/iu;
               const pick = options.find((label) => wanted.test(label));
               return pick === undefined
-                ? { id: question.id, selected: [], custom: aboutSecret ? '删掉这个文件' : '保留' }
+                ? {
+                    id: question.id,
+                    selected: [],
+                    custom: aboutSecret ? '删掉这个文件' : '保留',
+                  }
                 : { id: question.id, selected: [pick] };
             });
-            ctx.note({ [`question-${message.id}`]: { questions: request.questions, answers } });
+            ctx.note({
+              [`question-${message.id}`]: {
+                questions: request.questions,
+                answers,
+              },
+            });
             await ctx.host('userQuestionAnswer', {
               channelId: tob,
               messageId: message.id,
@@ -449,7 +537,71 @@ export const SCENARIOS = [
       ctx.note({ draft: draft.summary });
     },
   },
+  {
+    id: 'browser-youtube-search',
+    summary:
+      'A Human asks a Bot with Browser Access to search YouTube; its current Bot Browser tab ends on the results page for that query (#3377).',
+    areas: [
+      'packages/browser/',
+      'packages/computer/',
+      'packages/core/src/runtime/',
+      'scripts/e2e-llm-scenarios.mjs',
+    ],
+    bots: ['aura'],
+    external: true,
+    async run(ctx) {
+      const slug = ctx.slug('aura');
+      await ctx.host('browserAccessSet', { slug, enabled: true });
+      const query = 'lofi hip hop';
+      const dm = await ctx.dm('aura');
+      await ctx.humanSend(
+        dm,
+        `打开 YouTube（https://www.youtube.com），在页面的搜索框里搜索「${query}」，停在搜索结果页，然后告诉我前三个视频的标题。`,
+      );
+      try {
+        const observed = await ctx.waitFor(
+          'The current Bot Browser tab is a YouTube results page for the query and the Bot replied',
+          async () => {
+            const observation = await ctx.browserObservation(slug).catch(() => undefined);
+            const tab = (observation?.tabs ?? []).find((entry) => entry.current);
+            const onResults =
+              tab !== undefined && youtubeResultsQuery(tab.url) === query.toLowerCase();
+            const replied = ctx.messages(dm).some((message) => ctx.isBot(message, 'aura'));
+            return onResults && replied ? { url: tab.url, title: tab.title } : undefined;
+          },
+        );
+        ctx.note({ result: observed });
+      } finally {
+        const calls = await ctx.toolCalls('aura').catch(() => []);
+        ctx.note({
+          finalBrowser: await ctx.browserObservation(slug).catch((error) => String(error)),
+          browserCalls: calls
+            .filter((call) => call.name.startsWith('browser_'))
+            .map((call) => ({
+              name: call.name,
+              isError: call.isError,
+              arguments: call.arguments,
+              result: call.isError ? call.result.slice(0, 400) : undefined,
+            })),
+        });
+        await ctx.noteDiagnostics('aura');
+      }
+    },
+  },
 ];
+
+export function youtubeResultsQuery(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (!/(^|\.)youtube\.com$/u.test(parsed.hostname) || parsed.pathname !== '/results')
+    return undefined;
+  const value = parsed.searchParams.get('search_query');
+  return value === null ? undefined : value.trim().replace(/\s+/gu, ' ').toLowerCase();
+}
 
 export function parseScenarioArgs(argv) {
   const options = {
@@ -567,9 +719,9 @@ export function modelLabel(route) {
 }
 
 export function selectScenarios(options, changedFiles) {
-  let selected = SCENARIOS;
+  let selected = SCENARIOS.filter((scenario) => scenario.external !== true);
   if (options.scenarios.length > 0)
-    selected = selected.filter((scenario) => options.scenarios.includes(scenario.id));
+    selected = SCENARIOS.filter((scenario) => options.scenarios.includes(scenario.id));
   if (changedFiles !== undefined)
     selected = selected.filter((scenario) =>
       changedFiles.some((file) => scenario.areas.some((area) => file.startsWith(area))),
@@ -581,6 +733,8 @@ function changedSince(ref) {
   return execFileSync('git', ['diff', '--name-only', `${ref}...HEAD`], {
     cwd: repoRoot,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   })
     .split('\n')
     .filter(Boolean);
@@ -591,7 +745,9 @@ const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 export const TOKEN_BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'];
 
 export function sumHostRows(rows) {
-  const usage = { routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort() };
+  const usage = {
+    routes: [...new Set(rows.map((row) => `${row.provider}/${row.model}`))].sort(),
+  };
   for (const bucket of [...TOKEN_BUCKETS, 'totalTokens'])
     usage[bucket] = rows.some(
       (row) => typeof row[bucket] !== 'number' || (row.unknownBuckets?.[bucket] ?? 0) > 0,
@@ -602,7 +758,12 @@ export function sumHostRows(rows) {
 }
 
 export function sumSessionTotals(records, slugs) {
-  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  };
   const routes = new Set();
   let sessions = 0;
   for (const record of records) {
@@ -751,6 +912,46 @@ function localDay(date = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+async function sessionSnapshot(instance, sessionId) {
+  const WebSocket = installed('ws');
+  const origin = new URL(instance.url).origin;
+  const socket = new WebSocket(`${origin.replace(/^http/u, 'ws')}/api/remote.mux`, {
+    headers: { cookie: cookieFor(instance.home) },
+  });
+  let timeout;
+  try {
+    return await new Promise((done, fail) => {
+      timeout = setTimeout(() => fail(new Error('Session snapshot timed out')), 20_000);
+      socket.once('error', fail);
+      socket.once('open', () =>
+        socket.send(
+          JSON.stringify({
+            type: 'open',
+            streamId: crypto.randomUUID(),
+            endpoint: 'session/follow',
+            payload: {
+              args: {
+                request: {
+                  address: { kind: 'session', sessionId },
+                  maxMessages: 100,
+                },
+              },
+            },
+          }),
+        ),
+      );
+      socket.on('message', (raw) => {
+        const frame = JSON.parse(String(raw));
+        if (frame.type === 'error') fail(new Error(JSON.stringify(frame.error)));
+        if (frame.type === 'item' && frame.value.type === 'snapshot') done(frame.value);
+      });
+    });
+  } finally {
+    clearTimeout(timeout);
+    socket.terminate();
+  }
+}
+
 export function createContext(instance, scenario, timeoutSeconds, log, presetId) {
   const slugs = {};
   const call = (method, args) => rpc(instance, `botharness/${method}`, args);
@@ -819,6 +1020,66 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
     },
     slug: (key) => slugs[key],
     host: call,
+    async hostGet(path) {
+      const origin = new URL(instance.url).origin;
+      const response = await fetch(`${origin}${path}`, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { connection: 'close', cookie: cookieFor(instance.home) },
+      });
+      if (response.status !== 200) throw new Error(`GET ${path} HTTP ${response.status}`);
+      return response.json();
+    },
+    async browserObservation(slug) {
+      const { frame: _frame, ...observation } = await ctx.hostGet(
+        `/api/browser/observation?slug=${encodeURIComponent(slug)}`,
+      );
+      return observation;
+    },
+    async noteDiagnostics(key) {
+      const owner = encodeURIComponent(`bot:${slugs[key]}`);
+      const read = (path) => ctx.hostGet(path).catch((error) => ({ error: String(error) }));
+      ctx.note({
+        diagnostics: {
+          botLogs: await read(`/api/computer/logs?owner=${owner}&limit=200`),
+          computer: await read('/api/computer/diagnostics'),
+        },
+      });
+    },
+    async toolCalls(key) {
+      const { sessions } = await call('sessions', { slug: slugs[key] });
+      const calls = [];
+      const ordered = [...sessions].sort(
+        (a, b) =>
+          String(a.createdAt).localeCompare(String(b.createdAt)) ||
+          a.sessionId.localeCompare(b.sessionId),
+      );
+      for (const { sessionId } of ordered) {
+        const events = (await sessionSnapshot(instance, sessionId)).records.map(
+          (record) => record.event,
+        );
+        for (const event of events) {
+          if (event.type !== 'tool/call') continue;
+          const result = events.find(
+            (entry) =>
+              entry.type === 'tool/result' && entry.data.message.toolCallId === event.data.callId,
+          )?.data.message;
+          let args;
+          try {
+            args = JSON.parse(event.data.arguments);
+          } catch {
+            args = event.data.arguments;
+          }
+          calls.push({
+            name: event.data.name,
+            arguments: args,
+            hasResult: result !== undefined,
+            isError: result?.isError === true,
+            result: (result?.content ?? []).map((part) => part.text ?? '').join(''),
+          });
+        }
+      }
+      return calls;
+    },
     memoryDir: (key) => join(instance.home, 'botharness', 'bots', slugs[key], 'memory'),
     async tob() {
       const home = await call('tobHome', {});
@@ -940,7 +1201,10 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
             channelId,
             messageId: message.id,
             outcome: 'allowed-once',
-          }).catch((error) => ({ accepted: false, error: String(error?.message ?? error) }));
+          }).catch((error) => ({
+            accepted: false,
+            error: String(error?.message ?? error),
+          }));
           log.approvals.push({
             botSlug: message.author.slug,
             toolName: message.toolApprovalRequest.toolName,
@@ -1078,6 +1342,8 @@ function verifyApp(args) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     timeout: 900_000,
+    shell: false,
+    windowsHide: true,
   });
   if (result.status !== 0) throw new Error(`verify-app ${args[0]} failed`);
   return JSON.parse(result.stdout);
@@ -1148,6 +1414,8 @@ async function main() {
       commit: execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: repoRoot,
         encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
       }).trim(),
       ...(changed === undefined ? {} : { changedFrom: options.changedFrom }),
       scenarios: results,
@@ -1157,7 +1425,10 @@ async function main() {
       comparison =
         baseline === undefined
           ? undefined
-          : { baselineCommit: baseline.commit, rows: compareReports(baseline, report) };
+          : {
+              baselineCommit: baseline.commit,
+              rows: compareReports(baseline, report),
+            };
       if (comparison !== undefined) report.comparison = comparison;
       writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
       writeFileSync(summaryPath, renderMarkdown(report, comparison));

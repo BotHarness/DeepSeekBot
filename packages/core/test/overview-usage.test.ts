@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
@@ -26,8 +27,8 @@ function setup(now?: () => Date) {
   const registry = createTestRegistry({ rootDir: join(root, 'bots') });
   registry.create({ slug: 'ada', displayName: 'Ada', model: 'configured-but-never-called' });
   const channels = createChannelStore({ rootDir: join(root, 'channels') });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const methods = createBridgeMethods({
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     channels,
     ownership,
@@ -326,7 +327,7 @@ it('covers the last 28 and 84 Host-local days for month and quarter', () => {
 
 it('distinguishes a ready empty interval from missing provider usage and an unavailable owner', () => {
   const { methods, usage, time, registry, channels, ownership } = setup();
-  const missing = createBridgeMethods({
+  const missing = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     channels,
     ownership,

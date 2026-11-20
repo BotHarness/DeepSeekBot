@@ -1,20 +1,13 @@
 // @vitest-environment jsdom
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const hoverCards = vi.hoisted(() => [] as Record<string, unknown>[]);
-
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement: h } = await import('react');
   return {
-    IconNewChatOutlineRegular: () => null,
-    IconUserOutlineRegular: () => null,
-    HoverCard: (props: { anchor: never; content: never }) => {
-      hoverCards.push(props);
-      return h('span', { 'data-hover-card': 'true' }, props.anchor, props.content);
-    },
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
   };
 });
 
@@ -26,7 +19,6 @@ import {
   MessageAuthorHoverCard,
   messageAuthorCardModel,
 } from '../src/client/message-author-card.js';
-import type { BotSummary } from '../src/client/store.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -162,7 +154,7 @@ describe('MessageAuthorCardContent', () => {
 
 describe('MessageAuthorHoverCard', () => {
   it('opens inline on hover or focus after a short delay and routes Message and Profile', async () => {
-    hoverCards.length = 0;
+    vi.useFakeTimers();
     const openBot = vi.fn();
     const host = document.createElement('div');
     document.body.append(host);
@@ -180,13 +172,19 @@ describe('MessageAuthorHoverCard', () => {
         }),
       );
     });
-    expect(hoverCards.at(-1)).toMatchObject({
-      inline: true,
-      openDelayMs: MESSAGE_AUTHOR_CARD_DELAY_MS,
+    const anchor = host.querySelector<HTMLElement>('.anchor')!.parentElement!;
+    expect(anchor.tagName).toBe('SPAN');
+    expect(document.querySelector('.bh-author-card')).toBeNull();
+    await act(async () => {
+      anchor.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      anchor.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(MESSAGE_AUTHOR_CARD_DELAY_MS - 1);
     });
+    expect(document.querySelector('.bh-author-card')).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(MESSAGE_AUTHOR_CARD_DELAY_MS).toBeLessThan(500);
     expect(host.querySelector('.anchor')).not.toBeNull();
-    const buttons = [...host.querySelectorAll<HTMLButtonElement>('.bh-author-card button')];
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('.bh-author-card button')];
     expect(buttons.map((button) => button.textContent)).toEqual(['Message', 'Profile']);
     await act(async () => {
       buttons[0]!.click();
@@ -194,6 +192,7 @@ describe('MessageAuthorHoverCard', () => {
     });
     expect(openBot.mock.calls).toEqual([['ada'], ['ada', 'profile']]);
     await act(async () => root.unmount());
+    vi.useRealTimers();
   });
 });
 
@@ -215,3 +214,59 @@ describe('PersonaBotAvatar nativeTitle', () => {
     expect(untitled).toContain('aria-label=');
   });
 });
+
+it('shows a remote Bot public profile without local profile or message controls', () => {
+  const html = renderToStaticMarkup(
+    createElement(MessageAuthorCardContent, {
+      model: {
+        kind: 'remote-bot',
+        peer: { hostId: 'mac-host', botSlug: 'ios', displayName: 'iOS colleague' },
+        contact: {
+          hostId: 'mac-host',
+          botSlug: 'ios',
+          displayName: 'iOS specialist',
+          description: 'Investigates iOS bugs',
+          device: { model: null, platform: 'darwin' },
+          capabilities: ['browser'],
+        },
+      },
+      t: enTranslate,
+    }),
+  );
+  for (const fact of [
+    'iOS specialist',
+    'mac-host',
+    'darwin',
+    'browser',
+    'Investigates iOS bugs',
+    'Unavailable',
+  ])
+    expect(html).toContain(fact);
+  expect(html).not.toContain('<button');
+  expect(html).not.toContain('data-state="working"');
+});
+
+it.each([
+  ['available', 'Available'],
+  ['unavailable', 'Unreachable'],
+  ['withdrawn', 'Outside collaboration network'],
+  ['bot-unavailable', 'Bot unavailable'],
+] as const)(
+  'shows the remote contact state %s without implying a local Bot was deleted',
+  (availability, label) => {
+    const html = renderToStaticMarkup(
+      createElement(MessageAuthorCardContent, {
+        model: {
+          kind: 'remote-bot',
+          peer: { hostId: 'peer', botSlug: 'bot', displayName: 'Colleague' },
+          contact: undefined,
+          availability,
+        },
+        t: enTranslate,
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).toContain('Colleague');
+    expect(html).not.toContain('<button');
+  },
+);

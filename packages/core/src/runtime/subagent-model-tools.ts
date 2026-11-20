@@ -12,6 +12,7 @@ import {
   type PersonaBotModelPlan,
 } from '../models/presets.js';
 import { resolveSubagentRoute } from '../models/subagent-route.js';
+import type { OpenAssignmentModel } from '../models/open-assignments.js';
 import { startCallerActivation, startParentActivation, type CallerRun } from './subagent-compat.js';
 
 declare module '@deepseek-ai/dsh-jobs' {
@@ -172,6 +173,8 @@ function createDelegationTool(
   provider: DelegationProvider,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig,
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
+  pickGroup?: (groupId: string) => Promise<ModelRoute>,
 ): ToolDefinition {
   const name = BOT_SUBAGENT_TOOL_NAMES[provider];
   const presetDescription =
@@ -203,6 +206,11 @@ function createDelegationTool(
       },
       model: { type: 'string', description: 'Optional allowed model id; specify with provider.' },
       reasoning_effort: { type: 'string', description: 'Optional allowed reasoning effort.' },
+      group: {
+        type: 'string',
+        description:
+          'Optional allowed Routing Group id instead of provider/model; the child starts on its first member that is not resting.',
+      },
       run_in_background: {
         type: 'boolean',
         description:
@@ -222,11 +230,19 @@ function createDelegationTool(
       const subagents = ctx.get('subagents');
       if (subagents === undefined) throw new Error('DSH Subagent service is unavailable');
       const agentPreset = selectedPreset(ctx, provider, config, args as { agent_preset?: unknown });
-      const decision = resolveSubagentRoute(
-        resolvePlan(),
-        parentAgentOptionsForDelegation(parent),
-        args,
-      );
+      const group = (args as { group?: unknown }).group;
+      if (group !== undefined && (typeof group !== 'string' || args.provider !== undefined))
+        throw new ToolArgsError(['group must be a Routing Group id and excludes provider/model']);
+      const decision =
+        typeof group === 'string'
+          ? {
+              route: await (
+                pickGroup ?? (() => Promise.reject(new Error('Routing Groups are unavailable')))
+              )(group),
+              notice: undefined,
+            }
+          : resolveSubagentRoute(resolvePlan(), parentAgentOptionsForDelegation(parent), args);
+      await requireRoute?.(decision.route);
       const options = agentOptions(parentAgentOptionsForDelegation(parent), decision.route);
       const llm = ctx.get('llm');
       if (llm === undefined) throw new Error('DSH LLM service is unavailable');
@@ -307,13 +323,21 @@ export function createBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
+  openModels?: () => Promise<OpenAssignmentModel[]>,
+  groups?: {
+    pick(groupId: string): Promise<ModelRoute>;
+    list(): unknown[];
+  },
 ): ToolDefinition[] {
+  const pickGroup = groups === undefined ? undefined : (id: string) => groups.pick(id);
   return [
-    createDelegationTool(ctx, 'spawn', resolvePlan, config),
-    createDelegationTool(ctx, 'fork', resolvePlan, config),
+    createDelegationTool(ctx, 'spawn', resolvePlan, config, requireRoute, pickGroup),
+    createDelegationTool(ctx, 'fork', resolvePlan, config, requireRoute, pickGroup),
     defineTool({
       name: BOT_SUBAGENT_TOOL_NAMES.list,
-      description: 'List this PersonaBot current Assignment model choices for DSH Subagents.',
+      description:
+        'List this PersonaBot current Assignment model choices for DSH Subagents. When open is true, openModels lists every other model the Human allows, with its catalog name and efforts.',
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -326,6 +350,10 @@ export function createBotSubagentModelTools(
         return JSON.stringify({
           default: plan.assignmentDefault,
           allowed: assignmentModelsOf(plan),
+          ...((groups?.list().length ?? 0) > 0 ? { groups: groups!.list() } : {}),
+          ...(plan.openAssignmentModels === true
+            ? { open: true, openModels: (await openModels?.()) ?? [] }
+            : {}),
           parentSession: exec.agent?.session.id,
         });
       },
@@ -353,6 +381,8 @@ export async function installBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,
   config: BotSubagentPresetConfig = {},
+  requireRoute?: (route: ModelRoute) => void | Promise<void>,
+  openModels?: () => Promise<OpenAssignmentModel[]>,
 ): Promise<void> {
   await validatePresetConfig(ctx, config);
   if (ctx.get('subagents') === undefined) {
@@ -372,6 +402,12 @@ export async function installBotSubagentModelTools(
     order: 10_360,
     text: 'For DSH Subagents in this PersonaBot, use bot_subagent or bot_subagent_fork. Call list_bot_subagent_models before an explicit model choice. The current Human-selected Assignment model set is checked when each child starts. Native Agent presets select child tools and persona, not the LLM route. Only bot_subagent can select an advertised agent_preset; otherwise use its configured default or the current system default Agent preset. A fork always inherits the parent preset.',
   });
-  for (const tool of createBotSubagentModelTools(ctx, resolvePlan, config))
+  for (const tool of createBotSubagentModelTools(
+    ctx,
+    resolvePlan,
+    config,
+    requireRoute,
+    openModels,
+  ))
     ctx.tools.register(tool);
 }

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode, type InputHTMLAttributes } from 'react';
+import { type ReactNode } from 'react';
+import { type WorkspaceGrantView } from '../src/client/bridge.js';
+import { type BotSummary } from '../src/client/store.js';
+import { type ComposerContext } from '../src/client/composer-shortcuts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import {
@@ -7,26 +11,17 @@ import {
   groupWorkspaceChip,
   useGroupComposerContext,
 } from '../src/client/group-composer-context.js';
-import { BridgeCallError, type WorkspaceGrantView } from '../src/client/bridge.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { BotSummary } from '../src/client/store.js';
+
 import { zhTranslate } from '../src/client/locale.js';
-import type { ComposerContext } from '../src/client/composer-shortcuts.js';
 
 vi.mock('../src/client/modal.js', () => ({
   Modal: ({ children, title }: { children: ReactNode; title: string }) =>
     createElement('section', { role: 'dialog', 'aria-label': title }, children),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  IconChevronDownOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 const ada: BotSummary = {
@@ -93,7 +88,10 @@ it('keeps the Group workspace footer and its action available on mobile and desk
       mobile = false;
       for (const listener of listeners) listener();
     });
-    expect(container.querySelector('[data-composer-context]')!.textContent).toBe('1 个工作区');
+    expect(container.querySelector('[data-composer-context]')!.textContent).toBe('1');
+    expect(container.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
+      '1 个工作区',
+    );
     expect(container.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(false);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
@@ -141,7 +139,10 @@ it('counts the union of member workspaces by DSH Workspace id without naming Bot
       ),
     );
     const chip = container.querySelector('[data-composer-context]')!.textContent;
-    expect(chip).toBe('3 个工作区');
+    expect(chip).toBe('3');
+    expect(container.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
+      '3 个工作区',
+    );
     expect(chip).not.toContain('Ada');
   } finally {
     await act(async () => root.unmount());

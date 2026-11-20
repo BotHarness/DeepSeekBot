@@ -21,6 +21,7 @@
     "packages/browser/lib",
     "packages/vrm-companion/assets",
     "packages/vrm-companion/lib",
-    "scripts/source-policy-baseline.json"
+    "scripts/source-policy-baseline.json",
+    "packages/client/vendor/dsh-ui-theme-022-rc2"
   ]
 }

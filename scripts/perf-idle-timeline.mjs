@@ -1,3 +1,4 @@
+import { createPrivateHostRedactor } from './private-host-redaction.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -5,6 +6,16 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { checkBudget, readBudget } from './perf-budget.mjs';
+import { openTimelineConversation } from './perf-timeline-navigation.mjs';
+import { seedTimeline } from './perf-timeline-seed.mjs';
+import { createHeapObservation } from './perf-heap-observation.mjs';
+import { installTimelineActivity, timelineActivityPlan } from './perf-timeline-activity.mjs';
+import {
+  assertNativeViewportUnchanged,
+  calibrateNativeViewport,
+  observeForegroundTimelineScroll,
+  readNativeViewport,
+} from './foreground-timeline-scroll.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
 
@@ -18,8 +29,16 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
   --no-load-all       Keep only the opening window mounted.
   --seconds <n>       Idle measurement window (default 15).
   --animate           Add one small infinite CSS animation, standing in for Tob or a
-                      working indicator, so per-frame cost becomes visible.
+                      working indicator, after scrolling (legacy idle-only protocol).
+  --animate-scroll    Start that animation before scrolling; requires --animate,
+                      --foreground-scroll and --headed. Recorded as a distinct protocol.
   --trace             Save a Chrome trace of the idle window (open in DevTools).
+  --heap-observe <s>   Separate diagnostic: raw boundary samples and 1–60 seconds of
+                      untouched observation AFTER the unchanged canonical endpoint.
+                      Requires --trace, without --profile; never forces GC or changes the heap budget.
+  --headed            Open a real foreground browser instead of the headless diagnostic default.
+  --foreground-scroll Record trusted wheel input, visible-gap samples and a compositor trace;
+                      requires --headed. rAF diagnostics are not presented FPS.
   --profile           Save a CPU profile of the idle window and list the hottest functions.
   --scroll-check      After mounting, scroll from the latest message to the top one viewport at a
                       time and report scroll jumps and blank gaps left in view (on by
@@ -40,7 +59,11 @@ const { values: options } = parseArgs({
     'no-load-all': { type: 'boolean', default: false },
     seconds: { type: 'string', default: '15' },
     animate: { type: 'boolean', default: false },
+    'animate-scroll': { type: 'boolean', default: false },
     trace: { type: 'boolean', default: false },
+    'heap-observe': { type: 'string' },
+    headed: { type: 'boolean', default: false },
+    'foreground-scroll': { type: 'boolean', default: false },
     profile: { type: 'boolean', default: false },
     'scroll-check': { type: 'boolean', default: true },
     'no-scroll-check': { type: 'boolean', default: false },
@@ -57,11 +80,30 @@ if (options.help) {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+assert.ok(!options['foreground-scroll'] || options.headed, '--foreground-scroll requires --headed');
+const activity = timelineActivityPlan({
+  animate: options.animate,
+  animateScroll: options['animate-scroll'],
+  foregroundScroll: options['foreground-scroll'],
+  headed: options.headed,
+});
+const heapObservationSeconds =
+  options['heap-observe'] === undefined ? 0 : Number(options['heap-observe']);
+assert.ok(
+  options['heap-observe'] === undefined ||
+    (options.trace &&
+      !options.profile &&
+      Number.isInteger(heapObservationSeconds) &&
+      heapObservationSeconds >= 1 &&
+      heapObservationSeconds <= 60),
+  '--heap-observe requires --trace, no --profile, and 1–60 seconds',
+);
 const store = resolve(root, 'node_modules/.pnpm');
 const pkg = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
 const puppeteer = createRequire(resolve(store, pkg, 'node_modules/'))('puppeteer');
 assert.ok(process.env.BH_E2E_INSTANCE, 'Set BH_E2E_INSTANCE to the task-owned instance.json');
 const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
+const redact = createPrivateHostRedactor(instance.url);
 const out = resolve(options.out);
 mkdirSync(out, { recursive: true });
 const seconds = Number(options.seconds);
@@ -136,34 +178,64 @@ async function scrollCheck() {
 }
 
 const browser = await puppeteer.launch({
-  headless: true,
+  headless: !options.headed,
   args: ['--no-sandbox', '--lang=en-US', '--enable-precise-memory-info'],
   protocolTimeout: 600_000,
 });
 const page = await browser.newPage();
+const localeSession = await page.createCDPSession();
+await localeSession.send('Emulation.setUserAgentOverride', {
+  userAgent: await browser.userAgent(),
+  acceptLanguage: 'en-US,en',
+});
 const errors = [];
-page.on('pageerror', (error) => errors.push(error.message));
+page.on('pageerror', (error) => errors.push(redact(error.message)));
+const setup = { phase: 'browser-ready', rpcCalls: 0, pending: [], recent: [] };
+const saveSetup = () =>
+  writeFileSync(resolve(out, options.label + '.setup.json'), JSON.stringify(setup, null, 2));
+const setupPhase = (phase) => {
+  setup.phase = phase;
+  saveSetup();
+};
 
 async function rpc(method, args = {}) {
-  return page.evaluate(
-    async (method, args) => {
-      const response = await fetch(`/api/botharness/${method}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          type: 'client-request',
-          rpcId: crypto.randomUUID(),
-          method: `botharness/${method}`,
-          payload: { args },
-        }),
-      });
-      const envelope = await response.json();
-      if (!envelope.result?.ok) throw Error(`${method}: ${JSON.stringify(envelope.result)}`);
-      return envelope.result.value;
-    },
-    method,
-    args,
-  );
+  const request = { ordinal: ++setup.rpcCalls, method, startedAt: new Date().toISOString() };
+  setup.pending.push(request);
+  saveSetup();
+  try {
+    const result = await page.evaluate(
+      async (method, args) => {
+        const response = await fetch(`/api/botharness/${method}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            type: 'client-request',
+            rpcId: crypto.randomUUID(),
+            method: `botharness/${method}`,
+            payload: { args },
+          }),
+        });
+        const envelope = await response.json();
+        if (!envelope.result?.ok) throw Error(`${method}: ${JSON.stringify(envelope.result)}`);
+        return envelope.result.value;
+      },
+      method,
+      args,
+    );
+    setup.recent.push({ ...request, outcome: 'completed' });
+    return result;
+  } catch (error) {
+    setup.recent.push({
+      ...request,
+      outcome: 'failed',
+      error: error instanceof Error ? error.name : 'unknown',
+    });
+    throw error;
+  } finally {
+    setup.pending = setup.pending.filter((pending) => pending.ordinal !== request.ordinal);
+    setup.recent = setup.recent.slice(-32);
+    saveSetup();
+  }
 }
 
 async function dismissOverlays() {
@@ -181,55 +253,6 @@ async function dismissOverlays() {
     }
     await sleep(150);
   }
-}
-
-async function seed(count) {
-  const bots = [];
-  for (const name of ['Perf Ada', 'Perf Lin', 'Perf Kai'])
-    bots.push((await rpc('create', { displayName: `${name} ${Date.now() % 100000}` })).bot);
-  const group = (
-    await rpc('channelCreate', {
-      name: `Idle perf ${count}`,
-      members: bots.map((bot) => bot.slug),
-    })
-  ).channel;
-  for (const bot of bots)
-    await rpc('channelGroupWakeSet', {
-      channelId: group.id,
-      botSlug: bot.slug,
-      mode: 'silent',
-      count: 5,
-      intervalSeconds: 30,
-    });
-  const ids = [];
-  let source;
-  for (let index = 0; index < count; index++) {
-    if (index % 5 === 0) {
-      const sent = await rpc('channelSend', {
-        channelId: group.id,
-        body: `Human check-in ${index + 1}: how is it going?`,
-      });
-      source = sent.message?.id ?? sent.messageId ?? sent.id;
-      assert.ok(source, JSON.stringify(sent));
-      ids.push(source);
-      continue;
-    }
-    const bot = bots[index % bots.length];
-    const run = await rpc('botToolRun', {
-      slug: bot.slug,
-      tool: 'bot_send_message',
-      args: {
-        channel_id: group.id,
-        body: bodies[index % bodies.length](index + 1),
-        reply_to: source,
-      },
-    });
-    assert.ok(run.result?.messageId, JSON.stringify(run));
-    ids.push(run.result.messageId);
-    if ((index + 1) % 100 === 0) console.error(`seeded ${index + 1}/${count}`);
-  }
-  await rpc('channelMarkRead', { channelId: group.id, messageId: ids.at(-1) });
-  return { channelId: group.id, messageIds: ids, bots: bots.map((bot) => bot.slug) };
 }
 
 async function startProfile(cdp) {
@@ -258,27 +281,43 @@ async function stopProfile(cdp, phase) {
 const metric = (list, name) => list.metrics.find((item) => item.name === name)?.value ?? 0;
 
 try {
-  await page.setViewport({ width: 1440, height: 900 });
+  const startupNativeViewport = options.headed ? await calibrateNativeViewport(page) : undefined;
+  if (!options.headed) await page.setViewport({ width: 1440, height: 900 });
+  setupPhase('navigation');
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
+  setupPhase('dismiss-overlays');
   await dismissOverlays();
+  setupPhase('fixture');
 
   const fixture = options.fixture
     ? JSON.parse(readFileSync(options.fixture, 'utf8'))
-    : await seed(Number(options.messages));
+    : await seedTimeline({
+        rpc,
+        count: Number(options.messages),
+        bodies,
+        onMessage: (message) => {
+          setup.message = message;
+          saveSetup();
+        },
+        onToolState: (tool) => {
+          setup.tool = tool;
+          saveSetup();
+        },
+        onProgress: (seeded, count) => console.error('seeded ' + seeded + '/' + count),
+      });
   if (!options.fixture) writeFileSync(resolve(out, 'fixture.json'), JSON.stringify(fixture));
+  setupPhase('fixture-completed');
 
   await page.reload({ waitUntil: 'networkidle2' });
   await dismissOverlays();
-  if (!(await page.$('.bh-workspace-rail'))) await page.locator('::-p-aria(Bot mode)').click();
-  await page.waitForSelector('.bh-workspace-rail');
-  await dismissOverlays();
-  const messagesButton = await page.$('.bh-workspace-rail button[aria-label="Messages"]');
-  if (messagesButton) await messagesButton.click();
-  const row = `[data-dock-panel="bh:channels"] button[data-channel-id="${fixture.channelId}"]`;
-  await page.waitForSelector(row);
-  await page.locator(row).click();
-  await page.waitForSelector('.bh-chat-body [data-message-id]');
+  const diagnosticCdp = heapObservationSeconds ? await page.createCDPSession() : undefined;
+  if (diagnosticCdp) await diagnosticCdp.send('Performance.enable', { timeDomain: 'timeTicks' });
+  const heapObservation = diagnosticCdp ? createHeapObservation(diagnosticCdp) : undefined;
+  await heapObservation?.sample('before-conversation');
+  await openTimelineConversation(page, fixture.channelId, dismissOverlays);
   await sleep(1500);
+  await heapObservation?.sample('conversation-open');
+  const nativeViewport = options.headed ? await readNativeViewport(page) : undefined;
 
   if (loadAll) {
     let mounted = 0;
@@ -286,37 +325,44 @@ try {
       await page.$eval('.bh-chat-body', (node) => {
         node.scrollTop = 0;
       });
-      await sleep(500);
+      await page.waitForFunction(
+        (previous) =>
+          Number(document.querySelector('.bh-chat-body')?.dataset.loadedMessages ?? 0) > previous,
+        { timeout: 30_000 },
+        mounted,
+      );
       const now = await page.$eval('.bh-chat-body', (node) =>
         Number(node.dataset.loadedMessages ?? node.querySelectorAll('[data-message-id]').length),
       );
       if (now >= fixture.messageIds.length) break;
-      if (now === mounted && attempt > 2)
-        throw new Error(
-          `Loaded ${now} of ${fixture.messageIds.length} messages before measurement`,
-        );
       mounted = now;
     }
     await page.$eval('.bh-chat-body', (node) => {
       node.scrollTop = node.scrollHeight;
     });
   }
+  await heapObservation?.sample('history-loaded');
+  if (activity.phase === 'before-scroll') await installTimelineActivity(page);
   const scroll =
     loadAll && options['scroll-check'] && !options['no-scroll-check']
       ? await scrollCheck()
       : undefined;
-  if (options.animate)
-    await page.evaluate(() => {
-      const style = document.createElement('style');
-      style.textContent =
-        '@keyframes perf-bob{from{transform:translateY(0)}to{transform:translateY(6px)}}' +
-        '.perf-animated{position:fixed;right:24px;bottom:24px;width:16px;height:16px;' +
-        'border-radius:50%;background:currentColor;animation:perf-bob .6s ease-in-out infinite alternate}';
-      document.head.append(style);
-      const node = document.createElement('div');
-      node.className = 'perf-animated';
-      document.body.append(node);
-    });
+  const foregroundScroll = options['foreground-scroll']
+    ? await observeForegroundTimelineScroll(
+        page,
+        resolve(out, `${options.label}.scroll.trace.json`),
+        { requireAnimation: activity.phase === 'before-scroll' },
+      )
+    : undefined;
+  if (nativeViewport && foregroundScroll) {
+    for (const sample of foregroundScroll.samples) {
+      assert.ok(sample.viewport, 'Each foreground sample must record its actual viewport.');
+      assertNativeViewportUnchanged(nativeViewport, { ...nativeViewport, ...sample.viewport });
+    }
+  }
+  await heapObservation?.sample('scroll-finished');
+  if (activity.phase === 'after-scroll')
+    await installTimelineActivity(page, { waitUntilRunning: false });
   await sleep(3000);
 
   const cdp = await page.createCDPSession();
@@ -329,10 +375,28 @@ try {
       categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'blink', 'cc'],
     });
   const before = await cdp.send('Performance.getMetrics');
+  await heapObservation?.sample('idle-start', before);
   const started = Date.now();
   await sleep(seconds * 1000);
   const after = await cdp.send('Performance.getMetrics');
   const elapsed = (Date.now() - started) / 1000;
+  await heapObservation?.sample('canonical-endpoint', after);
+  if (heapObservation) {
+    await heapObservation.extend(heapObservationSeconds);
+    writeFileSync(
+      resolve(out, `${options.label}.heap-observation.json`),
+      JSON.stringify(
+        {
+          unit: 'bytes',
+          extensionSeconds: heapObservationSeconds,
+          canonicalBudgetUnchanged: true,
+          samples: heapObservation.samples,
+        },
+        null,
+        2,
+      ),
+    );
+  }
   if (options.trace) await page.tracing.stop();
   const idleHottest = options.profile ? await stopProfile(cdp, 'idle') : undefined;
   const delta = (name) => metric(after, name) - metric(before, name);
@@ -376,12 +440,15 @@ try {
   await page.keyboard.press('KeyA');
   await page.keyboard.up('Control');
   await page.keyboard.press('Backspace');
+  const nativeViewportAtEnd = options.headed ? await readNativeViewport(page) : undefined;
+  if (nativeViewport) assertNativeViewportUnchanged(nativeViewport, nativeViewportAtEnd);
 
   const summary = {
     label: options.label,
     channelId: fixture.channelId,
     seeded: fixture.messageIds.length,
     animate: options.animate,
+    activity,
     seconds: Number(elapsed.toFixed(1)),
     ...dom,
     mainThreadBusyPct: Number(((delta('TaskDuration') / elapsed) * 100).toFixed(1)),
@@ -392,6 +459,7 @@ try {
     styleRecalcs: delta('RecalcStyleCount'),
     frames: delta('FrameCount') || undefined,
     heapMB: Math.round(metric(after, 'JSHeapUsedSize') / 1e6),
+    heapObservation: heapObservation ? `${options.label}.heap-observation.json` : undefined,
     typing: {
       ...typing,
       scriptMs: Math.round(typed('ScriptDuration') * 1000),
@@ -400,12 +468,18 @@ try {
       hottest: typingHottest,
     },
     scroll,
+    headed: options.headed,
+    startupNativeViewport,
+    nativeViewport,
+    nativeViewportAtEnd,
+    foregroundScroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,
     pageErrors: errors,
   };
   writeFileSync(resolve(out, `${options.label}.json`), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
+  if (foregroundScroll && !foregroundScroll.correctnessPass) process.exitCode = 1;
   if (options.budget) {
     const check = checkBudget(summary, readBudget(options.budget), {
       strictTiming: options['strict-timing'],
@@ -421,10 +495,28 @@ try {
     if (!check.pass) process.exitCode = 1;
   }
 } catch (error) {
+  writeFileSync(
+    resolve(out, options.label + '.failure.json'),
+    JSON.stringify(
+      {
+        setup,
+        seedFailure: error?.timelineSeed,
+        pageErrors: errors.slice(-20).map((message) => redact(message).slice(0, 500)),
+        error:
+          error instanceof Error
+            ? { name: error.name, message: redact(error.message).slice(0, 1000) }
+            : { name: 'unknown' },
+      },
+      null,
+      2,
+    ),
+  );
   const shot = resolve(out, `${options.label}.failure.png`);
   await page.screenshot({ path: shot }).catch(() => {});
   console.error(`perf run failed; page screenshot: ${shot}`);
-  throw error;
+  throw new Error(redact(error instanceof Error ? (error.stack ?? error.message) : error), {
+    cause: error,
+  });
 } finally {
   await browser.close();
 }

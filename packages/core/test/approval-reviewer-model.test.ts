@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,7 +55,7 @@ function gate(settings: ApprovalReviewerSettings) {
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
     getOrCreateDm: vi.fn(() => channel),
-    appendMessage: vi.fn(async (_id: string, message: ChannelMessage) => {
+    appendMessage: vi.fn(async (_human: unknown, _id: string, message: ChannelMessage) => {
       messages.push(message);
       return message;
     }),
@@ -181,18 +182,29 @@ describe('Profile-wide reviewer model setting', () => {
     settings.setModel({ provider: 'deepseek', model: 'no-such-model' });
     const state = gate(settings);
     const answer = state.ask();
-    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
-    expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('todo_write');
+    await vi.waitFor(() =>
+      expect(state.messages.filter((message) => message.toolApprovalRequest)).toHaveLength(1),
+    );
+    expect(state.messages[0]?.toolAutoApproval?.outcome).toBe('ask-human');
+    const card = state.messages.find((message) => message.toolApprovalRequest)!;
+    expect(card.toolApprovalRequest?.toolName).toBe('todo_write');
     expect(state.streamed).toHaveLength(0);
+    expect(card.toolApprovalRequest?.approvalReview).toMatchObject({
+      kind: 'review',
+      fallback: 'model-unavailable',
+      reason: 'Automatic review unavailable (model-unavailable).',
+    });
     expect(state.log).toHaveBeenCalledWith(
       expect.objectContaining({
         outcome: 'ask-human',
         fallback: 'model-unavailable',
         model: 'deepseek/no-such-model',
-        detail: 'Model deepseek/no-such-model is unavailable',
+        templateVersion: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     );
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, card.id, 'allowed-once')).toBe(
+      true,
+    );
     expect(await answer).toBe('allowed-once');
   });
 
@@ -201,8 +213,12 @@ describe('Profile-wide reviewer model setting', () => {
     writeFileSync(join(dir, APPROVAL_REVIEWER_SETTINGS_FILE), 'not json');
     const state = gate(createApprovalReviewerSettings(dir));
     void state.ask();
-    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
-    expect(state.messages[0]!.toolApprovalRequest).toBeDefined();
+    await vi.waitFor(() =>
+      expect(state.messages.filter((message) => message.toolApprovalRequest)).toHaveLength(1),
+    );
+    expect(state.messages[0]?.toolAutoApproval?.outcome).toBe('ask-human');
+    const card = state.messages.find((message) => message.toolApprovalRequest)!;
+    expect(card.toolApprovalRequest).toBeDefined();
     expect(state.streamed).toHaveLength(0);
     expect(state.log).toHaveBeenCalledWith(
       expect.objectContaining({ fallback: 'settings-invalid' }),
@@ -228,7 +244,7 @@ describe('Profile-wide reviewer model setting', () => {
 
 describe('approvalReviewerModel bridge methods', () => {
   const methods = (settings: ApprovalReviewerSettings) =>
-    createBridgeMethods({
+    createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       approvalReviewer: settings,
       modelCatalog: { list: async () => [], validate },
     } as unknown as BridgeMethodsDeps);

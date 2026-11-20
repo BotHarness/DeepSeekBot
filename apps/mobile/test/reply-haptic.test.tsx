@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { createConversationPlayback, type BubblePlayback } from '../src/host/conversation-playback';
-import type { ConversationSnapshot } from '../src/host/conversation';
+import type { ConversationSnapshot } from '@botharness/host-client/conversation';
 import { useReplyHaptic } from '../src/ui/chat/reply-haptic';
 import { haptic, setHapticsEnabled, type HapticMoment } from '../src/ui/haptics';
 import { played } from './expo-haptics-shim';

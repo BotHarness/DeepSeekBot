@@ -165,7 +165,7 @@ try {
       if (head?.getAttribute('aria-expanded') === 'false') head.click();
     });
     await page.waitForSelector('.bh-member-menu-button');
-    await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
+    await page.click('button[aria-label="Invite a Bot"], button[aria-label="邀请 Bot"]');
     await page.waitForSelector('[data-group-invite]');
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-group-invite]', { hidden: true });

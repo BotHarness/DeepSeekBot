@@ -1,4 +1,4 @@
-import type { HostCarrier } from '../src/host/carrier';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 export function nodeCarrier(): HostCarrier {
   let cookie = '';

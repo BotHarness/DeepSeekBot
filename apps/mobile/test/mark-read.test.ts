@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { createReadMarker, readTarget } from '../src/ui/chat/mark-read';
 
 const message = (id: string, delivery: ConversationMessage['delivery']): ConversationMessage => ({

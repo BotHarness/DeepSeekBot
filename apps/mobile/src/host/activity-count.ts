@@ -1,5 +1,6 @@
-import type { Inbox } from './inbox';
-import type { HumanAttentionPage } from './wire';
+import { readHumanAttention } from '@botharness/host-client/people';
+import type { HostCall } from '@botharness/host-client/host-answer';
+import type { Inbox } from '@botharness/host-client/inbox';
 
 export const ACTIVITY_COUNT_KINDS = [
   'approvals',
@@ -85,9 +86,7 @@ const actionKinds = {
   privateInput: 'private-input',
 } as const;
 
-type ActivityCountClient = {
-  call(method: string, args: Record<string, unknown>): Promise<HumanAttentionPage>;
-};
+type ActivityCountClient = HostCall;
 
 export async function readActivityCount(
   client: ActivityCountClient,
@@ -100,7 +99,7 @@ export async function readActivityCount(
     const cursors = new Set<string>();
     let cursor: string | undefined;
     do {
-      const page = await client.call('humanAttention', {
+      const page = await readHumanAttention(client, {
         category,
         limit: 100,
         queryVersion: 1,
@@ -190,7 +189,12 @@ export function observeActivityCount(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
+        const initial = inbox.getSnapshot();
+        let sections: unknown = initial.status === 'ready' ? initial.sections : undefined;
         const stopInbox = inbox.subscribe(() => {
+          const next = inbox.getSnapshot();
+          if (next.status !== 'ready' || next.sections === sections) return;
+          sections = next.sections;
           void refresh();
         });
         const stopPreferences = preferences.subscribe(() => {

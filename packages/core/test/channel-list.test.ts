@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
@@ -74,19 +75,22 @@ describe('PersonaBot Channel discovery', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const humanDm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      core.channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea');
-      const team = core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const humanDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Ada · Bea');
+      const team = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       teamId = team.id;
-      core.channels.createGroup({ name: 'Private', members: ['bea'] });
+      core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Private', members: ['bea'] });
       for (const id of ['request-one', 'request-two']) {
-        await core.channels.appendMessage(humanDm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, humanDm.id, {
           id,
           at: '2026-09-25T00:00:00.000Z',
           author: { kind: 'human' },
           body: 'Find the team Channel',
         });
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: humanDm.id,
           messageId: id,
           body: 'Find the team Channel',

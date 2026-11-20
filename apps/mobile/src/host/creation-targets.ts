@@ -7,7 +7,14 @@ import {
 
 export type CreationAction = 'channel' | 'bot' | 'zip' | 'marketplace' | 'git' | 'invite' | 'join';
 export type CreationTarget =
-  | { kind: 'computer'; key: string; hostId: string; name: string; channelCreation?: boolean }
+  | {
+      kind: 'computer';
+      key: string;
+      hostId: string;
+      name: string;
+      channelCreation?: boolean;
+      botCreation?: boolean;
+    }
   | { kind: 'cloud'; key: string; name: string; workspace: ConversationWorkspace };
 
 export function creationTargets(
@@ -51,7 +58,9 @@ export function targetsFor(
     (target) =>
       (scope === 'all' || target.key === scope) &&
       ((action === 'channel' && (target.kind !== 'computer' || target.channelCreation !== false)) ||
-        (['bot', 'zip', 'marketplace', 'git'].includes(action) && target.kind === 'computer') ||
+        (['bot', 'zip', 'marketplace', 'git'].includes(action) &&
+          target.kind === 'computer' &&
+          target.botCreation !== false) ||
         (action === 'invite' && target.kind === 'cloud')),
   );
 }
@@ -67,7 +76,9 @@ export function creationActions(
   return actions.filter(
     (action) =>
       action === 'join' ||
-      (['bot', 'zip', 'marketplace', 'git'].includes(action) && scope === 'all') ||
+      (['bot', 'zip', 'marketplace', 'git'].includes(action) &&
+        scope === 'all' &&
+        !targets.some((target) => target.kind === 'computer' && target.botCreation === false)) ||
       targetsFor(action, scope, targets).length > 0,
   );
 }

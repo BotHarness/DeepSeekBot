@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -66,28 +67,28 @@ describe('Bot Group self-leave', () => {
     try {
       for (const slug of ['ada', 'bea'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Colleagues',
         members: ['ada', 'bea'],
         ownerBotSlug: 'ada',
       });
       groupId = group.id;
-      await core.channels.appendMessage(groupId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'before-leave',
         at: '2026-09-27T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Before departure',
       });
       for (const slug of ['ada', 'bea']) {
-        const dm = core.channels.getOrCreateDm(slug, slug.toUpperCase())!;
+        const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug.toUpperCase())!;
         const id = 'request-' + slug;
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: '2026-09-27T00:01:00.000Z',
           author: { kind: 'human' },
           body: slug === 'ada' ? 'Leave the Group' : 'Check the Group',
         });
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dm.id,
           messageId: id,
           body: slug === 'ada' ? 'Leave the Group' : 'Check the Group',
@@ -117,7 +118,7 @@ describe('Bot Group self-leave', () => {
           .map((item) => item.body)
           .sort(),
       ).toEqual(['Before departure', 'ADA left the Channel.', 'Bea remains joined'].sort());
-      const methods = createBridgeMethods({
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         registry: core.registry,
         states: core.states,
         channels: core.channels,
@@ -181,20 +182,23 @@ describe('Bot Group self-leave', () => {
     try {
       for (const slug of ['ada', 'bea'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Ada owns',
         members: ['ada', 'bea'],
         ownerBotSlug: 'ada',
       });
-      hiddenGroupId = core.channels.createGroup({ name: 'Hidden', members: ['ada'] }).id;
-      const dm = core.channels.getOrCreateDm('bea', 'Bea')!;
-      await core.channels.appendMessage(dm.id, {
+      hiddenGroupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Hidden',
+        members: ['ada'],
+      }).id;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'peer-leave',
         at: '2026-09-27T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Leave this Group',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'peer-leave',
         body: 'Leave this Group',
@@ -215,11 +219,11 @@ describe('Bot Group self-leave', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Colleagues',
         members: ['ada', 'bea'],
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         methods.channelGroupMemberRemove({ channelId: group.id, botSlug: 'bea' }),
       ).toMatchObject({
@@ -281,7 +285,7 @@ describe('Bot Group self-leave', () => {
     try {
       for (const slug of ['lee', 'eve', 'dia', 'men', 'sil'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Policy Team',
         members: ['lee', 'eve', 'dia', 'men', 'sil'],
       });
@@ -305,7 +309,7 @@ describe('Bot Group self-leave', () => {
         count: 2,
         intervalSeconds: 3600,
       });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.channelGroupMemberRemove({ channelId: group.id, botSlug: 'lee' }).ok).toBe(
         true,
       );
@@ -333,7 +337,7 @@ describe('Bot Group self-leave', () => {
       expect(turns.map((turn) => turn.botSlug)).toEqual(['eve']);
       expect(turns[0]?.message).toContain('Channel system');
       expect(turns[0]?.message).toContain('LEE was removed from the Channel.');
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'ordinary-after-leave',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -365,7 +369,7 @@ describe('Bot Group self-leave', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Colleagues',
         members: ['ada', 'bea'],
         ownerBotSlug: 'ada',
@@ -412,12 +416,12 @@ describe('Bot Group self-leave', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Pending',
         members: ['ada', 'bea'],
         ownerBotSlug: 'ada',
       });
-      await core.channels.appendMessageOnce(group.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'pending-mention',
         at: '2026-09-27T00:00:00.000Z',
         author: { kind: 'human' },
@@ -441,7 +445,7 @@ describe('Bot Group self-leave', () => {
       });
       expect(
         core.humanAttention
-          .list({ category: 'action' })
+          .list(OWNER_HUMAN_CONTEXT, { category: 'action' })
           .items.filter((item) => item.kind === 'bot-message-needs-repair'),
       ).toEqual([]);
     } finally {
@@ -456,13 +460,13 @@ describe('Bot Group self-leave', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       const bea = core.registry.create({ slug: 'bea', displayName: 'Bea' });
       if (!bea.ok) throw new Error('Bot fixture failed');
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Joinable',
         members: ['ada'],
         ownerBotSlug: 'ada',
       });
-      const ownerDm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const requesterDm = core.channels.getOrCreateDm('bea', 'Bea')!;
+      const ownerDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const requesterDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
       const request = core.channels.requestGroupJoin({
         channelId: group.id,
         requesterBotSlug: 'bea',
@@ -507,14 +511,14 @@ describe('Bot Group self-leave', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Failure route',
         members: ['ada'],
         ownerBotSlug: 'ada',
       });
       groupId = group.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessageOnce(group.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-1aabb095-e87a-4d52-a923-6a55e882ac40',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -549,7 +553,7 @@ describe('Bot Group self-leave', () => {
     try {
       for (const slug of ['lee', 'eve'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Wake retry',
         members: ['lee', 'eve'],
       });
@@ -599,7 +603,7 @@ describe('Bot Group self-leave', () => {
     try {
       for (const slug of ['lee', 'eve'])
         core.registry.create({ slug, displayName: slug.toUpperCase() });
-      const group = core.channels.createGroup({
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Live failure',
         members: ['lee', 'eve'],
       });

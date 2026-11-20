@@ -44,6 +44,7 @@ function baselineModuleStub(id: string): Record<string, unknown> {
     return {
       RemoteJournalStream: class {},
       RemoteSnapshotStream: class {},
+      RemoteStream: class {},
       RemoteStreamCarrierError: class extends Error {},
     };
   }
@@ -98,6 +99,7 @@ beforeAll(async () => {
   await build({ ...clientBundleOptions, config: false, outDir: tempDir });
   bundleCode = readFileSync(join(tempDir, 'client.js'), 'utf8');
   const sandbox = {
+    crypto: browserDom.window.crypto,
     document: browserDom.window.document,
     MutationObserver: browserDom.window.MutationObserver,
     ResizeObserver: class {
@@ -161,6 +163,11 @@ describe('@botharness/ui browser bundle', () => {
     expect(nonBaselineShell).toEqual([]);
   });
 
+  it('inlines Base UI instead of requiring it from the shell', () => {
+    expect(bundleCode).not.toMatch(/require\("@base-ui/);
+    expect(bundleCode).toContain('data-tobs-dialog-viewport');
+  });
+
   it('inlines dockview with only its structural stylesheet, themed through DSH tokens', () => {
     expect(bundleCode).not.toContain('@bh-dockview-css');
     expect(bundleCode).not.toMatch(/require\("dockview/);
@@ -182,7 +189,7 @@ describe('@botharness/ui browser bundle', () => {
     const missing = [...classes].filter((name) => !bundleCode.includes(`.${name}`));
     expect(missing).toEqual([]);
     expect(bundleCode).toMatch(
-      /\.bhx[a-z0-9]+(?::not\(#\\\\#\))+\{color:var\(--dsw-alias-label-primary\)\}/,
+      /\.bhx[a-z0-9]+(?::not\(#\\\\#\))+\{color:var\(--tobs-ink-primary\)\}/,
     );
   });
 
@@ -272,6 +279,12 @@ describe('@botharness/ui browser bundle', () => {
       {
         name: 'shell.overlay',
         id: 'botharness-bot-session-folders',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
+      {
+        name: 'shell.overlay',
+        id: 'botharness-human-profile-setup',
         locale: 'botharness',
         inject: expect.any(Function),
       },

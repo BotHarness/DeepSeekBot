@@ -32,6 +32,37 @@ It owns native capture, valid replay, physical Release A/B and evidence requirem
 scripts, DOM counters and Web budgets below apply to Web; they do not qualify native mobile.
 Native rendering, keyboard, streaming, animation and CPU changes are in scope too.
 
+## Fast loop: big wins first
+
+This is how the Human wants performance work run on every platform (Web, Desktop, Host/CLI and
+native mobile). It sets the default run count for the rest of these docs.
+
+- **Go after the big win first.** Fix the cost that dominates the journey before polishing the
+  rest. Chase the last few percent only when the task asks for it or a budget is still unmet.
+- **One A/B pair is usually enough.** When the difference is far larger than run-to-run noise, a
+  single matched base/change pair on the same fixture and machine decides it. Repeat interleaved
+  runs only when the result is small, ambiguous or near a budget, for a final precision pass, or
+  when choosing a package. Extra runs heat the phone or laptop and drift the machine.
+- **Keep captures short and bounded.** Record about a dozen seconds covering a few gestures or one
+  streamed reply, not minutes of activity. Long recordings filled phone storage, froze the Mac
+  and buried the signal. Give every trace, profile or screen recording a hard stop, extract the
+  numbers and move only the traces the evidence needs into `.humanlayer/` (see below). Delete
+  every other raw file and remove all capture copies from the phone and the Mac. On iOS follow
+  [short captures](ios-performance.md#short-captures-and-hot-path-probes).
+- **Localize the hot path cheaply.** Two quick probes often find the cause faster than a full
+  profile:
+  1. **Count calls.** Add temporary counters or logs at suspect functions, effects, renders,
+     selectors, listeners and bridge/RPC calls. Run the short scenario once and compare the counts
+     with what the journey should need. A function that runs hundreds of times per message is the
+     lead.
+  2. **Inject a delay.** Add an artificial sleep or busy-wait (for example 2 to 5 ms) at one
+     suspect site at a time and measure how much the scenario slows. The site where a small delay
+     is amplified most runs most often on the hot path.
+
+  Keep these probes local; remove them before the final A/B so both arms run identical code. For
+  the Web timeline, see
+  [finding the hot path](../../.agents/skills/verify-deepseekbot/references/performance.md#finding-the-hot-path).
+
 ## Observe before changing
 
 Do not guess at a cause. Collect evidence first, in this order:
@@ -64,8 +95,9 @@ Use component ablation (not Git history bisect) when a profile leaves several pl
    needs pinned heights, record calibration and clipping/overflow, use the same pins in every arm,
    and verify geometry. Plain text, all-mounted windows and inert DOM are diagnostic controls,
    not product fixes. A reduced fixture or missing work cannot establish a performance win.
-4. Run at least three interleaved trials per arm; record each trial's work counts, errors and
-   geometry. Report the median and range, pairing/order and source hashes. Keep failed attempts
+4. Run one trial per arm when the effect is clear; add interleaved trials only when arms are close
+   (see [fast loop](#fast-loop-big-wins-first)). Record each trial's work counts, errors and
+   geometry; with several trials report the median and range, pairing/order and source hashes. Keep failed attempts
    and outliers; do not pool incompatible protocols. State why any run is excluded.
 5. Confirm the narrower cause with its call stack/trace and a focused control. Effects need not
    add: do not sum percentage improvements across ablations or different source pairs. A faster
@@ -76,8 +108,13 @@ Use component ablation (not Git history bisect) when a profile leaves several pl
 - Freeze exact dependency versions/lockfiles, loaded bundle hashes, Host source, fixture digest,
   build mode, cache state, hardware/display/browser and viewport. Reuse canonical data rather
   than independently reseeding; keep machine load and competing services in the evidence.
-- Alternate or counterbalance base/change, at least three runs per side. Use at least five per
-  side when choosing a package. Separate cold initialization, warm reuse and streaming updates;
+- One matched base/change pair per scenario is enough when the difference is clear. Alternate
+  or counterbalance at least three runs per side only when the result is ambiguous or for a final
+  precision pass; repeated runs mostly add heat and drift. Use at least five per side when
+  choosing a package. For formal Web, Desktop, Host and CLI change qualification, use at least
+  three interleaved runs per side even when a diagnostic pair already shows a clear difference.
+  Keep each capture short and bounded (see
+  [iOS short captures](ios-performance.md#short-captures-and-hot-path-probes)). Separate cold initialization, warm reuse and streaming updates;
   do not hide lazy grammar compilation, worker startup or deferred work outside the measured
   user wait. Await completed work and verify the output, not only that a function returned.
 - For Markdown, compare equivalent features and safety: GFM, math, code language/highlighting,
@@ -107,13 +144,16 @@ Use component ablation (not Git history bisect) when a profile leaves several pl
 
 ## Verify the change
 
-- **A/B on identical data.** Seed once, keep `fixture.json`, build each side, run each side at
-  least three times. Report the median and the spread, never a single run.
+- **A/B on identical data.** Seed once, keep `fixture.json`, build each side and run one matched
+  pair. If the difference is small or noisy, add interleaved runs and report the median and spread.
 - **Correctness is part of performance.** A faster timeline that jumps, shows blank space, or
   loses the read position is a regression. The scroll check (`jumps`, `gapsInView`,
   `emptyInView` all 0) and `scripts/e2e-timeline-navigation.mjs` must pass.
 - **Run the budget.** `--budget scripts/perf-budgets/timeline.json` must pass. Add
   `--strict-timing` on a quiet machine to fail on timing budgets too.
+- **Measure the journey, not a proxy.** Measure opening latency separately from frame pacing;
+  rAF cadence alone does not prove presented FPS. Do not infer end-to-end wins from parser or
+  query microbenchmarks.
 - **Say what did not run.** Headless Chromium does not cover the desktop shell paths or native
   mobile; name them as not verified.
 
@@ -154,3 +194,13 @@ When a new surface can regress the same way (a long list, a live-updating panel,
 extend the measurement script or add one beside it, give it a budget file under
 `scripts/perf-budgets/`, cover the checker with a test, and wire it into the CI plan the same
 way. A metric without a budget is observation only; it does not guard anything.
+
+## CLI effect classification and surrounding owner journey
+
+`node scripts/perf-cli-effects.mjs --instance <private-instance.json> --fixture <fixture.json> --source-sha <40-char-sha> --output <result.json>` measures cold native Node CLI processes against the authenticated Host: list, select an Approval Template, and canonical selection readback. The fixture contains `bot`, `from`, and `to` template names; create it with public CLI commands and keep the same stopped/restarted task Profile across source arms. Every round restores the original selection outside its measured samples. Add `--classification --baseline <base-result.json>` for the candidate arm.
+
+`scripts/perf-budgets/cli-effects.json` bounds cold request latency, added median latency, process peak RSS and warmed classification p99. The 2 s cold-request ceiling covers startup and completed Host work; the added-work allowance is 250 ms, while classification itself gets 5 ms at p99, including the existing 256-argument maximum. These are initial regression ceilings, not claimed improvements. The script verifies operation results, fixture/Node identity and classification outcomes as well as timing. It neither starts Hosts nor supplies broker authority. A successful direct-Human owner journey does not qualify a Tob approval-card flow; record that separately.
+
+For model-free Tob admission, run `node scripts/perf-tob-cli.mjs --source-sha <frozen-head> --instance <private-instance.json> --fixture <private-fixture.json> --output <private-result.json>` with `{ "argv": ["approval-templates"] }` (or the same synthetic Bot filter for each arm). It compares the actual cold direct CLI/Host read with the full typed request/native Agent/broker/result journey, including CLI process startup and status polling. `scripts/perf-budgets/tob-cli.json` retains the existing two-second cold CLI budget and separately bounds added native journey work at five seconds, total at seven seconds and captures at twelve seconds. No Human decision wait or model call belongs in this deterministic fixture. Freeze source, bundle hashes, Node, Profile and fixture; measure base/head surrounding direct calls separately with `perf-cli-effects.mjs`. Retain correctness and failures; these budgets do not imply a speedup or replace protected approval/runtime screenshots.
+
+Use `--rounds 1` for a predeclared single native-journey sample; values cannot exceed the recorded three-round cohort cap. The report records the requested round count, and the runner stops after the first correctness, latency or cancellation failure. Compressed Session audit reads are capped through an owned descriptor before allocation and reject growth beyond sixteen MiB. Keep older failed cohorts distinct from any newly frozen protocol.

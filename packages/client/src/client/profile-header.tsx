@@ -1,27 +1,29 @@
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
 import { Menu } from './appearance-primitives.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
-import {
-  Button,
-  IconEditOutlineRegular,
-  IconEllipsisOutlineRegular,
-  IconShareOutlineRegular,
-  IconTrashOutlineRegular,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { type MenuEntry } from './ds/menu.js';
 
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AvatarAppearanceEditor } from './avatar-appearance-editor.js';
 import { bannerOf, BotBannerArt } from './bot-banner.js';
 import { BotZipShareButton } from './bot-zip.js';
-import { Field, TextField } from './ds/field.js';
+import { Field, TextAreaField, TextField } from './ds/field.js';
+import { hooked } from './ds/hooked.js';
+import { IconButton } from './ds/icon-button.js';
+import { HiddenFileInput } from './ds/input.js';
+import { PreviewChoices } from './ds/preview-choice.js';
+import { profileStyles } from './ds/profile-panel.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { Tooltip } from './ds/tooltip.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { layer, radius, size, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 import { botPrimaryColorOf } from './bot-primary-color.js';
@@ -38,101 +40,23 @@ import {
 } from './tag-editor.js';
 
 const styles = stylex.create({
-  textarea: {
-    boxSizing: 'border-box',
-    width: '100%',
-    resize: 'vertical',
-    padding: space.x3,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.sm,
-    backgroundColor: 'var(--dsw-alias-bg-base)',
-    color: color.fg,
-    fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '1px',
-  },
-  hint: {
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  file: { display: 'none' },
-  colorRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x4,
-    marginBottom: space.x4,
-    paddingBlock: space.x3,
-    paddingInline: space.x4,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.md,
-  },
   colorSwatch: {
+    display: 'inline-block',
     flexShrink: 0,
-    width: '24px',
-    height: '24px',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.round,
-  },
-  colorCopy: {
-    display: 'flex',
-    flexDirection: 'column',
-    flexGrow: 1,
-    minWidth: 0,
-  },
-  colorTitle: {
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    width: size.iconLarge,
+    height: size.iconLarge,
+    borderRadius: radius.full,
   },
   bannerPreview: {
     aspectRatio: '3 / 1',
     overflow: 'hidden',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.md,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
   },
   bannerActions: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: space.x3,
-  },
-  scenes: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))',
-    gap: space.x3,
-  },
-  scene: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x2,
-    padding: space.x2,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.sm,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.muted,
-    fontFamily: 'inherit',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    textAlign: 'center',
-    cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.fg}` },
-  },
-  sceneOn: {
-    borderColor: color.fg,
-    boxShadow: `0 0 0 1px ${color.fg}`,
-    color: color.fg,
   },
   sceneArt: {
     display: 'block',
@@ -144,7 +68,7 @@ const styles = stylex.create({
 
 export function ProfileBio({ text }: { text: string | undefined }): ReactElement | null {
   if (text === undefined || text.length === 0) return null;
-  return <p className="bh-profile-description">{text}</p>;
+  return <p {...stylex.props(profileStyles.bio)}>{text}</p>;
 }
 
 function EditProfileModal({
@@ -172,8 +96,14 @@ function EditProfileModal({
     nextTags.length > MAX_BOT_TAGS || nextTags.some((tag) => [...tag].length > MAX_BOT_TAG_LENGTH);
   const bioInvalid = bioLength > MAX_BOT_BIO_LENGTH;
   const invalid = name.trim().length === 0 || bioInvalid || tagsInvalid;
-  const tagsLimit = t('profile.tags.limit', { max: MAX_BOT_TAGS, length: MAX_BOT_TAG_LENGTH });
-  const bioCount = t('profile.bio.count', { count: bioLength, max: MAX_BOT_BIO_LENGTH });
+  const tagsLimit = t('profile.tags.limit', {
+    max: MAX_BOT_TAGS,
+    length: MAX_BOT_TAG_LENGTH,
+  });
+  const bioCount = t('profile.bio.count', {
+    count: bioLength,
+    max: MAX_BOT_BIO_LENGTH,
+  });
 
   const save = async (): Promise<void> => {
     if (invalid || busy) return;
@@ -234,19 +164,15 @@ function EditProfileModal({
           />
         )}
       </Field>
-      <Field label={t('profile.bio')} {...(bioInvalid ? { error: bioCount } : { hint: bioCount })}>
-        {(control) => (
-          <textarea
-            {...control}
-            rows={3}
-            value={bio}
-            disabled={busy}
-            placeholder={t('profile.bio.placeholder')}
-            onChange={(event) => setBio(event.currentTarget.value)}
-            {...stylex.props(styles.textarea)}
-          />
-        )}
-      </Field>
+      <TextAreaField
+        label={t('profile.bio')}
+        {...(bioInvalid ? { error: bioCount } : { hint: bioCount })}
+        rows={3}
+        value={bio}
+        disabled={busy}
+        placeholder={t('profile.bio.placeholder')}
+        onChange={setBio}
+      />
     </FormDialog>
   );
 }
@@ -301,26 +227,28 @@ export function BotAvatarModal({
   return (
     <PanelDialog
       size="medium"
+      fill
       onClose={onClose}
       title={t('profile.avatar.section')}
       closeLabel={t('common.close')}
     >
-      <div data-primary-color-source={primary.source} {...stylex.props(styles.colorRow)}>
-        <span
-          aria-hidden="true"
-          {...stylex.props(styles.colorSwatch)}
-          style={{ background: primary.color }}
-        />
-        <span {...stylex.props(styles.colorCopy)}>
-          <span {...stylex.props(styles.colorTitle)}>{t('profile.primaryColor.title')}</span>
-          <span {...stylex.props(styles.hint)}>
-            {t(`profile.primaryColor.summary.${primary.source}`)}
-          </span>
-        </span>
-        <Button size="sm" variant="outline" onClick={() => setColoring(true)}>
-          {t('profile.primaryColor.edit')}
-        </Button>
-      </div>
+      <SettingsRow
+        data={{ 'data-primary-color-source': primary.source }}
+        title={t('profile.primaryColor.title')}
+        description={t(`profile.primaryColor.summary.${primary.source}`)}
+        icon={
+          <span
+            aria-hidden="true"
+            {...stylex.props(styles.colorSwatch)}
+            style={{ background: primary.color }}
+          />
+        }
+        control={
+          <Button size="sm" variant="outline" onClick={() => setColoring(true)}>
+            {t('profile.primaryColor.edit')}
+          </Button>
+        }
+      />
       <AvatarAppearanceEditor
         key={`avatar-${bot.slug}`}
         bot={bot}
@@ -338,18 +266,15 @@ export function BotAvatarModal({
         imageBusy={busy}
         t={t}
       />
-      <input
+      <HiddenFileInput
         ref={input}
-        type="file"
         accept="image/png,image/jpeg,image/webp"
-        tabIndex={-1}
         aria-hidden="true"
         onChange={(event) => {
           const chosen = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (chosen !== undefined) setFile(chosen);
         }}
-        {...stylex.props(styles.file)}
       />
       {failed ? <Note tone="danger">{t('profile.avatar.failed')}</Note> : null}
       {coloring ? (
@@ -457,45 +382,32 @@ function BannerModal({
         </Button>
       </div>
       {scene === undefined ? <Note>{t('profile.banner.uploaded')}</Note> : null}
-      <Field label={t('profile.banner.scene')} group>
-        {() => (
-          <div
-            role="radiogroup"
-            aria-label={t('profile.banner.scene')}
-            {...stylex.props(styles.scenes)}
-          >
-            {BANNER_SCENES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={scene === option}
-                data-banner-scene={option}
-                disabled={busy}
-                onClick={() => setDraft({ recipe: { scene: option, seed } })}
-                {...stylex.props(styles.scene, scene === option && styles.sceneOn)}
-              >
-                <span {...stylex.props(styles.sceneArt)}>
-                  <BotBannerArt banner={{ recipe: { scene: option, seed } }} />
-                </span>
-                <span>{t(`profile.banner.scene.${option}`)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </Field>
-      <input
+      <PreviewChoices
+        label={t('profile.banner.scene')}
+        variant="icon"
+        value={scene}
+        disabled={busy}
+        options={BANNER_SCENES.map((option) => ({
+          id: option,
+          label: t(`profile.banner.scene.${option}`),
+          data: { 'data-banner-scene': option },
+          preview: (
+            <span {...stylex.props(styles.sceneArt)}>
+              <BotBannerArt banner={{ recipe: { scene: option, seed } }} />
+            </span>
+          ),
+        }))}
+        onChange={(option) => setDraft({ recipe: { scene: option, seed } })}
+      />
+      <HiddenFileInput
         ref={input}
-        type="file"
         accept="image/png,image/jpeg,image/webp"
-        tabIndex={-1}
         aria-hidden="true"
         onChange={(event) => {
           const chosen = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (chosen !== undefined) setFile(chosen);
         }}
-        {...stylex.props(styles.file)}
       />
       {file === undefined ? null : (
         <BannerCropModal
@@ -525,50 +437,55 @@ export function ProfileHeader({
   t: BotHarnessTranslate;
   onDelete(): void;
 }): ReactElement {
+  const viewOnly = bot.deleted === true || bot.sharedBy !== undefined;
   const [panel, setPanel] = useState<'edit' | 'avatar' | 'banner'>();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems: readonly MenuEntry[] = [
     {
       id: 'share-market',
       label: t('market.share'),
-      icon: <IconShareOutlineRegular size={16} />,
+      icon: <Icon name="share" size={16} />,
     },
     {
       id: 'delete',
       label: t('deletion.title'),
-      icon: <IconTrashOutlineRegular size={16} />,
+      icon: <Icon name="trash" size={16} />,
       danger: true,
     },
   ];
   return (
-    <header className="bh-profile-header">
-      <div className="bh-profile-banner">
+    <header {...hooked('bh-profile-header', profileStyles.bannerCard)}>
+      <div {...hooked('bh-profile-banner', profileStyles.banner)}>
         <BotBannerArt banner={bannerOf(bot.banner, bot.displayName)} />
-        {bot.deleted ? null : (
-          <button
+        {viewOnly ? null : (
+          <Button
             type="button"
+            size="sm"
+            variant="toolbar"
+            xstyle={profileStyles.bannerEdit}
             className="bh-profile-banner-edit"
             onClick={() => setPanel('banner')}
           >
             {t('profile.banner.edit')}
-          </button>
+          </Button>
         )}
       </div>
-      <div className="bh-profile-header-body">
-        <div className="bh-profile-header-top">
+      <div {...stylex.props(profileStyles.headerBody)}>
+        <div {...stylex.props(profileStyles.headerTop)}>
           <Tooltip
             label={t('profile.avatar.change')}
             side="bottom"
             portal
             delayMs={300}
-            disabled={bot.deleted === true}
+            disabled={viewOnly}
           >
-            <button
+            <Button
               type="button"
+              xstyle={profileStyles.avatar}
               className="bh-profile-avatar-button"
               aria-label={t('profile.avatar.change')}
-              data-avatar-editable={bot.deleted ? undefined : ''}
-              disabled={bot.deleted}
+              data-avatar-editable={viewOnly ? undefined : ''}
+              disabled={viewOnly}
               onClick={() => setPanel('avatar')}
             >
               <PersonaBotAvatar
@@ -581,17 +498,18 @@ export function ProfileHeader({
                 size={80}
                 indicator={false}
               />
-              {bot.deleted ? null : (
-                <span aria-hidden="true" className="bh-profile-avatar-overlay">
-                  <span className="bh-profile-avatar-overlay-icon">
-                    <IconEditOutlineRegular size={16} />
-                  </span>
+              {viewOnly ? null : (
+                <span
+                  aria-hidden="true"
+                  {...hooked('bh-profile-avatar-overlay', profileStyles.avatarBadge)}
+                >
+                  <Icon name="pencil" size={16} />
                 </span>
               )}
-            </button>
+            </Button>
           </Tooltip>
-          {bot.deleted ? null : (
-            <div className="bh-profile-header-actions">
+          {viewOnly ? null : (
+            <div {...hooked('bh-profile-header-actions', profileStyles.actions)}>
               <BotZipShareButton bot={bot} actions={actions} t={t} />
               <Button size="sm" variant="outline" onClick={() => setPanel('edit')}>
                 {t('profile.edit')}
@@ -602,14 +520,14 @@ export function ProfileHeader({
                 dense
                 align="end"
                 anchor={
-                  <button
-                    type="button"
-                    className="bh-icon-btn bh-profile-more"
+                  <IconButton
+                    size="row"
+                    className="bh-profile-more"
                     aria-label={t('profile.more')}
                     onClick={() => setMenuOpen((value) => !value)}
                   >
-                    <IconEllipsisOutlineRegular size={16} />
-                  </button>
+                    <Icon name="ellipsis" size={16} />
+                  </IconButton>
                 }
                 items={menuItems}
                 onSelect={(id) => {
@@ -622,7 +540,12 @@ export function ProfileHeader({
             </div>
           )}
         </div>
-        <h2 className="bh-profile-view-name">{bot.displayName}</h2>
+        <h2 {...hooked('bh-profile-view-name', profileStyles.title)}>{bot.displayName}</h2>
+        {bot.sharedBy === undefined ? null : (
+          <p {...hooked('bh-profile-shared-by', profileStyles.caption)}>
+            {t('team.bots.sharedBy', { name: bot.sharedBy })}
+          </p>
+        )}
         <ProfileTags tags={bot.roles} />
         <ProfileBio text={bot.description} />
       </div>

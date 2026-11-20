@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import type { TobService } from '../tob/service.js';
 import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -206,12 +207,13 @@ export function createBotOnboarding(options: {
     const channel =
       selected === undefined
         ? undefined
-        : channels.getOrCreateDm(selected.slug, selected.displayName);
-    database.transaction((db) => {
-      const completed =
-        state!.completed_message_id === null
-          ? (db
-              .prepare(`
+        : channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, selected.slug, selected.displayName);
+    database.transaction(
+      (db) => {
+        const completed =
+          state!.completed_message_id === null
+            ? (db
+                .prepare(`
         SELECT output.channel_id, output.message_id FROM channel_output_origins origin
         JOIN source_events output ON output.source_event_id = origin.source_event_id
         JOIN session_ownership owner ON owner.session_id = origin.session_id
@@ -227,33 +229,35 @@ export function createBotOnboarding(options: {
           AND length(trim(output.body)) > 0
         ORDER BY output.created_at, output.source_event_id LIMIT 1
       `)
-              .get(state!.entered_at, state!.entered_at) as
-              | { channel_id: string; message_id: string }
-              | undefined)
-          : undefined;
-      if (completed)
-        db.prepare(`UPDATE bot_onboarding SET completed_channel_id = ?, completed_message_id = ?
+                .get(state!.entered_at, state!.entered_at) as
+                | { channel_id: string; message_id: string }
+                | undefined)
+            : undefined;
+        if (completed)
+          db.prepare(`UPDATE bot_onboarding SET completed_channel_id = ?, completed_message_id = ?
         WHERE singleton = 1 AND completed_message_id IS NULL`).run(
-          completed.channel_id,
-          completed.message_id,
-        );
-      if (action === 'restart')
-        db.prepare('UPDATE bot_onboarding SET journey_done = 0 WHERE singleton = 1').run();
-      if (action === 'start' || action === 'continue' || action === 'restart')
-        db.prepare(
-          'UPDATE bot_onboarding SET journey_started_at = COALESCE(journey_started_at, ?) WHERE singleton = 1',
-        ).run(now().toISOString());
-      if (action === 'finish')
-        db.prepare('UPDATE bot_onboarding SET journey_done = 1 WHERE singleton = 1').run();
-      if (action !== undefined)
-        db.prepare('UPDATE bot_onboarding SET tutorial = ? WHERE singleton = 1').run(
-          action === 'skip'
-            ? 'skipped'
-            : action === 'pause' || action === 'finish'
-              ? 'paused'
-              : 'active',
-        );
-    });
+            completed.channel_id,
+            completed.message_id,
+          );
+        if (action === 'restart')
+          db.prepare('UPDATE bot_onboarding SET journey_done = 0 WHERE singleton = 1').run();
+        if (action === 'start' || action === 'continue' || action === 'restart')
+          db.prepare(
+            'UPDATE bot_onboarding SET journey_started_at = COALESCE(journey_started_at, ?) WHERE singleton = 1',
+          ).run(now().toISOString());
+        if (action === 'finish')
+          db.prepare('UPDATE bot_onboarding SET journey_done = 1 WHERE singleton = 1').run();
+        if (action !== undefined)
+          db.prepare('UPDATE bot_onboarding SET tutorial = ? WHERE singleton = 1').run(
+            action === 'skip'
+              ? 'skipped'
+              : action === 'pause' || action === 'finish'
+                ? 'paused'
+                : 'active',
+          );
+      },
+      action === undefined ? undefined : ['bot-onboarding'],
+    );
     state = receipt()!;
     return {
       journey: {
@@ -296,6 +300,15 @@ export function createBotOnboarding(options: {
           ? value.channel?.id
           : undefined;
     if (!id) return;
+    const recorded = database.read((db) =>
+      db
+        .prepare(
+          'SELECT target_id FROM onboarding_creation_results WHERE operation_key = ? AND kind = ?',
+        )
+        .get(operationKey, command),
+    );
+    if (recorded?.['target_id'] === id && (command !== 'create' || state.journey_bot !== null))
+      return;
     const target = command === 'create' ? registry.get(id) : channels.get(id);
     if (
       !target ||
@@ -304,19 +317,22 @@ export function createBotOnboarding(options: {
       Date.parse(target.createdAt) < Date.parse(state.journey_started_at)
     )
       return;
-    database.transaction((db) => {
-      db.prepare(
-        'INSERT INTO onboarding_creation_results (operation_key,kind,target_id,session_id,recorded_at) VALUES (?,?,?,?,?) ON CONFLICT(operation_key,kind) DO UPDATE SET target_id = excluded.target_id',
-      ).run(operationKey, command, id, sessionId, now().toISOString());
-      if (command === 'create')
+    database.transaction(
+      (db) => {
         db.prepare(
-          'UPDATE bot_onboarding SET journey_bot = COALESCE(journey_bot, ?) WHERE singleton = 1',
-        ).run(id);
-      else if (state.journey_bot && channels.get(id)?.members.includes(state.journey_bot))
-        db.prepare(
-          'UPDATE bot_onboarding SET journey_group = COALESCE(journey_group, ?) WHERE singleton = 1',
-        ).run(id);
-    });
+          'INSERT INTO onboarding_creation_results (operation_key,kind,target_id,session_id,recorded_at) VALUES (?,?,?,?,?) ON CONFLICT(operation_key,kind) DO UPDATE SET target_id = excluded.target_id',
+        ).run(operationKey, command, id, sessionId, now().toISOString());
+        if (command === 'create')
+          db.prepare(
+            'UPDATE bot_onboarding SET journey_bot = COALESCE(journey_bot, ?) WHERE singleton = 1',
+          ).run(id);
+        else if (state.journey_bot && channels.get(id)?.members.includes(state.journey_bot))
+          db.prepare(
+            'UPDATE bot_onboarding SET journey_group = COALESCE(journey_group, ?) WHERE singleton = 1',
+          ).run(id);
+      },
+      ['bot-onboarding'],
+    );
   };
   return {
     recordCreation,

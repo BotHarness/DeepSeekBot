@@ -17,4 +17,10 @@ class LanChannelTest {
       assertFalse(validFrame(frame))
     }
   }
+  @Test fun keepsOnlyPlainHostCloseReasons() {
+    assertEquals("channel-handshake-rejected", closeReason("channel-handshake-rejected"))
+    for (reason in listOf("", "Channel Refused", "reason\nline", "a".repeat(65))) {
+      assertEquals("channel-disconnected", closeReason(reason))
+    }
+  }
 }

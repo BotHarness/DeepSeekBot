@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const native = vi.hoisted(() => ({
   os: 'ios',
@@ -27,6 +27,11 @@ const labelOf = (modifiers?: Modifier[]) =>
   modifiers?.find((modifier) => modifier.label !== undefined)?.label ??
   modifiers?.find((modifier) => modifier.description !== undefined)?.description;
 
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
+  Path: () => createElement('path'),
+  SvgXml: () => createElement('svg'),
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -43,6 +48,9 @@ vi.mock('expo-symbols', () => ({
   SymbolView: ({ name }: { name: { android: string } }) =>
     createElement('i', { 'data-symbol': name.android }),
 }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 62, bottom: 34 }),
+}));
 vi.mock('@expo/ui/swift-ui/modifiers', () => {
   const none = () => ({});
   return {
@@ -58,6 +66,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => {
     frame: (params: { width?: number }) => ({ fixedWidth: params.width }),
     imageScale: none,
     padding: none,
+    onGeometryChange: none,
     presentationBackground: none,
     presentationDragIndicator: (visibility: string) => ({ grabber: visibility }),
     shapes: { circle: none, rectangle: none, roundedRectangle: none },
@@ -124,8 +133,20 @@ vi.mock('@expo/ui/swift-ui', () => {
     RNHostView: ({ children }: { children: ReactNode }) => children,
     ScrollView: box('div'),
     Spacer: () => null,
-    Text: ({ children, modifiers }: { children: ReactNode; modifiers?: Modifier[] }) =>
-      createElement('span', { 'data-width': fixedWidth(modifiers) }, children),
+    Text: ({
+      children,
+      modifiers,
+      testID,
+    }: {
+      children: ReactNode;
+      modifiers?: Modifier[];
+      testID?: string;
+    }) =>
+      createElement(
+        'span',
+        { 'data-width': fixedWidth(modifiers), 'data-testid': testID },
+        children,
+      ),
     VStack: box('div'),
   };
 });
@@ -183,10 +204,9 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
 });
 
 const ios = await import('../src/ui/chat/message-actions.ios');
-const android = await import('../src/ui/chat/message-actions.android');
 const { menuGroups } = await import('../src/ui/chat/message-sheet');
 const { t } = await import('../src/ui/strings');
-const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('@botharness/host-client/conversation');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
@@ -256,12 +276,46 @@ describe('message sheet groups', () => {
 });
 
 describe('iOS message sheet', () => {
+  it('presents the message time and the ordered execution path in one accessible header', () => {
+    const message: ConversationMessage = {
+      ...bot,
+      turnTargets: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+        { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      ],
+    };
+    mount(ios.MessageActions, {
+      target: { message, anchor, group },
+      catalog: [
+        {
+          provider: 'opencode-go',
+          providerName: 'OpenCode Go',
+          model: 'deepseek-v4.1-flash',
+          modelName: 'DeepSeek V4.1 Flash',
+        },
+      ],
+    });
+    const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
+    const time = host?.querySelector('[data-testid="message-menu-time"]');
+    expect(time?.nextElementSibling).toBe(attribution);
+    expect(attribution?.querySelector('[data-testid="external-engine-badge"]')).not.toBeNull();
+    expect(attribution?.getAttribute('aria-label')).toBe(
+      'Ran on GPT-6.2-Sol · Codex · High, External engine, then DeepSeek V4.1 Flash · OpenCode Go',
+    );
+    expect([...attribution!.children].map((segment) => segment.textContent)).toEqual([
+      'GPT-6.2-Sol · High',
+      '→V4.1 Flash',
+    ]);
+  });
+
   it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {
     mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     const sheet = host?.querySelector('[role="dialog"]');
     expect(sheet?.getAttribute('data-open')).toBe('true');
     expect(sheet?.getAttribute('data-fit')).toBe('true');
     expect(byLabel(t.messageActions)).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-time"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-turn-targets"]')).toBeNull();
     expect(MENU_REACTIONS.slice(0, QUICK_REACTIONS.length)).toEqual([...QUICK_REACTIONS]);
     const reactions = byLabel(t.reactions);
     for (const emoji of MENU_REACTIONS) {
@@ -333,49 +387,5 @@ describe('iOS message sheet', () => {
     const { handlers } = mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     act(() => native.presented?.(false));
     expect(handlers.onClose).toHaveBeenCalledOnce();
-  });
-});
-
-describe('Android message sheet', () => {
-  it('shows nothing until a message is pressed', () => {
-    native.os = 'android';
-    mount(android.MessageActions, { target: undefined });
-    expect(host?.querySelector('[role="dialog"]')).toBeNull();
-  });
-
-  it('lists reactions as toggle buttons, then actions with leading Material icons', () => {
-    native.os = 'android';
-    const { handlers } = mount(android.MessageActions, {
-      target: { message: bot, anchor, group },
-    });
-    expect(byLabel(t.messageActions)).not.toBeNull();
-    expect(byLabel(t.reactions)?.querySelectorAll('button')).toHaveLength(MENU_REACTIONS.length);
-    expect(byLabel(t.unreact('🔥'))?.getAttribute('aria-selected')).toBe('true');
-    expect(rows()).toEqual([
-      ['content_copy', t.copy],
-      ['share', t.shareText],
-    ]);
-    expect(host?.querySelectorAll('li i[data-symbol]')).toHaveLength(2);
-    expect(byLabel(t.react('👍'))?.getAttribute('data-min')).toBe('true');
-    act(() => byLabel(t.react('👍'))?.click());
-    expect(handlers.onReact).toHaveBeenCalledWith(bot, '👍', true);
-    expect(handlers.onClose).toHaveBeenCalledOnce();
-  });
-
-  it('runs actions at once and closes', () => {
-    native.os = 'android';
-    const onOpen = vi.fn();
-    const { handlers } = mount(android.MessageActions, {
-      target: { message: bot, anchor, group, activity: { label: 'Open memory', onOpen } },
-    });
-    expect(byLabel(t.reactions)).toBeNull();
-    expect(host?.textContent).toContain(bot.body);
-    expect(rows()[1]).toEqual(['open_in_new', 'Open memory']);
-    const items = [...(host?.querySelectorAll('li') ?? [])];
-    act(() => items[1]?.click());
-    expect(onOpen).toHaveBeenCalledOnce();
-    act(() => items[2]?.click());
-    expect(handlers.onShareText).toHaveBeenCalledWith(bot.body);
-    expect(handlers.onClose).toHaveBeenCalledTimes(2);
   });
 });

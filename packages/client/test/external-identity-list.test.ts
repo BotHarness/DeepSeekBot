@@ -1,33 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+import { type MessagingIdentityInput } from '../../core/src/messaging/identity.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { MessagingSnapshot } from '../../core/src/messaging/outbound.js';
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  IconInfoOutlineRegular: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Switch: ({
-    checked,
-    label,
-    disabled,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': checked,
-      'aria-label': label,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
 }));
 import { ExternalIdentityList } from '../src/client/external-identity-list.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -96,13 +77,13 @@ it('shows only the selected Lark identity feedback and keeps unknown distinct fr
       ),
     );
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑身份：QA Lark"]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA Lark"]')!.click(),
     );
-    const content = container.querySelector('[role="dialog"]')!.textContent;
+    const content = document.body.querySelector('[role="dialog"]')!.textContent;
     expect(content).toContain('消息反馈不可用；正常接收和回复不受影响');
     expect(content).toContain('12345678 · 接收: 平台已接受 · 回答: 结果未知');
     expect(content).not.toContain('wrong-source');
-    expect(container.querySelectorAll('[title="selected-source-12345678"]')).toHaveLength(1);
+    expect(document.body.querySelectorAll('[title="selected-source-12345678"]')).toHaveLength(1);
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -146,21 +127,48 @@ it('edits WeChat typing in the current identity modal and keeps native request a
         }),
       ),
     );
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      zhTranslate('identity.typing.accepted'),
-    );
+    expect(
+      Array.from(document.body.querySelectorAll('[role="status"]'), (node) => node.textContent),
+    ).toContain(zhTranslate('identity.typing.accepted'));
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑身份：QA WeChat"]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA WeChat"]')!.click(),
     );
-    const toggle = container.querySelector<HTMLButtonElement>(
+    const toggle = document.body.querySelector<HTMLButtonElement>(
       `[aria-label="${zhTranslate('identity.typing.label')}"]`,
     )!;
-    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
       zhTranslate('identity.typing.label'),
     );
     expect(toggle.getAttribute('aria-checked')).toBe('true');
+    const updateTyping = async (supported: boolean) =>
+      act(async () =>
+        root.render(
+          createElement(ExternalIdentityList, {
+            snapshot: {
+              accounts: [],
+              identities: [{ ...identity, typing: { ...identity.typing, supported } }],
+              grants: [],
+              intents: [],
+              checks: 'complete',
+            },
+            t: zhTranslate,
+            refresh: vi.fn(async () => undefined),
+            mutate,
+            conversation: vi.fn(),
+            rules: vi.fn(),
+          }),
+        ),
+      );
+    await updateTyping(false);
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
+      zhTranslate('identity.typing.unavailable'),
+    );
+    await updateTyping(true);
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).not.toContain(
+      zhTranslate('identity.typing.unavailable'),
+    );
     await act(async () => toggle.click());
-    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const save = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === '保存身份',
     )!;
     await act(async () => save.click());
@@ -173,17 +181,17 @@ it('edits WeChat typing in the current identity modal and keeps native request a
       }),
     );
     await act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑身份：QA WeChat"]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA WeChat"]')!.click(),
     );
-    await chooseOption(zhTranslate('defaults.typingOrigin'), 'inherit', container);
+    await chooseOption(zhTranslate('defaults.typingOrigin'), 'inherit', document.body);
     expect(
-      container.querySelector(`[aria-label="${zhTranslate('identity.typing.label')}"]`),
+      document.body.querySelector(`[aria-label="${zhTranslate('identity.typing.label')}"]`),
     ).toBeNull();
-    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
       zhTranslate('defaults.typingInheritHint'),
     );
     await act(async () =>
-      [...container.querySelectorAll<HTMLButtonElement>('button')]
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')]
         .find((b) => b.textContent === '保存身份')!
         .click(),
     );
@@ -239,7 +247,7 @@ it('failed Switch writes retain the committed preference; stale Modal edits reta
         }),
       ),
     );
-    const toggle = container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+    const toggle = document.body.querySelector<HTMLButtonElement>('[role="switch"]')!;
     await act(async () => toggle.click());
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     expect(mutate).toHaveBeenLastCalledWith({
@@ -249,9 +257,9 @@ it('failed Switch writes retain the committed preference; stale Modal edits reta
       name: 'QA Bot',
       enabled: false,
     });
-    const edit = container.querySelector<HTMLButtonElement>('[title="编辑身份：QA Bot"]')!;
+    const edit = document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA Bot"]')!;
     await act(async () => edit.click());
-    const input = container.querySelector<HTMLInputElement>('input')!;
+    const input = document.body.querySelector<HTMLInputElement>('input')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
         input,
@@ -259,13 +267,13 @@ it('failed Switch writes retain the committed preference; stale Modal edits reta
       );
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const save = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const save = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
       (b) => b.textContent === '保存身份',
     )!;
     await act(async () => save.click());
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     expect(input.value).toBe('Retained edit');
-    expect(container.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
+    expect(document.body.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain(
       '配置已在另一处更改',
     );
     expect(mutate).toHaveBeenLastCalledWith({
@@ -363,25 +371,25 @@ it.each(['feishu', 'qq', 'discord'] as const)(
     });
     try {
       await act(async () => render());
-      const bind = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+      const bind = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
         b.textContent?.includes('绑定应用'),
       )!;
       await act(async () => bind.click());
-      const tutorial = container.querySelector<HTMLAnchorElement>(
+      const tutorial = document.body.querySelector<HTMLAnchorElement>(
         'a[href="https://botharness.ai/zh/docs/lark-connection/"]',
       );
       expect(tutorial?.textContent).toBe('Lark / 飞书');
       expect(tutorial?.target).toBe('_blank');
       expect(tutorial?.rel).toBe('noopener noreferrer');
-      expect(container.textContent).toContain('接收与配对设置');
-      await chooseOption('应用', `dsh-im/${platform}:lark-app`, container);
+      expect(document.body.textContent).toContain('接收与配对设置');
+      await chooseOption('应用', `dsh-im/${platform}:lark-app`, document.body);
       if (platform === 'discord') {
-        const hint = container.querySelector('[role="dialog"]')!.textContent;
+        const hint = document.body.querySelector('[role="dialog"]')!.textContent;
         expect(hint).toContain('服务器频道或公开帖子');
         expect(hint).not.toContain('私聊和群里 @');
       }
       const confirm = [
-        ...container.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+        ...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
       ].find((b) => b.textContent === '绑定应用')!;
       await act(async () => confirm.click());
       expect(mutate).toHaveBeenCalledWith({
@@ -390,14 +398,16 @@ it.each(['feishu', 'qq', 'discord'] as const)(
         accountRef: 'lark-app',
         fingerprint: 'a'.repeat(64),
       });
-      expect(container.querySelector('[role="status"]')?.textContent).toBe('正在连接 Support app…');
+      expect(
+        Array.from(document.body.querySelectorAll('[role="status"]'), (node) => node.textContent),
+      ).toContain('正在连接 Support app…');
       snapshot = {
         ...snapshot,
         identities: [{ ...identity, reception: 'receiving' }],
         grants: [entry],
       };
       await act(async () => render());
-      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      expect(document.body.textContent).toContain(
         platform === 'qq'
           ? '已就绪：群里 @ Support app 的消息'
           : platform === 'discord'
@@ -407,12 +417,14 @@ it.each(['feishu', 'qq', 'discord'] as const)(
       expect(() => buttonNamed('取消', dialog())).toThrow();
       const done = buttonNamed('完成', dialog());
       await act(async () => done.click());
-      expect(container.textContent).toContain(
+      expect(document.body.textContent).toContain(
         `${platform === 'qq' ? 'QQ' : platform === 'discord' ? 'Discord' : '飞书'} · 1 个会话`,
       );
-      const edit = container.querySelector<HTMLButtonElement>('[title="编辑身份：Support app"]')!;
+      const edit = document.body.querySelector<HTMLButtonElement>(
+        '[title="编辑身份：Support app"]',
+      )!;
       await act(async () => edit.click());
-      const list = container.querySelector('[role="dialog"] section[aria-label="活跃"]')!;
+      const list = document.body.querySelector('[role="dialog"] section[aria-label="活跃"]')!;
       expect(list.textContent).toContain('Owner');
       expect(list.textContent).toContain(platform === 'feishu' ? '私聊' : '群聊');
       expect(list.textContent).toContain('最近消息');
@@ -422,7 +434,7 @@ it.each(['feishu', 'qq', 'discord'] as const)(
       ]);
       snapshot = { ...snapshot, grants: [] };
       await act(async () => render());
-      const empty = container.querySelector('[role="dialog"]')!.textContent;
+      const empty = document.body.querySelector('[role="dialog"]')!.textContent;
       if (platform === 'qq') {
         expect(empty).toContain('在已加入的 QQ 群里 @ 这个应用');
         expect(empty).not.toContain('私聊这个应用');
@@ -493,11 +505,11 @@ it('Bind app leaves out this Bot’s own apps, disables the ones another Bot use
         }),
       ),
     );
-    const bind = [...container.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+    const bind = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
       b.textContent?.includes('绑定应用'),
     )!;
     await act(async () => bind.click());
-    await openCombobox('应用', container);
+    await openCombobox('应用', document.body);
     const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
     expect(options.map((o) => [o.dataset.value, o.disabled, o.textContent])).toEqual([
       ['dsh-im/feishu:free', false, expect.stringContaining('App free')],
@@ -586,7 +598,7 @@ it('creates and binds a Lark app in the current dialog without sending credentia
         }),
       ),
     );
-    const create = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    const create = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
       (button) => button.textContent === '创建应用',
     );
     expect(create).toBeDefined();
@@ -691,7 +703,7 @@ it('resumes WeChat QR pairing in the bind dialog and binds only after authentica
     });
   const click = async (text: string) =>
     act(async () => {
-      const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      const button = [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
         (entry) => entry.textContent === text,
       );
       expect(button).toBeDefined();
@@ -701,7 +713,7 @@ it('resumes WeChat QR pairing in the bind dialog and binds only after authentica
     await act(async () => root.render(view()));
     await click('创建应用');
     await click('生成微信绑定二维码');
-    expect(container.querySelector('img[alt="微信绑定二维码"]')).not.toBeNull();
+    expect(document.body.querySelector('img[alt="微信绑定二维码"]')).not.toBeNull();
     expect(mutate).not.toHaveBeenCalled();
     await act(async () => root.render(null));
     await act(async () => vi.advanceTimersByTimeAsync(2000));
@@ -709,7 +721,7 @@ it('resumes WeChat QR pairing in the bind dialog and binds only after authentica
     await act(async () => root.render(view()));
     await click('创建应用');
     expect(methods.filter((method) => method === 'setup.start')).toHaveLength(1);
-    expect(container.textContent).toContain('请输入微信显示的配对码');
+    expect(document.body.textContent).toContain('请输入微信显示的配对码');
     expect(buttonNamed('提交配对码', dialog()).disabled).toBe(true);
     await typeInto(fieldNamed('配对码'), '12');
     expect(buttonNamed('提交配对码', dialog()).disabled).toBe(true);
@@ -789,7 +801,7 @@ it('keeps cancellation final when the resumed QR poll returns after the cancel c
       ),
     );
     await act(async () =>
-      [...container.querySelectorAll<HTMLButtonElement>('button')]
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')]
         .find((button) => button.textContent === '取消创建')!
         .click(),
     );
@@ -797,8 +809,8 @@ it('keeps cancellation final when the resumed QR poll returns after the cancel c
     await act(async () => release());
     expect(client.current('ada')).toBeUndefined();
     await act(async () => vi.advanceTimersByTimeAsync(2000));
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(container.querySelector('img')).toBeNull();
+    expect(document.body.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.querySelector('img')).toBeNull();
   } finally {
     release();
     await act(async () => root.unmount());
@@ -831,7 +843,7 @@ it('saves the edit dialog with Enter and moves Reconnect and Unbind into their o
   const root = createRoot(container);
   const edit = () =>
     act(async () =>
-      container.querySelector<HTMLButtonElement>('[title="编辑身份：QA Bot"]')!.click(),
+      document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA Bot"]')!.click(),
     );
   try {
     await act(async () =>
@@ -855,7 +867,7 @@ it('saves the edit dialog with Enter and moves Reconnect and Unbind into their o
     expect(mutate).toHaveBeenLastCalledWith(
       expect.objectContaining({ kind: 'update', id: 'binding', name: 'Renamed' }),
     );
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
     await edit();
     await act(async () => buttonNamed('重新连接身份：QA Bot', dialog()).click());
@@ -867,7 +879,7 @@ it('saves the edit dialog with Enter and moves Reconnect and Unbind into their o
       id: 'binding',
       expectedRevision: 4,
     });
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
     await edit();
     await act(async () => buttonNamed('解绑身份：QA Bot', dialog()).click());
@@ -875,7 +887,7 @@ it('saves the edit dialog with Enter and moves Reconnect and Unbind into their o
     expect(dialog().textContent).toContain(zhTranslate('identity.impact', { count: 2 }));
     expect(dialog().textContent).toContain('QA group');
     await act(async () => buttonNamed('取消', dialog()).click());
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(mutate).toHaveBeenCalledTimes(2);
 
     await edit();
@@ -935,9 +947,205 @@ it('returns from the create-app form to the bind dialog and dismisses with the c
     expect(buttonNamed('绑定应用', dialog())).toBeDefined();
     await act(async () => buttonNamed('稍后', dialog()).click());
     expect(onClose).toHaveBeenCalledOnce();
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
   }
 });
+
+it('reconnects once, shows pending and errors, and accepts live reception updates', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const identity: NonNullable<MessagingSnapshot['identities']>[number] = {
+    id: 'qq',
+    botSlug: 'ada',
+    providerId: 'dsh-im/qq',
+    platform: 'qq',
+    accountRef: 'qq-app',
+    fingerprint: 'a'.repeat(64),
+    name: 'QQ QA',
+    enabled: true,
+    revision: 7,
+    createdAt: '2026-11-15T00:00:00Z',
+    availability: 'available',
+    newConversations: 'auto',
+    grantCount: 0,
+    scopes: [],
+    reception: 'unavailable',
+    recovery: {
+      kind: 'retrying',
+      reason: 'provider-unavailable',
+      attempt: 5,
+      nextRetryAt: '2026-11-15T01:00:00Z',
+    },
+  };
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  let reject: (error: Error) => void = () => {};
+  const mutate = vi.fn(
+    () =>
+      new Promise<void>((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  const render = () =>
+    root.render(
+      createElement(ExternalIdentityList, {
+        snapshot: { accounts: [], identities: [identity], grants: [], intents: [] },
+        t: zhTranslate,
+        refresh: vi.fn(),
+        mutate,
+        conversation: vi.fn(),
+        rules: vi.fn(),
+      }),
+    );
+  try {
+    await act(async () => render());
+    expect(document.body.textContent).toContain('正在重连');
+    const reconnect = buttonNamed(
+      zhTranslate('identity.reconnectFor', { name: identity.name }),
+      document.body,
+    );
+    await act(async () => reconnect.click());
+    expect(reconnect.disabled).toBe(true);
+    reconnect.click();
+    expect(mutate).toHaveBeenCalledExactlyOnceWith({
+      kind: 'reconnect',
+      id: 'qq',
+      expectedRevision: 7,
+    });
+    await act(async () => reject(new Error('offline')));
+    expect(document.body.textContent).toContain(zhTranslate('identity.failed'));
+    expect(reconnect.disabled).toBe(false);
+    identity.reception = 'receiving';
+    delete identity.recovery;
+    await act(async () => render());
+    expect(document.body.textContent).toContain('消息接收: 接收中');
+    expect(document.body.textContent).not.toContain('正在重连');
+    expect(
+      document.body.querySelector(
+        `[aria-label="${zhTranslate('identity.reconnectFor', { name: identity.name })}"]`,
+      ),
+    ).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it.each(['disabled', 'removed', 'reconnected', 'remote-change'] as const)(
+  'keeps conversation reconnect safe when the live identity is %s',
+  async (state) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const identity: NonNullable<MessagingSnapshot['identities']>[number] = {
+      id: 'qq-safe',
+      botSlug: 'ada',
+      providerId: 'dsh-im/qq',
+      platform: 'qq',
+      accountRef: 'app',
+      fingerprint: 'a'.repeat(64),
+      name: 'QA reconnect',
+      enabled: true,
+      revision: 4,
+      createdAt: '2026-11-15T00:00:00Z',
+      availability: 'available',
+      newConversations: 'auto',
+      newConversationsInheritance: 'custom',
+      grantCount: 1,
+      scopes: ['Group'],
+      reception: 'unavailable',
+    };
+    let snapshot: MessagingSnapshot = {
+      accounts: [],
+      identities: [identity],
+      intents: [],
+      grants: [
+        {
+          id: 'grant-safe',
+          bindingId: identity.id,
+          botSlug: 'ada',
+          providerId: identity.providerId,
+          platform: 'qq',
+          accountRef: 'app',
+          accountName: identity.name,
+          fingerprint: identity.fingerprint,
+          targetRef: 'group',
+          targetName: 'Group',
+          targetDigest: 'digest',
+          revision: 1,
+          createdAt: identity.createdAt,
+          origin: 'implicit',
+          receiveScope: { kind: 'group', conversationId: 'group' },
+          availability: 'available',
+          reception: 'unavailable',
+        },
+      ],
+    };
+    const mutate = vi.fn(async (input: MessagingIdentityInput) => {
+      if (state === 'remote-change' && input.kind === 'update')
+        throw Object.assign(new Error('Revision changed'), { code: 'identity-stale' });
+    });
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    document.body.append(container);
+    const render = () =>
+      root.render(
+        createElement(ExternalIdentityList, {
+          snapshot,
+          t: zhTranslate,
+          mutate,
+          refresh: vi.fn(),
+          conversation: vi.fn(),
+          rules: vi.fn(),
+        }),
+      );
+    try {
+      await act(async () => render());
+      await act(async () =>
+        document.body.querySelector<HTMLButtonElement>('[title="编辑身份：QA reconnect"]')!.click(),
+      );
+      await act(async () =>
+        typeInto(fieldNamed(zhTranslate('identity.displayName')), 'Unsaved draft'),
+      );
+      if (state !== 'reconnected' && state !== 'remote-change') {
+        snapshot = {
+          ...snapshot,
+          identities: state === 'removed' ? [] : [{ ...identity, enabled: false, revision: 5 }],
+        };
+        await act(async () => render());
+      }
+      if (state === 'remote-change') {
+        snapshot = {
+          ...snapshot,
+          identities: [{ ...identity, revision: 5, newConversations: 'ask' }],
+        };
+        await act(async () => render());
+      }
+      await act(async () => buttonNamed(zhTranslate('reception.reconnectNow'), dialog()).click());
+      if (state === 'reconnected' || state === 'remote-change') {
+        expect(mutate).toHaveBeenCalledWith({
+          kind: 'reconnect',
+          id: identity.id,
+          expectedRevision: state === 'remote-change' ? 5 : 4,
+        });
+        expect(fieldNamed(zhTranslate('identity.displayName')).value).toBe('Unsaved draft');
+        await act(async () => buttonNamed(zhTranslate('identity.save'), dialog()).click());
+        expect(mutate).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            kind: 'update',
+            expectedRevision: state === 'remote-change' ? 4 : 5,
+            name: 'Unsaved draft',
+          }),
+        );
+        if (state === 'remote-change') {
+          expect(dialog().textContent).toContain(zhTranslate('identity.stale'));
+          expect(fieldNamed(zhTranslate('identity.displayName')).value).toBe('Unsaved draft');
+        }
+      } else expect(mutate).not.toHaveBeenCalled();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);

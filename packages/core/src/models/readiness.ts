@@ -1,3 +1,4 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ModelCatalog } from './catalog.js';
 import type { ModelRoute, PersonaBotModelPlan } from './presets.js';
@@ -9,6 +10,7 @@ export interface ModelRouteRepair {
 }
 
 export interface ModelPlanState {
+  currentTarget?: TurnTarget;
   revision?: number;
   plan?: PersonaBotModelPlan;
   repair?: ModelRouteRepair;
@@ -31,6 +33,7 @@ function repairMessage(route: ModelRoute, failure: unknown): string {
 export function createModelRouteReadiness(
   registry: Pick<PersonaBotRegistry, 'get' | 'migrateLegacyModel'>,
   catalog: ModelCatalog,
+  requireRoute?: (slug: string, route: ModelRoute) => void,
 ): ModelRouteReadiness {
   const migrate = async (slug: string): Promise<ModelPlanState> => {
     const bot = registry.get(slug);
@@ -80,8 +83,13 @@ export function createModelRouteReadiness(
     async prepare(slug, role, retainedRoute) {
       const state = await migrate(slug);
       if (state.repair !== undefined) throw new Error(state.repair.message);
-      const route = role === 'assignment' ? retainedRoute : state.plan?.orchestrator;
+      const selected =
+        retainedRoute ??
+        (role === 'assignment' ? state.plan?.assignmentDefault : state.plan?.orchestrator);
+      const route = selected ?? catalog.defaultRoute?.();
       if (route === undefined) return;
+      requireRoute?.(slug, route);
+      if (selected === undefined) return;
       try {
         await catalog.validate(route);
       } catch (failure) {

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,7 +68,8 @@ describe('marketplace Host identifier', () => {
     expect(id).not.toContain(telemetryId);
     expect(ensureMarketplaceHostId(dataDir)).toBe(id);
     expect(ensureInstallId(dataDir)).toBe(telemetryId);
-    expect(statSync(join(dataDir, MARKETPLACE_HOST_FILE)).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32')
+      expect(statSync(join(dataDir, MARKETPLACE_HOST_FILE)).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(dataDir, 'telemetry.json'), 'utf8')).not.toContain(id);
     expect(ensureMarketplaceHostId(tempDir())).not.toBe(id);
   });
@@ -140,12 +142,12 @@ describe('installing from the Marketplace', () => {
       },
     };
     let next = 0;
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry,
       states: createBotStateTracker(),
       createBotId: () => `bot-${(next += 1)}`,
       marketplaceReceipts: receipts,
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
     return { methods, sent };
   }
 

@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconSearchOutlineRegular: () => null,
-  MenuSurface: () => null,
-  Tooltip: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import { foldableMessage, messageFolds } from '../src/client/message-fold.js';
@@ -18,6 +13,7 @@ import { parseChannelMessage } from '../src/client/bridge.js';
 import { searchSnippet } from '../src/client/conversation-search.js';
 import { reactableMessage, toggledReactions } from '../src/client/message-reactions-model.js';
 import {
+  followsLatest,
   forgetTimelineScrolls,
   rememberTimelineScroll,
   rememberedTimelineScroll,
@@ -194,5 +190,28 @@ describe('conversation search', () => {
       match: '',
       after: '',
     });
+  });
+});
+
+describe('followsLatest', () => {
+  const viewport = (scrollTop: number) => ({ scrollTop, scrollHeight: 2000, clientHeight: 500 });
+
+  it('follows when the reader moves down into the bottom zone', () => {
+    expect(followsLatest(viewport(1450), 1300, false)).toBe(true);
+    expect(followsLatest(viewport(1500), 1500, false)).toBe(true);
+  });
+
+  it('stops following as soon as the reader moves up, even inside the bottom zone', () => {
+    expect(followsLatest(viewport(1460), 1500, false)).toBe(false);
+    expect(followsLatest(viewport(1499), 1500, false)).toBe(false);
+  });
+
+  it('keeps following when shrinking content clamps the bottom position up', () => {
+    expect(followsLatest(viewport(1500), 1700, false)).toBe(true);
+  });
+
+  it('does not follow away from the bottom or while newer pages are unloaded', () => {
+    expect(followsLatest(viewport(1300), 1200, false)).toBe(false);
+    expect(followsLatest(viewport(1500), 1400, true)).toBe(false);
   });
 });

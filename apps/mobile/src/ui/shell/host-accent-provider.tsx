@@ -5,7 +5,7 @@ import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostSession } from '../../host/host-session';
 import { useHostLook } from '../../host/native-host-look';
-import { HOST_COLORS } from '../design/host-look';
+import { HOST_COLORS } from '@botharness/host-client/ui/design/host-look';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 
 export function HostAccentProvider({ children }: { children: ReactNode }) {

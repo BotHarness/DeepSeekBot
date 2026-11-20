@@ -18,6 +18,7 @@ import {
   type ReleaseInstaller,
   type ReleaseInstallerResult,
 } from './service.js';
+import { createUpdateRuns, type UpdateRunHandle, type UpdateRuns } from './update-runs.js';
 import { compareVersions, isReleaseVersion } from './version.js';
 
 export const PLUGIN_SCOPE = '@botharness/';
@@ -71,7 +72,12 @@ export type PluginRestart =
 
 export interface PluginUpdateService {
   list(force?: boolean): Promise<PluginUpdates>;
-  install(name: string, version: string, beforeEffect?: () => void): Promise<PluginInstall>;
+  install(
+    name: string,
+    version: string,
+    beforeEffect?: () => void,
+    requestId?: string,
+  ): Promise<PluginInstall>;
   restart(beforeEffect?: (pending: string[]) => void): Promise<PluginRestart>;
 }
 
@@ -83,6 +89,7 @@ export interface PluginUpdateServiceOptions {
   now?: () => number;
   registries?: readonly string[];
   timeoutMs?: number;
+  runs?: UpdateRuns;
 }
 
 type Checked = { at: number; result: PluginUpdate };
@@ -103,7 +110,7 @@ export function createPluginUpdateService(
   const runtime = options.runtime ?? nativeReleaseRuntime;
   const cache = new Map<string, Checked>();
   const pending = new Map<string, { current: string; installed: string }>();
-  let installing: Promise<PluginInstall> | undefined;
+  const runs = options.runs ?? createUpdateRuns({ canceller: () => options.installer() });
 
   const json = async (url: string): Promise<unknown> => {
     try {
@@ -198,6 +205,7 @@ export function createPluginUpdateService(
   const runInstall = async (
     name: string,
     version: string,
+    run: UpdateRunHandle,
     beforeEffect?: () => void,
   ): Promise<PluginInstall> => {
     const failed = (
@@ -230,13 +238,17 @@ export function createPluginUpdateService(
     }
     if (eligibility.status !== 'compatible')
       return failed(eligibility.status === 'incompatible' ? 'incompatible' : 'unavailable');
+    if (run.cancelled) return failed('cancelled');
     beforeEffect?.();
+    run.installing();
+    const request = { requestId: run.id };
     let result: ReleaseInstallerResult;
     try {
-      result = await installer.installBundle(`${name}@${version}`);
+      result = await installer.installBundle(`${name}@${version}`, request);
       if (result.error?.code === 'already-installed') {
         for (const registry of registries) {
-          result = await installer.installBundle(packageTarball(registry, name, version));
+          if (run.cancelled) return failed('cancelled');
+          result = await installer.installBundle(packageTarball(registry, name, version), request);
           if (!RELEASE_NETWORK_FAILURES.has(result.packageResult?.kind ?? '')) break;
         }
       }
@@ -265,13 +277,12 @@ export function createPluginUpdateService(
 
   return {
     list,
-    install(name, version, beforeEffect) {
-      if (installing !== undefined)
-        return Promise.resolve({ status: 'failed', name, reason: 'unavailable' });
-      installing = runInstall(name, version, beforeEffect).finally(() => {
-        installing = undefined;
-      });
-      return installing;
+    install(name, version, beforeEffect, requestId) {
+      return (
+        runs.run({ kind: 'plugin', name, version }, { requestId, joinable: false }, (run) =>
+          runInstall(name, version, run, beforeEffect),
+        ) ?? Promise.resolve({ status: 'failed', name, reason: 'unavailable' })
+      );
     },
     async restart(beforeEffect) {
       const restarter = options.restarter?.();

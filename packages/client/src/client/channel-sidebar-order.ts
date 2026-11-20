@@ -34,3 +34,16 @@ export function mergeSavedOrder(
   let next = 0;
   return registered.map((id) => (known.includes(id) ? known[next++]! : id));
 }
+
+export function edgeScrollStep(
+  clientY: number,
+  top: number,
+  bottom: number,
+  edge = 32,
+  step = 8,
+): number {
+  if (clientY < top || clientY > bottom) return 0;
+  if (clientY < top + edge) return -step;
+  if (clientY > bottom - edge) return step;
+  return 0;
+}

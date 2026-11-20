@@ -1,3 +1,12 @@
+import { Icon } from './ds/icon.js';
+import { Note } from './ds/note.js';
+import { Button } from './ds/button.js';
+import { ComposerControl, ComposerTextarea, composer } from './ds/chat-chrome.js';
+import { IconButton } from './ds/icon-button.js';
+import { HiddenFileInput } from './ds/input.js';
+import { hooked } from './ds/hooked.js';
+import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
+import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
   composerSlashQuery,
@@ -17,18 +26,8 @@ import {
   type ReactElement,
 } from 'react';
 
-import {
-  Button,
-  FileTypeIcon,
-  IconCheckOutlineRegular,
-  IconCloseOutlineRegular,
-  IconPaperclipOutlineRegular,
-  IconSendOutlineRegular,
-  IconStopFillRegular,
-  ImageLightbox,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
-import { Tooltip } from './ds/tooltip.js';
+import { ImageLightbox, fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -42,6 +41,7 @@ import {
 } from './mentions.js';
 import {
   insertRichPlainText,
+  normalizeRichInput,
   readRichMentionDraft,
   renderRichMentionDraft,
   richSelectionOffsets,
@@ -62,6 +62,50 @@ import {
 import type { ChannelAttachmentRef } from './store.js';
 import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
+import {
+  rankSkillEntries,
+  skillOwnerKey,
+  type SkillCatalogEntry,
+} from '../../../core/src/skills/entries.js';
+import {
+  activeSkillQuery,
+  rebaseSkills,
+  selectSkill,
+  type SelectedSkill,
+  type SkillQuery,
+} from './skill-refs.js';
+import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
+import {
+  activeSessionQuery,
+  deleteSessionReference,
+  rankSessionOptions,
+  selectSession,
+  type ComposerSessionOption,
+  type SessionQuery,
+} from './session-refs.js';
+import { hasSessionMentions } from './session-links.js';
+import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { MenuRowButton } from './ds/menu-row-button.js';
+import * as stylex from '@stylexjs/stylex';
+import { ink, space } from './ds/tobs.stylex.js';
+
+const sessionStyles = stylex.create({
+  title: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: space.x2,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  icon: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
+  clip: { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' },
+  owner: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', color: ink.secondary },
+});
+
+export type ComposerSkillOption = SkillCatalogEntry & {
+  bot?: BotSummary | undefined;
+};
 
 export interface ChannelComposerActivity {
   presentation?: 'group' | undefined;
@@ -70,14 +114,14 @@ export interface ChannelComposerActivity {
 }
 
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
+import type { DictationMic, VoiceDictationPort } from './composer-dictation.js';
+import {
+  ComposerMicButton,
+  composerVoicePlaceholder,
+  composerVoiceStatus,
+  useComposerVoice,
+} from './composer-voice.js';
 import { useMountedResource } from './mounted-resource.js';
-
-export interface ChannelComposerStop {
-  label?: string | undefined;
-  stopping: boolean;
-  notice?: string | undefined;
-  onStop(): void;
-}
 
 export interface ChannelComposerUpload {
   id: string;
@@ -89,30 +133,53 @@ export interface ChannelComposerUpload {
 }
 
 export interface ChannelComposerProps {
+  onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
+  label?: string | undefined;
+  holdPlaceholder?: string | undefined;
+  dictation?: VoiceDictationPort | undefined;
+  dictating?: { current: boolean } | undefined;
+  dictationMic?: DictationMic | undefined;
   sending: boolean;
+  disabled?: boolean;
   focusSignal?: number;
   attachments?: readonly ChannelComposerUpload[] | undefined;
   onAddFiles?(files: File[], selection?: { start: number; end: number }): number | void;
   onRetryAttachment?(id: string): void;
   onRemoveAttachment?(id: string): void;
   allBotNotice?: string | undefined;
-  stop?: ChannelComposerStop | undefined;
   allBotPreview?: AllBotPreview | undefined;
   mentionCandidates?: readonly BotSummary[] | undefined;
   mentions?: readonly SelectedMention[] | undefined;
   channelCandidates?: readonly ChannelSummary[] | undefined;
   channelRefs?: readonly SelectedChannelRef[] | undefined;
+  skillOptions?: readonly ComposerSkillOption[] | undefined;
+  skills?: readonly SelectedSkill[] | undefined;
+  readSkill?: ((name: string, owner: string) => Promise<SkillDocument>) | undefined;
+  sessionOptions?: readonly ComposerSessionOption[] | undefined;
+  onSessionMenu?: (() => void) | undefined;
   reply?: { id: string; author: string; body: string } | undefined;
+  quotes?: readonly ComposerQuote[] | undefined;
   t?: BotHarnessTranslate | undefined;
-  onChange(value: string, mentions?: SelectedMention[], channelRefs?: SelectedChannelRef[]): void;
+  onChange(
+    value: string,
+    mentions?: SelectedMention[],
+    channelRefs?: SelectedChannelRef[],
+    skills?: SelectedSkill[],
+  ): void;
   onCancelReply?(): void;
+  onRemoveQuote?(quote: ComposerQuote): void;
+  onQuoteNote?(quote: ComposerQuote, note: string): void;
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
+  onStop?: (() => void) | undefined;
 }
+
+const NO_QUOTES: readonly ComposerQuote[] = [];
+const NONE: readonly never[] = [];
 
 const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
 
@@ -201,7 +268,9 @@ function ComposerImageAttachment({
     setSource(nextSource);
     return () => URL.revokeObjectURL(nextSource);
   }, [item.file]);
-  const previewLabel = t('composer.previewAttachment', { name: item.file.name });
+  const previewLabel = t('composer.previewAttachment', {
+    name: item.file.name,
+  });
 
   return (
     <>
@@ -215,7 +284,9 @@ function ComposerImageAttachment({
         <button
           type="button"
           className="bh-composer-attachment-reference bh-composer-image-reference"
-          aria-label={t('composer.referenceAttachment', { name: item.file.name })}
+          aria-label={t('composer.referenceAttachment', {
+            name: item.file.name,
+          })}
           disabled={sending}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onReference}
@@ -241,7 +312,7 @@ function ComposerImageAttachment({
           aria-label={t('composer.removeAttachment', { name: item.file.name })}
           onClick={onRemove}
         >
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </button>
       </div>
       {previewOpen && source !== undefined ? (
@@ -300,7 +371,7 @@ function ComposerFileAttachment({
         aria-label={t('composer.removeAttachment', { name: item.file.name })}
         onClick={onRemove}
       >
-        <IconCloseOutlineRegular size={14} />
+        <Icon name="x" size={14} />
       </button>
     </div>
   );
@@ -376,27 +447,64 @@ export function ChannelComposer({
   context,
   sendKey = 'enter',
   value,
-  placeholder,
+  placeholder: basePlaceholder,
+  label,
+  holdPlaceholder,
+  dictation,
+  dictating,
+  dictationMic,
   sending,
+  disabled = false,
   focusSignal = 0,
-  attachments = [],
+  attachments = NONE,
   onAddFiles,
   onRetryAttachment,
   onRemoveAttachment,
   allBotNotice,
-  stop,
   allBotPreview,
-  mentionCandidates = [],
-  mentions = [],
-  channelCandidates = [],
-  channelRefs = [],
+  mentionCandidates = NONE,
+  mentions = NONE,
+  channelCandidates = NONE,
+  channelRefs = NONE,
+  skillOptions = NONE,
+  skills = NONE,
+  readSkill,
+  sessionOptions = [],
+  onSessionMenu,
   reply,
+  quotes = NO_QUOTES,
   t = zhTranslate,
   onChange,
   onCancelReply,
+  onRemoveQuote,
+  onQuoteNote,
   onRecall,
   onSubmit,
+  onStop,
+  onOverlayResize,
 }: ChannelComposerProps): ReactElement {
+  const locked = sending || disabled;
+  const stops = onStop !== undefined && !hasVisibleText(value) && attachments.length === 0;
+  const overlayResize = useRef(onOverlayResize);
+  overlayResize.current = onOverlayResize;
+  const skillPeek = useSkillPeek(t);
+  const voice = useComposerVoice({
+    port: dictation,
+    value,
+    disabled: locked,
+    mic: dictationMic,
+    selection: () => selectionOffsets(),
+    apply: (next, caret) => {
+      requestedCaret.current = caret;
+      onChange(
+        next,
+        rebaseMentions(value, next, mentions),
+        rebaseChannelRefs(value, next, channelRefs),
+      );
+    },
+  });
+  if (dictating !== undefined) dictating.current = voice.active;
+  const placeholder = composerVoicePlaceholder(voice, basePlaceholder, holdPlaceholder, t);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const richRef = useRef<HTMLDivElement | null>(null);
   const requestedCaret = useRef<number | undefined>(undefined);
@@ -419,17 +527,46 @@ export function ChannelComposer({
     mentionCandidates.length > 0 ||
     mentions.length > 0 ||
     channelCandidates.length > 0 ||
-    channelRefs.length > 0;
+    channelRefs.length > 0 ||
+    skillOptions.length > 0 ||
+    skills.length > 0 ||
+    sessionOptions.length > 0 ||
+    hasSessionMentions(value);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | undefined>();
   const [channelQuery, setChannelQuery] = useState<ChannelRefQuery | undefined>();
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [slashQuery, setSlashQuery] = useState<ComposerSlashQuery>();
+  const [skillQuery, setSkillQuery] = useState<SkillQuery | undefined>();
+  const [sessionQuery, setSessionQuery] = useState<SessionQuery | undefined>();
   const slashTarget = useRef<string | undefined>(undefined);
   const [shortcutIndex, setShortcutIndex] = useState(0);
   const shortcutOptions = composerShortcutOptions(
     context?.shortcuts ?? [],
     slashTarget.current === context?.target ? slashQuery : undefined,
   );
+  const skillMatches =
+    skillQuery === undefined
+      ? []
+      : rankSkillEntries(skillOptions, skillQuery.query, (option) =>
+          option.owner.kind === 'host'
+            ? []
+            : option.owner.kind === 'workspace'
+              ? [option.owner.name]
+              : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
+        ).slice(0, 8);
+  const sessionMatches =
+    sessionQuery === undefined ? [] : rankSessionOptions(sessionOptions, sessionQuery.query);
+  const menuLength = shortcutOptions.length + skillMatches.length + sessionMatches.length;
+  const chipBots = [
+    ...mentionCandidates,
+    ...skillOptions.flatMap((option) =>
+      option.bot === undefined ||
+      mentionCandidates.some((candidate) => candidate.slug === option.bot!.slug)
+        ? []
+        : [option.bot],
+    ),
+    ...sessionOptions.flatMap((option) => (option.bot === undefined ? [] : [option.bot])),
+  ].filter((bot, index, all) => all.findIndex((item) => item.slug === bot.slug) === index);
   const hasShortcutArgument =
     slashTarget.current === context?.target &&
     slashQuery?.argument !== undefined &&
@@ -448,9 +585,53 @@ export function ChannelComposer({
     setSlashQuery(undefined);
   };
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
-    if (shortcut.disabled) return;
+    if (locked || shortcut.disabled || voice.active) return;
     clearShortcut();
+    setSkillQuery(undefined);
+    setSessionQuery(undefined);
     shortcut.run();
+  };
+  const chooseSession = (option: ComposerSessionOption): void => {
+    if (locked || sessionQuery === undefined || voice.active) return;
+    const selected = selectSession(value, sessionQuery, option);
+    onChange(
+      selected.value,
+      rebaseMentions(value, selected.value, mentions),
+      rebaseChannelRefs(value, selected.value, channelRefs),
+      rebaseSkills(value, selected.value, skills),
+    );
+    setSessionQuery(undefined);
+    setSkillQuery(undefined);
+    setSlashQuery(undefined);
+    requestedCaret.current = selected.caret;
+    requestAnimationFrame(() => {
+      const editor = richRef.current;
+      if (editor !== null) {
+        editor.focus();
+        setRichSelection(editor, selected.caret);
+      }
+    });
+  };
+  const chooseSkill = (option: ComposerSkillOption): void => {
+    if (locked || skillQuery === undefined || voice.active) return;
+    const selected = selectSkill(value, skills, skillQuery, option);
+    onChange(
+      selected.value,
+      rebaseMentions(value, selected.value, mentions),
+      rebaseChannelRefs(value, selected.value, channelRefs),
+      selected.skills,
+    );
+    setSkillQuery(undefined);
+    setSlashQuery(undefined);
+    setSessionQuery(undefined);
+    requestedCaret.current = selected.caret;
+    requestAnimationFrame(() => {
+      const editor = richRef.current;
+      if (editor !== null) {
+        editor.focus();
+        setRichSelection(editor, selected.caret);
+      }
+    });
   };
   const botCandidates =
     mentionQuery === undefined
@@ -486,7 +667,7 @@ export function ChannelComposer({
           )
           .slice(0, 8);
   const chooseChannel = (channel: ChannelSummary): void => {
-    if (channelQuery === undefined) return;
+    if (locked || channelQuery === undefined || voice.active) return;
     const selected = selectChannelRef(value, channelRefs, channelQuery, channel.id, channel.name);
     onChange(selected.value, rebaseMentions(value, selected.value, mentions), selected.refs);
     setChannelQuery(undefined);
@@ -500,7 +681,7 @@ export function ChannelComposer({
     });
   };
   const chooseMention = (bot: BotSummary | { preview: AllBotPreview }): void => {
-    if (mentionQuery === undefined) return;
+    if (locked || mentionQuery === undefined || voice.active) return;
     if ('preview' in bot && bot.preview.recipients.length === 0) return;
     const selected =
       'preview' in bot
@@ -537,6 +718,7 @@ export function ChannelComposer({
     });
   };
   const addFilesAtSelection = (files: File[], selection = selectionOffsets()): void => {
+    if (voice.active) return;
     const caret = onAddFiles?.(files, selection);
     if (caret === undefined) return;
     requestedCaret.current = caret;
@@ -546,6 +728,11 @@ export function ChannelComposer({
     });
   };
   const handleFilePaste = (event: ClipboardEvent<HTMLElement>): boolean => {
+    if (voice.active) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     const clipboard = event.clipboardData;
     const listed = Array.from(clipboard.files);
     const files =
@@ -555,7 +742,7 @@ export function ChannelComposer({
             const file = item.kind === 'file' ? item.getAsFile() : null;
             return file === null ? [] : [file];
           });
-    if (files.length === 0 || onAddFiles === undefined || sending) return false;
+    if (files.length === 0 || onAddFiles === undefined || locked) return false;
     event.preventDefault();
     event.stopPropagation();
     addFilesAtSelection(files);
@@ -567,7 +754,8 @@ export function ChannelComposer({
     height: 34,
     animateFirstExpand: false,
   });
-  const hasFooter = fit.expanded || reply !== undefined || attachments.length > 0;
+  const hasFooter =
+    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     const nextFit = fitComposerTextarea(element);
@@ -577,15 +765,36 @@ export function ChannelComposer({
       }
       return {
         ...nextFit,
-        animateFirstExpand: !current.expanded && nextFit.expanded,
+        animateFirstExpand: current.expanded !== nextFit.expanded,
       };
     });
   }, []);
+  const pendingFit = useRef<{ element: HTMLElement } | undefined>(undefined);
+  const scheduleSync = useCallback(
+    (element: HTMLElement): void => {
+      const pending = pendingFit.current;
+      if (pending !== undefined) {
+        pending.element = element;
+        return;
+      }
+      const entry = { element };
+      pendingFit.current = entry;
+      requestAnimationFrame(() => {
+        pendingFit.current = undefined;
+        if (entry.element.isConnected) syncTextarea(entry.element);
+      });
+    },
+    [syncTextarea],
+  );
 
-  const avatarKey = mentions
-    .map((mention) => {
-      const bot = mentionCandidates.find((candidate) => candidate.slug === mention.botSlug);
-      return [mention.botSlug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
+  const avatarKey = [
+    ...mentions.map((mention) => mention.botSlug),
+    ...skills.flatMap((skill) => (skill.owner.kind === 'bot' ? [skill.owner.botSlug] : [])),
+    ...sessionOptions.map((option) => option.sessionId + '>' + option.botSlug + '>' + option.title),
+  ]
+    .map((slug) => {
+      const bot = chipBots.find((candidate) => candidate.slug === slug);
+      return [slug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
     })
     .join('|');
   const attachmentKey = attachments
@@ -603,6 +812,7 @@ export function ChannelComposer({
     .join('|');
   const renderedAttachmentKey = useRef('');
   const referenceAttachment = (item: ChannelComposerUpload): void => {
+    if (voice.active) return;
     const selected = insertAttachmentReferences(value, [item], selectionOffsets());
     requestedCaret.current = selected.caret;
     onChange(
@@ -622,7 +832,7 @@ export function ChannelComposer({
       richRef.current = editor;
       const current = readRichMentionDraft(editor);
       if (
-        sameRichMentionDraft(current, value, mentions, channelRefs) &&
+        sameRichMentionDraft(current, value, mentions, channelRefs, skills) &&
         renderedAvatarKey.current === avatarKey &&
         renderedAttachmentKey.current === attachmentKey
       )
@@ -638,9 +848,11 @@ export function ChannelComposer({
         editor,
         value,
         mentions,
-        mentionCandidates,
+        chipBots,
         channelRefs,
         attachments,
+        skills,
+        sessionOptions,
       );
       setAvatarMounts(mounts);
       setAttachmentMounts(
@@ -657,7 +869,7 @@ export function ChannelComposer({
       renderedAttachmentKey.current = attachmentKey;
       requestedCaret.current = undefined;
       if (caret !== undefined) setRichSelection(editor, Math.min(caret, value.length));
-      syncTextarea(editor);
+      scheduleSync(editor);
       return () => {
         richRef.current = null;
       };
@@ -666,25 +878,58 @@ export function ChannelComposer({
       value,
       mentions,
       channelRefs,
+      skills,
       mentionCandidates,
       channelCandidates,
       avatarKey,
       attachmentKey,
-      syncTextarea,
+      scheduleSync,
     ],
   );
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
     (element) => {
       textareaRef.current = element;
+      const caret = requestedCaret.current;
+      if (caret !== undefined && richRef.current === null) {
+        requestedCaret.current = undefined;
+        const at = Math.min(caret, element.value.length);
+        element.setSelectionRange(at, at);
+      }
       setAvatarMounts((current) => (current.length === 0 ? current : []));
       setAttachmentMounts((current) => (current.length === 0 ? current : []));
-      syncTextarea(element);
+      scheduleSync(element);
       return () => {
         textareaRef.current = null;
       };
     },
-    [syncTextarea, value],
+    [scheduleSync, value],
   );
+  const shellMount = useMountedResource<HTMLDivElement>((shell) => {
+    const pane = shell.closest<HTMLElement>('.bh-chat-pane');
+    const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
+    if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
+    let applied: number | undefined;
+    const sync = (): void => {
+      const shellBounds = shell.getBoundingClientRect();
+      const overlay =
+        shellBounds.height === 0
+          ? 0
+          : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
+      if (overlay !== applied) {
+        applied = overlay;
+        timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
+      }
+      overlayResize.current?.(timeline);
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(shell);
+    observer.observe(pane);
+    return () => {
+      observer.disconnect();
+      timeline.style.removeProperty('--bh-composer-overlay');
+    };
+  }, []);
   const replyId = reply?.id;
   const bodyMount = useMountedResource<HTMLDivElement>(
     (body) => {
@@ -701,22 +946,37 @@ export function ChannelComposer({
         const nextWidth = entry?.contentRect.width;
         if (nextWidth === undefined || nextWidth === width) return;
         width = nextWidth;
-        syncTextarea(element);
+        scheduleSync(element);
       });
       observer.observe(element);
       return () => observer.disconnect();
     },
-    [syncTextarea, rich, replyId, focusSignal],
+    [scheduleSync, rich, replyId, focusSignal],
   );
 
   const emitRichChange = (editor: HTMLDivElement): void => {
-    if (editor.innerHTML === '<br>') editor.replaceChildren();
+    normalizeRichInput(editor);
     const next = readRichMentionDraft(editor);
-    syncTextarea(editor);
-    onChange(next.value, next.mentions, next.channelRefs);
+    scheduleSync(editor);
+    onChange(next.value, next.mentions, next.channelRefs, next.skills);
     const caret = richSelectionOffsets(editor)?.end ?? next.value.length;
     slashTarget.current = context?.target;
-    setSlashQuery(context === undefined ? undefined : composerSlashQuery(next.value, caret));
+    const command = context === undefined ? undefined : composerSlashQuery(next.value, caret);
+    setSlashQuery(
+      command !== undefined &&
+        next.skills.some((skill) => skill.start < command.end && skill.end > command.start)
+        ? undefined
+        : command,
+    );
+    setSkillQuery(
+      skillOptions.length === 0 ? undefined : activeSkillQuery(next.value, caret, next.skills),
+    );
+    const nextSessionQuery =
+      sessionOptions.length === 0 && onSessionMenu === undefined
+        ? undefined
+        : activeSessionQuery(next.value, caret);
+    if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
+    setSessionQuery(nextSessionQuery);
     setShortcutIndex(0);
     setMentionQuery(activeMentionQuery(next.value, caret, next.mentions));
     setChannelQuery(activeChannelRefQuery(next.value, caret, next.channelRefs));
@@ -724,6 +984,11 @@ export function ChannelComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (locked) return;
+    if (voice.active && event.key === 'Enter') {
+      event.preventDefault();
+      return;
+    }
     if (
       hasShortcutArgument &&
       shortcutOptions.length === 0 &&
@@ -733,25 +998,34 @@ export function ChannelComposer({
       event.preventDefault();
       return;
     }
-    if (shortcutOptions.length > 0 && !event.nativeEvent.isComposing) {
+    if (menuLength > 0 && !event.nativeEvent.isComposing) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        clearShortcut();
+        if (shortcutOptions.length > 0) clearShortcut();
+        setSkillQuery(undefined);
+        setSessionQuery(undefined);
         return;
       }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         setShortcutIndex(
-          (current) =>
-            (current + (event.key === 'ArrowDown' ? 1 : -1) + shortcutOptions.length) %
-            shortcutOptions.length,
+          (current) => (current + (event.key === 'ArrowDown' ? 1 : -1) + menuLength) % menuLength,
         );
         return;
       }
       if (event.key === 'Enter' || event.key === 'Tab') {
         event.preventDefault();
-        const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+        const index = shortcutIndex % menuLength;
+        const shortcut = shortcutOptions[index];
         if (shortcut !== undefined) chooseShortcut(shortcut);
+        else {
+          const option = skillMatches[index - shortcutOptions.length];
+          if (option !== undefined) chooseSkill(option);
+          else {
+            const session = sessionMatches[index - shortcutOptions.length - skillMatches.length];
+            if (session !== undefined) chooseSession(session);
+          }
+        }
         return;
       }
     }
@@ -765,7 +1039,9 @@ export function ChannelComposer({
       !event.nativeEvent.isComposing &&
       selection !== undefined
     ) {
-      const deleted = deleteAttachmentReference(value, attachments, selection, event.key);
+      const deleted =
+        deleteAttachmentReference(value, attachments, selection, event.key) ??
+        deleteSessionReference(value, selection, event.key);
       if (deleted !== undefined) {
         event.preventDefault();
         requestedCaret.current = deleted.caret;
@@ -773,6 +1049,7 @@ export function ChannelComposer({
           deleted.value,
           rebaseMentions(value, deleted.value, mentions),
           rebaseChannelRefs(value, deleted.value, channelRefs),
+          rebaseSkills(value, deleted.value, skills),
         );
         setMentionQuery(undefined);
         setChannelQuery(undefined);
@@ -887,6 +1164,7 @@ export function ChannelComposer({
     }
     if (
       (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+      !voice.active &&
       !event.nativeEvent.isComposing &&
       !event.shiftKey &&
       !event.altKey &&
@@ -911,15 +1189,21 @@ export function ChannelComposer({
   };
 
   return (
-    <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+    <div
+      ref={shellMount}
+      className="bh-composer-shell"
+      data-bh-tour="composer"
+      data-companion-avoid
+    >
+      {skillPeek.layer}
+      {dictation === undefined ? null : (
+        <span className="bh-sr-only" role="status" aria-live="polite">
+          {composerVoiceStatus(voice, t) ?? ''}
+        </span>
+      )}
       {allBotNotice === undefined ? null : (
         <div className="bh-muted" role="status">
           {allBotNotice}
-        </div>
-      )}
-      {stop?.notice === undefined ? null : (
-        <div className="bh-muted" role="status">
-          {stop.notice}
         </div>
       )}
       {channelQuery !== undefined && channelOptions.length > 0 ? (
@@ -933,6 +1217,7 @@ export function ChannelComposer({
               aria-selected={index === activeMentionIndex}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseChannel(candidate)}
+              disabled={locked}
             >
               <span className="bh-mention-option-copy">
                 <strong>#{candidate.name}</strong>
@@ -941,7 +1226,7 @@ export function ChannelComposer({
           ))}
         </div>
       ) : null}
-      {shortcutOptions.length === 0 ? null : (
+      {menuLength === 0 ? null : (
         <div
           className="bh-composer-shortcuts"
           role="menu"
@@ -957,18 +1242,18 @@ export function ChannelComposer({
             <button
               key={shortcut.key ?? shortcut.id}
               ref={(node) => {
-                if (index === shortcutIndex % shortcutOptions.length)
+                if (index === shortcutIndex % menuLength)
                   node?.scrollIntoView?.({ block: 'nearest' });
               }}
               type="button"
               role="menuitem"
-              disabled={shortcut.disabled}
+              disabled={locked || shortcut.disabled}
               aria-label={
                 shortcut.reason === undefined
                   ? shortcut.label
                   : `${shortcut.label} · ${shortcut.reason}`
               }
-              data-active={index === shortcutIndex % shortcutOptions.length ? 'true' : undefined}
+              data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
               data-selected={shortcut.selected ? 'true' : undefined}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => chooseShortcut(shortcut)}
@@ -981,10 +1266,116 @@ export function ChannelComposer({
               {shortcut.key === undefined ? (
                 <small>/{shortcut.id}</small>
               ) : shortcut.selected ? (
-                <IconCheckOutlineRegular size={16} />
+                <Icon name="check" size={16} />
               ) : null}
             </button>
           ))}
+          {skillMatches.length === 0 ? null : (
+            <div className="bh-composer-menu-section" role="presentation">
+              {t('composer.skills')}
+            </div>
+          )}
+          {skillMatches.map((option, offset) => {
+            const index = shortcutOptions.length + offset;
+            const owner =
+              option.owner.kind === 'host'
+                ? t('composer.skillHost')
+                : option.owner.kind === 'workspace'
+                  ? option.owner.name
+                  : (option.bot?.displayName ?? option.owner.botSlug);
+            return (
+              <button
+                key={`${skillOwnerKey(option.owner)}/${option.name}`}
+                ref={(node) => {
+                  if (index === shortcutIndex % menuLength)
+                    node?.scrollIntoView?.({ block: 'nearest' });
+                }}
+                type="button"
+                role="menuitem"
+                className="bh-composer-skill-option"
+                disabled={locked}
+                aria-label={`/${option.name} · ${owner}`}
+                data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSkill(option)}
+              >
+                <span className="bh-composer-skill-owner" title={owner}>
+                  {option.owner.kind === 'bot' ? (
+                    <PersonaBotAvatar
+                      personaBotId={option.owner.botSlug}
+                      name={owner}
+                      src={option.bot?.avatar}
+                      appearance={option.bot?.appearance}
+                      avatarSeed={option.bot?.avatarSeed}
+                      size={20}
+                      indicator={false}
+                      t={t}
+                    />
+                  ) : option.owner.kind === 'workspace' ? (
+                    <Icon name="folder-open" size={20} />
+                  ) : (
+                    <Icon name="sparkles" size={20} />
+                  )}
+                </span>
+                <span className="bh-composer-skill-copy">
+                  <strong>/{option.name}</strong>
+                  {option.owner.kind === 'workspace' ? (
+                    <span className="bh-composer-skill-source">{owner}</span>
+                  ) : null}
+                  <small>{option.description}</small>
+                </span>
+              </button>
+            );
+          })}
+          {sessionMatches.length === 0 ? null : (
+            <div className="bh-composer-menu-section" role="presentation">
+              {t('composer.sessions')}
+            </div>
+          )}
+          {sessionMatches.map((option, offset) => {
+            const index = shortcutOptions.length + skillMatches.length + offset;
+            const owner = option.bot?.displayName ?? option.botSlug;
+            return (
+              <MenuRowButton
+                key={`${option.botSlug}/${option.sessionId}`}
+                ref={(node) => {
+                  if (index === shortcutIndex % menuLength)
+                    node?.scrollIntoView?.({ block: 'nearest' });
+                }}
+                className="bh-composer-skill-option"
+                data-session-option={option.sessionId}
+                disabled={locked}
+                aria-label={`${option.title} · ${owner}`}
+                data-active={index === shortcutIndex % menuLength ? 'true' : undefined}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseSession(option)}
+              >
+                <span className="bh-composer-skill-owner" title={owner}>
+                  <PersonaBotAvatar
+                    personaBotId={option.botSlug}
+                    name={owner}
+                    src={option.bot?.avatar}
+                    appearance={option.bot?.appearance}
+                    avatarSeed={option.bot?.avatarSeed}
+                    size={20}
+                    indicator={false}
+                    t={t}
+                  />
+                </span>
+                <span className="bh-composer-skill-copy">
+                  <strong {...stylex.props(sessionStyles.title)}>
+                    <span {...stylex.props(sessionStyles.icon)}>
+                      <ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />
+                    </span>
+                    <span {...stylex.props(sessionStyles.clip)}>{option.title}</span>
+                  </strong>
+                  <small {...stylex.props(sessionStyles.owner)}>
+                    {option.done ? t('composer.sessionDone', { name: owner }) : owner}
+                  </small>
+                </span>
+              </MenuRowButton>
+            );
+          })}
         </div>
       )}
       {mentionQuery !== undefined && candidates.length > 0 ? (
@@ -997,7 +1388,7 @@ export function ChannelComposer({
                 className={`bh-mention-option${index === activeMentionIndex ? ' bh-mention-option-active' : ''}`}
                 role="option"
                 aria-selected={index === activeMentionIndex}
-                disabled={candidate.preview.recipients.length === 0}
+                disabled={locked || candidate.preview.recipients.length === 0}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => chooseMention(candidate)}
               >
@@ -1006,7 +1397,9 @@ export function ChannelComposer({
                   <small>{t('composer.allBotsScope')}</small>
                 </span>
                 <small className="bh-mention-option-id">
-                  {t('composer.allBotsCount', { count: candidate.preview.recipients.length })}
+                  {t('composer.allBotsCount', {
+                    count: candidate.preview.recipients.length,
+                  })}
                 </small>
               </button>
             ) : (
@@ -1018,6 +1411,7 @@ export function ChannelComposer({
                 aria-selected={index === activeMentionIndex}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => chooseMention(candidate)}
+                disabled={locked}
               >
                 <PersonaBotAvatar
                   personaBotId={candidate.slug}
@@ -1041,27 +1435,61 @@ export function ChannelComposer({
         </div>
       ) : null}
       <div
-        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}`}
+        {...hooked(
+          `bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`,
+          composer.surface,
+        )}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
-        style={{ '--bh-composer-body-height': `${fit.height}px` } as CSSProperties}
+        data-dictation={voice.snapshot.status}
+        style={
+          {
+            '--bh-composer-body-height': `${fit.height}px`,
+            ...(hasFooter ? { '--bh-composer-padding': 'var(--bh-composer-footer-padding)' } : {}),
+          } as CSSProperties
+        }
       >
         {reply === undefined ? null : (
           <div className="bh-composer-reply">
-            <div className="bh-composer-reply-copy">
+            <div {...hooked('bh-composer-reply-copy', composer.quote)}>
               <span className="bh-composer-reply-author">
                 {t('message.replyingTo', { author: reply.author })}
               </span>
               <span className="bh-composer-reply-body">{reply.body}</span>
             </div>
-            <button
-              type="button"
+            <IconButton
               className="bh-composer-reply-cancel"
+              size="inline"
               aria-label={t('message.replyCancel')}
               onClick={onCancelReply}
             >
-              &times;
-            </button>
+              <Icon name="x" size={16} />
+            </IconButton>
           </div>
+        )}
+        {quotes.length === 0 ? null : (
+          <QuoteChipList label={t('message.quotes')}>
+            {quotes.map((quote) => {
+              const author = quote.author ?? t('message.replyUnavailable');
+              return (
+                <QuoteChip
+                  key={`${quote.messageId}:${quote.text ?? ''}`}
+                  author={author}
+                  excerpt={quote.excerpt ?? quote.text ?? ''}
+                  part={quote.text !== undefined}
+                  note={quote.note ?? ''}
+                  noteLabel={t('message.quoteNoteLabel', { author })}
+                  notePlaceholder={t('message.quoteNote')}
+                  removeLabel={t('message.quoteRemove', { author })}
+                  disabled={locked}
+                  onNoteChange={(note) => onQuoteNote?.(quote, note)}
+                  onRemove={() => onRemoveQuote?.(quote)}
+                />
+              );
+            })}
+          </QuoteChipList>
+        )}
+        {quotes.length < MAX_DRAFT_QUOTES ? null : (
+          <Note>{t('message.quoteLimit', { count: MAX_DRAFT_QUOTES })}</Note>
         )}
         {attachments.length > 0 ? (
           <div className="bh-composer-attachments" aria-live="polite">
@@ -1073,9 +1501,11 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={locked || voice.active}
                 />
               ) : (
                 <ComposerFileAttachment
@@ -1084,29 +1514,58 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={locked || voice.active}
                 />
               ),
             )}
           </div>
         ) : null}
-        <div ref={bodyMount} className="bh-composer-body">
+        <div
+          ref={bodyMount}
+          className="bh-composer-body"
+          onPointerDown={voice.holdHandlers.onPointerDown}
+          onContextMenu={voice.holdHandlers.onContextMenu}
+        >
           {rich ? (
             <div
               ref={richMount}
               className="bh-composer-input bh-composer-rich-input"
               role="textbox"
-              aria-label={placeholder}
+              aria-label={label ?? basePlaceholder}
               aria-multiline="true"
-              aria-disabled={sending}
+              aria-disabled={locked}
+              aria-readonly={voice.active || undefined}
               data-placeholder={placeholder}
-              contentEditable={!sending}
+              contentEditable={!locked && !voice.active}
               suppressContentEditableWarning
+              onPointerOver={(event) => {
+                const chip = chipSkill(event.target, skillOptions, t);
+                if (chip === undefined) skillPeek.hide();
+                else skillPeek.show(chip.peek, chip.element);
+              }}
+              onPointerLeave={skillPeek.hide}
+              onMouseDown={(event) => {
+                if (
+                  readSkill !== undefined &&
+                  chipSkill(event.target, skillOptions, t) !== undefined
+                )
+                  event.preventDefault();
+              }}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
+                const chip = chipSkill(target, skillOptions, t);
+                if (chip !== undefined && readSkill !== undefined) {
+                  skillPeek.open({
+                    ...chip.peek,
+                    load: () => readSkill(chip.peek.name, chip.ownerKey),
+                  });
+                  return;
+                }
                 const badge = target.closest<HTMLElement>('[data-attachment-id]');
                 if (badge === null) return;
                 const card = Array.from(
@@ -1116,8 +1575,14 @@ export function ChannelComposer({
                 ).find((item) => item.dataset.attachmentCard === badge.dataset.attachmentId);
                 card?.querySelector<HTMLButtonElement>('button')?.focus();
               }}
-              onInput={(event) => emitRichChange(event.currentTarget)}
+              onInput={(event) => {
+                if (!locked && !voice.active) emitRichChange(event.currentTarget);
+              }}
               onPasteCapture={(event) => {
+                if (locked || voice.active) {
+                  event.preventDefault();
+                  return;
+                }
                 if (handleFilePaste(event)) return;
                 event.preventDefault();
                 insertRichPlainText(
@@ -1128,6 +1593,7 @@ export function ChannelComposer({
               }}
               onDrop={(event) => {
                 event.preventDefault();
+                if (locked || voice.active) return;
                 const text = event.dataTransfer.getData('text/plain');
                 if (text.length > 0) {
                   insertRichPlainText(event.currentTarget, text.replace(/\r\n?/gu, '\n'));
@@ -1137,15 +1603,16 @@ export function ChannelComposer({
               onKeyDown={handleKeyDown}
             />
           ) : (
-            <textarea
+            <ComposerTextarea
               ref={textareaMount}
-              className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
+              aria-label={label ?? basePlaceholder}
               value={value}
-              disabled={sending}
+              disabled={locked}
+              readOnly={voice.active}
               onChange={(event) => {
-                syncTextarea(event.currentTarget);
+                scheduleSync(event.currentTarget);
                 const next = event.target.value;
                 slashTarget.current = context?.target;
                 setSlashQuery(
@@ -1154,6 +1621,12 @@ export function ChannelComposer({
                     : composerSlashQuery(next, event.currentTarget.selectionStart),
                 );
                 setShortcutIndex(0);
+                const nextSessionQuery =
+                  sessionOptions.length === 0 && onSessionMenu === undefined
+                    ? undefined
+                    : activeSessionQuery(next, event.currentTarget.selectionStart);
+                if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
+                setSessionQuery(nextSessionQuery);
                 const nextMentions = rebaseMentions(value, next, mentions);
                 const nextRefs = rebaseChannelRefs(value, next, channelRefs);
                 onChange(next, nextMentions, nextRefs);
@@ -1174,18 +1647,22 @@ export function ChannelComposer({
         </div>
         {avatarMounts.map((mount, index) =>
           createPortal(
-            <PersonaBotAvatar
-              personaBotId={mount.botSlug}
-              name={mount.name}
-              src={mount.src}
-              appearance={mount.appearance}
-              avatarSeed={mount.avatarSeed}
-              size={16}
-              indicator={false}
-              t={t}
-            />,
+            mount.kind === 'workspace' ? (
+              <Icon name="folder-open" size={16} />
+            ) : (
+              <PersonaBotAvatar
+                personaBotId={mount.botSlug}
+                name={mount.name}
+                src={mount.src}
+                appearance={mount.appearance}
+                avatarSeed={mount.avatarSeed}
+                size={16}
+                indicator={false}
+                t={t}
+              />
+            ),
             mount.target,
-            `${mount.botSlug}-${index}`,
+            `${mount.kind === 'workspace' ? `workspace:${mount.workspaceId}` : mount.botSlug}-${index}`,
           ),
         )}
         {attachmentMounts.map((mount, index) =>
@@ -1195,10 +1672,10 @@ export function ChannelComposer({
             `attachment-${index}`,
           ),
         )}
-        <input
+        <HiddenFileInput
           ref={fileInputRef}
           className="bh-composer-file-input"
-          type="file"
+          aria-hidden
           multiple
           aria-label={t('composer.addAttachment')}
           onChange={(event) => {
@@ -1209,11 +1686,11 @@ export function ChannelComposer({
             savedFileSelection.current = undefined;
           }}
         />
-        <button
-          type="button"
+        <ComposerControl
           className="bh-composer-add-file"
+          xstyle={composer.attachment}
           aria-label={t('composer.addAttachment')}
-          disabled={sending || attachments.length >= 10}
+          disabled={locked || voice.active || attachments.length >= 10}
           onMouseDown={() => {
             savedFileSelection.current = selectionOffsets();
           }}
@@ -1222,35 +1699,34 @@ export function ChannelComposer({
             fileInputRef.current?.click();
           }}
         >
-          <IconPaperclipOutlineRegular size={16} />
-        </button>
+          <Icon name="paperclip" size={16} />
+        </ComposerControl>
+        {voice.mounts.map((mount, index) => (
+          <span key={index} ref={mount} hidden />
+        ))}
+
         <div className="bh-composer-footer">
-          {stop?.label !== undefined &&
-          !hasVisibleText(value) &&
-          attachments.length === 0 &&
-          shortcutOptions.length === 0 ? (
-            <Tooltip label={stop.label} side="top" portal delayMs={350}>
-              <Button
-                className="bh-send-btn bh-stop-btn"
-                variant="primary"
-                size="sm"
-                icon={<IconStopFillRegular size={14} />}
-                aria-label={stop.stopping ? t('composer.stopping') : stop.label}
-                aria-busy={stop.stopping || undefined}
-                disabled={stop.stopping}
-                onClick={stop.onStop}
-              />
-            </Tooltip>
-          ) : (
-            <Button
+          {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
+          {stops ? (
+            <ComposerControl
               className="bh-send-btn"
-              variant="primary"
-              size="sm"
-              icon={<IconSendOutlineRegular size={16} />}
+              primary
+              data-composer-stop=""
+              aria-label={t('sessions.stop')}
+              disabled={disabled}
+              onClick={onStop}
+            >
+              <Icon name="square" filled size={12} />
+            </ComposerControl>
+          ) : (
+            <ComposerControl
+              className="bh-send-btn"
+              primary
               aria-label={sending ? t('message.sending') : t('composer.send')}
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||
-                sending ||
+                locked ||
+                voice.active ||
                 mentions.some(
                   (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
                 ) ||
@@ -1263,7 +1739,9 @@ export function ChannelComposer({
                   if (shortcut !== undefined) chooseShortcut(shortcut);
                 } else if (!hasShortcutArgument) void onSubmit();
               }}
-            />
+            >
+              <Icon name="arrow-up" size={16} />
+            </ComposerControl>
           )}
         </div>
       </div>

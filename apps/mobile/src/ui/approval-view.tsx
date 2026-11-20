@@ -1,3 +1,5 @@
+import { toolEffectLabels } from '../../../../packages/core/src/workspaces/tool-effect-labels';
+import { locale } from './strings';
 import { Text } from './primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, ScrollView, View, type ViewInstance } from 'react-native';
@@ -7,7 +9,7 @@ import {
   type ApprovalChoice,
   type ApprovalRequest,
   type DecisionResult,
-} from '../host/requests';
+} from '@botharness/host-client/requests';
 import { alwaysNote, executionNote, expiryLabel, riskNote } from './approval-note';
 import {
   ActionButton,
@@ -41,6 +43,7 @@ type Phase =
 
 function settledNotice(request: ApprovalRequest): { tone: NoticeTone; text: string } | undefined {
   if (request.status === 'expired') return { tone: 'warning', text: t.expired };
+  if (request.status === 'stopped') return { tone: 'warning', text: t.stopped };
   if (request.status === 'decided')
     return {
       tone: 'warning',
@@ -134,7 +137,11 @@ export function ApprovalView({
         .load()
         .catch(() => ({ ...request, status: result }) as ApprovalRequest);
       if (!submission.active || current.current !== submission) return;
-      setPhase({ kind: 'ready', request: now, notice: settledNotice({ ...now, status: result })! });
+      setPhase({
+        kind: 'ready',
+        request: now,
+        notice: settledNotice(now.status === 'stopped' ? now : { ...now, status: result })!,
+      });
     } catch (error) {
       if (!submission.active || current.current !== submission) return;
       submission.pending = false;
@@ -157,6 +164,9 @@ export function ApprovalView({
         <Text style={{ color: theme.ink, fontSize: 22, fontWeight: '700' }}>
           {t.wantsToRun(botName, request.toolName)}
         </Text>
+        {request.effects === undefined ? null : (
+          <Text>{toolEffectLabels(request.effects, locale).join(' · ')}</Text>
+        )}
         <View style={{ gap: 4 }}>
           <Text style={{ color: theme.inkSoft, fontSize: 13, fontWeight: '600' }}>
             {t.workingFolder}

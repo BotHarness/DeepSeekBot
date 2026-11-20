@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
@@ -57,6 +58,7 @@ function git(args: string[], cwd: string, env: Record<string, string> = {}): voi
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 
@@ -127,6 +129,17 @@ describe('deepseekbot create', () => {
     expect(code).toBe(0);
     expect(out.join('\n')).toContain('tobs create --name <name>');
     expect(out.join('\n')).not.toContain('deepseekbot create');
+  });
+
+  it('prints help for engine without an action', async () => {
+    const out: string[] = [];
+    const code = await runBotCreateCli(['engine', '--help'], {
+      env: baseEnv(),
+      stdout: (text) => out.push(text),
+      stderr: () => {},
+    });
+    expect(code).toBe(0);
+    expect(out.join('\n')).toContain('engine');
   });
 
   it('creates a blank bot against a fresh home with zero clicks', async () => {
@@ -709,7 +722,7 @@ describe('deepseekbot lifecycle', () => {
         database: attachOperationalModule(owner, 'messaging'),
         rootDir: join(home, 'botharness', 'channels'),
       });
-      channels.getOrCreateDm(id, 'Ada');
+      channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, id, 'Ada');
     } finally {
       owner.close();
     }
@@ -869,14 +882,14 @@ describe('deepseekbot channels, grants, schedules, pairings', () => {
         database: attachOperationalModule(owner, 'messaging'),
         rootDir: join(home, 'botharness', 'channels'),
       });
-      const dm = channels.getOrCreateDm(slug, name)!;
-      await channels.appendMessage(dm.id, {
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, name)!;
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'seed-one',
         at: '2026-10-10T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'first',
       });
-      await channels.appendMessage(dm.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'seed-two',
         at: '2026-10-10T00:01:00.000Z',
         author: { kind: 'human' },

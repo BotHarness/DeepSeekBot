@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
 import { approvalCountdown } from '../src/client/approval-countdown.js';
@@ -8,16 +9,13 @@ import {
   approvalFileChange,
   approvalShellCommand,
   diffLines,
-} from '../src/client/approval-diff.js';
+} from '@botharness/host-client/shared/approval-diff';
 import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 const message = (toolName = 'bash', input = '{"command":"echo QA"}'): ChannelMessage =>
@@ -55,11 +53,13 @@ const actions = (): BridgeActions =>
 const render = async (
   value: ChannelMessage = message(),
   overrides: Partial<BridgeActions> = {},
+  decision?: Parameters<typeof ToolApprovalCard>[0]['decision'],
 ): Promise<HTMLElement> => {
   await act(async () => {
     root.render(
       createElement(ToolApprovalCard, {
         message: value,
+        ...(decision === undefined ? {} : { decision }),
         actions: { ...actions(), ...overrides },
         t: zhTranslate,
       }),
@@ -94,6 +94,54 @@ afterEach(() => {
 });
 
 describe('Tool approval card layout', () => {
+  it.each([
+    'allowed-once',
+    'allowed-always-tool',
+    'allowed-always-exact',
+    'allowed-always-all',
+    'rejected',
+  ] as const)(
+    'keeps stored %s content and selected controls without resubmitting',
+    async (decision) => {
+      const card = await render(message(), {}, decision);
+      await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
+      expect(card.textContent).toContain('/qa');
+      expect(card.textContent).toContain('echo QA');
+      const choices = [
+        ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
+      ];
+      expect(choices.every((choice) => choice.disabled)).toBe(true);
+      expect(choices.map((choice) => choice.getAttribute('aria-pressed'))).toEqual([
+        String(decision === 'allowed-once'),
+        String(decision.startsWith('allowed-always')),
+        String(decision === 'rejected'),
+      ]);
+      await press(card, 'y');
+      expect(decisions).toEqual([]);
+    },
+  );
+
+  it.each([
+    { kind: 'template-unavailable', reason: 'The selected approval template could not be read.' },
+    {
+      kind: 'review',
+      template: 'cautious',
+      version: 'version',
+      reason: 'Automatic review unavailable (settings-invalid).',
+      fallback: 'settings-invalid',
+    },
+  ] as const)(
+    'localizes system fallback guidance for $kind without exposing diagnostic codes',
+    async (review) => {
+      const value = message();
+      value.toolApprovalRequest!.approvalReview = review;
+      const card = await render(value);
+      expect(card.textContent).not.toContain(review.reason);
+      expect(card.textContent).toContain('审批');
+      expect(card.textContent).not.toContain('settings-invalid');
+    },
+  );
+
   it('leads with the key phrase and keeps details, extra choices and key hints out of the way', async () => {
     const card = await render(
       message(
@@ -114,6 +162,44 @@ describe('Tool approval card layout', () => {
       ),
     ).toEqual(['允许这次', '始终允许', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
+  });
+  it('shows an engine shell request like a Terminal card, command and reason inline', async () => {
+    const card = await render(
+      message(
+        'shell',
+        JSON.stringify({
+          command: 'curl -sI https://example.com | head -1',
+          cwd: '/work',
+          reason: 'May I run the command with network access?',
+        }),
+      ),
+    );
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('终端');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe(
+      'May I run the command with network access?',
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe(
+      'curl -sI https://example.com | head -1',
+    );
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
+  it('shows every line of a multi-line command on the closed card', async () => {
+    const card = await render(
+      message('shell', JSON.stringify({ command: 'pwd\nrm -rf ./data', reason: 'Clean up' })),
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('pwd\nrm -rf ./data');
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
+  it('closes as Session stopped when the Human stopped the asking Session', async () => {
+    const card = await render(message(), {
+      toolApprovalStatus: async () => 'stopped',
+      toolApprovalState: async () => ({ status: 'stopped' }),
+    } as Partial<BridgeActions>);
+    const done = card.querySelector('.bh-request-done');
+    expect(done?.getAttribute('data-state')).toBe('stopped');
+    expect(done?.textContent).toBe('终端 · 会话已停止');
+    expect(done?.getAttribute('title')).toBe('会话已停止，这次调用不会执行');
+    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
   });
   it('previews the new Bot on a bot_create card', async () => {
     const value = message(
@@ -138,6 +224,12 @@ describe('Tool approval card layout', () => {
     expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
     expect(preview.textContent).toContain('translator');
     expect(preview.textContent).toContain('zh-en');
+    expect(Array.from(preview.querySelectorAll('dl dt'), (item) => item.textContent)).toEqual([
+      'SOUL.md',
+      'MEMORY.md',
+      zhTranslate('approval.botCreate.memoryFolder'),
+    ]);
+    expect(preview.querySelectorAll('dl dt + dd')).toHaveLength(3);
     const excerpts = [...preview.querySelectorAll('.bh-bot-create-excerpt')];
     expect(excerpts.map((item) => item.textContent)).toEqual(['# Tim\n冷静\n准确\n…']);
     expect(preview.textContent).toContain('使用默认的核心记忆模板');
@@ -152,7 +244,7 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     await act(async () =>
-      card.querySelector<HTMLElement>('.bh-tool-approval-details-body .bh-note')!.click(),
+      card.querySelector<HTMLElement>('.bh-tool-approval-details-body > div')!.click(),
     );
     expect(card.querySelector('.bh-tool-approval-details-body')).not.toBeNull();
     await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
@@ -166,16 +258,29 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('[role="dialog"]')).toBeNull();
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
   });
-  it('collapses to the category and outcome once decided', async () => {
+  it.each([
+    ['y', 'allowed-once'],
+    ['a', 'allowed-always-tool'],
+    ['n', 'rejected'],
+  ])('retains the full card and opened input after %s', async (key, outcome) => {
     const card = await render();
-    await press(card, 'n');
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(card.querySelector('.bh-tool-approval-sentence')).toBeNull();
-    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
-    expect(card.querySelector('button')).toBeNull();
-    expect(card.textContent).toBe('终端 · 已拒绝');
+    await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
+    await press(card, key);
+    expect(card.querySelector('.bh-tool-approval-sentence')).not.toBeNull();
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
+    expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('echo QA');
+    expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
+    const choices = [
+      ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
+    ];
+    expect(choices).toHaveLength(3);
+    expect(choices.every((button) => button.disabled)).toBe(true);
+    expect(choices.map((button) => button.getAttribute('aria-pressed'))).toEqual(
+      ['allowed-once', 'allowed-always-tool', 'rejected'].map((value) => String(value === outcome)),
+    );
+    await press(card, 'y');
+    await act(async () => choices[0]!.click());
+    expect(decisions).toEqual([outcome]);
   });
 });
 
@@ -267,7 +372,7 @@ describe('Tool approval recovery and duplicate clicks', () => {
     expect(readState).toHaveBeenCalledTimes(2);
     expect(card.textContent).toContain(zhTranslate('approval.outcome.expired'));
     expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
-    expect(card.querySelector('button')).toBeNull();
+    expect(card.querySelector('.bh-request-summary')).not.toBeNull();
     await press(card, 'a');
     expect(submit).toHaveBeenCalledTimes(1);
     expect(decisions).toEqual(['allowed-always-tool']);
@@ -300,7 +405,11 @@ describe('Tool approval recovery and duplicate clicks', () => {
       ),
     ).toBe(true);
     await act(async () => finish!());
-    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+    expect(
+      [...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button')].every(
+        (button) => button.disabled,
+      ),
+    ).toBe(true);
     expect(submit).toHaveBeenCalledTimes(1);
   });
 });
@@ -451,6 +560,12 @@ describe('Tool approval file diff', () => {
       command: 'ls -la',
       description: 'List',
     });
+    expect(
+      approvalShellCommand(
+        'shell',
+        JSON.stringify({ command: 'curl -sI https://example.com', reason: 'Needs network' }),
+      ),
+    ).toEqual({ command: 'curl -sI https://example.com', description: 'Needs network' });
     expect(approvalShellCommand('edit', '{"command":"ls"}')).toBeUndefined();
     expect(approvalFileChange('edit', 'not json')).toBeUndefined();
   });

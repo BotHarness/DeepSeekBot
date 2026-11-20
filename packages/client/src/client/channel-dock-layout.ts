@@ -4,11 +4,12 @@ import {
   parseChannelSplit,
   type ChannelSplit,
 } from './channel-split-layout.js';
-import type {
-  AddPanelPositionOptions,
-  DockviewApi,
-  SerializedDockview,
-  SerializedGridObject,
+import {
+  Orientation,
+  type AddPanelPositionOptions,
+  type DockviewApi,
+  type SerializedDockview,
+  type SerializedGridObject,
 } from 'dockview-react';
 
 import { ACTIVITY_CENTER_PANEL } from './dock-panels.js';
@@ -19,7 +20,6 @@ export const CHANNEL_DOCK_LAYOUT_VERSION = 9;
 const READABLE_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, CHANNEL_DOCK_LAYOUT_VERSION];
 export const DEFAULT_WORKSPACE_GAP = 4;
 export const CHANNEL_BODY_PANEL = 'bh:channel-body';
-export const CHANNEL_DOCK_QUERY = '(min-width: 961px)';
 export const CHANNEL_BODY_COMPONENT = 'channel-body';
 export const CHANNEL_ENTRY_COMPONENT = 'channel-entry';
 const RETIRED_RAIL_IDS: readonly string[] = [HOME_SLOT, 'bh:tob-mode'];
@@ -384,7 +384,12 @@ export function dockPanelGap(
     return undefined;
   };
   return (
-    visit(layout.grid.root as GridNode, layout.grid.orientation === 'HORIZONTAL', 0, 0) ?? {
+    visit(
+      layout.grid.root as GridNode,
+      layout.grid.orientation === Orientation.HORIZONTAL,
+      0,
+      0,
+    ) ?? {
       width: 0,
       height: 0,
     }
@@ -443,7 +448,7 @@ export function pruneChannelDock(
     if (kept.length === 0) return undefined;
     return { ...node, data: kept };
   };
-  const horizontal = layout.grid.orientation === 'HORIZONTAL';
+  const horizontal = layout.grid.orientation === Orientation.HORIZONTAL;
   const root = prune(layout.grid.root as GridNode, horizontal);
   for (const id of Object.keys(layout.panels))
     if (!keep(id) && parked[id] === undefined) parked[id] = { direction: 'right' };
@@ -537,6 +542,8 @@ export function resolveDefaultPosition(
 ): AddPanelPositionOptions {
   const zone = position?.zone ?? 'right';
   const anchor = position?.relativeTo;
+  if (zone === 'left' && anchor !== undefined && api.getPanel(anchor) !== undefined)
+    return { referencePanel: anchor, direction: 'left' };
   if (anchor !== undefined && api.getPanel(anchor) !== undefined)
     return { referencePanel: anchor, direction: zone === 'bottom' ? 'right' : 'below' };
   if (api.getPanel(WORKSPACE_RAIL) && zone === 'right') return workspaceColumn(api, panelId);
@@ -791,7 +798,7 @@ function movePanelIntoWorkspace(
   };
   const root = walk(
     stored.layout.grid.root as GridNode,
-    stored.layout.grid.orientation === 'HORIZONTAL',
+    stored.layout.grid.orientation === Orientation.HORIZONTAL,
   ) ?? { ...stored.layout.grid.root, type: 'branch' as const, data: [] };
   const panels = Object.fromEntries(
     Object.entries(stored.layout.panels).filter(([id]) => id !== panelId),

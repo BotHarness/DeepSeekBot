@@ -1,4 +1,5 @@
-import { execFile, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { execFileText } from '../process/exec-off-thread.js';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -19,7 +20,7 @@ export interface MemoryGit {
   commitPaths(paths: readonly string[], message: string): string;
   log(limit?: number): MemoryCommit[];
 
-  activitySince(sinceIso: string): Array<{ at: string }>;
+  activitySince(sinceIso: string): Promise<Array<{ at: string }>>;
   activitySnapshot(sinceIso: string): Promise<{ commits: Array<{ at: string }>; dirty: boolean }>;
 }
 
@@ -34,6 +35,7 @@ function run(root: string, args: string[]): string {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 
@@ -57,15 +59,12 @@ function activityAt(output: string, sinceIso: string): Array<{ at: string }> {
     .map((at) => ({ at }));
 }
 
-function readActivity(root: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'git',
-      ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args],
-      { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 2000 },
-      (error, stdout) => (error === null ? resolve(stdout) : reject(error)),
-    );
-  });
+function readActivity(root: string, args: string[], timeout = 2000): Promise<string> {
+  return execFileText('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args], {
+    cwd: root,
+    windowsHide: true,
+    timeout,
+  }).then(({ stdout }) => stdout);
 }
 
 function revParse(root: string): string {
@@ -109,6 +108,64 @@ export function initializeMemoryGit(root: string): { created: boolean } {
 
 export function commitMemoryRepositorySeed(root: string): string {
   return commitIfChanges(root, INIT_COMMIT_MESSAGE);
+}
+
+async function runAsync(root: string, args: string[]): Promise<string> {
+  return (await execFileText('git', args, { cwd: root, windowsHide: true, timeout: 10_000 }))
+    .stdout;
+}
+
+export async function initializeMemoryRepositoryAsync(root: string): Promise<{ created: boolean }> {
+  const created = !existsSync(join(root, '.git'));
+  if (created) await runAsync(root, ['init', '-b', 'main']);
+  for (const [key, value] of [
+    ['user.name', 'BotHarness'],
+    ['user.email', 'bot@botharness.local'],
+  ] as const) {
+    let present = false;
+    try {
+      present = (await runAsync(root, ['config', '--local', '--get', key])).trim().length > 0;
+    } catch {}
+    if (!present) await runAsync(root, ['config', key, value]);
+  }
+  await runAsync(root, ['config', 'commit.gpgsign', 'false']);
+  await runAsync(root, ['config', 'core.autocrlf', 'false']);
+  let head = '';
+  try {
+    head = (await runAsync(root, ['rev-parse', 'HEAD'])).trim();
+  } catch {}
+  if (head === '') {
+    const attributes = join(root, '.gitattributes');
+    if (!existsSync(attributes)) writeFileSync(attributes, GITATTRIBUTES, 'utf8');
+    await commitMemoryPathsAsync(root, [], INIT_COMMIT_MESSAGE);
+  }
+  return { created };
+}
+
+export async function ignoredMemoryPathsAsync(
+  root: string,
+  paths: readonly string[],
+): Promise<string[]> {
+  const output = await runAsync(root, [
+    'ls-files',
+    '--others',
+    '--ignored',
+    '--exclude-standard',
+    '--',
+    ...paths,
+  ]);
+  return output.split('\n').filter((line) => line.length > 0);
+}
+
+export async function commitMemoryPathsAsync(
+  root: string,
+  paths: readonly string[],
+  message: string,
+): Promise<void> {
+  const scope = paths.length ? ['--', ...paths] : [];
+  await runAsync(root, ['add', '-A', ...scope]);
+  if ((await runAsync(root, ['status', '--porcelain', ...scope])).trim() === '') return;
+  await runAsync(root, ['commit', '--no-gpg-sign', '-m', message, ...scope]);
 }
 
 export function createMemoryGit(root: string): MemoryGit {
@@ -170,17 +227,9 @@ export function createMemoryGit(root: string): MemoryGit {
         ).trim().length > 0;
       return { commits, dirty };
     },
-    activitySince(sinceIso) {
+    async activitySince(sinceIso) {
       try {
-        return activityAt(
-          run(root, [
-            '--no-optional-locks',
-            '-c',
-            'core.fsmonitor=false',
-            ...activityArgs(sinceIso),
-          ]),
-          sinceIso,
-        );
+        return activityAt(await readActivity(root, activityArgs(sinceIso), 30_000), sinceIso);
       } catch {
         return [];
       }

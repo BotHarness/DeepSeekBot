@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -25,10 +26,13 @@ describe('Channel unread counts', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const append = (channelId: string, id: string, minute: number, human = false) =>
-        core.channels.appendMessage(channelId, {
+        core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
           id,
           at: new Date(Date.UTC(2026, 9, 14, 1, minute)).toISOString(),
           author: human ? { kind: 'human' } : { kind: 'bot', slug: 'ada' },
@@ -38,7 +42,7 @@ describe('Channel unread counts', () => {
       await append(group.id, 'first', 1);
       await append(group.id, 'second', 2);
       await append(dm.id, 'dm-one', 3);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       const counts = () => {
         const result = methods.channelUnreadCounts({});
         if (!result.ok) throw new Error('channelUnreadCounts failed');
@@ -50,9 +54,9 @@ describe('Channel unread counts', () => {
           { channelId: dm.id, unreadCount: 1 },
         ].sort((a, b) => a.channelId.localeCompare(b.channelId)),
       );
-      await core.channels.markRead(group.id, 'second');
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, group.id, 'second');
       expect(counts()).toEqual([{ channelId: dm.id, unreadCount: 1 }]);
-      expect(core.humanAttention.status().unreadCount).toBe(1);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(1);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -67,22 +71,25 @@ describe('Channel unread counts', () => {
     try {
       await core.roster.attach(createFakeRosterDomain().facility);
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       for (const [index, channelId] of [group.id, group.id, dm.id].entries())
-        await core.channels.appendMessage(channelId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
           id: 'message-' + index,
           at: new Date(Date.UTC(2026, 9, 14, 2, index)).toISOString(),
           author: { kind: 'bot', slug: 'ada' },
           body: 'Update ' + index,
         });
-      const methods = createBridgeMethods({ ...core });
-      expect(core.humanAttention.status().unreadCount).toBe(3);
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(3);
       expect(await methods.channelMuteSet({ channelId: group.id, muted: true })).toEqual({
         ok: true,
         value: { muted: [group.id] },
       });
-      expect(core.humanAttention.status().unreadCount).toBe(1);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(1);
       expect(methods.channelUnreadCounts({})).toMatchObject({
         ok: true,
         value: { channels: expect.arrayContaining([{ channelId: group.id, unreadCount: 2 }]) },
@@ -95,7 +102,7 @@ describe('Channel unread counts', () => {
         ok: true,
         value: { muted: [] },
       });
-      expect(core.humanAttention.status().unreadCount).toBe(3);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(3);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();
@@ -110,10 +117,10 @@ it('filters muted message attention before search and paging without reading mes
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     const bea = core.registry.create({ slug: 'bea', displayName: 'Bea' });
     if (!bea.ok) throw new Error('Bot fixture failed');
-    const a = core.channels.createGroup({ name: 'Quiet', members: ['ada'] });
-    const b = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const a = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Quiet', members: ['ada'] });
+    const b = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const append = async (channelId: string, id: string, minute: number, personal = false) =>
-      core.channels.appendMessage(channelId, {
+      core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id,
         at: new Date(Date.UTC(2026, 9, 19, 0, minute)).toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -126,14 +133,14 @@ it('filters muted message attention before search and paging without reading mes
             }
           : {}),
       });
-    await core.channels.appendMessage(a.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, a.id, {
       id: 'human',
       at: '2026-10-19T00:00:00Z',
       author: { kind: 'human' },
       body: 'Review',
     });
     await append(a.id, 'already-read-mention', 1, true);
-    await core.channels.markRead(a.id, 'already-read-mention');
+    await core.channels.markRead(OWNER_HUMAN_CONTEXT, a.id, 'already-read-mention');
     await append(a.id, 'ordinary-1', 2);
     await append(a.id, 'ordinary-2', 3);
     await append(a.id, 'mention-and-reply', 4, true);
@@ -143,16 +150,24 @@ it('filters muted message attention before search and paging without reading mes
       requesterBotSlug: 'bea',
       requesterBotCreatedAt: bea.record.createdAt,
     });
-    const methods = createBridgeMethods({ ...core });
-    const position = core.channels.readPosition(a.id);
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+    const position = core.channels.readPosition(OWNER_HUMAN_CONTEXT, a.id);
     const timeline = methods.channelMessages({ channelId: a.id });
-    const before = core.humanAttention.list({ category: 'unread', channelId: a.id }).items[0]!;
-    expect(core.humanAttention.status()).toEqual({ unreadCount: 4, hasAction: true });
+    const before = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+      category: 'unread',
+      channelId: a.id,
+    }).items[0]!;
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+      unreadCount: 4,
+      hasAction: true,
+    });
     expect(methods.humanAttentionStatus({ messageCounts: true })).toMatchObject({
       ok: true,
       value: { unreadCount: 4, hasAction: true, messageCounts: { replies: 1, other: 3 } },
     });
-    expect(core.humanAttention.list({ category: 'replies' }).items).toHaveLength(2);
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+    ).toHaveLength(2);
     await methods.channelMuteSet({ channelId: a.id, muted: true });
     for (const category of ['unread', 'replies'] as const) {
       expect(
@@ -160,34 +175,58 @@ it('filters muted message attention before search and paging without reading mes
       ).toMatchObject({ ok: true, value: { items: [] } });
     }
     expect(
-      core.humanAttention.list({ category: 'unread', search: 'needle', limit: 1 }),
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+        category: 'unread',
+        search: 'needle',
+        limit: 1,
+      }),
     ).toMatchObject({ items: [{ channelId: b.id, unreadCount: 1 }] });
-    expect(core.humanAttention.item(before.id, before.sourceEventId)).toBeUndefined();
-    expect(core.humanAttention.status()).toEqual({ unreadCount: 1, hasAction: true });
-    expect(core.humanAttention.status(true).messageCounts).toEqual({ replies: 0, other: 1 });
-    expect(core.humanAttention.list({ category: 'action' }).items).toMatchObject([
-      { requestId: request.id },
-    ]);
-    expect(core.channels.readPosition(a.id)).toEqual(position);
+    expect(
+      core.humanAttention.item(OWNER_HUMAN_CONTEXT, before.id, before.sourceEventId),
+    ).toBeUndefined();
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+      unreadCount: 1,
+      hasAction: true,
+    });
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT, true).messageCounts).toEqual({
+      replies: 0,
+      other: 1,
+    });
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items,
+    ).toMatchObject([{ requestId: request.id }]);
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, a.id)).toEqual(position);
     expect(methods.channelMessages({ channelId: a.id })).toEqual(timeline);
-    expect(core.humanAttention.unreadByChannel()).toEqual(
+    expect(core.humanAttention.unreadByChannel(OWNER_HUMAN_CONTEXT)).toEqual(
       expect.arrayContaining([{ channelId: a.id, unreadCount: 3 }]),
     );
     await append(a.id, 'arrived-muted', 6, true);
-    expect(core.humanAttention.list({ category: 'replies' }).items).toEqual([]);
+    expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items).toEqual(
+      [],
+    );
     await methods.channelMuteSet({ channelId: a.id, muted: false });
-    expect(core.humanAttention.status()).toEqual({ unreadCount: 5, hasAction: true });
-    expect(core.humanAttention.status(true).messageCounts).toEqual({ replies: 2, other: 3 });
-    expect(core.channels.readPosition(a.id)).toEqual(position);
-    expect(core.humanAttention.list({ category: 'unread', channelId: a.id }).items).toMatchObject([
-      { unreadCount: 2 },
-    ]);
-    const first = core.humanAttention.list({ category: 'replies', search: 'needle', limit: 1 });
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+      unreadCount: 5,
+      hasAction: true,
+    });
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT, true).messageCounts).toEqual({
+      replies: 2,
+      other: 3,
+    });
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, a.id)).toEqual(position);
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread', channelId: a.id }).items,
+    ).toMatchObject([{ unreadCount: 2 }]);
+    const first = core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
+      category: 'replies',
+      search: 'needle',
+      limit: 1,
+    });
     expect(first.items[0]?.messageId).toBe('arrived-muted');
     expect(first.nextCursor).toBeDefined();
     await methods.channelMuteSet({ channelId: a.id, muted: true });
     expect(
-      core.humanAttention.list({
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, {
         category: 'replies',
         search: 'needle',
         limit: 1,
@@ -195,14 +234,17 @@ it('filters muted message attention before search and paging without reading mes
       }).items,
     ).toEqual([]);
     await methods.channelMuteSet({ channelId: a.id, muted: false });
-    expect(core.humanAttention.list({ category: 'replies', unreadOnly: true }).items).toHaveLength(
-      2,
-    );
-    expect(core.humanAttention.list({ category: 'replies' }).items).toHaveLength(3);
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', unreadOnly: true })
+        .items,
+    ).toHaveLength(2);
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+    ).toHaveLength(3);
     await methods.channelMuteSet({ channelId: b.id, muted: true });
-    expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
-      { channelId: a.id },
-    ]);
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+    ).toMatchObject([{ channelId: a.id }]);
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
@@ -213,9 +255,9 @@ it('returns complete category counts independent of the first Activity page', as
   const core = createCore({ dshHome: createTempRoot('attention-summary-'), agents: adapter() });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const dm = core.channels.createGroup({ name: 'Large', members: ['ada'] });
+    const dm = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Large', members: ['ada'] });
     for (let i = 0; i < 55; i++)
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'message-' + i,
         at: new Date(Date.UTC(2026, 9, 19, 0, i)).toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -223,15 +265,22 @@ it('returns complete category counts independent of the first Activity page', as
         botCausation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
         humanMentions: [{ humanId: 'local-human', label: 'Human', start: 0, end: 6 }],
       });
-    expect(core.humanAttention.list({ category: 'replies', limit: 1 }).items).toHaveLength(1);
-    const methods = createBridgeMethods({ ...core });
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', limit: 1 }).items,
+    ).toHaveLength(1);
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     expect(methods.humanAttentionStatus({ messageCounts: true })).toMatchObject({
       ok: true,
       value: { unreadCount: 55, messageCounts: { replies: 55, other: 0 } },
     });
-    await core.channels.markRead(dm.id, 'message-54');
-    expect(core.humanAttention.list({ category: 'replies', limit: 1 }).items).toHaveLength(1);
-    expect(core.humanAttention.status(true).messageCounts).toEqual({ replies: 0, other: 0 });
+    await core.channels.markRead(OWNER_HUMAN_CONTEXT, dm.id, 'message-54');
+    expect(
+      core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies', limit: 1 }).items,
+    ).toHaveLength(1);
+    expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT, true).messageCounts).toEqual({
+      replies: 0,
+      other: 0,
+    });
     expect(methods.humanAttentionStatus({ messageCounts: 'true' })).toMatchObject({ ok: false });
   } finally {
     await core.runtime.close();
@@ -247,22 +296,25 @@ it('lists unread plain Bot messages in a DM as replies for push, leaving cards, 
   try {
     await core.roster.attach(createFakeRosterDomain().facility);
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada'],
+    });
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const at = (minute: number) => new Date(Date.UTC(2026, 9, 19, 3, minute)).toISOString();
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'ask',
       at: at(0),
       author: { kind: 'human' },
       body: 'Ping',
     });
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'answer',
       at: at(1),
       author: { kind: 'bot', slug: 'ada' },
       body: 'Pong',
     });
-    await core.channels.appendMessage(dm.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
       id: 'question',
       at: at(2),
       author: { kind: 'bot', slug: 'ada' },
@@ -272,13 +324,13 @@ it('lists unread plain Bot messages in a DM as replies for push, leaving cards, 
         questions: [{ id: 'branch', question: 'Which branch?' }],
       },
     });
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'group-update',
       at: at(3),
       author: { kind: 'bot', slug: 'ada' },
       body: 'Group update',
     });
-    expect(core.humanAttention.dmReplies(10)).toMatchObject([
+    expect(core.humanAttention.dmReplies(OWNER_HUMAN_CONTEXT, 10)).toMatchObject([
       {
         category: 'replies',
         kind: 'channel-reply',
@@ -288,14 +340,14 @@ it('lists unread plain Bot messages in a DM as replies for push, leaving cards, 
         summary: 'Pong',
       },
     ]);
-    expect(core.humanAttention.dmReplies(10)[0]?.id).toMatch(/^dm-reply:/u);
+    expect(core.humanAttention.dmReplies(OWNER_HUMAN_CONTEXT, 10)[0]?.id).toMatch(/^dm-reply:/u);
 
-    const methods = createBridgeMethods({ ...core });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
     await methods.channelMuteSet({ channelId: dm.id, muted: true });
-    expect(core.humanAttention.dmReplies(10)).toEqual([]);
+    expect(core.humanAttention.dmReplies(OWNER_HUMAN_CONTEXT, 10)).toEqual([]);
     await methods.channelMuteSet({ channelId: dm.id, muted: false });
-    await core.channels.markRead(dm.id, 'question');
-    expect(core.humanAttention.dmReplies(10)).toEqual([]);
+    await core.channels.markRead(OWNER_HUMAN_CONTEXT, dm.id, 'question');
+    expect(core.humanAttention.dmReplies(OWNER_HUMAN_CONTEXT, 10)).toEqual([]);
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();

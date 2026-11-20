@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadBotProfile, pinnedMemory } from '../src/host/bot-profile';
-import { createHostClient } from '../src/host/client';
-import type { MemoryFile, MemorySnapshot } from '../src/host/wire';
+import { createHostClient } from '@botharness/host-client/client';
+import type { MemoryFile, MemorySnapshot } from '@botharness/host-protocol/wire';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

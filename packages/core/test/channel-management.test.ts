@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createChannelManagement } from '../src/channels/management.js';
@@ -65,7 +66,7 @@ const key = 'group-operation-001';
 const input = { name: 'Research', members: ['ada'] };
 function inviteFixture() {
   const f = fixture();
-  const created = f.owner.create(input, key);
+  const created = f.owner.create(OWNER_HUMAN_CONTEXT, input, key);
   const invite = {
     channelId: created.channel.id,
     botSlug: 'bob',
@@ -78,15 +79,15 @@ describe('canonical Channel management receipts', () => {
   it('preserves initial membership and reuses one Group after retry and restart without reverting a later rename', async () => {
     const f = fixture();
     expect(f.owner.lookupCreate(key, input)).toBeUndefined();
-    const created = f.owner.create(input, key);
+    const created = f.owner.create(OWNER_HUMAN_CONTEXT, input, key);
     expect(created.channel.members).toEqual(['ada']);
     expect(created.channel.ownerBotSlug).toBeUndefined();
     expect(created.channel.invitations).toBeUndefined();
-    expect(f.owner.create(input, key)).toEqual(created);
-    f.core.channels.rename(created.channel.id, 'Renamed later');
+    expect(f.owner.create(OWNER_HUMAN_CONTEXT, input, key)).toEqual(created);
+    f.core.channels.rename(OWNER_HUMAN_CONTEXT, created.channel.id, 'Renamed later');
     await f.close();
     const restarted = fixture(f.home);
-    const replay = restarted.owner.create(input, key);
+    const replay = restarted.owner.create(OWNER_HUMAN_CONTEXT, input, key);
     expect(replay.receipt).toEqual(created.receipt);
     expect(replay.channel.name).toBe('Renamed later');
     expect(
@@ -96,9 +97,9 @@ describe('canonical Channel management receipts', () => {
 
   it('supports an empty Group and rejects conflicting payload or operation kind with no additional Group', () => {
     const f = fixture();
-    const created = f.owner.create({ name: 'Empty', members: [] }, key);
+    const created = f.owner.create(OWNER_HUMAN_CONTEXT, { name: 'Empty', members: [] }, key);
     expect(created.channel.members).toEqual([]);
-    expect(() => f.owner.create(input, key)).toThrowError(
+    expect(() => f.owner.create(OWNER_HUMAN_CONTEXT, input, key)).toThrowError(
       expect.objectContaining({ code: 'operation-key-conflict' }),
     );
     expect(() =>
@@ -116,9 +117,9 @@ describe('canonical Channel management receipts', () => {
       [['tob'], 'protected-bot'],
       [['bob', 'bob'], 'invalid-input'],
     ] as const)
-      expect(() => f.owner.create({ name: 'Invalid', members: [...members] }, key)).toThrowError(
-        expect.objectContaining({ code }),
-      );
+      expect(() =>
+        f.owner.create(OWNER_HUMAN_CONTEXT, { name: 'Invalid', members: [...members] }, key),
+      ).toThrowError(expect.objectContaining({ code }));
     expect(
       f.database.read((db) => db.prepare('SELECT * FROM channel_management_operations').all()),
     ).toEqual([]);
@@ -128,11 +129,11 @@ describe('canonical Channel management receipts', () => {
   it('recovers a committed Group after a lost response with effect-free lookup', async () => {
     const f = fixture();
     const create = f.core.channels.createGroup.bind(f.core.channels);
-    const spy = vi.spyOn(f.core.channels, 'createGroup').mockImplementation((value) => {
-      create(value);
+    const spy = vi.spyOn(f.core.channels, 'createGroup').mockImplementation((human, value) => {
+      create(human, value);
       throw new Error('lost Group response');
     });
-    expect(() => f.owner.create(input, key)).toThrow('lost Group response');
+    expect(() => f.owner.create(OWNER_HUMAN_CONTEXT, input, key)).toThrow('lost Group response');
     const count = f.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
     const receipt = f.owner.lookupCreate(key, input)!;
     expect(receipt.receipt?.status).toBe('completed');
@@ -140,7 +141,9 @@ describe('canonical Channel management receipts', () => {
     spy.mockRestore();
     await f.close();
     const restarted = fixture(f.home);
-    expect(restarted.owner.create(input, key).receipt).toEqual(receipt.receipt);
+    expect(restarted.owner.create(OWNER_HUMAN_CONTEXT, input, key).receipt).toEqual(
+      receipt.receipt,
+    );
     expect(
       restarted.core.channels.list().filter((channel) => channel.type === 'group'),
     ).toHaveLength(1);
@@ -148,9 +151,9 @@ describe('canonical Channel management receipts', () => {
 
   it('never resurrects a deleted Group through a creation retry', () => {
     const f = fixture();
-    const created = f.owner.create(input, key);
+    const created = f.owner.create(OWNER_HUMAN_CONTEXT, input, key);
     f.core.channels.deleteGroup(created.channel.id);
-    expect(() => f.owner.create(input, key)).toThrowError(
+    expect(() => f.owner.create(OWNER_HUMAN_CONTEXT, input, key)).toThrowError(
       expect.objectContaining({ code: 'channel-operation-unavailable' }),
     );
     expect(f.core.channels.get(created.channel.id)).toBeUndefined();
@@ -158,7 +161,7 @@ describe('canonical Channel management receipts', () => {
 
   it('creates one pending invitation and admission, then replays it without auto-admitting or notifying twice', async () => {
     const f = inviteFixture();
-    const result = f.owner.invite(f.invite, 'invite-operation-001');
+    const result = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     expect(result.invitation).toMatchObject({
       targetBotSlug: 'bob',
       inviterHuman: true,
@@ -166,7 +169,7 @@ describe('canonical Channel management receipts', () => {
     });
     expect(result.channel.members).toEqual(['ada']);
     expect(f.admitted).toHaveBeenCalledTimes(1);
-    expect(f.owner.invite(f.invite, 'invite-operation-001')).toEqual(result);
+    expect(f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001')).toEqual(result);
     const before = f.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
     expect(f.owner.lookupInvite('invite-operation-001', f.invite)).toEqual(result);
     expect(f.core.operationalDatabase.diagnostics().metrics.transactionsCommitted).toBe(before);
@@ -180,7 +183,7 @@ describe('canonical Channel management receipts', () => {
     expect(sources()).toHaveLength(1);
     await f.close();
     const restarted = fixture(f.home);
-    const replay = restarted.owner.invite(f.invite, 'invite-operation-001');
+    const replay = restarted.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     expect(replay.receipt).toEqual(result.receipt);
     expect(replay.invitation?.status).toBe('pending');
     expect(restarted.admitted).not.toHaveBeenCalled();
@@ -188,9 +191,9 @@ describe('canonical Channel management receipts', () => {
 
   it('replays the same cancelled invitation instead of issuing a new invitation', () => {
     const f = inviteFixture();
-    const first = f.owner.invite(f.invite, 'invite-operation-001');
+    const first = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     f.core.channels.cancelGroupInvite(first.channel.id, first.invitation!.id);
-    const retry = f.owner.invite(f.invite, 'invite-operation-001');
+    const retry = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     expect(retry.invitation).toMatchObject({ id: first.invitation!.id, status: 'cancelled' });
     expect(retry.channel.invitations).toHaveLength(1);
     expect(f.admitted).toHaveBeenCalledTimes(1);
@@ -198,14 +201,14 @@ describe('canonical Channel management receipts', () => {
 
   it('returns the canonical accepted invitation after the invitee responds', () => {
     const f = inviteFixture();
-    const first = f.owner.invite(f.invite, 'invite-operation-001');
+    const first = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     f.core.channels.respondToGroupInvite({
       invitationId: first.invitation!.id,
       targetBotSlug: 'bob',
       targetBotCreatedAt: f.core.registry.get('bob')!.createdAt,
       accept: true,
     });
-    const replay = f.owner.invite(f.invite, 'invite-operation-001');
+    const replay = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     expect(replay.invitation?.status).toBe('accepted');
     expect(replay.channel.members).toEqual(['ada', 'bob']);
     expect(f.admitted).toHaveBeenCalledTimes(1);
@@ -218,9 +221,9 @@ describe('canonical Channel management receipts', () => {
       invite(value);
       throw new Error('lost invitation response');
     });
-    expect(() => f.owner.invite(f.invite, 'invite-operation-001')).toThrowError(
-      expect.objectContaining({ code: 'group-invite-unavailable' }),
-    );
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001'),
+    ).toThrowError(expect.objectContaining({ code: 'group-invite-unavailable' }));
     const replay = f.owner.lookupInvite('invite-operation-001', f.invite)!;
     expect(replay.receipt?.status).toBe('completed');
     expect(replay.channel.invitations).toHaveLength(1);
@@ -234,16 +237,17 @@ describe('canonical Channel management receipts', () => {
     spy.mockRestore();
     await f.close();
     const restarted = fixture(f.home);
-    expect(restarted.owner.invite(f.invite, 'invite-operation-001').receipt).toEqual(
-      replay.receipt,
-    );
+    expect(
+      restarted.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001').receipt,
+    ).toEqual(replay.receipt);
     expect(restarted.admitted).not.toHaveBeenCalled();
   });
 
   it('reuses an existing invitation without notifying again even with a distinct operation key', () => {
     const f = inviteFixture();
-    const first = f.owner.invite(f.invite, 'invite-operation-001');
+    const first = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     const second = f.owner.invite(
+      OWNER_HUMAN_CONTEXT,
       { ...f.invite, expectedChannel: first.channelFingerprint },
       'invite-operation-002',
     );
@@ -254,11 +258,11 @@ describe('canonical Channel management receipts', () => {
 
   it('binds invitation retries to the original Bot incarnation and refuses archived targets', () => {
     const f = inviteFixture();
-    f.owner.invite(f.invite, 'invite-operation-001');
+    f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001');
     f.core.registry.setPaused('bob', true);
-    expect(() => f.owner.invite(f.invite, 'invite-operation-001')).toThrowError(
-      expect.objectContaining({ code: 'archived-bot' }),
-    );
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001'),
+    ).toThrowError(expect.objectContaining({ code: 'archived-bot' }));
     f.core.registry.setPaused('bob', false);
     const get = f.core.registry.get.bind(f.core.registry);
     vi.spyOn(f.core.registry, 'get').mockImplementation((slug) => {
@@ -274,11 +278,12 @@ describe('canonical Channel management receipts', () => {
   it('preserves the existing auto-accept policy and rejects a policy changed after observation', () => {
     const f = inviteFixture();
     f.policy(true);
-    expect(() => f.owner.invite(f.invite, 'invite-operation-001')).toThrowError(
-      expect.objectContaining({ code: 'stale-channel' }),
-    );
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001'),
+    ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
     const current = f.owner.snapshot(f.created.channel.id);
     const result = f.owner.invite(
+      OWNER_HUMAN_CONTEXT,
       { ...f.invite, expectedChannel: current.channelFingerprint },
       'invite-operation-001',
     );
@@ -289,7 +294,7 @@ describe('canonical Channel management receipts', () => {
 
   it('rejects management metadata changes but ignores ordinary message activity for conflict detection', async () => {
     const f = inviteFixture();
-    await f.core.channels.appendMessage(f.created.channel.id, {
+    await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.created.channel.id, {
       id: 'message-1',
       author: { kind: 'human' },
       body: 'hello',
@@ -298,10 +303,10 @@ describe('canonical Channel management receipts', () => {
     expect(f.owner.snapshot(f.created.channel.id).channelFingerprint).toBe(
       f.created.channelFingerprint,
     );
-    f.core.channels.rename(f.created.channel.id, 'Changed');
-    expect(() => f.owner.invite(f.invite, 'invite-operation-001')).toThrowError(
-      expect.objectContaining({ code: 'stale-channel' }),
-    );
+    f.core.channels.rename(OWNER_HUMAN_CONTEXT, f.created.channel.id, 'Changed');
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001'),
+    ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
     expect(f.admitted).not.toHaveBeenCalled();
   });
 
@@ -313,18 +318,18 @@ describe('canonical Channel management receipts', () => {
       f.policy(true);
       return dm;
     });
-    expect(() => f.owner.invite(f.invite, 'invite-operation-001')).toThrowError(
-      expect.objectContaining({ code: 'stale-channel' }),
-    );
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite, 'invite-operation-001'),
+    ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
     expect(f.core.channels.get(f.created.channel.id)?.invitations).toBeUndefined();
   });
 
   it('blocks protected Tob as invitation target, initial member, or malformed existing Group owner', () => {
     const f = inviteFixture();
     expect(() =>
-      f.owner.invite({ ...f.invite, botSlug: 'tob' }, 'invite-protected-001'),
+      f.owner.invite(OWNER_HUMAN_CONTEXT, { ...f.invite, botSlug: 'tob' }, 'invite-protected-001'),
     ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
-    const malformed = f.core.channels.createGroup({
+    const malformed = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Invalid owner',
       members: ['tob'],
       ownerBotSlug: 'tob',
@@ -332,9 +337,9 @@ describe('canonical Channel management receipts', () => {
     expect(() => f.owner.snapshot(malformed.id)).toThrowError(
       expect.objectContaining({ code: 'protected-bot' }),
     );
-    expect(() => f.owner.invite({ channelId: malformed.id, botSlug: 'bob' })).toThrowError(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
+    expect(() =>
+      f.owner.invite(OWNER_HUMAN_CONTEXT, { channelId: malformed.id, botSlug: 'bob' }),
+    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
   });
 
   it('migrates generation 97 receipts without changing their Bot identity', () => {
@@ -367,7 +372,7 @@ describe('canonical Channel management receipts', () => {
 describe('reviewed Group edits', () => {
   it('shares reviewed Group ownership with the Human bridge and returns coded stale failures', () => {
     const f = fixture();
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry: f.core.registry,
       channels: f.core.channels,
       states: f.core.states,
@@ -375,7 +380,10 @@ describe('reviewed Group edits', () => {
       roster: f.core.roster,
       channelManagement: f.owner,
     });
-    const created = f.owner.create({ name: 'Bridge group', members: ['ada', 'bob'] });
+    const created = f.owner.create(OWNER_HUMAN_CONTEXT, {
+      name: 'Bridge group',
+      members: ['ada', 'bob'],
+    });
     const channelId = created.channel.id;
     expect(
       methods.channelRename({
@@ -406,7 +414,7 @@ describe('reviewed Group edits', () => {
       ok: true,
       value: { channel: { members: ['ada'] } },
     });
-    const dm = f.core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     expect(
       methods.channelRename({
         channelId: dm.id,
@@ -419,7 +427,10 @@ describe('reviewed Group edits', () => {
 
   function group() {
     const f = fixture();
-    const created = f.owner.create({ name: 'Research', members: ['ada', 'bob'] });
+    const created = f.owner.create(OWNER_HUMAN_CONTEXT, {
+      name: 'Research',
+      members: ['ada', 'bob'],
+    });
     return { ...f, id: created.channel.id, created };
   }
   function leave(f: ReturnType<typeof group>) {
@@ -435,14 +446,14 @@ describe('reviewed Group edits', () => {
 
   it('renames and changes avatar through the canonical owner, then persists both after restart', async () => {
     const f = group();
-    const renamed = f.owner.rename({
+    const renamed = f.owner.rename(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       name: 'Edited',
       expectedChannel: f.created.channelFingerprint,
     });
     expect(renamed.channel.name).toBe('Edited');
     expect(renamed.channelFingerprint).not.toBe(f.created.channelFingerprint);
-    const avatar = f.owner.setAvatar({
+    const avatar = f.owner.setAvatar(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       avatar: png,
       expectedChannel: renamed.channelFingerprint,
@@ -451,7 +462,7 @@ describe('reviewed Group edits', () => {
     await f.close();
     const restarted = fixture(f.home);
     expect(restarted.owner.snapshot(f.id).channel).toMatchObject({ name: 'Edited', avatar: png });
-    const cleared = restarted.owner.setAvatar({
+    const cleared = restarted.owner.setAvatar(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       avatar: null,
       expectedChannel: avatar.channelFingerprint,
@@ -462,24 +473,33 @@ describe('reviewed Group edits', () => {
   it('rejects invalid names and avatar bytes without changing the Group', () => {
     const f = group();
     for (const name of ['', ' '.repeat(3), 'x'.repeat(121), 'a\nb'])
-      expect(() => f.owner.rename({ channelId: f.id, name })).toThrowError(
+      expect(() => f.owner.rename(OWNER_HUMAN_CONTEXT, { channelId: f.id, name })).toThrowError(
         expect.objectContaining({ code: 'invalid-input' }),
       );
     expect(() =>
-      f.owner.setAvatar({ channelId: f.id, avatar: 'https://example.com/avatar.png' }),
+      f.owner.setAvatar(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        avatar: 'https://example.com/avatar.png',
+      }),
     ).toThrowError(expect.objectContaining({ code: 'invalid-input' }));
     expect(f.owner.snapshot(f.id).channelFingerprint).toBe(f.created.channelFingerprint);
   });
 
   it('binds each edit to the observed Group and refuses stale retried changes', () => {
     const f = group();
-    f.owner.rename({ channelId: f.id, name: 'New title' });
+    f.owner.rename(OWNER_HUMAN_CONTEXT, { channelId: f.id, name: 'New title' });
     const expectedChannel = f.created.channelFingerprint;
     const edits = [
-      () => f.owner.rename({ channelId: f.id, name: 'Reviewed old title', expectedChannel }),
-      () => f.owner.setAvatar({ channelId: f.id, avatar: png, expectedChannel }),
       () =>
-        f.owner.setWake({
+        f.owner.rename(OWNER_HUMAN_CONTEXT, {
+          channelId: f.id,
+          name: 'Reviewed old title',
+          expectedChannel,
+        }),
+      () =>
+        f.owner.setAvatar(OWNER_HUMAN_CONTEXT, { channelId: f.id, avatar: png, expectedChannel }),
+      () =>
+        f.owner.setWake(OWNER_HUMAN_CONTEXT, {
           channelId: f.id,
           botSlug: 'ada',
           mode: 'silent',
@@ -487,7 +507,12 @@ describe('reviewed Group edits', () => {
           intervalSeconds: 30,
           expectedChannel,
         }),
-      () => f.owner.removeMember({ channelId: f.id, botSlug: 'ada', expectedChannel }),
+      () =>
+        f.owner.removeMember(OWNER_HUMAN_CONTEXT, {
+          channelId: f.id,
+          botSlug: 'ada',
+          expectedChannel,
+        }),
     ];
     for (const edit of edits)
       expect(edit).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
@@ -496,7 +521,7 @@ describe('reviewed Group edits', () => {
 
   it('detects inherited wake-default changes even when the Group record is unchanged', () => {
     const f = group();
-    const before = f.owner.wakePolicies(f.id);
+    const before = f.owner.wakePolicies(OWNER_HUMAN_CONTEXT, f.id);
     expect(before.wakePolicies[0]).toMatchObject({
       botSlug: 'ada',
       inherited: true,
@@ -506,7 +531,7 @@ describe('reviewed Group edits', () => {
     expect(f.core.channels.get(f.id)).toEqual(before.channel);
     expect(f.owner.snapshot(f.id).channelFingerprint).not.toBe(before.channelFingerprint);
     expect(() =>
-      f.owner.setWake({
+      f.owner.setWake(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         botSlug: 'ada',
         mode: 'all',
@@ -515,8 +540,8 @@ describe('reviewed Group edits', () => {
         expectedChannel: before.channelFingerprint,
       }),
     ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
-    const current = f.owner.wakePolicies(f.id);
-    const changed = f.owner.setWake({
+    const current = f.owner.wakePolicies(OWNER_HUMAN_CONTEXT, f.id);
+    const changed = f.owner.setWake(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       botSlug: 'ada',
       mode: 'mentions',
@@ -528,7 +553,7 @@ describe('reviewed Group edits', () => {
       inherited: false,
       policy: { mode: 'mentions', lastActor: { kind: 'human' } },
     });
-    const reset = f.owner.setWake({
+    const reset = f.owner.setWake(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       botSlug: 'ada',
       mode: 'digest',
@@ -544,36 +569,39 @@ describe('reviewed Group edits', () => {
     const f = group();
     leave(f);
     for (const change of [
-      () => f.owner.wakePolicies(f.id),
-      () => f.owner.rename({ channelId: f.id, name: 'No' }),
-      () => f.owner.setAvatar({ channelId: f.id, avatar: png }),
+      () => f.owner.wakePolicies(OWNER_HUMAN_CONTEXT, f.id),
+      () => f.owner.rename(OWNER_HUMAN_CONTEXT, { channelId: f.id, name: 'No' }),
+      () => f.owner.setAvatar(OWNER_HUMAN_CONTEXT, { channelId: f.id, avatar: png }),
       () =>
-        f.owner.setWake({
+        f.owner.setWake(OWNER_HUMAN_CONTEXT, {
           channelId: f.id,
           botSlug: 'ada',
           mode: 'all',
           count: 5,
           intervalSeconds: 30,
         }),
-      () => f.owner.removeMember({ channelId: f.id, botSlug: 'ada' }),
+      () => f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'ada' }),
     ])
       expect(change).toThrowError(expect.objectContaining({ code: 'channel-access-denied' }));
     const second = group();
     const members = second.core.channels.listHumanMembers.bind(second.core.channels);
     let reads = 0;
-    vi.spyOn(second.core.channels, 'listHumanMembers').mockImplementation((id) => {
+    vi.spyOn(second.core.channels, 'listHumanMembers').mockImplementation((human, id) => {
       if (++reads === 2) leave(second);
-      return members(id);
+      return members(human, id);
     });
     expect(() =>
-      second.owner.rename({ channelId: second.id, name: 'Denied mid-operation' }),
+      second.owner.rename(OWNER_HUMAN_CONTEXT, {
+        channelId: second.id,
+        name: 'Denied mid-operation',
+      }),
     ).toThrowError(expect.objectContaining({ code: 'channel-access-denied' }));
     expect(second.core.channels.get(second.id)?.name).toBe('Research');
   });
 
   it('removes archived members once, keeping the departure event and owner cleanup canonical', () => {
     const f = fixture();
-    const created = f.core.channels.createGroup({
+    const created = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Owner group',
       members: ['ada', 'bob'],
       ownerBotSlug: 'ada',
@@ -585,7 +613,7 @@ describe('reviewed Group edits', () => {
     });
     f.core.registry.setPaused('ada', true);
     const before = f.owner.snapshot(created.id);
-    const removed = f.owner.removeMember({
+    const removed = f.owner.removeMember(OWNER_HUMAN_CONTEXT, {
       channelId: created.id,
       botSlug: 'ada',
       expectedChannel: before.channelFingerprint,
@@ -603,7 +631,7 @@ describe('reviewed Group edits', () => {
       );
     expect(departures()).toHaveLength(1);
     expect(() =>
-      f.owner.removeMember({
+      f.owner.removeMember(OWNER_HUMAN_CONTEXT, {
         channelId: created.id,
         botSlug: 'ada',
         expectedChannel: before.channelFingerprint,
@@ -612,9 +640,9 @@ describe('reviewed Group edits', () => {
     expect(departures()).toHaveLength(1);
     f.core.registry.setPaused('ada', false);
     f.policy(true);
-    f.owner.invite({ channelId: created.id, botSlug: 'ada' });
+    f.owner.invite(OWNER_HUMAN_CONTEXT, { channelId: created.id, botSlug: 'ada' });
     expect(() =>
-      f.owner.removeMember({
+      f.owner.removeMember(OWNER_HUMAN_CONTEXT, {
         channelId: created.id,
         botSlug: 'ada',
         expectedChannel: before.channelFingerprint,
@@ -626,18 +654,18 @@ describe('reviewed Group edits', () => {
 
   it('requires an existing Group member and protects Tob from member mutations', () => {
     const f = group();
-    expect(() => f.owner.removeMember({ channelId: f.id, botSlug: 'tob' })).toThrowError(
-      expect.objectContaining({ code: 'protected-bot' }),
-    );
-    expect(() => f.owner.removeMember({ channelId: f.id, botSlug: 'other' })).toThrowError(
-      expect.objectContaining({ code: 'not-group-member' }),
-    );
-    const dm = f.core.channels.getOrCreateDm('ada', 'Ada')!;
-    expect(() => f.owner.rename({ channelId: dm.id, name: 'No' })).toThrowError(
-      expect.objectContaining({ code: 'not-group-channel' }),
-    );
+    expect(() =>
+      f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'tob' }),
+    ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
+    expect(() =>
+      f.owner.removeMember(OWNER_HUMAN_CONTEXT, { channelId: f.id, botSlug: 'other' }),
+    ).toThrowError(expect.objectContaining({ code: 'not-group-member' }));
+    const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    expect(() =>
+      f.owner.rename(OWNER_HUMAN_CONTEXT, { channelId: dm.id, name: 'No' }),
+    ).toThrowError(expect.objectContaining({ code: 'not-group-channel' }));
     f.core.channels.deleteGroup(f.id);
-    expect(() => f.owner.rename({ channelId: f.id, name: 'No' })).toThrowError(
+    expect(() => f.owner.rename(OWNER_HUMAN_CONTEXT, { channelId: f.id, name: 'No' })).toThrowError(
       expect.objectContaining({ code: 'unknown-channel' }),
     );
   });
@@ -646,7 +674,7 @@ describe('reviewed Group edits', () => {
 describe('reviewed pending Group decisions', () => {
   function pendingInvite() {
     const f = inviteFixture();
-    const invited = f.owner.invite(f.invite);
+    const invited = f.owner.invite(OWNER_HUMAN_CONTEXT, f.invite);
     return {
       ...f,
       id: invited.channel.id,
@@ -656,12 +684,12 @@ describe('reviewed pending Group decisions', () => {
   }
   function pendingJoin() {
     const f = fixture();
-    const group = f.core.channels.createGroup({
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Owned Group',
       members: ['ada'],
       ownerBotSlug: 'ada',
     });
-    const ownerDm = f.core.channels.getOrCreateDm('ada', 'Ada')!;
+    const ownerDm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const request = f.core.channels.requestGroupJoin({
       channelId: group.id,
       requesterBotSlug: 'bob',
@@ -692,7 +720,7 @@ describe('reviewed pending Group decisions', () => {
     );
   }
   function bridge(f: ReturnType<typeof fixture>) {
-    return createBridgeMethods({
+    return createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry: f.core.registry,
       channels: f.core.channels,
       states: f.core.states,
@@ -705,7 +733,7 @@ describe('reviewed pending Group decisions', () => {
 
   it('cancels only a pending invitation, settles its admission and persists without touching membership', async () => {
     const f = pendingInvite();
-    const result = f.owner.cancelInvite({
+    const result = f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       invitationId: f.invitationId,
       expectedChannel: f.observed,
@@ -725,14 +753,14 @@ describe('reviewed pending Group decisions', () => {
     ).toEqual([{ attempt_state: 'handled' }]);
     const transactions = f.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
     expect(() =>
-      f.owner.cancelInvite({
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         invitationId: f.invitationId,
         expectedChannel: f.observed,
       }),
     ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
     expect(() =>
-      f.owner.cancelInvite({
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         invitationId: f.invitationId,
         expectedChannel: result.channelFingerprint,
@@ -750,10 +778,13 @@ describe('reviewed pending Group decisions', () => {
   it('does not reinterpret an automatically accepted invitation as removal', () => {
     const f = inviteFixture();
     f.policy(true);
-    const accepted = f.owner.invite({ channelId: f.created.channel.id, botSlug: 'bob' });
+    const accepted = f.owner.invite(OWNER_HUMAN_CONTEXT, {
+      channelId: f.created.channel.id,
+      botSlug: 'bob',
+    });
     expect(accepted.invitation?.status).toBe('accepted');
     expect(() =>
-      f.owner.cancelInvite({
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
         channelId: accepted.channel.id,
         invitationId: accepted.invitation!.id,
         expectedChannel: accepted.channelFingerprint,
@@ -770,8 +801,8 @@ describe('reviewed pending Group decisions', () => {
       return slug === 'bob' && record ? { ...record, paused: true } : record;
     });
     expect(
-      f.owner.cancelInvite({ channelId: f.id, invitationId: f.invitationId }).channel
-        .invitations?.[0]?.status,
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, { channelId: f.id, invitationId: f.invitationId })
+        .channel.invitations?.[0]?.status,
     ).toBe('cancelled');
     spy.mockRestore();
     const second = pendingInvite();
@@ -781,13 +812,19 @@ describe('reviewed pending Group decisions', () => {
       .spyOn(second.core.registry, 'get')
       .mockImplementation((slug) => (slug === 'bob' ? undefined : secondGet(slug)));
     expect(() =>
-      second.owner.cancelInvite({ channelId: second.id, invitationId: second.invitationId }),
+      second.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
+        channelId: second.id,
+        invitationId: second.invitationId,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'unknown-bot' }));
     missing.mockImplementation((slug) =>
       slug === 'bob' ? { ...target, createdAt: '2099-01-01T00:00:00.000Z' } : secondGet(slug),
     );
     expect(() =>
-      second.owner.cancelInvite({ channelId: second.id, invitationId: second.invitationId }),
+      second.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
+        channelId: second.id,
+        invitationId: second.invitationId,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'stale-profile' }));
     expect(second.core.channels.get(second.id)?.invitations?.[0]?.status).toBe('pending');
   });
@@ -796,7 +833,7 @@ describe('reviewed pending Group decisions', () => {
     'decides a pending request once (accept=%s), preserving canonical notification and Human replay',
     async (accept) => {
       const f = pendingJoin();
-      const result = f.owner.decideJoin({
+      const result = f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         requestId: f.requestId,
         accept,
@@ -819,11 +856,15 @@ describe('reviewed pending Group decisions', () => {
         ),
       ).toEqual([{ attempt_state: 'handled' }]);
       const transactions = f.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
-      expect(f.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept })).toEqual(
-        result,
-      );
+      expect(
+        f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+          channelId: f.id,
+          requestId: f.requestId,
+          accept,
+        }),
+      ).toEqual(result);
       expect(() =>
-        f.owner.decideJoin({
+        f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
           channelId: f.id,
           requestId: f.requestId,
           accept,
@@ -831,7 +872,7 @@ describe('reviewed pending Group decisions', () => {
         }),
       ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
       expect(() =>
-        f.owner.decideJoin({
+        f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
           channelId: f.id,
           requestId: f.requestId,
           accept,
@@ -845,8 +886,11 @@ describe('reviewed pending Group decisions', () => {
       await f.close();
       const restarted = fixture(f.home);
       expect(
-        restarted.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept }).channel
-          .joinRequests?.[0]?.status,
+        restarted.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+          channelId: f.id,
+          requestId: f.requestId,
+          accept,
+        }).channel.joinRequests?.[0]?.status,
       ).toBe(accept ? 'accepted' : 'declined');
       expect(restarted.joinDecided).not.toHaveBeenCalled();
     },
@@ -860,22 +904,38 @@ describe('reviewed pending Group decisions', () => {
       .spyOn(f.core.registry, 'get')
       .mockImplementation((slug) => (slug === 'bob' ? { ...target, paused: true } : get(slug)));
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept: false }),
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: f.requestId,
+        accept: false,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'archived-bot' }));
     changed.mockImplementation((slug) => (slug === 'bob' ? undefined : get(slug)));
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept: true }),
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: f.requestId,
+        accept: true,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'unknown-bot' }));
     changed.mockImplementation((slug) =>
       slug === 'bob' ? { ...target, createdAt: '2099-01-01T00:00:00.000Z' } : get(slug),
     );
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept: true }),
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: f.requestId,
+        accept: true,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'stale-profile' }));
     changed.mockRestore();
     leave(f, f.id);
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: f.requestId, accept: true }),
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: f.requestId,
+        accept: true,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'channel-access-denied' }));
     expect(decisionEvents(f)).toHaveLength(0);
     expect(f.joinDecided).not.toHaveBeenCalled();
@@ -887,11 +947,11 @@ describe('reviewed pending Group decisions', () => {
     const ensure = f.core.channels.getOrCreateDm.bind(f.core.channels);
     vi.spyOn(f.core.channels, 'getOrCreateDm').mockImplementation((...args) => {
       const dm = ensure(...args);
-      f.core.channels.rename(f.id, 'Changed during DM creation');
+      f.core.channels.rename(OWNER_HUMAN_CONTEXT, f.id, 'Changed during DM creation');
       return dm;
     });
     expect(() =>
-      f.owner.decideJoin({
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         requestId: f.requestId,
         accept: true,
@@ -904,11 +964,15 @@ describe('reviewed pending Group decisions', () => {
 
   it('reports unknown targets, protects acceptance of Tob and preserves Human protected-decline cleanup', () => {
     const f = pendingJoin();
-    expect(() => f.owner.cancelInvite({ channelId: f.id, invitationId: 'missing' })).toThrowError(
-      expect.objectContaining({ code: 'unknown-invitation' }),
-    );
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: 'missing', accept: true }),
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, { channelId: f.id, invitationId: 'missing' }),
+    ).toThrowError(expect.objectContaining({ code: 'unknown-invitation' }));
+    expect(() =>
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: 'missing',
+        accept: true,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'unknown-join-request' }));
     const tob = f.core.registry.create({ slug: 'tob', displayName: 'Tob' });
     if (!tob.ok) throw new Error('fixture Tob creation failed');
@@ -918,9 +982,17 @@ describe('reviewed pending Group decisions', () => {
       requesterBotCreatedAt: tob.record.createdAt,
     });
     expect(() =>
-      f.owner.decideJoin({ channelId: f.id, requestId: request.id, accept: true }),
+      f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+        channelId: f.id,
+        requestId: request.id,
+        accept: true,
+      }),
     ).toThrowError(expect.objectContaining({ code: 'protected-bot' }));
-    const declined = f.owner.decideJoin({ channelId: f.id, requestId: request.id, accept: false });
+    const declined = f.owner.decideJoin(OWNER_HUMAN_CONTEXT, {
+      channelId: f.id,
+      requestId: request.id,
+      accept: false,
+    });
     expect(declined.channel.joinRequests?.find((entry) => entry.id === request.id)?.status).toBe(
       'declined',
     );
@@ -932,22 +1004,26 @@ describe('reviewed pending Group decisions', () => {
     const admitted = vi
       .spyOn(f.core.runtime, 'admitGroupJoinDecision')
       .mockImplementation(() => {});
-    f.core.channelManagement.decideJoin({
+    f.core.channelManagement.decideJoin(OWNER_HUMAN_CONTEXT, {
       channelId: f.id,
       requestId: f.requestId,
       accept: true,
       expectedChannel: f.observed,
     });
     expect(admitted).toHaveBeenCalledExactlyOnceWith('dm-bob', f.requestId);
-    f.core.channelManagement.decideJoin({ channelId: f.id, requestId: f.requestId, accept: true });
+    f.core.channelManagement.decideJoin(OWNER_HUMAN_CONTEXT, {
+      channelId: f.id,
+      requestId: f.requestId,
+      accept: true,
+    });
     expect(admitted).toHaveBeenCalledTimes(1);
   });
 
   it('does not cancel after Human access is revoked or the target invitation changes', () => {
     const f = pendingInvite();
-    f.core.channels.rename(f.id, 'Changed while reviewing');
+    f.core.channels.rename(OWNER_HUMAN_CONTEXT, f.id, 'Changed while reviewing');
     expect(() =>
-      f.owner.cancelInvite({
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, {
         channelId: f.id,
         invitationId: f.invitationId,
         expectedChannel: f.observed,
@@ -955,7 +1031,7 @@ describe('reviewed pending Group decisions', () => {
     ).toThrowError(expect.objectContaining({ code: 'stale-channel' }));
     leave(f, f.id);
     expect(() =>
-      f.owner.cancelInvite({ channelId: f.id, invitationId: f.invitationId }),
+      f.owner.cancelInvite(OWNER_HUMAN_CONTEXT, { channelId: f.id, invitationId: f.invitationId }),
     ).toThrowError(expect.objectContaining({ code: 'channel-access-denied' }));
     expect(f.core.channels.get(f.id)?.invitations?.[0]?.status).toBe('pending');
   });

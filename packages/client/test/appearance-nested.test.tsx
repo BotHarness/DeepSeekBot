@@ -8,7 +8,9 @@ import { AppearancePanelHeader } from '../src/client/appearance-panel-header.js'
 import { panelMaterials, panelTargetId } from '../src/client/appearance-panels.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 vi.mock('../src/client/ds/pointer-menu.js', () => ({
   PointerMenu: ({
     items,
@@ -114,11 +116,11 @@ describe('nested functional appearance', () => {
       );
     try {
       render('file.md');
-      act(() =>
+      act(() => {
         host
           .querySelector('[data-appearance-header]')!
-          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
-      );
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      });
       expect(parent).not.toHaveBeenCalled();
       expect(host.querySelectorAll('[data-test-menu]')).toHaveLength(1);
       act(() => host.querySelector<HTMLButtonElement>('button')!.click());

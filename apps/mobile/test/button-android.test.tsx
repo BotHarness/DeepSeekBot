@@ -9,12 +9,17 @@ type Modifier = Record<string, unknown>;
 type ButtonProps = {
   enabled: boolean;
   onClick(): void;
-  colors?: { containerColor?: string; contentColor?: string };
+  colors?: {
+    containerColor?: string;
+    contentColor?: string;
+    disabledContainerColor?: string;
+    disabledContentColor?: string;
+  };
   modifiers: Modifier[];
   children: ReactNode;
 };
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
@@ -27,6 +32,7 @@ vi.hoisted(async () => {
   }
 });
 
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('@expo/ui/jetpack-compose', () => {
   const button =
@@ -40,6 +46,8 @@ vi.mock('@expo/ui/jetpack-compose', () => {
           onClick,
           'data-container': colors?.containerColor,
           'data-content': colors?.contentColor,
+          'data-disabled-container': colors?.disabledContainerColor,
+          'data-disabled-content': colors?.disabledContentColor,
           'data-modifiers': JSON.stringify(modifiers),
         },
         children,
@@ -86,7 +94,14 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       }),
     RNHostView: ({ children }: { children: ReactNode }) =>
       createElement('section', { 'data-testid': 'rn-host' }, children),
-    useMaterialColors: () => ({ error: 'role:error', onError: 'role:onError' }),
+    useMaterialColors: () => ({
+      error: 'role:error',
+      onError: 'role:onError',
+      primary: 'role:primary',
+      onPrimary: 'role:onPrimary',
+      secondaryContainer: 'role:secondaryContainer',
+      onSecondaryContainer: 'role:onSecondaryContainer',
+    }),
   };
 });
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
@@ -99,7 +114,9 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ scheme: 'light', touch: 48, color: { accent: 'seed' } }),
 }));
-vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ loading: 'Loading' }) }));
+vi.mock('../src/ui/strings', () => ({
+  useStrings: () => ({ loading: 'Loading', selectedChoice: 'Selected' }),
+}));
 
 import type { ButtonSymbol } from '../src/ui/primitives/button';
 import { Button } from '../src/ui/primitives/button.android';
@@ -223,3 +240,27 @@ it('is the only Android button: creation screens reuse it', () => {
   expect(existsSync(creation.replace(/\.tsx$/, '.android.tsx'))).toBe(false);
   expect(readFileSync(creation, 'utf8')).toBe("export { Button } from './button';\n");
 });
+
+it.each([
+  ['primary', 'role:primary', 'role:onPrimary'],
+  ['secondary', 'role:secondaryContainer', 'role:onSecondaryContainer'],
+  ['danger', 'role:error', 'role:onError'],
+] as const)(
+  'keeps a disabled selected %s outcome visible and refuses another press',
+  async (tone, fill, ink) => {
+    const onPress = vi.fn();
+    const view = await mount(
+      <Button label="Choice" tone={tone} selected disabled onPress={onPress} />,
+    );
+    const button = view.querySelector('button')!;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('data-disabled-container')).toBe(fill);
+    expect(button.getAttribute('data-disabled-content')).toBe(ink);
+    expect(button.textContent).toBe('Choice · Selected');
+    expect(modifiers(button)).toContainEqual({
+      semantics: { contentDescription: 'Choice · Selected' },
+    });
+    await act(async () => button.click());
+    expect(onPress).not.toHaveBeenCalled();
+  },
+);

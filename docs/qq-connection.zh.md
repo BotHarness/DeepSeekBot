@@ -25,7 +25,7 @@
 
 展开**接收区间**查看暂停、屏蔽、等待允许和连接记录。**本地控制边界**来自本地操作，**本地观察时间**来自连接检查。异常重启后，**连续性未验证**范围覆盖上次观察到下次检查之间的时间。这些区间不能证明漏收数量。每个应用保留最近 128 条已结束区间和当前区间，不另存消息副本。
 
-见 [#1153](https://github.com/BotHarness/BotHarness/issues/1153) 与 [ADR-0152](adr/0152-qq-reception-intervals-record-local-observations.md)。
+见 [#1153](https://github.com/BotHarness/BotHarness/issues/1153) 与 [ADR-0152](decisions/im-providers.md#adr-0152)。
 
 ## 两个 Bot 使用同一个 QQ 群
 
@@ -104,7 +104,7 @@ QQ 没有向这个 consumer 提供群历史接口或持久恢复游标，断线�
 
 [#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155) 开发候选从 Provider 的 QQ 独占受检消费者转交普通文字。收集仍默认只收 @。软件能力不证明应用具备全量权限：必须有一条真实、非 @ 的新原生群事件到达当前接收器，现有 Client 才能为这个会话开启**所有消息**。只收 @ 模式下的探测提供当前投递证明，其普通内容不会进入 canonical 收集或唤醒 Bot。
 
-保存的收集偏好与当前接收器证据分别显示。显式开启后，符合条件的普通文字保留成员、群及消息归属，进入现有本地 Inbox／Channel 路径。Observation 与条数／时间聚合可以独立于直接提及唤醒 Bot，但不要求逐条回复。主动参与使用独立授权的同 App 主动发送路径。本片不包含普通媒体或 QQ 远程群历史。
+保存的收集偏好与当前接收器证据分别显示。显式开启后，符合条件的普通消息保留成员、群及消息归属，进入现有本地 Inbox／Channel 路径。#3221 候选明确把此前仅限文字的切片扩展到直接携带的受支持图片和文件，前提是连接器已协商对应附件能力。仅提及收集仍排除普通消息；能力禁用或格式不支持时仍不可读。普通引用媒体、语音和 QQ 远程群历史保持不变。Observation 与条数／时间聚合可以独立于直接提及唤醒 Bot，但不要求逐条回复。主动参与使用独立授权的同 App 主动发送路径；接收普通媒体不授予被动回复权限。此次扩展尚未完成 QQ 实网验收。
 
 切回只收 @ 会停止后续普通收集。屏蔽、停用或失去接收器沿用现有门禁；重连保存有效偏好，当前投递证据则需重新取得。屏蔽接收期间的旧事件不会证明重新允许会话后的资格，也不会补造缺失历史。此候选的真实 QQ 事件、Client 开启收集、理解及主动参与验收仍待完成。
 
@@ -115,7 +115,7 @@ QQ 没有向这个 consumer 提供群历史接口或持久恢复游标，断线�
 - 来源过期时，在 QQ 发送新的 @ 提及。发送结果不确定时，先到原群核对，再请求另一条消息。
 - 检查 Bot、绑定和会话是否启用并允许。暂停、屏蔽和解绑会撤销尚未发送的权限。
 
-[Provider 接入指南](dev/guides/im-provider-integration.md) 与 [ADR-0151](adr/0151-qq-group-replies-use-authenticated-apps-and-process-local-source-proof.md) 记录实现边界。
+[Provider 接入指南](dev/guides/im-provider-integration.md) 与 [ADR-0151](decisions/im-providers.md#adr-0151) 记录实现边界。
 
 ## 接收并播放群语音
 

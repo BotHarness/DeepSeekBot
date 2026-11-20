@@ -1,15 +1,21 @@
+import { bridgeMethodInventory } from './bridge-method-inventory.js';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { Context } from '@deepseek-ai/cordis';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { scopeTarget } from '@deepseek-ai/dsh-scope';
+import { SessionId } from '@deepseek-ai/dsh-session';
+import { SubagentRunId } from '@deepseek-ai/dsh-subagent';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   apply,
+  createCore,
   inject,
   mountOperationalDatabase,
   name,
@@ -32,6 +38,7 @@ interface Stubs {
   sessions: { list: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn> };
   agents: {
     create: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
     resume: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
   };
@@ -53,13 +60,13 @@ afterEach(async () => {
 });
 
 function createStubContext(): { ctx: Context; stubs: Stubs } {
-  const ctx = new Context();
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
   contexts.push(ctx);
   const stubs: Stubs = {
     tools: { register: vi.fn(() => () => undefined), guard: vi.fn(() => () => undefined) },
     systemPrompt: { section: vi.fn(() => () => undefined) },
     sessions: { list: vi.fn(() => []), get: vi.fn() },
-    agents: { create: vi.fn(), resume: vi.fn(), list: vi.fn(() => []) },
+    agents: { create: vi.fn(), get: vi.fn(), resume: vi.fn(), list: vi.fn(() => []) },
     skills: { register: vi.fn(() => () => undefined) },
   };
   ctx.provide('tools', stubs.tools);
@@ -70,7 +77,265 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
   return { ctx, stubs };
 }
 
+function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } } } }) {
+  return stubs.skills.register.mock.calls.filter(
+    ([skill]) => (skill as { name?: string }).name === 'reading-operational-logs',
+  );
+}
+
 describe('plugin entry', () => {
+  it('refreshes the selected Skill view when a live Orchestrator Agent attaches and detaches', async () => {
+    const { ctx, stubs } = createStubContext();
+    const list = vi.fn(async (options?: { cwd?: string; scope?: object }) =>
+      options?.cwd === undefined
+        ? []
+        : [
+            {
+              name: options.scope === agent ? 'live' : 'preset',
+              description: 'Project Skill',
+              source: 'project-agents',
+              path: join(options.cwd, '.agents/skills/qa/SKILL.md'),
+              invocation: { userInvocable: true },
+            },
+          ],
+    );
+    const skills = Object.assign(stubs.skills, {
+      list,
+      async get() {
+        return undefined;
+      },
+      registerProvider: vi.fn(() => () => {}),
+    });
+    ctx.provide('agentPresets', {
+      serviceFor: () => skills,
+      async acquireScope() {
+        return { key: {}, async [Symbol.asyncDispose]() {} };
+      },
+    } as never);
+    const agent = {
+      ctx,
+      session: { id: 'ada-live', header: {}, snapshotEvents: () => [] },
+    };
+    apply(ctx, { enabled: true });
+    const core = ctx.get('botharness');
+    const bridge = ctx.get('botharnessBridge');
+    if (core === undefined || bridge === undefined) throw new Error('Core unavailable');
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+    vi.spyOn(core.runtime, 'currentOrchestratorSessionId').mockReturnValue('ada-live');
+    const changed = vi.spyOn(core.live, 'publishSkillCatalogChanged');
+    await vi.waitFor(async () => {
+      expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'preset' }]);
+    });
+    stubs.agents.list.mockReturnValue([agent]);
+    changed.mockClear();
+    await ctx.serial('agent/created', { agent, source: 'startup' } as never);
+    expect(changed).toHaveBeenCalledExactlyOnceWith({ botSlugs: ['ada'], channelIds: [dm.id] });
+    expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'live' }]);
+    stubs.agents.list.mockReturnValue([]);
+    changed.mockClear();
+    ctx.emit('agent/disposed', { agent } as never);
+    expect(changed).toHaveBeenCalledExactlyOnceWith({ botSlugs: ['ada'], channelIds: [dm.id] });
+    expect((await bridge.channelSkillCatalog(dm.id)).skills).toMatchObject([{ name: 'preset' }]);
+  });
+
+  it('binds a native Subagent activation before a later parent turn can take its usage', () => {
+    const { ctx, stubs } = createStubContext();
+    apply(ctx, { enabled: true });
+    const core: BotHarnessCore | undefined = ctx.get('botharness');
+    if (!core?.usage) throw new Error('Usage unavailable');
+    expect(core.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+    const db = attachOperationalModule(core.operationalDatabase, 'subagent-attribution-test');
+    const at = Date.now();
+    core.ownership.claim({
+      sessionId: 'parent',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: new Date(at).toISOString(),
+    });
+    core.ownership.claim({
+      sessionId: 'child',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'subagent',
+      parentSessionId: 'parent',
+      at: new Date(at).toISOString(),
+    });
+    const parentTurn = (human: string, turn: number) => {
+      db.transaction((connection) =>
+        connection
+          .prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)')
+          .run('parent', human, at),
+      );
+      core.usage!.handleSessionEvent('parent', {
+        type: 'turn/start',
+        seq: turn,
+        time: at,
+        data: { turn },
+      });
+    };
+    parentTurn('alice', 1);
+    stubs.agents.get.mockReturnValue({ session: { header: { parentSession: 'parent' } } });
+    ctx.emit('subagent/start', {
+      id: SessionId('child'),
+      runId: SubagentRunId('activation'),
+      provider: 'spawn',
+      local: true,
+    });
+    parentTurn('bob', 2);
+    core.usage.handleSessionEvent('child', {
+      type: 'turn/start',
+      seq: 1,
+      time: at + 1,
+      data: { turn: 1 },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'assistant/message',
+      seq: 2,
+      time: at + 2,
+      data: {
+        turn: 1,
+        usage: {
+          inputTokens: 10,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 10,
+        },
+      },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'turn/start',
+      seq: 3,
+      time: at + 3,
+      data: { turn: 2 },
+    });
+    core.usage.handleSessionEvent('child', {
+      type: 'assistant/message',
+      seq: 4,
+      time: at + 4,
+      data: {
+        turn: 2,
+        usage: {
+          inputTokens: 10,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 10,
+        },
+      },
+    });
+    expect(core.usage.byMember('today', 'local-human', (slug) => slug).members).toMatchObject([
+      { humanId: 'alice', totals: { totalTokens: 20 } },
+    ]);
+  });
+
+  it('drains member cleanup before closing the operational database on actual Cordis disposal', async () => {
+    const { ctx } = createStubContext();
+    apply(ctx, { enabled: true });
+    const core: BotHarnessCore | undefined = ctx.get('botharness');
+    if (!core) throw new Error('Core unavailable');
+    const db = attachOperationalModule(core.operationalDatabase, 'shutdown-member-test');
+    db.transaction((connection) => {
+      connection
+        .prepare("INSERT INTO humans VALUES ('bob', 'Bob', 'deactivated', '2026-11-14')")
+        .run();
+      connection.prepare("INSERT INTO human_roles VALUES ('bob', 'member')").run();
+      connection
+        .prepare("INSERT INTO member_credentials VALUES ('bob', 'bob', '{}', '[]', 0)")
+        .run();
+    });
+    core.team.spaces.ensureAccount('bob');
+    expect(
+      core.registry.create({
+        slug: 'bob-private',
+        displayName: 'Private Bob name',
+        ownerHumanId: 'bob',
+      }).ok,
+    ).toBe(true);
+    let release!: () => void;
+    let entered!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const retry = core.deletions.retry.bind(core.deletions);
+    vi.spyOn(core.deletions, 'retry').mockImplementation(async (slug) => {
+      entered();
+      await pending;
+      return retry(slug);
+    });
+    const settled = vi.spyOn(core.contentPurge, 'memberSettled');
+    const close = vi.spyOn(core.operationalDatabase, 'close');
+    const preview = core.team.purgePreview(OWNER_HUMAN_CONTEXT, 'bob');
+    const purge = core.team.purgeConfirm(OWNER_HUMAN_CONTEXT, 'bob', preview.token, 'bob');
+    void purge.catch(() => {});
+    await started;
+    const shutdown = ctx.fiber.dispose();
+    try {
+      await vi.waitFor(() => expect(settled).toHaveBeenCalledTimes(2));
+      expect(close).not.toHaveBeenCalled();
+      expect(core.operationalDatabase.mode).toBe('ready');
+    } finally {
+      release();
+      await Promise.allSettled([purge, shutdown]);
+    }
+    await expect(purge).resolves.toBeNull();
+    expect(close).toHaveBeenCalledOnce();
+    const read = new DatabaseSync(join(process.env['DSH_HOME']!, 'botharness', 'botharness.db'), {
+      readOnly: true,
+    });
+    try {
+      const record = read
+        .prepare(
+          "SELECT json_extract(body, '$.displayName') AS name FROM persona_bots WHERE slug = 'bob-private'",
+        )
+        .get();
+      expect(record).toEqual({ name: '' });
+      expect(
+        read
+          .prepare(
+            "SELECT json_extract(body, '$.displayName') AS name FROM persona_bot_deletions WHERE slug = 'bob-private'",
+          )
+          .get(),
+      ).toEqual({ name: '' });
+    } finally {
+      read.close();
+    }
+  });
+
+  it('uses the canonical Team Owner for the Core live hub after transfer', async () => {
+    const core = createCore({ dshHome: createTempRoot('core-live-owner-') });
+    try {
+      await core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'owner-password-1');
+      await core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+      const created = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'bob', 'Bob');
+      const human = humanContext(created.member.humanId);
+      await core.team.changePassword(human, created.initialPassword, 'member-password-1');
+      core.registry.create({ slug: 'owner-bot', displayName: 'Owner Bot' });
+      const channel = core.channels.getOrCreateRemoteBotDm('owner-bot', {
+        hostId: 'remote-host',
+        botSlug: 'remote-bot',
+        displayName: 'Remote',
+      });
+      if (!channel) throw new Error('missing DM');
+      const request = () =>
+        new Request(`http://localhost/api/botharness/stream?channelId=${channel.id}`);
+      const before = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await before.body?.cancel();
+      expect(before.status).toBe(200);
+      await core.team.transferOwner(OWNER_HUMAN_CONTEXT, human.humanId, 'owner-password-1');
+      const after = core.live.open(OWNER_HUMAN_CONTEXT, request());
+      await after.body?.cancel();
+      expect(after.status).toBe(404);
+    } finally {
+      core.live.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it.each([
     ['browser', 'browser_open', 'browser_observe', 'botharnessBrowserTools'],
     ['computer', 'computer_click', 'computer_type_text', 'botharnessComputerTools'],
@@ -102,6 +367,12 @@ describe('plugin entry', () => {
         apply(ctx, { enabled: true });
         const core = ctx.get('botharness') as unknown as BotHarnessCore;
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const origin = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+        if (!origin) throw new Error('Missing device fixture DM');
+        vi.spyOn(core.runtime, 'toolApprovalOrigin').mockReturnValue({
+          kind: 'turn',
+          channelId: origin.id,
+        });
         core.ownership.claim({
           sessionId: 'device-session',
           botSlug: 'ada',
@@ -146,19 +417,34 @@ describe('plugin entry', () => {
         const owner = tracked.mock.contexts.at(-1);
         if (!(owner instanceof ChannelToolApproval)) throw new Error('Missing approval owner');
         await vi.waitFor(() => expect(owner.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'allowed-always-tool');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'allowed-always-tool',
+        );
         expect(await first).toEqual({ kind: 'allow' });
         expect(markAuthorized).not.toHaveBeenCalled();
         expect(await run(toolName, 'repeat')).toEqual({ kind: 'allow' });
         const sibling = run(siblingName, 'sibling');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await sibling).toMatchObject({ kind: 'deny' });
         const rule = core.toolRules.list('ada').find((rule) => rule.toolName === toolName)!;
         core.toolRules.revoke('ada', rule.id);
         const revoked = run(toolName, 'revoked');
         await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
-        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        await owner.decide(
+          OWNER_HUMAN_CONTEXT,
+          'ada',
+          owner.requests('ada')[0]!.messageId,
+          'rejected',
+        );
         expect(await revoked).toMatchObject({ kind: 'deny' });
         expect(markAuthorized).not.toHaveBeenCalled();
       } finally {
@@ -353,7 +639,17 @@ describe('plugin entry', () => {
     apply(ctx, { enabled: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(stubs.skills.register).not.toHaveBeenCalled();
+    expect(logsSkill(stubs)).toHaveLength(0);
+  });
+
+  it('always offers the local voice skill', async () => {
+    const { ctx, stubs } = createStubContext();
+    apply(ctx, { enabled: true });
+    await vi.waitFor(() =>
+      expect(
+        stubs.skills.register.mock.calls.map(([skill]) => (skill as { name: string }).name),
+      ).toContain('setting-up-local-voice'),
+    );
   });
 
   it('restores and updates developer mode from native settings without a Client', async () => {
@@ -368,26 +664,26 @@ describe('plugin entry', () => {
       describe: () => [{ ns: 'botharness-client', revision: 1, value: { developerMode: enabled } }],
     } as never);
     apply(ctx, { enabled: true });
-    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(logsSkill(stubs)).toHaveLength(1));
     enabled = false;
     settingsEvents.emit('settings/document-updated', 'botharness-client', 2);
     expect(dispose).toHaveBeenCalledOnce();
     enabled = true;
     settingsEvents.emit('settings/document-updated', 'unrelated', 3);
-    expect(stubs.skills.register).toHaveBeenCalledOnce();
+    expect(logsSkill(stubs)).toHaveLength(1);
     settingsEvents.emit('settings/document-updated', 'botharness-client', 4);
-    expect(stubs.skills.register).toHaveBeenCalledTimes(2);
+    expect(logsSkill(stubs)).toHaveLength(2);
   });
 
   it('applies persisted developer mode when native Settings becomes available later', async () => {
     const { ctx, stubs } = createStubContext();
     apply(ctx, { enabled: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(stubs.skills.register).not.toHaveBeenCalled();
+    expect(logsSkill(stubs)).toHaveLength(0);
     ctx.provide('settings', {
       describe: () => [{ ns: 'botharness-client', revision: 0, value: { developerMode: true } }],
     } as never);
-    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(logsSkill(stubs)).toHaveLength(1));
   });
 
   it('rebuilds the activity projection from owned Session logs and follows live events', () => {
@@ -551,295 +847,7 @@ describe('plugin entry', () => {
     expect(bridge?.typertRemote.namespace).toBe('botharness');
     expect(
       remoteMethods(bridge as object).map((marker) => marker.exportName ?? marker.method),
-    ).toEqual([
-      'privateInputStatus',
-      'privateInputSubmit',
-      'privateInputCancel',
-      'privateAccountStatus',
-      'privateInputReplace',
-      'privateAccountRevoke',
-      'privateAccounts',
-      'privateMcpServerRemove',
-      'privateMcpServerEnable',
-      'messagingDefaults',
-      'messagingDefaultsSet',
-      'channelBridges',
-      'channelBridge',
-      'channelIngests',
-      'channelIngest',
-      'messagingChannelTarget',
-      'messagingReceive',
-      'messagingGroupPolicy',
-      'messagingThreadPolicy',
-      'messagingSource',
-      'messagingIdentity',
-      'approvalRoute',
-      'approvalTest',
-      'approvalRetry',
-      'failureAlertsSet',
-      'failureAlertsTest',
-      'failureAlertsRetry',
-      'pairingReview',
-      'senderAccess',
-      'cloudConnections',
-      'cloudWork',
-      'messagingApps',
-      'messagingSnapshot',
-      'messagingTargets',
-      'messagingReachable',
-      'messagingPostConversation',
-      'messagingPostRequest',
-      'messagingPostLimit',
-      'messagingAuthorize',
-      'messagingRevoke',
-      'messagingConversation',
-      'messagingSend',
-      'tobHome',
-      'onboarding',
-      'onboardingModel',
-      'telemetryEvent',
-      'modelPlanInherit',
-      'channelRetry',
-      'botNewSession',
-      'botCompact',
-      'botContext',
-      'botSystemPrompt',
-      'botTurnInput',
-      'channelBotStop',
-      'modelCatalog',
-      'modelPresets',
-      'modelPresetCreate',
-      'modelPresetUpdate',
-      'modelPresetApply',
-      'modelPlan',
-      'modelPlanCustomize',
-      'modelPlanAssignmentsSet',
-      'modelPlanSet',
-      'list',
-      'activitySnapshot',
-      'get',
-      'create',
-      'createLookup',
-      'zipUploadBegin',
-      'zipUploadChunk',
-      'zipUploadPreview',
-      'zipImportLookup',
-      'zipImport',
-      'botImportPreview',
-      'botImportLookup',
-      'createFromGit',
-      'update',
-      'dataResetPreview',
-      'dataResetConfirm',
-      'deletionPreview',
-      'deletionConfirm',
-      'deletionRetry',
-      'deletionMemoryFolder',
-      'pause',
-      'resume',
-      'channels',
-      'humanIdentity',
-      'composerIdentity',
-      'composerValidate',
-      'humanNameSet',
-      'channelHumanNameSet',
-      'channelDm',
-      'channelGet',
-      'channelCreate',
-      'channelRename',
-      'channelGroupAvatarSet',
-      'channelGroupInvite',
-      'channelGroupInviteCancel',
-      'channelGroupMemberRemove',
-      'channelGroupJoinDecide',
-      'channelGroupSendReview',
-      'channelGroupWakeSet',
-      'channelGroupWakePolicies',
-      'channelGroupDelete',
-      'channelHistory',
-      'channelHistorySources',
-      'channelPurgePreview',
-      'channelPurgeConfirm',
-      'storageUsage',
-      'storageCleanupPreview',
-      'storageCleanupConfirm',
-      'storageMessagesCleanupPreview',
-      'storageMessagesCleanupConfirm',
-      'channelMessages',
-      'channelTimeline',
-      'channelReadPosition',
-      'channelMarkRead',
-      'channelMarkAllRead',
-      'channelReact',
-      'channelSearch',
-      'messageSearch',
-      'channelUnreadCounts',
-      'channelAllBotPreview',
-      'channelSend',
-      'channelSendStatus',
-      'botAttention',
-      'botSourcePolicies',
-      'botSourcePolicySet',
-      'botSourcePolicyReset',
-      'activityOverview',
-      'channelActivityToday',
-      'humanAttention',
-      'humanAssignmentContext',
-      'humanAttentionStatus',
-      'humanAttentionIgnore',
-      'humanAttentionDismiss',
-      'humanAttentionRestore',
-      'humanAttentionSnooze',
-      'assignments',
-      'channelAssignments',
-      'assignment',
-      'assignmentTimeline',
-      'sessionSubagents',
-      'workspaceOptions',
-      'messageAttachmentTarget',
-      'channelMediaTarget',
-      'workspaceFileTarget',
-      'folderBrowse',
-      'grants',
-      'grantCreate',
-      'grantRevoke',
-      'grantWriteSet',
-      'grantRequestApprove',
-      'assignmentAccessGet',
-      'assignmentAccessSet',
-      'toolApprovalRules',
-      'toolApprovalRuleRevoke',
-      'toolApprovalHistory',
-      'toolApprovalStatus',
-      'toolApprovalDecide',
-      'toolAutoRejectionOverride',
-      'userQuestionStatus',
-      'userQuestionAnswer',
-      'sessions',
-      'botToolTrace',
-      'botTools',
-      'botToolRun',
-      'sessionArchiveSet',
-      'memoryMove',
-      'sessionOwner',
-      'botSessionIds',
-      'memoryFileTarget',
-      'memorySnapshot',
-      'memoryFile',
-      'memoryHistory',
-      'memoryDiff',
-      'memoryGitGraph',
-      'memoryGitCommitDiff',
-      'memoryWorkingChanges',
-      'memoryWorkingDiff',
-      'memoryRecoveryHistory',
-      'memoryRestore',
-      'memorySave',
-      'memoryRestoreCommit',
-      'memoryNameVersion',
-      'memoryRemoveVersionName',
-      'memoryVersions',
-      'memoryRepair',
-      'profileActivity',
-      'profileSessionUsage',
-      'overviewMemory',
-      'overviewUsage',
-      'profileUsage',
-      'groupProfileActivity',
-      'rosterGet',
-      'sectionCreate',
-      'sectionRename',
-      'sectionRemove',
-      'channelAssign',
-      'sectionReorder',
-      'topReorder',
-      'pinsSet',
-      'hiddenSet',
-      'channelMuteSet',
-      'rosterBatch',
-      'developerModeSet',
-      'computerAccessSet',
-      'browserAccessSet',
-      'browserProfileSet',
-      'approvalTemplates',
-      'promptParts',
-      'promptPresets',
-      'promptPresetCreate',
-      'promptPresetUpdate',
-      'promptPresetDelete',
-      'promptGlobalSet',
-      'botPrompt',
-      'botPromptSet',
-      'approvalTemplateCreate',
-      'approvalTemplateUpdate',
-      'approvalTemplateDelete',
-      'botApprovalTemplateSet',
-      'approvalReviewerModel',
-      'approvalReviewerModelSet',
-      'idleCompaction',
-      'idleCompactionSet',
-      'idleCompactionCacheLifetimeSet',
-      'compactionThresholdSet',
-      'standingLimitsSet',
-      'botAvatarSet',
-      'botAppearanceSet',
-      'botPrimaryColorSet',
-      'partLibraryList',
-      'partLibraryAdd',
-      'partLibraryExport',
-      'partLibraryImport',
-      'partLibraryImportImage',
-      'botBannerSet',
-      'marketplaceList',
-      'marketplaceSubmit',
-      'marketplaceTopics',
-      'marketplaceSections',
-      'marketplaceDigests',
-      'marketplaceDigest',
-      'marketplaceDetail',
-      'marketplaceFileView',
-      'marketplaceChallenge',
-      'marketplaceReport',
-      'marketplaceAccount',
-      'marketplaceAuthorSave',
-      'marketplaceAuthorAvatarSet',
-      'marketplaceUploadPlan',
-      'marketplaceUpload',
-      'marketplaceInstallReview',
-      'marketplaceMine',
-      'marketplaceDelete',
-      'shareDraftStart',
-      'shareDraftGet',
-      'shareDraftFile',
-      'shareDraftDecide',
-      'shareDraftFinish',
-      'shareDraftDiscard',
-      'shareDraftExport',
-      'marketplaceInstall',
-      'releaseInfo',
-      'releaseUpdate',
-      'releaseInstall',
-      'releaseRestart',
-      'pluginUpdates',
-      'pluginInstall',
-      'pluginRestart',
-      'telemetryStatus',
-      'telemetrySet',
-      'gitStatus',
-      'gitInstall',
-      'scheduleList',
-      'scheduleCreate',
-      'scheduleUpdate',
-      'scheduleDelete',
-      'scheduleHistory',
-      'scheduleRunNow',
-      'schedulePreview',
-      'channelJournalPage',
-      'followRoster',
-      'followActivity',
-      'followChannel',
-      'followCompanion',
-    ]);
+    ).toEqual(bridgeMethodInventory);
   });
 
   it('opens the roster domain when storageDomain is served', async () => {

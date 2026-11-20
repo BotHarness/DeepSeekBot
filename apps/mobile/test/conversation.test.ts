@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import {
   createConversation,
   reactable,
@@ -8,11 +8,11 @@ import {
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
-} from '../src/host/conversation';
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback } from '../src/host/conversation-playback';
 import { messageForDisplay } from '../src/host/message-display';
-import { FakeHost, type FakeChannel } from './fake-host';
-import wire from './fixtures/host-wire.json';
+import { FakeHost, type FakeChannel } from '../../../packages/host-client/test/fake-host.js';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -42,9 +42,7 @@ function open(
   {
     noChannel,
     ...options
-  }: Partial<Parameters<typeof createConversation>[0]> & {
-    noChannel?: true;
-  } = {},
+  }: Partial<Parameters<typeof createConversation>[0]> & { noChannel?: true } = {},
 ): Conversation {
   client = createHostClient({
     routes: [ROUTE],
@@ -198,6 +196,58 @@ describe('DM conversation', () => {
     });
   });
 
+  it.each(['success', 'failure'])(
+    'can page after reopening while an old request ends with %s',
+    async (outcome) => {
+      const host = new FakeHost();
+      const channel = host.channel(DM);
+      seed(channel, 25);
+      const target = open(host);
+      await until(target, (snapshot) => snapshot.status === 'live');
+      const gate = () => {
+        let resolve!: () => void;
+        const promise = new Promise<void>((done) => {
+          resolve = done;
+        });
+        return { promise, resolve };
+      };
+      const oldGate = gate();
+      const newGate = gate();
+      let requests = 0;
+      host.methods.set('channelJournalPage', async () => {
+        const old = ++requests === 1;
+        const gate = old ? oldGate : newGate;
+        await gate.promise;
+        if (old && outcome === 'failure') throw new Error('Old connection lost');
+        return channel.page(25, 16, 8);
+      });
+      try {
+        const oldRequest = target.loadOlder();
+        await vi.waitFor(() => expect(requests).toBe(1));
+        target.stop();
+        target.start();
+        await until(target, (snapshot) => snapshot.status === 'live');
+        expect(target.getSnapshot().loadingOlder).toBe(false);
+        const newRequest = target.loadOlder();
+        await vi.waitFor(() => expect(requests).toBe(2));
+        oldGate.resolve();
+        await oldRequest;
+        expect(target.getSnapshot().loadingOlder).toBe(true);
+        await target.loadOlder();
+        expect(requests).toBe(2);
+        newGate.resolve();
+        await newRequest;
+        expect(target.getSnapshot().loadingOlder).toBe(false);
+        expect(revisions(target.getSnapshot())).toEqual(
+          Array.from({ length: 18 }, (_, index) => index + 8),
+        );
+        expect(new Set(ids(target.getSnapshot())).size).toBe(18);
+      } finally {
+        oldGate.resolve();
+        newGate.resolve();
+      }
+    },
+  );
   it('keeps loaded history after a failed earlier page and clears the error on explicit retry', async () => {
     const host = new FakeHost();
     seed(host.channel(DM), 25);
@@ -223,7 +273,7 @@ describe('DM conversation', () => {
     expect(new Set(ids(target.getSnapshot())).size).toBe(18);
   });
 
-  it.each(['allowed-once', 'allowed-always-tool'] as const)(
+  it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
     'marks request cards and %s history',
     async (outcome) => {
       const host = new FakeHost();
@@ -264,6 +314,13 @@ describe('DM conversation', () => {
         channelId: DM,
         subject: 'bash',
         command: 'ls /w',
+        approvalContent: {
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/w',
+          input: '{"command":"ls /w"}',
+          allowAlways: false,
+        },
       });
       expect(decided?.resolves).toEqual({
         requestId: 'ask-tool',
@@ -411,6 +468,47 @@ describe('DM conversation', () => {
     expect(reactable(live.messages[1]!)).toBe(false);
   });
 
+  it('opens live history while a cache read never completes', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 2);
+    const target = open(host, {
+      cache: {
+        read: () => new Promise(() => {}),
+        write: () => {},
+      },
+    });
+    const live = await until(target, (s) => s.status === 'live');
+    expect(ids(live)).toEqual(['human-1', 'bot-2']);
+    expect(live.fromCache).toBe(false);
+  });
+
+  it.each([false, true])(
+    'does not resurrect stale cached messages after an empty live page (interrupted: %s)',
+    async (interrupted) => {
+      const staleHost = new FakeHost();
+      seed(staleHost.channel(DM), 2);
+      const stale = staleHost.channel(DM).page(2, undefined, 2)!;
+      let release: (value: CachedConversation) => void = () => {};
+      const pending = new Promise<CachedConversation>((resolve) => {
+        release = resolve;
+      });
+      const host = new FakeHost();
+      host.channel(DM);
+      const target = open(host, {
+        cache: { read: () => pending, write: () => {} },
+      });
+      await until(target, (s) => s.status === 'live');
+      if (interrupted) {
+        host.kill();
+        await until(target, (s) => s.status === 'interrupted');
+      }
+      release({ entries: stale.entries, hasOlder: false });
+      await pending;
+      await Promise.resolve();
+      expect(target.getSnapshot().messages).toEqual([]);
+      expect(target.getSnapshot().fromCache).toBe(false);
+    },
+  );
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);
@@ -524,6 +622,138 @@ describe('DM conversation', () => {
       messageId: id,
       replyTo: 'human-1',
     });
+  });
+
+  it('shows another person on their own side under their name, and the signed-in person as self', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'bob-1',
+        body: 'hi alice',
+        author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'alice-1',
+        body: 'hi bob',
+        author: { kind: 'human', humanId: 'human-alice', displayName: 'Alice' },
+        replyTo: 'bob-1',
+        replyToPreview: {
+          author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+          body: 'hi alice',
+        },
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'bob-2',
+        body: 'quoting you',
+        author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+        replyTo: 'alice-1',
+        replyToPreview: {
+          author: { kind: 'human', humanId: 'human-alice', displayName: 'Alice' },
+          body: 'hi bob',
+        },
+      },
+      false,
+    );
+    const target = open(host, { selfHumanId: 'human-alice' });
+    const live = await until(target, (s) => s.status === 'live' && s.messages.length === 3);
+    expect(live.messages[0]).toMatchObject({
+      author: 'person',
+      person: { humanId: 'human-bob', name: 'Bob' },
+    });
+    expect(live.messages[1]).toMatchObject({
+      author: 'human',
+      replyPreview: { author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' } },
+    });
+    expect(live.messages[1]).not.toHaveProperty('person');
+    expect(live.messages[2]).toMatchObject({
+      author: 'person',
+      replyPreview: { author: { kind: 'human' } },
+    });
+    expect(live.messages[2]?.replyPreview?.author).toEqual({ kind: 'human' });
+    expect(messageForDisplay(live.messages[0]!).author).toEqual({
+      kind: 'human',
+      humanId: 'human-bob',
+      displayName: 'Bob',
+    });
+  });
+
+  it('keeps the media hint of a quoted voice, image or file message', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    const photo = {
+      fileId: 'file:00000000-0000-4000-8000-000000000001',
+      name: 'photo.jpg',
+      mime: 'image/jpeg',
+      size: 10,
+      thumbhash: 'abc',
+    };
+    channel.append(
+      {
+        id: 'bot-voice',
+        author: { kind: 'bot', slug: SLUG },
+        body: 'Spoken',
+        voice: { state: 'ready', attachment: 'voice', durationMs: 7000 },
+      },
+      false,
+    );
+    channel.append({ id: 'human-photo', attachments: [photo, photo] }, false);
+    channel.append(
+      {
+        id: 'human-file',
+        body: 'report',
+        attachments: [{ ...photo, name: 'Q3.pdf', mime: 'application/pdf' }],
+      },
+      false,
+    );
+    channel.append(
+      {
+        id: 'human-reply',
+        body: 'that one',
+        replyTo: 'bot-voice',
+        replyToPreview: {
+          author: { kind: 'bot', slug: SLUG },
+          body: 'Spoken',
+          media: { kind: 'voice', durationMs: 7000 },
+        },
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live');
+    expect(live.messages.at(-1)?.replyPreview?.media).toEqual({ kind: 'voice', durationMs: 7000 });
+    expect(live.messages[0]?.voice).toEqual({ state: 'ready', durationMs: 7000 });
+    expect(live.messages.at(-1)).not.toHaveProperty('replyThumbnail');
+    const quoted = (replyTo: string) => {
+      target.send('re', [], { replyTo });
+      return target.getSnapshot().messages.at(-1);
+    };
+    const thumbnail = quoted('human-photo')?.replyThumbnail;
+    expect(thumbnail?.thumbhash).toBe('abc');
+    expect(thumbnail?.source.uri).toContain('messageId=human-photo');
+    expect(thumbnail?.source.uri).toContain(encodeURIComponent(photo.fileId));
+    expect(quoted('human-file')).not.toHaveProperty('replyThumbnail');
+    const pending = (replyTo: string) => {
+      target.send('re', [], { replyTo });
+      return target.getSnapshot().messages.at(-1)?.replyPreview;
+    };
+    expect(pending('bot-voice')).toEqual({
+      author: { kind: 'bot', slug: SLUG },
+      body: 'Spoken',
+      media: { kind: 'voice', durationMs: 7000 },
+    });
+    expect(pending('human-photo')).toEqual({
+      author: { kind: 'human' },
+      body: '',
+      media: { kind: 'image', count: 2, thumbnail: photo },
+    });
+    expect(pending('human-file')?.media).toEqual({ kind: 'file', name: 'Q3.pdf', count: 1 });
   });
 
   it('shows reactions from the journal and follows reaction changes live', async () => {
@@ -788,6 +1018,36 @@ describe('DM conversation', () => {
         local: false,
       },
     ]);
+  });
+
+  it('keeps bridged video as an explicit original-file action and does not expose its cover as an eager image', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'native-video',
+        author: { kind: 'bridged', source: 'lark' },
+        body: '',
+        bridgeMedia: {
+          video: { attachmentId: 'clip', posterAttachmentId: 'cover' },
+          items: [
+            { id: 'clip', kind: 'video', name: 'clip.mp4' },
+            { id: 'cover', kind: 'image', name: 'cover' },
+          ],
+        },
+        bridgeOrigin: { sourceEventId: 'video-event' } as never,
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 1);
+    expect(live.messages[0]?.attachments).toHaveLength(1);
+    expect(live.messages[0]?.attachments[0]).toMatchObject({
+      kind: 'file',
+      name: 'clip.mp4',
+      local: false,
+      source: { uri: expect.stringContaining('attachmentId=clip') },
+    });
   });
 
   it('shows cleared media as a cleared file card without a download source', async () => {

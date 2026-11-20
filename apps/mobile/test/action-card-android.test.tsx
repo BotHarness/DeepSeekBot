@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
@@ -17,7 +17,9 @@ vi.hoisted(async () => {
     }
 });
 
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native', async () => await import('./react-native-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('@expo/ui/jetpack-compose', async () => (await import('./compose-card-shim')).compose);
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
@@ -29,13 +31,16 @@ vi.mock(
   () => import('../src/ui/primitives/loading-indicator.android'),
 );
 vi.mock('../src/ui/chat/action-card', () => import('../src/ui/chat/action-card.android'));
+vi.mock('../src/ui/chat/approval-diff', () => import('../src/ui/chat/approval-diff.android'));
 vi.mock('../src/ui/design/theme', async () => {
-  const { theme } = await import('./compose-card-shim');
-  return { useDesignTheme: () => theme };
+  const { resolveTheme } = await import('../src/ui/design/resolve-theme');
+  return { useDesignTheme: () => resolveTheme('light', {}, 'android') };
 });
 
-import type { QuestionItem } from '../src/host/wire';
-import { emptyDraft } from '../src/host/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
+import type { ApprovalRequest } from '@botharness/host-client/requests';
+import type { ApprovalCardPort } from '../src/ui/chat/approval-card';
+import { emptyDraft } from '@botharness/host-client/requests';
 import {
   ActionCard,
   CardButtons,
@@ -47,7 +52,13 @@ import {
 import { FileDiff } from '../src/ui/chat/approval-diff.android';
 import { QuestionFields } from '../src/ui/chat/question-fields.android';
 import { Button } from '../src/ui/primitives/button.android';
+import { cardChoiceColors } from '../src/ui/design/controls';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
+import { edge, radius } from '../src/ui/design/tokens';
 import { t } from '../src/ui/strings';
+
+const theme = resolveTheme('light', {}, 'android');
+const { ApprovalCard } = await import('../src/ui/chat/approval-card');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -66,6 +77,48 @@ function modifiers(element: Element | null): Modifier[] {
 }
 const all = (view: Element, name: string) => [...view.querySelectorAll(`[data-compose="${name}"]`)];
 const texts = (view: Element) => all(view, 'Text').map((text) => text.textContent);
+
+function expectCapsule(control: HTMLButtonElement, rest: string, pressed = rest) {
+  for (const [state, fill] of [
+    ['rest', rest],
+    ['pressed', pressed],
+  ]) {
+    const style = JSON.parse(control.getAttribute(`data-${state}-style`) ?? '{}');
+    expect(style).toMatchObject({
+      minHeight: theme.touch,
+      minWidth: theme.touch,
+      borderRadius: radius.round,
+      backgroundColor: fill,
+    });
+    expect(Object.keys(style).filter((name) => /^(border|outline)/.test(name))).toEqual([
+      'borderRadius',
+    ]);
+  }
+}
+
+function expectOption(control: HTMLButtonElement, rest: string, pressed = rest) {
+  for (const [state, fill] of [
+    ['rest', rest],
+    ['pressed', pressed],
+  ]) {
+    const style = JSON.parse(control.getAttribute(`data-${state}-style`) ?? '{}');
+    expect(style).toMatchObject({
+      minHeight: theme.touch,
+      minWidth: theme.touch,
+      borderTopColor: theme.layer.well.divider,
+      backgroundColor: fill,
+    });
+  }
+}
+
+function optionLetter(control: HTMLButtonElement, letter: string) {
+  const badge = control.querySelector('[data-testid="question-option-letter"]');
+  expect(badge?.textContent).toBe(letter);
+  const style = JSON.parse(badge?.getAttribute('data-style') ?? '{}');
+  expect(style).toMatchObject({ borderRadius: radius.round });
+  expect(style.width).toBe(style.height);
+  return style;
+}
 
 describe('ActionCard on Android', () => {
   it('is one Material 3 card in one Host, with its buttons drawn in the same Compose tree', async () => {
@@ -88,7 +141,15 @@ describe('ActionCard on Android', () => {
     expect(all(view, 'RNHostView')).toHaveLength(0);
     const card = all(view, 'Card')[0]!;
     expect(card.getAttribute('data-border')).toBeNull();
-    expect(card.getAttribute('data-colors')).toBeNull();
+    expect(JSON.parse(card.getAttribute('data-colors')!)).toEqual({
+      containerColor: theme.layer.raised.fill,
+      contentColor: theme.color.fg,
+    });
+    expect(
+      all(card, 'Text')
+        .find((text) => text.textContent === 'Needs you')
+        ?.getAttribute('data-color'),
+    ).toBe(theme.color.warning);
     expect(modifiers(card)).toContainEqual({ testID: 'action-card' });
     expect(texts(card)).toEqual(
       expect.arrayContaining(['Terminal', 'Needs you', 'Run this command', 'git status']),
@@ -123,8 +184,27 @@ describe('ActionCard on Android', () => {
       expect(modifiers(button)).not.toContainEqual({ fillMaxWidth: true });
     expect(JSON.parse(all(view, 'Card')[0]!.getAttribute('data-border')!)).toEqual({
       width: 2,
-      color: 'accent',
+      color: theme.color.accent,
     });
+  });
+
+  it('stacks three or more decisions full width, looking through fragments', async () => {
+    const view = await mount(
+      <ActionCard category="Run failed" title="Details">
+        <CardButtons>
+          <Button label="Continue" tone="primary" onPress={() => {}} />
+          <>
+            <Button label="Compact" onPress={() => {}} />
+            <Button label="New session" onPress={() => {}} />
+          </>
+          {null}
+          <Button label="Report" onPress={() => {}} />
+        </CardButtons>
+      </ActionCard>,
+    );
+    expect(all(view, 'FlowRow')).toHaveLength(1);
+    for (const button of all(view, 'FilledTonalButton'))
+      expect(modifiers(button)).toContainEqual({ fillMaxWidth: true });
   });
 
   it('opens Details in place and shows each argument', async () => {
@@ -184,7 +264,7 @@ describe('question options on Android', () => {
     options: [{ label: 'main', description: 'The default branch' }, { label: 'dev' }],
   };
 
-  it('answers a single choice from a native radio row', async () => {
+  it('answers a single choice from a React Native radio pressable', async () => {
     const pick = vi.fn();
     const view = await mount(
       <QuestionFields
@@ -197,19 +277,36 @@ describe('question options on Android', () => {
         onPick={pick}
       />,
     );
-    expect(all(view, 'RadioButton')).toHaveLength(2);
-    expect(all(view, 'Checkbox')).toHaveLength(0);
-    const rows = all(view, 'Row');
-    expect(texts(rows[0]!)).toEqual([t.option('A', 'main'), 'The default branch']);
-    expect(modifiers(rows[1]!)).toContainEqual({
-      toggleable: { value: false, role: 'radioButton', enabled: true },
+    const rows = [...view.querySelectorAll<HTMLButtonElement>('button[role="radio"]')];
+    expect(rows).toHaveLength(2);
+    const group = view.querySelector('[data-testid="question-options"]');
+    expect(rows[0]!.parentElement).toBe(group);
+    expect(rows[1]!.parentElement).toBe(group);
+    const groupStyle = JSON.parse(group?.getAttribute('data-style') ?? '{}');
+    expect(groupStyle.backgroundColor).toBe(theme.layer.well.fill);
+    expect(groupStyle).not.toHaveProperty('borderWidth');
+    const first = JSON.parse(rows[0]!.getAttribute('data-rest-style') ?? '{}');
+    const next = JSON.parse(rows[1]!.getAttribute('data-rest-style') ?? '{}');
+    expect(first.borderTopWidth).toBe(0);
+    expect(next.borderTopWidth).toBe(edge.hairline);
+    expect(rows[0]!.closest('[data-compose="RNHostView"]')).not.toBeNull();
+    expect(rows[0]!.getAttribute('aria-label')).toBe(t.option('A', 'main'));
+    expect(rows[0]!.textContent).toContain('The default branch');
+    expect(rows[1]!.getAttribute('aria-checked')).toBe('false');
+    expectOption(rows[0]!, theme.layer.well.fill, theme.layer.well.pressed);
+    const badge = optionLetter(rows[0]!, 'A');
+    expect(badge).not.toHaveProperty('backgroundColor');
+    expect(badge).toMatchObject({
+      borderStyle: 'dashed',
+      borderWidth: edge.hairline,
+      borderColor: theme.color.muted,
     });
-    await act(async () => (rows[1] as HTMLElement).click());
+    await act(async () => rows[1]!.click());
     expect(pick).toHaveBeenCalledWith('dev');
     expect(view.querySelector('textarea')).not.toBeNull();
   });
 
-  it('toggles multiple choices with native checkboxes and locks them while busy', async () => {
+  it('toggles multiple choices with checkbox pressables and locks them while busy', async () => {
     const change = vi.fn();
     const multiple = { ...question, multiSelect: true };
     const draft = { ...emptyDraft(), selected: ['main'] };
@@ -223,13 +320,20 @@ describe('question options on Android', () => {
         onChange={change}
       />,
     );
-    expect(all(view, 'Checkbox').map((box) => box.getAttribute('data-value'))).toEqual([
+    const checkboxes = [...view.querySelectorAll<HTMLButtonElement>('button[role="checkbox"]')];
+    expect(checkboxes.map((checkbox) => checkbox.getAttribute('aria-checked'))).toEqual([
       'true',
       'false',
     ]);
+    const selected = optionLetter(checkboxes[0]!, 'A');
+    expect(selected).toMatchObject({ backgroundColor: theme.color.accent, borderWidth: 0 });
+    expect(selected).not.toHaveProperty('borderColor');
+    expect(selected).not.toHaveProperty('borderStyle');
+    expect(optionLetter(checkboxes[1]!, 'B')).toMatchObject({ borderStyle: 'dashed' });
+    expectOption(checkboxes[0]!, theme.layer.well.chosen);
     expect(texts(view)).toEqual(expect.arrayContaining(['Which branch?', t.replyInChat]));
     expect(view.querySelector('textarea')).toBeNull();
-    await act(async () => (all(view, 'Row')[1] as HTMLElement).click());
+    await act(async () => checkboxes[1]!.click());
     expect(change).toHaveBeenCalledWith(expect.objectContaining({ selected: ['main', 'dev'] }));
 
     change.mockClear();
@@ -245,7 +349,10 @@ describe('question options on Android', () => {
         />,
       ),
     );
-    await act(async () => (all(view, 'Row')[1] as HTMLElement).click());
+    expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
+    expectOption(checkboxes[0]!, theme.layer.well.chosen);
+    expectOption(checkboxes[1]!, theme.layer.well.fill);
+    await act(async () => checkboxes[1]!.click());
     expect(change).not.toHaveBeenCalled();
   });
 
@@ -283,9 +390,81 @@ it('draws an approval diff in Compose and shows the rest on demand', async () =>
     ),
   )!;
   expect(all(diff, 'Text')).toHaveLength(40);
-  expect(all(diff, 'Text')[0]!.getAttribute('data-color')).toBe('success');
+  expect(all(diff, 'Text')[0]!.getAttribute('data-color')).toBe(theme.color.success);
   const more = all(view, 'TextButton')[0]!;
   expect(more.textContent).toBe(t.diffMore(5));
   await act(async () => (more as HTMLElement).click());
   expect(all(diff, 'Text')).toHaveLength(45);
 });
+
+it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
+  'keeps %s approval results with a locked, selected pressable',
+  async (outcome) => {
+    const request: ApprovalRequest = {
+      channelId: 'dm-qa',
+      messageId: 'qa-request',
+      botSlug: 'qa',
+      toolName: 'bot_send_message',
+      role: 'orchestrator',
+      cwd: '/qa/workspace',
+      input: JSON.stringify({ body: 'QA approval body' }),
+      allowAlways: true,
+      status: 'pending',
+    };
+    const port: ApprovalCardPort = { load: async () => request, decide: async () => 'accepted' };
+    const decide = vi.spyOn(port, 'decide');
+    const view = await mount(<ApprovalCard port={port} subject="bot_send_message" />);
+    const detail = all(view, 'TextButton').find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'action-card-details'),
+    );
+    if (!(detail instanceof HTMLElement)) throw new Error('Details missing');
+    await act(async () => detail.click());
+    const chosenID =
+      outcome === 'allowed-once'
+        ? 'approval-allow-once'
+        : outcome === 'allowed-always-tool'
+          ? 'approval-always-allow'
+          : 'approval-deny';
+    const decisions = [
+      ['approval-allow-once', 'primary', t.allowOnce],
+      ['approval-always-allow', 'secondary', t.alwaysAllow],
+      ['approval-deny', 'danger', t.reject],
+    ] as const;
+    const controls = decisions.map(([id, tone, label]) => ({
+      id,
+      tone,
+      label,
+      control: view.querySelector<HTMLButtonElement>(`button[data-testid="${id}"]`)!,
+    }));
+    for (const { control, tone, label } of controls) {
+      expect(control.getAttribute('role')).toBe('button');
+      expect(control.getAttribute('aria-label')).toBe(label);
+      expect(control.closest('[data-compose="RNHostView"]')).not.toBeNull();
+      expectCapsule(
+        control,
+        cardChoiceColors(theme, tone).fill,
+        cardChoiceColors(theme, tone, 'pressed').fill,
+      );
+    }
+    const chosen = controls.find(({ id }) => id === chosenID)!.control;
+    await act(async () => chosen.click());
+    expect(decide).toHaveBeenCalledExactlyOnceWith(outcome);
+    expect(texts(view)).toContain('/qa/workspace');
+    const result = all(view, 'Text').find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-result'),
+    );
+    expect(result).toBeDefined();
+    expect(result?.parentElement?.getAttribute('data-compose')).toBe('Column');
+    expect(chosen.textContent).toContain(t.selectedChoice);
+    for (const { control, tone } of controls) {
+      expect(control.disabled).toBe(true);
+      expect(control.getAttribute('aria-selected')).toBe(String(control === chosen));
+      expectCapsule(
+        control,
+        cardChoiceColors(theme, tone, control === chosen ? 'selected-disabled' : 'disabled').fill,
+      );
+    }
+    await act(async () => chosen.click());
+    expect(decide).toHaveBeenCalledOnce();
+  },
+);

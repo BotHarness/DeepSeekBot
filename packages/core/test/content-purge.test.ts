@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -37,8 +38,11 @@ async function ended(
   options: Partial<Parameters<typeof mountContentPurge>[0]> = {},
 ) {
   const core = mount(home, options);
-  const channel = core.channels.createGroup({ name: 'Disposable purge QA', members: [] });
-  await core.channels.appendMessage(channel.id, {
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Disposable purge QA',
+    members: [],
+  });
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'qa-message',
     at: '2026-10-08T00:00:00.000Z',
     author: { kind: 'human' },
@@ -46,34 +50,48 @@ async function ended(
     attachments: [],
   });
   core.channels.deleteGroup(channel.id);
-  const source = core.purge.sources(channel.id).sources[0]!;
+  const source = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources[0]!;
   return { ...core, home, channel, source };
 }
 function accept(core: Awaited<ReturnType<typeof ended>>) {
-  const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
-  return core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+  const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+    core.source.sourceEventId,
+  ]);
+  return core.purge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    core.channel.id,
+    preview.sourceEventIds,
+    preview.token,
+  );
 }
 
 describe('owning Content Purge tracer', () => {
   it('ends participation, retains history, and a cancelled preview writes nothing', async () => {
     const core = await ended();
     expect(core.channels.get(core.channel.id)).toBeUndefined();
-    expect(core.purge.history()).toHaveLength(1);
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toHaveLength(1);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(preview.placements).toMatchObject([{ channelId: core.channel.id }]);
     expect(core.purge.checkpoint().facts).toEqual([]);
-    expect(core.purge.sources(core.channel.id).sources[0]?.body).toBe('synthetic-secret-body');
+    expect(core.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe(
+      'synthetic-secret-body',
+    );
     expect(
-      await core.channels.appendMessageOnce(core.channel.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, core.channel.id, {
         id: 'late',
         at: '2026-10-08T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'late',
       }),
     ).toEqual({ status: 'missing' });
-    const replacement = core.channels.createGroup({ name: core.channel.name, members: [] });
+    const replacement = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: core.channel.name,
+      members: [],
+    });
     expect(replacement.id).not.toBe(core.channel.id);
-    expect(core.purge.history()).toMatchObject([{ id: core.channel.id }]);
+    expect(core.purge.history(OWNER_HUMAN_CONTEXT)).toMatchObject([{ id: core.channel.id }]);
     expect(core.channels.readMessages(replacement.id)).toEqual([]);
   });
   it('retains audit and causal tombstones across cold restart, without bodies in its real checkpoint', async () => {
@@ -89,7 +107,7 @@ describe('owning Content Purge tracer', () => {
       ),
     ).toBe(false);
     const restarted = mount(core.home);
-    expect(restarted.purge.sources(core.channel.id).sources[0]).toMatchObject({
+    expect(restarted.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]).toMatchObject({
       body: '',
       purgedAt: expect.any(String),
     });
@@ -98,15 +116,27 @@ describe('owning Content Purge tracer', () => {
   it('rejects expired, forged and changed-reference previews without accepting facts', async () => {
     let time = Date.parse('2026-10-08T00:00:00.000Z');
     const core = await ended(undefined, { now: () => new Date(time) });
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token + 'bad'),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token + 'bad',
+      ),
     ).toThrow();
     time += 300_001;
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token,
+      ),
     ).toThrow('expired');
-    const fresh = core.purge.preview(core.channel.id, preview.sourceEventIds);
+    const fresh = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, preview.sourceEventIds);
     core.port.transaction((db) =>
       db
         .prepare(
@@ -114,9 +144,9 @@ describe('owning Content Purge tracer', () => {
         )
         .run(core.channel.id),
     );
-    expect(() => core.purge.confirm(core.channel.id, fresh.sourceEventIds, fresh.token)).toThrow(
-      'Scope changed',
-    );
+    expect(() =>
+      core.purge.confirm(OWNER_HUMAN_CONTEXT, core.channel.id, fresh.sourceEventIds, fresh.token),
+    ).toThrow('Scope changed');
     expect(core.purge.checkpoint().facts).toEqual([]);
   });
   it.each(['after-acceptance', 'during-application'] as const)(
@@ -133,7 +163,9 @@ describe('owning Content Purge tracer', () => {
       core.database.close();
       const restarted = mount(core.home);
       expect(restarted.database.mode).toBe('ready');
-      expect(restarted.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+      expect(restarted.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe(
+        '',
+      );
       expect(restarted.purge.checkpoint().facts).toHaveLength(1);
     },
   );
@@ -143,8 +175,15 @@ describe('owning Content Purge tracer', () => {
     core.database.close();
     copyFileSync(join(core.home, 'botharness', 'botharness.db'), snapshot);
     const current = mount(core.home);
-    const preview = current.purge.preview(core.channel.id, [core.source.sourceEventId]);
-    current.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token);
+    const preview = current.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
+    current.purge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      core.channel.id,
+      preview.sourceEventIds,
+      preview.token,
+    );
     const destination = current.purge.checkpoint();
     current.database.close();
     copyFileSync(snapshot, join(core.home, 'botharness', 'botharness.db'));
@@ -166,7 +205,7 @@ describe('owning Content Purge tracer', () => {
     };
     const restored = mount(core.home, { restoring: true, restoreCheckpoint: packageCheckpoint });
     expect(restored.database.mode).toBe('ready');
-    expect(restored.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+    expect(restored.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
     expect(restored.purge.checkpoint().facts).toEqual(
       expect.arrayContaining([...destination.facts, ...packageCheckpoint.facts]),
     );
@@ -223,11 +262,14 @@ describe('owning Content Purge tracer', () => {
           .run(core.source.sourceEventId),
       ),
     ).toThrow();
-    expect(core.purge.sources(core.channel.id).sources[0]?.body).toBe('');
+    expect(core.purge.sources(OWNER_HUMAN_CONTEXT, core.channel.id).sources[0]?.body).toBe('');
   });
   it('previews all shared placements and refuses a newly live placement or managed file before acceptance', async () => {
     const core = await ended();
-    const second = core.channels.createGroup({ name: 'Shared disposable Group', members: [] });
+    const second = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared disposable Group',
+      members: [],
+    });
     core.channels.deleteGroup(second.id);
     core.port.transaction((db) =>
       db
@@ -236,7 +278,9 @@ describe('owning Content Purge tracer', () => {
         )
         .run(second.id, core.source.sourceEventId, core.source.messageId),
     );
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     expect(preview.placements).toHaveLength(2);
     core.port.transaction((db) =>
       db
@@ -246,7 +290,12 @@ describe('owning Content Purge tracer', () => {
         .run(core.source.sourceEventId),
     );
     expect(() =>
-      core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+      core.purge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        core.channel.id,
+        preview.sourceEventIds,
+        preview.token,
+      ),
     ).toThrow('outside current Human read access');
     expect(core.purge.checkpoint().facts).toHaveLength(0);
   });
@@ -289,6 +338,39 @@ describe('owning Content Purge tracer', () => {
     rmSync(path);
     expect(() => openPurgeLedger(path, false)).toThrow('missing');
   });
+  it('drops the excerpt of a quote whose target is purged and keeps the quoting message', async () => {
+    const core = mount(createTempRoot('purge-quotes-'));
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Quoted purge QA',
+      members: [],
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+      id: 'target',
+      at: '2026-10-08T00:00:00.000Z',
+      author: { kind: 'human' },
+      body: 'Secret plan: launch on Friday.',
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+      id: 'quoting',
+      at: '2026-10-08T00:01:00.000Z',
+      author: { kind: 'human' },
+      body: 'Still on?',
+      quotes: [{ messageId: 'target', text: 'launch on Friday', note: 'Is it?' }],
+    });
+    core.channels.deleteGroup(channel.id);
+    const source = core.purge
+      .sources(OWNER_HUMAN_CONTEXT, channel.id)
+      .sources.find((item) => item.messageId === 'target')!;
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [source.sourceEventId]);
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
+    expect(core.channels.message(channel.id, 'target')).toHaveProperty('contentPurge');
+    const quoting = core.channels.message(channel.id, 'quoting');
+    expect(quoting?.body).toBe('Still on?');
+    expect(quoting?.quotes).toEqual([{ messageId: 'target', note: 'Is it?', preview: null }]);
+    expect(JSON.stringify(core.channels.readMessages(channel.id))).not.toContain(
+      'launch on Friday',
+    );
+  });
   it('purges one shared managed-file occurrence and retains current bytes across restart', async () => {
     const home = createTempRoot('purge-files-');
     const core = mount(home);
@@ -298,9 +380,12 @@ describe('owning Content Purge tracer', () => {
         yield Buffer.from('synthetic managed bytes');
       })(),
     });
-    const channel = core.channels.createGroup({ name: 'Shared managed file QA', members: [] });
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared managed file QA',
+      members: [],
+    });
     for (const id of ['file-message-a', 'file-message-b'])
-      await core.channels.appendMessage(channel.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id,
         at: '2026-10-08T00:00:00.000Z',
         author: { kind: 'human' },
@@ -308,11 +393,13 @@ describe('owning Content Purge tracer', () => {
         attachments: [file],
       });
     core.channels.deleteGroup(channel.id);
-    const page = core.purge.sources(channel.id);
+    const page = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id);
     expect(page.sources.every((source) => !source.refusal)).toBe(true);
-    const preview = core.purge.preview(channel.id, [page.sources[0]!.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [
+      page.sources[0]!.sourceEventId,
+    ]);
     expect(preview.files).toMatchObject([{ identity: file.fileId, disposition: 'shared' }]);
-    core.purge.confirm(channel.id, preview.sourceEventIds, preview.token);
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
     expect(core.purge.checkpoint().facts).toHaveLength(1);
     core.database.close();
     const restarted = mount(home);
@@ -323,10 +410,17 @@ describe('owning Content Purge tracer', () => {
   });
   it('exports a real checkpoint under its synchronous barrier and refuses reentrant acceptance', async () => {
     const core = await ended();
-    const preview = core.purge.preview(core.channel.id, [core.source.sourceEventId]);
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [
+      core.source.sourceEventId,
+    ]);
     const checkpoint = core.purge.withCheckpoint((current) => {
       expect(() =>
-        core.purge.confirm(core.channel.id, preview.sourceEventIds, preview.token),
+        core.purge.confirm(
+          OWNER_HUMAN_CONTEXT,
+          core.channel.id,
+          preview.sourceEventIds,
+          preview.token,
+        ),
       ).toThrow('unavailable');
       return JSON.parse(JSON.stringify(current));
     });
@@ -365,9 +459,9 @@ describe('owning Content Purge tracer', () => {
         ).run(state, '2026-10-08T00:00:00Z', state, 'provider-accepted');
       }
     });
-    expect(core.purge.preview(core.channel.id, [core.source.sourceEventId]).effects).toHaveLength(
-      3,
-    );
+    expect(
+      core.purge.preview(OWNER_HUMAN_CONTEXT, core.channel.id, [core.source.sourceEventId]).effects,
+    ).toHaveLength(3);
     core.database.close();
     const restored = mount(core.home, {
       restoring: true,
@@ -407,4 +501,256 @@ describe('owning Content Purge tracer', () => {
       ),
     ).toBe('unknown-outcome');
   });
+});
+
+describe('M9 Content Purge member deletion', () => {
+  it('rejects conflicting deleted-Human facts and rolls back the entire union', () => {
+    const home = createTempRoot('member-ledger-conflict-');
+    const ledger = openPurgeLedger(join(home, 'purge', 'ledger.db'), false);
+    const fact = {
+      humanId: 'bob',
+      deletedAt: '2026-11-14T00:00:00.000Z',
+      privateChannels: ['dm-bob'],
+      privateBots: ['bob-bot'],
+    };
+    const checkpoint = { format: 'botharness-purge', version: 3, facts: [], deletedHumans: [fact] };
+    try {
+      ledger.union(checkpoint);
+      ledger.union(checkpoint);
+      expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+      for (const changed of [
+        { ...fact, privateChannels: ['dm-other'] },
+        { ...fact, privateBots: ['other-bot'] },
+        { ...fact, deletedAt: '2026-11-15T00:00:00.000Z' },
+      ]) {
+        expect(() =>
+          ledger.union({
+            ...checkpoint,
+            facts: [
+              {
+                sourceEventId: 'rollback-source',
+                channelId: 'rollback-channel',
+                messageId: 'rollback-message',
+                eventAt: fact.deletedAt,
+                author: { kind: 'human' },
+                actor: 'local-human',
+                reason: 'human-request',
+                acceptedAt: fact.deletedAt,
+              },
+            ],
+            deletedHumans: [{ ...fact, humanId: 'alice' }, changed],
+          }),
+        ).toThrow('Conflicting');
+        expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+        expect(ledger.checkpoint().facts).toEqual([]);
+      }
+      expect(() =>
+        ledger.union({
+          ...checkpoint,
+          deletedHumans: [
+            { ...fact, humanId: 'carol' },
+            { ...fact, humanId: 'carol', privateChannels: [] },
+          ],
+        }),
+      ).toThrow('Conflicting');
+      expect(ledger.checkpoint().deletedHumans).toEqual([fact]);
+    } finally {
+      ledger.close();
+    }
+  });
+
+  async function memberFixture(options: Partial<Parameters<typeof mountContentPurge>[0]> = {}) {
+    const home = createTempRoot('m9-member-purge-');
+    const f = mount(home, options);
+    f.port.transaction((db) => {
+      db.prepare(
+        "INSERT INTO humans VALUES ('bob-id', 'Bob private name', 'deactivated', '2026-11-14T00:00:00Z')",
+      ).run();
+      db.prepare("INSERT INTO human_roles VALUES ('bob-id', 'member')").run();
+    });
+    const shared = f.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Shared', members: [] });
+    const dm = f.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'private-bot', 'Private title');
+    if (!dm) throw new Error('missing DM');
+    f.port.transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId', 'bob-id') WHERE channel_id = ?",
+        )
+        .run(dm.id),
+    );
+    const file = await f.attachments.upload({
+      name: 'private.txt',
+      data: (async function* () {
+        yield Buffer.from('private file bytes');
+      })(),
+    });
+    for (const [channelId, id, body, attachments] of [
+      [shared.id, 'shared', 'shared body', []],
+      [dm.id, 'private', 'private body', [file]],
+    ] as const)
+      await f.channels.appendMessage(humanContext('bob-id'), channelId, {
+        id,
+        at: '2026-11-14T00:00:00.000Z',
+        author: { kind: 'human', humanId: 'bob-id', displayName: 'Bob private name' },
+        body,
+        attachments: [...attachments],
+      });
+    return { ...f, home, shared, dm, file };
+  }
+
+  it('reports private files, removes bytes and replays anonymous authorship over an older database snapshot', async () => {
+    const f = await memberFixture();
+    const snapshot = join(f.home, 'before-delete.db');
+    f.database.close();
+    copyFileSync(join(f.home, 'botharness', 'botharness.db'), snapshot);
+    const live = mount(f.home);
+    const preview = live.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 1, files: 1 });
+    live.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token);
+    expect(live.attachments.has(f.file)).toBe(false);
+    expect(live.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: 'bob-id',
+      deleted: true,
+    });
+    live.database.close();
+    copyFileSync(snapshot, join(f.home, 'botharness', 'botharness.db'));
+    const restored = mount(f.home);
+    expect(restored.database.mode).toBe('ready');
+    expect(
+      restored.port.read((db) =>
+        db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get(),
+      ),
+    ).toBeUndefined();
+    expect(restored.channels.readMessages(f.shared.id)[0]?.body).toBe('shared body');
+    expect(restored.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: 'bob-id',
+      deleted: true,
+    });
+    expect(
+      restored.port.read((db) =>
+        db.prepare('SELECT body FROM source_events WHERE message_id = ?').get('private'),
+      ),
+    ).toMatchObject({ body: '' });
+    expect(restored.attachments.has(f.file)).toBe(false);
+    expect(restored.channels.get(f.dm.id)).toBeUndefined();
+    expect(JSON.stringify(restored.purge.checkpoint())).not.toContain('Bob private name');
+  });
+
+  it.each(['after-acceptance', 'during-application'] as const)(
+    'recovers member deletion after %s without resurrecting credentials or private bytes',
+    async (stage) => {
+      const f = await memberFixture({
+        faultInjector: (current) => {
+          if (current === stage) throw new Error('M9 interruption');
+        },
+      });
+      const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+      expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrow(
+        'unavailable',
+      );
+      expect(f.database.mode).toBe('recovery');
+      f.database.close();
+      const restored = mount(f.home);
+      expect(restored.database.mode).toBe('ready');
+      expect(
+        restored.port.read((db) =>
+          db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get(),
+        ),
+      ).toBeUndefined();
+      expect(restored.attachments.has(f.file)).toBe(false);
+      expect(restored.channels.readMessages(f.shared.id)[0]?.author).toEqual({
+        kind: 'human',
+        humanId: 'bob-id',
+        deleted: true,
+      });
+    },
+  );
+
+  it('deletes a member whose private messages were already purged without conflicting with prior file tombstones', async () => {
+    const f = await memberFixture();
+    const source = f.port.read((db) =>
+      db.prepare('SELECT source_event_id FROM source_events WHERE channel_id = ?').get(f.dm.id),
+    );
+    if (!source || !f.file.fileId) throw new Error('missing private source or file');
+    f.database.close();
+    const live = mount(f.home, {
+      restoring: true,
+      restoreCheckpoint: {
+        format: 'botharness-purge',
+        version: 2,
+        facts: [
+          {
+            sourceEventId: String(source.source_event_id),
+            channelId: f.dm.id,
+            messageId: 'private',
+            eventAt: '2026-11-14T00:00:00.000Z',
+            author: { kind: 'human' },
+            managedFiles: [f.file.fileId],
+            actor: 'local-human',
+            reason: 'human-request',
+            acceptedAt: '2026-11-14T00:00:00.000Z',
+          },
+        ],
+      },
+    });
+    const preview = live.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    expect(preview.counts).toEqual({ channels: 1, bots: 0, messages: 0, files: 0 });
+    live.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token);
+    expect(
+      live.port.read((db) => db.prepare("SELECT 1 FROM humans WHERE human_id = 'bob-id'").get()),
+    ).toBeUndefined();
+    expect(live.channels.readMessages(f.shared.id)[0]?.body).toBe('shared body');
+    expect(live.attachments.has(f.file)).toBe(false);
+  });
+
+  it('refuses a changed private scope and consumes the token even on a rejected confirmation', async () => {
+    const f = await memberFixture();
+    const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+    await f.channels.appendMessage(humanContext('bob-id'), f.dm.id, {
+      id: 'late-private',
+      at: '2026-11-14T00:00:01.000Z',
+      author: { kind: 'human', humanId: 'bob-id' },
+      body: 'late',
+    });
+    expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrowError(
+      'purge-token-invalid',
+    );
+    expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrowError(
+      'purge-token-invalid',
+    );
+    expect(f.channels.readMessages(f.dm.id)).toHaveLength(2);
+    expect(f.attachments.has(f.file)).toBe(true);
+  });
+
+  it.each(['retained-to-removable', 'removable-to-retained'])(
+    'rejects a changed private attachment disposition: %s',
+    async (change) => {
+      const f = await memberFixture();
+      const elsewhere = f.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Other', members: [] });
+      const reference = async () =>
+        f.channels.appendMessage(OWNER_HUMAN_CONTEXT, elsewhere.id, {
+          id: 'other-reference',
+          at: '2026-11-14T00:00:01.000Z',
+          author: { kind: 'human' },
+          body: 'other reference',
+          attachments: [f.file],
+        });
+      if (change === 'retained-to-removable') await reference();
+      const preview = f.purge.memberPreview(OWNER_HUMAN_CONTEXT, 'bob-id');
+      expect(preview.counts.files).toBe(change === 'retained-to-removable' ? 0 : 1);
+      if (change === 'retained-to-removable') {
+        f.channels.deleteGroup(elsewhere.id);
+        const source = f.purge.sources(OWNER_HUMAN_CONTEXT, elsewhere.id).sources[0]!;
+        const other = f.purge.preview(OWNER_HUMAN_CONTEXT, elsewhere.id, [source.sourceEventId]);
+        f.purge.confirm(OWNER_HUMAN_CONTEXT, elsewhere.id, other.sourceEventIds, other.token);
+      } else await reference();
+      expect(() => f.purge.memberConfirm(OWNER_HUMAN_CONTEXT, 'bob-id', preview.token)).toThrow(
+        'purge-token-invalid',
+      );
+      expect(f.attachments.has(f.file)).toBe(true);
+      expect(f.channels.readMessages(f.dm.id)[0]?.body).toBe('private body');
+    },
+  );
 });

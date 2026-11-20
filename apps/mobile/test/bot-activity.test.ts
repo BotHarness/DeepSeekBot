@@ -11,19 +11,27 @@ import {
   weekGlance,
 } from '../src/host/bot-activity';
 import { compactTokenCount, trailingDays } from '../src/host/usage-days';
-import type { ProfileActivity, ProfileModelUsageRow } from '../src/host/wire';
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
+import type {
+  ProfileActivity,
+  ProfileModelUsageRow,
+  WireProfileActivity,
+} from '@botharness/host-protocol/wire';
 
-const row = (day: string, total: number | null, model = 'deepseek-v4'): ProfileModelUsageRow => ({
-  day,
-  purpose: 'orchestrator',
-  provider: 'opencode-go',
-  model,
-  inputTokens: total === null ? null : total / 2,
-  outputTokens: total === null ? null : total / 4,
-  cacheReadTokens: total === null ? null : total / 4,
-  cacheWriteTokens: total === null ? null : 0,
-  totalTokens: total,
-});
+const row = (day: string, total: number | null, model = 'deepseek-v4'): ProfileModelUsageRow => {
+  const quarter = Math.floor((total ?? 0) / 4);
+  return {
+    day,
+    purpose: 'orchestrator',
+    provider: 'opencode-go',
+    model,
+    inputTokens: total === null ? null : total - 2 * quarter,
+    outputTokens: total === null ? null : quarter,
+    cacheReadTokens: total === null ? null : quarter,
+    cacheWriteTokens: total === null ? null : 0,
+    totalTokens: total,
+  };
+};
 
 const tokens = (day: string, total: number) => ({
   day,
@@ -60,47 +68,37 @@ function activity(overrides: Partial<ProfileActivity> = {}): ProfileActivity {
   };
 }
 
+const wire: WireProfileActivity = {
+  ...activity(),
+  slug: 'bot-1',
+  since: '2026-10-08T14:00:00.000Z',
+  tokenTotals: {
+    inputTokens: 12_000,
+    outputTokens: 6000,
+    cacheReadTokens: 6000,
+    cacheWriteTokens: 0,
+  },
+};
+
 describe('Bot activity', () => {
-  it('reads the answer defensively, dropping entries it cannot use', () => {
-    const parsed = parseProfileActivity({
-      slug: 'bot-1',
-      weeks: 1,
-      since: '2026-10-08T14:00:00.000Z',
-      today: '2026-10-15',
-      events: [
-        { day: '2026-10-15', reason: 'human-dm', count: 2 },
-        { day: 'yesterday', count: 1 },
-      ],
-      memoryCommits: [{ day: '2026-10-15', count: 1 }, null, { day: '2026-10-14', count: -1 }],
-      tokens: [{ day: '2026-10-15', inputTokens: 10, outputTokens: 'many' }],
-      tokenTotals: {},
-      modelUsageRows: [{ ...row('2026-10-15', 40), inputTokens: null }, 'row'],
-      modelUsageStatus: 'ready',
-    });
-    expect(parsed).toEqual({
-      weeks: 1,
-      today: '2026-10-15',
-      events: [{ day: '2026-10-15', reason: 'human-dm', count: 2 }],
-      memoryCommits: [{ day: '2026-10-15', count: 1 }],
-      tokens: [
-        {
-          day: '2026-10-15',
-          inputTokens: 10,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-        },
-      ],
-      modelUsageRows: [{ ...row('2026-10-15', 40), inputTokens: null }],
-      modelUsageStatus: 'ready',
-    });
-    expect(parseProfileActivity({ today: '2026-10-15' })).toMatchObject({
-      events: [],
+  it('preserves the activity view and defaults only omitted optional usage fields', () => {
+    expect(parseProfileActivity(wire)).toEqual(activity());
+    const { modelUsageRows: _rows, modelUsageStatus: _status, ...withoutUsage } = wire;
+    expect(parseProfileActivity(withoutUsage)).toMatchObject({
+      events: wire.events,
       modelUsageRows: [],
       modelUsageStatus: 'unavailable',
     });
-    expect(() => parseProfileActivity({ weeks: 1 })).toThrow();
-    expect(() => parseProfileActivity('nope')).toThrow();
+  });
+
+  it.each([
+    { weeks: undefined },
+    { events: [{ day: 'yesterday', reason: 'human-dm', count: 1 }] },
+    { memoryCommits: [{ day: '2026-10-14', count: -1 }] },
+    { tokens: [{ ...tokens('2026-10-15', 40), outputTokens: 'many' }] },
+    { modelUsageRows: [{ ...row('2026-10-15', 40), partial: 'true' }] },
+  ])('rejects an invalid Host activity field %j', (change) => {
+    expect(() => parseProfileActivity({ ...wire, ...change })).toThrow(HostAnswerInvalid);
   });
 
   it('slices the last 7 days ending today, leaving out the partial eighth day', () => {
@@ -144,6 +142,7 @@ describe('Bot activity', () => {
 
   it('keeps reported partial totals and treats zero plus unknown calls as unknown', () => {
     const reported = parseProfileActivity({
+      ...wire,
       today: '2026-10-15',
       modelUsageStatus: 'ready',
       modelUsageRows: [{ ...row('2026-10-15', 674655), partial: true }],

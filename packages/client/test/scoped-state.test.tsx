@@ -49,3 +49,31 @@ it('resets transient state without remounting and rejects callbacks from departe
     node.remove();
   }
 });
+
+it('does not re-render when a setter stores the value it already holds', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  let update!: Dispatch<SetStateAction<boolean>>;
+  let renders = 0;
+  function View() {
+    const [value, setValue] = useScopedState('A', true);
+    update = setValue;
+    renders += 1;
+    return createElement('output', null, String(value));
+  }
+  try {
+    await act(() => root.render(createElement(View)));
+    const before = renders;
+    await act(() => update(true));
+    await act(() => update((value) => value));
+    expect(renders).toBe(before);
+    await act(() => update(false));
+    expect(renders).toBe(before + 1);
+    expect(node.textContent).toBe('false');
+  } finally {
+    await act(() => root.unmount());
+    node.remove();
+  }
+});

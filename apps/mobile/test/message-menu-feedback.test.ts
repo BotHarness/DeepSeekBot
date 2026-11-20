@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { messageMenuActions, runAction } from '../src/ui/chat/message-sheet';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 const message: ConversationMessage = {
   id: 'm1',

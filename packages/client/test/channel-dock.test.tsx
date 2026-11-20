@@ -1,43 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, useState, type ContextType, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ContextType } from 'react';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type DockPanel } from '../src/client/dock-panels.js';
+import { type DockPanelChannel } from '../src/client/dock-panels.js';
+import { type DockPanelHost } from '../src/client/dock-panels.js';
+import { act, createElement, useContext, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-  IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({
-    open,
-    anchor,
-    items,
-    onSelect,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    items: { id: string; label?: ReactNode; type?: string }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      null,
-      anchor,
-      open
-        ? items
-            .filter((item) => item.type === undefined)
-            .map((item) =>
-              createElement(
-                'button',
-                { key: item.id, 'data-menu-item': item.id, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            )
-        : null,
-    ),
 }));
 
 import { ChannelDock } from '../src/client/channel-dock.js';
+import { ComposerContextPlacementContext } from '../src/client/composer-context-placement.js';
 import {
   CHANNEL_BODY_PANEL,
   CHANNEL_DOCK_STORAGE_KEY,
@@ -47,17 +26,18 @@ import type {
   ChannelSidebarEntry,
   ChannelSidebarEntryProps,
 } from '../src/client/channel-sidebar.js';
+import { menuItem, queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import {
   createDockPanelRegistry,
   dockPanelsFromEntries,
-  type DockPanel,
-  type DockPanelChannel,
-  type DockPanelHost,
   type DockPanelRegistration,
 } from '../src/client/dock-panels.js';
 
 const GLOBAL_PANEL = 'market';
+function PlacementProbe(): ReactNode {
+  return ` · ${useContext(ComposerContextPlacementContext)}`;
+}
 const entry = (id: string, scope: ChannelSidebarEntry['scope'] = 'personabot') =>
   ({
     id,
@@ -109,6 +89,60 @@ async function render(
 }
 
 const panels = () => readChannelDock(storage)!.layout.panels;
+
+it('keeps only general Channel files in the Human-only conversation column', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  values.set(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'simple' }));
+  const registry = createDockPanelRegistry();
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.registerEntry(entry('sessions', 'both'));
+  registry.registerEntry(entry('schedules'));
+  registry.registerEntry(entry('botharness-browser'));
+  let filesOpen = false;
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        hasBots: false,
+        body: createElement('input', { 'data-human-draft': '' }),
+        files: {
+          open: filesOpen,
+          setOpen(open) {
+            filesOpen = open;
+            root.render(view());
+          },
+          content: createElement('div', { 'data-human-files': '' }, 'general files'),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: { id: 'human-dm', type: 'dm', botSlug: undefined },
+        entryProps: { ...entryProps, scope: 'channel', channelId: 'human-dm', botSlug: undefined },
+        shows: () => false,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const draft = host.querySelector<HTMLInputElement>('[data-human-draft]')!;
+  draft.value = 'unsent Human message';
+  await click('[data-subpanel-column-toggle]');
+  expect(
+    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+      node.getAttribute('data-subpanel-entry'),
+    ),
+  ).toEqual(['generated-files']);
+  await click('[data-subpanel-entry="generated-files"] [data-panel-head]');
+  expect(host.querySelector('[data-human-files]')?.textContent).toBe('general files');
+  expect(host.querySelector('[data-human-draft]')).toBe(draft);
+  expect(draft.value).toBe('unsent Human message');
+});
 
 async function settle(): Promise<void> {
   await act(async () => {
@@ -194,7 +228,8 @@ describe('desktop Bot mode dock', () => {
       direction: 'right',
     });
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="sessions"]');
+    await act(async () => menuItem('sessions').click());
+    await settle();
     expect(
       JSON.stringify(readChannelDock(storage)!.layout.grid, (key, value) =>
         key === 'size' ? undefined : value,
@@ -207,7 +242,8 @@ describe('desktop Bot mode dock', () => {
     await render(builtins);
     await render([...builtins, computer]);
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="computer"]');
+    await act(async () => menuItem('computer').click());
+    await settle();
     expect(Object.keys(panels())).toContain('computer');
     await render(builtins);
     expect(Object.keys(panels())).not.toContain('computer');
@@ -225,7 +261,8 @@ describe('desktop Bot mode dock', () => {
     await render(builtins);
     await click('[data-dock-close="sessions"]');
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="bh:dock-reset"]');
+    await act(async () => menuItem('重置布局').click());
+    await settle();
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     expect(values.has(CHANNEL_DOCK_STORAGE_KEY)).toBe(true);
   });
@@ -241,19 +278,21 @@ describe('desktop Bot mode dock', () => {
         observe(node: Element) {
           if (node.matches('[data-dock-menu]')) notifyHidden = this.notify;
         }
-        disconnect = disconnect;
+        disconnect() {
+          if (this.notify === notifyHidden) disconnect();
+        }
       },
     );
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+    expect(queryMenuItem('sessions')).not.toBeNull();
     expect(notifyHidden).toBeDefined();
     act(() => notifyHidden!());
     await settle();
-    expect(host.querySelector('[data-menu-item="sessions"]')).toBeNull();
+    expect(queryMenuItem('sessions')).toBeNull();
     expect(disconnect).toHaveBeenCalledOnce();
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+    expect(queryMenuItem('sessions')).not.toBeNull();
   });
 });
 
@@ -332,8 +371,9 @@ describe('dockPanels Service in the dock', () => {
     const registry = setup();
     await render(registry.panels(), 'personabot', { channel: dm, registry });
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="example:todo"]')?.textContent).toBe('To-do');
-    await click('[data-menu-item="example:todo"]');
+    expect(queryMenuItem('To-do')?.textContent).toBe('To-do');
+    await act(async () => menuItem('To-do').click());
+    await settle();
     expect(host.querySelector('[data-todo]')?.getAttribute('data-todo')).toBe('global');
     expect(
       host
@@ -524,9 +564,9 @@ it('opens group members inside Messages and preserves the split preference acros
   expect(host.querySelector('[data-dock-panel="members"]')).toBeNull();
   expect(registry.isOpen('members')).toBe(true);
   const divider = host.querySelector('[role="separator"][aria-label="成员"]')!;
-  act(() =>
-    divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-  );
+  act(() => {
+    divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  });
   await settle();
   expect(readChannelDock(storage)?.members?.ratio).toBeCloseTo(0.32);
   act(() => root.render(null));
@@ -629,12 +669,12 @@ it('persists hidden rail controls, closes only the hidden Panel and supports hea
   act(() => registry.open(WORKSPACE_CHANNELS));
   await settle();
   const header = host.querySelector<HTMLElement>(`[data-dock-header="${WORKSPACE_CHANNELS}"]`)!;
-  act(() =>
+  act(() => {
     header.dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
-    ),
-  );
-  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="close"]')!.click());
+    );
+  });
+  act(() => queryMenuItem('关闭 Channels')!.click());
   await settle();
   expect(registry.isOpen(WORKSPACE_CHANNELS)).toBe(false);
   expect(readChannelDock(storage)?.hiddenControls).toEqual([]);
@@ -854,6 +894,7 @@ it('updates the Messages Channel title and trailing actions without replacing it
         body: createElement('input', { 'data-message-draft': '' }),
         header: {
           title,
+          info: createElement(PlacementProbe),
           actions: createElement(
             'span',
             null,
@@ -883,7 +924,8 @@ it('updates the Messages Channel title and trailing actions without replacing it
   const titleHandle = header.querySelector<HTMLElement>('[data-panel-hide]')!;
   const channelContext = header.querySelector<HTMLElement>('[data-panel-context]')!;
   expect(titleHandle.textContent).toBe('Messages');
-  expect(channelContext.textContent).toBe('Ada');
+  expect(channelContext.textContent).toBe('Ada · header');
+  expect(channelContext.querySelector('[data-channel-header-info]')?.textContent).toBe(' · header');
   act(() => channelContext.click());
   expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
   for (const target of [
@@ -893,14 +935,20 @@ it('updates the Messages Channel title and trailing actions without replacing it
     header.closest('.dv-tabs-and-actions-container')!,
   ]) {
     const drag = new Event('dragstart', { bubbles: true, cancelable: true });
-    act(() => target.dispatchEvent(drag));
+    act(() => {
+      target.dispatchEvent(drag);
+    });
     expect(drag.defaultPrevented).toBe(true);
   }
 
   const titleDrag = new Event('dragstart', { bubbles: true, cancelable: true });
-  act(() => titleHandle.dispatchEvent(titleDrag));
+  act(() => {
+    titleHandle.dispatchEvent(titleDrag);
+  });
   expect(titleDrag.defaultPrevented).toBe(false);
-  act(() => titleHandle.dispatchEvent(new Event('dragend', { bubbles: true })));
+  act(() => {
+    titleHandle.dispatchEvent(new Event('dragend', { bubbles: true }));
+  });
 
   await act(async () =>
     header.querySelector<HTMLButtonElement>('[aria-label="Channel settings"]')!.click(),
@@ -1090,9 +1138,9 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   const draft = host.querySelector('[data-message-draft]');
   const session = host.querySelector('[data-body="sessions"]');
   const separator = host.querySelector('[role="separator"][aria-label="会话"]')!;
-  act(() =>
-    separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-  );
+  act(() => {
+    separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  });
   await settle();
   expect(host.querySelector('[data-message-draft]')).toBe(draft);
   expect(host.querySelector('[data-body="sessions"]')).toBe(session);
@@ -1150,13 +1198,13 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
   expect(registry.isOpen('sessions')).toBe(true);
   const context = () => host.querySelector('[data-dock-header="bh:channel-body"]')!;
-  act(() =>
+  act(() => {
     context().dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 40, clientY: 30 }),
-    ),
-  );
+    );
+  });
   await settle();
-  const item = document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!;
+  const item = queryMenuItem('会话')!;
   expect(item).not.toBeNull();
   act(() => item.click());
   await settle();
@@ -1168,15 +1216,13 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   act(() => root.render(view('ada')));
   await settle();
   expect(context().querySelector('button[aria-label="会话"]')).toBeNull();
-  act(() =>
+  act(() => {
     context().dispatchEvent(
       new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }),
-    ),
-  );
+    );
+  });
   await settle();
-  act(() =>
-    document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!.click(),
-  );
+  act(() => queryMenuItem('会话')!.click());
   await settle();
   expect(readChannelDock(storage)?.channelWorkspaces?.ada?.hiddenControl).toBe(false);
   expect(context().querySelector('button[aria-label="会话"]')).not.toBeNull();
@@ -1193,9 +1239,9 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
       .querySelector(`[data-channel-leaf="${id}"]`)!
       .closest('.bh-channel-branch')!
       .parentElement!.querySelector(':scope > [role="separator"]')!;
-    act(() =>
-      divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
-    );
+    act(() => {
+      divider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
     await settle();
     expect(host.querySelector(`[data-body="${id}"]`)).toBe(body);
     const savedTree = readChannelDock(storage)?.channelSplits?.ada;
@@ -1695,21 +1741,21 @@ it('shows Channel subpanels as one Simple column with global collapse state', as
   const resize = host.querySelector<HTMLElement>(
     '[data-subpanel-entry="sessions"] .bh-subpanel-entry-resize',
   )!;
-  act(() =>
-    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
-  );
+  act(() => {
+    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
   await settle();
   expect(readLayoutMode(storage).column.heights['sessions']).toBe(336);
 
   const header = host.querySelector<HTMLElement>(
     '[data-subpanel-entry="schedules"] .bh-subpanel-entry-header',
   )!;
-  act(() =>
+  act(() => {
     header.dispatchEvent(
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
-    ),
-  );
-  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="hide"]')!.click());
+    );
+  });
+  act(() => queryMenuItem('隐藏 schedules')!.click());
   await settle();
   expect(entries()).not.toContain('schedules');
 
@@ -1731,4 +1777,77 @@ it('shows Channel subpanels as one Simple column with global collapse state', as
   act(() => registry.open('schedules'));
   await settle();
   expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+});
+
+it('docks Session detail as a movable panel in the advanced layout and keeps it beside messages in the simple one', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.registerEntry({ ...entry('sessions'), label: '会话' });
+  const close = vi.fn();
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        session: {
+          title: '补单元测试',
+          close,
+          content: createElement('div', { 'data-session-body': '' }, 'transcript'),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: { id: 'ada', type: 'dm', botSlug: 'ada' },
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const docked = host.querySelector('[data-channel-subpanel="session-detail"]')!;
+  expect(docked.querySelector('[data-session-body]')).not.toBeNull();
+  expect(docked.querySelector('[data-panel-hide]')?.getAttribute('draggable')).toBe('true');
+  expect(host.querySelector('[data-session-aside]')).toBeNull();
+  const target = host.querySelector('[data-channel-leaf="messages"]')!;
+  vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100));
+  const data = new Map<string, string>();
+  const transfer = {
+    types: [] as string[],
+    setData(type: string, value: string) {
+      data.set(type, value);
+      this.types.push(type);
+    },
+    getData: (type: string) => data.get(type) ?? '',
+    effectAllowed: 'none',
+    dropEffect: 'none',
+  };
+  const dragEvent = (type: string, x = 0, y = 0) =>
+    Object.assign(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }), {
+      dataTransfer: transfer,
+    });
+  act(() => {
+    docked.querySelector('[data-panel-hide]')!.dispatchEvent(dragEvent('dragstart'));
+  });
+  act(() => {
+    target.dispatchEvent(dragEvent('dragover', 5, 50));
+    target.dispatchEvent(dragEvent('drop', 5, 50));
+  });
+  await settle();
+  const tree = readChannelDock(storage)?.channelSplits?.ada;
+  expect(JSON.stringify(tree)).toContain('"first":{"panel":"session-detail"}');
+  act(() => root.unmount());
+  root = createRoot(host);
+  values.set(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'simple' }));
+  act(() => root.render(view()));
+  await settle();
+  expect(host.querySelector('[data-session-aside] [data-session-body]')).not.toBeNull();
+  expect(host.querySelector('[data-channel-subpanel="session-detail"]')).toBeNull();
 });

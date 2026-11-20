@@ -1,9 +1,7 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement, ReactNode } from 'react';
-import {
-  HoverCard,
-  IconNewChatOutlineRegular,
-  IconUserOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { HoverCard } from './ds/hover-card.js';
 
 import {
   normalizePersonaBotActivity,
@@ -13,12 +11,35 @@ import {
 } from './avatar.js';
 import { ChipButton } from './ds/chip-button.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotSummary } from './store.js';
+import type { BotSummary, ChannelSummary } from './store.js';
 
 export const MESSAGE_AUTHOR_CARD_DELAY_MS = 350;
 
+export function networkContactAvailabilityLabel(
+  availability: ChannelSummary['remoteAvailability'],
+  t: BotHarnessTranslate,
+): string {
+  switch (availability) {
+    case 'available':
+      return t('networkContact.available');
+    case 'withdrawn':
+      return t('networkContact.withdrawn');
+    case 'bot-unavailable':
+      return t('networkContact.botUnavailable');
+    case 'unavailable':
+    case undefined:
+      return t('networkContact.unreachable');
+  }
+}
+
 export type MessageAuthorCardModel =
   | { kind: 'human'; name: string }
+  | {
+      kind: 'remote-bot';
+      peer: NonNullable<ChannelSummary['remoteBot']>;
+      contact: ChannelSummary['remoteContact'];
+      availability?: ChannelSummary['remoteAvailability'];
+    }
   | {
       kind: 'bot';
       slug: string;
@@ -74,6 +95,33 @@ export function MessageAuthorCardContent({
         <span className="bh-author-card-name">{model.name}</span>
       </div>
     );
+  if (model.kind === 'remote-bot') {
+    const unavailable = t('networkContact.unavailable');
+    const fields = [
+      [t('message.authorCard.status'), networkContactAvailabilityLabel(model.availability, t)],
+      [t('networkContact.host'), model.peer.hostId],
+      [t('networkContact.bot'), model.peer.botSlug],
+      [t('networkContact.model'), model.contact?.device.model ?? unavailable],
+      [t('networkContact.platform'), model.contact?.device.platform ?? unavailable],
+      [t('networkContact.capabilities'), model.contact?.capabilities.join(' · ') || unavailable],
+    ];
+    return (
+      <div className="bh-author-card" data-author-kind="remote-bot">
+        <span className="bh-author-card-name">
+          {model.contact?.displayName ?? model.peer.displayName}
+        </span>
+        <span className="bh-author-card-description">
+          {model.contact?.description || unavailable}
+        </span>
+        {fields.map(([label, value]) => (
+          <span className="bh-author-card-status" key={label}>
+            <span className="bh-author-card-status-label">{label}</span>
+            <span className="bh-author-card-status-value">{value}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
   const showMessage = model.canMessage && onMessage !== undefined;
   const showProfile = model.canProfile && onProfile !== undefined;
   return (
@@ -112,7 +160,7 @@ export function MessageAuthorCardContent({
         <div className="bh-author-card-actions">
           {showMessage ? (
             <ChipButton
-              icon={<IconNewChatOutlineRegular size={14} />}
+              icon={<Icon name="message-square-plus" size={14} />}
               label={t('message.authorCard.message')}
               aria-label={t('message.mention.openDm', { bot: model.name })}
               onClick={onMessage}
@@ -120,7 +168,7 @@ export function MessageAuthorCardContent({
           ) : null}
           {showProfile ? (
             <ChipButton
-              icon={<IconUserOutlineRegular size={14} />}
+              icon={<Icon name="user" size={14} />}
               label={t('message.authorCard.profile')}
               aria-label={t('message.authorCard.profileFor', { bot: model.name })}
               onClick={onProfile}

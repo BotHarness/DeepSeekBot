@@ -1,5 +1,5 @@
 import { resolveBotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
-import type { RosterBot } from '../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 
 export function botColor(bot: RosterBot): string {
   return resolveBotPrimaryColor({

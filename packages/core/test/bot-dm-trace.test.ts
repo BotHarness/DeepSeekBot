@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { botDmChannelId } from '../src/channels/channel.js';
@@ -62,11 +63,14 @@ describe('Bot DM traces of posts made elsewhere', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Crew', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada'],
+      });
       groupId = group.id;
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const unreadBefore = core.humanAttention.status().unreadCount;
-      await core.channels.appendMessage(group.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const unreadBefore = core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
@@ -93,7 +97,7 @@ describe('Bot DM traces of posts made elsewhere', () => {
       expect(traceAdmissions(core)).toEqual([]);
       expect(runs).toEqual([`ada:${group.id}`]);
       expect(core.attention.list({ botSlug: 'ada', state: 'pending' }).items).toEqual([]);
-      expect(core.humanAttention.status().unreadCount).toBe(unreadBefore + 1);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(unreadBefore + 1);
       expect(core.channels.latestMessage(dm.id)).toBeUndefined();
     } finally {
       await core.runtime.close();
@@ -114,15 +118,19 @@ describe('Bot DM traces of posts made elsewhere', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const ada = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const bea = core.channels.getOrCreateDm('bea', 'Bea')!;
-      await core.channels.appendMessage(ada.id, {
+      const ada = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const bea = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, ada.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
         body: '请问问 Bea',
       });
-      core.runtime.admitDmMessage({ channelId: ada.id, messageId: 'ask', body: '请问问 Bea' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: ada.id,
+        messageId: 'ask',
+        body: '请问问 Bea',
+      });
       await core.runtime.whenIdle();
 
       const botDm = botDmChannelId('ada', 'bea');
@@ -153,14 +161,18 @@ describe('Bot DM traces of posts made elsewhere', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
         body: '你好',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'ask', body: '你好' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'ask',
+        body: '你好',
+      });
       await core.runtime.whenIdle();
       expect(core.channels.latestMessage(dm.id)?.body).toBe('好的');
       expect(traces(core, dm.id)).toEqual([]);

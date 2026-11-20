@@ -225,7 +225,7 @@ try {
     'a new real WebSocket reconnects',
   );
   const sourceLabel = await page.$eval(
-    `[data-attention-id="${offline.id}"] .bh-human-inbox-source-link`,
+    `[data-attention-id="${offline.id}"] .bh-activity-list-source-link`,
     (e) => e.getAttribute('aria-label'),
   );
   await click(sourceLabel);
@@ -285,6 +285,8 @@ try {
         DEEPSEEKBOT_HOST: new URL(instance.url).origin,
         DEEPSEEKBOT_HOST_TOKEN: new URL(instance.url).searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   await sleep(500);

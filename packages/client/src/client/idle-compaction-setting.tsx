@@ -1,5 +1,5 @@
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
@@ -61,6 +61,7 @@ export function IdleCompactionSetting({ call, t }: IdleCompactionSettingProps): 
       rootRef={mount}
       title={t('idleCompaction.row.title')}
       description={t('idleCompaction.row.description')}
+      info={{ label: t('idleCompaction.row.title'), text: t('idleCompaction.row.info') }}
       data={{ 'data-idle-compaction-setting': '' }}
       control={
         <Switch

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-import { createHostLooks, type HostLooks } from '../../../../apps/mobile/src/host/host-look.js';
+import { createHostLooks, type HostLooks } from '@botharness/host-client/host-look';
 import {
   DEFAULT_HOST_LOOK,
   shownHostName,
@@ -10,8 +10,8 @@ import {
   type HostColorId,
   type HostLook,
   type HostSymbolId,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
-import type { ColorRole } from '../../../../apps/mobile/src/ui/design/resolve-theme.js';
+} from '@botharness/host-client/ui/design/host-look';
+import type { ColorRole } from '@botharness/host-client/ui/design/color-math';
 import { useBotColorScheme } from './bot-color-scheme.js';
 
 export const HOST_LOOKS_STORAGE_KEY = 'botharness.hostLooks.v1';
@@ -99,7 +99,7 @@ export function browserHostLooks(
         await work();
       });
     } catch (error) {
-      if (!acquired) throw new Error('host-look-lock-unavailable');
+      if (!acquired) throw new Error('host-look-lock-unavailable', { cause: error });
       throw error;
     }
   },

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { observeInbox, prefetchInbox } from '../src/host/inbox';
-import { FakeHost } from './fake-host';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { observeInbox, prefetchInbox } from '@botharness/host-client/inbox';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const clients: HostClient[] = [];
 afterEach(() => {
@@ -103,7 +103,21 @@ describe('Activity query observation', () => {
       return {
         ok: true,
         value: {
-          items: [{ id: second ? 'second' : 'first', summary: updated ? 'updated' : 'original' }],
+          items: [
+            {
+              id: second ? 'second' : 'first',
+              summary: updated ? 'updated' : 'original',
+              kind: 'channel-reply',
+              category: 'replies',
+              createdAt: '2026-11-20T00:00:00Z',
+              messageId: 'message',
+              sourceEventId: 'source',
+              isUnread: true,
+              botSlug: 'ada',
+              channelId: 'dm-ada',
+              channelName: 'Ada',
+            },
+          ],
           ...(second ? {} : { nextCursor: 'page-two' }),
           queryVersion: 1,
         },

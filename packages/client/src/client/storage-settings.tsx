@@ -1,10 +1,17 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
-import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
+import { SettingsGroupPart } from './ds/settings-row.js';
+
+import { MethodRefused } from '@botharness/host-client/client';
 import {
   STORAGE_MEDIA_KINDS,
+  confirmStorageCleanup,
+  confirmStorageMessages,
+  loadStorageUsage,
+  previewStorageCleanup,
+  previewStorageMessages,
   type StorageCleanupScope,
   type StorageCleanupPreview,
   type StorageCleanupResult,
@@ -12,25 +19,18 @@ import {
   type StorageMessagesPreview,
   type StorageMessagesResult,
   type StorageUsage,
-} from '../../../../apps/mobile/src/host/storage.js';
+} from '@botharness/host-client/storage';
 
 import { formatBotZipSize } from './bot-zip.js';
-import {
-  BridgeCallError,
-  confirmStorageCleanup,
-  confirmStorageMessages,
-  loadStorageUsage,
-  previewStorageCleanup,
-  previewStorageMessages,
-  type BridgeCall,
-} from './bridge.js';
-import { PillButton } from './ds/pill-button.js';
+import { BridgeCallError, bridgeHost, type BridgeCall } from './bridge.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
-import { SettingsRow } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
-import type { BotHarnessKey } from './locale.js';
+import { StatusBlock } from './ds/status-block.js';
+import { useMountedResource } from './mounted-resource.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
   content: {
@@ -100,10 +100,7 @@ const styles = stylex.create({
     margin: 0,
     padding: 0,
     listStyle: 'none',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.sm,
+    gap: space.x2,
   },
   chat: {
     display: 'flex',
@@ -113,9 +110,8 @@ const styles = stylex.create({
     minWidth: 0,
     paddingBlock: space.x2,
     paddingInline: space.x3,
-    borderTopWidth: { default: border.hairline, ':first-child': 0 },
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
+    backgroundColor: color.well,
+    borderRadius: radius.sm,
   },
   chatMeta: {
     flexShrink: 0,
@@ -171,6 +167,14 @@ function cutoff(age: Age): string {
   return new Date(age === 'all' ? Date.now() : Date.now() - Number(age) * DAY).toISOString();
 }
 
+function storageReadError(failure: unknown): BotHarnessKey {
+  const unsupported =
+    (failure instanceof Error && 'status' in failure && failure.status === 404) ||
+    ((failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
+      failure.code === 'gateway/method-not-found');
+  return unsupported ? 'storage.unsupported' : 'storage.readError';
+}
+
 export interface StorageSettingsSource {
   usage(signal?: AbortSignal): Promise<StorageUsage>;
   previewMedia(scope: StorageCleanupScope): Promise<StorageCleanupPreview>;
@@ -182,27 +186,101 @@ export interface StorageSettingsSource {
   confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
 }
 
-export type StorageSettingsProps = PropsLocale<'botharness'> & { title?: string } & (
-    | { call: BridgeCall; source?: never }
-    | { source: StorageSettingsSource; call?: never }
-  );
+export type StorageSettingsProps = {
+  t: BotHarnessTranslate;
+  title?: string;
+} & ({ call: BridgeCall; source?: never } | { source: StorageSettingsSource; call?: never });
 
-export function StorageSettings({
+function UsageSummary({
+  usage,
+  t,
+}: {
+  usage: StorageUsage;
+  t: StorageSettingsProps['t'];
+}): ReactElement {
+  return (
+    <section aria-label={t('storage.used')} {...stylex.props(styles.group)}>
+      <p data-storage-total={usage.totalBytes} {...stylex.props(styles.total)}>
+        {t('storage.total', { size: formatBotZipSize(usage.totalBytes) })}
+      </p>
+      <div aria-hidden="true" {...stylex.props(styles.bar)}>
+        {usage.parts.map((part) =>
+          part.bytes === 0 || usage.totalBytes === 0 ? null : (
+            <span
+              key={part.kind}
+              style={{
+                width: `${(part.bytes / usage.totalBytes) * 100}%`,
+                minWidth: 2,
+                background: PARTS[part.kind].fill,
+              }}
+            />
+          ),
+        )}
+      </div>
+      <ul {...stylex.props(styles.legend)}>
+        {usage.parts.map((part) => (
+          <li key={part.kind} data-storage-part={part.kind} {...stylex.props(styles.legendItem)}>
+            <span
+              aria-hidden="true"
+              style={{ background: PARTS[part.kind].fill }}
+              {...stylex.props(styles.swatch)}
+            />
+            {t(PARTS[part.kind].label)} {formatBotZipSize(part.bytes)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function StorageSettings(props: StorageSettingsProps): ReactElement {
+  const identity = props.source ?? props.call;
+  const owner = useRef({ identity, version: 0 });
+  if (owner.current.identity !== identity)
+    owner.current = { identity, version: owner.current.version + 1 };
+  return <StorageSettingsView key={owner.current.version} {...props} />;
+}
+
+function StorageSettingsView({
   call,
   source,
   t,
   title = t('storage.title'),
 }: StorageSettingsProps): ReactElement {
   const storage = source ?? {
-    usage: (signal?: AbortSignal) => loadStorageUsage(call!, signal),
-    previewMedia: (scope: StorageCleanupScope) => previewStorageCleanup(call!, scope),
-    confirmMedia: (preview: StorageCleanupPreview) => confirmStorageCleanup(call!, preview),
+    usage: (signal?: AbortSignal) => loadStorageUsage(bridgeHost(call!, signal)),
+    previewMedia: (scope: StorageCleanupScope) => previewStorageCleanup(bridgeHost(call!), scope),
+    confirmMedia: (preview: StorageCleanupPreview) =>
+      confirmStorageCleanup(bridgeHost(call!), preview),
     previewMessages: (scope: { before: string; channelIds?: string[] }) =>
-      previewStorageMessages(call!, scope),
-    confirmMessages: (preview: StorageMessagesPreview) => confirmStorageMessages(call!, preview),
+      previewStorageMessages(bridgeHost(call!), scope),
+    confirmMessages: (preview: StorageMessagesPreview) =>
+      confirmStorageMessages(bridgeHost(call!), preview),
   };
+  const active = useRef(false);
+  const request = useRef<AbortController | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const [summaryError, setSummaryError] = useState<BotHarnessKey>();
   const [usage, setUsage] = useState<StorageUsage>();
+  const [summary, setSummary] = useState<StorageUsage>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    active.current = true;
+    const controller = new AbortController();
+    request.current = controller;
+    storage.usage(controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setSummary(value);
+      },
+      (failure: unknown) => {
+        if (!controller.signal.aborted) setSummaryError(storageReadError(failure));
+      },
+    );
+    return () => {
+      active.current = false;
+      controller.abort();
+      request.current?.abort();
+    };
+  }, []);
   const [target, setTarget] = useState<Target>('media');
   const [age, setAge] = useState<Age>('90');
   const [kinds, setKinds] = useState<StorageMediaKind[]>([...STORAGE_MEDIA_KINDS]);
@@ -212,18 +290,27 @@ export function StorageSettings({
   const [result, setResult] = useState<StorageCleanupResult | StorageMessagesResult>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const request = useRef<AbortController | undefined>(undefined);
   const measure = (): void => {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
+    setError(undefined);
     setUsage(undefined);
+    setSummaryError(undefined);
     storage.usage(controller.signal).then(
       (value) => {
-        if (!controller.signal.aborted) setUsage(value);
+        if (controller.signal.aborted) return;
+        setUsage(value);
+        setSummary(value);
+        setSummaryError(undefined);
       },
-      () => {
-        if (!controller.signal.aborted) setError(t('storage.error'));
+      (failure: unknown) => {
+        if (!controller.signal.aborted) {
+          const message = storageReadError(failure);
+          setSummary(undefined);
+          setSummaryError(message);
+          setError(t(message));
+        }
       },
     );
   };
@@ -239,6 +326,7 @@ export function StorageSettings({
     if (busy) return;
     request.current?.abort();
     setOpen(false);
+    if (summary === undefined && summaryError === undefined) measure();
   };
   const messagesTarget = target === 'messages';
   const chats =
@@ -264,16 +352,16 @@ export function StorageSettings({
         : { channelIds: selected.map((chat) => chat.channelId) }),
     };
     try {
-      setPreview(
-        messagesTarget
-          ? await storage.previewMessages(scope)
-          : await storage.previewMedia({ ...scope, kinds }),
-      );
+      const reviewed = messagesTarget
+        ? await storage.previewMessages(scope)
+        : await storage.previewMedia({ ...scope, kinds });
+      if (!active.current) return;
+      setPreview(reviewed);
       setAcknowledged(false);
     } catch {
-      setError(t('storage.error'));
+      if (active.current) setError(t('storage.error'));
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   };
   const confirm = async (): Promise<void> => {
@@ -281,22 +369,39 @@ export function StorageSettings({
     setBusy(true);
     setError(undefined);
     try {
-      setResult(
+      const completed =
         mediaPreview !== undefined
           ? await storage.confirmMedia(mediaPreview)
-          : await storage.confirmMessages(preview as StorageMessagesPreview),
-      );
+          : await storage.confirmMessages(preview as StorageMessagesPreview);
+      if (!active.current) return;
+      setResult(completed);
+      measure();
     } catch (failure) {
+      if (!active.current) return;
       setAcknowledged(false);
+      setPreview(undefined);
       if (
         (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
-        failure.code === 'storage-preview-stale'
+        (failure.code === 'storage-preview-stale' || failure.code === 'purge-preview-stale')
       ) {
-        setPreview(undefined);
         setError(t('storage.stale'));
-      } else setError(t('storage.error'));
+      } else {
+        setUsage(undefined);
+        setSummary(undefined);
+        setError(t('storage.unknownOutcome'));
+        try {
+          const current = await storage.usage();
+          if (!active.current) return;
+          setUsage(current);
+          setSummary(current);
+          setSummaryError(undefined);
+          setError(t('storage.outcomeReadBack'));
+        } catch (readFailure) {
+          if (active.current) setSummaryError(storageReadError(readFailure));
+        }
+      }
     } finally {
-      setBusy(false);
+      if (active.current) setBusy(false);
     }
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
@@ -305,16 +410,28 @@ export function StorageSettings({
     setError(undefined);
   };
   return (
-    <SettingsRow
-      title={t('storage.row.title')}
-      description={t('storage.row.description')}
-      data={{ 'data-storage-setting': '' }}
-      control={
-        <PillButton onClick={show} data-storage-open="">
-          {t('storage.row.action')}
-        </PillButton>
-      }
-    >
+    <SettingsGroupPart rootRef={mount} data={{ 'data-storage-setting': '' }}>
+      <StatusBlock
+        icon="files"
+        tone="neutral"
+        title={t('storage.row.title')}
+        body={t('storage.row.description')}
+        action={
+          <Button variant="outline" size="sm" onClick={show} data-storage-open="">
+            {t('storage.row.action')}
+          </Button>
+        }
+      >
+        {summary !== undefined ? (
+          <UsageSummary usage={summary} t={t} />
+        ) : summaryError ? (
+          <ReadFailure retryLabel={t('storage.reload')} onRetry={measure}>
+            {t(summaryError ?? 'storage.readError')}
+          </ReadFailure>
+        ) : (
+          <p {...stylex.props(styles.muted)}>{t('storage.loading')}</p>
+        )}
+      </StatusBlock>
       {!open ? null : result !== undefined ? (
         <FormDialog
           title={title}
@@ -322,6 +439,7 @@ export function StorageSettings({
           labels={labels}
           submitLabel={t('common.close')}
           showCancel={false}
+          error={error}
           onCancel={close}
           onSubmit={close}
         >
@@ -416,44 +534,18 @@ export function StorageSettings({
           onSubmit={() => void review()}
         >
           {usage === undefined ? (
-            <p {...stylex.props(styles.plain)}>{t('storage.loading')}</p>
+            <div {...stylex.props(styles.group)}>
+              {error && !busy ? (
+                <ReadFailure retryLabel={t('storage.reload')} onRetry={measure}>
+                  {t('storage.readError')}
+                </ReadFailure>
+              ) : (
+                <p {...stylex.props(styles.plain)}>{t('storage.loading')}</p>
+              )}
+            </div>
           ) : (
             <div data-storage-usage="" {...stylex.props(styles.content)}>
-              <section aria-label={t('storage.used')} {...stylex.props(styles.group)}>
-                <p data-storage-total={usage.totalBytes} {...stylex.props(styles.total)}>
-                  {t('storage.total', { size: formatBotZipSize(usage.totalBytes) })}
-                </p>
-                <div aria-hidden="true" {...stylex.props(styles.bar)}>
-                  {usage.parts.map((part) =>
-                    part.bytes === 0 || usage.totalBytes === 0 ? null : (
-                      <span
-                        key={part.kind}
-                        style={{
-                          width: `${(part.bytes / usage.totalBytes) * 100}%`,
-                          minWidth: 2,
-                          background: PARTS[part.kind].fill,
-                        }}
-                      />
-                    ),
-                  )}
-                </div>
-                <ul {...stylex.props(styles.legend)}>
-                  {usage.parts.map((part) => (
-                    <li
-                      key={part.kind}
-                      data-storage-part={part.kind}
-                      {...stylex.props(styles.legendItem)}
-                    >
-                      <span
-                        aria-hidden="true"
-                        style={{ background: PARTS[part.kind].fill }}
-                        {...stylex.props(styles.swatch)}
-                      />
-                      {t(PARTS[part.kind].label)} {formatBotZipSize(part.bytes)}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <UsageSummary usage={usage} t={t} />
               <section
                 aria-label={t(
                   messagesTarget ? 'storage.messages.heading' : 'storage.clean.heading',
@@ -548,7 +640,9 @@ export function StorageSettings({
                           />
                           <span {...stylex.props(styles.chatMeta)}>
                             {messagesTarget
-                              ? t('storage.messages.count', { count: chat.messages })
+                              ? t('storage.messages.count', {
+                                  count: chat.messages,
+                                })
                               : formatBotZipSize(chat.mediaBytes)}
                           </span>
                         </li>
@@ -561,7 +655,7 @@ export function StorageSettings({
           )}
         </FormDialog>
       )}
-    </SettingsRow>
+    </SettingsGroupPart>
   );
 }
 

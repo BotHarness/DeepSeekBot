@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { requestListener } from './request-listener.mjs';
 
 const flags = process.argv.slice(2);
 const modes = ['--serve', '--prepare', '--probe'];
@@ -18,42 +19,44 @@ const fixture = 'http://127.0.0.1:32011';
 if (mode === '--serve') {
   let count = 0;
   let receipt;
-  createServer(async (request, response) => {
-    const url = new URL(request.url, fixture);
-    response.setHeader('content-type', 'application/json');
-    if (url.pathname === '/state') response.end(JSON.stringify({ count, receipt }));
-    else if (url.pathname === '/reset') {
-      count = 0;
-      receipt = undefined;
-      response.end(JSON.stringify({ count }));
-    } else if (url.pathname === '/submit' && request.method === 'POST') {
-      const chunks = [];
-      for await (const chunk of request) chunks.push(chunk);
-      const body = Buffer.concat(chunks).toString('utf8');
-      const target = body.match(/name="target"; filename="([^"]*)"/);
-      const other = body.match(/name="other"; filename="([^"]*)"/);
-      if (
-        target?.[1] !== 'qa-target.txt' ||
-        other?.[1] !== '' ||
-        !body.includes('Upload target QA proof')
-      ) {
-        response.statusCode = 400;
-        response.end(JSON.stringify({ error: 'Unexpected uploaded form data' }));
-        return;
+  createServer(
+    requestListener(async (request, response) => {
+      const url = new URL(request.url, fixture);
+      response.setHeader('content-type', 'application/json');
+      if (url.pathname === '/state') response.end(JSON.stringify({ count, receipt }));
+      else if (url.pathname === '/reset') {
+        count = 0;
+        receipt = undefined;
+        response.end(JSON.stringify({ count }));
+      } else if (url.pathname === '/submit' && request.method === 'POST') {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const body = Buffer.concat(chunks).toString('utf8');
+        const target = body.match(/name="target"; filename="([^"]*)"/);
+        const other = body.match(/name="other"; filename="([^"]*)"/);
+        if (
+          target?.[1] !== 'qa-target.txt' ||
+          other?.[1] !== '' ||
+          !body.includes('Upload target QA proof')
+        ) {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: 'Unexpected uploaded form data' }));
+          return;
+        }
+        count += 1;
+        receipt = { target: target[1], other: other[1], payloadVerified: true };
+        response.end(JSON.stringify({ count, receipt }));
+      } else if (url.pathname === '/page') {
+        response.setHeader('content-type', 'text/html; charset=utf-8');
+        response.end(
+          `<!doctype html><title>Upload target QA</title><body style="font:24px sans-serif;padding:32px;background:#fff;color:#111"><h1>Upload target QA</h1><p>Attach the document to the first field, then submit once.</p><form id="upload"><div style="margin:32px 0;padding:24px;border:2px solid #555"><label>Target document <input type="file" name="target" aria-label="Target document" style="font:22px sans-serif;display:block;margin-top:20px"></label></div><div style="margin:32px 0;padding:24px;border:2px solid #999"><label>Other attachment <input type="file" name="other" aria-label="Other attachment" style="font:22px sans-serif;display:block;margin-top:20px"></label></div><p id="state">Target: none; Other: none; Completed: 0</p><button disabled style="font:24px sans-serif;padding:14px">Submit target document</button></form><script>const form=document.querySelector('form'),target=form.elements.target,other=form.elements.other,button=document.querySelector('button');let completed=0;const refresh=()=>{document.querySelector('#state').textContent='Target: '+(target.files[0]?.name||'none')+'; Other: '+(other.files[0]?.name||'none')+'; Completed: '+completed;button.disabled=!target.files.length||completed>0};form.addEventListener('change',refresh);form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;const response=await fetch('/submit',{method:'POST',body:new FormData(form)});if(!response.ok)throw Error('Unexpected form data');completed=(await response.json()).count;refresh()});</script></body>`,
+        );
+      } else {
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: 'Unknown fixture route' }));
       }
-      count += 1;
-      receipt = { target: target[1], other: other[1], payloadVerified: true };
-      response.end(JSON.stringify({ count, receipt }));
-    } else if (url.pathname === '/page') {
-      response.setHeader('content-type', 'text/html; charset=utf-8');
-      response.end(
-        `<!doctype html><title>Upload target QA</title><body style="font:24px sans-serif;padding:32px;background:#fff;color:#111"><h1>Upload target QA</h1><p>Attach the document to the first field, then submit once.</p><form id="upload"><div style="margin:32px 0;padding:24px;border:2px solid #555"><label>Target document <input type="file" name="target" aria-label="Target document" style="font:22px sans-serif;display:block;margin-top:20px"></label></div><div style="margin:32px 0;padding:24px;border:2px solid #999"><label>Other attachment <input type="file" name="other" aria-label="Other attachment" style="font:22px sans-serif;display:block;margin-top:20px"></label></div><p id="state">Target: none; Other: none; Completed: 0</p><button disabled style="font:24px sans-serif;padding:14px">Submit target document</button></form><script>const form=document.querySelector('form'),target=form.elements.target,other=form.elements.other,button=document.querySelector('button');let completed=0;const refresh=()=>{document.querySelector('#state').textContent='Target: '+(target.files[0]?.name||'none')+'; Other: '+(other.files[0]?.name||'none')+'; Completed: '+completed;button.disabled=!target.files.length||completed>0};form.addEventListener('change',refresh);form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;const response=await fetch('/submit',{method:'POST',body:new FormData(form)});if(!response.ok)throw Error('Unexpected form data');completed=(await response.json()).count;refresh()});</script></body>`,
-      );
-    } else {
-      response.statusCode = 404;
-      response.end(JSON.stringify({ error: 'Unknown fixture route' }));
-    }
-  }).listen(32011, '127.0.0.1');
+    }),
+  ).listen(32011, '127.0.0.1');
 } else {
   const origin = process.env.BH_E2E_ORIGIN;
   const home = process.env.BH_E2E_HOME;

@@ -23,6 +23,7 @@ import {
 import { createBotZipHttp } from '../src/bots/bot-zip-http.js';
 import { readZip, writeZip, ZipArchiveError } from '../src/bots/zip-archive.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
+import { listBotSkills } from '../src/skills/bot-skills.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -38,7 +39,11 @@ function tempRoot(): string {
 }
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  return execFileSync('git', ['-C', cwd, ...args], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
 }
 
 function zipCodeOf(run: () => unknown): string | undefined {
@@ -381,6 +386,11 @@ describe('Bot Zip import', () => {
     writeFileSync(join(memoryDir, 'MEMORY.md'), '- people/alex.md\n');
     mkdirSync(join(memoryDir, 'people'));
     writeFileSync(join(memoryDir, 'people', 'alex.md'), 'Alex likes tea\n');
+    const skillPath = '.agents/skills/find-sources/SKILL.md';
+    const skill =
+      '---\nname: find-sources\ndescription: Find primary sources\n---\nRead the sources.\n';
+    mkdirSync(join(memoryDir, '.agents', 'skills', 'find-sources'), { recursive: true });
+    writeFileSync(join(memoryDir, skillPath), skill);
     const http = httpFor(registry);
 
     const exported = await http(new Request('http://host/api/botharness/bot-zip?slug=ada'));
@@ -391,6 +401,7 @@ describe('Bot Zip import', () => {
     const paths = readZip(Buffer.from(archive), LIMITS).map((entry) => entry.path);
     expect(paths).toContain('.botharness/bot.json');
     expect(paths).toContain('.botharness/avatar.png');
+    expect(paths).toContain(skillPath);
     expect(paths.some((path) => path === '.git' || path.startsWith('.git/'))).toBe(false);
     expect(paths.some((path) => /session|binding|credential/iu.test(path))).toBe(false);
 
@@ -411,6 +422,10 @@ describe('Bot Zip import', () => {
         readFileSync(join(memoryDir, path), 'utf8'),
       );
     }
+    expect(readFileSync(join(copyDir, skillPath), 'utf8')).toBe(skill);
+    expect(await listBotSkills(copyDir)).toContainEqual(
+      expect.objectContaining({ name: 'find-sources', path: skillPath }),
+    );
     expect(git(copyDir, 'rev-list', '--count', 'HEAD').trim()).toBe('1');
     expect(git(copyDir, 'status', '--porcelain').trim()).toBe('');
     expect(registry.get('ada')).toBeDefined();

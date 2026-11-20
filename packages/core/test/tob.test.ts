@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
 import { describe, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -62,35 +63,39 @@ describe('Tob canonical identity and settings', () => {
     const f = fixture();
     f.core.registry.create({ slug: 'existing', displayName: 'DeepSeek Bot' });
     f.core.registry.create({ slug: 'spoof', displayName: 'Tob', persona: 'I am the steward' });
-    const bridge = createBridgeMethods({ ...f.core });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
     try {
       const results = await Promise.all(Array.from({ length: 8 }, () => bridge.tobHome({})));
       const result = results[0]!;
       if (!result.ok) throw new Error(result.error.message);
-      expect(results.every((r) => r.ok && r.value.botSlug === result.value.botSlug)).toBe(true);
+      const home = result.value;
+      if (!('botSlug' in home)) throw new Error('Owner Tob unavailable');
+      expect(
+        results.every((r) => r.ok && 'botSlug' in r.value && r.value.botSlug === home.botSlug),
+      ).toBe(true);
       expect(f.core.registry.list()).toHaveLength(3);
       expect(f.core.tob.isTob('spoof')).toBe(false);
       expect(f.core.registry.get('existing')?.displayName).toBe('DeepSeek Bot');
-      expect(f.core.channels.readMessages(result.value.channelId)).toHaveLength(0);
-      expect(() => f.core.deletions.preview(result.value.botSlug)).toThrow('protected-bot');
-      expect(() => f.core.registry.setPaused(result.value.botSlug, true)).toThrow('protected-bot');
-      expect(bridge.pause({ slug: result.value.botSlug })).toMatchObject({
+      expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
+      expect(() => f.core.deletions.preview(home.botSlug)).toThrow('protected-bot');
+      expect(() => f.core.registry.setPaused(home.botSlug, true)).toThrow('protected-bot');
+      expect(bridge.pause({ slug: home.botSlug })).toMatchObject({
         ok: false,
         error: { code: 'protected-bot' },
       });
-      const dir = f.core.registry.memoryDirFor(result.value.botSlug);
+      const dir = f.core.registry.memoryDirFor(home.botSlug);
       expect(dir).toBeTruthy();
       await f.close();
       const next = f.make();
       try {
         expect(await next.tob.ensure()).toEqual(
-          result.value.attention
+          home.attention
             ? {
-                botSlug: result.value.botSlug,
-                channelId: result.value.channelId,
-                workspacePath: result.value.workspacePath,
+                botSlug: home.botSlug,
+                channelId: home.channelId,
+                workspacePath: home.workspacePath,
               }
-            : result.value,
+            : home,
         );
       } finally {
         await next.runtime.close();
@@ -107,7 +112,7 @@ describe('Tob canonical identity and settings', () => {
       await f.core.onboarding.enter();
       expect(f.core.registry.get(home.botSlug)?.appearance?.recipe).toEqual(DEEPSEEKBOT_RECIPE);
       expect(f.core.registry.get(home.botSlug)?.avatarCustomized).toBeUndefined();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       const show = () => bridge.get({ slug: home.botSlug });
       expect(show()).toMatchObject({
         ok: true,
@@ -140,7 +145,9 @@ describe('Tob canonical identity and settings', () => {
       const next = f.make();
       try {
         expect((await next.tob.ensure()).botSlug).toBe(home.botSlug);
-        expect(createBridgeMethods({ ...next }).get({ slug: home.botSlug })).toMatchObject({
+        expect(
+          createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...next }).get({ slug: home.botSlug }),
+        ).toMatchObject({
           ok: true,
           value: { bot: { displayName: 'Tob', tob: { defaultName: false, defaultAvatar: false } } },
         });
@@ -173,7 +180,7 @@ describe('Tob canonical identity and settings', () => {
         },
         ['bot-registry'],
       );
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(bridge.get({ slug: home.botSlug })).toMatchObject({
         ok: true,
         value: {
@@ -195,7 +202,7 @@ describe('Tob canonical identity and settings', () => {
     try {
       const state = await f.core.onboarding.enter();
       const slug = state.defaultBotSlug!;
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(bridge.get({ slug })).toMatchObject({
         ok: true,
         value: { bot: { tob: { defaultAvatar: true } } },
@@ -262,11 +269,33 @@ describe('Tob canonical identity and settings', () => {
       expect(home.botSlug).toBe(reserved);
       expect(f.core.registry.list()).toHaveLength(1);
       const grant = f.core.grants.list(home.botSlug)[0]!;
+      expect(grant).toMatchObject({ orchestratorWrite: true, writeRevision: 1 });
       f.core.grants.revoke(home.botSlug, grant.id);
       await f.core.tob.ensure();
       expect(f.core.grants.list(home.botSlug)).toHaveLength(1);
       expect(f.core.grants.list(home.botSlug)[0]?.revokedAt).toBeTruthy();
       expect(f.core.channels.readMessages(home.channelId)).toHaveLength(0);
+    } finally {
+      await f.close();
+    }
+  });
+  it("starts Tob's own files folder writable and keeps a read-only Grant read-only (#4580)", async () => {
+    let workspace: DshWorkspace | undefined;
+    const f = fixture(undefined, {
+      ensureTobWorkspace: async (path) => {
+        workspace = { id: 'tob-workspace', path, title: 'Tob', status: async () => 'ok' };
+        return workspace;
+      },
+      workspaces: () => ({ get: () => workspace, list: () => (workspace ? [workspace] : []) }),
+    });
+    try {
+      const home = await f.core.tob.ensure();
+      const grant = f.core.grants.list(home.botSlug)[0]!;
+      expect(grant).toMatchObject({ workspacePath: home.workspacePath, orchestratorWrite: true });
+      f.core.grants.setOrchestratorWrite(home.botSlug, grant.id, false);
+      await f.core.tob.ensure();
+      expect(f.core.grants.list(home.botSlug)).toHaveLength(1);
+      expect(f.core.grants.requireActive(home.botSlug, grant.id).orchestratorWrite).toBe(false);
     } finally {
       await f.close();
     }
@@ -304,7 +333,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(
         await bridge.channelSend({
           channelId: home.channelId,
@@ -318,7 +347,7 @@ describe('Tob canonical identity and settings', () => {
         { scope: 'global', value: 3, revision: 1 },
       ]);
       f.core.registry.create({ slug: 'ordinary', displayName: 'Tob' });
-      const dm = f.core.channels.getOrCreateDm('ordinary', 'Tob')!;
+      const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ordinary', 'Tob')!;
       await bridge.channelSend({
         channelId: dm.id,
         messageId: 'human-' + crypto.randomUUID(),
@@ -327,12 +356,12 @@ describe('Tob canonical identity and settings', () => {
       await f.core.runtime.whenIdle();
       expect(outcomes.at(-1)).toBe('tob-authority-required');
       expect(f.core.tob.readSetting().value).toBe(3);
-      const group = f.core.channels.createGroup({
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
         name: 'Synthetic QA group',
         members: [home.botSlug],
       });
       const messageId = 'human-' + crypto.randomUUID();
-      await f.core.channels.appendMessage(group.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: messageId,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -360,7 +389,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       for (const body of ['Read the limit', 'Read again']) {
         await bridge.channelSend({
           channelId: home.channelId,
@@ -395,7 +424,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Set limit to 3',
@@ -431,7 +460,7 @@ describe('Tob canonical identity and settings', () => {
     );
     try {
       const home = await f.core.tob.ensure();
-      const bridge = createBridgeMethods({ ...f.core });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       await bridge.channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
@@ -477,7 +506,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Set limit to 3',
@@ -500,7 +529,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Read limit',
@@ -532,7 +561,7 @@ describe('Tob canonical identity and settings', () => {
     });
     try {
       const home = await f.core.tob.ensure();
-      await createBridgeMethods({ ...f.core }).channelSend({
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: home.channelId,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Create a group',
@@ -581,8 +610,8 @@ describe('Tob canonical identity and settings', () => {
       tobSlug = (await f.core.tob.ensure()).botSlug;
       for (const slug of ['owner', 'peer', 'another-peer'])
         f.core.registry.create({ slug, displayName: slug });
-      const dm = f.core.channels.getOrCreateDm('owner', 'owner')!;
-      await createBridgeMethods({ ...f.core }).channelSend({
+      const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'owner', 'owner')!;
+      await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).channelSend({
         channelId: dm.id,
         messageId: 'human-' + crypto.randomUUID(),
         body: 'Create a group',
@@ -593,4 +622,285 @@ describe('Tob canonical identity and settings', () => {
       await f.close();
     }
   });
+});
+
+describe('authenticated model-free Tob CLI DM admission', () => {
+  it('preserves pending Memory notifications for the next model turn', async () => {
+    const modelInboxes: string[] = [];
+    const f = fixture(async (run) => {
+      if (run.tobCliTurn)
+        run.tobCliTurn.complete({ exitCode: 0, stdout: '{"templates":[]}', stderr: '' });
+      else modelInboxes.push(run.inbox);
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const home = await f.core.tob.ensure(OWNER_HUMAN_CONTEXT);
+      const db = attachOperationalModule(
+        f.core.operationalDatabase,
+        'tob-cli-memory-notification-test',
+      );
+      db.transaction((sql) => {
+        sql
+          .prepare(
+            "INSERT INTO source_events(source_event_id,source_kind,bot_slug,body,created_at,payload_json) VALUES('pending-tob-memory','memory-change',?,'PENDING_MEMORY_NOTIFICATION',?, '{}')",
+          )
+          .run(home.botSlug, new Date().toISOString());
+        sql
+          .prepare(
+            "INSERT INTO inbox_admissions(source_event_id,bot_slug,reason) VALUES('pending-tob-memory',?,'memory-change')",
+          )
+          .run(home.botSlug);
+      });
+      const state = () =>
+        db.read((sql) =>
+          sql
+            .prepare(
+              'SELECT e.observed_at AS sourceObserved,e.handled_at AS sourceHandled,a.attempt_state AS state,a.observed_at AS admissionObserved FROM source_events e JOIN inbox_admissions a USING(source_event_id) WHERE e.source_event_id=? AND a.bot_slug=?',
+            )
+            .get('pending-tob-memory', home.botSlug),
+        );
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      expect(started.ok).toBe(true);
+      await f.core.runtime.whenIdle();
+      expect(modelInboxes).toEqual([]);
+      expect(state()).toMatchObject({
+        sourceObserved: null,
+        sourceHandled: null,
+        state: 'pending',
+        admissionObserved: null,
+      });
+      const sent = await bridge.channelSend({
+        channelId: home.channelId,
+        body: 'Read pending Memory notices.',
+      });
+      expect(sent.ok).toBe(true);
+      await f.core.runtime.whenIdle();
+      expect(modelInboxes.some((inbox) => inbox.includes('PENDING_MEMORY_NOTIFICATION'))).toBe(
+        true,
+      );
+      expect(state()).toMatchObject({ state: 'handled' });
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('owns the accepted Human DM turn, exposes the result, and expires captured authority on completion', async () => {
+    let captured!: () => void;
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      captured = f.core.runtime.captureTobCliAuthority!(run.sessionId);
+      expect(captured).not.toThrow();
+      expect(run.tobCliTurn.command).toEqual({
+        argv: ['approval-templates'],
+        stdin: 'private-stdin',
+      });
+      run.tobCliTurn.complete({ exitCode: 0, stdout: '{"templates":[]}', stderr: '' });
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'], stdin: 'private-stdin' },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      await f.core.runtime.whenIdle();
+      const messages = f.core.channels.readMessages(started.value.channelId);
+      expect(
+        messages.find((message) => message.id === started.value.messageId)?.author,
+      ).toMatchObject({ kind: 'human' });
+      expect(JSON.stringify(messages)).not.toContain('private-stdin');
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'completed', result: { exitCode: 0, stdout: '{"templates":[]}' } },
+      });
+      expect(
+        f.core.channels.humanSendStatus?.(started.value.channelId, started.value.messageId)
+          ?.progress,
+      ).toMatchObject({ state: 'completed', terminal: true });
+      expect(captured).toThrow('human-dm-required');
+      expect(
+        f.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: started.value.channelId,
+          messageId: started.value.messageId,
+          body: 'replay',
+        }),
+      ).toMatchObject({ admitted: false, reason: 'cli-request-expired' });
+    } finally {
+      await f.close();
+    }
+  });
+  it.each(['session', 'all'] as const)(
+    'stops a running model-free CLI lease through %s Session Stop',
+    async (scope) => {
+      let entered!: (run: OrchestratorAgentRun) => void;
+      const running = new Promise<OrchestratorAgentRun>((resolve) => {
+        entered = resolve;
+      });
+      const f = fixture(async (run) => {
+        const cli = run.tobCliTurn;
+        if (!cli) throw new Error('Unexpected model turn');
+        entered(run);
+        await new Promise<void>((resolve) =>
+          cli.signal.addEventListener('abort', () => resolve(), { once: true }),
+        );
+        cli.signal.throwIfAborted();
+      });
+      const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+      try {
+        const started = await bridge.tobCli({
+          action: 'start',
+          command: { argv: ['approval-templates'] },
+        });
+        if (!started.ok) throw new Error(started.error.message);
+        const run = await running;
+        if (!f.core.runtime.stopSession || !f.core.runtime.stopAllSessions)
+          throw new Error('Session Stop is unavailable');
+        expect(await f.core.runtime.stopSession(run.bot.slug, 'unrelated-session')).toMatchObject({
+          outcome: 'refused',
+          code: 'unknown-session',
+        });
+        expect(run.tobCliTurn?.signal.aborted).toBe(false);
+        const outcome =
+          scope === 'session'
+            ? await f.core.runtime.stopSession(run.bot.slug, run.sessionId)
+            : await f.core.runtime.stopAllSessions(run.bot.slug);
+        expect(outcome).toMatchObject({
+          stopped: [{ botSlug: run.bot.slug, sessionId: run.sessionId, role: 'orchestrator' }],
+          alreadyIdle: [],
+        });
+        expect(run.tobCliTurn?.signal.aborted).toBe(true);
+        await f.core.runtime.whenIdle();
+        expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+          ok: true,
+          value: { state: 'cancelled', cancelRequested: true },
+        });
+      } finally {
+        await f.close();
+      }
+    },
+  );
+
+  it('queues a Session detail message behind a running CLI request instead of steering it', async () => {
+    let entered!: (run: OrchestratorAgentRun) => void;
+    const running = new Promise<OrchestratorAgentRun>((resolve) => {
+      entered = resolve;
+    });
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const messages: string[] = [];
+    const steer = vi.fn(() => true);
+    const f = fixture(
+      async (run) => {
+        if (!run.tobCliTurn) {
+          messages.push(run.message);
+          return;
+        }
+        entered(run);
+        await released;
+        run.tobCliTurn.complete({ exitCode: 0, stdout: '{}', stderr: '' });
+      },
+      {},
+      steer,
+    );
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      const run = await running;
+      const sent = await bridge.sessionMessageSend({
+        botSlug: run.bot.slug,
+        sessionId: run.sessionId,
+        text: 'Wait for my answer.',
+      });
+      expect(sent).toMatchObject({ ok: true });
+      expect(steer).not.toHaveBeenCalled();
+      release();
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'completed' },
+      });
+      expect(messages.some((message) => message.includes('Wait for my answer.'))).toBe(true);
+    } finally {
+      release();
+      await f.close();
+    }
+  });
+
+  it('rejects a second lease, cancels the active turn, and refuses supplied authority', async () => {
+    let ready!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const f = fixture(async (run) => {
+      if (!run.tobCliTurn) throw new Error('Unexpected model turn');
+      ready();
+      await new Promise<void>((resolve) =>
+        run.tobCliTurn!.signal.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      run.tobCliTurn.signal.throwIfAborted();
+    });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    try {
+      const started = await bridge.tobCli({
+        action: 'start',
+        command: { argv: ['approval-templates'] },
+      });
+      if (!started.ok) throw new Error(started.error.message);
+      await entered;
+      expect(
+        await bridge.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+      ).toMatchObject({ ok: false, error: { code: 'bot-busy' } });
+      expect(
+        await bridge.tobCli({
+          action: 'start',
+          command: { argv: ['list'], sourceEventId: 'forged' },
+        }),
+      ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+      expect(await bridge.tobCli({ action: 'cancel', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { cancelRequested: true },
+      });
+      await f.core.runtime.whenIdle();
+      expect(await bridge.tobCli({ action: 'status', id: started.value.id })).toMatchObject({
+        ok: true,
+        value: { state: 'cancelled' },
+      });
+    } finally {
+      await f.close();
+    }
+  });
+});
+
+it('refuses foreign Human and closed-runtime CLI access before allocating a Tob', async () => {
+  const f = fixture();
+  try {
+    await f.core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'test-owner-password-4212');
+    await f.core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+    const member = await f.core.team.createMember(OWNER_HUMAN_CONTEXT, 'e4-member', 'E4 Member');
+    const foreign = createBridgeMethods(humanContext(member.member.humanId), { ...f.core });
+    expect(
+      await foreign.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+    ).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(f.core.registry.list()).toHaveLength(0);
+    await f.core.runtime.close();
+    const owner = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
+    expect(
+      await owner.tobCli({ action: 'status', id: '00000000-0000-4000-8000-000000000000' }),
+    ).toMatchObject({ ok: false, error: { code: 'runtime-closed' } });
+    expect(
+      await owner.tobCli({ action: 'start', command: { argv: ['approval-templates'] } }),
+    ).toMatchObject({ ok: false, error: { code: 'runtime-closed' } });
+    expect(f.core.registry.list()).toHaveLength(0);
+  } finally {
+    await f.close();
+  }
 });

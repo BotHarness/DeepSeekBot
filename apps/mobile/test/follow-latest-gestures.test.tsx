@@ -9,8 +9,14 @@ import type {
 } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationMessage } from '../src/host/conversation';
-import { STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import {
+  CHECK_BUDGET,
+  MOMENTUM_WAIT_MS,
+  NATIVE_GLIDE_MS,
+  STABLE_FRAMES,
+  useFollowLatest,
+} from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -60,7 +66,9 @@ function mount(
   messages: readonly ConversationMessage[] = [],
   start = 0,
   empty = false,
-  animateGrowth = false,
+  animateScroll = false,
+  inverted = false,
+  nativeFollow = false,
 ) {
   const following = vi.fn();
   const scrollToOffset = vi.fn();
@@ -73,7 +81,10 @@ function mount(
       following,
       start,
       known && rows.length === 0,
-      animateGrowth,
+      animateScroll,
+      0,
+      inverted,
+      nativeFollow,
     );
     return null;
   }
@@ -150,8 +161,43 @@ describe('history-reading gesture ownership', () => {
     act(() => view.current.listProps.onScrollBeginDrag());
     act(() => view.current.jumpToLatest());
     expect(view.following.mock.calls).toEqual([[false], [true], [false], [true]]);
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     view.unmount();
+  });
+
+  it('settles a flick release when no momentum follows', () => {
+    vi.useFakeTimers();
+    const view = mount();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    act(() => {
+      view.current.listProps.onScroll(event(30));
+      view.current.listProps.onScrollEndDrag(event(30, 1));
+    });
+    expect(view.current.away).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(MOMENTUM_WAIT_MS);
+    });
+    expect(view.current.away).toBe(false);
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('waits for momentum to end once it begins', () => {
+    vi.useFakeTimers();
+    const view = mount();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    act(() => {
+      view.current.listProps.onScrollEndDrag(event(300, 1));
+      view.current.listProps.onMomentumScrollBegin();
+    });
+    act(() => {
+      vi.advanceTimersByTime(MOMENTUM_WAIT_MS * 4);
+    });
+    expect(view.current.away).toBe(true);
+    act(() => view.current.listProps.onMomentumScrollEnd(event(10)));
+    expect(view.current.away).toBe(false);
+    view.unmount();
+    vi.useRealTimers();
   });
 
   it('settles a release just short of the end onto the latest message', () => {
@@ -159,12 +205,99 @@ describe('history-reading gesture ownership', () => {
     act(() => view.current.listProps.onScrollBeginDrag());
     act(() => view.current.listProps.onScrollEndDrag(event(30)));
     expect(view.current.away).toBe(false);
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     view.unmount();
   });
 });
 
 describe('following a growing conversation', () => {
+  it('uses scroll content geometry until the first content measurement, even after layout', () => {
+    const view = mount([message('latest', 'bot')]);
+    try {
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      act(() => view.current.listProps.onScroll(event(0)));
+      act(() => view.current.jumpToLatest());
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      act(() => view.current.listProps.onScroll(event(0, 0, CONTENT + 200)));
+      act(() => view.current.jumpToLatest());
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it.each([false, true])(
+    'keeps measured growth with animateGrowth=%s after a stale scroll',
+    (animateGrowth) => {
+      const view = mount([message('a', 'bot')], 0, false, animateGrowth);
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      flushFrames();
+      act(() => view.current.listProps.onScroll(event(0)));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      view.scrollToOffset.mockClear();
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT + 79);
+        view.current.listProps.onScroll(event(0));
+      });
+      flushFrames();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: END + 79,
+        animated: animateGrowth,
+      });
+      expect(view.current.away).toBe(false);
+      view.unmount();
+    },
+  );
+
+  it.each([
+    { height: 600, offset: 1400 },
+    { height: 900, offset: 1100 },
+  ])(
+    'pins a measured viewport height of $height despite an older scroll event',
+    ({ height, offset }) => {
+      const view = mount([message('a', 'bot')]);
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      flushFrames();
+      act(() => view.current.listProps.onScroll(event(0)));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      view.scrollToOffset.mockClear();
+      act(() => {
+        view.current.listProps.onLayout(layout(height));
+        view.current.listProps.onScroll(event(0));
+      });
+      flushFrames();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset, animated: false });
+      view.unmount();
+    },
+  );
+
+  it('cancels a queued final-growth pin when the Human starts dragging', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.listProps.onContentSizeChange(0, CONTENT + 79);
+      view.current.listProps.onScrollBeginDrag();
+      view.current.listProps.onScrollEndDrag(event(200, 0, CONTENT + 79));
+    });
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    expect(view.current.away).toBe(true);
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 79, animated: false });
+    view.unmount();
+  });
+
   it('pins growth to the end at most once per frame without animation while following', () => {
     const view = mount([message('a', 'bot')]);
     act(() => view.current.listProps.onLayout(layout(LAYOUT)));
@@ -206,7 +339,7 @@ describe('following a growing conversation', () => {
     expect(view.current.unseen).toBe(2);
     act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 200));
     act(() => view.current.jumpToLatest());
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 200, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 200, animated: false });
     expect(view.current.away).toBe(false);
     expect(view.current.unseen).toBe(0);
     view.unmount();
@@ -355,6 +488,65 @@ describe('following a growing conversation', () => {
     expect(view.current.browsed).toBe(false);
     act(() => view.current.listProps.onScrollBeginDrag());
     expect(view.current.browsed).toBe(true);
+    view.unmount();
+  });
+
+  it('reveals rows that arrive after the list geometry has already settled', () => {
+    const view = mount([]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    view.rerender([message('a', 'bot')]);
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('offers retry when rows are present but the list never reports its content', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    for (let frame = 0; frame < CHECK_BUDGET * 2; frame += 1)
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
+    view.unmount();
+  });
+
+  it('pins the latest message even when a keyboard start never ends', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.keyboard.onStart());
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => {
+      vi.runAllTimers();
+    });
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+    vi.useRealTimers();
+  });
+
+  it('offers retry when the content height never stops changing', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    for (let frame = 0; frame < CHECK_BUDGET * 2; frame += 1) {
+      act(() => view.current.listProps.onContentSizeChange(0, frame % 2 === 0 ? 728 : 768));
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+    }
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
     view.unmount();
   });
 
@@ -593,15 +785,19 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 
-  it('holds the visible rows in place only while the Human reads history', () => {
+  it('keeps the native anchor configured across follow and history transitions', () => {
     const view = mount([message('a', 'bot')]);
-    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
     act(() => view.current.listProps.onScrollBeginDrag());
     expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
       minIndexForVisible: 0,
     });
     act(() => view.current.jumpToLatest());
-    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
     view.unmount();
   });
 });
@@ -639,7 +835,7 @@ describe('native keyboard and reading-position coordination', () => {
     expect(view.current.away).toBe(true);
     expect(view.scrollToOffset).not.toHaveBeenCalled();
     act(() => view.current.jumpToLatest());
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: false });
     view.unmount();
   });
 });
@@ -671,6 +867,202 @@ it('animates settled streaming growth without unchanged callbacks snapping the a
   }
 });
 
+describe('sending a message', () => {
+  function settled(animateScroll: boolean, nativeFollow = false) {
+    const view = mount([message('latest', 'bot')], 0, false, animateScroll, false, nativeFollow);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    return view;
+  }
+
+  it('requests a fly at the newest message and lets the native anchor glide the growth', () => {
+    const view = settled(true, true);
+    try {
+      let fly = false;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(true);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      expect(view.current.away).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('finishes the glide when the native anchor stops short of the newest message', () => {
+    const view = settled(true, true);
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        view.current.send();
+      });
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT + 60);
+        view.current.listProps.onScroll(event(48, 0, CONTENT + 60));
+      });
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(NATIVE_GLIDE_MS);
+      });
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: CONTENT + 60 - LAYOUT,
+        animated: true,
+      });
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns to the newest message when a send leaves the content shorter and the list shifted', () => {
+    const view = settled(true, true);
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        view.current.send();
+      });
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, CONTENT - 20);
+        view.current.listProps.onScroll(event(42, 0, CONTENT - 20));
+      });
+      act(() => {
+        vi.advanceTimersByTime(NATIVE_GLIDE_MS);
+      });
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({
+        offset: CONTENT - 20 - LAYOUT,
+        animated: true,
+      });
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('requests no fly when Reduce Motion is on but still follows the new message', () => {
+    const view = settled(false);
+    try {
+      let fly = true;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(false);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: false });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('jumps to the newest message on send from history when the person asked for it', () => {
+    const view = settled(true);
+    try {
+      act(() => view.current.listProps.onScrollBeginDrag());
+      act(() => view.current.listProps.onScrollEndDrag(event(300)));
+      view.scrollToOffset.mockClear();
+      let fly = true;
+      act(() => {
+        fly = view.current.send(true);
+      });
+      expect(fly).toBe(false);
+      expect(view.current.away).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenCalled();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('requests no fly and leaves the scroll offset unchanged while reading history', () => {
+    const view = settled(true);
+    try {
+      act(() => view.current.listProps.onScrollBeginDrag());
+      act(() => view.current.listProps.onScrollEndDrag(event(300)));
+      view.scrollToOffset.mockClear();
+      let fly = true;
+      act(() => {
+        fly = view.current.send();
+      });
+      expect(fly).toBe(false);
+      view.rerender([message('latest', 'bot'), message('sent', 'human')]);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+      flushFrames();
+      expect(view.scrollToOffset).not.toHaveBeenCalled();
+      expect(view.current.away).toBe(true);
+    } finally {
+      view.unmount();
+    }
+  });
+});
+
+it('leaves settled growth to the native latest anchor but still pins the first placement', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true, false, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenCalledWith({ offset: END, animated: false });
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: true });
+  } finally {
+    view.unmount();
+  }
+});
+
+it('retains Android mVCP while native following owns growth and JS owns explicit jumps', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true, true, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.listProps.onScrollBeginDrag());
+    expect(view.current.away).toBe(true);
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
+  } finally {
+    view.unmount();
+  }
+});
+
 it('keeps native keyboard ownership even when streaming growth is animated', () => {
   const view = mount([message('latest', 'bot')], 0, false, true);
   try {
@@ -693,4 +1085,133 @@ it('keeps native keyboard ownership even when streaming growth is animated', () 
   } finally {
     view.unmount();
   }
+});
+
+describe('latest-first Android list', () => {
+  it('reveals measured latest-first content after positioning without waiting for older-row sizes', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      expect(view.current.ready).toBe(false);
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      expect(view.current.ready).toBe(true);
+      expect(view.current.canRetry).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 900));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('does not reveal an inverted viewport away from zero and recovers after retry', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => {
+        view.current.listProps.onLayout(layout(LAYOUT));
+        view.current.listProps.onContentSizeChange(0, CONTENT);
+        view.current.listProps.onScroll(event(END - 180));
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      expect(view.current.canRetry).toBe(true);
+      act(() => {
+        view.current.retry();
+        view.current.listProps.onScroll(event(END));
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.current.canRetry).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('waits for keyboard handoff before revealing an initial inverted viewport', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => {
+        view.current.listProps.onLayout(layout(LAYOUT));
+        view.current.listProps.onContentSizeChange(0, CONTENT);
+      });
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      act(() => view.current.keyboard.onStart());
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => {
+        view.current.keyboard.onInsetChange({ bottom: 300 });
+        view.current.listProps.onLayout(layout(LAYOUT - 300));
+        view.current.keyboard.onEnd();
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('positions at zero without measuring all older rows', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    view.unmount();
+  });
+  it('holds reading while content grows and explicitly returns to zero', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.listProps.onScrollBeginDrag();
+      view.current.listProps.onScrollEndDrag(event(END - 180));
+      view.current.listProps.onContentSizeChange(0, CONTENT + 300);
+    });
+    flushFrames();
+    expect(view.current.away).toBe(true);
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
+    view.unmount();
+  });
+  it('keeps latest at zero after keyboard handoff', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.keyboard.onStart();
+      view.current.keyboard.onInsetChange({ bottom: 300 });
+      view.current.listProps.onContentSizeChange(0, CONTENT + 400);
+    });
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.keyboard.onEnd());
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    view.unmount();
+  });
 });

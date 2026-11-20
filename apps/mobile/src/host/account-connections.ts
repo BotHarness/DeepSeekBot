@@ -1,5 +1,5 @@
-import { sameAccount, type AccountOwner } from './account-owner';
-import { withoutHost, type SavedHost, type SavedHosts } from './hosts';
+import { sameAccount, type AccountOwner } from '@botharness/host-client/account-owner';
+import { withoutHost, type SavedHost, type SavedHosts } from '@botharness/host-client/hosts';
 
 export async function removeAccountConnections(options: {
   owner: AccountOwner;

@@ -137,6 +137,7 @@ try {
       encoding: 'utf8',
       windowsHide: true,
       env: { ...process.env, ...(at ? { GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at } : {}) },
+      shell: false,
     });
   if (mode === 'prepare') {
     const all = (await rpc('list')).bots;

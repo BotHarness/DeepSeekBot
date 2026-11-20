@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ConversationSnapshot, ConversationTimelineSnapshot } from '../src/host/conversation';
+import type {
+  ConversationSnapshot,
+  ConversationTimelineSnapshot,
+} from '@botharness/host-client/conversation';
 import { createConversationPlayback } from '../src/host/conversation-playback';
 
 function fixture(initial: Partial<ConversationSnapshot> = {}) {

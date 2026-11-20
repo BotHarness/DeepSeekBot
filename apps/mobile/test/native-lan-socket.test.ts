@@ -40,9 +40,10 @@ afterEach(() => {
   vi.clearAllMocks();
   state.available = true;
 });
-it('keeps each native channel scoped and removes its event subscription on close', () => {
+it('keeps each native channel scoped and removes its event subscription on close', async () => {
   const events = { open: vi.fn(), message: vi.fn(), closed: vi.fn() };
   const socket = openLanSocket('ws://192.168.1.20:39101/botharness-device/channel', events);
+  await Promise.resolve();
   const id = state.open.mock.calls[0]![0] as string;
   expect(state.open).toHaveBeenCalledWith(id, '192.168.1.20', 39101);
   state.listener!({ id: 'other', type: 'message', text: 'ignored' });
@@ -55,6 +56,22 @@ it('keeps each native channel scoped and removes its event subscription on close
   socket.close();
   expect(state.remove).toHaveBeenCalledOnce();
   expect(state.close).toHaveBeenCalledOnce();
+});
+it('delivers an open event the native module sends during open only after the socket is returned', async () => {
+  state.open.mockImplementationOnce((id: string) =>
+    state.listener!({ id, type: 'open', text: '' }),
+  );
+  let socket: ReturnType<typeof openLanSocket> | undefined;
+  const events = {
+    open: vi.fn(() => socket!.send('h00')),
+    message: vi.fn(),
+    closed: vi.fn(),
+  };
+  socket = openLanSocket('ws://192.168.1.20:39101/botharness-device/channel', events);
+  expect(events.open).not.toHaveBeenCalled();
+  await Promise.resolve();
+  expect(events.open).toHaveBeenCalledOnce();
+  expect(state.send).toHaveBeenCalledWith(state.open.mock.calls[0]![0], 'h00');
 });
 it('refuses public addresses, other paths and stale native builds', () => {
   const events = { open: vi.fn(), message: vi.fn(), closed: vi.fn() };

@@ -1,15 +1,29 @@
-import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
-import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
-import { checkRoute, isConnectRoute, isLanRoute } from '../../../../apps/mobile/src/host/route.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
+import { ConnectHealthCard } from './connect-health-card.js';
+import type { ConnectHealthStatus } from '../../../core/src/devices/connect-health-contract.js';
+import { ConnectAccountHosts } from './connect-account-hosts.js';
+import { RelationshipSettings } from './relationship-settings.js';
+import type { ConnectedHost } from '../../../core/src/devices/connect-account.js';
+import { AccountHostConnectionDetails, ConnectionHosts } from './connection-hosts.js';
+import {
+  PrivateTunnelSettings,
+  type PrivateRouteView,
+  type PrivateTunnelView,
+} from './private-tunnel-settings.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { keyBytes } from '@botharness/host-client/encrypted-carrier';
+import { type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
+import { ConnectPanel, type ConnectAccountStatus } from './connect-panel.js';
+import { StatusBlock, StatusDisclosure, StatusStack } from './ds/status-block.js';
+import { LanBotSettings } from './lan-bot-settings.js';
+import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { Note } from './ds/note.js';
-import { Tooltip } from './ds/tooltip.js';
 import { AddRemoteHostDialog } from './host-tabs.js';
 import { ConnectionProgress } from './connection-progress.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -17,37 +31,31 @@ import { PanelDialog } from './ds/panel-dialog.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
-import { useMountedResource } from './mounted-resource.js';
+import type { PhoneRouteStatus } from './phone-route-steps.js';
+
 import {
-  PhoneRouteSteps,
-  type PhoneRouteStatus,
-  type PublishFailure,
-} from './phone-route-steps.js';
+  renderPairedDeviceSetup,
+  ConnectionMethod,
+  ConnectionPanel,
+} from './paired-device-setup.js';
+import { renderPairedDeviceNetworkStatus } from './paired-device-network-status.js';
+import { json, PATH, usePairedDevices } from './use-paired-devices.js';
 
-const PATH = './api/botharness/devices';
-const LIST_POLL_MS = 2000;
-const ROUTE_POLL_MS = 3000;
-const NEW_DEVICE_MS = 24 * 60 * 60 * 1000;
+export type { ConnectedHost };
 
-interface PairedDevice {
+export interface PairedDevice {
   id: string;
   name: string;
   pairedAt: string;
   lastSeenAt?: string;
+  feedReadAt?: string;
   revokedAt?: string;
 }
 
-type RouteStatus = PhoneRouteStatus;
-
-interface ConnectAccountStatus {
-  state: 'signed-out' | 'signing-in' | 'signed-in' | 'error';
-  email?: string;
-  userCode?: string;
-  verificationUri?: string;
-  issue?: string;
-}
+export type RouteStatus = PhoneRouteStatus;
 
 interface ConnectStatus {
+  health?: ConnectHealthStatus;
   encryption?: { fingerprint: string; state: string };
   state: 'off' | 'starting' | 'connected' | 'error';
   hostname?: string;
@@ -55,16 +63,25 @@ interface ConnectStatus {
   account?: ConnectAccountStatus;
 }
 
-interface DevicesSnapshot {
+export interface DevicesSnapshot {
+  privateRelay?: { state: string; origin?: string; issue?: string };
+  privateTunnel?: PrivateTunnelView;
+  privateRoutes?: PrivateRouteView[];
+  lanBots?: LanBotSnapshot;
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
   devices: PairedDevice[];
-  pendingKeys?: { receipt: string; publicKey: string; name: string; approved: boolean }[];
+  pendingKeys?: {
+    receipt: string;
+    publicKey: string;
+    name: string;
+    approved: boolean;
+  }[];
   routes: RouteStatus;
   connect?: ConnectStatus;
 }
 
-interface PairingOffer {
+export interface PairingOffer {
   receipt: string;
   link: string;
   qr: { size: number; path: string };
@@ -73,29 +90,21 @@ interface PairingOffer {
   reachable: boolean;
 }
 
-type PairingView =
+export type PairingView =
   | { state: 'closed' | 'loading' | 'failed' | 'changed' | 'invalid' }
   | { state: 'ready'; offer: PairingOffer }
   | { state: 'paired'; device: PairedDevice };
 
-function routeKey(urls: string[]): string {
-  return [
-    ...new Set(
-      urls.filter((url) => {
-        try {
-          const name = new URL(url).hostname;
-          return name !== 'localhost' && name !== '[::1]' && !name.startsWith('127.');
-        } catch {
-          return false;
-        }
-      }),
-    ),
-  ]
-    .sort()
-    .join('\n');
-}
-
 const styles = stylex.create({
+  page: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  pageBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.x3,
+  },
+  pageSpacer: { flexGrow: 1 },
   pairing: {
     display: 'flex',
     flexDirection: 'column',
@@ -110,474 +119,152 @@ const styles = stylex.create({
     borderRadius: radius.md,
     backgroundColor: 'white',
   },
-  code: {
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space.x3,
+  },
+  memberSignIn: {
+    display: 'block',
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  meta: {
+    margin: 0,
+    color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
-  email: {
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
+  stale: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x2,
   },
-  notYou: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  switchAccount: { marginBlock: space.x3 },
 });
 
-function ConnectionMethod({
-  title,
-  description,
-  detail,
-  disabled,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  detail: string;
-  disabled: boolean;
-  onClick(): void;
-}): ReactElement {
+function tailscaleBody(
+  routes: RouteStatus | undefined,
+  t: PropsLocale<'botharness'>['t'],
+): ReactNode {
+  const route = routes?.routes.find((entry) => entry.kind === 'tailscale');
+  if (!route) return t('devices.tailscale.stopped');
+  if (route.memberSignIn === undefined) return route.url;
   return (
-    <Tooltip label={detail} side="right" portal delayMs={0} focusDelayMs={0} maxWidth={360}>
-      <ChoiceButton title={title} description={description} disabled={disabled} onClick={onClick} />
-    </Tooltip>
+    <>
+      {route.url}
+      <span {...stylex.props(styles.memberSignIn)} data-member-sign-in={route.memberSignIn}>
+        {t(
+          route.memberSignIn === 'managed-tls'
+            ? 'devices.tailscale.memberSignIn.trusted'
+            : 'devices.tailscale.memberSignIn.untrusted',
+        )}
+      </span>
+    </>
   );
 }
 
-async function json<T>(response: Response): Promise<T> {
-  if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
-  return (await response.json()) as T;
-}
-
-function hasPhoneRoute(routes: RouteStatus): boolean {
-  return routes.routes.some((route) => route.kind !== 'loopback' && route.ready);
-}
-
-function portOf(routes: RouteStatus): string {
-  return /(\d+)\s*$/u.exec(routes.serveCommand)?.[1] ?? '';
-}
-
-function onTailnet(): boolean {
-  return location.protocol === 'https:' && location.hostname.endsWith('.ts.net');
-}
+export type PairedDevicesSettingsProps = PropsLocale<'botharness'> & {
+  section?: 'devices' | 'connect' | 'requests';
+  standalone?: boolean;
+  page?: boolean;
+  initialPairing?: boolean;
+  initialRemote?: boolean;
+  pairedDeviceId?: string | undefined;
+  onDevicePaired?: ((deviceId: string) => void) | undefined;
+  onFeedRead?: ((deviceId: string) => void) | undefined;
+  onClose?: () => void;
+};
 
 export function PairedDevicesSettings({
   t,
   section = 'devices',
+  standalone = false,
+  page = false,
+  initialPairing = false,
+  initialRemote = false,
+  onDevicePaired,
+  onFeedRead,
+  pairedDeviceId,
   onClose,
-}: PropsLocale<'botharness'> & {
-  section?: 'devices' | 'connect' | 'requests';
-  onClose?: () => void;
-}): ReactElement {
-  const [snapshot, setSnapshot] = useState<DevicesSnapshot>();
-  const [pairView, setPairView] = useState<PairingView>({ state: 'closed' });
-  const pairViewRef = useRef<PairingView>({ state: 'closed' });
-  const offerRequest = useRef(0);
-  const offerAbort = useRef<AbortController>();
-  const [readState, setReadState] = useState<'loading' | 'fresh' | 'stale'>('loading');
-  const [checkedAt, setCheckedAt] = useState<number>();
-  const reading = useRef<Promise<DevicesSnapshot | undefined>>();
-  const latestSnapshot = useRef<DevicesSnapshot>();
-  const updatePairing = (value: PairingView): void => {
-    pairViewRef.current = value;
-    setPairView(value);
-  };
-  const pairing = pairView.state !== 'closed';
-  const offer = pairView.state === 'ready' ? pairView.offer : undefined;
-  const [now, setNow] = useState(Date.now());
-  const fresh = (device: PairedDevice): boolean =>
-    device.revokedAt === undefined && now - Date.parse(device.pairedAt) < NEW_DEVICE_MS;
-  const [busy, setBusy] = useState<string>();
-  const [error, setError] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showTailscale, setShowTailscale] = useState(false);
-  const [manage, setManage] = useState(false);
-  type Setup = 'closed' | 'direction' | 'method' | 'lan' | 'tailscale' | 'connect' | 'remote';
-  const [setup, setSetupState] = useState<Setup>('closed');
-  const setupVersion = useRef(0);
-  const setSetup = (next: Setup) => {
-    setupVersion.current += 1;
-    setSetupState(next);
-  };
-  const [reviewing, setReviewing] = useState(section === 'requests');
-  const mounted = useRef(false);
-
-  const load = (signal?: AbortSignal): Promise<DevicesSnapshot | undefined> => {
-    if (reading.current) return reading.current;
-    const request = (async () => {
-      try {
-        const deadline = AbortSignal.timeout(12_000);
-        const value = await json<DevicesSnapshot>(
-          await fetch(PATH, {
-            signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-          }),
-        );
-        if (!mounted.current || signal?.aborted) return undefined;
-        latestSnapshot.current = value;
-        setSnapshot(value);
-        setReadState('fresh');
-        setCheckedAt(Date.now());
-        setNow(Date.now());
-        const view = pairViewRef.current;
-        if (view.state === 'ready') {
-          const status = await json<{ state: string; deviceId?: string }>(
-            await fetch(`${PATH}/offer-status`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ receipt: view.offer.receipt }),
-              signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-            }),
-          );
-          if (!mounted.current || signal?.aborted || pairViewRef.current !== view) return value;
-          const paired =
-            status.state === 'redeemed'
-              ? value.devices.find((device) => device.id === status.deviceId && !device.revokedAt)
-              : undefined;
-          if (paired !== undefined) updatePairing({ state: 'paired', device: paired });
-          else if (['expired', 'refused', 'superseded', 'unknown'].includes(status.state))
-            updatePairing({ state: 'invalid' });
-          else if (routeKey(view.offer.routes) !== availableRouteKey(value))
-            updatePairing({ state: 'changed' });
-        }
-        return value;
-      } catch {
-        if (mounted.current && !signal?.aborted) setReadState('stale');
-        return undefined;
-      } finally {
-        reading.current = undefined;
-      }
-    })();
-    reading.current = request;
-    return request;
-  };
-
-  const availableRouteKey = (value: DevicesSnapshot): string =>
-    routeKey([
-      ...value.routes.routes.filter((route) => route.ready).map((route) => route.url),
-      ...(onTailnet() ? [location.origin] : []),
-    ]);
-
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    mounted.current = true;
-    const controller = new AbortController();
-    void load(controller.signal);
-    const timer = setInterval(() => {
-      setNow(Date.now());
-      void load(controller.signal);
-    }, ROUTE_POLL_MS);
-    return () => {
-      mounted.current = false;
-      controller.abort();
-      offerAbort.current?.abort();
-      offerRequest.current += 1;
-      clearInterval(timer);
-    };
-  }, []);
-
-  const watch = useMountedResource<HTMLDivElement>(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-    }, LIST_POLL_MS);
-    return () => clearInterval(timer);
-  }, []);
-
-  const publish = async (
-    action: 'enable' | 'disable' = 'enable',
-  ): Promise<PublishFailure | undefined> => {
-    setBusy('tailscale');
-    try {
-      const response = await fetch(`${PATH}/serve`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm: true, action }),
-      });
-      const value = (await response.json()) as PublishFailure & {
-        routes?: RouteStatus;
-      };
-      if (mounted.current && value.routes !== undefined)
-        setSnapshot((current) =>
-          current === undefined ? current : { ...current, routes: value.routes! },
-        );
-      return response.ok ? undefined : value;
-    } catch {
-      return { code: 'serve-failed' };
-    } finally {
-      if (mounted.current) setBusy(undefined);
-    }
-  };
-
-  const createOffer = async (): Promise<void> => {
-    const request = ++offerRequest.current;
-    offerAbort.current?.abort();
-    const controller = new AbortController();
-    offerAbort.current = controller;
-    updatePairing({ state: 'loading' });
-    setBusy('offer');
-    setError(false);
-    setCopied(false);
-    try {
-      const value = await json<PairingOffer>(
-        await fetch(`${PATH}/offer`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ origin: location.origin }),
-          signal: controller.signal,
-        }),
-      );
-      if (mounted.current && request === offerRequest.current) {
-        const current = latestSnapshot.current;
-        updatePairing(
-          current && routeKey(value.routes) !== availableRouteKey(current)
-            ? { state: 'changed' }
-            : { state: 'ready', offer: value },
-        );
-        setNow(Date.now());
-      }
-    } catch {
-      if (mounted.current && request === offerRequest.current && !controller.signal.aborted)
-        updatePairing({ state: 'failed' });
-    } finally {
-      if (mounted.current && request === offerRequest.current) setBusy(undefined);
-    }
-  };
-
-  const open = (): void => {
-    void createOffer();
-  };
-
-  const setLan = async (action: 'enable' | 'disable', proceed = false): Promise<void> => {
-    const version = setupVersion.current;
-    setBusy('lan');
-    setError(false);
-    try {
-      await json(
-        await fetch(`${PATH}/lan`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action, confirm: true }),
-        }),
-      );
-      await reading.current;
-      const current = await load();
-      if (
-        proceed &&
-        mounted.current &&
-        setupVersion.current === version &&
-        current?.routes.routes.some((route) => route.kind === 'lan' && route.ready)
-      ) {
-        setSetup('closed');
-        await createOffer();
-      }
-    } catch {
-      if (mounted.current) setError(true);
-    } finally {
-      if (mounted.current) setBusy(undefined);
-    }
-  };
-
-  const close = (): void => {
-    offerRequest.current += 1;
-    offerAbort.current?.abort();
-    updatePairing({ state: 'closed' });
-    setBusy((current) => (current === 'offer' ? undefined : current));
-  };
-
-  const account = async (action: 'sign-in' | 'sign-out'): Promise<void> => {
-    setBusy(action);
-    setError(false);
-    try {
-      await json(
-        await fetch(`${PATH}/connect`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action }),
-        }),
-      );
-      await load();
-    } catch {
-      if (mounted.current) setError(true);
-    } finally {
-      if (mounted.current) setBusy(undefined);
-    }
-  };
-
-  const revoke = async (device: PairedDevice): Promise<void> => {
-    setBusy(device.id);
-    setError(false);
-    try {
-      await json(
-        await fetch(`${PATH}/revoke`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ deviceId: device.id }),
-        }),
-      );
-      await load();
-    } catch {
-      if (mounted.current) setError(true);
-    } finally {
-      if (mounted.current) setBusy(undefined);
-    }
-  };
-
-  const copy = async (link: string): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  const routes = snapshot?.routes;
-  const freshSnapshot = readState === 'fresh';
-  const ready = freshSnapshot && routes !== undefined && (hasPhoneRoute(routes) || onTailnet());
-  const tailscaleReady =
-    freshSnapshot &&
-    routes !== undefined &&
-    (onTailnet() || routes.routes.some((route) => route.kind === 'tailscale' && route.ready));
-  const lanReady = routes?.routes.some((route) => route.kind === 'lan' && route.ready) === true;
-  const offerKinds = new Set(
-    offer?.routes.map((route) => {
-      if (!checkRoute(route).ok) return undefined;
-      if (isLanRoute(route)) return 'lan';
-      if (isConnectRoute(route)) return 'connect';
-      const url = new URL(route);
-      if (
-        url.hostname === 'localhost' ||
-        url.hostname.startsWith('127.') ||
-        url.hostname === '[::1]'
-      )
-        return 'loopback';
-      return 'tailscale';
-    }),
-  );
-
-  const expired = offer !== undefined && Date.parse(offer.expiresAt) <= now;
-  const secondsLeft =
-    offer === undefined ? 0 : Math.max(0, Math.ceil((Date.parse(offer.expiresAt) - now) / 1000));
-  const devices = snapshot?.devices ?? [];
+}: PairedDevicesSettingsProps): ReactElement {
+  const state = usePairedDevices({
+    section,
+    initialPairing,
+    initialRemote,
+    pairedDeviceId,
+    onDevicePaired,
+    onFeedRead,
+  });
+  const {
+    snapshot,
+    pairView,
+    pairing,
+    offer,
+    now,
+    fresh,
+    busy,
+    setBusy,
+    error,
+    setError,
+    copied,
+    manage,
+    setManage,
+    lanDetails,
+    setLanDetails,
+    accountHosts,
+    setAccountHosts,
+    setup,
+    setSetup,
+    remoteFooter,
+    setRemoteFooter,
+    tunnelStep,
+    setTunnelStep,
+    preparingRelationshipRoute,
+    reviewing,
+    setReviewing,
+    readState,
+    checkedAt,
+    load,
+    mount,
+    watch,
+    publish,
+    createOffer,
+    open,
+    setLan,
+    close,
+    account,
+    revoke,
+    copy,
+    routes,
+    freshSnapshot,
+    ready,
+    tailscaleReady,
+    lanReady,
+    offerKinds,
+    expired,
+    secondsLeft,
+    devices,
+  } = state;
   const connect = snapshot?.connect;
   const signIn = connect?.account;
-
   const connectControls =
     signIn === undefined ? null : (
-      <div data-connect="">
-        <SettingsSection title={t('devices.connect.title')}>
-          <SettingsRow
-            title={t('devices.connect.account')}
-            description={
-              signIn.state === 'signed-in' ? (
-                <>
-                  <span {...stylex.props(styles.email)} data-connect-email="">
-                    {signIn.email}
-                  </span>
-                  <br />
-                  {t('devices.connect.signedIn')}
-                </>
-              ) : (
-                t('devices.connect.description')
-              )
-            }
-            data={{ 'data-connect-account': signIn.state }}
-            control={
-              signIn.state === 'signed-in' ? (
-                <>
-                  <span {...stylex.props(styles.notYou)}>{t('devices.connect.notYou')}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === 'sign-out'}
-                    onClick={() => void account('sign-out')}
-                  >
-                    {t('devices.connect.signOut')}
-                  </Button>
-                </>
-              ) : signIn.state === 'signing-in' ? undefined : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy === 'sign-in'}
-                  onClick={() => void account('sign-in')}
-                >
-                  {t('devices.connect.signIn')}
-                </Button>
-              )
-            }
-          >
-            {signIn.state === 'signing-in' && signIn.verificationUri !== undefined ? (
-              <Callout data={{ 'data-connect-code': '' }}>
-                {t('devices.connect.confirm')}{' '}
-                <code {...stylex.props(styles.code)}>{signIn.userCode}</code>
-                <div {...stylex.props(styles.switchAccount)} data-connect-switch="">
-                  {t('devices.connect.switchAccount')}{' '}
-                  <code {...stylex.props(styles.code)}>{signIn.verificationUri}</code>
-                </div>
-                <div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-                  >
-                    {t('devices.connect.openPage')}
-                  </Button>
-                </div>
-              </Callout>
-            ) : signIn.state === 'error' ? (
-              <Callout tone="warning" data={{ 'data-connect-issue': signIn.issue ?? '' }}>
-                {t(
-                  signIn.issue === 'account-not-allowed'
-                    ? 'devices.connect.notAllowed'
-                    : signIn.issue === 'host-limit'
-                      ? 'devices.connect.hostLimit'
-                      : signIn.issue === 'session-expired' ||
-                          signIn.issue === 'sign-in-expired' ||
-                          signIn.issue === 'sign-in-denied'
-                        ? 'devices.connect.signInAgain'
-                        : 'devices.connect.relayDown',
-                )}
-              </Callout>
-            ) : null}
-          </SettingsRow>
-          {signIn.state === 'signed-in' && connect?.hostname !== undefined ? (
-            <SettingsRow
-              title={t('devices.connect.tunnel')}
-              description={connect.hostname}
-              data={{ 'data-connect-tunnel': freshSnapshot ? connect.state : 'unknown' }}
-              control={
-                <Note
-                  tone={
-                    !freshSnapshot
-                      ? 'muted'
-                      : connect.state === 'connected'
-                        ? 'success'
-                        : connect.state === 'error'
-                          ? 'warning'
-                          : 'muted'
-                  }
-                >
-                  {t(
-                    !freshSnapshot
-                      ? 'devices.connection.unchecked'
-                      : connect.state === 'connected'
-                        ? 'devices.connect.connected'
-                        : connect.state === 'error'
-                          ? 'devices.connect.reconnecting'
-                          : 'devices.connect.starting',
-                  )}
-                </Note>
-              }
-            >
-              {freshSnapshot && connect.state === 'error' ? (
-                <Note tone="warning">{t('devices.connect.recovery')}</Note>
-              ) : null}
-            </SettingsRow>
-          ) : null}
-        </SettingsSection>
-      </div>
+      <ConnectPanel
+        t={t}
+        account={signIn}
+        tunnel={connect}
+        fresh={freshSnapshot}
+        busy={busy}
+        onAccount={(action) => void account(action)}
+        reloadSnapshot={load}
+        signInLabel={t(
+          setup === 'connect' ? 'connections.signInConnect' : 'devices.connect.signIn',
+        )}
+      />
     );
 
   const verification = (
@@ -627,9 +314,47 @@ export function PairedDevicesSettings({
     </>
   );
 
-  return (
+  const setupBack =
+    setup !== 'closed' && setup !== 'direction' ? (
+      <Button
+        variant="outline"
+        icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+        onClick={() =>
+          setup === 'private' && tunnelStep !== 'choose'
+            ? setTunnelStep('choose')
+            : setSetup(
+                setup === 'method' || setup === 'app' || setup === 'remote'
+                  ? 'direction'
+                  : 'method',
+              )
+        }
+      >
+        {t('connections.back')}
+      </Button>
+    ) : undefined;
+  const pairingBack = pairing ? (
+    <Button
+      variant="outline"
+      icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+      onClick={close}
+    >
+      {t('connections.back')}
+    </Button>
+  ) : undefined;
+  const overview = !standalone || (setup === 'closed' && !pairing && !reviewing);
+  const content = (
     <div ref={mount} data-paired-devices="">
-      {section === 'devices' ? (
+      {section === 'devices' && setup !== 'remote' ? (
+        <RelationshipSettings
+          t={t}
+          onPrepareRoute={() => {
+            close();
+            preparingRelationshipRoute.current = true;
+            setSetup('method');
+          }}
+        />
+      ) : null}
+      {!standalone && section === 'devices' && overview ? (
         <SettingsSection>
           <SettingsRow
             title={t('connections.title')}
@@ -641,6 +366,9 @@ export function PairedDevicesSettings({
           />
           <SettingsRow
             title={t('connections.methods')}
+            description={
+              snapshot ? t('connections.hosts.local', { name: snapshot.host.name }) : undefined
+            }
             control={
               <Button
                 variant="outline"
@@ -664,8 +392,150 @@ export function PairedDevicesSettings({
           ) : null}
         </SettingsSection>
       ) : null}
+      {standalone && section === 'devices' && overview ? (
+        <>
+          <SettingsSection title={t('connections.manage.existing')}>
+            {snapshot ? (
+              <StatusBlock
+                icon="monitor"
+                tone="accent"
+                title={snapshot.host.name}
+                body={t('devices.connect.thisComputer')}
+              />
+            ) : null}
+            {tailscaleReady || routes?.managed?.enabled || routes?.managed?.owned ? (
+              <StatusBlock
+                icon="shield-check"
+                tone={tailscaleReady ? 'success' : 'neutral'}
+                title="Tailscale"
+                body={tailscaleBody(routes, t)}
+                action={
+                  <>
+                    {routes?.managed?.enabled || routes?.managed?.owned ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!freshSnapshot || busy !== undefined}
+                        onClick={() =>
+                          void publish('disable').then((failure) => setError(failure !== undefined))
+                        }
+                      >
+                        {t('devices.tailscale.disable')}
+                      </Button>
+                    ) : null}
+                    <Button variant="outline" size="sm" onClick={() => setSetup('tailscale')}>
+                      {t('privateTunnel.panel.manage')}
+                    </Button>
+                  </>
+                }
+              />
+            ) : null}
+            {snapshot?.privateRelay && snapshot.privateRelay.state !== 'off' ? (
+              <StatusBlock
+                icon="server"
+                tone="neutral"
+                title={t('privateRelay.title')}
+                body={snapshot.privateRelay.origin}
+                action={
+                  <Button variant="outline" size="sm" onClick={() => setSetup('privateRelay')}>
+                    {t('privateTunnel.panel.manage')}
+                  </Button>
+                }
+              />
+            ) : null}
+          </SettingsSection>
+          <PrivateTunnelSettings
+            t={t}
+            routes={snapshot?.privateRoutes ?? []}
+            managementOnly
+            fresh={freshSnapshot}
+            step={tunnelStep}
+            setStep={setTunnelStep}
+            refresh={load}
+            pair={open}
+            advanced={() => setSetup('privateRelay')}
+          />
+          {signIn && (signIn.state === 'signed-in' || signIn.issue === 'host-limit') ? (
+            <StatusStack title="Tobs Connect">
+              <Note>{signIn.email}</Note>
+              <ConnectHealthCard
+                t={t}
+                health={snapshot?.connect?.health}
+                reloadSnapshot={load}
+                fresh={freshSnapshot}
+              />
+              <ConnectAccountHosts
+                t={t}
+                account={signIn}
+                reloadSnapshot={load}
+                refreshOn={
+                  snapshot?.connect?.health && 'checkedAt' in snapshot.connect.health
+                    ? snapshot.connect.health.checkedAt
+                    : undefined
+                }
+                allowCurrentSignOut
+                onHostsChanged={setAccountHosts}
+                details={(host) => <AccountHostConnectionDetails host={host} t={t} />}
+              />
+            </StatusStack>
+          ) : null}
+          <ConnectionHosts
+            key={signIn?.email ?? 'signed-out'}
+            managedAccountHosts={accountHosts}
+            t={t}
+            accountLinked={signIn?.state === 'signed-in' || signIn?.issue === 'host-limit'}
+          />
+          {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
+        </>
+      ) : null}
+      {standalone && section === 'devices' && overview ? (
+        <SettingsSection title={t('connections.manage.switches')}>
+          {snapshot?.lan ? (
+            <SettingsRow
+              title={t('devices.lan.title')}
+              description={t('devices.lan.notice')}
+              control={
+                <Switch
+                  label={t('devices.lan.title')}
+                  checked={snapshot.lan.state === 'listening'}
+                  disabled={!freshSnapshot || busy !== undefined}
+                  onChange={() =>
+                    void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
+                  }
+                />
+              }
+            />
+          ) : null}
+          {snapshot?.pendingKeys?.some((item) => !item.approved) ? (
+            <SettingsRow
+              title={t('connections.pending')}
+              control={
+                <Button variant="outline" onClick={() => setReviewing(true)}>
+                  {t('connections.review')}
+                </Button>
+              }
+            />
+          ) : null}
+          {snapshot?.lanBots ? (
+            <StatusDisclosure
+              icon="house"
+              title={t('connections.manage.nearby')}
+              open={lanDetails}
+              onToggle={() => setLanDetails(!lanDetails)}
+            >
+              <LanBotSettings
+                t={t}
+                snapshot={snapshot.lanBots}
+                fresh={freshSnapshot && busy === undefined}
+                onChanged={() => void load()}
+              />
+            </StatusDisclosure>
+          ) : null}
+        </SettingsSection>
+      ) : null}
       {reviewing && !pairing ? (
-        <PanelDialog
+        <ConnectionPanel
+          inline={standalone}
           title={t('connections.pending')}
           closeLabel={t('common.close')}
           size="small"
@@ -689,150 +559,58 @@ export function PairedDevicesSettings({
               {t('devices.connection.retry')}
             </Button>
           ) : null}
-        </PanelDialog>
+        </ConnectionPanel>
       ) : null}
-      {setup === 'remote' ? <AddRemoteHostDialog t={t} onClose={() => setSetup('closed')} /> : null}
-      {setup !== 'closed' && setup !== 'remote' ? (
-        <PanelDialog
-          title={t('connections.add')}
-          closeLabel={t('common.close')}
-          size="small"
+      {setup === 'remote' ? (
+        <AddRemoteHostDialog
+          t={t}
+          inline={standalone}
+          footerContainer={standalone ? remoteFooter : undefined}
+          onBack={() => setSetup('direction')}
           onClose={() => setSetup('closed')}
-        >
-          <div {...stylex.props(styles.pairing)}>
-            {readState === 'loading' && setup !== 'direction' ? (
-              <Note>{t('devices.list.loading')}</Note>
-            ) : null}
-            {readState === 'stale' ? (
-              <>
-                <Note tone="warning">{t('devices.connection.stale')}</Note>
-                <Button variant="outline" onClick={() => void load()}>
-                  {t('devices.connection.retry')}
-                </Button>
-              </>
-            ) : null}
-            {setup !== 'direction' ? (
-              <ConnectionProgress t={t} step={setup === 'method' ? 0 : 1} />
-            ) : null}
-            <Note>
-              {t(
-                setup === 'direction'
-                  ? 'connections.direction'
-                  : setup === 'method'
-                    ? 'connections.choose'
-                    : 'connections.prepare',
-              )}
-            </Note>
-            {setup === 'direction' ? (
-              <>
-                <ChoiceButton title={t('connections.invite')} onClick={() => setSetup('method')} />
-                <ChoiceButton title={t('connections.join')} onClick={() => setSetup('remote')} />
-              </>
-            ) : setup === 'method' ? (
-              <>
-                <ConnectionMethod
-                  title={t('connections.lan')}
-                  description={t('connections.lanDescription')}
-                  detail={t('connections.lanDetail')}
-                  disabled={!freshSnapshot}
-                  onClick={() => {
-                    if (lanReady) {
-                      setSetup('closed');
-                      open();
-                    } else setSetup('lan');
-                  }}
-                />
-                <ConnectionMethod
-                  title="Tailscale"
-                  description={t('connections.tailscaleDescription')}
-                  detail={t('connections.tailscaleDetail')}
-                  disabled={!freshSnapshot}
-                  onClick={() => {
-                    if (tailscaleReady) {
-                      setSetup('closed');
-                      open();
-                    } else setSetup('tailscale');
-                  }}
-                />
-                <ConnectionMethod
-                  title="Tobs Connect"
-                  description={t('connections.connectDescription')}
-                  detail={t('connections.connectDetail')}
-                  disabled={!freshSnapshot}
-                  onClick={() => {
-                    if (routes?.routes.some((route) => route.kind === 'connect' && route.ready)) {
-                      setSetup('closed');
-                      open();
-                    } else setSetup('connect');
-                  }}
-                />
-              </>
-            ) : setup === 'lan' ? (
-              <>
-                <Note>{t('devices.lan.notice')}</Note>
-                {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-                {snapshot?.lan?.state === 'listening' && !lanReady ? (
-                  <Note>{t('devices.lan.noAddress')}</Note>
-                ) : null}
-                <Button
-                  variant="primary"
-                  disabled={!freshSnapshot || busy !== undefined}
-                  onClick={() => void setLan('enable', true)}
-                >
-                  {t('connections.enableContinue')}
-                </Button>
-              </>
-            ) : setup === 'tailscale' ? (
-              <>
-                {routes ? (
-                  <PhoneRouteSteps
-                    t={t}
-                    status={routes}
-                    reachable={tailscaleReady}
-                    port={portOf(routes)}
-                    onPublish={() => publish()}
-                  />
-                ) : null}
-                <Button
-                  variant="primary"
-                  disabled={!tailscaleReady || busy !== undefined}
-                  onClick={() => {
-                    setSetup('closed');
-                    open();
-                  }}
-                >
-                  {t('connections.continue')}
-                </Button>
-              </>
-            ) : (
-              <>
-                {connectControls}
-                <Button
-                  variant="primary"
-                  disabled={
-                    !freshSnapshot ||
-                    !routes?.routes.some((route) => route.kind === 'connect' && route.ready)
-                  }
-                  onClick={() => {
-                    setSetup('closed');
-                    open();
-                  }}
-                >
-                  {t('connections.continue')}
-                </Button>
-              </>
-            )}
-            {setup !== 'direction' ? (
-              <Button
-                variant="outline"
-                onClick={() => setSetup(setup === 'method' ? 'direction' : 'method')}
-              >
-                {t('connections.back')}
-              </Button>
-            ) : null}
-          </div>
-        </PanelDialog>
+        />
       ) : null}
+      {setup !== 'closed' && setup !== 'remote'
+        ? renderPairedDeviceSetup({
+            t,
+            standalone,
+            pairedDeviceId,
+            state,
+            setupBack,
+            connectControls,
+            pairingProps: stylex.props(styles.pairing),
+            metaProps: stylex.props(styles.meta),
+            renderDirectionChoices: () => (
+              <>
+                <ChoiceButton
+                  leading={<ChannelSidebarIcon name="smartphone" />}
+                  title={t('connections.invite')}
+                  onClick={() => setSetup('app')}
+                />
+                <ChoiceButton
+                  leading={<ChannelSidebarIcon name="monitor" />}
+                  title={t('connections.join')}
+                  description={t('connections.joinHint')}
+                  onClick={() => setSetup('remote')}
+                />
+              </>
+            ),
+            renderConnectMethod: () => (
+              <ConnectionMethod
+                title="Tobs Connect"
+                description={t('connections.connectDescription')}
+                detail={t('connections.connectDetail')}
+                disabled={!freshSnapshot}
+                onClick={() => {
+                  if (routes?.routes.some((route) => route.kind === 'connect' && route.ready)) {
+                    setSetup('closed');
+                    open();
+                  } else setSetup('connect');
+                }}
+              />
+            ),
+          })
+        : null}
       {readState === 'stale' && section !== 'requests' ? (
         <Callout tone="warning" data={{ 'data-device-status': 'stale' }}>
           {t('devices.connection.stale')}
@@ -846,112 +624,16 @@ export function PairedDevicesSettings({
           </Button>
         </Callout>
       ) : null}
-      {section === 'devices' && manage ? (
-        <SettingsSection title={t('devices.connection.title')}>
-          {snapshot?.lan ? (
-            <SettingsRow
-              title={t('devices.lan.title')}
-              description={t(
-                !freshSnapshot
-                  ? 'devices.connection.unchecked'
-                  : snapshot.lan.state === 'error'
-                    ? 'devices.lan.failed'
-                    : snapshot.lan.state === 'listening'
-                      ? lanReady
-                        ? 'devices.lan.enabled'
-                        : 'devices.lan.noAddress'
-                      : 'devices.lan.notice',
-              )}
-              data={{ 'data-device-lan': snapshot.lan.state }}
-              control={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!freshSnapshot || busy !== undefined}
-                  onClick={() =>
-                    void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
-                  }
-                >
-                  {t(
-                    snapshot.lan.state === 'listening'
-                      ? 'devices.lan.disable'
-                      : 'devices.lan.enable',
-                  )}
-                </Button>
-              }
-            >
-              <Note>{t('devices.lan.network')}</Note>
-            </SettingsRow>
-          ) : null}
-          <SettingsRow
-            title={t('devices.tailscale.title')}
-            description={t(
-              !freshSnapshot
-                ? 'devices.connection.unchecked'
-                : tailscaleReady
-                  ? 'devices.tailscale.ready'
-                  : routes?.tailscale === 'stopped'
-                    ? 'devices.tailscale.stopped'
-                    : 'devices.tailscale.notice',
-            )}
-            data={{
-              'data-device-tailscale': !freshSnapshot
-                ? 'unknown'
-                : tailscaleReady
-                  ? 'ready'
-                  : 'unprepared',
-            }}
-            control={
-              <Button
-                variant="outline"
-                size="sm"
-                aria-expanded={showTailscale}
-                disabled={!freshSnapshot}
-                onClick={() => setShowTailscale(!showTailscale)}
-              >
-                {t(showTailscale ? 'devices.tailscale.hide' : 'devices.tailscale.setup')}
-              </Button>
-            }
-          >
-            {showTailscale && routes && freshSnapshot ? (
-              <div>
-                {routes.managed?.enabled || routes.managed?.owned ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== undefined}
-                    onClick={() => {
-                      void publish('disable').then((failure) => setError(failure !== undefined));
-                    }}
-                  >
-                    {t('devices.tailscale.disable')}
-                  </Button>
-                ) : tailscaleReady ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy !== undefined}
-                    onClick={() => {
-                      void publish().then((failure) => setError(failure !== undefined));
-                    }}
-                  >
-                    {t('devices.tailscale.manage')}
-                  </Button>
-                ) : null}
-                {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-                <PhoneRouteSteps
-                  t={t}
-                  status={routes}
-                  reachable={tailscaleReady}
-                  port={portOf(routes)}
-                  onPublish={() => publish()}
-                />
-              </div>
-            ) : null}
-          </SettingsRow>
-        </SettingsSection>
-      ) : null}
-      {section === 'devices' && manage ? (
+
+      {!standalone && section === 'devices' && overview && manage
+        ? renderPairedDeviceNetworkStatus({
+            t,
+            state,
+            metaProps: stylex.props(styles.meta),
+            staleProps: stylex.props(styles.stale),
+          })
+        : null}
+      {!standalone && section === 'devices' && overview && manage ? (
         <SettingsSection title={t('devices.connection.pairStep')}>
           <SettingsRow
             title={t('devices.pair.title')}
@@ -982,16 +664,32 @@ export function PairedDevicesSettings({
           </SettingsRow>
         </SettingsSection>
       ) : null}
-      {section === 'devices' && manage && snapshot?.connect?.account ? connectControls : null}
+      {!standalone && section === 'devices' && overview && manage && snapshot?.connect?.account
+        ? connectControls
+        : null}
+      {!standalone && section === 'devices' && overview && manage && snapshot?.lanBots ? (
+        <LanBotSettings
+          t={t}
+          snapshot={snapshot.lanBots}
+          fresh={freshSnapshot && busy === undefined}
+          onChanged={() => void load()}
+        />
+      ) : null}
       {section === 'connect' ? connectControls : null}
-      {section === 'devices' ? (
+      {section === 'devices' && overview ? (
         <SettingsSection title={t('devices.list.title')}>
           {devices.length === 0 ? (
-            <Note>
-              {snapshot === undefined
-                ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
-                : t('devices.list.empty')}
-            </Note>
+            <SettingsRow
+              title={
+                snapshot === undefined
+                  ? t(
+                      readState === 'stale'
+                        ? 'devices.connection.unchecked'
+                        : 'devices.list.loading',
+                    )
+                  : t('devices.list.empty')
+              }
+            />
           ) : (
             devices.map((device) => (
               <SettingsRow
@@ -1036,7 +734,8 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {pairing ? (
-        <PanelDialog
+        <ConnectionPanel
+          inline={standalone}
           title={t('devices.pair.dialogTitle')}
           description={t('devices.pair.dialogDescription')}
           size="small"
@@ -1125,6 +824,16 @@ export function PairedDevicesSettings({
                   <Callout tone="warning">{t('devices.pair.loopbackOnly')}</Callout>
                 )}
                 <div {...stylex.props(styles.actions)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      close();
+                      setSetup('method');
+                    }}
+                  >
+                    {t('connections.methods')}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void copy(offer.link)}>
                     {copied ? t('devices.pair.copied') : t('devices.pair.copy')}
                   </Button>
@@ -1132,8 +841,96 @@ export function PairedDevicesSettings({
               </>
             )}
           </div>
-        </PanelDialog>
+        </ConnectionPanel>
       ) : null}
     </div>
+  );
+  const footer =
+    setup === 'remote' ? (
+      <div ref={setRemoteFooter} />
+    ) : overview ? (
+      <Button
+        variant="primary"
+        icon={<ChannelSidebarIcon name="plus" size={16} />}
+        onClick={() => setSetup('direction')}
+      >
+        {t('connections.add')}
+      </Button>
+    ) : undefined;
+  const back = overview
+    ? undefined
+    : (pairingBack ??
+      setupBack ?? (
+        <Button
+          variant="outline"
+          icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+          onClick={() => {
+            setReviewing(false);
+            preparingRelationshipRoute.current = false;
+            setSetup('closed');
+          }}
+        >
+          {t('connections.back')}
+        </Button>
+      ));
+  if (page)
+    return (
+      <div {...stylex.props(styles.page)} data-connections-page="">
+        {content}
+        {back === undefined && footer === undefined ? null : (
+          <div {...stylex.props(styles.pageBar)}>
+            {back}
+            <span {...stylex.props(styles.pageSpacer)} />
+            {footer}
+          </div>
+        )}
+      </div>
+    );
+  return standalone ? (
+    <PanelDialog
+      title={t('connections.title')}
+      secondary={
+        pairingBack ??
+        setupBack ?? (
+          <Button
+            variant="outline"
+            icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
+            onClick={() => {
+              if (overview) onClose?.();
+              else {
+                setReviewing(false);
+                preparingRelationshipRoute.current = false;
+                setSetup('closed');
+              }
+            }}
+          >
+            {t('connections.back')}
+          </Button>
+        )
+      }
+      actions={
+        setup === 'remote' ? (
+          <div ref={setRemoteFooter} />
+        ) : overview ? (
+          <Button
+            variant="primary"
+            icon={<ChannelSidebarIcon name="plus" size={16} />}
+            onClick={() => setSetup('direction')}
+          >
+            {t('connections.add')}
+          </Button>
+        ) : undefined
+      }
+      closeLabel={t('common.close')}
+      scroll
+      onClose={() => {
+        close();
+        onClose?.();
+      }}
+    >
+      {content}
+    </PanelDialog>
+  ) : (
+    content
   );
 }

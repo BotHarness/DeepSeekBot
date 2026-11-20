@@ -66,17 +66,17 @@ const inbox = async () => {
       ?.click(),
   );
   try {
-    await page.waitForSelector('.bh-human-inbox-entry', { timeout: 8000 });
+    await page.waitForSelector('.bh-activity-list-entry', { timeout: 8000 });
   } catch {
     await page.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((node) => node.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await page.waitForSelector('.bh-human-inbox-entry');
+    await page.waitForSelector('.bh-activity-list-entry');
   }
-  await page.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
-  await page.waitForSelector('.bh-human-inbox-tabs');
+  await page.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
+  await page.waitForSelector('.bh-activity-list-tabs');
   await delay(900);
 };
 const capture = (name) => page.screenshot({ path: resolve(out, name + '.png') });
@@ -123,7 +123,7 @@ try {
     }
     save('scene', scenes);
     await inbox();
-    await clickText('.bh-human-inbox-tabs button', '提及与回复');
+    await clickText('.bh-activity-list-tabs button', '提及与回复');
     await delay(700);
     await capture('qa-seeded');
   } else {
@@ -157,32 +157,32 @@ try {
     } else {
       await inbox();
       console.log('INBOX OPENED');
-      await clickText('.bh-human-inbox-tabs button', '提及与回复');
+      await clickText('.bh-activity-list-tabs button', '提及与回复');
       await delay(900);
       await capture('after-replies');
       assert.ok(
         await page.evaluate((slug) => {
-          const select = document.querySelector('.bh-human-inbox-filters select');
+          const select = document.querySelector('.bh-activity-list-filters select');
           select.value = slug;
           select.dispatchEvent(new Event('change', { bubbles: true }));
           return true;
         }, scene.bot.slug),
       );
       await page.waitForFunction(
-        () => document.querySelectorAll('.bh-human-inbox-row').length === 1,
+        () => document.querySelectorAll('.bh-activity-list-row').length === 1,
       );
-      await clickText('.bh-human-inbox-row button', '回复');
-      await page.waitForSelector('.bh-human-inbox-reply-source');
+      await clickText('.bh-activity-list-row button', '回复');
+      await page.waitForSelector('.bh-activity-list-reply-source');
       assert.equal(
-        await page.$eval('.bh-human-inbox-reply-source', (node) => node.dataset.messageId),
+        await page.$eval('.bh-activity-list-reply-source', (node) => node.dataset.messageId),
         scene.reply.id,
       );
-      await clickText('.bh-human-inbox-reply button', '查看附近消息');
+      await clickText('.bh-activity-list-reply button', '查看附近消息');
       const replyBody =
         'Reviewed. Thank you; I will handle the remaining check. QA checkpoint ' +
         new Date().toISOString().slice(11, 23) +
         '.';
-      await page.type('.bh-human-inbox-reply textarea', replyBody);
+      await page.type('.bh-activity-list-reply textarea', replyBody);
       await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
       await capture('after-context-light');
       await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', 'true'));
@@ -196,9 +196,9 @@ try {
       await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
       const read = await rpc('humanAttention', { category: 'replies' }, second);
       assert.equal(read.items.find((item) => item.messageId === scene.reply.id)?.isUnread, false);
-      await clickText('.bh-human-inbox-reply button', '发送回复');
+      await clickText('.bh-activity-list-reply button', '发送回复');
       await page.waitForFunction(() =>
-        document.querySelector('.bh-human-inbox-reply')?.textContent?.includes('回复已发送'),
+        document.querySelector('.bh-activity-list-reply')?.textContent?.includes('回复已发送'),
       );
       await capture('after-sent');
       const matches = (await rpc('channelMessages', { channelId: scene.group.id })).messages.filter(
@@ -207,7 +207,7 @@ try {
       assert.equal(matches.length, 1);
       assert.equal(matches[0].replyTo, scene.reply.id);
       assert.equal(matches[0].author.kind, 'human');
-      await clickText('.bh-human-inbox-reply button', '查看来源');
+      await clickText('.bh-activity-list-reply button', '查看来源');
       await page.waitForFunction(
         (id) => !!document.querySelector('[data-message-id="' + id + '"]'),
         {},

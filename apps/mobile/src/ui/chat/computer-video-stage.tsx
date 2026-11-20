@@ -8,7 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { fittedFrame, moveCursor, type StageZoom } from '../../host/browser-viewer';
+import { fittedFrame, moveCursor, type StageZoom } from '@botharness/host-client/browser-viewer';
 import {
   resizeVideoPreview,
   revealVideoPointer,

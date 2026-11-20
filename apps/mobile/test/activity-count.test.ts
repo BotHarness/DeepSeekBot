@@ -6,18 +6,28 @@ import {
   observeActivityCount,
   readActivityCount,
 } from '../src/host/activity-count';
-import type { HumanAttentionItem, HumanAttentionPage } from '../src/host/wire';
-import type { InboxSnapshot } from '../src/host/inbox';
+import type {
+  WireHumanAttentionItem,
+  WireHumanAttentionPage,
+} from '@botharness/host-protocol/wire';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
-const item = (id: string, kind = 'tool-approval'): HumanAttentionItem => ({
+const item = (
+  id: string,
+  kind: WireHumanAttentionItem['kind'] = 'tool-approval',
+): WireHumanAttentionItem => ({
   id,
   kind,
   category: 'action',
   createdAt: '2026-10-18T00:00:00Z',
   botSlug: 'qa',
   summary: 'test',
+  channelId: 'dm-qa',
+  channelName: 'QA',
+  messageId: 'message-' + id,
+  sourceEventId: 'event-' + id,
 });
-const page = (items: HumanAttentionItem[], nextCursor?: string): HumanAttentionPage => ({
+const page = (items: WireHumanAttentionItem[], nextCursor?: string): WireHumanAttentionPage => ({
   queryVersion: 1,
   items,
   ...(nextCursor ? { nextCursor } : {}),
@@ -112,18 +122,26 @@ describe('navigation Activity count', () => {
     ]);
   });
 
-  it('deduplicates categories, excludes handled replies and separates other actions', async () => {
+  it('deduplicates activity, excludes read replies and separates other actions', async () => {
+    const mention = {
+      ...item('reply', 'channel-mention'),
+      category: 'replies',
+      isUnread: true,
+    } satisfies WireHumanAttentionItem;
     const client = {
       call: async (_method: string, args: Record<string, unknown>) => {
         if (args.category === 'replies') {
           expect(args.unreadOnly).toBe(true);
           return page([
-            { ...item('seen', 'channel-reply'), isUnread: false },
-            item('reply', 'channel-mention'),
+            { ...item('seen', 'channel-reply'), category: 'replies', isUnread: false },
+            mention,
+            mention,
           ]);
         }
         if (args.category === 'unread')
-          return page([item('reply', 'channel-mention'), item('channel', 'channel-unread')]);
+          return page([
+            { ...item('channel', 'channel-unread'), category: 'unread', unreadCount: 1 },
+          ]);
         return page([
           item('a'),
           item('q', 'user-question'),
@@ -153,10 +171,48 @@ describe('navigation Activity count', () => {
     ).rejects.toThrow('HOST_VERSION');
   });
 
+  it('counts again only when the inbox publishes a new ready snapshot', async () => {
+    const prefs = preferences();
+    await prefs.ready;
+    let changed = () => {};
+    let current: typeof ready | { status: 'loading' } = ready;
+    const client = { call: vi.fn(async () => page([item('a')])) };
+    const observer = observeActivityCount(
+      client,
+      {
+        getSnapshot: () => current as typeof ready,
+        subscribe(listener) {
+          changed = listener;
+          return () => {};
+        },
+      },
+      prefs,
+    );
+    const off = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(1));
+    const reads = client.call.mock.calls.length;
+    changed();
+    current = { status: 'loading' };
+    changed();
+    current = { ...ready, loadingMore: ['replies'] };
+    changed();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(client.call).toHaveBeenCalledTimes(reads);
+    current = { ...ready, sections: { ...ready.sections } };
+    changed();
+    await vi.waitFor(() => expect(client.call.mock.calls.length).toBeGreaterThan(reads));
+    off();
+  });
+
   it('keeps cached data on refresh failure, replaces stale selection and stops with its subscriber', async () => {
     const prefs = preferences();
     await prefs.ready;
     let changed = () => {};
+    let current = ready;
+    const publish = () => {
+      current = { ...ready, sections: { ...ready.sections } };
+      changed();
+    };
     let fail = false;
     const stop = vi.fn();
     const client = {
@@ -169,7 +225,7 @@ describe('navigation Activity count', () => {
     const observer = observeActivityCount(
       client,
       {
-        getSnapshot: () => ready,
+        getSnapshot: () => current,
         subscribe(listener) {
           changed = listener;
           return stop;
@@ -180,14 +236,14 @@ describe('navigation Activity count', () => {
     const off = observer.subscribe(() => {});
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(3));
     fail = true;
-    changed();
+    publish();
     await vi.waitFor(() => expect(observer.getSnapshot()).toEqual({ count: 3, stale: true }));
     prefs.setKinds(['questions']);
     await vi.waitFor(() =>
       expect(observer.getSnapshot()).toEqual({ count: undefined, stale: true }),
     );
     fail = false;
-    changed();
+    publish();
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(2));
     prefs.setKinds([]);
     await vi.waitFor(() => expect(observer.getSnapshot().count).toBe(0));
@@ -201,7 +257,7 @@ describe('navigation Activity count', () => {
   it('discards an old response when categories change during a request', async () => {
     const prefs = preferences();
     await prefs.ready;
-    let resolve: (page: HumanAttentionPage) => void = () => {};
+    let resolve: (page: WireHumanAttentionPage) => void = () => {};
     let calls = 0;
     const observer = observeActivityCount(
       {

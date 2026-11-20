@@ -1,6 +1,56 @@
 # Phone pairing and paired devices
 
+## Sources
+
+- `apps/mobile/app/member-pairing.tsx`
+- `apps/mobile/src/host/{account-pairing,pairing-image}.ts`
+- `apps/mobile/src/ui/pairing-failure.ts`
+- `apps/mobile/src/ui/primitives/pairing-actions*`
+- `apps/mobile/src/ui/shell/{pairing-*,use-pairing}.{ts,tsx}`
+- `packages/client/src/client/{pairing-settings,pairing-table}.tsx`
+- `packages/core/src/devices/pairing.ts`
+
+## Terms
+
+- Pairing
+- Paired Device
+- Host Relationship
+
+## Connect desktop self-check (#4170)
+
+In a task-owned signed-in Host, open Connections → Tobs Connect and verify automatic check progress after sign-in/connector recovery. Compare the card and `deepseekbot connect-check` with `connect-status` through the same authenticated Host. A running connector alone must remain neutral. Require relay online plus a fresh Host-pinned public encrypted handshake before success; observe checked time and copy only bounded diagnostics. Inject task-owned DNS/TLS/HTTP/handshake failures, retry after recovery, expire the observation and fail the snapshot/retry request: none may retain green success. Opening the dialog must not start extra probes. Transient public failures retry at most four attempts with 1/3/6-second waits within the same 20-second deadline; certificate/identity failures refuse immediately, including incomplete certificate chains. Handshake payloads are limited to1KiB without compression before Noise decoding. A stale checking snapshot must allow retry when no local request is active; manual requests time out after25seconds and abort on card close. Each completed check refreshes the account computer list once without closing an existing management confirmation. A health refresh that interrupts a post-revoke list read must start a replacement read and leave controls usable. Do not change production DNS, other Host bindings or device grants. Record official-service versus isolated transport-fixture proof separately; desktop self-check does not qualify every phone network or reproduce a customer fault.
+
+## Mobile app installation guidance (#4737)
+
+Open Mobile app in the Control Rail, then choose Start pairing to open the
+installation guide in Connections. In both views, verify the first Android
+link opens the Tobs listing on Google Play and iOS opens TestFlight. Check that
+Discord and the QQ group number remain visible under the Android beta guidance.
+Copy the QQ group number and confirm it matches the displayed number. Repeat
+the visual check in light and dark mode and in English and Chinese. The guide
+stays on its installation step when opening an external link.
+
+## Advanced connection guidance (#4078)
+
+From each phone entry, confirm App installation, then expand Advanced methods. Choose Named Tunnel or own HTTPS ingress directly, return without mutating prepared routes, and check the existing private-mode replacement notice before choosing Docker. Invalid origins, untrusted certificates and failed DNS/proxy checks must provide an actionable next step and deployment guide, never a QR before verification. Tailscale setup shows its mobile VPN limitation even when its route is ready. Use a task-owned HTTPS ingress through the existing owner, compare both fingerprints, approve exactly one Simulator device and observe real Host Feed; separately qualify LAN/Tailscale presentation. Record external edge versus Named/Docker provider coverage, preserve other routes and release owned resources.
+
+## Host grouping and scoped management (#4076)
+
+In the shared Connections dialog, pair two disposable Hosts. Give one Host LAN plus another existing supported route and verify a single row with current/verified/unreachable/unchecked route observations. Match account grouping using authenticated registration Host ID plus pinned key; same names or addresses and mismatched keys must not merge, and discovered unpaired entries have no management controls. Expand the selected Host, test an alternative route, and compare `connection-hosts`/`connection-host inspect` through its explicit Client ID. Confirm that client-local removal leaves the Host grant/data and the other Host intact. Separately revoke a disposable device on the selected target, then stop one owned route while preserving an alternative. Current-route interruption must remain unconfirmed until observed, never a fabricated success. Keep all credentials/private names out of published screenshots and report account-fixture versus official-service evidence separately.
+
+## Simple phone connection choices (#4075)
+
+Enter the shared phone dialog from the Control Rail, Connections settings and optional intro step. Confirm the App is installed before any route preparation. Quick Tunnel and Tobs Connect appear first; Advanced methods reveals LAN/Tailscale. Selecting Connect must not sign in or publish until “Sign in and connect this computer” is pressed. Verify unavailable service and capacity refusals retain truthful state, show linked-computer management on a newly received account limit, and allow Quick fallback without sign-out or stopping another route. Only a ready route enables Continue; account login alone is not phone completion. Use disposable test accounts for real capacity → unlink → reconnect acceptance; isolated identity/relay fixtures do not qualify the official service or physical devices.
+
+## Tailscale restart and stale routes (#3565, #3566)
+
+On a task-owned Host and isolated Serve fixture, enable automatic publishing, then restart the same Profile on a new Host port. The owned HTTPS port must remain unchanged and no `off` may precede publication. Refuse the publication command and require the old route and ownership record to remain; restore command access and retry. Repeat with unavailable or malformed Serve status after a successful command: report failure, retain ownership and recover on retry. An externally edited mapping must be preserved.
+
+Include a separate unowned loopback proxy to a closed port. Connections → Manage must show its URL and target port as unavailable even while the current route is ready; `deepseekbot phone-route` must report the same `staleRoutes`. Restore the target listener and require the warning to disappear after the five-second check cache refreshes. The check must not publish, delete or adopt that route. Capture both themes and read the browser console. Process fixtures qualify the Host/CLI/Client path only; actual macOS Tailscale daemon and native phone reachability remain separate checks. Never use the Human's existing Serve rules as fixtures.
+
 ## Connection recovery (#2731)
+
+For foreground live-stream recovery (#3336), run `pnpm exec vitest run apps/mobile/test/host-client.test.ts apps/mobile/test/phone-connection-recovery.test.ts`. In the assigned Android lane, record a matched background/foreground sequence with a populated Channel, then produce a fresh Host event after returning and verify it arrives without manual retry. Repeat across two paired Hosts and rapid resume cycles. Distinguish silent socket loss from a delivered close callback; capture reconnecting status, retained content, and canonical event IDs. Repeat with an accepted request in flight: recovery waits for its completion or existing deadline, and the write is not replayed. Source tests qualify neither Android suspension nor native before/after evidence.
 
 Run `pnpm exec vitest run packages/client/test/phone-route-recovery.test.tsx apps/mobile/test/phone-connection-recovery.test.ts apps/mobile/test/connection-banner.test.tsx` for deterministic route loss/restoration, foreground and periodic silent-loss probes, saved-route switching, revoke refusal, stale settings and QR retry/invalidation. These tests do not qualify OS VPN transitions.
 
@@ -29,9 +79,11 @@ Reserve the native QA lane before starting a Host, build or device. New native b
 4. Restart both peers; trust and the logical Host remain. Revoke the phone; streams close and reconnect refuses. Disable LAN and verify port release while independent remote access remains.
 5. Wrong Host pins, legacy pairings without keys, reused and expired offers refuse. Denied local-network permission shows recovery guidance. This slice does not add mutation replay or proactive handover.
 
-A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)).
+A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/decisions/connections.md#adr-0199)).
 
 ## Sub-features
+
+- `phone-entry`: Control Rail → Get the mobile app → Start pairing opens the standalone Connections dialog. Every phone entry first displays the shared iOS/Android installation guide. Only App installed, start connecting may proceed: an existing ready route then displays the invitation; otherwise preparation appears without automatically publishing. Bot settings → Connections opens the same dialog without the settings sidebar. Verify a named Host, exact-device approval and actual phone Host Feed; close/back must leave the route running. Reopen to inspect pending/paired devices. QR/offer/credential creation alone is not connection proof. Web-only fixtures do not qualify native scanning or physical connectivity (#4071).
 
 - `full-client-removed`: no settings/chat/Inbox/routine/create action opens the full Host WebView; old `/full-client` deep links cannot load it. Private input directs the Human to the Host or Tailscale browser.
 
@@ -50,7 +102,7 @@ A Human pairs the phone app with their Host by a one-time QR code, and the phone
 
 ## How to get to it (user POV)
 
-- Computer: Bot mode → settings → Connections → Add connection → Connect a device to this Host → Local network → Enable and continue. The dialog shows the QR code, full Host fingerprint and exact pending device approval. Ready routes skip preparation. Connection methods → Manage retains existing LAN, Tailscale and account controls. The paired-device list has Revoke.
+- Computer: Bot mode → settings → Connections → Add connection → Connect your phone to this computer → App installed, start connecting → Local network → Enable and continue. The dialog shows the QR code, full Host fingerprint and exact pending device approval. Ready routes skip preparation. Connection methods → Manage retains existing LAN, Tailscale and account controls. The paired-device list has Revoke.
 - Phone: first use opens "Pair with your computer". From an existing session: Workspaces → Computers → Pair a new computer. Scan the code or paste the link, then tap Pair. Cloud → Join by link or QR is the separate cloud invitation path; its preview identifies organization membership versus one-channel guest access. The category tabs are the first drawer row; swipe, backdrop, Android Back and accessibility escape dismiss it.
 
 ## Driving it with verify-app
@@ -72,7 +124,7 @@ Bot settings → Connections groups pairing and connection management. Add conne
 
 ## Unified onboarding and selected Client (#2793)
 
-In two isolated Hosts, create a known empty Channel on the inviting Host. From Connections choose Add connection → Connect a device to this Host → Local network. Verify no listener was enabled before Enable and continue; verify readiness advances to the invitation. Paste its private link into the other browser's Add connection → Connect to a Remote Host. Compare the full Host fingerprint, confirm, then compare and approve the exact device fingerprint on the inviting Host. The receiver must display success only after reading the Host Feed, and its sidebar must show the known Channel. The invitation must track its own receipt, not any new device. Refused, superseded or unknown receipts remove the old QR.
+In two isolated Hosts, create a known empty Channel on the inviting Host. From Connections choose Add connection → Connect your phone to this computer → App installed, start connecting → Local network. Verify no listener was enabled before Enable and continue; verify readiness advances to the invitation. Paste its private link into the other browser's Add connection → Connect to a Remote Host. Compare the full Host fingerprint, confirm, then compare and approve the exact device fingerprint on the inviting Host. The receiver must display success only after reading the Host Feed, and its sidebar must show the known Channel. The invitation must track its own receipt, not any new device. Refused, superseded or unknown receipts remove the old QR.
 
 Close the invitation and produce another pending request: the ordinary workspace's Pending requests control must appear without opening a modal or moving focus. Click it, close it without approving, then reopen; the exact request remains. Complete approval, check it disappears, and capture the request and completed views without live links/QR payloads.
 
@@ -112,3 +164,44 @@ Record default/intermediate/maximum text in both themes, reachable labels, keybo
 - A browser cannot set headers on a WebSocket, and the web export runs the native carrier unchanged (`apps/mobile/AGENTS.md` keeps web-only code paths out of the app). The journey's phone origin therefore adds the `Authorization: Device …` header it last saw on the app's own unary calls to the stream upgrade, standing in for the native WebSocket header. After a revoke it forwards the same revoked header, so the refusal is real.
 - The journey rewrites the pairing link's routes to its phone origin, so it does not prove route choice; `apps/mobile/test/host-client.test.ts` covers that.
 - The camera scanner, Keychain/Keystore storage and the native WebSocket only run in a development build on a phone; see `apps/mobile/README.md`.
+
+## Docker private connection (#3746)
+
+In Connections → Add connection → Connect your phone to this computer, select Docker private connection (recommended). Verify the public-endpoint prerequisite appears before claiming. Deploy on an existing reachable HTTPS endpoint; unreachable endpoints must fail visibly. Enter the initial setup key privately, wait for connected, then show the phone pairing code. Compare the full Host fingerprint, approve the exact phone key, and send a Bot message from the native phone. Require the actual reply and canonical Host facts with official login/discovery/relay unavailable. Retain failed attempts and verify duplicate claim, unauthorized admission, restart persistence and revocation. Local protocol tests do not qualify this native journey.
+
+## Quick Tunnel entry and recovery (#4072)
+
+From Mobile app → Start pairing → App installed, start connecting → Quick Tunnel (no sign-in), verify no publication before the explicit create action and show the temporary-address notice. Pair only after the existing owner verifies the public route; exclude LAN/Tailscale from this journey. Read the actual native Host roster, restart the task Host/tunnel, and scan a fresh invitation to the same pinned Host: retain the Host row and valid device authorization, update the route, then cold-reopen the App. Explicit stop must prevent restart restoration. Record coded provider failures and uncertain-operation outcomes without claiming success or replaying writes. Use existing CLI private-tunnel enable/devices/disable and existing pairing-route-update tests; preserve other routes and shared resources.
+
+## Optional intro phone step (#4073)
+
+On a fresh Profile, open the Phone step in the Desktop intro. Skip for now must advance without creating an invitation, route, listener or login. Back returns to Phone. Connect phone opens the shared Connections dialog as the only dialog; Close returns to the same intro step and permits retry.
+
+From the phone Control Rail, Connections settings and intro entries, verify the same installation guide inside the dialog, with working iOS/Android download links and no invitation before explicit App installed confirmation. Repeat with an existing ready route; Back, Close and reentry must not bypass the guide.
+
+Create a Quick Tunnel explicitly, pair the assigned Simulator through the normal encrypted enrollment and compare the full fingerprints. Approval alone and another device's Feed acknowledgement must not complete the step. Open the intended phone's Bot list: its mobile Host client loads and publishes the actual Bot/Channel roster, then reports the read through its authenticated device gateway. Verify `devices.devices[].feedReadAt` for the exact redeemed device and the Desktop success state; Continue is explicit. Reopen and Back preserve the grant and route. Revoked grants must not produce completion. `device-probe --device-file` exercises the same read/acknowledgement owner without a model; `feedRead: unsupported` or `unconfirmed` is not a successful acknowledgement.
+
+Capture EN/ZH, light/dark and constrained Desktop layouts without QR payloads, credentials or unrelated native Hosts. Record native source and build: older mobile builds do not send this acknowledgement, and deep-link Simulator enrollment does not prove physical camera scanning. Revoke/remove only this task's device and release its Host/tunnel/Metro/driver under the assigned device lane.
+
+
+## Computer intent in shared Connections (#4074)
+
+From Bot settings → Connections → Add connection, distinguish the smartphone and computer icons. Phone keeps its installation guide. Computer opens its pairing-link form inside the same Connections dialog. Back returns to the intent choices and cancels unfinished enrollment. A ready phone route must not publish a reciprocal route or bypass the Remote Host identity check.
+
+Use two isolated Hosts and one browser served by the joining Host. Create an invitation on the target Host through its existing owner, paste the link into the computer flow, compare all Host fingerprint digits, and compare/approve the exact pending device key on the target. Verify the target name during confirmation and approval, then the actual known Bot/Channel roster in the joining browser before reporting connected. Read the original serving Host's routes and grants: they remain unchanged. The credential belongs only to the selected browser origin; a fresh browser context must not inherit it.
+
+Repeat enrollment in a second isolated browser context with the existing targeted `connection-clients` and `connection start/status/confirm/cancel` CLI. Never print the private link or credential. Missing Client, stale request, cancelled confirmation and late responses must not save to an unintended Client. Existing public-seam tests cover deterministic refusals; preserve real two-Host UI/CLI evidence, no-publication checks and teardown. This Web Client interaction does not change native phone enrollment; distinguish its browser evidence from assigned Simulator and physical-device acceptance.
+
+## Account environment diagnostics (#4128)
+
+On both native platforms, pair/account → choose a synthetic computer → Add. Refuse the offer with a controlled HTTP502 or DNS failure containing sentinel credentials/private URL text. The correct failed row keeps its short summary, View details expands request stage/time/category/status in the same scrolling list, and Copy diagnostics places the same safe facts plus app/OS identity on the real clipboard. No sentinel, raw body, address, email or credential may appear. A second computer's report must remain independent; a new attempt and Refresh must clear old details/copied state. Refresh failure preserves cached rows and offers its own account diagnostic. Clipboard failure leaves a retry action.
+
+Development-only native fixtures: `/qa/account-actions?scenario=connection-diagnostics`, `connection-diagnostics-network`, `connection-diagnostics-session`, `connection-diagnostics-invalid`, and `connection-diagnostics-list`; existing `__DEV__` plus `.dev` gates remain required. They exercise the production account request owner with controlled request responses; they qualify native rendering/copy, not the real Connect service. Run `apps/mobile/test/connection-diagnostic.test.ts`, `apps/mobile/test/connection-failure-actions.test.tsx`, `apps/mobile/test/account-panel-ios-integration.test.tsx` and account/pairing regression tests. Native acceptance covers light/dark × default/intermediate/maximum Dynamic Type, bottom action reachability, return/reopen and real clipboard readback. Record actual binary/JS source and Android UNTESTED until its queue executes the equivalent steps.
+
+## Client-local route selection (#4077)
+
+With two eligible routes to one pinned Host, open its Connections disclosure or native connection-details form sheet. Default is Automatic. Choose one address through the Web Select or iOS pop-up button / Android single-choice menu; verify the saved preference separately from the actual current address. With an active write/upload, switching waits for completion or its original uncertain outcome and never replays that operation. Stop only the selected task route: manual failure remains visible despite a usable alternate. Return to automatic and observe real content recovery. Repeat via `connection-host <id> select-route <origin-or-automatic> --client-id <id> --confirm`; reopen the Client to prove persistence. Another browser/phone keeps its own preference. Storage failure must retain prior selection; revoked authorization must fail on every route. Never add official eligibility to a private-only Host. Native default/intermediate/maximum text in both themes, Android and physical limits are reported separately. Remove task grants and release routes/processes under resource and device ownership rules.
+
+### Independent private routes (#4079)
+
+After the shared installed-App gate, add a Quick Tunnel and one private HTTPS ingress from Connections. Verify separate status rows and that stopping/resuming either row leaves the other usable. Replacement must explicitly name its effect; removing configuration requires confirmation and must not imply device revocation. Exercise `private-route list/add/replace/start/stop/remove` against the same Host. Pair an updated phone from the combined invitation, verify the real Host roster over each explicitly admitted origin, restart the Host with one route disabled, then recover a changed Quick address by same-key rescan without adding a duplicate Host. Revoke the device and verify both routes refuse. Retain uncertain-write failures without replay. Check old-reader single-primary QR compatibility separately. Follow ADR-0333 protected Profile backup before exercising migration and record restore limitations. Release both task-owned routes, gateways, processes and device grants afterward; Simulator does not qualify Android or physical devices.

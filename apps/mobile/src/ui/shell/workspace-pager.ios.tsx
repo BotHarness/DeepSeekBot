@@ -45,16 +45,18 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const mount = useMounted<PagerView>(
     (pager) => {
       native.current = pager;
-      const release = bindWorkspacePaging({
-        open: () => (reduced ? pager.setPageWithoutAnimation(0) : pager.setPage(0)),
-        close: () => (reduced ? pager.setPageWithoutAnimation(1) : pager.setPage(1)),
-      });
+      const release = shellFocused
+        ? bindWorkspacePaging({
+            open: () => (reduced ? pager.setPageWithoutAnimation(0) : pager.setPage(0)),
+            close: () => (reduced ? pager.setPageWithoutAnimation(1) : pager.setPage(1)),
+          })
+        : undefined;
       return () => {
         native.current = null;
-        release();
+        release?.();
       };
     },
-    [reduced],
+    [reduced, shellFocused],
   );
   const open = useCallback(() => move(3), [move]);
   const close = useCallback(() => move(2), [move]);

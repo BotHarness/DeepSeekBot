@@ -14,14 +14,11 @@ import {
   type JournalEntry,
   type JournalPage,
 } from './bridge.js';
-import type {
-  ActivityLiveFrame,
-  ChannelLiveFrame,
-  RosterLiveFrame,
-} from '../../../core/src/channels/live.js';
+import type { ActivityLiveFrame, RosterLiveFrame } from '../../../core/src/channels/live.js';
 import type { CompanionLiveFrame } from '../../../core/src/companions/live.js';
 import type { ChannelFollow } from './channel-live.js';
 import type { TypedLive } from './messaging-defaults-live.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const follow = Object.freeze({
   service: 'botharnessBridge',
@@ -75,7 +72,16 @@ export const CHANNEL_REMOTE_DESCRIPTOR = Object.freeze({
       source: 'json' as const,
       codec: strict(
         'a page size',
-        (value): value is number => Number.isSafeInteger(value) && (value as number) >= 1,
+        (value): value is number => Number.isSafeInteger(value) && (value as number) >= 0,
+      ),
+    }),
+    Object.freeze({
+      name: 'drafts',
+      wire: 'drafts',
+      source: 'json' as const,
+      codec: strict(
+        'a draft delivery',
+        (value): value is 'full' | 'append' => value === 'full' || value === 'append',
       ),
     }),
   ]),
@@ -85,8 +91,9 @@ export interface ChannelNamespace {
   followChannel(
     channelId: string,
     limit: number,
+    drafts: 'full' | 'append',
     signal: AbortSignal,
-  ): AsyncIterable<ChannelLiveFrame>;
+  ): AsyncIterable<unknown>;
 }
 
 const CHANNEL_PAGE = 50;
@@ -171,7 +178,7 @@ export function createChannelFollow(
     let stopped = false;
     const failed = (error: unknown): void => {
       if (stopped) return;
-      console.warn(`botharness: ${name} failed`, error);
+      reportFailure('live-stream-failed', `${name} failed`, error);
       handlers.interrupted(true);
     };
     const journal = new ChannelJournal(
@@ -193,7 +200,7 @@ export function createChannelFollow(
         },
         failed,
       },
-      (request, signal) => namespace().followChannel(channelId, request.limit, signal),
+      (request, signal) => namespace().followChannel(channelId, request.limit, 'append', signal),
       (request, through, signal) =>
         readPage(
           channelId,
@@ -290,7 +297,7 @@ export function createCompanionSource(
         update: publish,
         failed: (error) => {
           if (state === 2) return;
-          console.warn(`botharness: ${name} failed`, error);
+          reportFailure('live-stream-failed', `${name} failed`, error);
           interrupted(true);
         },
       },
@@ -349,7 +356,7 @@ function supervised<Frame extends { type: string }>(
         update: handlers.update,
         failed: (error) => {
           if (stopped || current !== stream) return;
-          console.warn(`botharness: ${name} failed`, error);
+          reportFailure('live-stream-failed', `${name} failed`, error);
           handlers.interrupted();
           current = undefined;
           void stream.dispose();
@@ -385,7 +392,9 @@ export function createTypedLive(
           },
           update: (frame) => {
             if (frame.type === 'changed') handlers.changed();
+            else if (frame.type === 'skills') handlers.skills?.(frame.change);
             else if (frame.type === 'attention') handlers.attention?.();
+            else if (frame.type === 'resource') handlers.resource?.(frame.change);
             else if (frame.type === 'latest')
               handlers.latest({ channelId: frame.channelId, message: frame.message });
             else if (frame.type === 'purged') handlers.purged(frame.placements);

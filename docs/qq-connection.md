@@ -25,7 +25,7 @@ After the first mention, open the application's **Edit identity** conversation l
 
 Expand **Reception intervals** to inspect pause, block, waiting and connection records. **Local control boundaries** come from local actions; **Local observation times** come from connection checks. After an unclean restart, an **unverified continuity** range spans the last observation to the next check. These ranges cannot establish missed-message counts. Each app retains the latest 128 closed intervals and current intervals, without another message transcript.
 
-See [#1153](https://github.com/BotHarness/BotHarness/issues/1153) and [ADR-0152](adr/0152-qq-reception-intervals-record-local-observations.md).
+See [#1153](https://github.com/BotHarness/BotHarness/issues/1153) and [ADR-0152](decisions/im-providers.md#adr-0152).
 
 ## Use two Bots in the same QQ group
 
@@ -104,7 +104,7 @@ QQ does not provide this consumer with a group-history API or a durable resume c
 
 The [#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155) development candidate adds checked ordinary text from the Provider's exclusive QQ consumer. Mentions-only remains the collection default. The software capability does not prove receive-all permission: a fresh non-mentioned native group event must reach the active receiver before the existing Client can enable **all messages** for that conversation. A probe in mentions-only mode supplies current delivery evidence without placing its ordinary content in canonical collection or waking the Bot.
 
-Saved collection preference and current receiver evidence stay separate. With explicit collection enabled, eligible ordinary text keeps its own member, group and message attribution in the existing local Inbox/Channel path. Observation and count/time harvest can wake a Bot independently of direct mentions, without requiring a reply to every event. Intentional speech uses the independently authorized own-app proactive path. Ordinary media and remote QQ group history are outside this text slice.
+Saved collection preference and current receiver evidence stay separate. With explicit collection enabled, eligible ordinary messages keep their own member, group and message attribution in the existing local Inbox/Channel path. The #3221 candidate explicitly extends the former text-only slice to supported direct images and files when the connector negotiated the corresponding attachment capability. Mentions-only collection still excludes ordinary messages; disabled capabilities and unsupported formats remain unreadable. Quoted ordinary media, voice and remote QQ group history are unchanged. Observation and count/time harvest can wake a Bot independently of direct mentions, without requiring a reply to every event. Intentional speech uses the independently authorized own-app proactive path; receiving ordinary media does not grant passive reply permission. Native QQ acceptance of this extension remains unverified.
 
 Switching back to mentions-only stops future ordinary collection. Blocking, disabling or losing the receiver applies existing fences; reconnect keeps valid preferences but requires current delivery evidence again. Events from a blocked intake interval do not qualify the newly allowed conversation or reconstruct missing history. Real QQ event, Client opt-in, understanding and contribution acceptance remain pending for this candidate.
 
@@ -115,7 +115,7 @@ Switching back to mentions-only stops future ordinary collection. Blocking, disa
 - For an expired source, send a fresh @mention in QQ. An unknown send outcome needs inspection in the group before another message is requested.
 - Check that the Bot, binding and conversation are enabled and allowed. Pausing, blocking or unbinding invalidates pending authority.
 
-The [Provider integration guide](dev/guides/im-provider-integration.md) and [ADR-0151](adr/0151-qq-group-replies-use-authenticated-apps-and-process-local-source-proof.md) describe the implementation boundary.
+The [Provider integration guide](dev/guides/im-provider-integration.md) and [ADR-0151](decisions/im-providers.md#adr-0151) describe the implementation boundary.
 
 ## Receive and play group voice
 

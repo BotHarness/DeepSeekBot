@@ -20,8 +20,24 @@ async function until(predicate) {
     await delay(25);
   }
 }
+async function jsonWhenReady(file) {
+  let parsed;
+  await until(() => {
+    try {
+      parsed = JSON.parse(readFileSync(file, 'utf8'));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  return parsed;
+}
 function members(pid) {
-  return execFileSync('ps', ['-eo', 'pid=,pgid='], { encoding: 'utf8' })
+  return execFileSync('ps', ['-eo', 'pid=,pgid='], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  })
     .trim()
     .split('\n')
     .map((line) => line.trim().split(/\s+/u).map(Number))
@@ -51,7 +67,7 @@ async function stopRecordedPreparation(home) {
     const rows = execFileSync(
       'ps',
       ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,pgid=,command='],
-      { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+      { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, shell: false, windowsHide: true },
     ).split('\n');
     return rows.flatMap((line) => {
       const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line);
@@ -82,10 +98,12 @@ async function stopRecordedPreparation(home) {
 }
 const workerSource = `const server=require('node:net').createServer();server.listen(0,'127.0.0.1',()=>process.send({pid:process.pid,port:server.address().port}));`;
 function fixtureHost(respawn = false) {
-  const source = `const {spawn}=require('node:child_process');function worker(){const c=spawn(process.execPath,['-e',${JSON.stringify(workerSource)}],{stdio:['ignore','ignore','ignore','ipc']});c.on('message',m=>process.send(m));}worker();${respawn ? "process.on('SIGTERM',()=>{worker();setTimeout(()=>process.exit(0),150)});" : ''}setInterval(()=>{},1000);`;
+  const source = `const {spawn}=require('node:child_process');function worker(){const c=spawn(process.execPath,['-e',${JSON.stringify(workerSource)}],{stdio:['ignore','ignore','ignore','ipc'],shell:false,windowsHide:true});c.on('message',m=>process.send(m));}worker();${respawn ? "process.on('SIGTERM',()=>{worker();setTimeout(()=>process.exit(0),150)});" : ''}setInterval(()=>{},1000);`;
   const child = spawn(process.execPath, ['-e', source], {
     detached: true,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    shell: false,
+    windowsHide: true,
   });
   child.ownedProcessGroup = true;
   return child;
@@ -102,7 +120,7 @@ describe('Home resource ownership across handoff and interruption', () => {
           '-c',
           'import os,time; pid=os.fork(); (os._exit(0) if pid==0 else print(pid,flush=True)); time.sleep(30)',
         ],
-        { stdio: ['ignore', 'pipe', 'ignore'] },
+        { stdio: ['ignore', 'pipe', 'ignore'], shell: false, windowsHide: true },
       );
       try {
         const [chunk] = await once(parent.stdout, 'data');
@@ -131,30 +149,72 @@ describe('Home resource ownership across handoff and interruption', () => {
       expect(matchesHomeProcess(entry, 'c:\\qa a\\', true)).toBe(true);
     },
   );
-  it('runs preparation only through a recorded command process', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'bh-prepare-'));
-    const lease = acquireHome(home);
-    try {
-      const result = await lease.run(
-        process.execPath,
-        [
-          '-e',
-          `const fs=require('node:fs');const record=JSON.parse(fs.readFileSync(${JSON.stringify(join(home, '.botharness-host.json'))},'utf8'));console.log(record.resources.some(r=>r.pid===process.ppid));`,
-        ],
-        { cwd: home },
-      );
-      expect(result.trim()).toBe('true');
-      await expect(
-        lease.run(process.execPath, [
-          '-e',
-          "process.stderr.write('fixture failure');process.exit(7)",
-        ]),
-      ).rejects.toThrow('fixture failure');
-    } finally {
-      lease.release();
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
+  it(
+    'runs preparation only through a recorded command process',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'bh-prepare-'));
+      const lease = acquireHome(home);
+      try {
+        const result = await lease.run(
+          process.execPath,
+          [
+            '-e',
+            `const fs=require('node:fs');const record=JSON.parse(fs.readFileSync(${JSON.stringify(join(home, '.botharness-host.json'))},'utf8'));console.log(record.resources.some(r=>r.pid===process.ppid));`,
+          ],
+          { cwd: home },
+        );
+        expect(result.trim()).toBe('true');
+        await expect(
+          lease.run(process.execPath, [
+            '-e',
+            "process.stderr.write('fixture failure');process.exit(7)",
+          ]),
+        ).rejects.toThrow('fixture failure');
+      } finally {
+        lease.release();
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
+  it(
+    'hands off only the live Host after preparation has exited',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'bh-preparation-handoff-'));
+      const owner = join(home, '.botharness-host.json');
+      const lease = acquireHome(home);
+      let child;
+      let released = false;
+      try {
+        await lease.run(process.execPath, ['-e', "process.stdout.write('prepared')"]);
+        child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+          stdio: 'ignore',
+          shell: false,
+          windowsHide: true,
+        });
+        await once(child, 'spawn');
+        lease.started(child, join(home, 'fixture.log'));
+        lease.release();
+        released = true;
+        const saved = JSON.parse(readFileSync(owner, 'utf8'));
+        expect(saved.resources.map((resource) => resource.pid)).toEqual([child.pid]);
+        expect(() => acquireHome(home)).toThrow('in use');
+        child.kill();
+        await once(child, 'exit');
+        const next = acquireHome(home);
+        next.release();
+        expect(existsSync(owner)).toBe(false);
+      } finally {
+        if (child?.exitCode === null && child.signalCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+        if (!released) lease.release();
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
   it.skipIf(process.platform === 'win32')(
     'does not hang on pipes inherited by an abandoned preparation descendant',
     async () => {
@@ -164,7 +224,7 @@ describe('Home resource ownership across handoff and interruption', () => {
         await expect(
           lease.run(process.execPath, [
             '-e',
-            "require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref()",
+            "require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit',shell:false,windowsHide:true}).unref()",
           ]),
         ).rejects.toThrow('Preparation left running descendants');
       } finally {
@@ -231,7 +291,7 @@ describe('Home resource ownership across handoff and interruption', () => {
   );
   it.skipIf(process.platform === 'win32')(
     'blocks reuse after interrupting a real offline pnpm installation',
-    async () => {
+    async ({ onTestFinished }) => {
       const home = mkdtempSync(join(tmpdir(), 'bh-install-interruption-'));
       writeFileSync(
         join(home, 'package.json'),
@@ -250,28 +310,11 @@ describe('Home resource ownership across handoff and interruption', () => {
       const code = `import {acquireHome} from ${JSON.stringify(module)};const lease=acquireHome(${JSON.stringify(home)});await lease.run(${JSON.stringify(command)},${JSON.stringify(args)},{cwd:${JSON.stringify(home)}});lease.release();`;
       const launcher = spawn(process.execPath, ['--input-type=module', '-e', code], {
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       let resources = [];
-      try {
-        await until(() => existsSync(join(home, 'install-ready')));
-        resources = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8')).resources;
-        expect(resources.length).toBe(1);
-        launcher.kill('SIGKILL');
-        await once(launcher, 'exit');
-        expect(members(resources[0].pid).length).toBeGreaterThan(0);
-        expect(() => acquireHome(home)).toThrow('in use');
-        writeFileSync(join(home, 'install-release'), 'done');
-        await until(() => {
-          try {
-            if (processIsRunning(resources[0].pid)) return false;
-            return members(resources[0].pid).length === 0;
-          } catch {
-            return members(resources[0].pid).length === 0;
-          }
-        });
-        const next = acquireHome(home);
-        next.release();
-      } finally {
+      onTestFinished(async () => {
         writeFileSync(join(home, 'install-release'), 'done');
         if (launcher.exitCode === null && launcher.signalCode === null) {
           launcher.kill();
@@ -298,7 +341,25 @@ describe('Home resource ownership across handoff and interruption', () => {
           });
         }
         rmSync(home, { recursive: true, force: true });
-      }
+      });
+      await until(() => existsSync(join(home, 'install-ready')));
+      resources = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8')).resources;
+      expect(resources.length).toBe(1);
+      launcher.kill('SIGKILL');
+      await once(launcher, 'exit');
+      expect(members(resources[0].pid).length).toBeGreaterThan(0);
+      expect(() => acquireHome(home)).toThrow('in use');
+      writeFileSync(join(home, 'install-release'), 'done');
+      await until(() => {
+        try {
+          if (processIsRunning(resources[0].pid)) return false;
+          return members(resources[0].pid).length === 0;
+        } catch {
+          return members(resources[0].pid).length === 0;
+        }
+      });
+      const next = acquireHome(home);
+      next.release();
     },
     45_000,
   );
@@ -313,7 +374,7 @@ it.skipIf(process.platform === 'win32')(
     let pid;
     try {
       const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000);`;
-      const command = `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'});c.unref();const timer=setInterval(()=>{if(require('node:fs').existsSync(${JSON.stringify(marker)}))clearInterval(timer)},10);`;
+      const command = `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore',shell:false,windowsHide:true});c.unref();const timer=setInterval(()=>{if(require('node:fs').existsSync(${JSON.stringify(marker)}))clearInterval(timer)},10);`;
       await expect(lease.run(process.execPath, ['-e', command])).rejects.toThrow(
         'Preparation left running descendants',
       );
@@ -343,7 +404,7 @@ it.skipIf(process.platform === 'win32')(
     const marker = join(home, 'worker.json');
     const module = new URL('../dev-instance-lifecycle.mjs', import.meta.url).href;
     const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,parent:process.ppid}));setInterval(()=>{},1000)`;
-    const command = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'}).unref();setInterval(()=>{},1000)`;
+    const command = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore',shell:false,windowsHide:true}).unref();setInterval(()=>{},1000)`;
     const launcher = spawn(
       process.execPath,
       [
@@ -351,14 +412,12 @@ it.skipIf(process.platform === 'win32')(
         '-e',
         `import {acquireHome} from ${JSON.stringify(module)};const lease=acquireHome(${JSON.stringify(home)});await lease.run(process.execPath,['-e',${JSON.stringify(command)}]);lease.release();`,
       ],
-      { stdio: 'ignore' },
+      { stdio: 'ignore', shell: false, windowsHide: true },
     );
     let pids = [];
     try {
-      await until(() => existsSync(marker));
-      const workerInfo = JSON.parse(readFileSync(marker, 'utf8'));
-      const resource = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8'))
-        .resources[0];
+      const workerInfo = await jsonWhenReady(marker);
+      const resource = (await jsonWhenReady(join(home, '.botharness-host.json'))).resources[0];
       pids = [workerInfo.pid, workerInfo.parent, resource.pid];
       expect(resource.ownershipToken).toMatch(/^[a-f0-9-]{36}$/u);
       launcher.kill('SIGKILL');

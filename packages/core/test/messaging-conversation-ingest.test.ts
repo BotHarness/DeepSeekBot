@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -213,7 +214,10 @@ async function connected() {
   const fx = await fixture();
   expect(fx.core.registry.create({ slug: 'bea', displayName: 'Bea' }).ok).toBe(true);
   await fx.receive(mention('first'));
-  const group = fx.core.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+  const group = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Team',
+    members: ['ada', 'bea'],
+  });
   const before = fx.core.externalMessaging.inbound.ingests(group.id);
   expect(before.ingests).toEqual([]);
   expect(before.candidates).toEqual([
@@ -453,7 +457,10 @@ it('rejects sender Role lookup after its Conversation Ingest is paused', async (
 
 it('resolves a shared ingested source from a different Group placement', async () => {
   const { fx, group } = await connected();
-  const second = fx.core.channels.createGroup({ name: 'Second', members: ['ada', 'bea'] });
+  const second = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Second',
+    members: ['ada', 'bea'],
+  });
   await fx.core.externalMessaging.inbound.ingest(second.id, {
     kind: 'add',
     bindingId: fx.identity.id,

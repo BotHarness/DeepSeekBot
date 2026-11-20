@@ -1,5 +1,18 @@
 # The protected Tob DM
 
+## Sources
+
+- `packages/core/src/tob/**`
+- `packages/core/src/bots/cli-tob.ts`
+- `packages/client/src/client/{tob-presentation,tob-requests}.ts`
+
+## Terms
+
+- Tob
+- Steward Bot
+- Tob Delegation
+- DM
+
 ## Sub-features
 
 - Home was removed in #3089. Desktop has no Tob Mode or Tob rail switch (ADR-0268, ADR-0269): the Tob DM is a normal Channel list row. Home's stable shortcut command ID and default binding (primary+Alt+Shift+H; Linux Desktop uses O) now open the Tob DM in Messages without changing the Simple Side column (`Open Tob` / `打开托布`). Custom bindings keep working. Saved rail order and hidden-control entries for `bh:home` or `bh:tob-mode` are dropped on read.
@@ -127,7 +140,7 @@ Use only native macOS accessibility and screenshots in an isolated Profile for t
 
 ## First-entry intro (#2361)
 
-A fresh Profile whose journey tutorial is `not-started` opens a five-step dialog (`[data-intro-step]`: welcome, theme, model, community, start) the first time it enters Bot mode; the tutorial starts only when the dialog closes. Drive it in a new browser against a fresh isolated Profile (`verify-app launch`; `shot` does not dismiss it), step with Next, and capture each step in light and dark. Proof per step: the theme step changes `botharness:appearance:v1` and the visible theme at once, and an uploaded wallpaper shows behind the dialog; the model step's Next writes the Host default (`deepseekbot model-catalog`); the community step shows the live GitHub star count, or the cached count or a plain Star offline; picking a starter on the last step closes the dialog, sends that text once through the Tob DM composer and Tob replies, after which `deepseekbot onboarding` reports the tutorial active. Re-entry in the same browser must not reopen it (`botharness/onboarding/intro-v1/<profileId>`); restarting the tutorial from Settings must. Profiles that already started, finished or skipped the tutorial never see it.
+A fresh Profile whose journey tutorial is `not-started` opens a six-step dialog (`[data-intro-step]`: welcome, theme, model, phone, community, start) the first time it enters Bot mode. The tutorial starts when the dialog closes. Drive it in a new browser against a fresh isolated Profile (`verify-app launch`), step with Next, and capture each step in light and dark. Proof per step: the theme step changes `botharness:appearance:v1` and the visible theme at once, and an uploaded wallpaper shows behind the dialog. For the model step, follow the [Model providers journey](model-providers.md). The community step shows the live GitHub star count, the cached count or a plain Star offline. Picking a starter on the last step closes the dialog, sends that text once through the Tob DM composer and Tob replies, after which `deepseekbot onboarding` reports the tutorial active. Re-entry in the same browser must not reopen it (`botharness/onboarding/intro-v1/<profileId>`). Restarting the tutorial from Settings opens it again. Profiles that already started, finished or skipped the tutorial never see it.
 
 ## Mobile pull-to-Tob (#3090)
 
@@ -139,3 +152,8 @@ Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qual
 - The top entrance is the same chat content and composer as the normal Tob row. Check its down-entry/up-exit, Back, iOS edge cancellation/commit, keyboard-open exit and dark flash. Toggle Reduce Motion while the app remains running: on returning, entry and exit must stop sliding without a JS reload. Test normal Tob-row push separately. Keep physical/Simulator/Android and source SHA results separate.
 
 Retain the first failure with native screenshot/AX/video and exact source/binary identity, then restore preferences, remove only this run's temporary pairing, revoke its Host key and stop owned resources. The full device matrix is tracked in #3090 and #3093.
+
+
+## Model-free typed CLI parity (#4212)
+
+Use the authenticated Owner `tob-cli start --args-stdin` with private JSON `{argv,stdin}`; read its request ID with `tob-cli status` and cancel with `tob-cli cancel`. This creates a genuine Human DM and accepted Admission, prepares the actual owned Tob root Agent and executes the typed `deepseekbot_cli` through native Tools.execute without a model. A historical source or temporary direct Session cannot substitute. For a local nondestructive fixture, request an approval-template selection, inspect the real pending card in the Tob DM (exact argv and stdin size/hash), decide with existing Human `tool-approval-decide`, and read both the result and selected template. Match source/build hashes; no model request should appear. Repeat denial, cancellation, stale revision and authority-revoke fences. A template readback alone is not broker approval proof. Capture actual Client light/dark pending/settled states separately; Web evidence does not qualify native mobile.

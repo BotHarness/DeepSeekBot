@@ -54,7 +54,7 @@ export interface CdpClient {
   ): Promise<Record<string, unknown>>;
   subscribe(
     method: string,
-    sessionId: string,
+    sessionId: string | undefined,
     listener: (params: Record<string, unknown>) => void,
   ): () => void;
   close(): void;
@@ -77,9 +77,11 @@ export interface BotBrowserRuntimeOptions {
     installDir: string,
     hooks?: { onProgress?: (downloadedBytes: number, totalBytes: number) => void },
   ) => Promise<string>;
-  readonly headless?: boolean;
+  readonly headless?: boolean | (() => boolean);
+  readonly foregroundTabs?: () => boolean;
   readonly launchTimeoutMs?: number;
   readonly onEvent?: (detail: string) => void;
+  readonly onObservationChanged?: (() => void) | undefined;
   readonly onInstallProgress?: (downloadedBytes: number, totalBytes: number) => void;
   readonly onInstallSettled?: () => void;
   readonly preflight?: PreflightDeps;
@@ -238,7 +240,7 @@ export async function connectCdp(url: string, ctor?: WebSocketCtor): Promise<Cdp
   >();
   const subscriptions = new Set<{
     method: string;
-    sessionId: string;
+    sessionId: string | undefined;
     listener: (params: Record<string, unknown>) => void;
   }>();
   let nextId = 1;
@@ -464,7 +466,9 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let stopping: Promise<void> | undefined;
   let binary: string | undefined;
   let lastUrl: string | undefined;
+  let foreground = false;
   const sessions = new Map<string, string>();
+  const closedChildren = new WeakSet<ChildProcess>();
 
   const isRunning = (): boolean =>
     client !== undefined &&
@@ -472,6 +476,19 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     (options.execution !== undefined
       ? options.execution.isRunning()
       : child !== undefined && child.exitCode === null && !child.killed);
+
+  const watchTargets = (live: CdpClient): void => {
+    const changed = options.onObservationChanged;
+    if (changed === undefined) return;
+    for (const method of [
+      'Target.targetCreated',
+      'Target.targetDestroyed',
+      'Target.targetInfoChanged',
+    ])
+      live.subscribe(method, undefined, changed);
+    void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
+    changed();
+  };
 
   const launch = async (): Promise<void> => {
     if (options.execution !== undefined) {
@@ -483,6 +500,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         await options.execution.stop();
         throw error;
       }
+      watchTargets(client);
       onEvent('ready target=container');
       return;
     }
@@ -541,20 +559,28 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       onEvent(`installed ${binary}`);
     }
     mkdirSync(options.userDataDir, { recursive: true });
-    onEvent(`launch ${binary}`);
+    const headless =
+      typeof options.headless === 'function' ? options.headless() : options.headless === true;
+    foreground = !headless && options.foregroundTabs?.() === true;
+    onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
     const proc = spawn(
       binary,
       [
         ...buildLaunchArgs({
           userDataDir: options.userDataDir,
-          ...(options.headless === true ? { headless: true } : {}),
+          ...(headless ? { headless: true } : {}),
         }),
       ],
-      { stdio: ['ignore', 'ignore', 'pipe'] },
+      { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
+    proc.once('close', () => {
+      closedChildren.add(proc);
+      options.onObservationChanged?.();
+    });
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = '';
+      let stderrTruncated = false;
       const settle = (action: () => void): void => {
         clearTimeout(timer);
         proc.stderr?.off('data', onData);
@@ -563,13 +589,33 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         action();
       };
       const timer = setTimeout(
-        () => settle(() => reject(startupTimeoutFailure(launchTimeoutMs))),
+        () =>
+          settle(() =>
+            reject(
+              startupTimeoutFailure(launchTimeoutMs, {
+                binary: binary ?? '',
+                ...(proc.pid === undefined ? {} : { pid: proc.pid }),
+                exitCode: proc.exitCode,
+                signalCode: proc.signalCode,
+                killed: proc.killed,
+                stderr: stderrTruncated
+                  ? stderr.includes('\n')
+                    ? stderr.slice(stderr.indexOf('\n') + 1)
+                    : '<truncated line>'
+                  : stderr,
+              }),
+            ),
+          ),
         launchTimeoutMs,
       );
       const onData = (chunk: Buffer): void => {
         stderr += chunk.toString('utf8');
         const url = parseDevToolsUrl(stderr);
         if (url !== undefined) settle(() => resolve(url));
+        if (stderr.length > 8192) {
+          stderr = stderr.slice(-8192);
+          stderrTruncated = true;
+        }
       };
       const onExit = (code: number | null): void =>
         settle(() => {
@@ -599,15 +645,19 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       client = await connect(endpoint);
     } catch (error) {
       proc.kill('SIGTERM');
-      child = undefined;
       throw error;
     }
+    watchTargets(client);
     onEvent('ready');
   };
 
   const ensure = async (): Promise<void> => {
     if (stopping !== undefined) await stopping;
     if (isRunning()) return;
+    if (starting === undefined && child !== undefined) {
+      if (closedChildren.has(child)) child = undefined;
+      else await stop();
+    }
     client?.close();
     client = undefined;
     sessions.clear();
@@ -890,8 +940,20 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         targetId = undefined;
       }
     }
-    if (targetId === undefined) return openTarget(url, false);
-    return navigateTab(targetId, url);
+    const tab =
+      targetId === undefined ? await openTarget(url, false) : await navigateTab(targetId, url);
+    await showTab(tab.tabId);
+    return tab;
+  };
+
+  const showTab = async (targetId: string): Promise<void> => {
+    const live = client;
+    if (!foreground || options.execution !== undefined || live === undefined) return;
+    try {
+      await live.send('Target.activateTarget', { targetId });
+    } catch (error) {
+      onEvent(`phase=show-tab outcome=error detail=${String(error).slice(0, 160)}`);
+    }
   };
 
   const navigateTab = async (targetId: string, url: string): Promise<BrowserTab> => {
@@ -927,7 +989,8 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       try {
         await Promise.race([
           live.send('Target.closeTarget', { targetId }).then((closed) => {
-            if (closed['success'] === false) throw new Error('Navigation cleanup was refused');
+            if (closed['success'] === false)
+              throw new Error('Navigation cleanup was refused', { cause: error });
             sessions.delete(targetId);
           }),
           new Promise<never>((_resolve, reject) => {
@@ -947,7 +1010,9 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
 
   const createTab = async (url: string): Promise<BrowserTab> => {
     await ensure();
-    return openTarget(url, false);
+    const tab = await openTarget(url, false);
+    await showTab(tab.tabId);
+    return tab;
   };
 
   const uploadFile = async (
@@ -1069,6 +1134,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
 
   const observe = async (tabId: string): Promise<BrowserObservation> => {
     const sessionId = await attach(tabId);
+    await showTab(tabId);
     const value = asObject(await evaluate(sessionId, SNAPSHOT_SCRIPT));
     if (value === undefined) throw new Error('The Bot Browser returned no page state');
     const elements = Array.isArray(value['elements'])
@@ -1232,7 +1298,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     await starting?.catch(() => undefined);
     const proc = child;
     const live = client;
-    child = undefined;
     client = undefined;
     sessions.clear();
     if (options.execution !== undefined) {
@@ -1251,25 +1316,51 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       }
       live?.close();
       await options.execution.stop();
+      options.onObservationChanged?.();
       onEvent('stopped target=container');
       return;
     }
     live?.close();
-    if (proc === undefined || proc.exitCode !== null) {
-      if (proc !== undefined) onEvent('stopped');
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      const done = setTimeout(() => {
-        proc.kill('SIGKILL');
-        resolve();
-      }, 4_000);
-      proc.once('exit', () => {
-        clearTimeout(done);
-        resolve();
+    if (proc === undefined) return;
+    if (!closedChildren.has(proc)) {
+      await new Promise<void>((resolve, reject) => {
+        let forced: ReturnType<typeof setTimeout> | undefined;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        const settle = (error?: Error): void => {
+          clearTimeout(forced);
+          clearTimeout(deadline);
+          proc.off('close', onClose);
+          proc.off('error', onError);
+          if (error === undefined) resolve();
+          else {
+            onEvent('phase=stop outcome=error reason=process-close-unconfirmed');
+            reject(error);
+          }
+        };
+        const onClose = (): void => settle();
+        const onError = (error: Error): void => settle(error);
+        const signal = (name: NodeJS.Signals): void => {
+          if (proc.exitCode !== null || proc.signalCode != null) return;
+          try {
+            proc.kill(name);
+          } catch (error) {
+            settle(error instanceof Error ? error : new Error('Browser shutdown failed'));
+          }
+        };
+        proc.once('close', onClose);
+        proc.once('error', onError);
+        forced = setTimeout(() => {
+          deadline = setTimeout(
+            () => settle(new Error('Browser process did not close after shutdown')),
+            2_000,
+          );
+          signal('SIGKILL');
+        }, 4_000);
+        signal('SIGTERM');
       });
-      proc.kill('SIGTERM');
-    });
+    }
+    if (child === proc) child = undefined;
+    options.onObservationChanged?.();
     onEvent('stopped');
   };
 

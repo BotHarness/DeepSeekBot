@@ -7,9 +7,10 @@ import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/
 import { edge, glassPress, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
+import { HeaderIconGlyph, type HeaderIcon } from '../shell/header-icon-button';
 import { glassHeader, headerIslands } from './header-kind';
 import { useStrings } from '../strings';
-import { edgeFadeStops } from './edge-fade';
+import { edgeFadeStops, type EdgeFadeShape } from './edge-fade';
 
 const ICON = 22;
 
@@ -67,6 +68,51 @@ export function HeaderCircleButton({
   );
 }
 
+export type HeaderAction = {
+  icon: HeaderIcon;
+  label: string;
+  testID: string;
+  onPress(): void;
+};
+
+export function HeaderActionGroup({ actions }: { actions: readonly HeaderAction[] }) {
+  const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: theme.touch,
+        borderRadius: radius.round,
+        overflow: 'hidden',
+        ...headerGlassFill(theme, glass, false),
+      }}
+    >
+      {glass ? <DrawerMaterial /> : null}
+      {actions.map((action) => (
+        <Pressable
+          key={action.testID}
+          testID={action.testID}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          onPress={action.onPress}
+          style={({ pressed }) => ({
+            width: theme.touch,
+            height: theme.touch,
+            borderRadius: radius.round,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+          })}
+        >
+          <HeaderIconGlyph icon={action.icon} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boolean) {
   if (glass)
     return {
@@ -106,19 +152,21 @@ export function EdgeFade({
   cover = 0,
   solid,
   color,
+  shape,
 }: {
   edge: 'top' | 'bottom';
   height: number;
   cover?: number;
   solid?: number;
   color?: string;
+  shape?: EdgeFadeShape;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
   const insets = useSafeAreaInsets();
-  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom));
+  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom), shape);
   const span = Math.ceil(height) + 1;
   return (
     <View

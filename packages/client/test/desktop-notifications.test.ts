@@ -155,7 +155,6 @@ describe('desktop notifier', () => {
       },
       title: (kind, source) => `${kind}:${source.botSlug}`,
       open,
-      intervalMs: 1_000,
     });
     return {
       fake,
@@ -187,7 +186,7 @@ describe('desktop notifier', () => {
         sourceEventId: 'e1',
       }),
     ]);
-    await vi.advanceTimersByTimeAsync(1_000);
+    await env.fire();
     expect(env.fake.shown.map((entry) => entry.title)).toEqual(['approval:ada', 'bot-reply:ada']);
     expect(env.fake.shown[0]?.body).toBe('Delete build/');
     expect(env.fake.shown[0]?.tag).toBe('botharness:approval:new');
@@ -230,6 +229,20 @@ describe('desktop notifier', () => {
     env.dispose();
   });
 
+  it('closes a shown notification once its item is read or handled elsewhere', async () => {
+    const env = setup();
+    env.setItems([]);
+    await env.fire();
+    env.setItems([item({ id: 'approval:a' }), item({ id: 'approval:b' })]);
+    await env.fire();
+    expect(env.fake.shown).toHaveLength(2);
+    env.setItems([item({ id: 'approval:b', isUnread: false })]);
+    await env.fire();
+    expect(env.fake.shown[0]?.handle.close).toHaveBeenCalled();
+    expect(env.fake.shown[1]?.handle.close).toHaveBeenCalled();
+    env.dispose();
+  });
+
   it('opens the source item when the notification is clicked', async () => {
     const env = setup();
     await env.fire();
@@ -243,6 +256,29 @@ describe('desktop notifier', () => {
     vi.unstubAllGlobals();
     expect(env.open).toHaveBeenCalledWith(approval);
     expect(shown.handle.close).toHaveBeenCalled();
+    env.dispose();
+  });
+
+  it('asks the Host to bring a minimized or tray-hidden Desktop window back on click', async () => {
+    const env = setup();
+    await env.fire();
+    const approval = item({ id: 'approval:reveal', channelId: 'dm-ada', messageId: 'm2' });
+    env.setItems([approval]);
+    await env.fire();
+    const shown = env.fake.shown[0]!;
+    const focus = vi.fn();
+    const fetcher = vi.fn(async () => new Response('{}'));
+    vi.stubGlobal('focus', focus);
+    vi.stubGlobal('fetch', fetcher);
+    vi.stubGlobal('dshDesktop', { protocolVersion: 1 });
+    shown.handle.onclick?.({ preventDefault: vi.fn() } as unknown as Event);
+    vi.unstubAllGlobals();
+    expect(fetcher).toHaveBeenCalledWith(
+      './api/botharness/desktop-window',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'reveal' }) }),
+    );
+    expect(focus).toHaveBeenCalledOnce();
+    expect(env.open).toHaveBeenCalledWith(approval);
     env.dispose();
   });
 

@@ -6,7 +6,7 @@ import type {
   MarketplaceSectionName,
 } from '../../../../../packages/core/src/marketplace/client';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
-import { recordFeature } from '../../telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { marketplaceHome, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';

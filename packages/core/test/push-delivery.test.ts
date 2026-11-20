@@ -20,7 +20,7 @@ import {
 } from '../src/push/delivery.js';
 import { createExpoSender } from '../src/push/expo-sender.js';
 import { createDevicePushHttp } from '../src/push/http.js';
-import { humanInboxPushSource } from '../src/push/source.js';
+import { activityListPushSource } from '../src/push/source.js';
 import type { HumanAttentionItem } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -67,6 +67,7 @@ function fixture() {
   const events: PushEvent[] = [];
   let items: PushCandidate[] = [];
   let badge = 0;
+  let held = false;
   const push: PushDelivery = createPushDelivery({
     database: attachOperationalModule(owner, 'push'),
     source: {
@@ -77,6 +78,7 @@ function fixture() {
     host: () => pairing.host(),
     deviceActive: (deviceId) =>
       pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+    held: () => held,
     now: () => clock,
     sleep: async () => {},
     record: (event) => events.push(event),
@@ -97,6 +99,9 @@ function fixture() {
     at,
     advance: (ms: number) => {
       clock += ms;
+    },
+    hold(next: boolean) {
+      held = next;
     },
     setInbox(next: PushCandidate[], count = next.length) {
       items = next;
@@ -205,6 +210,32 @@ describe('Push delivery', () => {
       },
     });
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
+  });
+
+  it('records how long after its item was created each push reached Expo', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    f.advance(2500);
+    await f.push.reconcile();
+    expect(f.events).toContainEqual({
+      phase: 'sent',
+      deviceId: phone.device.id,
+      kind: 'approval',
+      outcome: 'ok',
+      ageMs: 2500,
+    });
+
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    expect(f.events.at(-1)).toEqual({
+      phase: 'sent',
+      deviceId: phone.device.id,
+      kind: 'resolve',
+      outcome: 'ok',
+    });
   });
 
   it('titles a notification with its Channel and puts the request and its content below', async () => {
@@ -349,7 +380,12 @@ describe('Push delivery', () => {
     f.setInbox([approval('approval:2', f.at(0))]);
     await f.push.reconcile();
     expect(f.expo.sent.at(-1)).toEqual([
-      { to: TOKEN_A, badge: 1, data: { v: 1, hostId: f.pairing.host().id } },
+      {
+        to: TOKEN_A,
+        badge: 1,
+        _contentAvailable: true,
+        data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:1'] },
+      },
     ]);
 
     f.advance(1000);
@@ -357,8 +393,91 @@ describe('Push delivery', () => {
     await f.push.reconcile();
     await f.push.reconcile();
     expect(f.expo.flat().filter((message) => message.title !== undefined)).toHaveLength(2);
-    expect(f.expo.flat().at(-1)?.badge).toBe(0);
+    expect(f.expo.flat().at(-1)).toEqual({
+      to: TOKEN_A,
+      _contentAvailable: true,
+      data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:2'], badge: 0 },
+    });
     expect(f.expo.sent).toHaveLength(3);
+  });
+
+  it('withdraws a reply read on another device without withdrawing a still-unread reply', async () => {
+    const f = fixture();
+    const ios = f.device('iPhone');
+    const android = f.device('Android');
+    f.push.register(ios.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.push.register(android.device.id, { token: TOKEN_B, platform: 'android', render: 'app' });
+    f.advance(1000);
+    const read: PushCandidate = {
+      id: 'reply:read',
+      kind: 'reply',
+      attentionKind: 'channel-reply',
+      botSlug: 'ada',
+      channelId: 'dm-ada',
+      createdAt: f.at(0),
+    };
+    const unread = { ...read, id: 'reply:unread' };
+    f.setInbox([read, unread]);
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.data?.itemId === read.id)).toHaveLength(2);
+
+    const before = f.expo.flat().length;
+    f.setInbox([unread]);
+    await f.push.reconcile();
+    await f.push.reconcile();
+    const withdrawals = f.expo.flat().slice(before);
+    expect(withdrawals).toHaveLength(2);
+    expect(withdrawals.map((message) => message.to)).toEqual(
+      expect.arrayContaining([TOKEN_A, TOKEN_B]),
+    );
+    for (const message of withdrawals) expect(message.data).toMatchObject({ resolved: [read.id] });
+    expect(withdrawals.find((message) => message.to === TOKEN_A)?.badge).toBe(1);
+  });
+
+  it('sends every resolved id in batches of at most 50', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    const ids = Array.from({ length: 51 }, (_, index) => `approval:${index}`);
+    for (const [index, id] of ids.entries()) {
+      f.advance(1000);
+      f.setInbox(ids.slice(0, index + 1).map((item) => approval(item, f.at(0))));
+      await f.push.reconcile();
+    }
+    const before = f.expo.flat().length;
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    const batches = f.expo
+      .flat()
+      .slice(before)
+      .map((message) => (message.data as { resolved?: string[] }).resolved ?? []);
+    expect(batches.map((batch) => batch.length)).toEqual([50, 1]);
+    expect(batches.flat().sort()).toEqual([...ids].sort());
+  });
+
+  it('tells an Android device that draws its own notifications which items were resolved, and an Android device the system draws only the badge', async () => {
+    const f = fixture();
+    const drawn = f.device('Drawn');
+    const stock = f.device('Stock');
+    f.push.register(drawn.device.id, { token: TOKEN_A, platform: 'android', render: 'app' });
+    f.push.register(stock.device.id, { token: TOKEN_B, platform: 'android' });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    const before = f.expo.flat().length;
+    f.setInbox([], 0);
+    await f.push.reconcile();
+    const after = f.expo.flat().slice(before);
+    expect(after).toContainEqual({
+      to: TOKEN_A,
+      priority: 'high',
+      data: { v: 1, hostId: f.pairing.host().id, resolved: ['approval:1'] },
+    });
+    expect(after).toContainEqual({
+      to: TOKEN_B,
+      badge: 0,
+      data: { v: 1, hostId: f.pairing.host().id },
+    });
   });
 
   it('respects per-kind preferences without flooding when a kind is turned back on', async () => {
@@ -455,6 +574,58 @@ describe('Push delivery', () => {
     expect(f.push.settings(phone.device.id)).toMatchObject({ enabled: true, quietChannelIds: [] });
   });
 
+  it('holds replies while a desktop is active and sends the still-unread ones once it lapses', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.advance(1000);
+    const reply = (id: string): PushCandidate => ({
+      id,
+      kind: 'reply',
+      attentionKind: 'channel-reply',
+      botSlug: 'ada',
+      createdAt: f.at(0),
+      channelId: 'dm-ada',
+    });
+    const sent = () =>
+      f.expo
+        .flat()
+        .map((message) => message.data.itemId)
+        .filter((id) => id !== undefined);
+    f.hold(true);
+    f.setInbox([reply('reply:1'), reply('reply:2'), approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1']);
+    f.setInbox([reply('reply:2'), approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1']);
+    f.hold(false);
+    await f.push.reconcile();
+    expect(sent()).toEqual(['approval:1', 'reply:2']);
+  });
+
+  it('keeps an in-app-only device off push while still updating its badge', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.setPreferences(phone.device.id, undefined, undefined, 'in-app')).toMatchObject({
+      enabled: true,
+      delivery: 'in-app',
+    });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    const sent = f.expo.flat();
+    expect(sent.map((message) => message.data.itemId)).toEqual([undefined]);
+    expect(sent[0]).toMatchObject({ to: TOKEN_A, badge: 1 });
+    expect(f.push.setPreferences(phone.device.id, undefined, undefined, 'push')).toMatchObject({
+      delivery: 'push',
+    });
+    f.setInbox([approval('approval:1', f.at(0)), approval('approval:2', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.flat().map((message) => message.data.itemId)).toEqual([undefined, 'approval:2']);
+  });
+
   it('stops and removes the token when the device is revoked', async () => {
     const f = fixture();
     const phone = f.device('Phone');
@@ -501,6 +672,60 @@ describe('Push delivery', () => {
     await f.push.checkReceipts();
     expect(f.tokenRows()).toEqual([]);
   });
+
+  it.each(['ticket', 'receipt'] as const)(
+    'keeps a replacement token when the old token gets a delayed invalid %s',
+    async (phase) => {
+      const f = fixture();
+      const phone = f.device('Phone');
+      f.push.register(phone.device.id, { token: TOKEN_A, platform: 'android' });
+      f.push.setPreferences(phone.device.id, { question: false });
+      f.advance(1000);
+      const first = approval('already-notified', f.at(0));
+      f.setInbox([first]);
+      await f.push.reconcile();
+      const invalid = { status: 'error' as const, details: { error: 'DeviceNotRegistered' } };
+      if (phase === 'ticket') {
+        let settle!: (tickets: ExpoTicket[]) => void;
+        const pending = new Promise<ExpoTicket[]>((resolve) => {
+          settle = resolve;
+        });
+        vi.spyOn(f.expo.sender, 'send').mockImplementationOnce(() => pending);
+        const sending = f.push.test(phone.device.id);
+        f.push.register(phone.device.id, { token: TOKEN_B, platform: 'android' });
+        expect(f.push.settings(phone.device.id)).toMatchObject({
+          registered: true,
+          preferences: { question: false },
+        });
+        settle([invalid]);
+        expect(await sending).toBe('failed');
+      } else {
+        expect(await f.push.test(phone.device.id)).toBe('sent');
+        f.push.register(phone.device.id, { token: TOKEN_B, platform: 'android' });
+        expect(f.push.settings(phone.device.id)).toMatchObject({
+          registered: true,
+          preferences: { question: false },
+        });
+        f.expo.receipts['ticket-2'] = invalid;
+        f.advance(15 * 60 * 1000);
+        await f.push.checkReceipts();
+      }
+      expect(f.push.settings(phone.device.id)).toMatchObject({
+        registered: true,
+        preferences: { question: false },
+      });
+      expect(f.tokenRows()).toEqual([{ device_id: phone.device.id, token: TOKEN_B }]);
+      expect(f.events.some((event) => event.phase === 'token-dropped')).toBe(false);
+      f.setInbox([first, approval('new-after-rotation', f.at(0))]);
+      await f.push.reconcile();
+      expect(f.expo.flat().filter((message) => message.data.itemId)).toMatchObject([
+        { to: TOKEN_A, data: { itemId: 'already-notified' } },
+        { to: TOKEN_B, data: { itemId: 'new-after-rotation' } },
+      ]);
+      expect(JSON.stringify(f.events)).not.toContain(TOKEN_A);
+      expect(JSON.stringify(f.events)).not.toContain(TOKEN_B);
+    },
+  );
 
   it('retries a failed send within bounds and records the outcome without content', async () => {
     const f = fixture();
@@ -573,9 +798,10 @@ describe('Push delivery', () => {
           hostId: f.pairing.host().id,
           kind: 'device-paired',
           deviceId: added.device.id,
+          badge: 0,
         },
       }),
-      expect.objectContaining({ to: TOKEN_B, title: 'New device paired' }),
+      expect.objectContaining({ to: TOKEN_B, title: 'New device paired', badge: 0 }),
     ]);
     f.push.register(added.device.id, { token: 'ExponentPushToken[stranger-1]', platform: 'ios' });
     f.pairing.revoke(tablet.device.id);
@@ -600,9 +826,9 @@ describe('Human Inbox push source', () => {
       summary: '请求批准执行 bash',
       ...over,
     });
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -676,10 +902,71 @@ describe('Human Inbox push source', () => {
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
   });
 
-  it('offers Always allow from the notification only when the Host offers it', () => {
-    const source = humanInboxPushSource(
+  it('reads only unread replies, deep enough that a long unread backlog is not resolved by mistake', () => {
+    const queries: unknown[] = [];
+    const dmLimits: number[] = [];
+    activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, query) => {
+          queries.push(query);
+          return { items: [] };
+        },
+        actionCount: () => 0,
+        dmReplies: (human, limit) => {
+          dmLimits.push(limit);
+          return [];
+        },
+      },
+      () => undefined,
+    ).pending();
+    expect(queries[1]).toEqual({ category: 'replies', unreadOnly: true, limit: 100 });
+    expect(dmLimits).toEqual([200]);
+  });
+
+  it('pages through a backlog of more than 100 unread replies without exceeding the query limit', () => {
+    const backlog = Array.from(
+      { length: 250 },
+      (_, index) =>
+        ({
+          id: `reply:${String(index)}`,
+          category: 'replies',
+          kind: 'channel-reply',
+          channelId: 'dm-ada',
+          channelName: 'Ada',
+          botSlug: 'ada',
+          summary: `reply ${String(index)}`,
+          messageId: `m${String(index)}`,
+          createdAt: '2026-11-10T00:00:00.000Z',
+          isUnread: true,
+        }) as HumanAttentionItem,
+    );
+    const limits: number[] = [];
+    const pending = activityListPushSource(
+      {
+        list: (human, { category, limit = 30, cursor }) => {
+          if (limit < 1 || limit > 100) throw new Error('Human attention limit must be 1-100');
+          if (category !== 'replies') return { items: [] };
+          limits.push(limit);
+          const start = cursor === undefined ? 0 : Number(cursor);
+          const end = start + limit;
+          return {
+            items: backlog.slice(start, end),
+            ...(end < backlog.length ? { nextCursor: String(end) } : {}),
+          };
+        },
+        actionCount: () => 0,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+    ).pending();
+    expect(limits).toEqual([100, 100]);
+    expect(pending.items).toHaveLength(200);
+  });
+
+  it('offers Always allow from the notification only when the Host offers it', () => {
+    const source = activityListPushSource(
+      {
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -707,9 +994,9 @@ describe('Human Inbox push source', () => {
 
   it('notifies a folder request as an approval that opens the app, with its reason', () => {
     const lookup = vi.fn(() => ({ toolName: 'bash', input: '{}', allowAlways: true }));
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [
@@ -757,9 +1044,9 @@ describe('Human Inbox push source', () => {
       summary,
       channelId: 'dm-ada',
     });
-    const source = humanInboxPushSource(
+    const source = activityListPushSource(
       {
-        list: ({ category }) => ({
+        list: (human, { category }) => ({
           items:
             category === 'action'
               ? [

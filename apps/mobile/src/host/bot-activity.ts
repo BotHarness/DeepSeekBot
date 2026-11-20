@@ -1,100 +1,39 @@
-import type { HostClient } from './client';
-import { isDay, shiftDay, trailingDays, weekStart } from './usage-days';
+import {
+  parseProfileActivity as parseActivity,
+  readProfileActivity,
+} from '@botharness/host-client/profile-activity';
+import type { WireProfileActivity } from '@botharness/host-protocol/wire';
+import type { HostClient } from '@botharness/host-client/client';
+import { shiftDay, trailingDays, weekStart } from './usage-days';
 import type {
   ProfileActivity,
   ProfileActivityDay,
-  ProfileActivityReasonDay,
   ProfileActivityTokensDay,
   ProfileModelUsageRow,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export const ACTIVITY_WINDOWS = [1, 4, 26] as const;
 export type ActivityWindow = (typeof ACTIVITY_WINDOWS)[number];
 
-const BUCKETS = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens'] as const;
 const WEEKLY_AFTER_DAYS = 31;
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function count(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function list<T>(value: unknown, item: (entry: Record<string, unknown>) => T | undefined): T[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const source = record(entry);
-    const parsed = source === undefined ? undefined : item(source);
-    return parsed === undefined ? [] : [parsed];
-  });
-}
-
-function dayCount(entry: Record<string, unknown>): ProfileActivityDay | undefined {
-  const value = count(entry['count']);
-  return isDay(entry['day']) && value !== undefined
-    ? { day: entry['day'], count: value }
-    : undefined;
-}
-
-function tokensDay(entry: Record<string, unknown>): ProfileActivityTokensDay | undefined {
-  if (!isDay(entry['day'])) return undefined;
-  const day: ProfileActivityTokensDay = {
-    day: entry['day'],
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-  };
-  for (const bucket of BUCKETS) day[bucket] = count(entry[bucket]) ?? 0;
-  return day;
-}
-
-function nullable(value: unknown): number | null {
-  return count(value) ?? null;
-}
-
-function usageRow(entry: Record<string, unknown>): ProfileModelUsageRow | undefined {
-  if (!isDay(entry['day'])) return undefined;
-  const text = (key: string) => (typeof entry[key] === 'string' ? (entry[key] as string) : '');
+function activityView(activity: WireProfileActivity): ProfileActivity {
+  const {
+    slug: _slug,
+    since: _since,
+    tokenTotals: _total,
+    idleCompactions: _idleCompactions,
+    ...days
+  } = activity;
   return {
-    ...(entry['partial'] === true ? { partial: true } : {}),
-    day: entry['day'],
-    purpose: text('purpose'),
-    provider: text('provider'),
-    model: text('model'),
-    inputTokens: nullable(entry['inputTokens']),
-    outputTokens: nullable(entry['outputTokens']),
-    cacheReadTokens: nullable(entry['cacheReadTokens']),
-    cacheWriteTokens: nullable(entry['cacheWriteTokens']),
-    totalTokens: nullable(entry['totalTokens']),
+    ...days,
+    modelUsageRows: days.modelUsageRows ?? [],
+    modelUsageStatus: days.modelUsageStatus ?? 'unavailable',
   };
 }
 
 export function parseProfileActivity(value: unknown): ProfileActivity {
-  const source = record(value);
-  if (source === undefined || !isDay(source['today']))
-    throw new Error('The computer sent activity this app cannot read.');
-  const weeks = count(source['weeks']);
-  return {
-    weeks: weeks === undefined ? 1 : Math.max(1, Math.round(weeks)),
-    ...(isDay(source['before']) ? { before: source['before'] } : {}),
-    ...(isDay(source['createdDay']) ? { createdDay: source['createdDay'] } : {}),
-    today: source['today'],
-    events: list(source['events'], (entry): ProfileActivityReasonDay | undefined => {
-      const day = dayCount(entry);
-      return day === undefined || typeof entry['reason'] !== 'string'
-        ? undefined
-        : { ...day, reason: entry['reason'] };
-    }),
-    memoryCommits: list(source['memoryCommits'], dayCount),
-    tokens: list(source['tokens'], tokensDay),
-    modelUsageRows: list(source['modelUsageRows'], usageRow),
-    modelUsageStatus: source['modelUsageStatus'] === 'ready' ? 'ready' : 'unavailable',
-  };
+  return activityView(parseActivity(value));
 }
 
 export async function loadProfileActivity(
@@ -102,13 +41,7 @@ export async function loadProfileActivity(
   channelId: string,
   window: { weeks: number; before?: string },
 ): Promise<ProfileActivity> {
-  return parseProfileActivity(
-    await client.call<unknown>('profileActivity', {
-      channelId,
-      weeks: window.weeks,
-      ...(window.before === undefined ? {} : { before: window.before }),
-    }),
-  );
+  return activityView(await readProfileActivity(client, { channelId, ...window }));
 }
 
 export type TokenTotal =

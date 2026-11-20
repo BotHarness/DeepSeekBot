@@ -101,6 +101,30 @@ export function appendMention(
   );
 }
 
+export function quoteMention(
+  value: string,
+  mentions: readonly SelectedMention[],
+  botSlug: string,
+  label: string,
+): { value: string; mentions: SelectedMention[]; caret: number } {
+  if (mentions.some((item) => item.botSlug === botSlug))
+    return { value, mentions: [...mentions], caret: value.length };
+  const prefix = '@' + label + (value.startsWith(' ') ? '' : ' ');
+  const next = prefix + value;
+  return {
+    value: next,
+    mentions: [
+      { botSlug, label, start: 0, end: label.length + 1 },
+      ...mentions.map((item) => ({
+        ...item,
+        start: item.start + prefix.length,
+        end: item.end + prefix.length,
+      })),
+    ],
+    caret: next.length,
+  };
+}
+
 export function mentionRuns(
   value: string,
   mentions: readonly SelectedMention[],
@@ -139,7 +163,14 @@ export function deleteSelectedMention(
     selectionStart === selectionEnd ? target.start : Math.min(selectionStart, target.start);
   const finish = selectionStart === selectionEnd ? end : Math.max(selectionEnd, end);
   const next = value.slice(0, start) + value.slice(finish);
-  return { value: next, mentions: rebaseMentions(value, next, mentions), caret: start };
+  const removed = finish - start;
+  const kept = mentions.flatMap((item) => {
+    if (item.end <= start) return [item];
+    if (item.start >= finish)
+      return [{ ...item, start: item.start - removed, end: item.end - removed }];
+    return [];
+  });
+  return { value: next, mentions: kept, caret: start };
 }
 
 export function sessionBotReference(botSlug: string): string {

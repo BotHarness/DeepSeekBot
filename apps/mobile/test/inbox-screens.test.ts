@@ -17,8 +17,8 @@ import type {
   ApprovalRequest,
   DecisionResult,
   QuestionRequest,
-} from '../src/host/requests';
-import type { HumanAttentionItem, QuestionAnswer } from '../src/host/wire';
+} from '@botharness/host-client/requests';
+import type { HumanAttentionItem, QuestionAnswer } from '@botharness/host-protocol/wire';
 import { ApprovalView, type ApprovalPort } from '../src/ui/approval-view';
 import { QuestionView, type QuestionPort } from '../src/ui/question-view';
 import { t } from '../src/ui/strings';

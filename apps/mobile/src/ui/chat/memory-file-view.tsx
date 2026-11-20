@@ -2,10 +2,10 @@ import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { Lexer } from 'marked';
 import { FlatList, View, type ViewInstance } from 'react-native';
 
-import type { HostClient } from '../../host/client';
+import type { HostClient } from '@botharness/host-client/client';
 import type { MemoryPreviewIO } from '../../host/memory-preview';
 import type { PinnedRole } from '../../host/bot-profile';
-import type { MemoryFile } from '../../host/wire';
+import type { MemoryFile } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';

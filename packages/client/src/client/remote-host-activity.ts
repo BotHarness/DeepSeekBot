@@ -1,8 +1,5 @@
-import type { RosterBot } from '../../../../apps/mobile/src/host/client.js';
-import type {
-  WireToolActivity,
-  WireSessionActivity,
-} from '../../../../apps/mobile/src/host/wire.js';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { WireToolActivity, WireSessionActivity } from '@botharness/host-protocol/wire';
 import type {
   PersonaBotSessionActivity,
   PersonaBotToolActivity,

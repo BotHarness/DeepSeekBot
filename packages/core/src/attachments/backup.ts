@@ -7,6 +7,7 @@ import { retainedManagedFiles } from '../purge/references.js';
 import { attachmentIdentity, isChannelAttachmentRef } from './ref.js';
 import type { AttachmentStore } from './store.js';
 import { ProfileBackupError, treeFiles } from '../portability/files.js';
+import { MEDIA_DIRECTORY } from './media-versions.js';
 
 export function collectAttachmentReferences(db: DatabaseSync, required: Set<string>): Set<string> {
   const rebound = new Map<string, string>();
@@ -54,10 +55,12 @@ export function profileAttachmentFiles(
         if (!required.has(id) && !existsSync(root)) continue;
         store.fileTarget(id);
         result.push(
-          ...treeFiles(root).map((file) => ({
-            path: file.path,
-            local: 'attachments/files/' + id.slice(5) + '/' + file.local,
-          })),
+          ...treeFiles(root)
+            .filter((file) => !file.local.startsWith(MEDIA_DIRECTORY + '/'))
+            .map((file) => ({
+              path: file.path,
+              local: 'attachments/files/' + id.slice(5) + '/' + file.local,
+            })),
         );
       } else {
         const hex = id.slice(7);

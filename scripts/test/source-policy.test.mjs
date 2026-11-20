@@ -147,10 +147,35 @@ describe('source policy', () => {
       const result = spawnSync(process.execPath, ['scripts/check-source-policy.mjs'], {
         cwd: root,
         encoding: 'utf8',
+        windowsHide: true,
+        shell: false,
       });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(`${relativePath}:2:19 comment`);
       expect(result.stderr).toContain(`${relativePath}:2:1 useEffect`);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('checks only the files it is given, as the pre-commit hook does', () => {
+    const directory = mkdtempSync(join(root, 'scripts', 'source-policy-probe-'));
+    const bad = join(directory, 'bad.ts');
+    const clean = join(directory, 'clean.ts');
+    try {
+      writeFileSync(bad, 'export const a = 1; // forbidden\n');
+      writeFileSync(clean, 'export const b = 2;\n');
+      const run = (...paths) =>
+        spawnSync(process.execPath, ['scripts/check-source-policy.mjs', ...paths], {
+          cwd: root,
+          encoding: 'utf8',
+          windowsHide: true,
+          shell: false,
+        });
+      expect(run(clean).status).toBe(0);
+      const result = run(clean, bad);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`${relative(root, bad).replaceAll('\\', '/')}:1:21 comment`);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -170,4 +195,62 @@ it('retains the required Inbox ISC notice without allowing other or modified com
   expect(
     await scanSource('packages/client/src/client/inbox-icon.tsx', source + '\n// unrelated'),
   ).toHaveLength(1);
+});
+
+describe('client store subscriptions', () => {
+  const kinds = async (source, path = 'packages/client/src/client/sample.tsx') =>
+    (await scanSource(path, source))
+      .filter((item) => item.kind === 'store-subscription')
+      .map((item) => item.token.split('(')[0]);
+
+  it('rejects whole client-store subscriptions and whole-state selectors', async () => {
+    const source = [
+      "import { store } from './store.js';",
+      "import type { ClientStore, ClientState } from './store.js';",
+      'interface Props { roster: Pick<ClientStore, "subscribe" | "getSnapshot">; state: ClientState }',
+      'export function A({ roster }: Props) {',
+      '  useSyncExternalStore(store.subscribe, store.getSnapshot);',
+      '  useSyncExternalStore(roster.subscribe, roster.getSnapshot);',
+      '  useClientStore(keepClientState, same);',
+      '  useStoreSlice(roster, (state) => state);',
+      '  useClientStore((state) => { return state; });',
+      '  return null;',
+      '}',
+    ].join('\n');
+    expect(await kinds(source)).toEqual([
+      'state: ClientState',
+      'useSyncExternalStore',
+      'useSyncExternalStore',
+      'useClientStore',
+      'useStoreSlice',
+      'useClientStore',
+    ]);
+    expect(
+      await kinds(
+        "import { store } from '../client/store.js';\nuseSyncExternalStore(store.subscribe, store.getSnapshot);",
+        'packages/client/src/panels/sample.tsx',
+      ),
+    ).toEqual(['useSyncExternalStore']);
+  });
+
+  it('accepts field selections and other stores', async () => {
+    const source = [
+      "import { store } from './store.js';",
+      "import { store as preferences } from './preferences/store.js';",
+      'export function A({ prefs }) {',
+      '  useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);',
+      '  useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);',
+      '  useClientStore((state) => state.bots);',
+      "  useClientFields(['bots'], store);",
+      '  return null;',
+      '}',
+    ].join('\n');
+    expect(await kinds(source)).toEqual([]);
+    expect(
+      await kinds(
+        'useSyncExternalStore(store.subscribe, store.getSnapshot);',
+        'packages/client/test/sample.test.tsx',
+      ),
+    ).toEqual([]);
+  });
 });

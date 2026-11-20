@@ -13,6 +13,8 @@ const instance = JSON.parse(readFileSync(resolve('.humanlayer/verify', name, 'in
 if (instance.worktree !== root) throw new Error('Use an isolated Host from this worktree');
 const doctor = spawnSync(process.execPath, ['scripts/verify-app.mjs', 'doctor', '--name', name], {
   encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
 });
 if (doctor.status !== 0 || !JSON.parse(doctor.stdout).ok)
   throw new Error('Isolated Host doctor failed');
@@ -28,6 +30,8 @@ const cli = (...args) => {
         DEEPSEEKBOT_HOST: login.origin,
         DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   if (r.status !== 0) throw new Error(`CLI ${args[0]} failed: ${r.stdout}`);
@@ -48,7 +52,7 @@ else {
         '--name',
         name,
       ],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', shell: false, windowsHide: true },
     );
     if (r.status !== 0) throw new Error('fixture RPC refused');
     return JSON.parse(r.stdout);
@@ -79,7 +83,11 @@ else {
         .asPng(),
     );
   const git = (...args) =>
-    execFileSync('git', ['-C', memory, ...args], { encoding: 'utf8' }).trim();
+    execFileSync('git', ['-C', memory, ...args], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   writeFileSync(resolve(memory, 'preview.png'), png('VERSION ONE', '#254ca0'));
   git('add', 'preview.png');
   git(
@@ -210,10 +218,20 @@ try {
       document.querySelector('.bh-memory-commit-view')?.textContent.includes('binary'),
     );
   await capture('working-dark');
-  await page.setViewport({ width: 700, height: 1000 });
-  await page.waitForSelector('.bh-mobile-shell[data-page="list"]', { visible: true });
-  await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
-  await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  await page.setViewport({ width: 550, height: 1000 });
+  await page.waitForSelector('.bh-mobile-shell', { visible: true });
+  if (await page.$('[data-bot-window-class="compact"]')) {
+    await page
+      .locator('[data-bot-window-class="compact"] button[aria-label="Open sidebar"]')
+      .click();
+    await page.locator(`[role="dialog"] button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('[data-tobs-dialog-viewport][data-presentation="drawer"]', {
+      hidden: true,
+    });
+  } else {
+    await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  }
   await click('Conversation settings');
   await click('Memory');
   await page.locator('.bh-memory-working-list .bh-memory-row').click();
@@ -272,7 +290,10 @@ try {
     ).images;
     const original = readFileSync(resolve(seed.memory, 'preview.png'));
     const gitBytes = (source) =>
-      execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`]);
+      execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`], {
+        shell: false,
+        windowsHide: true,
+      });
     const cases = [
       ['current', current, original],
       ['working-before', working.before, gitBytes(working.before.source)],
@@ -298,7 +319,11 @@ try {
         throw new Error('CLI image bytes differ: ' + label);
     }
     const git = (...args) =>
-      execFileSync('git', ['-C', seed.memory, ...args], { encoding: 'utf8' }).trim();
+      execFileSync('git', ['-C', seed.memory, ...args], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim();
     const originalIndex = git('rev-parse', ':preview.png');
     const stagedBlob = git('rev-parse', `${history.before.source}:preview.png`);
     try {
@@ -367,6 +392,8 @@ try {
             DEEPSEEKBOT_HOST: login.origin,
             DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token'),
           },
+          shell: false,
+          windowsHide: true,
         },
       );
       if (

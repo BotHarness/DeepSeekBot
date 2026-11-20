@@ -1,3 +1,13 @@
 {
-  "*": "oxfmt --write --no-error-on-unmatched-pattern"
+  "!(*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,css,astro})": "oxfmt --write --no-error-on-unmatched-pattern",
+  "*.{css,astro}": [
+    "oxfmt --write --no-error-on-unmatched-pattern",
+    "node scripts/check-source-policy.mjs"
+  ],
+  "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}": [
+    "oxfmt --write --no-error-on-unmatched-pattern",
+    "node scripts/lint-ratchet.mjs",
+    "node scripts/check-source-policy.mjs",
+    "node scripts/check-design-tokens.mjs"
+  ]
 }

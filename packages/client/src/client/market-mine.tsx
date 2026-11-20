@@ -1,6 +1,7 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceAuthoredBot,
@@ -12,6 +13,7 @@ import { EmptyState } from './ds/empty-state.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketUploadDialog } from './market-upload.js';
@@ -25,7 +27,12 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  list: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  list: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
+  },
   row: {
     display: 'flex',
     alignItems: 'center',
@@ -35,7 +42,13 @@ const styles = stylex.create({
     backgroundColor: color.surface,
     minWidth: 0,
   },
-  copy: { display: 'flex', flexDirection: 'column', gap: space.x1, flexGrow: 1, minWidth: 0 },
+  copy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    flexGrow: 1,
+    minWidth: 0,
+  },
   name: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -56,6 +69,62 @@ const styles = stylex.create({
   },
   actions: { display: 'flex', flexShrink: 0, gap: space.x2 },
 });
+
+export type MarketUploadChange =
+  | { kind: 'updated'; bot: MarketplaceEntry }
+  | { kind: 'deleted'; id: string };
+
+const uploadChangeListeners = new Set<(change: MarketUploadChange) => void>();
+
+export function onMarketUploadChange(listener: (change: MarketUploadChange) => void): () => void {
+  uploadChangeListeners.add(listener);
+  return () => {
+    uploadChangeListeners.delete(listener);
+  };
+}
+
+function announceUploadChange(change: MarketUploadChange): void {
+  for (const listener of uploadChangeListeners) listener(change);
+}
+
+export function MyUploadsSettingsRow({
+  actions,
+  t,
+}: {
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <SettingsRow
+      title={t('market.mine.title')}
+      description={t('market.mine.settingsHint')}
+      data={{ 'data-account-uploads': '' }}
+      control={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-haspopup="dialog"
+            data-account-uploads-open=""
+            onClick={() => setOpen(true)}
+          >
+            {t('market.mine.manage')}
+          </Button>
+          {open ? (
+            <MyUploadsDialog
+              actions={actions}
+              t={t}
+              onUpdated={(bot) => announceUploadChange({ kind: 'updated', bot })}
+              onDeleted={(id) => announceUploadChange({ kind: 'deleted', id })}
+              onClose={() => setOpen(false)}
+            />
+          ) : null}
+        </>
+      }
+    />
+  );
+}
 
 function day(iso: string): string {
   return iso.slice(0, 10);
@@ -80,7 +149,7 @@ export function MyUploadsDialog({
   onClose,
 }: {
   actions: BridgeActions;
-  registry: DockPanelRegistry;
+  registry?: DockPanelRegistry | undefined;
   t: BotHarnessTranslate;
   onUpdated: (bot: MarketplaceEntry) => void;
   onDeleted: (id: string) => void;
@@ -121,8 +190,8 @@ export function MyUploadsDialog({
     setCause(undefined);
     try {
       await actions.marketplaceDelete(item.bot.id);
-      if (!mounted.current) return;
       onDeleted(item.bot.id);
+      if (!mounted.current) return;
       setList((current) =>
         current.status === 'ready'
           ? { ...current, bots: current.bots.filter((entry) => entry !== item) }
@@ -156,7 +225,9 @@ export function MyUploadsDialog({
       const { item } = screen;
       return (
         <FormDialog
-          title={t('market.mine.deleteTitle', { name: marketplaceName(item.bot) })}
+          title={t('market.mine.deleteTitle', {
+            name: marketplaceName(item.bot),
+          })}
           size="small"
           labels={{ close: t('common.close'), cancel: t('common.cancel') }}
           submitLabel={t('market.mine.deleteConfirm')}
@@ -217,7 +288,9 @@ export function MyUploadsDialog({
                   <Button
                     size="sm"
                     variant="outline"
-                    aria-label={t('market.mine.updateLabel', { name: marketplaceName(item.bot) })}
+                    aria-label={t('market.mine.updateLabel', {
+                      name: marketplaceName(item.bot),
+                    })}
                     onClick={() => go({ kind: 'update', item })}
                   >
                     {t('market.mine.update')}
@@ -225,7 +298,9 @@ export function MyUploadsDialog({
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={t('market.mine.deleteLabel', { name: marketplaceName(item.bot) })}
+                    aria-label={t('market.mine.deleteLabel', {
+                      name: marketplaceName(item.bot),
+                    })}
                     onClick={() => go({ kind: 'delete', item })}
                   >
                     {t('market.mine.delete')}

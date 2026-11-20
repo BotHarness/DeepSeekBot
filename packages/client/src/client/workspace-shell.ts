@@ -26,7 +26,9 @@ export function mountWorkspaceShell(
   toggle: () => void,
 ): (() => void) | undefined {
   const mainSlot = node.closest('[data-slot="main"]');
-  const main = mainSlot?.parentElement;
+  let main = mainSlot?.parentElement;
+  if (main?.parentElement && getComputedStyle(main.parentElement).display !== 'grid')
+    main = main.parentElement;
   const frame = main?.parentElement;
   const sidebar = frame?.querySelector<HTMLElement>(
     ':scope > div > [data-slot="sidebar"]',

@@ -21,7 +21,10 @@ const symbols = {
   bot: { ios: 'person.crop.circle.badge.plus', android: 'person_add' },
   zip: { ios: 'doc.zipper', android: 'folder_zip' },
   marketplace: { ios: 'square.grid.2x2', android: 'apps' },
-  git: { ios: 'point.3.connected.trianglepath.dotted', android: 'account_tree' },
+  git: {
+    ios: 'point.3.connected.trianglepath.dotted',
+    android: 'account_tree',
+  },
   join: { ios: 'link', android: 'link' },
   invite: { ios: 'person.badge.plus', android: 'person_add' },
   channel: { ios: 'bubble.left.and.bubble.right', android: 'chat' },
@@ -31,6 +34,7 @@ const symbols = {
   unpin: { ios: 'pin.slash', android: 'keep_off' },
   mute: { ios: 'bell.slash', android: 'notifications_off' },
   unmute: { ios: 'bell', android: 'notifications_active' },
+  stop: { ios: 'stop.circle', android: 'stop_circle' },
 } as const;
 
 export type MenuGlyph =

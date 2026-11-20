@@ -92,6 +92,10 @@ jobs:
           path: .release-provider
           persist-credentials: false
       - run: npm ci --ignore-scripts --prefix .release-provider
+      - name: Verify ordinary QQ media against the exact Provider source
+        run: pnpm exec vitest run scripts/test/qq-ordinary-media.test.mjs
+        env:
+          BH_QQ_PROVIDER_ROOT: .release-provider
       - name: Prepare and dry-run the exact package set
         id: plan
         env:

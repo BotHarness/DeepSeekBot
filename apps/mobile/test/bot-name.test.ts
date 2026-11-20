@@ -1,8 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
 
 import { renameBot } from '../src/host/bot-name';
-import { createHostClient, type HostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 let client: HostClient | undefined;
 afterEach(() => client?.stop());
@@ -16,10 +16,10 @@ it('changes only the Bot display name with an observed fingerprint and refreshes
   }));
   fake.methods.set('channels', () => ({ channels: [] }));
   fake.methods.set('rosterGet', () => ({ sections: [], pins: [], hidden: [], sectionOrder: [] }));
-  fake.methods.set('get', () => ({ profileFingerprint: fingerprint }));
+  fake.methods.set('get', () => ({ bot: { slug: 'nova' }, profileFingerprint: fingerprint }));
   fake.methods.set('update', () => {
     name = 'Nova Studio';
-    return {};
+    return { bot: { slug: 'nova', displayName: name } };
   });
   client = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
@@ -64,7 +64,7 @@ it('does not bypass an unavailable read or a refused update', async () => {
   await expect(renameBot(client, 'nova', 'Nova Studio')).rejects.toThrow('profile unavailable');
   expect(fake.calls).toHaveLength(1);
   fake.calls.length = 0;
-  fake.methods.set('get', () => ({ profileFingerprint: 'b'.repeat(64) }));
+  fake.methods.set('get', () => ({ bot: { slug: 'nova' }, profileFingerprint: 'b'.repeat(64) }));
   fake.methods.set('update', () => {
     throw Error('stale-profile');
   });

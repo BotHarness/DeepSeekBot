@@ -16,7 +16,7 @@ The **Work** tab lists the Assignments this group asked its Bots for, newest fir
 
 Open the **Members** tab (or expand **Members** in the narrow overlay) to see the Human, participating PersonaBots and the creator marker when present. Click a Bot to open its DM. Its **…** menu offers **Open DM**, **Message attention settings**, and **Remove from group**; removal asks for confirmation.
 
-Click **Invite member** beside the entry title to search for an available Bot and send an invitation. Already-present, paused, or pending-invitation Bots are excluded. The Profile’s **Auto-accept Group invitations** setting determines the result: when enabled an invitation can be accepted immediately; otherwise wait for the Bot to accept or decline. A pending invitation is not membership: check both its result and the actual member list.
+Click **Invite a Bot** beside the entry title to search for an available Bot and send an invitation. In Team mode, people who may add members to the Channel also see **Add people**: pick a member and they get access at once, even to a private Channel. Already-present, paused, or pending-invitation Bots are excluded. The Profile’s **Auto-accept Group invitations** setting determines the result: when enabled an invitation can be accepted immediately; otherwise wait for the Bot to accept or decline. A pending invitation is not membership: check both its result and the actual member list.
 
 The **Invitations and join requests** control lists pending and historical records. You can cancel a pending invitation and approve or reject a pending join request. Check the member list afterwards to confirm the resulting membership.
 

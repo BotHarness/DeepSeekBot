@@ -1,5 +1,15 @@
 # IM DM commands
 
+## Sources
+
+- `packages/core/src/messaging/im-commands.ts`
+
+## Terms
+
+- App
+- DM
+- Bridge
+
 ## Sub-features
 
 - Whole text-only DMs support `/commands`, `/help`, `/status`, `/model`, `/effort`, `/stop` and `/new`, including Chinese aliases and full-width slash.

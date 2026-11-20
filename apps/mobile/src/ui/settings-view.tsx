@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
-import type { OverviewUsage } from '../host/usage';
+import type { OverviewUsage } from '@botharness/host-client/usage';
 import { SHEET_GROUP } from './chat/sheet';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
@@ -14,6 +14,7 @@ export interface SettingsActions {
   onNotifications(): void;
   onStorage(): void;
   onModels(): void;
+  onPrompts(): void;
   onCopyVersion(text: string): void;
 }
 
@@ -24,6 +25,8 @@ export function SettingsView({
   actions,
   statistics,
   messageDisplay,
+  sendJump,
+  headerModel,
   activityCount,
   chatBackground,
   hapticFeedback,
@@ -35,6 +38,8 @@ export function SettingsView({
   actions: SettingsActions;
   statistics?: ReactNode;
   messageDisplay?: ReactNode;
+  sendJump?: ReactNode;
+  headerModel?: ReactNode;
   activityCount?: ReactNode;
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
@@ -56,6 +61,15 @@ export function SettingsView({
           detail={t.modelSettings.global}
           disclosure
           onPress={actions.onModels}
+        />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.prompts.title}
+          icon="prompts"
+          detail={t.prompts.hint}
+          disclosure
+          testID="settings-prompts"
+          onPress={actions.onPrompts}
         />
       </SettingsSection>
       <SettingsSection on={SHEET_GROUP}>
@@ -79,6 +93,8 @@ export function SettingsView({
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         {messageDisplay}
+        {sendJump}
+        {headerModel}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.appIcon}

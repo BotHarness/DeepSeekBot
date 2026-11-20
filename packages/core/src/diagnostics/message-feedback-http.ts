@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { collectFailureTurn, type FailureTurnEvidence } from './failure-turn.js';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -57,7 +58,7 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
       for (const [token, entry] of previews) if (entry.expires <= now()) previews.delete(token);
       if (action === 'preview') {
         const selection = feedbackSelectionSchema.parse(value);
-        const page = options.readTimeline(selection.channelId, {
+        const page = options.readTimeline(OWNER_HUMAN_CONTEXT, selection.channelId, {
           direction: 'around',
           around: selection.messageId,
           olderLimit: selection.before,

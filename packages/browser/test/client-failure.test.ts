@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type BrowserKey } from '../src/client/locale.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, onClick }: { children: unknown; onClick?: () => void }) =>
-    createElement('button', { type: 'button', onClick }, children as string),
-}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
 
 import {
   BrowserApiError,
@@ -13,7 +12,7 @@ import {
   BrowserProvisionProgress,
   readFailure,
 } from '../src/client/browser-failure.js';
-import { en, zh, type BrowserKey, type BrowserTranslate } from '../src/client/locale.js';
+import { en, zh, type BrowserTranslate } from '../src/client/locale.js';
 import { BROWSER_FAILURE_KINDS } from '../src/failure-kinds.js';
 
 let root: Root;

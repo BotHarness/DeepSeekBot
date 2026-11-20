@@ -1,4 +1,8 @@
+import { questionAnswerHash } from '../src/channels/question-answer-receipts.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -29,7 +33,8 @@ function port(
   delivered: string[],
 ): TimedQuestionPort {
   return {
-    bind: (id, channelId) => core.runtime.bindNativeQuestionInput?.(id, channelId),
+    bind: (id, channelId, question) =>
+      core.runtime.bindNativeQuestionInput?.(id, channelId, question),
     recover: (id, channelId, messageId) =>
       core.runtime.recoverNativeQuestionInput?.(id, channelId, messageId),
     available: (id, channelId) => core.runtime.nativeQuestionAvailable?.(id, channelId) ?? true,
@@ -46,12 +51,39 @@ describe('a timed question card across a Host restart', () => {
     const home = createTempRoot('bh-timed-question-recovery-');
     const native = nativeLog();
     const runs: OrchestratorAgentRun[] = [];
+    const warnings: string[] = [];
+    let memoryDir: string;
+    let followup: ReturnType<
+      NonNullable<ReturnType<typeof createCore>['runtime']['bindNativeQuestionInput']>
+    >;
+    let foreignFollowup: typeof followup;
     const agents: BotAgentAdapter = {
       async runOrchestrator(run) {
         runs.push(run);
         if (run.acceptNativeInput !== undefined) {
           native.current = { state: 'continued' };
-          run.acceptNativeInput();
+          if (!run.acceptNativeInput()) return;
+          expect(run.memory).toBeUndefined();
+          expect(readFileSync(join(memoryDir, 'retained.md'), 'utf8')).toBe('Existing Memory');
+          writeFileSync(join(memoryDir, 'answer-note.md'), 'Stable');
+          if (runs.length === 1) {
+            followup = second.runtime.bindNativeQuestionInput?.(sessionId, channelId, {
+              messageId: 'followup-card',
+              callId: 'call-followup',
+            });
+            foreignFollowup = second.runtime.bindNativeQuestionInput?.(sessionId, channelId, {
+              messageId: 'missing-followup',
+              callId: 'call-followup',
+            });
+            await second.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+              id: 'followup-card',
+              at: new Date().toISOString(),
+              author: { kind: 'bot', slug: 'ada' },
+              body: 'Follow-up question',
+              userQuestionRequest: { sessionId, callId: 'call-followup', questions },
+            });
+          }
+          await run.channels.send({ body: 'Continued with Stable' });
         }
       },
       async runAssignment() {},
@@ -66,7 +98,9 @@ describe('a timed question card across a Host restart', () => {
     let channelId: string;
     try {
       first.registry.create({ slug: 'ada', displayName: 'Ada' });
-      channelId = first.channels.getOrCreateDm('ada', 'Ada')!.id;
+      memoryDir = first.registry.memoryDirFor('ada')!;
+      writeFileSync(join(memoryDir, 'retained.md'), 'Existing Memory');
+      channelId = first.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
       first.ownership.claim({
         sessionId,
         botSlug: 'ada',
@@ -103,6 +137,7 @@ describe('a timed question card across a Host restart', () => {
     const second = createCore({
       dshHome: home,
       agents,
+      warn: (message) => warnings.push(message),
       activeQuestionMessageIds: () => broker?.activeMessageIds() ?? [],
     });
     try {
@@ -118,18 +153,34 @@ describe('a timed question card across a Host restart', () => {
       await broker.recover(second.humanAttention.openTimedQuestionCards());
       expect(broker.status('ada', messageId, channelId)).toBe('pending');
       expect(
-        second.humanAttention.list({ category: 'action', botSlug: 'ada' }).items,
+        second.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'ada' })
+          .items,
       ).toMatchObject([{ kind: 'user-question', messageId }]);
 
-      expect(await broker.answer('ada', messageId, answer)).toBe(true);
+      expect(await broker.answer('ada', messageId, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
+      await second.runtime.whenIdle();
+      expect(await foreignFollowup!(() => true)).toBe(false);
+      expect(await followup!(() => true)).toBe(true);
+      await second.runtime.whenIdle();
+      expect(warnings).not.toContainEqual(expect.stringContaining('reason=run-failed'));
+      expect(readFileSync(join(memoryDir!, 'retained.md'), 'utf8')).toBe('Existing Memory');
+      expect(readFileSync(join(memoryDir!, 'answer-note.md'), 'utf8')).toBe('Stable');
+      expect(
+        second.channels
+          .readMessages(channelId)
+          .some((entry) => entry.body === 'Continued with Stable'),
+      ).toBe(true);
       expect(delivered).toEqual([`${sessionId}:call-1`]);
       expect(runs.map((run) => [run.sessionId, run.resume, run.message])).toEqual([
+        [sessionId, true, ''],
         [sessionId, true, ''],
       ]);
       expect(runs[0]?.inboundChannelId).toBe(channelId);
       native.current = { state: 'answered', answer };
       await broker.reconcileSession(sessionId);
-      expect(second.humanAttention.openTimedQuestionCards()).toEqual([]);
+      expect(second.humanAttention.openTimedQuestionCards()).toEqual([
+        { channelId, messageId: 'followup-card' },
+      ]);
       expect(broker.status('ada', messageId, channelId)).toBe('answered');
     } finally {
       broker?.close();
@@ -158,14 +209,14 @@ describe('a timed question card across a Host restart', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
+      const channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
       core.ownership.claim({
         sessionId,
         botSlug: 'ada',
         rootRole: 'orchestrator',
         at: '2026-10-13T09:00:00Z',
       });
-      const card = await core.channels.appendMessage(channelId, {
+      const card = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'card',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -179,6 +230,15 @@ describe('a timed question card across a Host restart', () => {
       expect(core.runtime.recoverNativeQuestionInput?.(sessionId, channelId, 'other')).toBe(
         undefined,
       );
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id: 'ordinary-bot-message',
+        at: new Date().toISOString(),
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Not a question',
+      });
+      expect(
+        core.runtime.recoverNativeQuestionInput?.(sessionId, channelId, 'ordinary-bot-message'),
+      ).toBeUndefined();
       expect(core.runtime.recoverNativeQuestionInput?.('unowned', channelId, 'card')).toBe(
         undefined,
       );
@@ -207,8 +267,54 @@ describe('the native timed question port', () => {
     settled: [],
   });
 
+  it('restores legacy ignorable Session receipts without a live Agent', async () => {
+    const file = join(createTempRoot('question-actor-'), 'events.json');
+    writeFileSync(
+      file,
+      JSON.stringify([
+        {
+          type: 'plugin:botharness/question-answer',
+          seq: 0,
+          time: Date.now(),
+          ignorable: true,
+          data: { callId: 'call-1', humanId: 'bob', answerHash: questionAnswerHash(answer) },
+        },
+      ]),
+    );
+    const events: unknown = JSON.parse(readFileSync(file, 'utf8'));
+    expect(JSON.stringify(events)).not.toContain('Stable');
+    const after = nativeTimedQuestions(
+      context({
+        agents: { get: () => undefined },
+        sessionQuery: { readSession: async () => ({ session: { id: sessionId }, events }) },
+        sessionProjections: {
+          restore: () => ({
+            snapshot: {
+              values: {
+                userQuestions: {
+                  active: [],
+                  settled: [{ callId: 'call-1', answers: answer.answers }],
+                },
+              },
+            },
+          }),
+        },
+      }),
+      runtime,
+      { get: () => undefined, list: () => [] },
+    );
+    await after.load?.([sessionId]);
+    expect(after.answeringHuman?.(sessionId, 'call-1', answer)).toEqual({ humanId: 'bob' });
+    expect(after.answeringHuman?.(sessionId, 'other', answer)).toBeUndefined();
+    expect(
+      after.answeringHuman?.(sessionId, 'call-1', {
+        answers: [{ id: 'release-route', selected: ['Canary'] }],
+      }),
+    ).toBeUndefined();
+  });
+
   it('reads a stored Session through the native projection and keeps the last live view', async () => {
-    const roots: unknown[] = [];
+    const roots: Array<{ session: { id: string } }> = [];
     const session = { id: sessionId };
     let live = view('open');
     const restore = vi.fn(() => ({ snapshot: { values: { userQuestions: view('continued') } } }));
@@ -218,7 +324,7 @@ describe('the native timed question port', () => {
       events: [{ seq: 0 }],
     }));
     const services = {
-      agents: { roots: () => roots },
+      agents: { get: (id: string) => roots.find((agent) => agent.session.id === id) },
       sessionProjections: {
         stateOf: () => ({ questions: live }),
         restore,
@@ -253,7 +359,7 @@ describe('the native timed question port', () => {
       throw new Error('missing');
     });
     const ctx = context({
-      agents: { roots: () => [] },
+      agents: { get: () => undefined },
       sessionProjections: { stateOf: () => undefined, restore: vi.fn() },
       sessionQuery: { readSession },
     });
@@ -264,5 +370,16 @@ describe('the native timed question port', () => {
     await port.load?.(['live', 'gone']);
     expect(readSession).toHaveBeenCalledTimes(1);
     expect(port.read('gone', 'call-1')).toBeUndefined();
+  });
+
+  it('refuses a missing or foreign live Agent returned by the Registry', () => {
+    const answerNative = vi.fn(() => true);
+    const ctx = context({
+      agents: { get: () => ({ session: { id: 'foreign-session' } }) },
+      userQuestions: { answer: answerNative },
+    });
+    const port = nativeTimedQuestions(ctx, runtime, { get: () => undefined, list: () => [] });
+    expect(port.answer(sessionId, 'call-1', answer)).toBe(false);
+    expect(answerNative).not.toHaveBeenCalled();
   });
 });

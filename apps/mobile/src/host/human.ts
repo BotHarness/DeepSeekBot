@@ -1,4 +1,5 @@
-import type { HostClient } from './client';
+import { readHumanIdentity } from '@botharness/host-client/human-profile';
+import type { HostClient } from '@botharness/host-client/client';
 
 export function humanNameOf(identity: unknown): string | undefined {
   const name =
@@ -9,5 +10,5 @@ export function humanNameOf(identity: unknown): string | undefined {
 }
 
 export async function loadHumanName(client: HostClient): Promise<string | undefined> {
-  return humanNameOf(await client.call<unknown>('humanIdentity'));
+  return humanNameOf(await readHumanIdentity(client));
 }

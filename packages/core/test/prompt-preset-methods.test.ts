@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,7 +36,7 @@ function setup() {
     ownership,
   });
   registry.create({ slug: 'ada', displayName: 'Ada' });
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     modelPresets: createModelPresetStore({ rootDir: root, database }),
     states: createBotStateTracker(),

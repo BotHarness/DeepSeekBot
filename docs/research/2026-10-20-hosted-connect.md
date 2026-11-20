@@ -25,8 +25,8 @@
 
 - **设备网关**（ADR-0199）：手机只访问 `/botharness-device/*`，带每设备凭据；配对链接里有**有序路由列表**；吊销立即生效；记录里预留了设备公钥字段，就是为 DPoP 留的。加一条 Connect 路由，手机协议不用改。
 - **路由探测**（`packages/core/src/devices/routes.ts`）：现在只认 Tailscale 和 loopback；手机端 `apps/mobile/src/host/route.ts` 也只接受 `*.ts.net` 和 loopback。两处都要放开一个我们自己的域名。
-- **WorkOS**：TOB 已有 WorkOS 登录、手机 PKCE、SecureStore 存会话（ADR-0229/0230）。WorkOS 也有 CLI Auth（RFC 8628 设备授权，2025-06 上线），适合 `deepseekbot connect` 在无界面或 SSH 场景登录。
-- **推送**（ADR-0202）：无内容推送走 Expo，与连接方式无关，不需要动。
+- **WorkOS**：TOB 已有 WorkOS 登录、手机 PKCE、SecureStore 存会话（[ADR-0229 原文](https://github.com/BotHarness/DeepSeekBot/blob/15140a16d5f3260e029e926418621b2806aefd91/docs/adr/0229-mobile-cloud-sessions-are-independent-of-host-pairing.md)（现由 [手机端决策](../decisions/mobile.md#adr-0229) 取代）、[ADR-0230 原文](https://github.com/BotHarness/DeepSeekBot/blob/15140a16d5f3260e029e926418621b2806aefd91/docs/adr/0230-cloud-agent-connections-use-native-credentials-and-messaging.md)（现由 [手机端决策](../decisions/mobile.md#adr-0230) 取代））。WorkOS 也有 CLI Auth（RFC 8628 设备授权，2025-06 上线），适合 `deepseekbot connect` 在无界面或 SSH 场景登录。
+- **推送**：当时沿用 Expo 投递，与连接方式无关。历史记录见 [ADR-0202 原文](https://github.com/BotHarness/DeepSeekBot/blob/15140a16d5f3260e029e926418621b2806aefd91/docs/adr/0202-phone-push-is-a-content-free-projection-of-the-human-inbox.md)（现由 [手机端决策](../decisions/mobile.md#adr-0202) 取代）。
 
 ## 3. 三条路对比
 

@@ -1,10 +1,14 @@
+import type { MemberDevices } from '../team/devices.js';
+import { TeamError } from '../team/error.js';
+import type { OfferVerification } from './connect-account.js';
 import type { IncomingMessage } from 'node:http';
 import { request } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
-import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
-import { noisePublicKey } from './noise/xk.js';
+import { BROWSER_ADMISSION_PROTOCOL } from '../../../../deploy/private-relay/admission.mjs';
+import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import type { DevicePairing } from './pairing.js';
 import {
   LOCAL_VIDEO_LIMITS,
@@ -12,6 +16,14 @@ import {
   type LocalVideoBinding,
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_LIMITS,
+  VOICE_CALL_PATH,
+  type VoiceCallResult,
+} from '../voice/call-contract.js';
+import { DIRECT_PATH, type DirectResult } from './direct.js';
+import { APP_VERSION_HEADER } from './client-compat.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -42,7 +54,7 @@ function pathAllowed(path: string): boolean {
   }
   return (
     (name.startsWith('/botharness-device/api/') &&
-      !/\/(?:webrtc|web|browser|computer)(?:\/|$)/u.test(name)) ||
+      !/\/(?:webrtc|web|browser|computer|voice)(?:\/|$)/u.test(name)) ||
     [
       '/botharness-device/activity',
       '/botharness-device/activity/prepare',
@@ -52,32 +64,75 @@ function pathAllowed(path: string): boolean {
     ].includes(name) ||
     name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||
+    name === '/botharness-device/team/device-password' ||
+    name === '/botharness-device/feed-read' ||
     name === '/botharness-device/unpair' ||
     name === '/botharness-device/devices/remove'
   );
 }
 
+type CloseTrigger =
+  | 'socket-close'
+  | 'socket-error'
+  | 'send-failed'
+  | 'queue-limit'
+  | 'stream-error'
+  | 'revoked'
+  | 'idle-timeout'
+  | 'handshake-timeout'
+  | 'gateway-dispose'
+  | 'invalid-frame'
+  | 'request-failed'
+  | 'refused';
+export interface CallChannelDiagnostic {
+  channelId: string;
+  route: 'connect' | 'lan';
+  phase: 'channel-close' | 'abandoned-open-cleanup' | 'hangup-request';
+  trigger: CloseTrigger | 'request-cancelled' | 'device-command';
+  callId?: string;
+}
+function appVersionHeader(input: Record<string, unknown>): Record<string, string> {
+  const version = input['appVersion'];
+  return typeof version === 'string' && version.length <= 32 && /^[0-9A-Za-z.+-]+$/u.test(version)
+    ? { [APP_VERSION_HEADER]: version }
+    : {};
+}
+
+let nextCallChannel = 0;
+
 export function createEncryptedGateway(options: {
   pairing: DevicePairing;
+  memberDevices?: MemberDevices;
   route?: 'connect' | 'lan';
   key(): Promise<Uint8Array>;
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
   log?: (phase: string) => void;
+  callDiagnostic?: (event: CallChannelDiagnostic) => void;
   localVideo?: (input: {
     deviceId: string;
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
-  verifyEnrollment?: (
-    body: string,
-    signature: string,
-  ) => Promise<{ ok: true; verifierHash: string; name?: string } | { ok: false }>;
+  direct?: (input: {
+    deviceId: string;
+    offer: unknown;
+    signal: AbortSignal;
+  }) => Promise<DirectResult>;
+  voiceCall?: (input: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<VoiceCallResult>;
+  verifyEnrollment?: (body: string, signature: string) => Promise<OfferVerification>;
+  relationship?: (peerKey: string, command: unknown) => Promise<Record<string, unknown>>;
 }) {
   const server = new WebSocketServer({
     noServer: true,
     maxPayload: 70_000,
     perMessageDeflate: false,
+    handleProtocols: (protocols) =>
+      protocols.has(BROWSER_ADMISSION_PROTOCOL) ? BROWSER_ADMISSION_PROTOCOL : false,
   });
   const active = new Set<() => void>();
   let disposed = false;
@@ -85,7 +140,7 @@ export function createEncryptedGateway(options: {
     encrypted = 0,
     upgrading = 0;
   const changed = () => options.changed?.({ negotiating, encrypted });
-  const serve = (socket: WebSocket, key: Uint8Array) => {
+  const serve = (socket: WebSocket, key: Uint8Array, remoteAddress: string) => {
     const channel = new ConnectChannel({
       role: 'responder',
       hostId: options.pairing.host().id,
@@ -105,6 +160,46 @@ export function createEncryptedGateway(options: {
     const requests = new Map<string, () => void>();
     let videoBinding: LocalVideoBinding | undefined;
     let videoPending = 0;
+    const observedCalls = new Set<string>();
+    const channelId = `channel-${++nextCallChannel}`;
+    let diagnosticCount = 0;
+    let closeTrigger: CloseTrigger | undefined;
+    const diagnostic = (
+      phase: CallChannelDiagnostic['phase'],
+      trigger: CallChannelDiagnostic['trigger'],
+      callId?: string,
+    ) => {
+      if (!options.callDiagnostic || diagnosticCount >= (phase === 'channel-close' ? 64 : 32))
+        return;
+      diagnosticCount++;
+      try {
+        options.callDiagnostic({
+          channelId,
+          route: options.route ?? 'connect',
+          phase,
+          trigger,
+          ...(callId !== undefined && /^call-[a-f0-9]{1,64}$/u.test(callId) ? { callId } : {}),
+        });
+      } catch {}
+    };
+    let callPending = 0;
+    const abandonOpen = (callId: string) => {
+      const dispatch = options.voiceCall;
+      if (!dispatch) return;
+      diagnostic('abandoned-open-cleanup', closeTrigger ?? 'request-cancelled', callId);
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
+      void Promise.resolve()
+        .then(() =>
+          dispatch({
+            deviceId: deviceId!,
+            command: { kind: 'hangup', callId },
+            signal: abort.signal,
+          }),
+        )
+        .catch(() => {})
+        .finally(() => clearTimeout(timer));
+    };
     const closeVideo = (binding: LocalVideoBinding) => {
       const dispatch = options.localVideo;
       if (!dispatch) return;
@@ -121,9 +216,12 @@ export function createEncryptedGateway(options: {
         .catch(() => {})
         .finally(() => clearTimeout(timer));
     };
-    const close = () => {
+    const close = (trigger: CloseTrigger) => {
       if (closed) return;
       closed = true;
+      closeTrigger = trigger;
+      if (observedCalls.size === 0 && callPending > 0) diagnostic('channel-close', trigger);
+      for (const callId of observedCalls) diagnostic('channel-close', trigger, callId);
       clearTimeout(deadline);
       clearInterval(keepalive);
       detach?.();
@@ -134,35 +232,42 @@ export function createEncryptedGateway(options: {
       requests.clear();
       if (videoBinding) closeVideo(videoBinding);
       videoBinding = undefined;
-      active.delete(close);
+      observedCalls.clear();
+      active.delete(dispose);
       if (admitted) encrypted--;
       else negotiating--;
       changed();
       socket.terminate();
     };
-    const deadline = setTimeout(close, DEADLINE);
+    const deadline = setTimeout(() => close('handshake-timeout'), DEADLINE);
     let lastMessage = Date.now();
     const keepalive = setInterval(() => {
-      if (Date.now() - lastMessage > 60_000) close();
+      if (Date.now() - lastMessage > 60_000) close('idle-timeout');
     }, 15_000);
-    active.add(close);
+    const dispose = () => close('gateway-dispose');
+    active.add(dispose);
     negotiating++;
     changed();
-    const send = (value: unknown) => {
-      if (closed || socket.readyState !== WebSocket.OPEN) return;
+    const send = (value: unknown): boolean => {
+      if (closed || socket.readyState !== WebSocket.OPEN) return false;
       try {
         for (const frame of channel.send(JSON.stringify(value))) {
-          if (socket.bufferedAmount + frame.length > QUEUE_LIMIT) return close();
+          if (socket.bufferedAmount + frame.length > QUEUE_LIMIT) {
+            close('queue-limit');
+            return false;
+          }
           socket.send(frame);
         }
+        return true;
       } catch {
-        close();
+        close('send-failed');
+        return false;
       }
     };
     const refuse = (code: string) => {
       send({ type: 'refused', code });
       socket.close(1008, 'channel-refused');
-      setTimeout(close, 100).unref();
+      setTimeout(() => close('refused'), 100).unref();
     };
     const video = (id: string, input: Record<string, unknown>) => {
       const respond = (result: LocalVideoResult) =>
@@ -289,6 +394,173 @@ export function createEncryptedGateway(options: {
           videoPending--;
         });
     };
+    const direct = (id: string, input: Record<string, unknown>) => {
+      const respond = (result: DirectResult) =>
+        send({
+          type: 'response',
+          id,
+          status: result.ok ? 200 : 409,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify(result)).toString('base64'),
+        });
+      const dispatch = options.direct;
+      if (!dispatch || options.route === 'lan' || input['method'] !== 'POST')
+        return respond({ ok: false, code: 'direct-invalid' });
+      const bytes = Buffer.from(
+        field(input, 'body') ?? '',
+        input['encoding'] === 'base64' ? 'base64' : 'utf8',
+      );
+      let offer: unknown;
+      try {
+        if (bytes.length > 20_000) throw new Error();
+        offer = (JSON.parse(bytes.toString('utf8')) as { offer?: unknown }).offer;
+      } catch {
+        return respond({ ok: false, code: 'direct-invalid' });
+      }
+      const abort = new AbortController();
+      const cancel = () => abort.abort();
+      requests.set(id, cancel);
+      void dispatch({ deviceId: deviceId!, offer, signal: abort.signal }).then(
+        (result) => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          respond(result);
+        },
+        () => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          respond({ ok: false, code: 'direct-failed' });
+        },
+      );
+    };
+    const call = (id: string, input: Record<string, unknown>) => {
+      const respond = (result: VoiceCallResult) =>
+        send({
+          type: 'response',
+          id,
+          status: result.ok ? 200 : 409,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify(result)).toString('base64'),
+        });
+      if (options.route !== 'lan') return respond(VOICE_CALL_CONNECT_REFUSAL);
+      const dispatch = options.voiceCall;
+      if (!dispatch)
+        return respond({
+          ok: false,
+          code: 'not-ready',
+          error: 'Calls are not ready on this Host.',
+        });
+      if (input['method'] !== 'POST')
+        return respond({ ok: false, code: 'invalid-input', error: 'A call command is required.' });
+      if (callPending >= VOICE_CALL_LIMITS.pendingRequests)
+        return respond({
+          ok: false,
+          code: 'queue-full',
+          error: 'Too many call commands are pending.',
+        });
+      const bytes = Buffer.from(
+        field(input, 'body') ?? '',
+        input['encoding'] === 'base64' ? 'base64' : 'utf8',
+      );
+      if (bytes.length > VOICE_CALL_LIMITS.requestBytes)
+        return respond({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The call command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(bytes.toString('utf8'));
+      } catch {
+        return respond({
+          ok: false,
+          code: 'invalid-input',
+          error: 'The call command must be JSON.',
+        });
+      }
+      if (
+        typeof command === 'object' &&
+        command !== null &&
+        'kind' in command &&
+        command.kind === 'hangup'
+      )
+        diagnostic(
+          'hangup-request',
+          'device-command',
+          'callId' in command && typeof command.callId === 'string' ? command.callId : undefined,
+        );
+      const abort = new AbortController();
+      const cancel = () => {
+        abort.abort();
+        clearTimeout(timer);
+      };
+      const timer = setTimeout(
+        () => {
+          if (requests.get(id) !== cancel) return;
+          requests.delete(id);
+          cancel();
+          respond({
+            ok: false,
+            code: 'operation-timeout',
+            error: 'The call command did not complete.',
+          });
+        },
+        typeof command === 'object' &&
+          command !== null &&
+          'kind' in command &&
+          command.kind === 'open'
+          ? VOICE_CALL_LIMITS.connectTimeoutMs
+          : VOICE_CALL_LIMITS.operationTimeoutMs,
+      );
+      requests.set(id, cancel);
+      callPending++;
+      void Promise.resolve()
+        .then(() => dispatch({ deviceId: deviceId!, command, signal: abort.signal }))
+        .then(
+          (result) => {
+            if (result.ok && result.call !== undefined) {
+              if (result.call.phase === 'ended') observedCalls.delete(result.call.callId);
+              else if (closed || abort.signal.aborted) {
+                if (
+                  typeof command === 'object' &&
+                  command !== null &&
+                  'kind' in command &&
+                  command.kind === 'open'
+                )
+                  abandonOpen(result.call.callId);
+              } else if (options.callDiagnostic && observedCalls.size < 32)
+                observedCalls.add(result.call.callId);
+            }
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            const queued = respond(result);
+            if (
+              !queued &&
+              result.ok &&
+              result.call !== undefined &&
+              result.call.phase !== 'ended' &&
+              typeof command === 'object' &&
+              command !== null &&
+              'kind' in command &&
+              command.kind === 'open'
+            )
+              abandonOpen(result.call.callId);
+          },
+          () => {
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            respond({
+              ok: false,
+              code: 'operation-timeout',
+              error: 'The call command did not complete.',
+            });
+          },
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          callPending--;
+        });
+    };
     const forward = (input: Record<string, unknown>) => {
       const id = field(input, 'id'),
         path = field(input, 'path'),
@@ -303,7 +575,14 @@ export function createEncryptedGateway(options: {
         (method !== 'GET' && method !== 'POST')
       )
         throw new Error('channel-request-invalid');
+      if (
+        credential?.startsWith('member.') &&
+        /\/(?:computer|browser|voice|direct)(?:\/|$)/u.test(path)
+      )
+        throw new Error('remote-access/denied');
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
+      if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
+      if (path === `/botharness-device${DIRECT_PATH}`) return direct(id, input);
       if (!pathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');
@@ -316,6 +595,7 @@ export function createEncryptedGateway(options: {
           method,
           headers: {
             authorization: `Device ${credential!}`,
+            ...appVersionHeader(input),
             'content-type':
               input['contentType'] === 'application/octet-stream'
                 ? 'application/octet-stream'
@@ -330,7 +610,7 @@ export function createEncryptedGateway(options: {
             size += chunk.length;
             if (size > BODY_LIMIT) {
               upstream.destroy();
-              close();
+              close('request-failed');
             } else chunks.push(chunk);
           });
           response.on('end', () => {
@@ -345,7 +625,7 @@ export function createEncryptedGateway(options: {
                 body: Buffer.concat(chunks).toString('base64'),
               });
           });
-          response.on('error', close);
+          response.on('error', () => close('request-failed'));
         },
       );
       const cancel = () => upstream.destroy();
@@ -362,8 +642,38 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
+        if (type === 'team-sign-in' && options.memberDevices) {
+          try {
+            const result = await options.memberDevices.signIn(
+              input['input'],
+              remoteAddress,
+              publicKey,
+            );
+            if (!closed) send({ type: 'team-signed-in', result: { ok: true, value: result } });
+          } catch (error) {
+            if (!closed)
+              send({
+                type: 'team-signed-in',
+                result: {
+                  ok: false,
+                  code: error instanceof TeamError ? error.code : 'invalid-input',
+                  ...(error instanceof TeamError && error.retryAfterSeconds
+                    ? { retryAfterSeconds: error.retryAfterSeconds }
+                    : {}),
+                },
+              });
+          }
+          return;
+        }
+        if (type === 'relationship') {
+          if (!options.relationship) return refuse('relationship-unavailable');
+          const result = await options.relationship(publicKey, input['command']);
+          if (!closed) send({ type: 'relationship-result', ...result });
+          return;
+        }
         if (type === 'pair') {
           let offer = field(input, 'offer');
+          let accountAutoApprove = false;
           if (input['enrollment'] !== undefined) {
             const enrollment = record(input['enrollment']);
             const body = field(enrollment, 'body'),
@@ -373,7 +683,15 @@ export function createEncryptedGateway(options: {
             if (enrollmentOffer === undefined) {
               const verified = await options.verifyEnrollment?.(body, signature);
               if (closed || !verified?.ok) throw new Error('enrollment-refused');
-              enrollmentOffer = { body, offer: options.pairing.createOffer(verified).offer };
+              accountAutoApprove =
+                verified.accountAutoApprove === true && (options.route ?? 'connect') === 'connect';
+              enrollmentOffer = {
+                body,
+                offer: options.pairing.createOffer({
+                  verifierHash: verified.verifierHash,
+                  ...(verified.name === undefined ? {} : { name: verified.name }),
+                }).offer,
+              };
             }
             if (enrollmentOffer.body !== body) throw new Error('enrollment-mismatch');
             offer = enrollmentOffer.offer;
@@ -388,6 +706,8 @@ export function createEncryptedGateway(options: {
             ...(verifier === undefined ? {} : { verifier }),
           });
           if (!proposed.ok) return refuse(proposed.code);
+          if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
+            options.log?.('account-device-approved');
           const paired = options.pairing.redeem({
             offer,
             publicKey,
@@ -403,6 +723,13 @@ export function createEncryptedGateway(options: {
             host: paired.host,
             deviceId: paired.device.id,
             credential: paired.credential,
+            ...(paired.humanId === undefined
+              ? {}
+              : {
+                  humanId: paired.humanId,
+                  displayName: paired.displayName,
+                  mustChangePassword: paired.mustChangePassword,
+                }),
           });
           return;
         }
@@ -418,11 +745,11 @@ export function createEncryptedGateway(options: {
         encrypted++;
         changed();
         deviceId = admission.device.id;
-        detach = options.pairing.attachStream(deviceId, close);
+        detach = options.pairing.attachStream(deviceId, () => close('revoked'));
         send({ type: 'admitted' });
         return;
       }
-      if (!options.pairing.check(deviceId!).ok) return close();
+      if (!options.pairing.check(deviceId!).ok) return close('revoked');
       if (type === 'ping') return send({ type: 'pong' });
       if (type === 'request') return forward(input);
       const id = field(input, 'id');
@@ -461,7 +788,7 @@ export function createEncryptedGateway(options: {
           send({ type: 'closed', id });
         });
         stream.on('error', () => {
-          if (streams.get(id) === stream) close();
+          if (streams.get(id) === stream) close('stream-error');
         });
       } else if (type === 'send') {
         const stream = streams.get(id),
@@ -481,19 +808,23 @@ export function createEncryptedGateway(options: {
       } else throw new Error('channel-message-invalid');
     };
     let operations = Promise.resolve();
+    let secured = false;
     let queued = 0,
       queuedBytes = 0;
     socket.on('message', (data, binary) => {
       try {
-        if (binary) return close();
+        if (binary) return close('invalid-frame');
         lastMessage = Date.now();
         const result = channel.receive(data.toString());
         if (result.reply) socket.send(result.reply);
-        if (result.ready) clearTimeout(deadline);
+        if (result.ready) {
+          secured = true;
+          clearTimeout(deadline);
+        }
         if (result.message !== undefined) {
           const size = result.message.length;
           queuedBytes += size;
-          if (++queued > 32 || queuedBytes > 16 * 1024 * 1024) return close();
+          if (++queued > 32 || queuedBytes > 16 * 1024 * 1024) return close('invalid-frame');
           const input = record(JSON.parse(result.message));
           operations = operations
             .then(async () => {
@@ -508,7 +839,7 @@ export function createEncryptedGateway(options: {
                 if (!closed && credit !== undefined) send({ type: 'ack', credit });
               }
             })
-            .catch(() => close())
+            .catch(() => close('invalid-frame'))
             .finally(() => {
               queued--;
               queuedBytes -= size;
@@ -516,11 +847,13 @@ export function createEncryptedGateway(options: {
         }
       } catch {
         options.log?.('refused');
-        close();
+        if (secured) return close('invalid-frame');
+        socket.close(1008, 'channel-handshake-rejected');
+        setTimeout(() => close('refused'), 100).unref();
       }
     });
-    socket.on('close', close);
-    socket.on('error', close);
+    socket.on('close', () => close('socket-close'));
+    socket.on('error', () => close('socket-error'));
   };
   return {
     async upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
@@ -529,7 +862,8 @@ export function createEncryptedGateway(options: {
         request.url !== CONNECT_CHANNEL_PATH ||
         request.headers.authorization ||
         request.headers.cookie ||
-        request.headers['sec-websocket-protocol'] ||
+        (request.headers['sec-websocket-protocol'] !== undefined &&
+          request.headers['sec-websocket-protocol'] !== BROWSER_ADMISSION_PROTOCOL) ||
         active.size + upgrading >= 32
       ) {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
@@ -545,7 +879,9 @@ export function createEncryptedGateway(options: {
           return;
         }
         const identity = key;
-        server.handleUpgrade(request, socket, head, (client) => serve(client, identity));
+        server.handleUpgrade(request, socket, head, (client) =>
+          serve(client, identity, request.socket.remoteAddress ?? 'unknown'),
+        );
       } catch {
         socket.destroy();
       } finally {

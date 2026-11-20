@@ -1,19 +1,25 @@
 import { expect, it, vi } from 'vitest';
-import { createInbox, prepareNotificationBaseline } from '../src/host/inbox';
-import type { HostClient } from '../src/host/client';
-import type { HumanAttentionItem } from '../src/host/wire';
+import { createInbox, prepareNotificationBaseline } from '@botharness/host-client/inbox';
+import type { HostClient } from '@botharness/host-client/client';
+import type { WireHumanAttentionItem } from '@botharness/host-protocol/wire';
 
-const item = (id: string): HumanAttentionItem => ({
+const item = (id: string): WireHumanAttentionItem => ({
   id,
   kind: 'channel-reply',
   category: 'replies',
   botSlug: 'ada',
   summary: id,
   createdAt: '2026-10-01T00:00:00Z',
+  channelId: 'dm-ada',
+  messageId: 'message-' + id,
+  sourceEventId: 'event-' + id,
+  isUnread: true,
 });
 
 it('publishes only complete notification discovery and restarts a scan invalidated between pages', async () => {
   let live = () => {};
+  let connectionChanged = () => {};
+  let connection: 'connected' | 'stopped' = 'connected';
   let fail = false;
   let mutate = false;
   let changed = false;
@@ -45,10 +51,13 @@ it('publishes only complete notification discovery and restarts a scan invalidat
     api: unavailable,
     resource: unavailable,
     follow: unavailable,
-    getSnapshot: () => ({ connection: { status: 'connected', route: '' } }),
-    subscribe: () => () => {},
+    getSnapshot: () => ({ connection: { status: connection, route: '' } }),
+    subscribe: (listener) => {
+      connectionChanged = listener;
+      return () => {};
+    },
     onLive: (listener) => {
-      live = () => listener('activity');
+      live = () => listener('roster');
       return () => {};
     },
     call: call as HostClient['call'],
@@ -61,6 +70,14 @@ it('publishes only complete notification discovery and restarts a scan invalidat
       published.push(snapshot.notificationItems.map((item) => item.id));
   });
   try {
+    await inbox.refresh();
+    expect(published.at(-1)).toEqual(['withdrawn', 'dm']);
+    connection = 'stopped';
+    connectionChanged();
+    expect(inbox.getSnapshot()).toMatchObject({ notificationItems: undefined });
+    connection = 'connected';
+    connectionChanged();
+    expect(inbox.getSnapshot()).toMatchObject({ notificationItems: undefined });
     await inbox.refresh();
     expect(published.at(-1)).toEqual(['withdrawn', 'dm']);
     published.length = 0;

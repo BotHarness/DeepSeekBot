@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BridgeActions } from '../src/client/actions.js';
+import { createActions } from '../src/client/actions.js';
 import {
   installChannelFollow,
   prependChannelJournal,
@@ -49,6 +50,14 @@ class FakeSource {
           botSlug: 'ada',
           body,
         }),
+      }),
+    );
+  }
+  appendDraft(id: string, append: string, base: number, offset: number): void {
+    this.draftRevision += 1;
+    this.listeners.get('channel/draft-append')?.(
+      new MessageEvent('channel/draft-append', {
+        data: JSON.stringify({ draftId: id, revision: this.draftRevision, base, offset, append }),
       }),
     );
   }
@@ -113,6 +122,55 @@ function setup(refresh = vi.fn(async () => undefined), channel = CHANNEL) {
   return { store, sources, dispose, refresh };
 }
 describe('Channel live Client on the journal stream', () => {
+  it('keeps scoped followers and older pages separate for identical Channel IDs', async () => {
+    const localFollow = vi.fn<ChannelFollow>(() => ({ stop() {}, async prepend() {} }));
+    const uninstall = installChannelFollow(localFollow);
+    const create = () => {
+      const store = createStore();
+      const actions = createActions(async () => ({ ok: true, value: undefined }), store);
+      store.setMode('bot');
+      store.setRoster([], [CHANNEL]);
+      store.select({ kind: 'channel', channelId: CHANNEL.id });
+      store.setConversation({
+        status: 'ready',
+        channel: CHANNEL,
+        messages: [
+          {
+            id: 'same',
+            at: CHANNEL.createdAt,
+            author: { kind: 'bot', slug: 'ada' },
+            body: 'same',
+            channelRevision: 5,
+          },
+        ],
+        revision: 5,
+      });
+      const prepend = vi.fn(async () => {});
+      const stop = vi.fn();
+      const follow = vi.fn<ChannelFollow>(() => ({ stop, prepend }));
+      const dispose = mountChannelLive(store, actions, undefined, { follow });
+      return { store, prepend, stop, follow, dispose };
+    };
+    const a = create();
+    const b = create();
+    try {
+      expect(localFollow).not.toHaveBeenCalled();
+      expect(a.follow).toHaveBeenCalledOnce();
+      expect(b.follow).toHaveBeenCalledOnce();
+      await prependChannelJournal(CHANNEL.id, a.store);
+      expect(a.prepend).toHaveBeenCalledOnce();
+      expect(b.prepend).not.toHaveBeenCalled();
+      a.dispose();
+      await prependChannelJournal(CHANNEL.id, b.store);
+      expect(b.prepend).toHaveBeenCalledOnce();
+      expect(b.stop).not.toHaveBeenCalled();
+      expect(prependChannelJournal(CHANNEL.id, a.store)).toBeUndefined();
+    } finally {
+      a.dispose();
+      b.dispose();
+      uninstall();
+    }
+  });
   const entry = (revision: number, id: string) => ({
     channelId: CHANNEL.id,
     revision,
@@ -185,7 +243,7 @@ describe('Channel live Client on the journal stream', () => {
         'eight',
       ]);
 
-      await prependChannelJournal(CHANNEL.id);
+      await prependChannelJournal(CHANNEL.id, store);
       expect(prepends).toEqual([6]);
       expect(store.getSnapshot().conversation.messages.map((item) => item.id)).toEqual([
         'four',
@@ -207,7 +265,7 @@ describe('Channel live Client on the journal stream', () => {
       dispose();
       uninstall();
     }
-    expect(prependChannelJournal(CHANNEL.id)).toBeUndefined();
+    expect(prependChannelJournal(CHANNEL.id, store)).toBeUndefined();
   });
 });
 
@@ -522,6 +580,23 @@ describe('Channel live Client', () => {
     expect(sources).toHaveLength(2);
     store.setMode('dsh');
     expect(sources[1]?.closed).toBe(true);
+    dispose();
+  });
+
+  it('asks for appended draft text and extends the draft it continues', async () => {
+    const { store, sources, dispose, refresh } = setup();
+    expect(new URL(sources[0]!.url, 'http://localhost').searchParams.get('drafts')).toBe('append');
+    sources[0]?.baseline();
+    sources[0]?.emitDraft('attempt:call', '你');
+    sources[0]?.appendDraft('attempt:call', '好', 1, 1);
+    sources[0]?.appendDraft('attempt:call', '，世界', 2, 2);
+    expect(store.getSnapshot().conversation.drafts).toMatchObject([
+      { body: '你好，世界', revision: 3 },
+    ]);
+    sources[0]?.appendDraft('attempt:call', '？', 2, 5);
+    await vi.waitFor(() => expect(sources).toHaveLength(2));
+    expect(refresh).toHaveBeenCalledWith(CHANNEL.id);
+    expect(store.getSnapshot().conversation.drafts).toEqual([]);
     dispose();
   });
 

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -187,7 +188,7 @@ it('checked DM admission and accepted source reply produce two source-specific r
   await fx.core.externalMessaging.reply('ada', fx.sourceId('om-one'), 'Answer');
   expect(fx.reactions).toHaveLength(2);
   expect(fx.replies).toHaveLength(1);
-  const methods = createBridgeMethods(fx.core);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, fx.core);
   expect(await methods.messagingSnapshot({ slug: 'ada' })).toMatchObject({
     ok: true,
     value: {

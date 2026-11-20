@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
 import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -8,15 +10,17 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 
-import type { BotModeSendKey } from '../bot-mode-settings.js';
+import type { BotModeSendKey } from '@botharness/host-client/shared/bot-mode-settings';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, shortcutKeyLabel, type ShortcutKey } from './ds/kbd.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { border, color, space, text } from './ds/tokens.stylex.js';
+import { ink, space, type as text } from './ds/tobs.stylex.js';
+import { Note } from './ds/note.js';
+import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import {
   bindingFromEvent,
@@ -53,9 +57,21 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         keys: [['Alt', '1 … 0']],
         label: 'shortcuts.conversationIndex',
       },
-      { id: 'quick-switcher', action: 'quick-switcher', label: 'shortcuts.quickSwitcher' },
-      { id: 'conversation-prev', action: 'conversation-prev', label: 'shortcuts.conversationPrev' },
-      { id: 'conversation-next', action: 'conversation-next', label: 'shortcuts.conversationNext' },
+      {
+        id: 'quick-switcher',
+        action: 'quick-switcher',
+        label: 'shortcuts.quickSwitcher',
+      },
+      {
+        id: 'conversation-prev',
+        action: 'conversation-prev',
+        label: 'shortcuts.conversationPrev',
+      },
+      {
+        id: 'conversation-next',
+        action: 'conversation-next',
+        label: 'shortcuts.conversationNext',
+      },
       {
         id: 'unread-prev',
         action: 'unread-prev',
@@ -107,7 +123,11 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         label: 'shortcuts.approvalAllow',
         note: 'shortcuts.approval.note',
       },
-      { id: 'approval-reject', keys: [['N'], ['Esc']], label: 'shortcuts.approvalReject' },
+      {
+        id: 'approval-reject',
+        keys: [['N'], ['Esc']],
+        label: 'shortcuts.approvalReject',
+      },
       {
         id: 'approval-always',
         keys: [['A']],
@@ -194,32 +214,8 @@ const styles = stylex.create({
     opacity: 0.4,
     cursor: 'not-allowed',
     backgroundColor: { default: 'transparent', ':hover': 'transparent' },
-    color: { default: color.subtle, ':hover': color.subtle },
+    color: { default: ink.tertiary, ':hover': ink.tertiary },
   },
-  group: { display: 'flex', flexDirection: 'column', gap: space.x2, margin: 0 },
-  heading: {
-    margin: 0,
-    paddingBottom: space.x2,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.strong,
-  },
-  list: { display: 'flex', flexDirection: 'column', margin: 0, padding: 0 },
-  row: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space.x4,
-    paddingBlock: space.x3,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: { default: color.divider, ':last-child': 'transparent' },
-  },
-  label: { display: 'flex', flexDirection: 'column', minWidth: 0, margin: 0, color: color.fg },
-  note: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  problem: { color: color.danger, fontSize: text.metaSize, lineHeight: text.metaLine },
-  saved: { color: color.success, fontSize: text.metaSize, lineHeight: text.metaLine },
   keys: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -228,8 +224,8 @@ const styles = stylex.create({
     gap: space.x2,
     flexShrink: 0,
     margin: 0,
-    color: color.subtle,
-    fontSize: text.metaSize,
+    color: ink.tertiary,
+    fontSize: text.captionSize,
   },
 });
 
@@ -242,7 +238,9 @@ function problemText(
     const owner = SHORTCUT_HELP_GROUPS.flatMap((group) => group.entries).find(
       (entry) => entry.action === problem.action,
     );
-    return t('shortcuts.problem.conflict', { action: owner === undefined ? '' : t(owner.label) });
+    return t('shortcuts.problem.conflict', {
+      action: owner === undefined ? '' : t(owner.label),
+    });
   }
   if (problem.kind === 'reserved') return t('shortcuts.problem.reserved');
   return t('shortcuts.problem.needs-modifier', {
@@ -261,7 +259,10 @@ type RowStatus =
   | { readonly id: string; readonly kind: 'problem'; readonly text: string }
   | { readonly id: string; readonly kind: 'saved' };
 
-const staticBindings = { subscribe: () => () => {}, getSnapshot: () => undefined };
+const staticBindings = {
+  subscribe: () => () => {},
+  getSnapshot: () => undefined,
+};
 
 export function ShortcutHelpList({
   t,
@@ -334,7 +335,11 @@ export function ShortcutHelpList({
     setStatus(
       problem === undefined
         ? { id: entry.id, kind: 'saved' }
-        : { id: entry.id, kind: 'problem', text: problemText(problem, t, apple) },
+        : {
+            id: entry.id,
+            kind: 'problem',
+            text: problemText(problem, t, apple),
+          },
     );
     if (problem === undefined) setRecording(undefined);
   };
@@ -345,13 +350,17 @@ export function ShortcutHelpList({
     setStatus(
       problem === undefined
         ? { id: entry.id, kind: 'saved' }
-        : { id: entry.id, kind: 'problem', text: problemText(problem, t, apple) },
+        : {
+            id: entry.id,
+            kind: 'problem',
+            text: problemText(problem, t, apple),
+          },
     );
   };
   return (
     <>
       <span ref={recordingMount} hidden />
-      {nativeError ? <p role="alert">{t('settings.shortcuts.saveFailed')}</p> : null}
+      {nativeError ? <Note tone="danger">{t('settings.shortcuts.saveFailed')}</Note> : null}
       {SHORTCUT_HELP_GROUPS.map((group) => ({
         ...group,
         entries: group.entries.filter((entry) =>
@@ -368,41 +377,19 @@ export function ShortcutHelpList({
       }))
         .filter((group) => group.entries.length)
         .map((group) => (
-          <section
-            key={group.id}
-            aria-labelledby={`bh-shortcuts-${group.id}`}
-            {...stylex.props(styles.group)}
-          >
-            <h3 id={`bh-shortcuts-${group.id}`} {...stylex.props(styles.heading)}>
-              {t(group.title)}
-            </h3>
-            <dl {...stylex.props(styles.list)}>
-              {group.entries.map((entry) => {
-                const action = shortcutBindings === undefined ? undefined : entry.action;
-                const rowStatus = status?.id === entry.id ? status : undefined;
-                return (
-                  <div
-                    key={entry.id}
-                    data-shortcut={entry.id}
-                    data-settings-title={t(entry.label)}
-                    {...stylex.props(styles.row)}
-                  >
-                    <dt {...stylex.props(styles.label)}>
-                      <span>{t(entry.label)}</span>
-                      {entry.note === undefined ? null : (
-                        <span {...stylex.props(styles.note)}>{t(entry.note)}</span>
-                      )}
-                      {rowStatus === undefined ? null : rowStatus.kind === 'problem' ? (
-                        <span role="alert" {...stylex.props(styles.problem)}>
-                          {rowStatus.text}
-                        </span>
-                      ) : (
-                        <span role="status" {...stylex.props(styles.saved)}>
-                          {t('shortcuts.saved')}
-                        </span>
-                      )}
-                    </dt>
-                    <dd {...stylex.props(styles.keys)}>
+          <SettingsSection key={group.id} title={t(group.title)}>
+            {group.entries.map((entry) => {
+              const action = shortcutBindings === undefined ? undefined : entry.action;
+              const rowStatus = status?.id === entry.id ? status : undefined;
+              const label = t(entry.label);
+              return (
+                <SettingsRow
+                  key={entry.id}
+                  data={{ 'data-shortcut': entry.id, 'data-settings-title': label }}
+                  title={label}
+                  description={entry.note === undefined ? undefined : t(entry.note)}
+                  control={
+                    <div {...stylex.props(styles.keys)}>
                       {recording === entry.id
                         ? null
                         : shortcutEntryKeys(entry, sendKey, shortcutBindings).map(
@@ -418,13 +405,15 @@ export function ShortcutHelpList({
                           <IconButton
                             size="inline"
                             tone="subtle"
-                            aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
+                            aria-label={t('shortcuts.change.label', {
+                              action: t(entry.label),
+                            })}
                             aria-disabled
                             data-shortcut-locked=""
                             xstyle={styles.locked}
                             onClick={(event) => event.preventDefault()}
                           >
-                            <IconEditOutlineRegular size={14} />
+                            <Icon name="pencil" size={14} />
                           </IconButton>
                         </Tooltip>
                       ) : recording === entry.id ? (
@@ -449,23 +438,31 @@ export function ShortcutHelpList({
                           <Tooltip label={t('shortcuts.change')} side="top" align="end" portal>
                             <IconButton
                               size="inline"
-                              aria-label={t('shortcuts.change.label', { action: t(entry.label) })}
+                              aria-label={t('shortcuts.change.label', {
+                                action: t(entry.label),
+                              })}
                               onClick={() => {
                                 setStatus(undefined);
                                 setRecording(entry.id);
                               }}
                             >
-                              <IconEditOutlineRegular size={14} />
+                              <Icon name="pencil" size={14} />
                             </IconButton>
                           </Tooltip>
                         </>
                       )}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </section>
+                    </div>
+                  }
+                >
+                  {rowStatus === undefined ? null : rowStatus.kind === 'problem' ? (
+                    <Note tone="danger">{rowStatus.text}</Note>
+                  ) : (
+                    <Note tone="success">{t('shortcuts.saved')}</Note>
+                  )}
+                </SettingsRow>
+              );
+            })}
+          </SettingsSection>
         ))}
     </>
   );

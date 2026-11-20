@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest';
-import { deviceTelemetryContext, totalMemoryBucket } from '../src/telemetry/device-context';
-import { sanitizeEvent } from '../src/telemetry/schema';
+import {
+  deviceTelemetryContext,
+  totalMemoryBucket,
+} from '@botharness/host-client/telemetry/device-context';
+import { sanitizeEvent } from '@botharness/host-client/telemetry/schema';
 
 const context = deviceTelemetryContext({
   osVersion: '26.1.2',

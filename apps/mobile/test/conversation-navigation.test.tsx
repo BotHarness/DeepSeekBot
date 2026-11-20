@@ -5,10 +5,15 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
 const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
+vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
-import type { ChannelListItem } from '../src/host/wire';
-import type { RosterBot, RosterChannel } from '../src/host/client';
-import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
+import type { ChannelListItem } from '@botharness/host-protocol/wire';
+import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
+import type { Conversation, ConversationSnapshot } from '@botharness/host-client/conversation';
 
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -46,10 +51,11 @@ const state = vi.hoisted(() => ({
   glassHeader: true,
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
+type NativeRow = { key: string; kind?: string; message?: { id: string } };
 const nativeList = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn(),
-  rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
+  rows: [] as NativeRow[],
   events: {} as {
     onScrollToIndexFailed?(info: {
       index: number;
@@ -57,7 +63,10 @@ const nativeList = vi.hoisted(() => ({
       averageItemLength: number;
     }): void;
     onContentSizeChange?(width: number, height: number): void;
-    onViewableItemsChanged?(): void;
+    onViewableItemsChanged?(info?: {
+      viewableItems: Array<{ item: NativeRow; isViewable: boolean }>;
+    }): void;
+    maintainVisibleContentPosition?: { minIndexForVisible: number };
     onScrollBeginDrag?(event: unknown): void;
     onScroll?(event: unknown): void;
     onScrollEndDrag?(event: unknown): void;
@@ -86,6 +95,7 @@ vi.mock('expo-router', () => ({
       options: {
         headerLeft?: () => ReactNode;
         headerRight?: () => ReactNode;
+        headerTitle?: string | (() => ReactNode);
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
@@ -94,7 +104,12 @@ vi.mock('expo-router', () => ({
           label?: string;
           onPress?: () => void;
         }>;
-        unstable_headerRightItems?: () => Array<{ label: string; onPress(): void }>;
+        unstable_headerRightItems?: () => Array<{
+          type?: string;
+          element?: ReactNode;
+          label?: string;
+          onPress?(): void;
+        }>;
       };
     }) => (
       <header
@@ -115,14 +130,16 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         <aside data-testid="trailing-header">
-          {options
-            .unstable_headerRightItems?.()
-            .filter((item) => item.label !== undefined)
-            .map((item) => (
-              <button key={item.label} type="button" onClick={item.onPress}>
+          {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
+          {options.unstable_headerRightItems?.().map((item, index) =>
+            item.type === 'custom' ? (
+              <span key={index}>{item.element}</span>
+            ) : (
+              <button type="button" key={index} onClick={item.onPress}>
                 {item.label}
               </button>
-            )) ?? options.headerRight?.()}
+            ),
+          ) ?? options.headerRight?.()}
         </aside>
       </header>
     ),
@@ -204,6 +221,14 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-header-model', () => ({
+  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
+}));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
+}));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({
     enabled: state.receipts,
@@ -222,6 +247,8 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerContentScale: () => 1,
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   get glassHeader() {
     return state.glassHeader;
   },
@@ -233,6 +260,22 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderOverlap: () => 80,
   floatingHeader: false,
   useHeaderPadding: () => 0,
+}));
+vi.mock('../src/ui/chat/chat-header-actions', () => ({
+  ChatHeaderActions: (
+    props: import('../src/ui/chat/chat-header-actions').ChatHeaderActionsProps,
+  ) => {
+    const actions = 'back' in props ? [props.back] : props.actions;
+    return (
+      <>
+        {actions.map((action) => (
+          <button key={action.label} data-testid={action.testID} onClick={action.onPress}>
+            {action.label}
+          </button>
+        ))}
+      </>
+    );
+  },
 }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
 vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
@@ -255,7 +298,47 @@ vi.mock('../src/ui/shell/swipe-open', () => ({
     </div>
   ),
 }));
+vi.mock('../src/ui/chat/conversation-top-bar', () => ({
+  ConversationTopBar: ({
+    title,
+    onBack,
+    onProfile,
+    onCall,
+  }: import('../src/ui/chat/conversation-top-bar').ConversationTopBarProps) => (
+    <div data-testid="android-conversation-top-bar">
+      <span>{title}</span>
+      <button onClick={onBack}>Header back</button>
+      {onProfile === undefined ? null : (
+        <button data-testid="chat-profile-button" onClick={onProfile}>
+          Profile
+        </button>
+      )}
+      {onCall === undefined ? null : (
+        <button data-testid="chat-call-button" onClick={onCall}>
+          Call
+        </button>
+      )}
+    </div>
+  ),
+}));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   titleChipFill: () => ({}),
   useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
@@ -432,6 +515,145 @@ it('preserves the reading position on ordinary Back and repositions the same mes
     ),
   );
   expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+});
+
+it('lets notification focus own Android positioning across cached-to-live layout, then restores anchoring', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    const old = {
+      id: 'old',
+      at: '2026-11-05T04:00:00Z',
+      author: 'human' as const,
+      body: 'old',
+      attachments: [],
+      delivery: 'committed' as const,
+    };
+    state.conversation.messages = [old];
+    state.conversation.fromCache = true;
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    const anchorDuringMount = nativeList.events.maintainVisibleContentPosition;
+    let nativeOffset = 0;
+    nativeList.scrollToIndex.mockImplementation(() => {
+      nativeOffset = 0;
+    });
+    state.conversation.messages = [old, { ...old, id: 'notification', body: 'notification' }];
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+      'notification',
+    );
+    const oldAnchorLayoutDelta = 121.6667;
+    if (anchorDuringMount !== undefined) nativeOffset += oldAnchorLayoutDelta;
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 2590.3333));
+    expect(nativeOffset).toBe(0);
+    const target = nativeList.rows.find((row) => row.message?.id === 'notification')!;
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('keeps Android notification positioning pending when viewability precedes live content layout', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    state.conversation.status = 'opening';
+    state.conversation.fromCache = true;
+    state.conversation.messages = [
+      {
+        id: 'notification',
+        at: '2026-11-05T04:00:00Z',
+        author: 'human',
+        body: 'notification',
+        attachments: [],
+        delivery: 'committed',
+      },
+    ];
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    const target = nativeList.rows.find((row) => row.message?.id === 'notification')!;
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    nativeList.scrollToIndex.mockClear();
+    state.conversation.status = 'live';
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="notification" focusRequest="tap-1" />),
+    );
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 1266));
+    expect(nativeList.scrollToIndex).toHaveBeenCalled();
+    expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+      'notification',
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    await act(async () =>
+      nativeList.events.onViewableItemsChanged?.({
+        viewableItems: [{ item: target, isViewable: true }],
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    nativeList.scrollToIndex.mockClear();
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 1400));
+    expect(nativeList.scrollToIndex).not.toHaveBeenCalled();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('returns anchor ownership to a user drag while an explicit Android focus is pending', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    state.active = true;
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place);
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="not-loaded" focusRequest="tap-1" />),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+    await act(async () =>
+      nativeList.events.onScrollBeginDrag?.({
+        nativeEvent: {
+          contentOffset: { y: 100 },
+          contentSize: { height: 2000 },
+          layoutMeasurement: { height: 800 },
+          contentInset: { top: 0, bottom: 0 },
+        },
+      }),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeDefined();
+    nativeList.scrollToIndex.mockClear();
+    await act(async () => nativeList.events.onContentSizeChange?.(406.67, 2200));
+    expect(nativeList.scrollToIndex).not.toHaveBeenCalled();
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="not-loaded" focusRequest="tap-2" />),
+    );
+    expect(nativeList.events.maintainVisibleContentPosition).toBeUndefined();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
 });
 
 it('asks the existing history owner for an uncached focus and positions it when the page arrives', async () => {
@@ -668,10 +890,10 @@ it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
       },
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
-    const button =
-      os === 'ios'
-        ? view.querySelector<HTMLButtonElement>('[data-testid="trailing-header"] button')
-        : view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
+    if (os === 'android') {
+      expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
+    }
+    const button = view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
     expect(button).not.toBeNull();
     await act(async () => button!.click());
     if (os === 'ios') {
@@ -744,9 +966,9 @@ it('shows a message-shaped skeleton only while an empty history is opening', asy
 });
 
 it('retries a failed earlier page through the Conversation owner without replacing loaded history', async () => {
-  const { createConversation } = await import('../src/host/conversation');
-  const { createHostClient } = await import('../src/host/client');
-  const { FakeHost } = await import('./fake-host');
+  const { createConversation } = await import('@botharness/host-client/conversation');
+  const { createHostClient } = await import('@botharness/host-client/client');
+  const { FakeHost } = await import('../../../packages/host-client/test/fake-host.js');
   const host = new FakeHost();
   for (let index = 1; index <= 4; index += 1)
     host.channel('dm-ada').append({ id: `history-${index}`, body: `Earlier ${index}` }, false);
@@ -798,7 +1020,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
+it('keeps the native glass fade with the shared-height iOS Back control', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -819,7 +1041,7 @@ it('extends the native glass fade while leaving Back to the iOS 26 header', asyn
     const header = view.querySelector('header')!;
     expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
-    expect(header.getAttribute('data-back-visible')).toBe('true');
+    expect(header.getAttribute('data-back-visible')).toBe('false');
     expect(header.textContent).not.toContain('Header back');
   } finally {
     Object.assign(Platform, { OS: os });
@@ -1123,7 +1345,11 @@ describe('missing conversation navigation', () => {
     it(`${name}: leaves back to Activity to the native header back button`, async () => {
       state.history = ['/activity', route];
       const view = await render(place);
-      expect(view.querySelector('header button')).toBeNull();
+      expect(
+        [...view.querySelectorAll('header button')].some(
+          (button) => button.textContent === 'Header back' || button.textContent === t.back,
+        ),
+      ).toBe(false);
       expect(state.history).toEqual(['/activity', route]);
     });
 
@@ -1133,7 +1359,7 @@ describe('missing conversation navigation', () => {
       expect(state.history).toEqual(['/']);
     });
 
-    it(`${name}: iOS puts back and the title capsule in separate leading bar items`, async () => {
+    it(`${name}: iOS keeps the whole control row in the native title view`, async () => {
       const os = Platform.OS;
       Object.assign(Platform, { OS: 'ios' });
       try {
@@ -1145,19 +1371,19 @@ describe('missing conversation navigation', () => {
           [...header.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['button', 'spacing', 'custom']);
+        ).toEqual([]);
         await press(alone, t.back);
         expect(state.history).toEqual(['/']);
         act(() => root?.unmount());
         state.history = ['/activity', route];
         const stacked = (await render(place)).querySelector('header')!;
-        expect(stacked.dataset['backVisible']).toBe('true');
+        expect(stacked.dataset['backVisible']).toBe('false');
         expect(stacked.querySelector('[data-item="button"]')).toBeNull();
         expect(
           [...stacked.children]
             .filter((item) => item.hasAttribute('data-item'))
             .map((item) => (item as HTMLElement).dataset['item']),
-        ).toEqual(['spacing', 'custom']);
+        ).toEqual([]);
       } finally {
         Object.assign(Platform, { OS: os });
       }
@@ -1180,9 +1406,10 @@ describe('chat list chrome', () => {
     const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
     expect(list.dataset['insetBottom']).toBe('-34');
     expect(list.dataset['dismiss']).toBe('on-drag');
+    expect(list.dataset['persistTaps']).toBe('never');
   });
 
-  it('dismisses the keyboard interactively on iOS', async () => {
+  it('dismisses the keyboard interactively and on a tap anywhere in the list on iOS', async () => {
     const os = Platform.OS;
     Object.assign(Platform, { OS: 'ios' });
     try {
@@ -1190,6 +1417,7 @@ describe('chat list chrome', () => {
       const view = await render({ kind: 'dm', slug: 'gone' });
       const list = view.querySelector<HTMLElement>('[data-testid="chat-list"]')!;
       expect(list.dataset['dismiss']).toBe('interactive');
+      expect(list.dataset['persistTaps']).toBe('never');
     } finally {
       Object.assign(Platform, { OS: os });
     }
@@ -1216,7 +1444,7 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const title = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
-      (button) => button.textContent === 'Ada',
+      (button) => button.getAttribute('aria-label') === `Ada, ${t.state.idle}`,
     );
     expect(title).toBeDefined();
     await act(async () => title!.click());
@@ -1370,11 +1598,33 @@ describe('disbanded group presentation', () => {
     expect(dismiss).toHaveBeenCalledOnce();
     dismiss.mockRestore();
   });
+  it('keeps a short drop out of view and shows offline as a chip once it lasts', async () => {
+    state.host.roster.channels = [
+      { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
+    ];
+    Object.assign(state.host.connection, { status: 'unreachable' });
+    Object.assign(state.host, { disruptedSince: Date.now() });
+    state.conversation.fromCache = true;
+    const view = await render({ kind: 'channel', channelId: 'cached' });
+    expect(view.textContent).not.toContain(t.offline);
+    expect(view.querySelector('[data-testid="chat-status-chip"]')).toBeNull();
+    Object.assign(state.host, { disruptedSince: Date.now() - 60_000 });
+    await act(async () =>
+      root!.render(
+        <ConversationScreen place={{ kind: 'channel', channelId: 'cached' }} focus={undefined} />,
+      ),
+    );
+    expect(view.querySelector('[data-testid="chat-status-chip"]')?.textContent).toContain(
+      t.offline,
+    );
+    expect(view.querySelector('[data-testid="chat-connection-retry"]')).not.toBeNull();
+  });
   it('retains cached conversation controls until reconnect confirms absence', async () => {
     state.host.roster.channels = [
       { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
     ];
     Object.assign(state.host.connection, { status: 'unreachable' });
+    Object.assign(state.host, { disruptedSince: Date.now() - 60_000 });
     state.conversation.fromCache = true;
     const view = await render({ kind: 'channel', channelId: 'cached' });
     expect(view.textContent).toContain(t.offline);

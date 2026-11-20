@@ -1,5 +1,17 @@
 # Mobile press feedback and semantic haptics
 
+## Sources
+
+- `apps/mobile/src/host/{haptic-feedback,native-haptic-feedback}.ts`
+- `apps/mobile/src/ui/{haptics,haptic-effect,haptic-effect.android}.ts`
+- `apps/mobile/src/ui/chat/reply-haptic.ts`
+- `apps/mobile/src/ui/shell/haptic-feedback-setting.tsx`
+
+## Terms
+
+- Native component
+- Settings
+
 ## Sub-features
 
 Navigation/custom selection acknowledgment, toolbar and floating-action pressed feedback, attachment removal, accepted tool approvals and choice submissions, and the device-local Haptic feedback setting. These checks distinguish visible feedback, native interaction, and actual felt vibration.

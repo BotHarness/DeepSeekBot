@@ -14,6 +14,11 @@ on:
         type: boolean
         required: false
         default: false
+      genui_browser_diagnostic:
+        description: Compare system and controlled GenUI preview browsers in one runner; both arms remain required
+        type: boolean
+        required: false
+        default: false
   workflow_call:
 
 concurrency:
@@ -42,6 +47,7 @@ jobs:
       related: ${{ steps.plan.outputs.related }}
       android-native: ${{ steps.plan.outputs.android-native }}
       perf: ${{ steps.plan.outputs.perf }}
+      ui-visual: ${{ steps.plan.outputs.ui-visual }}
       mobile: ${{ steps.plan.outputs.mobile }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
@@ -84,6 +90,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
         with:
           run_install: false
@@ -91,8 +99,67 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      - name: Reject Git-hosted PR evidence
+        env:
+          EVIDENCE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$EVIDENCE_BASE" ] && [ "$EVIDENCE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            git fetch --no-tags --depth=1 origin "$EVIDENCE_BASE"
+            node scripts/check-pr-evidence.mjs --base "$EVIDENCE_BASE"
+          else
+            node scripts/check-pr-evidence.mjs --base HEAD^
+          fi
       - run: pnpm install --frozen-lockfile
+      - name: Reject a raised lint baseline
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/lint-ratchet.mjs --base="$BASELINE_BASE"
+          else
+            node scripts/lint-ratchet.mjs --base=HEAD^
+          fi
+      - name: Reject a raised UI rules baseline
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/check-ui-rules.mjs --base="$BASELINE_BASE"
+          else
+            node scripts/check-ui-rules.mjs --base=HEAD^
+          fi
+      - name: Reject a raised host-reader baseline
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$BASELINE_BASE" ] && [ "$BASELINE_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/check-host-readers.mjs --base="$BASELINE_BASE"
+          else
+            node scripts/check-host-readers.mjs --base=HEAD^
+          fi
+      - name: Report codebase health against the base
+        env:
+          HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$HEALTH_BASE" ] && [ "$HEALTH_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/health.mjs --base="$HEALTH_BASE"
+          else
+            node scripts/health.mjs --base=HEAD^
+          fi
+      - name: Model-check the TLA+ specs (correct models hold, broken variants break)
+        run: node scripts/verify-tla.mjs
+      - name: Report the features this change touches
+        env:
+          HEALTH_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          if [ -n "$HEALTH_BASE" ] && [ "$HEALTH_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node scripts/feature-impact.mjs --base="$HEALTH_BASE" --summary
+          else
+            node scripts/feature-impact.mjs --base=HEAD^ --summary
+          fi
       - run: pnpm lint
+        env:
+          BASELINE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm build
@@ -114,7 +181,19 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Upstream Expo patch releases must not turn every pull request red:
+      # outside the nightly run, doctor skips its version check and
+      # check-expo-versions fails only on an SDK mismatch, warning on drift.
       - run: pnpm --filter @botharness/mobile expo:doctor
+        env:
+          EXPO_DOCTOR_SKIP_DEPENDENCY_VERSION_CHECK: ${{ github.event_name == 'schedule' && 'false' || 'true' }}
+      - if: github.event_name != 'schedule'
+        working-directory: apps/mobile
+        run: |
+          set +e
+          npx expo install --check --json > "$RUNNER_TEMP/expo-check.json"
+          set -e
+          node scripts/check-expo-versions.mjs < "$RUNNER_TEMP/expo-check.json"
       - run: pnpm --filter @botharness/mobile export
         env:
           CI: '1'
@@ -140,12 +219,40 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
+      - name: Configure Android test dependency downloads and failure details
+        run: |
+          cat > "$RUNNER_TEMP/android-test-init.gradle" <<'GRADLE'
+          allprojects {
+            tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
+              systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+              testLogging {
+                exceptionFormat = 'full'
+                showCauses = true
+                showStackTraces = true
+              }
+            }
+          }
+          GRADLE
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @botharness/mobile exec expo prebuild --platform android --no-install
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:compileDebugKotlin :local-computer-video:compileDebugKotlin :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :stream-reveal:testDebugUnitTest :latest-anchor:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:testDebugUnitTest :local-computer-video:testDebugUnitTest :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+
+      - run: bash apps/mobile/android/gradlew -I "$RUNNER_TEMP/android-test-init.gradle" -p apps/mobile/android :expo:testDebugUnitTest --tests expo.modules.ReactActivityDelegateWrapperTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - name: Retain Android unit-test failure reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-reports
+          path: |
+            apps/mobile/modules/*/android/build/test-results/**
+            apps/mobile/modules/*/android/build/reports/tests/**
+            apps/mobile/node_modules/expo/android/build/test-results/**
+            apps/mobile/node_modules/expo/android/build/reports/tests/**
+          if-no-files-found: ignore
+          retention-days: 7
 
   mobile-native-ios:
     name: iOS HardwareSend UIKit tests (manual)
@@ -342,6 +449,34 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:smoke
 
+  ui-visual:
+    name: UI visual checks (alignment, accessibility, keyboard, zoom)
+    needs: plan
+    if: needs.plan.outputs.ui-visual == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install CJK fonts for the zh cases
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-noto-cjk
+      - run: node scripts/check-ui-visual.mjs --screenshots .humanlayer/ui-visual
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-visual
+          path: .humanlayer/ui-visual/*.png
+          if-no-files-found: ignore
+
   perf-budget:
     name: timeline performance budget
     needs: plan
@@ -363,12 +498,63 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
+      - id: controlled_sandbox
+        run: |
+          node scripts/perf-genui-browser-diagnostics.mjs apparmor "$RUNNER_TEMP/genui-preview.apparmor"
+          sudo install -m 644 "$RUNNER_TEMP/genui-preview.apparmor" /etc/apparmor.d/botharness-ci-genui-preview
+          sudo apparmor_parser -r /etc/apparmor.d/botharness-ci-genui-preview
+      - env:
+          SYSTEM_PREVIEW_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
+        run: |
+          preview_args=()
+          if [ "$SYSTEM_PREVIEW_DIAGNOSTIC" != "true" ]; then
+            preview_args=(--genui-preview-browser "$(node scripts/perf-genui-browser-diagnostics.mjs path)")
+          fi
+          node scripts/verify-app.mjs launch --name perf --build "${preview_args[@]}" > /dev/null
       - run: >-
           node scripts/perf-idle-timeline.mjs --messages 600 --label ci
           --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
+      - id: system_preview
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic }}
+        run: >-
+          node scripts/perf-genui-opening.mjs --headless
+          --out .humanlayer/perf/genui-ci > /dev/null
+      - if: always() && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        run: >-
+          node scripts/perf-genui-browser-diagnostics.mjs logs
+          .humanlayer/perf/browser-diagnostics/system-log.json "$BH_E2E_INSTANCE"
+      - id: browser_environment
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && (steps.system_preview.outcome == 'success' || steps.system_preview.outcome == 'failure')
+        run: node scripts/perf-genui-browser-diagnostics.mjs environment .humanlayer/perf/browser-diagnostics/environment.json
       - if: always()
         run: node scripts/verify-app.mjs stop --name perf
+      - id: controlled_launch
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic && steps.controlled_sandbox.outcome == 'success' && steps.browser_environment.outcome == 'success'
+        run: >-
+          node scripts/verify-app.mjs launch --name perf
+          --genui-preview-browser "$(node -p 'JSON.parse(require("fs").readFileSync(".humanlayer/perf/browser-diagnostics/environment.json", "utf8")).controlled.path')" > /dev/null
+      - id: controlled_preview
+        if: always() && steps.controlled_launch.outcome == 'success'
+        continue-on-error: true
+        run: >-
+          node scripts/perf-genui-opening.mjs --headless
+          --out .humanlayer/perf/genui-controlled > /dev/null
+      - if: always() && steps.controlled_launch.outcome == 'success'
+        run: >-
+          node scripts/perf-genui-browser-diagnostics.mjs logs
+          .humanlayer/perf/browser-diagnostics/controlled-log.json "$BH_E2E_INSTANCE"
+      - if: always() && steps.controlled_launch.outcome == 'success'
+        run: node scripts/verify-app.mjs stop --name perf
+      - if: always() && steps.controlled_sandbox.outcome == 'success'
+        run: |
+          sudo apparmor_parser -R /etc/apparmor.d/botharness-ci-genui-preview
+          sudo rm /etc/apparmor.d/botharness-ci-genui-preview
+      - if: always() && github.event_name == 'workflow_dispatch' && inputs.genui_browser_diagnostic
+        env:
+          SYSTEM_PREVIEW: ${{ steps.system_preview.outcome }}
+          CONTROLLED_PREVIEW: ${{ steps.controlled_preview.outcome }}
+        run: >-
+          node -e 'if (process.env.SYSTEM_PREVIEW !== "success" || process.env.CONTROLLED_PREVIEW !== "success") throw Error("Both complete GenUI browser arms are required; retain failures for diagnosis")'
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -376,6 +562,9 @@ jobs:
           path: |
             .humanlayer/perf/ci/*.json
             .humanlayer/perf/ci/*.png
+            .humanlayer/perf/genui-ci/*.json
+            .humanlayer/perf/genui-controlled/*.json
+            .humanlayer/perf/browser-diagnostics/*.json
           if-no-files-found: ignore
 
   verify:
@@ -392,6 +581,7 @@ jobs:
         docs-site,
         e2e-smoke,
         perf-budget,
+        ui-visual,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -411,6 +601,7 @@ jobs:
           if (plan['docs-site'] === 'true') required.push('docs-site');
           if (plan.tests !== 'none') required.push('e2e-smoke');
           if (plan.perf === 'true') required.push('perf-budget');
+          if (plan['ui-visual'] === 'true') required.push('ui-visual');
           if (plan.tests === 'full') required.push('test-full');
           if (plan.tests === 'affected') {
             const count = plan.count;

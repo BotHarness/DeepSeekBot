@@ -1,6 +1,6 @@
 # BotHarness runtime architecture on DSH
 
-This product-owned reference describes the **BotHarness-proposed** layer built on DSH-native Agents, Sessions, Workspaces, Tools, and Subagents. It is not an inventory of upstream APIs. Product term definitions live only in the root [`CONTEXT.md`](/dev/design/context); DSH/Cordis terms live in the [DSH canonical context](/dsh/context). This page explains how the two layers relate at runtime.
+This product-owned reference describes the **BotHarness-proposed** layer built on DSH-native Agents, Sessions, Workspaces, Tools, and Subagents. It is not an inventory of upstream APIs. Product term definitions live only in the root [`GLOSSARY.md`](/dev/design/context); DSH/Cordis terms live in the [DSH canonical context](/dsh/context). This page explains how the two layers relate at runtime.
 
 ## Invariant
 
@@ -19,7 +19,7 @@ approval. Its running permit was not released. An Orchestrator's own native
 approval or formal question still holds its current step: Inbox Admission and
 steering acceptance precede actual model processing, which starts only after
 the original decision/result. Original Session/call ownership and changed/revoked
-Grant checks remain authoritative. [ADR-0045](../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md#native-human-wait-qualification-2026-10-09)
+Grant checks remain authoritative. [ADR-0045](../decisions/sessions.md#adr-0045)
 records the qualification without changing ADR-0035's single-root invariant.
 [#1220](https://github.com/BotHarness/DeepSeekBot/issues/1220) blocks the missing
 supported continuation mechanism; #1037/#1038 production delivery remains gated.

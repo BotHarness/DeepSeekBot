@@ -4,26 +4,33 @@ import type {
   ChannelMessage,
   ChannelSummary,
   ConversationState,
-  HumanInboxState,
+  ActivityListState,
 } from './store.js';
 
 export function parseContentRedactions(event: Event): PurgedPlacement[] {
   try {
     const value: unknown = JSON.parse((event as MessageEvent<string>).data);
     if (typeof value !== 'object' || value === null || !('placements' in value)) return [];
-    const placements = value.placements;
-    if (!Array.isArray(placements) || placements.length > 100) return [];
-    return placements.filter(
-      (item): item is PurgedPlacement =>
-        typeof item === 'object' &&
-        item !== null &&
-        ['sourceEventId', 'channelId', 'messageId'].every(
-          (key) => typeof item[key] === 'string' && item[key].length > 0 && item[key].length <= 200,
-        ),
-    );
+    return parsePurgedPlacements(value.placements);
   } catch {
     return [];
   }
+}
+
+export function parsePurgedPlacements(placements: unknown): PurgedPlacement[] {
+  if (!Array.isArray(placements) || placements.length > 100) return [];
+  return placements.filter(
+    (item): item is PurgedPlacement =>
+      typeof item === 'object' &&
+      item !== null &&
+      ['sourceEventId', 'channelId', 'messageId'].every(
+        (key) => typeof item[key] === 'string' && item[key].length > 0 && item[key].length <= 200,
+      ),
+  );
+}
+
+export function sameItems<T>(next: readonly T[], previous: readonly T[]): boolean {
+  return next.length === previous.length && next.every((item, index) => item === previous[index]);
 }
 
 export function createContentRedactions() {
@@ -64,7 +71,7 @@ export function createContentRedactions() {
     },
     channel,
     conversation(value: ConversationState): ConversationState {
-      if (value.channel === undefined) return value;
+      if (value.channel === undefined || placements.size === 0) return value;
       const channelId = value.channel.id;
       const nextChannel = channel(value.channel);
       const messages = value.messages.map((item) => message(channelId, item));
@@ -77,25 +84,23 @@ export function createContentRedactions() {
       };
     },
     botInbox(value: BotInboxState): BotInboxState {
-      return {
-        ...value,
-        items: value.items.map((item) => {
-          if (!matches(item.sourceChannelId, item.sourceMessageId)) return item;
-          const { externalOrigin: _externalOrigin, ...rest } = item;
-          return { ...rest, summary: '', sourceAvailable: false };
-        }),
-      };
+      if (placements.size === 0) return value;
+      const items = value.items.map((item) => {
+        if (!matches(item.sourceChannelId, item.sourceMessageId)) return item;
+        const { externalOrigin: _externalOrigin, ...rest } = item;
+        return { ...rest, summary: '', sourceAvailable: false };
+      });
+      return sameItems(items, value.items) ? value : { ...value, items };
     },
-    humanInbox(value: HumanInboxState): HumanInboxState {
-      return {
-        ...value,
-        items: value.items.map((item) =>
-          (item.sourceEventId !== undefined && sources.has(item.sourceEventId)) ||
-          matches(item.channelId, item.messageId)
-            ? { ...item, summary: '' }
-            : item,
-        ),
-      };
+    activityList(value: ActivityListState): ActivityListState {
+      if (placements.size === 0 && sources.size === 0) return value;
+      const items = value.items.map((item) =>
+        (item.sourceEventId !== undefined && sources.has(item.sourceEventId)) ||
+        matches(item.channelId, item.messageId)
+          ? { ...item, summary: '' }
+          : item,
+      );
+      return sameItems(items, value.items) ? value : { ...value, items };
     },
   };
 }

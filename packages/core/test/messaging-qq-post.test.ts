@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -167,7 +168,7 @@ it('an expired QQ source reply retains the result; only a separate authorized po
   vi.setSystemTime(new Date('2026-10-14T00:00:00.000Z'));
   const fx = await fixture();
   const source = await fx.receive();
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const before = fx.core.channels.readMessages(dm.id);
   vi.setSystemTime(new Date('2026-10-14T00:06:00.000Z'));
   const text = 'Delayed task result: 221';
@@ -183,7 +184,7 @@ it('an expired QQ source reply retains the result; only a separate authorized po
     (await fx.core.externalMessaging.snapshot('ada')).grants.find((g) => g.id === fx.grant.id)
       ?.canPost,
   ).toBe(true);
-  const result = await createBridgeMethods(fx.core).messagingSend({
+  const result = await createBridgeMethods(OWNER_HUMAN_CONTEXT, fx.core).messagingSend({
     slug: 'ada',
     grantId: fx.grant.id,
     requestId: 'delayed_result_1154',
@@ -222,8 +223,8 @@ it('the Orchestrator can identify its exact original QQ group before selecting a
     if (!run.externalMessaging?.targets) throw new Error('No report targets');
     targets.push(...(await run.externalMessaging.targets()));
   });
-  const dm = fx.core.channels.getOrCreateDm('ada', 'Ada')!;
-  const admission = fx.core.runtime.admitDmMessage({
+  const dm = fx.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const admission = fx.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'inspect-qq-targets',
     body: 'Inspect my QQ report destinations',

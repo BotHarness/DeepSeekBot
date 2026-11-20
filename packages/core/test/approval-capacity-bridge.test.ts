@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import type { BotRuntime } from '../src/runtime/bot-runtime.js';
@@ -10,10 +11,10 @@ import { createBotStateTracker } from '../src/state/bot-state.js';
 describe('approval capacity projection', () => {
   it('does not attach a later call’s wait to a historical approved card', () => {
     const assignmentApprovalWait = vi.fn(() => undefined);
-    const methods = createBridgeMethods({
-      registry: {} as PersonaBotRegistry,
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      registry: { get: () => undefined } as unknown as PersonaBotRegistry,
       channels: {
-        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
+        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] }),
         message: () => ({
           toolApprovalRequest: { role: 'assignment', sessionId: 'original', callId: 'old-call' },
         }),
@@ -44,11 +45,11 @@ describe('approval capacity projection', () => {
     (activity, executionWait, expected) => {
       const getAssignment = vi.fn(() => ({ activity, executionWait }));
       const channels = {
-        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada' }),
+        get: () => ({ id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] }),
         message: () => ({ toolApprovalRequest: { role: 'assignment', sessionId: 'original' } }),
       } as unknown as ChannelStore;
-      const methods = createBridgeMethods({
-        registry: {} as PersonaBotRegistry,
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+        registry: { get: () => undefined } as unknown as PersonaBotRegistry,
         channels,
         states: createBotStateTracker(),
         ownership: {} as SessionOwnership,

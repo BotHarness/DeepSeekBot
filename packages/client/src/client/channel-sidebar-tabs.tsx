@@ -1,7 +1,7 @@
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type {
@@ -83,8 +83,7 @@ const styles = stylex.create({
     zIndex: 1101,
     width: '232px',
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   menuLabel: {
     paddingTop: space.x3,

@@ -8,7 +8,7 @@
 
 - Letta Code：[`6fa735994`](https://github.com/letta-ai/letta-code/tree/6fa735994a46f1162f7c974ceed2a7fc95d62bb7)，版本提交为 0.32.14。
 - Letta 官方文档镜像：[`65d875ed`](https://github.com/letta-ai/letta-docs-md/tree/65d875ed773a22ee54abde3032c61fd589c5a013)。
-- BotHarness 的产品语义以 [`CONTEXT.md`](../../CONTEXT.md) 为准；目标所有权与事务边界以 [`botharness-architecture.md`](../architecture/botharness-architecture.md) 为准。
+- BotHarness 的产品语义以 [`GLOSSARY.md`](../../GLOSSARY.md) 为准；目标所有权与事务边界以 [`botharness-architecture.md`](../architecture/botharness-architecture.md) 为准。
 - 飞书/Lark 消息 edit/recall 的官方证据及当前 DSH 社区 adapter 覆盖见 [`2026-09-20-feishu-message-edit-recall-events.md`](./2026-09-20-feishu-message-edit-recall-events.md)。
 
 ## 摘要结论

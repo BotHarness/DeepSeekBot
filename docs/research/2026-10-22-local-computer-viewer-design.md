@@ -1,6 +1,6 @@
 # Local Computer 视频观看设计访谈
 
-日期：2026-10-22。状态：Q1–Q15 已确认，产品设计访谈已收敛；持久决定见 [ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md)。本记录保留研究和决策过程，不代表实现完成。
+日期：2026-10-22。状态：Q1–Q15 已确认，产品设计访谈已收敛；持久决定见 [ADR-0245](../decisions/computer.md#adr-0245)。本记录保留研究和决策过程，不代表实现完成。
 
 实施规格已按 Human 确认发布为 [#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555)，标记 `ready-for-agent`；具体故事、测试契约和验收以该 issue 为入口。发布前核对发现 Connect 还有 [#2541](https://github.com/BotHarness/DeepSeekBot/issues/2541) 的秘密路由拒绝和 [#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542) 的加密 carrier 工作：本 viewer 消费其合同，不增加明文例外；LAN/tailnet 首片可独立推进，Connect 验收须等待对应能力。
 
@@ -21,9 +21,9 @@
 - **媒体不能续期控制权。** 改成视频后图片轮询会消失；其他观看者的取帧也不能替控制者证明存活。控制续期、失联策略和 Bot 恢复时机需要在 Computer owner 内独立定义。
 - **保留 Bot 屏障。** 当前先暂停、再等待在途调用结束，且 [tool/provider.ts](../../packages/computer/src/tool/provider.ts) 在 driver call 前后检查暂停。媒体迁移不能移除这些检查。
 - **本机采集尚无视频实现。** [target.ts](../../packages/computer/src/target.ts) 仅对 Container 提供 WebRTC；[local Provider](../../packages/computer/src/providers/local.ts) 运行现有 driver。Cindy 的 Electron hidden BrowserWindow 不是 Node DSH Host 可直接使用的能力。
-- **并行观看不能靠切断另一端实现。** [ADR-0209](../adr/0209-selkies-webrtc-is-switched-on-per-phone-call-over-the-tailnet.md) 的 Selkies 模式切换明确不保证手机与桌面无扰并行。它不能作为本轮 Local Computer 多端观看已实现的证据。
-- **现有网络目标已包含 Connect。** [ADR-0241](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md) 接受了不安装 Tailscale 的 Hosted Connect；其 HTTPS gateway 可承载应用请求，不等于 WebRTC 媒体可经同一路由直接传输。第一片必须明确 tailnet、LAN、Connect 的视频资格与回退规则。
-- **客户端复用有既定方向。** [ADR-0242](../adr/0242-a-browser-pairs-other-computers-through-their-device-gateway.md) 与 [ADR-0243](../adr/0243-every-client-reads-every-host-through-one-host-feed.md) 要求 Web Client 与手机复用平台无关 Host client、各自提供适配器。新增 viewer 不应另造一套 Host 身份或设备配对。
+- **并行观看不能靠切断另一端实现。** [ADR-0209](../decisions/computer.md#adr-0209) 的 Selkies 模式切换明确不保证手机与桌面无扰并行。它不能作为本轮 Local Computer 多端观看已实现的证据。
+- **现有网络目标已包含 Connect。** [ADR-0241](../decisions/connections.md#adr-0241) 接受了不安装 Tailscale 的 Hosted Connect；其 HTTPS gateway 可承载应用请求，不等于 WebRTC 媒体可经同一路由直接传输。第一片必须明确 tailnet、LAN、Connect 的视频资格与回退规则。
+- **客户端复用有既定方向。** [ADR-0242](../decisions/connections.md#adr-0242) 与 [ADR-0243](../decisions/connections.md#adr-0243) 要求 Web Client 与手机复用平台无关 Host client、各自提供适配器。新增 viewer 不应另造一套 Host 身份或设备配对。
 
 ## DSH seam：已收敛的职责，具体 API 待实现验证
 
@@ -55,7 +55,7 @@ Q8 的[成本研究](2026-10-22-cindy-media-cost.md)确认 Cindy 支持从独立
 3. **Q11 已确认：手机切后台／锁屏停止媒体并释放控制权，Bot 保持暂停。** 回到前台恢复观察，接管需要重新获取。后台转换若未能通知 Host，由控制失联的最多 30 秒窗口清理旧控制权；不据此恢复 Bot。PiP 和后台持续观看留待后续独立切片。
 4. **Q12 已确认：确认画面停滞后禁止点击、滚动和输入。** 仍可退出、释放控制权或重连；新鲜画面恢复后才允许操作。静态桌面不等于失联，必须结合采集与媒体存活证据判断，不能只因画面内容或序号未变化而禁用输入。最初提及的图片回退及单帧刷新入口由 Q14 取消；视频管线内的刷新／关键帧请求不构成图片传输回退。
 
-Q6 与 Q10 有意改变 [ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md) 的旧选择：原有暂停随 30 秒 lease 过期而自动结束。[ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md) 明确替代这部分目标语义；当前运行代码尚未迁移，不能声称仅替换视频传输而未改变接管行为。
+Q6 与 Q10 有意改变 [ADR-0210](../decisions/computer.md#adr-0210) 的旧选择：原有暂停随 30 秒 lease 过期而自动结束。[ADR-0245](../decisions/computer.md#adr-0245) 明确替代这部分目标语义；当前运行代码尚未迁移，不能声称仅替换视频传输而未改变接管行为。
 
 ## 第四轮：Human 已确认 Q13–Q15
 

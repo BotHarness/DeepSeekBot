@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 assert.ok(
@@ -23,29 +24,31 @@ const fixture = `http://127.0.0.1:${port}`;
 if (mode === '--serve') {
   const receipts = [];
   const titles = { home: 'Entry home', work: 'Entry work', next: 'Entry next' };
-  createServer(async (req, res) => {
-    const url = new URL(req.url, fixture);
-    res.setHeader('content-type', 'application/json');
-    if (url.pathname === '/state') return res.end(JSON.stringify({ receipts }));
-    if (url.pathname === '/confirm' && req.method === 'POST') {
-      let body = '';
-      for await (const chunk of req) body += chunk;
-      const r = JSON.parse(body);
-      assert.equal(r.page, 'next');
-      assert.equal(r.token, 'CURRENT-NEXT');
-      receipts.push(r);
-      return res.end(JSON.stringify({ completed: receipts.length }));
-    }
-    const page = url.pathname.slice(1);
-    if (!titles[page]) {
-      res.statusCode = 404;
-      return res.end();
-    }
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(
-      `<!doctype html><title>${titles[page]}</title><body style="font:24px sans-serif;background:white;color:#111;padding:32px"><h1>${titles[page]}</h1><p>Owned tab: /${page}</p>${page === 'next' ? `<label>Task token <input aria-label="Task token" style="font:24px sans-serif"></label><p><button style="font:24px sans-serif">Complete task</button></p><p id="receipt">Completed: 0</p><script>document.querySelector('button').onclick=async()=>{const r=await(await fetch('/confirm',{method:'POST',body:JSON.stringify({page:'next',token:document.querySelector('input').value})})).json();document.querySelector('#receipt').textContent='Completed: '+r.completed+'; Last token: CURRENT-NEXT'}</script>` : '<p>Human preview is independent of Bot work.</p>'}</body>`,
-    );
-  }).listen(port, '127.0.0.1');
+  createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url, fixture);
+      res.setHeader('content-type', 'application/json');
+      if (url.pathname === '/state') return res.end(JSON.stringify({ receipts }));
+      if (url.pathname === '/confirm' && req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const r = JSON.parse(body);
+        assert.equal(r.page, 'next');
+        assert.equal(r.token, 'CURRENT-NEXT');
+        receipts.push(r);
+        return res.end(JSON.stringify({ completed: receipts.length }));
+      }
+      const page = url.pathname.slice(1);
+      if (!titles[page]) {
+        res.statusCode = 404;
+        return res.end();
+      }
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      res.end(
+        `<!doctype html><title>${titles[page]}</title><body style="font:24px sans-serif;background:white;color:#111;padding:32px"><h1>${titles[page]}</h1><p>Owned tab: /${page}</p>${page === 'next' ? `<label>Task token <input aria-label="Task token" style="font:24px sans-serif"></label><p><button style="font:24px sans-serif">Complete task</button></p><p id="receipt">Completed: 0</p><script>document.querySelector('button').onclick=async()=>{const r=await(await fetch('/confirm',{method:'POST',body:JSON.stringify({page:'next',token:document.querySelector('input').value})})).json();document.querySelector('#receipt').textContent='Completed: '+r.completed+'; Last token: CURRENT-NEXT'}</script>` : '<p>Human preview is independent of Bot work.</p>'}</body>`,
+      );
+    }),
+  ).listen(port, '127.0.0.1');
 } else {
   const home = process.env.BH_E2E_HOME,
     origin = process.env.BH_E2E_ORIGIN,

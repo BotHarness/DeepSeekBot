@@ -12,7 +12,18 @@ function recording(fail: readonly string[] = []) {
     }
     if (fail.includes(endpoint))
       return { ok: false, error: { code: 'refused', message: 'refused', details: {} } };
-    if (endpoint === 'modelPresetApply') return { ok: true, value: { plan: { revision: 2 } } };
+    if (endpoint === 'modelPresetApply')
+      return {
+        ok: true,
+        value: {
+          plan: {
+            revision: 2,
+            sourcePresetId: 'preset-1',
+            sourcePresetName: 'Fast',
+            orchestrator: { provider: 'deepseek', model: 'chat' },
+          },
+        },
+      };
     if (endpoint === 'toolApprovalDecide') return { ok: true, value: { accepted: true } };
     return { ok: true, value: { revision: 1 } };
   };

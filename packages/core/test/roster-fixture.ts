@@ -59,6 +59,10 @@ class FakeTable implements KvTable<string, RosterSectionRecord> {
     return this.records.delete(key);
   }
 
+  async deleteMany(keys: readonly string[]): Promise<number> {
+    return keys.filter((key) => this.records.delete(key)).length;
+  }
+
   async update(key: string, fn: (current: RosterSectionRecord) => RosterSectionRecord) {
     const current = this.records.get(key);
     if (current === undefined) throw new Error(`missing-key: ${key}`);

@@ -2,36 +2,31 @@ import { AppearanceRecoverySettings } from './appearance-recovery-settings.js';
 import { WallpaperSettings } from './wallpaper-settings.js';
 import type { Wallpaper } from './wallpaper.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
-import { useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import type { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import type { Appearance, AppearancePatch } from './appearance.js';
-import type { PropsLocale, PropsRenderSlots, InjectFace } from '@deepseek-ai/dsh-client-ui-slots';
-import type { BotModePrefsFace } from './bot-mode-prefs.js';
-import { BotIconSetting, MotionSetting } from './bot-mode-setting-rows.js';
-import { SettingsRows, SettingsRow, SettingsSection } from './ds/settings-row.js';
+import type { SettingsLayoutSlots } from './bot-settings-slot.js';
+import { BotIconSetting, type BotModeSettingRowProps } from './bot-mode-setting-rows.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import {
   ColorSchemePicker,
   PrimaryColorPicker,
+  StylePicker,
   ThemePresetPicker,
   applyPreset,
 } from './appearance-pickers.js';
-import { Select } from './ds/select.js';
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 
-export interface AppearanceFace extends BotModePrefsFace {
+interface AppearanceOwners {
   appearance: Appearance;
   wallpaper: Wallpaper;
-  localeSource: Pick<LocaleRuntime, 'getSnapshot' | 'subscribe' | 'setLocale'>;
 }
 
 export function AppearanceSection(
-  props: PropsLocale<'botharness'> &
-    InjectFace<AppearanceFace> &
-    PropsRenderSlots<'botharness.settings.layout'>,
+  props: BotModeSettingRowProps & AppearanceOwners & SettingsLayoutSlots & { clientOnly?: boolean },
 ): ReactElement {
-  const { t, appearance, wallpaper, localeSource, renderSlot } = props;
+  const { t, appearance, wallpaper, renderSlot } = props;
   const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
-  const locale = useSyncExternalStore(localeSource.subscribe, localeSource.getSnapshot);
   const change = (patch: AppearancePatch) => {
     try {
       appearance.update(patch);
@@ -49,14 +44,17 @@ export function AppearanceSection(
           onChange={(preference) => change({ preference })}
         />
       </SettingsSection>
-      <SettingsSection title={t('appearance.palette')}>
-        <ThemePresetPicker
-          config={theme.config}
+      <SettingsSection title={t('appearance.style')}>
+        <StylePicker
+          value={theme.config.style ?? 'a'}
           t={t}
-          onSelect={(preset) => applyPreset(appearance, preset)}
+          onChange={(style) => change({ style })}
         />
+      </SettingsSection>
+      <SettingsSection title={t('appearance.palette')}>
         <SettingsRow
           title={t('appearance.primary')}
+          icon={<Icon name="palette" />}
           control={(['light', 'dark'] as const).map((mode) => (
             <PrimaryColorPicker
               key={mode}
@@ -66,25 +64,32 @@ export function AppearanceSection(
               onChange={(primary) => change({ mode, primary })}
             />
           ))}
-        />
+        >
+          <ThemePresetPicker
+            config={theme.config}
+            t={t}
+            onSelect={(preset) => applyPreset(appearance, preset)}
+          />
+        </SettingsRow>
       </SettingsSection>
       <WallpaperSettings owner={wallpaper} appearance={appearance} t={t} />
       <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
-      <MotionSetting {...props} />
-      <BotIconSetting {...props} />
-      <SettingsRow
-        title={t('settings.language')}
-        control={
-          <Select
-            label={t('settings.language')}
-            value={locale.active}
-            options={locale.locales.map((item) => ({ value: item.id, label: item.label }))}
-            onChange={localeSource.setLocale}
-          />
-        }
-      />
-      {renderSlot('botharness.settings.layout', {}) as unknown as ReactNode}
+      {props.clientOnly
+        ? (renderSlot(
+            'botharness.settings.layout',
+            {},
+            { only: 'workspace-layout' },
+          ) as unknown as ReactNode)
+        : null}
       <AppearanceRecoverySettings appearance={appearance} wallpaper={wallpaper} t={t} />
+      {props.clientOnly ? null : (
+        <SettingsSection title={t('remoteHosts.this')}>
+          <BotIconSetting {...props} />
+        </SettingsSection>
+      )}
+      {props.clientOnly
+        ? null
+        : (renderSlot('botharness.settings.layout', {}) as unknown as ReactNode)}
     </SettingsRows>
   );
 }

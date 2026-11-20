@@ -22,8 +22,8 @@ export const powershellDrives: DriveQuery = (signal) =>
     execFile(
       'powershell.exe',
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', SCRIPT],
-      { windowsHide: true, timeout: QUERY_TIMEOUT_MS, signal, encoding: 'utf8' },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      { windowsHide: true, timeout: QUERY_TIMEOUT_MS, signal, encoding: 'utf8', shell: false },
+      (error: Error | null, stdout: string) => (error ? reject(error) : resolve(stdout)),
     );
   });
 

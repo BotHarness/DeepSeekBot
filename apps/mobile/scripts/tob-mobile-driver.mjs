@@ -48,7 +48,11 @@ export function fixtureExpression(mode, state) {
 export async function main(mode, args) {
   const state = JSON.parse(privateFile(args.session));
   const sims = JSON.parse(
-    execFileSync('xcrun', ['simctl', 'list', 'devices', 'booted', '-j'], { encoding: 'utf8' }),
+    execFileSync('xcrun', ['simctl', 'list', 'devices', 'booted', '-j'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }),
   );
   const simulator = Object.values(sims.devices)
     .flat()

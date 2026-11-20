@@ -59,9 +59,7 @@ describe('Channel delivery receipt', () => {
       expect(trigger?.getAttribute('aria-label')).toContain('1 已投递');
       const stacked = trigger?.querySelectorAll<HTMLElement>('.bh-delivery-stack .bh-stack-avatar');
       expect(stacked).toHaveLength(3);
-      expect(stacked?.[0]?.getAttribute('style')).toContain(
-        'var(--dsw-alias-state-success-primary)',
-      );
+      expect(stacked?.[0]?.getAttribute('style')).toContain('var(--tobs-status-success-base)');
       expect(trigger?.querySelector('.bh-stack-more')?.textContent).toBe('+4');
       expect(
         [...(trigger?.querySelectorAll('svg') ?? [])].filter(
@@ -258,7 +256,7 @@ describe('Channel delivery receipt', () => {
         ),
       );
       expect(host.querySelector('.bh-stack-avatar')?.getAttribute('style')).toContain(
-        'var(--dsw-alias-state-success-primary)',
+        'var(--tobs-status-success-base)',
       );
       expect(host.querySelector('.bh-stack-more')).toBeNull();
       await act(async () =>

@@ -1,7 +1,7 @@
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import * as storage from '../../../../apps/mobile/src/host/storage.js';
-import { loadMemoryActivity, loadUsage } from '../../../../apps/mobile/src/host/usage.js';
-import type { UsagePeriod } from '../../../../apps/mobile/src/host/usage.js';
+import type { HostClient } from '@botharness/host-client/client';
+import * as storage from '@botharness/host-client/storage';
+import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
+import type { UsagePeriod } from '@botharness/host-client/usage';
 
 export function remoteHostSettingsSource(client: HostClient) {
   return {

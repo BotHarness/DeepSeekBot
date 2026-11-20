@@ -1,3 +1,4 @@
+export { HOST_ADMIN_OPTIONS } from './cli-option-spec.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceDigestSummary } from '../marketplace/client.js';
@@ -5,24 +6,6 @@ import { pairingCapabilities, type PairingCapability } from '../messaging/pairin
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { imageDataUrl, readBytes } from './cli-profile.js';
-
-export const HOST_ADMIN_OPTIONS = {
-  force: { type: 'boolean' },
-  action: { type: 'string' },
-  query: { type: 'string' },
-  topic: { type: 'string' },
-  sort: { type: 'string' },
-  lang: { type: 'string' },
-  reason: { type: 'string' },
-  decision: { type: 'string' },
-  capability: { type: 'string', multiple: true },
-  confirm: { type: 'boolean' },
-  'accept-terms': { type: 'boolean' },
-  'include-uploads': { type: 'boolean' },
-  review: { type: 'string' },
-  replaces: { type: 'string' },
-  day: { type: 'string' },
-} as const;
 
 export interface HostAdminValues {
   force?: boolean;
@@ -50,10 +33,19 @@ export interface HostAdminValues {
   review?: string;
   replaces?: string;
   day?: string;
+  version?: string;
 }
 
 export const HOST_ADMIN_COMMANDS = [
   { command: 'onboarding', description: 'read or manage the Tob getting-started journey' },
+  {
+    command: 'acknowledgements',
+    description: 'read the one-time notices this Profile has already seen',
+  },
+  {
+    command: 'acknowledge',
+    description: 'record that this Profile has seen a one-time notice',
+  },
   { command: 'pause', description: 'archive a Bot through the Host owner' },
   { command: 'resume', description: 'restore an archived Bot through the Host owner' },
   {
@@ -130,6 +122,12 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'restart the Host to finish plugin updates; needs --confirm',
   },
   {
+    command: 'update-status',
+    description:
+      'show the running (or last) release or plugin update: phase, commands, output and outcome',
+  },
+  { command: 'update-cancel', description: 'stop the running release or plugin update' },
+  {
     command: 'data-reset-preview',
     description:
       'list every BotHarness folder a full data reset removes, with its confirmation token',
@@ -173,6 +171,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   resume: 1,
   'tob-home': 0,
   onboarding: 0,
+  acknowledgements: 0,
+  acknowledge: 1,
   'marketplace-list': 0,
   'marketplace-topics': 0,
   'marketplace-sections': 0,
@@ -196,6 +196,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'plugin-check': 0,
   'plugin-install': 2,
   'plugin-restart': 0,
+  'update-status': 0,
+  'update-cancel': 0,
   'data-reset-preview': 0,
   'data-reset-confirm': 0,
   'telemetry-status': 0,
@@ -256,6 +258,15 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   }
   if (values['include-uploads'] === true && command !== 'marketplace-list')
     usage('--include-uploads only applies to marketplace-list.');
+  if (values.version !== undefined && command !== 'acknowledge')
+    usage('--version only applies to acknowledge release-notes-seen.');
+  if (
+    command === 'acknowledge' &&
+    (rest[0]?.trim() === 'release-notes-seen') !== (values.version !== undefined)
+  )
+    usage(
+      'acknowledge release-notes-seen needs --version <x.y.z>; other notices take no --version.',
+    );
   if (values.review !== undefined && command !== 'marketplace-install')
     usage('--review only applies to marketplace-install.');
   if (
@@ -418,6 +429,13 @@ export async function runHostAdminCommand(
       )
         usage('Invalid onboarding action.');
       return rpc('onboarding', values.action === undefined ? {} : { action: values.action });
+    case 'acknowledgements':
+      return rpc('acknowledgements', {});
+    case 'acknowledge':
+      return rpc('acknowledge', {
+        key: rest[0]!.trim(),
+        ...(values.version === undefined ? {} : { value: values.version }),
+      });
     case 'tob-home':
       return rpc('tobHome', {});
     case 'marketplace-list':
@@ -589,6 +607,28 @@ export async function runHostAdminCommand(
             : 'This Host cannot restart itself; restart it from its launcher.',
         );
       return result;
+    }
+    case 'update-status':
+      return { run: await rpc('updateRun', {}) };
+    case 'update-cancel': {
+      const run = record(await rpc('updateRun', {}));
+      const phase = run['phase'];
+      if (
+        typeof run['id'] !== 'string' ||
+        phase === 'installed' ||
+        phase === 'failed' ||
+        phase === 'cancelled'
+      )
+        throw new CliLiveError('update-not-running', 'No release or plugin update is running.');
+      const result = record(await rpc('updateCancel', { id: run['id'] }));
+      if (result['status'] === 'too-late' || result['status'] === 'unsupported')
+        throw new CliLiveError(
+          `update-${String(result['status'])}`,
+          result['status'] === 'too-late'
+            ? 'The update is already being applied and can no longer be stopped.'
+            : 'This DSH version cannot stop a running install.',
+        );
+      return { id: run['id'], ...result };
     }
     case 'data-reset-preview':
       return rpc('dataResetPreview', {});

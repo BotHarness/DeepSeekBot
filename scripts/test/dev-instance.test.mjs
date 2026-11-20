@@ -26,6 +26,14 @@ import { assertDshVersion } from '../dsh-compatibility.mjs';
 import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
 describe('development CLI admission', () => {
+  it('can leave machine-local AX model configuration out of a fixture profile', () => {
+    expect(parseArgs([]).noAxModel).toBe(false);
+    expect(parseArgs(['--no-ax-model']).noAxModel).toBe(true);
+  });
+  it('requires an explicit option for interrupted copy preparation recovery', () => {
+    expect(parseArgs([]).recoverCopyInstall).toBe(false);
+    expect(parseArgs(['--recover-copy-install']).recoverCopyInstall).toBe(true);
+  });
   it.each([
     '0.2.0-rc.1',
     '0.2.0',
@@ -65,39 +73,47 @@ describe('development CLI admission', () => {
 });
 
 describe('development Home ownership and startup failure', () => {
-  it('blocks concurrent preparation and a live Host, then allows a stopped Home', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'dsh-home-lease-'));
-    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-      stdio: 'ignore',
-    });
-    try {
-      const lease = acquireHome(home);
-      expect(() => acquireHome(home)).toThrow('already in progress');
-      lease.started(child, 'test.log');
-      lease.release();
-      expect(() => acquireHome(home)).toThrow('in use');
-      await expect(
-        verifyStartedHost(child, async () => {
-          throw new Error('API timeout');
-        }),
-      ).rejects.toThrow('API timeout');
-      expect(child.signalCode).toBe('SIGTERM');
-      const next = acquireHome(home);
-      next.release();
-      expect(existsSync(join(home, '.botharness-host.json'))).toBe(false);
-    } finally {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill();
-        await once(child, 'exit');
+  it(
+    'blocks concurrent preparation and a live Host, then allows a stopped Home',
+    async () => {
+      const home = mkdtempSync(join(tmpdir(), 'dsh-home-lease-'));
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+        stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
+      });
+      try {
+        const lease = acquireHome(home);
+        expect(() => acquireHome(home)).toThrow('already in progress');
+        lease.started(child, 'test.log');
+        lease.release();
+        expect(() => acquireHome(home)).toThrow('in use');
+        await expect(
+          verifyStartedHost(child, async () => {
+            throw new Error('API timeout');
+          }),
+        ).rejects.toThrow('API timeout');
+        expect(child.signalCode).toBe('SIGTERM');
+        const next = acquireHome(home);
+        next.release();
+        expect(existsSync(join(home, '.botharness-host.json'))).toBe(false);
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill();
+          await once(child, 'exit');
+        }
+        rmSync(home, { recursive: true, force: true });
       }
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
+    },
+    process.platform === 'win32' ? 60_000 : undefined,
+  );
   it.each(['token timeout', 'login failure', 'API timeout', 'unhealthy API'])(
     'waits for Host exit on %s',
     async (reason) => {
       const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       try {
         await expect(
@@ -134,7 +150,7 @@ describe('development Home ownership and startup failure', () => {
         '-e',
         `import { acquireHome } from ${JSON.stringify(module)}; acquireHome(${JSON.stringify(home)});`,
       ],
-      { stdio: 'ignore' },
+      { stdio: 'ignore', shell: false, windowsHide: true },
     );
     try {
       await once(child, 'exit');
@@ -186,10 +202,12 @@ describe('development Home ownership and startup failure', () => {
   it.each([false, true])(
     'releases descendant ports when Host early-exit is %s',
     async (earlyExit) => {
-      const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', "const server=require('node:net').createServer(); server.listen(0,'127.0.0.1',()=>process.send({port:server.address().port,pid:process.pid}));"], {stdio:['ignore','ignore','ignore','ipc']}); child.on('message', value=>process.send(value)); setInterval(()=>{},1000);`;
+      const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', "const server=require('node:net').createServer(); server.listen(0,'127.0.0.1',()=>process.send({port:server.address().port,pid:process.pid}));"], {stdio:['ignore','ignore','ignore','ipc'],shell:false,windowsHide:true}); child.on('message', value=>process.send(value)); setInterval(()=>{},1000);`;
       const child = spawn(process.execPath, ['-e', source], {
         detached: true,
         stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+        shell: false,
+        windowsHide: true,
       });
       child.ownedProcessGroup = process.platform !== 'win32';
       let descendant;
@@ -228,7 +246,11 @@ describe('development Home ownership and startup failure', () => {
     },
   );
   it('reports early exit instead of waiting for the token deadline', async () => {
-    const child = spawn(process.execPath, ['-e', 'process.exit(1)'], { stdio: 'ignore' });
+    const child = spawn(process.execPath, ['-e', 'process.exit(1)'], {
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
+    });
     await expect(
       verifyStartedHost(child, async (check) => {
         await once(child, 'exit');

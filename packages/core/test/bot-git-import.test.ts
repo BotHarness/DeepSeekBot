@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,13 +37,21 @@ function fixture(home = createTempRoot('git-import-receipt-'), warn?: (message: 
     core,
     home,
     close,
-    bridge: createBridgeMethods({ ...core, ...(warn === undefined ? {} : { warn }) }),
+    bridge: createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      ...(warn === undefined ? {} : { warn }),
+    }),
   };
 }
 function repository() {
   const dir = createTempRoot('git-import-source-');
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8', windowsHide: true }).trim();
+    execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: false,
+    }).trim();
   git('init', '--quiet');
   git('config', 'user.name', 'Import fixture');
   git('config', 'user.email', 'fixture@example.test');
@@ -178,7 +187,7 @@ it('refuses invalid or unsupported keyed import before creating an identity', as
     expect((await f.bridge.createFromGit({ ...request, ...patch })).ok).toBe(false);
   }
   const { creations: _creations, ...deps } = f.core;
-  expect(createBridgeMethods(deps).botImportLookup(request)).toMatchObject({
+  expect(createBridgeMethods(OWNER_HUMAN_CONTEXT, deps).botImportLookup(request)).toMatchObject({
     ok: false,
     error: { code: 'creation-unavailable' },
   });

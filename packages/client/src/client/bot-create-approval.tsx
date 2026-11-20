@@ -1,10 +1,21 @@
 import type { ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { hooked } from './ds/hooked.js';
+import { RequestDetail, RequestDetails, requestCardStyles as card } from './ds/request-card.js';
+import { space } from './ds/tobs.stylex.js';
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ProfileTags } from './profile-tags.js';
 import type { BotCreatePreview } from './store.js';
 
 const PREVIEW_LINES = 3;
+
+const styles = stylex.create({
+  identity: { display: 'flex', alignItems: 'center', gap: space.x3 },
+  name: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  excerpt: { margin: 0, maxHeight: '7.5em', overflow: 'hidden', fontFamily: 'inherit' },
+  details: { gap: space.x3 },
+});
 
 export interface BotCreateArgs {
   displayName: string;
@@ -86,17 +97,16 @@ function FilePreview({
 }): ReactElement {
   const shown = text === undefined ? undefined : firstLines(text);
   return (
-    <div className="bh-bot-create-file">
-      <span className="bh-bot-create-label">{label}</span>
+    <RequestDetail label={label}>
       {shown === undefined ? (
-        <span className="bh-bot-create-fallback">{fallback}</span>
+        fallback
       ) : (
-        <pre className="bh-bot-create-excerpt">
+        <pre {...hooked('bh-bot-create-excerpt', card.preview, card.caption, styles.excerpt)}>
           {shown.text}
           {shown.more ? '\n' + t('approval.botCreate.more') : ''}
         </pre>
       )}
-    </div>
+    </RequestDetail>
   );
 }
 
@@ -117,8 +127,8 @@ export function BotCreateApprovalPreview({
       ? undefined
       : args.memoryLocation.replace(/[\\/]+$/u, '') + '/<new-bot-id>');
   return (
-    <div className="bh-bot-create-preview">
-      <div className="bh-bot-create-identity">
+    <div {...hooked('bh-bot-create-preview', card.well, card.group, styles.details)}>
+      <div {...stylex.props(styles.identity)}>
         <PersonaBotAvatar
           t={t}
           personaBotId="new-bot"
@@ -129,24 +139,27 @@ export function BotCreateApprovalPreview({
           indicator={false}
           still
         />
-        <div className="bh-bot-create-names">
-          <span className="bh-bot-create-name">{args.displayName}</span>
+        <div {...stylex.props(card.group)}>
+          <span {...hooked('bh-bot-create-name', card.prompt, styles.name)}>
+            {args.displayName}
+          </span>
           {args.description === undefined ? null : (
-            <span className="bh-bot-create-bio">{args.description}</span>
+            <span {...hooked('bh-bot-create-bio', card.caption)}>{args.description}</span>
           )}
         </div>
       </div>
       <ProfileTags tags={args.tags} />
       {compact ? null : (
-        <>
+        <RequestDetails>
           {args.avatarPath === undefined ? null : (
-            <div className="bh-bot-create-file">
-              <span className="bh-bot-create-label">{t('approval.botCreate.avatar')}</span>
-              <code className="bh-bot-create-path">{args.avatarPath}</code>
+            <RequestDetail label={t('approval.botCreate.avatar')}>
+              <code {...hooked('bh-bot-create-path', card.preview, card.caption)}>
+                {args.avatarPath}
+              </code>
               {preview?.avatarError === undefined ? null : (
-                <span className="bh-bot-create-warning">{preview.avatarError}</span>
+                <span {...stylex.props(card.caption, card.error)}>{preview.avatarError}</span>
               )}
-            </div>
+            </RequestDetail>
           )}
           <FilePreview
             label="SOUL.md"
@@ -160,22 +173,19 @@ export function BotCreateApprovalPreview({
             fallback={t('approval.botCreate.coreMemoryTemplate')}
             t={t}
           />
-          <div className="bh-bot-create-file">
-            <span className="bh-bot-create-label">{t('approval.botCreate.memoryFolder')}</span>
+          <RequestDetail label={t('approval.botCreate.memoryFolder')}>
             {memoryFolder === undefined ? (
-              <span className="bh-bot-create-fallback">
-                {t('approval.botCreate.defaultLocation')}
-              </span>
+              <span {...stylex.props(card.caption)}>{t('approval.botCreate.defaultLocation')}</span>
             ) : (
-              <code className="bh-bot-create-path">{memoryFolder}</code>
+              <code {...hooked('bh-bot-create-path', card.preview, card.caption)}>
+                {memoryFolder}
+              </code>
             )}
             {preview?.defaultLocation === true ? (
-              <span className="bh-bot-create-fallback">
-                {t('approval.botCreate.defaultLocation')}
-              </span>
+              <span {...stylex.props(card.caption)}>{t('approval.botCreate.defaultLocation')}</span>
             ) : null}
-          </div>
-        </>
+          </RequestDetail>
+        </RequestDetails>
       )}
     </div>
   );

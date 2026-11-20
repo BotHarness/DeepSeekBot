@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,12 @@ import { createSessionOwnership } from '../src/sessions/ownership.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 
 function git(root: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+    shell: false,
+  }).trim();
 }
 
 function fixture() {
@@ -341,7 +347,7 @@ describe('current Git working tree is Memory', () => {
       git(root, 'remote', 'add', 'origin', external.remote);
       git(root, 'fetch', 'origin');
       git(root, 'reset', '--hard', 'origin/main');
-      const saved = memory.saveHuman({
+      const saved = memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: 'atlas',
         path: 'src/memory.ts',
         body: 'export const memory = "human";\n',
@@ -376,7 +382,7 @@ describe('current Git working tree is Memory', () => {
       writeFileSync(join(root, 'draft.md'), 'untracked\n');
 
       expect(() =>
-        memory.restoreCommitHuman({
+        memory.restoreCommitHuman(OWNER_HUMAN_CONTEXT, {
           botSlug: 'atlas',
           sha: first,
           expectedHead: first,
@@ -385,7 +391,7 @@ describe('current Git working tree is Memory', () => {
       ).toThrow('Memory changed since the Human opened it');
       expect(readFileSync(join(root, 'draft.md'), 'utf8')).toBe('untracked\n');
 
-      const result = memory.restoreCommitHuman({
+      const result = memory.restoreCommitHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: 'atlas',
         sha: first,
         expectedHead: second,
@@ -414,7 +420,7 @@ describe('current Git working tree is Memory', () => {
       expect(git(root, 'show', `${result.saved.ref}:note.md`)).toBe('unsaved');
       expect(memory.recoveryHistory('atlas').map((point) => point.id)).toContain(result.saved.id);
 
-      const back = memory.restoreCommitHuman({
+      const back = memory.restoreCommitHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: 'atlas',
         sha: second,
         expectedHead: result.head,
@@ -734,7 +740,7 @@ describe('worktree delta for out-of-band Memory changes', () => {
       agentTurn(memory, addSource, 'baseline');
       const baselineHead = memory.snapshot('atlas').head;
       if (baselineHead === null) throw new Error('Memory head missing');
-      const saved = memory.saveHuman({
+      const saved = memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: 'atlas',
         path: 'ui-note.md',
         body: 'Saved in the UI\n',

@@ -1,9 +1,13 @@
 import { vi } from 'vitest';
 export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
+export const refreshNotificationPermission = vi.fn(async () => undefined);
+export const preferenceSync = vi.fn(async (_hosts: readonly { hostId: string }[]) => {});
+export const preferenceRetry = vi.fn(async (_host?: { hostId: string }) => {});
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
   getItemAsync: async (key: string) => secure.get(key) ?? null,
   setItemAsync: async (key: string, value: string) => void secure.set(key, value),
   deleteItemAsync: async (key: string) => void secure.delete(key),
@@ -22,13 +26,16 @@ vi.mock('../src/host/native-source-drafts', async () => {
       const value = useSyncExternalStore(sourceDrafts.subscribe, () => sourceDrafts.get(key));
       const set = useCallback((value: string) => sourceDrafts.set(key, value), [key]);
       const persistence = useSyncExternalStore(sourceDrafts.subscribe, sourceDrafts.getPersistence);
-      return [value, set, { ...persistence, retry: sourceDrafts.retrySave }] as const;
+      const read = useCallback(() => sourceDrafts.get(key), [key]);
+      const take = useCallback((sent?: string) => sourceDrafts.take(key, sent), [key]);
+      return [value, set, { ...persistence, retry: sourceDrafts.retrySave, read, take }] as const;
     },
   };
 });
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: () => undefined,
   pruneHostConversationCache: () => undefined,
+  removeCachedConversation: () => undefined,
   nativeConversationCache: { read: async () => undefined, write() {} },
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {
@@ -56,22 +63,24 @@ vi.mock('../src/host/native-notification-avatars', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { foreground: () => undefined, send: () => undefined },
 }));
-vi.mock('../src/telemetry/connection', () => ({
+vi.mock('@botharness/host-client/telemetry/connection', () => ({
   createConnectionTelemetry: () => undefined,
 }));
 vi.mock('../src/host/push-session', () => ({
   createPushSession: () => ({
     getSnapshot: () => ({ status: 'off' }),
+    enable: async () => undefined,
     sync: async () => undefined,
     forget: async () => undefined,
     retryFailed: async () => undefined,
+    refreshPermission: refreshNotificationPermission,
     reflect() {},
     reflectAgain() {},
   }),
 }));
 
-import { FakeHost } from './fake-host';
-import type { HostCarrier } from '../src/host/carrier';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 
 export const remotes = new Map<string, FakeHost>();
 const carrier: HostCarrier = {
@@ -87,9 +96,14 @@ vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => carrier }));
 
 vi.mock('../src/host/native-notification-preferences', () => ({
   notificationPreferences: {
+    ready: Promise.resolve(),
+    getSnapshot: () => ({
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    }),
+    subscribe: () => () => {},
     setForeground() {},
-    sync: async () => {},
-    retry: async () => {},
+    sync: preferenceSync,
+    retry: preferenceRetry,
     prepare: async () => ({}),
   },
 }));

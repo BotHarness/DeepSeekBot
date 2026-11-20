@@ -1,5 +1,18 @@
 # Desktop whole-window zoom
 
+## Sources
+
+- `packages/core/src/window-zoom/**`
+- `packages/core/src/bots/cli-window-zoom.ts`
+- `packages/client/src/client/window-zoom*`
+- `packages/deepseekbot/src/desktop-zoom-*.mjs`
+- `scripts/desktop-zoom-*.mjs`
+
+## Terms
+
+- Settings
+- Layout mode
+
 ## Sub-features
 
 - S1 (#2268): one primary macOS window, settings/default/reset, owned font-shortcut handoff, device-local persistence and exact-target CLI.
@@ -21,6 +34,17 @@ or switching outside the qualified Desktop/Host/Client tuple. Do not insert a se
 row from a Bundle Patch: native Settings then refuses every appearance and font write (#2788).
 Ordinary browsers retain browser-native zoom. Package tests and native activation are
 separate checks; verify the actual theme id and source in `__DSH_BOOT__` after restart.
+
+For #3639, the installer additionally requires the selected Desktop version to match the
+theme source version. Both legacy `desktop-theme` (0.2.1-rc.2) and
+`desktop-theme-0.2.2-rc.1` ship in the product. On an isolated 0.2.2-rc.1 Desktop, record the
+native sidebar Plugins/Automations/More icons and composer attachment icon before activation;
+after activation, compare them at 100%, 120% and 144%. Confirm one `ui-theme` module, the RC1
+source payload, unchanged font preferences, shortcut/default/reset behavior and persistence
+after a cold restart. Disable while closed, restart and confirm native theme resolution and
+the same font preferences. Exercise a packaged product upgrade and an old/new payload switch;
+keep source/fixture proof separate from native platform results. An unknown Desktop version
+must refuse enable but still allow disable of either recognized owned link.
 
 ## Settings button (enable after quit)
 

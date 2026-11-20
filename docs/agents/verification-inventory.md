@@ -26,7 +26,7 @@ behaviors and a behavior to several scripts; each file and behavior is counted o
   paths and are not an exhaustive count of product features. Scripted/manual/gap counts
   describe this catalogue only; a mapped script may cover just part of a grouped row.
 - **Qualified catalogue rows** count only current evidence accepted by the behavior-specific
-  Activity Center, Workspace Grant or Memory validator. Manual instructions and past CI results
+  Activity, Workspace Grant or Memory validator. Manual instructions and past CI results
   never become passes.
 
 This audit includes every current map document and E2E file, and additional implemented
@@ -105,10 +105,10 @@ Use `--workspace-run <attempt>` to select the separate
 [Workspace Grant path](../../.agents/skills/verify-deepseekbot/features/workspace-grant.md).
 It qualifies only authorization → direct attachment-import read → explicit revocation →
 refusal for the same Bot/Workspace/Grant. Native file tools, Shell, #1841 and #1957 remain
-outside that evidence. The Activity Center row stays unrun unless separately selected.
+outside that evidence. Activity row stays unrun unless separately selected.
 
 `--workspace-evidence-prefix` sets links for this path independently of `--evidence-prefix`
-(Activity Center), so two selected runs never point at each other's files. Keep the entire
+(Activity), so two selected runs never point at each other's files. Keep the entire
 packet external or ignored and generate output to an external temporary file before copying,
 as above. Inspect all three screenshots and ARIA snapshots before recording visual review.
 

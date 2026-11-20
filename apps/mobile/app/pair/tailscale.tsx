@@ -4,17 +4,18 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { readPairingImage, type PairingImageResult } from '../../src/host/pairing-image';
-import type { PairingMethod } from '../../src/telemetry/schema';
-import { HOST_NAME_MAX } from '../../src/ui/design/host-look';
+import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
+import { HOST_NAME_MAX } from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { pairingScan, radius, space } from '../../src/ui/design/tokens';
-import { clearsPastedLink, pairingFailureText } from '../../src/ui/pairing-failure';
+import { clearsPastedLink } from '../../src/ui/pairing-failure';
 import { Button } from '../../src/ui/primitives/button';
 import { ConnectionNameField } from '../../src/ui/primitives/connection-name-field';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
 import { DesktopPath } from '../../src/ui/shell/desktop-path';
+import { PairingFailureNotice } from '../../src/ui/shell/pairing-failure-notice';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { useStrings } from '../../src/ui/strings';
@@ -95,7 +96,19 @@ export default function PairTailscaleScreen() {
     }, [params.p]),
   );
 
-  if (pairing.busy) return <PairingVerification pairing={pairing} />;
+  const title =
+    params.mode === 'private'
+      ? t.pairChoice.private
+      : params.mode === 'lan'
+        ? t.pairChoice.lan
+        : t.pairChoice.tailscale;
+  if (pairing.busy)
+    return (
+      <>
+        <Stack.Screen options={{ title }} />
+        <PairingVerification pairing={pairing} />
+      </>
+    );
 
   return (
     <KeyboardFormScroll
@@ -106,10 +119,14 @@ export default function PairTailscaleScreen() {
     >
       <Stack.Screen
         options={{
-          title: params.mode === 'lan' ? t.pairChoice.lan : t.pairChoice.tailscale,
+          title,
         }}
       />
-      {params.mode === 'lan' ? null : <Text tone="muted">{t.pairChoice.tailscaleHint}</Text>}
+      {params.mode === 'lan' ? null : (
+        <Text tone="muted">
+          {params.mode === 'private' ? t.pairChoice.privateHint : t.pairChoice.tailscaleHint}
+        </Text>
+      )}
       <View
         style={{
           alignItems: 'center',
@@ -120,7 +137,13 @@ export default function PairTailscaleScreen() {
         }}
       >
         <DesktopPath
-          steps={params.mode === 'lan' ? t.pairChoice.lanPath : t.pairChoice.tailscalePath}
+          steps={
+            params.mode === 'private'
+              ? t.pairChoice.privatePath
+              : params.mode === 'lan'
+                ? t.pairChoice.lanPath
+                : t.pairChoice.tailscalePath
+          }
         />
         <View
           style={{
@@ -171,9 +194,12 @@ export default function PairTailscaleScreen() {
           {t.pairImage[imageError]}
         </Text>
       ) : pairing.error !== undefined ? (
-        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
-          {pairingFailureText(pairing.error, pairing.method)}
-        </Text>
+        <PairingFailureNotice
+          key={`${pairing.error}:${pairing.errorDetail ?? ''}`}
+          error={pairing.error}
+          detail={pairing.errorDetail}
+          method={pairing.method}
+        />
       ) : null}
       {pairing.canRetry && imageError === undefined ? (
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />

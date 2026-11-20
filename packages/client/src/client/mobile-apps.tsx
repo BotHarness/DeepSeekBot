@@ -1,25 +1,34 @@
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
 import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactElement,
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, IconCloseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { COMMUNITY } from './community-links.js';
 import { CommunityIcon } from './community-icons.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Tooltip } from './ds/tooltip.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/sA9EznXr';
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile';
 
 const SEEN_KEY = 'botharness/mobile-apps/seen';
 
+const SEEN_ACK = 'mobile-apps';
+
 export function mobileAppsSeen(): boolean {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) return acks.value(SEEN_ACK, SEEN_KEY) !== undefined || !acks.settled;
   try {
     return localStorage.getItem(SEEN_KEY) === '1';
   } catch {
@@ -28,14 +37,31 @@ export function mobileAppsSeen(): boolean {
 }
 
 function markMobileAppsSeen(): void {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    acks.record(SEEN_ACK, '1', SEEN_KEY);
+    return;
+  }
   try {
     localStorage.setItem(SEEN_KEY, '1');
   } catch {}
 }
 
-export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement {
+const noAcknowledgements = (): (() => void) => () => {};
+const noRevision = (): number => 0;
+
+export function MobileAppsEntry({
+  t,
+  onPair,
+}: {
+  t: BotHarnessTranslate;
+  onPair?: (() => void) | undefined;
+}): ReactElement {
   const trigger = useRef<HTMLButtonElement>(null);
-  const [seen, setSeen] = useState(mobileAppsSeen);
+  const acks = hostAcknowledgements();
+  useSyncExternalStore(acks?.subscribe ?? noAcknowledgements, acks?.getRevision ?? noRevision);
+  const [dismissed, setSeen] = useState(false);
+  const seen = dismissed || mobileAppsSeen();
   const [open, setOpen] = useState(false);
   const show = () => {
     markMobileAppsSeen();
@@ -44,7 +70,7 @@ export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement
   };
   return (
     <span>
-      <Tooltip label={t('mobileApps.open')} side="right">
+      <Tooltip label={t('mobileApps.open')} side="right" portal>
         <button
           ref={trigger}
           type="button"
@@ -58,7 +84,7 @@ export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement
         </button>
       </Tooltip>
       {open ? (
-        <MobileAppsPopover trigger={trigger} t={t} onClose={() => setOpen(false)} />
+        <MobileAppsPopover trigger={trigger} t={t} onClose={() => setOpen(false)} onPair={onPair} />
       ) : seen ? null : (
         <MobileAppsHint
           trigger={trigger}
@@ -79,7 +105,9 @@ function usePlacement(
   trigger: RefObject<HTMLButtonElement | null>,
   width: number,
 ): [CSSProperties, (node: HTMLDivElement) => () => void] {
-  const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
+  const [position, setPosition] = useState<CSSProperties>({
+    visibility: 'hidden',
+  });
   const attach = (node: HTMLDivElement) => {
     const place = () => {
       const rect = trigger.current?.getBoundingClientRect();
@@ -134,7 +162,7 @@ function MobileAppsHint({
       <div className="bh-mobile-apps-head">
         <strong id={titleId}>{t('mobileApps.hintTitle')}</strong>
         <button type="button" aria-label={t('mobileApps.dismiss')} onClick={onDismiss}>
-          <IconCloseOutlineRegular size={16} />
+          <Icon name="x" size={16} />
         </button>
       </div>
       <p className="bh-mobile-apps-caption">{t('mobileApps.hint')}</p>
@@ -150,13 +178,14 @@ function MobileAppsPopover({
   trigger,
   t,
   onClose,
+  onPair,
 }: {
   trigger: RefObject<HTMLButtonElement | null>;
   t: BotHarnessTranslate;
   onClose(): void;
+  onPair?: (() => void) | undefined;
 }): ReactElement {
   const titleId = useId();
-  const [copied, setCopied] = useState(false);
   const [position, attach] = usePlacement(trigger, 320);
   const close = useRef(onClose);
   close.current = onClose;
@@ -205,9 +234,33 @@ function MobileAppsPopover({
             trigger.current?.focus();
           }}
         >
-          <IconCloseOutlineRegular size={16} />
+          <Icon name="x" size={16} />
         </button>
       </div>
+      {onPair ? (
+        <Button
+          variant="primary"
+          size="sm"
+          className="bh-mobile-apps-primary"
+          onClick={() => {
+            onClose();
+            trigger.current?.focus();
+            onPair();
+          }}
+        >
+          {t('mobileApps.pair')}
+        </Button>
+      ) : null}
+      <MobileAppDownloads t={t} />
+    </div>,
+    document.body,
+  );
+}
+
+export function MobileAppDownloads({ t }: { t: BotHarnessTranslate }): ReactElement {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div data-mobile-app-downloads="">
       <section className="bh-mobile-apps-section" data-platform="ios">
         <h3>{t('mobileApps.ios')}</h3>
         <p className="bh-mobile-apps-caption">{t('mobileApps.iosHint')}</p>
@@ -224,7 +277,17 @@ function MobileAppsPopover({
       </section>
       <section className="bh-mobile-apps-section" data-platform="android">
         <h3>{t('mobileApps.android')}</h3>
-        <p className="bh-mobile-apps-caption">{t('mobileApps.androidHint')}</p>
+        <a
+          className="bh-mobile-apps-link"
+          href={GOOGLE_PLAY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ChannelSidebarIcon name="smartphone" size={16} />
+          <span>{t('mobileApps.googlePlay')}</span>
+          <ChannelSidebarIcon name="external-link" size={14} />
+        </a>
+        <p className="bh-mobile-apps-caption">{t('mobileApps.androidBetaHint')}</p>
         <a
           className="bh-mobile-apps-link"
           href={COMMUNITY.discord}
@@ -253,7 +316,6 @@ function MobileAppsPopover({
           </Button>
         </div>
       </section>
-    </div>,
-    document.body,
+    </div>
   );
 }

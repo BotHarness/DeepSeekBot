@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -9,6 +10,10 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   const runs: string[] = [];
   const steered: string[] = [];
   const sendErrors: unknown[] = [];
+  let started!: () => void;
+  const runStarted = new Promise<void>((resolve) => {
+    started = resolve;
+  });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -16,6 +21,7 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   const agents: BotAgentAdapter = {
     async runOrchestrator(run) {
       runs.push(run.message);
+      started();
       await gate;
       try {
         await run.channels.send({ channelId: 'dm-aura', body: 'The original task has stopped.' });
@@ -37,10 +43,14 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
   let core = createCore({ dshHome: home, agents, triageContinuation: true });
   try {
     core.registry.create({ slug: 'aura', displayName: 'Aura' });
-    const group = core.channels.createGroup({ name: 'Recovery', members: ['aura'] });
-    core.channels.getOrCreateDm('aura', 'Aura');
+    core.team.bots.switches(OWNER_HUMAN_CONTEXT, 'aura', { proactiveDms: true });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Recovery',
+      members: ['aura'],
+    });
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'aura', 'Aura');
     core.runtime.groupSendReview!.configure(group.id, true);
-    await core.channels.appendMessage(group.id, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'old-group-request',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -63,15 +73,16 @@ async function interruptedGroup(input: { revoked: boolean; sideEffect: boolean; 
     await core.runtime.close();
     core.operationalDatabase.close();
     core = createCore({ dshHome: home, agents, triageContinuation: true });
-    await new Promise((resolve) => setImmediate(resolve));
+    if (input.revoked) await new Promise((resolve) => setImmediate(resolve));
+    else await runStarted;
     const restoredBeforeDm = runs.length;
-    await core.channels.appendMessage('dm-aura', {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-aura', {
       id: 'new-dm-status',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'A new private question: confirm the old task stopped without repeating its facts.',
     });
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: 'dm-aura',
       messageId: 'new-dm-status',
       body: 'Please confirm the old task stopped.',

@@ -1,7 +1,0 @@
-# QQ reception intervals record local observations
-
-QQ does not supply this consumer with a durable group-history cursor, so reconnecting cannot establish complete reception or a missed-message count. For [#1153](https://github.com/BotHarness/BotHarness/issues/1153), Messaging persists bounded reception metadata in its existing database, keyed by PersonaBot, Provider and authenticated application fingerprint. Source Events, Inbox Admissions and Channel placements remain the message authorities.
-
-Local controls record pause, unbind, block, waiting and route boundaries in their owning transaction. Existing public account inspection supplies connection observations when the Client reads the Messaging snapshot; unchanged observations are checkpointed at most once per thirty seconds. A clean shutdown records its local stop boundary. A new Host without a recorded stop reports the interval from the last observation to its first check as continuity unverified. These are inspection observations, not a transport heartbeat or proof of outage duration. Retain the latest 128 closed intervals and current intervals per application; never infer missing messages or fetch remote history from them.
-
-Same-app rebind retains blocks and mute preferences but does not revive revoked Channel authority. A newly admitted conversation uses the new Binding's start, and allow-again checks its fresh reception boundary even for native redelivery. This favors truthful local history and explicit new authorization over an apparent complete transcript or automatic backfill.

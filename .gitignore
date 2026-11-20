@@ -1,5 +1,5 @@
 # dependencies
-node_modules/
+node_modules
 .pnpm-store/
 
 # build output
@@ -31,6 +31,13 @@ vps.local.env
 reference/
 .release-provider/
 
+# local multi-checkout and scratch dirs (sibling worktrees, agent drafts, QA output; never committed)
+.worktrees/
+.tmp/
+n/
+n1/
+output/
+
 # local state (sessions, memory, caches)
 .cache/
 tmp/
@@ -41,6 +48,13 @@ tmp/
 
 # local agent/tool drafts (PR descriptions etc.; GitHub is the source of truth)
 .humanlayer/
+.github/pr-screenshots/
+.github/pr-assets/
+docs/assets/pr/
+docs/evidence/
+docs/qa/
+docs/research/evidence/
+*.r2.json
 
 # logs
 *.log
@@ -70,6 +84,8 @@ apps/docs/src/content/docs/docs/bot-zip.mdx
 apps/docs/src/content/docs-zh/docs/bot-zip.mdx
 apps/docs/src/content/docs/docs/bot-cli.mdx
 apps/docs/src/content/docs-zh/docs/bot-cli.mdx
+apps/docs/src/content/docs/docs/environment-creation.mdx
+apps/docs/src/content/docs-zh/docs/environment-creation.mdx
 apps/docs/src/content/docs/docs/share-bot.mdx
 apps/docs/src/content/docs-zh/docs/share-bot.mdx
 apps/docs/src/content/docs/docs/update-deepseekbot.mdx
@@ -78,6 +94,12 @@ apps/docs/src/content/docs/docs/vps-qq-tutorial.mdx
 apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
 apps/docs/src/content/docs/docs/mobile-pairing.mdx
 apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
+apps/docs/src/content/docs/docs/private-connect.mdx
+apps/docs/src/content/docs-zh/docs/private-connect.mdx
+apps/docs/src/content/docs/docs/private-ingress.mdx
+apps/docs/src/content/docs-zh/docs/private-ingress.mdx
+apps/docs/src/content/docs/docs/private-relay-standard.mdx
+apps/docs/src/content/docs-zh/docs/private-relay-standard.mdx
 
 # Generated Channel sidebar guide chapter
 /apps/docs/src/content/docs/docs/channel-sidebar/
@@ -88,4 +110,10 @@ apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
 .agents/skills/eas-workflows/scripts/.cache/
 
 packages/deepseekbot/desktop-theme/
+packages/deepseekbot/desktop-theme-0.2.2-rc.1/
 apps/mobile/modules/**/android/build/
+
+packages/deepseekbot/desktop-theme-0.2.2-rc.2/
+
+# TLC trace specs
+verification/**/*_TTrace_*

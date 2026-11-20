@@ -1,10 +1,11 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ConfirmDialog } from './ds/form-dialog.js';
+import { CopyChip } from './ds/status-block.js';
 import { Note } from './ds/note.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
@@ -12,12 +13,14 @@ export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
 const SIGN_IN_COMMAND = 'tailscale up';
 
 export interface PhoneRouteStatus {
-  managed?: { enabled: boolean; owned: boolean };
+  staleRoutes?: { url: string; targetPort: number }[];
+  managed?: { enabled: boolean; owned: boolean; trustedIngress?: boolean };
   routes: {
     url: string;
-    kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
+    kind: 'lan' | 'tailscale' | 'connect' | 'loopback' | 'private';
     ready: boolean;
     issue?: string;
+    memberSignIn?: 'managed-tls' | 'untrusted';
   }[];
   tailscale: 'running' | 'stopped' | 'missing';
   serveCommand: string;
@@ -111,27 +114,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
     overflowWrap: 'anywhere',
   },
-  command: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-    paddingBlock: space.x2,
-    paddingInlineStart: space.x4,
-    paddingInlineEnd: space.x2,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-  },
-  code: {
-    flexGrow: 1,
-    minWidth: 0,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    color: color.fg,
-    overflowWrap: 'anywhere',
-    userSelect: 'all',
-  },
+  command: { display: 'flex', minWidth: 0 },
   actions: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -178,27 +161,14 @@ function CommandLine({
   command: string;
   stepId: StepId;
 }): ReactElement {
-  const [copied, setCopied] = useState(false);
-  const copy = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
   return (
     <div {...stylex.props(styles.command)} data-pair-route-command={stepId}>
-      <code {...stylex.props(styles.code)}>{command}</code>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={t('devices.route.copyCommand')}
-        onClick={() => void copy()}
-      >
-        <ChannelSidebarIcon name={copied ? 'check' : 'copy'} size={14} />
-        {copied ? t('devices.pair.copied') : t('devices.route.copy')}
-      </Button>
+      <CopyChip
+        value={command}
+        copyLabel={t('devices.route.copyCommand')}
+        copiedLabel={t('devices.pair.copied')}
+        well
+      />
     </div>
   );
 }

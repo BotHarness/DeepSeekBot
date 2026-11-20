@@ -1,0 +1,75 @@
+---
+Publish: true
+---
+
+# Workspace and file decisions
+
+Workspaces identify Host directories. Workspace Grants authorize a PersonaBot to use them, while file owners resolve the concrete files exposed to the Client. See the [living architecture](../architecture/botharness-architecture.md).
+
+## A Workspace is one Host directory
+
+<a id="adr-0018"></a>
+
+A DSH Workspace identifies one Host directory. A Session attaches to one Workspace and uses its directory as the working directory. Cross-project work can use separate Sessions, each with its own root. Grouping Workspaces in the Client is presentation only.
+
+Why: DSH's filesystem, Shell and sandbox operate with one Session root. Keeping that model makes the visible Workspace agree with the root the native tools use.
+
+Enforced by: [Workspace identity and grant reuse](../../packages/core/test/workspace-grants.test.ts), [Assignment Workspace and scope](../../packages/core/test/assignment-access.test.ts).
+
+## A Workspace Grant authorizes one Assignment directory
+
+<a id="adr-0048"></a>
+
+An application-defined Workspace Grant records a Human's revocable authorization for one PersonaBot and one Host-resolved DSH Workspace. The Orchestrator keeps its Memory Repository as its working directory. Each Assignment records its original Grant and uses its single resolved directory. Creation and later delivery recheck that authority. Revocation blocks future use, and granting the directory again does not revive a Session bound to the earlier Grant. A restored declaration needs target resolution and Human confirmation.
+
+Why: A durable Grant avoids asking for the same project on every Assignment while keeping execution attributable to a specific Bot and directory. DSH registration supplies the directory identity, and the Grant supplies the authorization.
+
+Enforced by: [Workspace Grant identity and revocation](../../packages/core/test/workspace-grants.test.ts), [Assignment access](../../packages/core/test/assignment-access.test.ts).
+
+## Effective file roots follow current authority
+
+<a id="adr-0067"></a>
+
+In the safe mode, the Orchestrator keeps implicit read/write access to its Memory Repository and uses its current Grants for project paths. An Assignment uses its original Workspace Grant only. An active read-only Grant does not authorize writes by either role. A Human-confirmed Workspace request commits persistent read/write authority together with its Channel resolution and Admission under the [Workspace request approval decision](approvals.md#adr-0238).
+
+The native file tool guard checks canonical containment and the current Grant on each call. Scope changes apply at the next checked dispatch and cannot undo an effect already in flight. Team mode adds member and shared roots and audience containment under [the Team decision](team-mode.md#adr-0336). Opaque Shell and plugin execution follow the [Session permission mode](sessions.md#adr-0205), including explicit Full Access. The path checks are a capability boundary with the Host filesystem's same-user race limits.
+
+Why: A saved directory list needs to agree with actual file calls, including after a Human changes or revokes authority. Using the original Grant prevents an unrelated regrant from changing the scope of existing work.
+
+Enforced by: [native file-tool guard](../../packages/core/test/grant-native-tools.test.ts), [Assignment access](../../packages/core/test/assignment-access.test.ts), [atomic request approval](../../packages/core/test/grant-request-approval.test.ts).
+
+## Open actions resolve real files on the serving Host
+
+<a id="adr-0100"></a>
+
+Memory, Workspace and Messaging each resolve their own file identity before a launch or transfer. Native opening uses DSH's capability on the serving Host, including over a remote route. A launch acknowledgement means the Host accepted the request. Downloads transfer current bytes to the Client device as independent local copies.
+
+An attachment references a mutable destination file on the Host. Independent uploads have separate identities even for identical bytes. Explicit reference reuse shares the same destination. An external save changes the next read or download without rewriting the message envelope, adding an Inbox Admission or waking the Bot. Migration binds each retained legacy attachment occurrence to an independent target before it activates. Ready bindings survive restart and continue to use the current destination. An obsolete unqualified identity can be refused when it is ambiguous.
+
+Why: Using the same destination on each open lets an editor and later message reads see the same file. Occurrence-based migration prevents older hash-based deduplication from making unrelated files share edits.
+
+Enforced by: [Workspace file actions](../../packages/core/test/workspace-file-actions.test.ts), [Memory file actions](../../packages/core/test/memory-file-actions.test.ts), [real attachment files](../../packages/core/test/real-attachment-files.test.ts), [legacy attachment bindings](../../packages/core/test/legacy-attachment-migration.test.ts).
+
+## File-open defaults are explicit Client preferences
+
+<a id="adr-0178"></a>
+
+The file-open control uses an explicitly preferred application or the DSH-reported system default. A one-time choice leaves the saved preference intact. Defaults are local to the Client's storage and Host or Profile scope, with separate directory and file-type choices. At each gesture, the appropriate owner revalidates the file and the Host rechecks launch capability.
+
+Memory selection retains the built-in reader. Evolution diffs open the current path, resolving a rename to its new path when available and checking a deleted path for current existence. An absent current file is reported without reconstructing historical bytes.
+
+Why: A saved application reduces repeat selection. Explicit preference changes preserve the Human's intent and avoid treating a one-time editor choice as a new default or filesystem permission.
+
+Enforced by: [Client preference scope and selection](../../packages/client/test/file-open-default.test.ts), [Host open actions](../../packages/client/test/host-file-actions.test.ts), [current Memory targets](../../packages/client/test/memory-file-actions.test.ts).
+
+## Project Skills travel with their directory
+
+<a id="adr-0345"></a>
+
+A PersonaBot's Skills are Project Skills in its Memory Repository (`.agents/skills` or `.dsh/skills`). They are ordinary files that travel with the repository and its snapshots and exports. Installing and removing them use existing file write authority. Their provenance and trust travel with the Memory content. Installation and import use the same trust decision as the rest of Memory. The Bot profile and Marketplace details list Memory Project Skills; Workspace Skills stay with their own project. Host Skill dependencies have a separate installation lifecycle.
+
+The Orchestrator discovers Memory Skills from its working directory. The BotHarness Workspace listing searches only the granted root for `.agents/skills` and `.dsh/skills`. An Assignment can see its Bot's Memory Skills through a Skill Provider Registration in that Assignment's Agent Scope. Native Workspace Project Skills discovered at the enclosing project root (or cwd without a root) take precedence over Memory Skills, which in turn take precedence over Host Skills. A Skill listed from a granted subfolder is distinct from one that native Assignment discovery would find at the project root. Memory changes refresh the native catalog.
+
+Why: Directory ownership keeps Skills under the same permissions and portability rules as the rest of the Bot's project files. Agent scope makes the Bot's Skills available to its own Assignments while honoring the current project's conventions.
+
+Enforced by: [Bot Skills and catalog](../../packages/core/test/bot-skills.test.ts), [Bot profile and Marketplace listings](../../packages/client/test/bot-skills-card.test.ts), [Grant-scoped Skill discovery](../../packages/core/test/workspace-skills.test.ts), [Assignment Skill visibility and precedence](../../packages/core/test/memory-skill-provider.test.ts), [catalog refresh](../../packages/core/test/skill-catalog-refresh.test.ts), [Bot Zip portability](../../packages/core/test/bot-zip.test.ts), [Profile Backup round trip](../../packages/core/test/profile-backup.test.ts).

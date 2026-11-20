@@ -31,6 +31,7 @@ import { ComposeTreeContext } from '../primitives/compose-tree';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ROW_ICON_SOURCES } from '../primitives/row-icon-source.android';
 import { useStrings } from '../strings';
+import { stacksCardButtons } from './card-buttons';
 import type {
   ActionCard as SharedActionCard,
   CardField as SharedCardField,
@@ -110,14 +111,16 @@ export function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function CardNote({ children, variant = 'note' }: Props<typeof SharedCardNote>) {
+export function CardNote({ children, variant = 'note', testID }: Props<typeof SharedCardNote>) {
   const roles = useMaterialRoles();
-  return variant === 'note' ? (
-    <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
+  return (
+    <Text
+      {...(variant === 'note' ? { color: roles.onSurfaceVariant } : {})}
+      style={{ typography: variant === 'note' ? materialType.meta : materialType.body }}
+      modifiers={testID ? [composeTestID(testID)] : []}
+    >
       {children}
     </Text>
-  ) : (
-    <Text style={{ typography: materialType.body }}>{children}</Text>
   );
 }
 
@@ -197,7 +200,7 @@ export function CardField({
 }
 
 export function CardButtons({ children, stack = false }: { children: ReactNode; stack?: boolean }) {
-  return stack ? (
+  return stacksCardButtons(children, stack) ? (
     <ComposeTreeContext.Provider value={{ fill: true }}>
       <Column verticalArrangement={{ spacedBy: space.x3 }} modifiers={[fillMaxWidth()]}>
         {children}
@@ -241,6 +244,7 @@ export function ActionCard({
       >
         <ComposeTreeContext.Provider value={{ fill: true }}>
           <Card
+            colors={{ containerColor: theme.layer.raised.fill, contentColor: theme.color.fg }}
             {...(focused ? { border: { width: edge.focus, color: theme.color.accent } } : {})}
             modifiers={[fillMaxWidth(), composeTestID('action-card')]}
           >

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
@@ -7,7 +8,11 @@ import type {
   OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 function agents() {
   const runs: AssignmentAgentRun[] = [];
@@ -44,6 +49,7 @@ async function fixture(options: { nativeRefusal?: Error; nativeGate?: Promise<vo
   const live = agents();
   const archived = new Set<string>();
   const nativeCalls: string[] = [];
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents: live.adapter,
@@ -59,19 +65,13 @@ async function fixture(options: { nativeRefusal?: Error; nativeGate?: Promise<vo
         archived.delete(id);
       },
     }),
-    workspaces: () => ({
-      get: (id) =>
-        id === 'test-workspace'
-          ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
-          : undefined,
-      list: () => [],
-    }),
+    workspaces: () => workspace.lookup,
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
-  const admission = core.runtime.admitDmMessage({
+  const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: dm.id,
     messageId: 'human-start',
     body: 'Start',
@@ -129,9 +129,14 @@ describe('Orchestrator Assignment archive', () => {
       expect(all[0]!.archivedAt).toEqual(expect.any(String));
       expect(all[0]!.continuityKey).toBeUndefined();
 
-      expect(() =>
+      expect(
         f.access.request({ sessionId: id, mode: 'next-turn', text: 'One more thing' }),
-      ).toThrow(/archived/);
+      ).toMatchObject({
+        outcome: 'refused',
+        code: 'assignment-ended',
+        delivery: 'refused',
+        assignment: { sessionId: id },
+      });
 
       const next = f.create('Ship the next release notes', 'release-notes');
       expect(next).not.toBe(id);
@@ -167,8 +172,8 @@ describe('Orchestrator Assignment archive', () => {
       const id = f.create('Racing archive', 'racing');
       await f.settle(id);
       const archiving = f.access.archive!(id);
-      expect(() => f.access.request({ sessionId: id, mode: 'next-turn', text: 'Wake up' })).toThrow(
-        /archived/,
+      expect(f.access.request({ sessionId: id, mode: 'next-turn', text: 'Wake up' })).toMatchObject(
+        { outcome: 'refused', code: 'assignment-ended' },
       );
       expect(() =>
         f.access.create({
@@ -267,7 +272,7 @@ describe('Orchestrator Assignment Directory query', () => {
       ]);
       await f.settle(delta);
       await f.access.archive!(delta);
-      const methods = createBridgeMethods({ ...f.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       expect(methods.assignments({ slug: 'ada', query: 'startup' })).toEqual({
         ok: true,
         value: { assignments: [] },
@@ -329,7 +334,7 @@ describe('Human Assignment archive from the Sessions view', () => {
   it('lists archive and report state, then archives and restores through the bridge', async () => {
     const f = await fixture();
     try {
-      const methods = createBridgeMethods({ ...f.core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core });
       const id = f.create('Ship the release notes');
       const run = f.live.runs.find((item) => item.sessionId === id)!;
       await run.report({ state: 'waiting-human', summary: 'Which version?' });

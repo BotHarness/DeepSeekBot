@@ -2,15 +2,29 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createConnectAccount } from '../src/host/connect-account';
-import { redeemPairing } from '../src/host/pairing';
+import { createConnectAccount } from '@botharness/host-client/connect-account';
+import { redeemPairing } from '@botharness/host-client/pairing';
 
 const RELAY = 'https://relay.test';
 const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
 const challenge = async (value: string) => createHash('sha256').update(value).digest('base64url');
 
 function fakeRelay(
-  options: { offline?: boolean; expired?: boolean; deletion?: number; hostname?: string } = {},
+  options: {
+    offline?: boolean;
+    expired?: boolean;
+    expiredText?: boolean;
+    deletion?: number;
+    hostname?: string;
+    direct?: boolean;
+    hostStatus?: number;
+    redirected?: boolean;
+    hang?: boolean;
+    bodyHang?: boolean;
+    badIdentity?: boolean;
+    malformed?: boolean;
+    revoke?: { status: number; body: unknown };
+  } = {},
 ) {
   let stored: string | null = null;
   let randoms = 0;
@@ -33,7 +47,10 @@ function fakeRelay(
           refresh_token: 'refresh-0',
           user: { id: 'user_alice', email: 'alice@example.com' },
         });
-      if (options.expired) return Response.json({ error: 'invalid_grant' }, { status: 400 });
+      if (options.expired)
+        return options.expiredText
+          ? new Response('Unauthorized private=fixture-secret', { status: 400 })
+          : Response.json({ error: 'invalid_grant' }, { status: 400 });
       return Response.json({ access_token: 'access-1', refresh_token: 'refresh-1' });
     }
     if (url === `${RELAY}/v1/hosts`)
@@ -41,12 +58,26 @@ function fakeRelay(
         hosts: [
           { id: 'hstudio', name: 'Studio', hostname: 'hstudio.deepseekbot.dev', tunnel: true },
           { id: 'hlaptop', name: 'Laptop', hostname: 'hlaptop.deepseekbot.dev', tunnel: false },
+          {
+            id: 'hqueued',
+            name: 'Queued',
+            hostname: 'hqueued.deepseekbot.dev',
+            tunnel: false,
+            state: 'waiting',
+          },
           { id: 7 },
         ],
       });
     if (url === `${RELAY}/v1/hosts/hstudio/offer`) {
       if (options.offline)
         return Response.json({ error: { code: 'host-offline' } }, { status: 409 });
+      if (options.direct)
+        return Response.json({
+          identitySource: 'client',
+          enrollment: { body: 'signed-request', signature: 'signature' },
+          expiresAt: '2026-10-21T12:10:00.000Z',
+          hostname: options.hostname ?? 'hstudio.deepseekbot.dev',
+        });
       return Response.json({
         encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
         enrollment: { body: 'signed-request', signature: 'signature' },
@@ -55,19 +86,63 @@ function fakeRelay(
         host: { id: 'pairing-host', name: 'Studio Mac' },
       });
     }
+    if (url === 'https://hstudio.deepseekbot.dev/botharness-device/channel') {
+      expect(auth).toBeUndefined();
+      expect(init?.redirect).toBe('error');
+      if (options.hang)
+        return new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+      if (options.bodyHang)
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              init?.signal?.addEventListener(
+                'abort',
+                () => controller.error(new DOMException('Aborted', 'AbortError')),
+                { once: true },
+              );
+            },
+          }),
+        );
+      if (options.malformed) return new Response('{invalid');
+      const response = Response.json(
+        {
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+          host: { id: 'pairing-host', name: 'Studio Mac' },
+        },
+        { status: options.hostStatus ?? 200 },
+      );
+      if (options.redirected)
+        Object.defineProperty(response, 'url', {
+          value: 'https://attacker.invalid/botharness-device/channel',
+        });
+      return options.badIdentity ? Response.json({ host: { id: 'bad', name: 'Bad' } }) : response;
+    }
     if (url === `${RELAY}/v1/account` && init?.method === 'DELETE')
       return options.deletion === undefined
         ? Response.json({ deleted: true })
         : Response.json({ error: { code: 'upstream-unavailable' } }, { status: options.deletion });
+    if (url === `${RELAY}/v1/hosts/hlaptop/revoke` && init?.method === 'POST')
+      return Response.json(
+        options.revoke?.body ?? { deleted: true, sessionKnown: true, sessionRevoked: true },
+        { status: options.revoke?.status ?? 200 },
+      );
     return Response.json({}, { status: 404 });
   });
   const authorize = vi.fn(async (url: string) => {
     const state = new URL(url).searchParams.get('state');
     return `${REDIRECT}?code=auth-code&state=${state}`;
   });
+  const listedHosts = vi.fn(async (_hosts: readonly unknown[]) => undefined);
   const account = createConnectAccount({
     relay: RELAY,
     redirectUri: REDIRECT,
+    listedHosts,
     runtime: {
       read: async () => stored,
       write: async (value) => {
@@ -80,10 +155,54 @@ function fakeRelay(
       now: () => Date.parse('2026-10-21T12:00:00Z'),
     },
   });
-  return { account, calls, authorize, stored: () => stored };
+  return { account, calls, authorize, listedHosts, stored: () => stored };
 }
 
 describe('phone Connect account', () => {
+  it('revokes an offline computer from the signed-in phone without pairing or signing the phone out', async () => {
+    const relay = fakeRelay();
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    expect(await relay.account.revokeHost(key!, 'hlaptop')).toEqual({
+      ok: true,
+      value: { sessionKnown: true, sessionRevoked: true },
+    });
+    expect(relay.calls.at(-1)).toMatchObject({
+      url: `${RELAY}/v1/hosts/hlaptop/revoke`,
+      method: 'POST',
+      auth: 'Bearer access-1',
+    });
+    expect(await relay.account.email()).toBe('alice@example.com');
+    expect(await relay.account.actionKey()).toBe(key);
+    expect(relay.calls.some((call) => call.url.endsWith('/offer'))).toBe(false);
+  });
+
+  it('refuses a confirmation from a previous phone login before contacting the relay', async () => {
+    const relay = fakeRelay();
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    await relay.account.signIn();
+    expect(await relay.account.revokeHost(key!, 'hlaptop')).toEqual({
+      ok: false,
+      code: 'account-changed',
+    });
+    expect(relay.calls.some((call) => call.url.endsWith('/revoke'))).toBe(false);
+  });
+
+  it.each([
+    [404, { error: { code: 'host-not-found' } }, 'host-not-found'],
+    [409, { error: { code: 'current-host' } }, 'current-host'],
+    [409, { error: { code: 'session-unknown' } }, 'session-unknown'],
+    [502, { error: { code: 'upstream-unavailable' } }, 'relay-unavailable'],
+    [200, { deleted: true }, 'relay-unavailable'],
+  ])('does not turn an incomplete revoke receipt (%s) into success', async (status, body, code) => {
+    const relay = fakeRelay({ revoke: { status, body } });
+    await relay.account.signIn();
+    expect(
+      await relay.account.revokeHost((await relay.account.actionKey())!, 'hlaptop'),
+    ).toMatchObject({ ok: false, code });
+  });
+
   it('signs in with PKCE against the relay client and lists the linked Hosts', async () => {
     const relay = fakeRelay();
     expect(await relay.account.email()).toBeNull();
@@ -109,11 +228,79 @@ describe('phone Connect account', () => {
       value: [
         { id: 'hstudio', name: 'Studio', hostname: 'hstudio.deepseekbot.dev', online: true },
         { id: 'hlaptop', name: 'Laptop', hostname: 'hlaptop.deepseekbot.dev', online: false },
+        {
+          id: 'hqueued',
+          name: 'Queued',
+          hostname: 'hqueued.deepseekbot.dev',
+          online: false,
+          waiting: true,
+        },
       ],
     });
+    expect(relay.listedHosts).toHaveBeenCalledTimes(1);
+    expect(relay.listedHosts.mock.calls[0]![0]).toHaveLength(3);
     expect(relay.calls.at(-1)).toMatchObject({ auth: 'Bearer access-1' });
     expect(JSON.parse(relay.stored()!).refreshToken).toBe('refresh-1');
   });
+
+  it('obtains identity directly on the phone network, without sending the account token or verifier', async () => {
+    const relay = fakeRelay({ direct: true });
+    await relay.account.signIn();
+    expect(await relay.account.offer('hstudio', 'iPhone')).toMatchObject({
+      ok: true,
+      value: { host: { id: 'pairing-host' }, enrollment: { body: 'signed-request' } },
+    });
+    expect(relay.calls.at(-1)).toEqual({
+      url: 'https://hstudio.deepseekbot.dev/botharness-device/channel',
+      method: 'GET',
+    });
+  });
+
+  it.each([408, 429, 500, 502, 503, 530])(
+    'reports a temporary phone-to-Host HTTP %i failure as unreachable',
+    async (status) => {
+      const relay = fakeRelay({ direct: true, hostStatus: status });
+      await relay.account.signIn();
+      expect(await relay.account.offer('hstudio', 'iPhone')).toMatchObject({
+        ok: false,
+        code: 'unreachable',
+        detail: `connect:http-${status}`,
+        diagnostic: { phase: 'pairing-offer', status },
+      });
+    },
+  );
+
+  it.each([{ redirected: true }, { badIdentity: true }, { malformed: true }])(
+    'refuses a redirected or malformed Host identity: %j',
+    async (options) => {
+      const relay = fakeRelay({ direct: true, ...options });
+      await relay.account.signIn();
+      expect(await relay.account.offer('hstudio', 'iPhone')).toMatchObject({
+        ok: false,
+        code: 'host-refused',
+      });
+    },
+  );
+
+  it.each([{ hang: true }, { bodyHang: true }])(
+    'ends a stalled direct Host identity request within eight seconds: %j',
+    async (options) => {
+      vi.useFakeTimers();
+      try {
+        const relay = fakeRelay({ direct: true, ...options });
+        await relay.account.signIn();
+        const result = relay.account.offer('hstudio', 'iPhone');
+        await vi.advanceTimersByTimeAsync(8_000);
+        expect(await result).toMatchObject({
+          ok: false,
+          code: 'unreachable',
+          diagnostic: { phase: 'pairing-offer' },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it('keeps the verifier off the relay and requires fingerprint confirmation before encrypted enrollment', async () => {
     const relay = fakeRelay();
@@ -131,6 +318,7 @@ describe('phone Connect account', () => {
     expect(JSON.parse(relay.calls.at(-1)!.body!)).toEqual({
       verifierHash: await challenge('random-4'),
       name: 'iPhone',
+      identitySource: 'client',
     });
     if (!offer.ok) throw new Error('missing enrollment');
     const request = vi.fn(),
@@ -165,6 +353,14 @@ describe('phone Connect account', () => {
     expect(await relay.account.offer('hstudio', 'iPhone')).toEqual({
       ok: false,
       code: 'relay-unavailable',
+      detail: 'relay:invalid-response',
+      diagnostic: {
+        code: 'relay-unavailable',
+        detail: 'relay:invalid-response',
+        phase: 'pairing-offer',
+        status: 200,
+        occurredAt: expect.any(String),
+      },
     });
   });
 
@@ -174,6 +370,14 @@ describe('phone Connect account', () => {
     expect(await offline.account.offer('hstudio', 'iPhone')).toEqual({
       ok: false,
       code: 'host-offline',
+      detail: 'relay:host-offline',
+      diagnostic: {
+        code: 'host-offline',
+        detail: 'relay:host-offline',
+        phase: 'pairing-offer',
+        status: 409,
+        occurredAt: expect.any(String),
+      },
     });
 
     const cancelled = fakeRelay();
@@ -183,7 +387,16 @@ describe('phone Connect account', () => {
 
     const expired = fakeRelay({ expired: true });
     await expired.account.signIn();
-    expect(await expired.account.hosts()).toEqual({ ok: false, code: 'sign-in-required' });
+    expect(await expired.account.hosts()).toEqual({
+      ok: false,
+      code: 'sign-in-required',
+      diagnostic: {
+        code: 'sign-in-required',
+        phase: 'sign-in-session',
+        status: 400,
+        occurredAt: expect.any(String),
+      },
+    });
     expect(expired.stored()).toBeNull();
 
     const forged = fakeRelay();
@@ -218,3 +431,36 @@ describe('phone Connect account', () => {
     expect(relay.stored()).toBeNull();
   });
 });
+
+it('keeps expired-session semantics and safe HTTP context when the auth response is not JSON', async () => {
+  const relay = fakeRelay({ expired: true, expiredText: true });
+  await relay.account.signIn();
+  const failure = await relay.account.hosts();
+  expect(failure).toMatchObject({
+    ok: false,
+    code: 'sign-in-required',
+    diagnostic: { phase: 'sign-in-session', status: 400 },
+  });
+  expect(JSON.stringify(failure)).not.toContain('fixture-secret');
+  expect(await relay.account.email()).toBeNull();
+});
+
+it.each(['fixture-secret', 'host-refused'])(
+  'never returns arbitrary relay code/cause text as a retained diagnostic (%s)',
+  async (code) => {
+    const relay = fakeRelay({
+      revoke: {
+        status: 502,
+        body: { error: { code, cause: 'credential-sentinel', message: 'Bearer fixture-secret' } },
+      },
+    });
+    await relay.account.signIn();
+    const key = await relay.account.actionKey();
+    const failure = await relay.account.revokeHost(key!, 'hlaptop');
+    expect(failure).toMatchObject({
+      ok: false,
+      diagnostic: { phase: 'account-action', status: 502 },
+    });
+    expect(JSON.stringify(failure)).not.toMatch(/fixture-secret|credential-sentinel|Bearer/u);
+  },
+);

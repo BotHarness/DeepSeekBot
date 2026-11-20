@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type MemoryMarkdown } from '../src/client/bridge.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { MemoryMarkdownView, MemoryMarkdownDiff } from '../src/client/memory-markdown-view.js';
-import type { MemoryMarkdown } from '../src/client/bridge.js';
-import type { BotHarnessTranslate } from '../src/client/locale.js';
+
 const t: BotHarnessTranslate = (key, values) => key + (values?.name ? ` ${values.name}` : '');
 const documentVersion: MemoryMarkdown = {
   source: 'a'.repeat(40),

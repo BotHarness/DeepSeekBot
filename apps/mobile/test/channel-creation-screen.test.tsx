@@ -121,7 +121,7 @@ vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { ready: Promise.resolve(), set: vi.fn() },
 }));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
-vi.mock('../src/ui/design/host-look', () => ({
+vi.mock('@botharness/host-client/ui/design/host-look', () => ({
   shownHostName: (_look: unknown, name: string) => name,
 }));
 vi.mock('../src/ui/primitives/text', () => ({

@@ -1,5 +1,16 @@
 # Three-action tool approval and coherent Full Access
 
+## Sources
+
+- `packages/core/src/workspaces/{tool-approval,approval-reviewer,grants}.ts`
+- `packages/client/src/client/{tool-approval-card,approval-settings}.tsx`
+
+## Terms
+
+- Tool Approval Rule
+- Approval Reviewer
+- Access policy
+
 ## Sub-features
 
 - Behavior ID: `desktop.approval.three-actions`.
@@ -30,6 +41,12 @@ This Windows native-pwsh journey creates a synthetic Bot, uses real model calls,
 
 For a baseline capture, provide `--capture-report <private-json> --expect-legacy`. The private record identifies an existing task-owned instance, Bot and pending request. This mode reads and captures only; it does not decide or create a Bot. Never use a Human's real request as a disposable verification input.
 
+## Bot-specific saved card rules (#4245)
+
+Open Bot permissions from the composer or the folder/access entry. After saving Always allow on a real card, open **Always allow · this Bot**. Check **From approval card**, tool, execution role, current directory and full scope under View scope against `tool-approval-rules`. Revoke that row and verify canonical readback shows it disabled. Repeat through the online CLI, then Reload the open list. The next same call must return to review. A second Bot using the same template and a template copy must acquire no rule. Model allow-once must not add a rule.
+
+This list reads the existing canonical owner once during permissions refresh; it adds no polling, template lookup or Reviewer work to tool execution. The focused Client test guards one initial rules read and canonical readback after revocation. `auto-approval-breaker.test.ts` guards zero template/Reviewer calls on a saved-rule hit, restored review after revoke, and no new rule from model allow-once. Runtime before/after latency and screenshots remain separate evidence.
+
 ## Gotchas
 
 - DSH native pwsh uses `sandbox_permissions: danger-full-access`, not Codex's `require_escalated`. A harmless output marker explicitly requesting that mode can exercise the real ask without touching a sensitive file.
@@ -51,3 +68,7 @@ For first-time setup, the homepage instruction names the actual Allow once butto
 ## Companion reading space
 
 With a visible floating companion, scroll to the latest approval and reply and verify their bottom edge is above the passive avatar and toolbar. The running status above the composer must also remain clear of the avatar. Repeat at 375px width, with reduced motion, and after activity fades; removing every companion returns the space, while toggling companions during history reading must not jump to the latest message. This checks the latest content at the bottom, not arbitrary history positions or intentionally opened companion bubbles/menus.
+
+## Effect labels (#4210)
+
+Effect declarations label cards; they do not require approval. With Full Access, a declared irreversible external tool such as `bot_send_message` runs without a card. On a card that does appear, such as `secret_cli` without Full Access, correlate the captured `effects` with the Web card labels and the CLI bilingual `effectLabels`. Input or result text claiming approval has no authority.

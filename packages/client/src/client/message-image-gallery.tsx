@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import {
   createContext,
   useContext,
@@ -8,11 +9,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -48,8 +44,7 @@ const styles = stylex.create({
   mask: {
     position: 'absolute',
     inset: 0,
-    backgroundColor: 'var(--dsw-alias-bg-mask-1)',
-    backdropFilter: 'var(--dsw-mask-blur)',
+    backgroundColor: 'var(--tobs-layer-scrim)',
   },
   image: {
     position: 'relative',
@@ -57,8 +52,8 @@ const styles = stylex.create({
     maxHeight: 'calc(100vh - 112px)',
     objectFit: 'contain',
     borderRadius: radius.lg,
-    backgroundColor: 'var(--dsw-specific-input-major)',
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    backgroundColor: 'var(--tobs-layer-field)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   control: {
     position: 'fixed',
@@ -72,7 +67,7 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: color.border,
     borderRadius: radius.round,
-    backgroundColor: 'var(--dsw-specific-input-major)',
+    backgroundColor: 'var(--tobs-layer-field)',
     color: color.fg,
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
@@ -90,7 +85,7 @@ const styles = stylex.create({
     paddingBlock: space.x1,
     paddingInline: space.x3,
     borderRadius: radius.sm,
-    backgroundColor: 'var(--dsw-specific-input-major)',
+    backgroundColor: 'var(--tobs-layer-field)',
     color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -167,7 +162,7 @@ export function ImageGalleryLightbox({
         onClick={onClose}
         {...stylex.props(styles.control, styles.close)}
       >
-        <IconCloseOutlineRegular size={16} />
+        <Icon name="x" size={16} />
       </button>
       {many ? (
         <>
@@ -178,7 +173,7 @@ export function ImageGalleryLightbox({
             onClick={() => step.current(-1)}
             {...stylex.props(styles.control, styles.previous)}
           >
-            <IconChevronLeftOutlineRegular size={16} />
+            <Icon name="chevron-left" size={16} />
           </button>
           <button
             type="button"
@@ -187,7 +182,7 @@ export function ImageGalleryLightbox({
             onClick={() => step.current(1)}
             {...stylex.props(styles.control, styles.next)}
           >
-            <IconChevronRightOutlineRegular size={16} />
+            <Icon name="chevron-right" size={16} />
           </button>
           <span aria-live="polite" {...stylex.props(styles.counter)}>
             {t('message.image.position', {

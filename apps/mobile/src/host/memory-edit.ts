@@ -1,5 +1,6 @@
 import { dmChannel, type ProfileBotRef } from './bot-profile';
-import { MethodRefused, type HostClient } from './client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
+import { saveMemoryFile as saveHostMemoryFile } from '@botharness/host-client/memory';
 
 export function memoryConflict(error: unknown): boolean {
   return error instanceof MethodRefused && error.code === 'memory-conflict';
@@ -17,7 +18,7 @@ export async function saveMemoryFile(
   input: { path: string; body: string; expectedHead: string },
 ): Promise<string> {
   const channelId = await dmChannel(client, bot);
-  const { commit } = await client.call<{ commit: { sha: string } }>('memorySave', {
+  const commit = await saveHostMemoryFile(client, {
     channelId,
     path: input.path,
     body: input.body,

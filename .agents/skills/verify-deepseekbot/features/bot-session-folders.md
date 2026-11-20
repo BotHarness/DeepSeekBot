@@ -1,5 +1,14 @@
 # Bot folders in the DSH Session list
 
+## Sources
+
+- `packages/client/src/client/bot-session-folders.tsx`
+
+## Terms
+
+- Session
+- PersonaBot
+
 ## Sub-features
 
 - `folders` adds one DeepSeekBot product section, with Bot/persona subgroups containing explicitly owned Orchestrator and Assignment root Sessions across different cwd values.

@@ -8,11 +8,12 @@ Load `expo-overview` first for any Expo or EAS task; it routes to the right skil
 
 - Screens and styling: `expo-native-ui`. Native components (`@expo/ui` SwiftUI/Compose views, menus, pickers, sheets): `expo-ui`. Navigation: `expo-router`. Motion, gestures and haptics: `expo-animation` for the APIs, and `animate-expo` (with `review-animations`) for the motion decisions: whether to animate, curve, duration, properties and reduced motion.
 - iOS control choice and Liquid Glass (pop-up/pull-down buttons, menus, sheets, toolbars, tab bar, scroll edge effects): `ios-hig`. It maps Apple's HIG onto this app; a decision already in `DESIGN.md` wins, and drift from the HIG is named in the PR.
+- For Expo / React Native iOS development, also load `swiftui-expert-skill`. Apply its relevant guidance to SwiftUI-backed `@expo/ui` views, Swift native modules, state, layout, accessibility and native performance; use `expo-ui` / `expo-module` for the Expo integration and `react-native-best-practices` for React Native behavior. Verify API availability against the project's actual Expo SDK, Xcode and iOS deployment target before adopting upstream examples. Keep the existing CNG, device ownership and performance verification rules.
 - Android control choice (menus, exposed dropdowns, dialogs, bottom sheets, app bars, navigation bar), edge-to-edge and predictive back: `android-material`, the Material 3 twin of `ios-hig`. Spec detail (tokens, colour, type, shape, motion): `material-3`.
 - Network calls and loading/error states: `expo-data-fetching`. The Host client in `src/host/` is ours: screens read it through `useHostSnapshot()` and never call `fetch` themselves.
 - Development builds: `expo-dev-client`. Store builds and submission: `eas-app-stores`. OTA updates: `eas-update`. EAS CI: `eas-workflows`.
 - Native modules: `expo-module`. SDK upgrades: `expo-upgrade`.
-- Performance (jank, re-renders, lists, bundle size, memory): `react-native-best-practices`. Measure before optimizing, with the loop in [Profiling](#profiling).
+- Performance (jank, re-renders, lists, bundle size, memory): `react-native-best-practices`. Measure before optimizing under [Profiling](#profiling).
 - Component tests: `react-native-testing`. Today the app's tests are Vitest in Node against the Host client (`test/`); adding React Native component tests is a separate decision.
 
 Read docs for SDK 58 (`https://docs.expo.dev/versions/v58.0.0/...`), not `latest`.
@@ -41,50 +42,18 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 ## Native UI verification
 
-- **First reserve the shared device lane** through [shared device QA](../../docs/agents/device-qa.md). Do not start a separate Simulator, Metro, Host or build outside the assigned batch. The runner may use `node scripts/e2e-mobile-sim.mjs` only when its Simulator/build/Host lifecycle fits the assigned window; it is not a bypass of the queue.
-- On a Mac, verify native UI with Callstack's `agent-device` on the iOS Simulator: open the development build, read its accessibility snapshot, act by ref, and save a screenshot. The commands are in `README.md` ("Drive it on the iOS Simulator").
-- Regression flows live in `.maestro/` and run with `pnpm --filter @botharness/mobile e2e:ios`. Target elements by their visible text from the snapshot, not by coordinates.
-- Core controls carry a stable `testID` so flows and agents survive copy changes and the zh/en switch: `composer-input`, `composer-send`, `composer-attach`, `settings-button`, `approval-allow-once` / `approval-always-allow` / `approval-deny`, and `conversation-row-<key>` (`bot:<slug>`, `channel:<id>`, `cloud:<channelId>`). A new interactive control that a flow or agent will drive gets a kebab-case `testID` as well as its accessibility label; the label stays the user-facing contract and is never replaced by the `testID`.
-- For a read-only health check of the running dev build, run Expo's experimental agent CLI as `npx --yes @expo/agent-cli@1.0.20 <command>` from `apps/mobile` with `EXPO_NO_TELEMETRY=1`. It assumes it owns the worktree's devices and builds, so on the shared Simulator name both targets explicitly: `status` takes `--device <udid>`, and the `runtime:*` commands and `smoke` take `--dev-server-url http://127.0.0.1:<port>` (`smoke` also accepts `--port <port>`). Without them it reports no device and misses Metro outside 8081–8085.
-  - `status --device <udid> --json`: whether the installed build is stale (`rebuild-required` / `hash-mismatch`).
-  - `runtime:errors --dev-server-url http://127.0.0.1:<port> --json` and the same flags on `runtime:tree`: runtime errors and the interactive nodes on screen, with their `testID`s.
-  - `smoke --ios --no-start --no-reload --port <port> --json`: one exit code for "the app is connected and threw nothing". `--no-start` keeps it from starting Metro, a Simulator or Expo Go.
-  - Never run `agents:setup`, `new`, `install`, `deploy` or anything with `--eas`: they rewrite `AGENTS.md`/`CLAUDE.md`, change dependencies or spend EAS credits.
-- Native devices and QA Hosts are shared by every agent. Read [shared device QA](../../docs/agents/device-qa.md) before builds or device interaction; it routes Mac/iOS and Windows/Android to their own batch queues. Windows emulator/USB phone control and scrcpy evidence use `scripts/android-qa.ps1` from the repo root.
-- Screenshots, recordings and release image retention follow [local QA evidence](../../docs/agents/qa-evidence.md): index each platform's actual source/build and results in the main checkout, and retain accepted evidence outside disposable worktrees.
-- Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.
+Reserve [shared device QA](../../docs/agents/device-qa.md) before starting a Simulator, Metro, a build or a Host. Follow [mobile app verification](../../docs/agents/device-qa.md#mobile-app-verification-and-read-only-diagnostics) for native drives, regression flows, read-only diagnostics and cloud sessions. Keep [local QA evidence](../../docs/agents/qa-evidence.md).
+
+Core controls carry a stable `testID` so flows and agents survive copy changes and the zh/en switch: `composer-input`, `composer-send`, `composer-attach`, `settings-button`, `approval-allow-once` / `approval-always-allow` / `approval-deny`, and `conversation-row-<key>` (`bot:<slug>`, `channel:<id>`, `cloud:<channelId>`). A new interactive control that a flow or agent will drive gets a kebab-case `testID` as well as its accessibility label; the label stays the user-facing contract and is never replaced by the `testID`.
 
 ## Profiling
 
-**The bar.** In a Release build on a ProMotion iPhone, a DM holds 120 FPS (8.3 ms frames) while a reply streams, while the user scrolls long history, and while both happen at once ([#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)). No frame may hitch over 16.7 ms. Numbers from a development build or the Simulator are evidence for a change, not proof that the bar is met.
-
-Performance work follows the mandatory [iOS performance tuning and physical-device verification
-(AX)](../../docs/agents/ios-performance.md) workflow: validate the workload, capture the relevant
-JS/React/native/display layer, attribute the cause, make the smallest change and run matched
-physical Release A/B/B/A/A/B measurements. Keep Simulator, physical Release and Human QA results
-separate, and preserve failed/invalid samples.
-
-Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
-Instruments serve different measurement layers. `scripts/rn-profile.mjs` is diagnostic scaffolding:
-its React-hook requirement, fixed-60Hz JS rAF drop estimate and base-duration accumulation are
-not native FPS or exact current-update CPU measurements. Development-build improvement ratios
-must be revalidated in Release. See the AX workflow for commands, supported-tool checks,
-provenance, low-overhead instrumentation and required evidence.
-
-Cover streaming a long reply, scrolling hundreds of messages including tables/code, and both
-at once. Include keyboard, draft, anchor and accessibility regressions when affected. Follow
-[shared device QA](../../docs/agents/device-qa.md) for resource ownership and
-[QA evidence](../../docs/agents/qa-evidence.md) for retained captures.
+Use [iOS performance tuning and physical-device verification](../../docs/agents/ios-performance.md#mobile-performance-workload-and-acceptance) for the ProMotion Release target, matched workloads and evidence boundaries.
 
 ## Checks
 
-```bash
-pnpm --filter @botharness/mobile typecheck
-pnpm vitest run apps/mobile
-pnpm --filter @botharness/mobile expo:doctor          # expo-doctor; two checks need the Expo API
-EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export
-```
+See [mobile check commands](../../docs/agents/device-qa.md#mobile-check-commands).
 
 ## Updating skills
 
-The Expo, Callstack, React Native Testing Library and Emil Kowalski animation skills are third-party, locked in `skills-lock.json`. Do not edit them in place; update them with `npx skills update <name>` and review the diff.
+Expo, Callstack, React Native Testing Library, Emil Kowalski animation and AvdLee SwiftUI skills are [vendored third-party skills](../../docs/agents/vendored-skills.md). Update them with `npx skills update <name>` and review the diff.

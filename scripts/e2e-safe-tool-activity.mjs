@@ -121,7 +121,7 @@ async function nativeSnapshot(sessionId) {
       const timer = setTimeout(() => reject(Error('Native Session snapshot timeout')), 10000);
       socket.once('error', (error) => {
         clearTimeout(timer);
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
       });
       socket.on('message', (raw) => {
         const frame = JSON.parse(String(raw));
@@ -160,7 +160,7 @@ await page.setExtraHTTPHeaders({ cookie });
 async function screenshot(name) {
   await page.addStyleTag({
     content:
-      '.bh-tool-approval-card > .bh-note:nth-child(3){font-size:0}.bh-tool-approval-card > .bh-note:nth-child(3)::after{content:"[machine-local QA directory redacted]";font-size:12px}',
+      '.bh-tool-approval-card .bh-tool-approval-cwd{font-size:0 !important}.bh-tool-approval-card .bh-tool-approval-cwd::after{content:"[machine-local QA directory redacted]";font-size:12px !important}',
   });
   await page.evaluate(() => {
     for (const pre of document.querySelectorAll('.bh-tool-approval-input')) {
@@ -467,7 +467,9 @@ try {
       const transparentHistory = await page.evaluate(() => {
         const timeline = document.querySelector('.bh-chat-body');
         const header = document.querySelector('.bh-composer-activity-toggle');
-        const latest = timeline.querySelector('.bh-message-block:last-child');
+        const latest = timeline.querySelector(
+          '.bh-timeline-chunk:last-child > .bh-timeline-slot:last-child > .bh-message-block',
+        );
         const guardedBottom = latest?.getBoundingClientRect().bottom;
         const headerTop = header.getBoundingClientRect().top;
         const bottom = timeline.scrollTop;

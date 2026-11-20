@@ -5,14 +5,14 @@ import {
   clearAttentionItem,
   decideJoinRequest,
   snoozeAttentionItem,
-} from '../../../../apps/mobile/src/host/attention-actions.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+} from '@botharness/host-client/attention-actions';
+import type { HostClient } from '@botharness/host-client/client';
 import {
   loadApproval,
   loadQuestion,
   type DecisionResult,
   type RequestRef,
-} from '../../../../apps/mobile/src/host/requests.js';
+} from '@botharness/host-client/requests';
 import type { BridgeActions } from './actions.js';
 import {
   ignoreHumanAssignmentReport,
@@ -20,11 +20,12 @@ import {
   markReadPosition,
   type BridgeCall,
 } from './bridge.js';
-import type { HumanInboxCommands } from './human-inbox-view.js';
+import type { ActivityListCommands } from './activity-list-view.js';
 import type { ChannelMessage, HumanAttentionItem } from './store.js';
 
 export type HostRequestActions = Pick<
   BridgeActions,
+  | 'requestHost'
   | 'toolApprovalStatus'
   | 'toolApprovalState'
   | 'toolApprovalExecutionState'
@@ -33,7 +34,7 @@ export type HostRequestActions = Pick<
   | 'answerUserQuestion'
 >;
 
-export interface HostActivityActions extends HumanInboxCommands, HostRequestActions {
+export interface HostActivityActions extends ActivityListCommands, HostRequestActions {
   message(item: HumanAttentionItem, signal?: AbortSignal): Promise<ChannelMessage>;
 }
 
@@ -58,14 +59,17 @@ export function createHostRequestActions(options: {
   const approval = (channelId: string, messageId: string) =>
     request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
   return {
+    requestHost: options.client,
     async toolApprovalStatus(channelId, messageId) {
-      return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
+      const { status } = await approval(channelId, messageId);
+      return status === 'pending' || status === 'stopped' ? status : 'expired';
     },
     async toolApprovalState(channelId, messageId) {
       const value = await approval(channelId, messageId);
       return {
-        status: value.status === 'pending' ? 'pending' : 'expired',
+        status: value.status === 'pending' || value.status === 'stopped' ? value.status : 'expired',
         ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
+        ...(value.execution === undefined ? {} : { execution: value.execution }),
       };
     },
     async toolApprovalExecutionState(channelId, messageId) {
@@ -120,14 +124,14 @@ export function createHostActivityActions(options: {
   const requests = createHostRequestActions({ ...options, ref });
   return {
     ...requests,
-    refreshHumanInbox: options.refresh,
+    refreshActivityList: options.refresh,
     openChannelAtMessage: (channelId) => options.open(channelId),
     async decideGroupJoin(channelId, requestId, accept) {
       await changed(() => decideJoinRequest(options.client(), channelId, requestId, accept));
       return true;
     },
-    dismissHumanInbox: (item) => changed(() => clearAttentionItem(options.client(), item)),
-    snoozeHumanInbox: (item, until) =>
+    dismissActivityList: (item) => changed(() => clearAttentionItem(options.client(), item)),
+    snoozeActivityList: (item, until) =>
       changed(() =>
         snoozeAttentionItem(options.client(), item, until === null ? null : new Date(until)),
       ),

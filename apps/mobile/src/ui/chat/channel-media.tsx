@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { ChannelFile } from '../../host/channel-files';
-import type { MessageAttachment } from '../../host/conversation';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
 import { useDesignTheme } from '../design/theme';
 import { channelMedia, radius, space } from '../design/tokens';
 import { ResourceImage as Image } from '../primitives/resource-image';
 import { Text } from '../primitives/text';
-import { FileIcon, PhotoIcon } from '../shell/icons';
+import { PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { AttachmentFileTile } from './attachment-file-tile';
 
 export type ChannelFilesSegment = 'media' | 'files';
 
@@ -31,31 +32,7 @@ export function fileTypeLabel({ name, mime }: Pick<MessageAttachment, 'name' | '
 }
 
 export function FileTypeIcon({ attachment }: { attachment: MessageAttachment }) {
-  const theme = useDesignTheme();
-  const label = fileTypeLabel(attachment);
-  const Icon = attachment.kind === 'image' ? PhotoIcon : FileIcon;
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: channelMedia.typeTile,
-        height: channelMedia.typeTile,
-        borderRadius: radius.sm,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: theme.layer.raised.inset,
-      }}
-    >
-      {label === '' ? (
-        <Icon color={theme.color.muted} size={theme.type.title.line} />
-      ) : (
-        <Text variant="meta" tone="muted" strong numberOfLines={1} adjustsFontSizeToFit>
-          {label}
-        </Text>
-      )}
-    </View>
-  );
+  return <AttachmentFileTile attachment={attachment} />;
 }
 
 export function MediaRow({
@@ -111,7 +88,7 @@ function MediaTile({
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const attachment = file.attachment;
-  const source = attachment.source;
+  const source = attachment.thumbnail ?? attachment.source;
   const missing = source === undefined || failed;
   const rowId = file.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
   const date = new Date(file.at).toLocaleString();
@@ -177,6 +154,9 @@ function MediaTile({
           source={source}
           recyclingKey={attachment.key}
           cachePolicy="memory-disk"
+          {...(attachment.thumbhash === undefined
+            ? {}
+            : { placeholder: { thumbhash: attachment.thumbhash } })}
           contentFit="cover"
           transition={150}
           onError={() => setFailed(true)}

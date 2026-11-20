@@ -1,8 +1,8 @@
 # Message selection and feedback
 
-Status: Historical interview. Storage/upload portions superseded by the Human on 2026-10-26; current behavior is defined by ADR-0256 and docs/message-feedback.md.
+Status: Historical interview. Storage/upload portions superseded by the Human on 2026-10-26; current behavior is defined by the [Message Feedback decision](../decisions/release.md#adr-0256) and [feedback guide](../message-feedback.md).
 
-Current decision: only rating/tags/comment go to PostHog; all diagnostic Session/chat/Inbox content is downloaded locally for user-controlled sharing. No dedicated receiver, private evidence store or feedback domain. The original interview below is retained as rationale, not current requirements.
+The feedback guide explains ordinary ratings, the explicit failed-turn option and local diagnostic archives. The original interview below records the earlier proposal.
 Date: 2026-10-26
 
 ## Confirmed behavior
@@ -29,7 +29,7 @@ Date: 2026-10-26
 
 ## Ownership and lifecycle
 
-The accepted boundary decision is recorded in [ADR-0254](../adr/0254-message-feedback-separates-private-evidence-from-telemetry.md). It changes the local-only restriction of ADR-0185 only for deliberate Message Feedback; automatic Telemetry remains content-free.
+In the original proposal, the local-only restriction of ADR-0185 would have changed for deliberate Message Feedback, while automatic Telemetry would have remained content-free. See the [current boundary](../decisions/release.md#adr-0254).
 
 The application-defined Host diagnostics owner reads canonical Channel, Source Event, Bot Inbox Admission, Outbox and DSH Session Persistence facts under existing access checks. The preview and downloadable/submittable evidence share one frozen, redacted snapshot. This is a diagnostic copy, not a new conversation or execution authority. Existing history remains unchanged.
 
@@ -56,7 +56,7 @@ Static inspection, not runtime verification:
 - Desktop already has a Select action and reply-reference navigation in `packages/client/src/client/bot-main.tsx`. `message-selection.tsx` groups screenshot, conversation copy and diagnostics under Export.
 - Native mobile `apps/mobile/src/ui/chat/message-sheet.ts` has copy/share/open actions; selection and diagnostic export are not provided there.
 - Existing diagnostics collect and redact evidence through `packages/core/src/diagnostics/bundle.ts`; the client preview in `packages/client/src/client/diagnostic-bundle.tsx` shows aggregate counts rather than selectable evidence categories.
-- [ADR-0185](../adr/0185-diagnostic-bundles-are-local-redacted-read-only-exports.md) explicitly requires local-only diagnostic bundles. Deliberate online feedback changes that boundary in ADR-0249; ADR-0185 remains the historical rationale and describes the existing implementation.
+- [ADR-0185](../decisions/desktop-ui.md#adr-0185) explicitly requires local-only diagnostic bundles. Deliberate online feedback changes that boundary in ADR-0249; ADR-0185 remains the historical rationale and describes the existing implementation.
 - Anonymous Telemetry excludes conversation content. Message Feedback is a separate, deliberate submission, not an expansion of automatic telemetry.
 
 ## Final confirmation

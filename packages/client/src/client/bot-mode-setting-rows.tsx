@@ -1,25 +1,44 @@
+import { SegmentedControl } from './ds/segmented.js';
+import { Switch } from './ds/switch.js';
 import type { ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
   isBotModeMotionPreference,
   isBotModeSendKey,
   isBotModeSortMode,
+  isSessionCollapseMode,
+  isSessionDetailLevel,
+  isSessionFoldedReplies,
+  SESSION_COLLAPSE_MODES,
+  SESSION_DETAIL_LEVELS,
+  SESSION_FOLDED_REPLIES,
   type BotModeIcon,
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
+import { BotHopLimitSetting } from './bot-hop-limit-setting.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
 import { isApplePlatform, KeyCombo, type ShortcutKey } from './ds/kbd.js';
 import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { PreviewChoices } from './ds/preview-choice.js';
+import {
+  accent,
+  ink,
+  layer,
+  motion,
+  radius,
+  size,
+  space,
+  style,
+  type as text,
+} from './ds/tobs.stylex.js';
 import type { BotHarnessKey } from './locale.js';
 
 export type BotModeSettingRowProps = PropsLocale<'botharness'> & InjectFace<BotModePrefsFace>;
@@ -55,95 +74,51 @@ const SEND_KEY_OPTIONS: readonly {
   { id: 'mod-enter', send: ['Mod', 'Enter'], newline: ['Enter'] },
 ];
 
+const motionSample = stylex.keyframes({
+  '0%, 70%, 100%': { opacity: 0.4, transform: 'translateY(0)' },
+  '35%': { opacity: 1, transform: `translateY(-${space.x1})` },
+});
+
 const styles = stylex.create({
+  motionPreview: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x3,
+    width: 'fit-content',
+    minHeight: size.controlSmall,
+    marginTop: space.x2,
+    paddingBlock: space.x1,
+    paddingInline: space.x3,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+  },
+  motionSample: { display: 'inline-flex', alignItems: 'center', gap: space.x2 },
+  motionDot: {
+    width: space.x2,
+    height: space.x2,
+    borderRadius: radius.full,
+    backgroundColor: accent.solid,
+    opacity: 0.45,
+  },
+  animatedDot: (index: number) => ({
+    animationName: motionSample,
+    animationDuration: '1100ms',
+    animationTimingFunction: motion.standard,
+    animationIterationCount: 'infinite',
+    animationDelay: `${index * 130}ms`,
+  }),
   sendKey: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-    whiteSpace: 'nowrap',
+    flexWrap: 'wrap',
   },
   sendKeySeparator: {
-    color: color.muted,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))',
-    gap: space.x3,
-    marginTop: space.x3,
-  },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: space.x2,
-    minWidth: 0,
-    paddingBlock: space.x3,
-    paddingInline: space.x2,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: {
-      default: color.border,
-      ':is([aria-checked=true])': color.accent,
-    },
-    borderRadius: radius.md,
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': color.hover,
-      ':is([aria-checked=true])': color.selected,
-    },
-    color: {
-      default: color.muted,
-      ':hover': color.fg,
-      ':is([aria-checked=true])': color.fg,
-    },
-    fontFamily: 'inherit',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    cursor: 'pointer',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-  },
-  art: {
-    pointerEvents: 'none',
-  },
-  cardLabel: {
-    maxWidth: '100%',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    color: ink.secondary,
   },
 });
-
-export function BotIconCard({
-  option,
-  label,
-  selected,
-  onSelect,
-}: {
-  readonly option: BotModeIcon;
-  readonly label: string;
-  readonly selected: boolean;
-  readonly onSelect: (icon: BotModeIcon) => void;
-}): ReactElement {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={() => {
-        onSelect(option);
-      }}
-      {...stylex.props(styles.card)}
-    >
-      <span {...stylex.props(styles.art)}>
-        <BotIcon icon={option} size={28} />
-      </span>
-      <span {...stylex.props(styles.cardLabel)}>{label}</span>
-    </button>
-  );
-}
 
 export function BotIconSetting({
   t,
@@ -153,17 +128,17 @@ export function BotIconSetting({
   const botIcon = useBotModePrefs((value) => value.botIcon);
   return (
     <SettingsRow title={t('icon.row.title')} description={t('icon.row.description')}>
-      <div role="radiogroup" aria-label={t('icon.row.title')} {...stylex.props(styles.grid)}>
-        {ICON_OPTIONS.map((option) => (
-          <BotIconCard
-            key={option.id}
-            option={option.id}
-            label={t(option.label)}
-            selected={botIcon === option.id}
-            onSelect={setBotIcon}
-          />
-        ))}
-      </div>
+      <PreviewChoices
+        label={t('icon.row.title')}
+        variant="icon"
+        value={botIcon}
+        onChange={setBotIcon}
+        options={ICON_OPTIONS.map((option) => ({
+          id: option.id,
+          label: t(option.label),
+          preview: <BotIcon icon={option.id} size={28} />,
+        }))}
+      />
     </SettingsRow>
   );
 }
@@ -183,7 +158,8 @@ export function MotionSetting({
       description={t(memoryOnly ? 'motion.row.memory' : 'motion.row.description')}
       data={{ 'data-setting': 'motion' }}
       control={
-        <Select
+        <SegmentedControl
+          id="bh-motion-preference"
           label={t('motion.menu.label')}
           value={prefs.motionPreference}
           options={MOTION_OPTIONS.map((option) => ({
@@ -196,11 +172,17 @@ export function MotionSetting({
         />
       }
     >
-      <div className="bh-motion-preview" role="status" aria-live="polite">
-        <span className="bh-motion-preview-sample" aria-hidden="true">
-          <i />
-          <i />
-          <i />
+      <div role="status" aria-live="polite" {...stylex.props(styles.motionPreview)}>
+        <span aria-hidden="true" {...stylex.props(styles.motionSample)}>
+          {[0, 1, 2].map((index) => (
+            <span
+              key={index}
+              {...stylex.props(
+                styles.motionDot,
+                prefs.effectiveMotion === 'full' && styles.animatedDot(index),
+              )}
+            />
+          ))}
         </span>
         <span>
           {t('motion.preview.label')} · {t(effectiveLabel)}
@@ -296,6 +278,48 @@ export function AutoCollapseMessagesSetting({
   );
 }
 
+export function DmAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowDmAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDmAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.dm.row.title')}
+      description={t('message.avatar.dm.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDmAvatar}
+          label={t('message.avatar.dm.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function OwnAvatarSetting({
+  t,
+  useBotModePrefs,
+  setShowOwnAvatar,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showOwnAvatar);
+  return (
+    <SettingsRow
+      title={t('message.avatar.own.row.title')}
+      description={t('message.avatar.own.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowOwnAvatar}
+          label={t('message.avatar.own.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeliveryReceiptsSetting({
   t,
   useBotModePrefs,
@@ -369,6 +393,7 @@ export function BotSessionsVisibilitySetting({
     <SettingsRow
       title={t('botSessions.row.title')}
       description={t('botSessions.row.description')}
+      info={{ label: t('botSessions.row.title'), text: t('botSessions.row.info') }}
       control={
         <Switch
           checked={prefs.showBotSessions}
@@ -390,6 +415,10 @@ export function ApprovalReviewSessionsVisibilitySetting({
     <SettingsRow
       title={t('approvalReviewSessions.row.title')}
       description={t('approvalReviewSessions.row.description')}
+      info={{
+        label: t('approvalReviewSessions.row.title'),
+        text: t('approvalReviewSessions.row.info'),
+      }}
       control={
         <Switch
           checked={shown}
@@ -423,6 +452,22 @@ export function GroupAutoAcceptSetting({
   );
 }
 
+export function BotHopLimitRow({
+  t,
+  useBotModePrefs,
+  setBotHopLimit,
+}: BotModeSettingRowProps): ReactElement {
+  const prefs = useBotModePrefs((value) => value);
+  return (
+    <BotHopLimitSetting
+      t={t}
+      limit={prefs.botHopLimit}
+      writable={prefs.status === 'ready' && prefs.mode === 'host'}
+      save={setBotHopLimit}
+    />
+  );
+}
+
 export function AssignmentConcurrencyRow({
   t,
   useBotModePrefs,
@@ -435,6 +480,88 @@ export function AssignmentConcurrencyRow({
       limit={prefs.assignmentConcurrencyLimit}
       writable={prefs.status === 'ready' && prefs.mode === 'host'}
       save={setAssignmentConcurrencyLimit}
+    />
+  );
+}
+
+export function SessionDetailLevelSetting({
+  t,
+  useBotModePrefs,
+  setSessionDetailLevel,
+}: BotModeSettingRowProps): ReactElement {
+  const level = useBotModePrefs((value) => value.sessionDetailLevel);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.level.title')}
+      description={t('sessions.settings.level.description')}
+      data={{ 'data-setting': 'session-detail-level' }}
+      control={
+        <Select
+          label={t('sessions.settings.level.title')}
+          value={level}
+          options={SESSION_DETAIL_LEVELS.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.level.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionDetailLevel(id)) setSessionDetailLevel(id);
+          }}
+        />
+      }
+    />
+  );
+}
+
+export function SessionCollapseSetting({
+  t,
+  useBotModePrefs,
+  setSessionCollapse,
+}: BotModeSettingRowProps): ReactElement {
+  const mode = useBotModePrefs((value) => value.sessionCollapse);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.collapse.title')}
+      data={{ 'data-setting': 'session-collapse' }}
+      control={
+        <Select
+          label={t('sessions.settings.collapse.title')}
+          value={mode}
+          options={SESSION_COLLAPSE_MODES.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.collapse.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionCollapseMode(id)) setSessionCollapse(id);
+          }}
+        />
+      }
+    />
+  );
+}
+
+export function SessionFoldedRepliesSetting({
+  t,
+  useBotModePrefs,
+  setSessionFoldedReplies,
+}: BotModeSettingRowProps): ReactElement {
+  const mode = useBotModePrefs((value) => value.sessionFoldedReplies);
+  return (
+    <SettingsRow
+      title={t('sessions.settings.replies.title')}
+      data={{ 'data-setting': 'session-folded-replies' }}
+      control={
+        <Select
+          label={t('sessions.settings.replies.title')}
+          value={mode}
+          options={SESSION_FOLDED_REPLIES.map((id) => ({
+            value: id,
+            label: t(`sessions.settings.replies.${id}`),
+          }))}
+          onChange={(id) => {
+            if (isSessionFoldedReplies(id)) setSessionFoldedReplies(id);
+          }}
+        />
+      }
     />
   );
 }

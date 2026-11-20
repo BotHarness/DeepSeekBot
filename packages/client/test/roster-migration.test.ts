@@ -65,6 +65,7 @@ function hostBridge(
           ok: true,
           value: {
             pins: state.pins,
+            hidden: [],
             sectionOrder: state.sections.map((s) => s.id),
             sections: state.sections,
           },

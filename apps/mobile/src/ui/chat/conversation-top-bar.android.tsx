@@ -1,0 +1,330 @@
+import {
+  CircularProgressIndicator,
+  Column,
+  Host,
+  Icon,
+  IconButton,
+  RNHostView,
+  Row,
+  Spacer,
+  Surface,
+  Text,
+} from '@expo/ui/jetpack-compose';
+import {
+  fillMaxWidth,
+  height as nativeHeight,
+  padding,
+  semantics,
+  size,
+  testID,
+  weight,
+} from '@expo/ui/jetpack-compose/modifiers';
+import { View } from 'react-native';
+import { useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { BotAvatar } from '../bot-avatar';
+import { useDesignTheme } from '../design/theme';
+import { composeIsland } from '../design/island-compose.android';
+import { materialIconButton, radius, space } from '../design/tokens';
+import { useStrings } from '../strings';
+import type { ConversationTopBarProps } from './conversation-top-bar';
+import { ChatHeaderSurface } from './chat-header-surface.android';
+import { GroupMark } from './group-mark';
+import { HeaderBotStack } from './header-bot-stack';
+import { ModelBrandIcon } from './model-brand-icon';
+import { EngineBrandIcon } from './engine-brand-icon';
+
+const MODEL_LABEL_CHARS = 12;
+
+function clipModel(short: string): string {
+  return short.length <= MODEL_LABEL_CHARS ? short : `${short.slice(0, MODEL_LABEL_CHARS - 1)}…`;
+}
+
+export function ConversationTopBar({
+  title,
+  subtitle,
+  bot,
+  activeBots = [],
+  avatar,
+  initial,
+  connectionLabel,
+  model,
+  modelMount,
+  onBack,
+  onProfile,
+  onCall,
+  onHeight,
+  selection,
+}: ConversationTopBarProps) {
+  const theme = useDesignTheme();
+  const insets = useSafeAreaInsets();
+  const t = useStrings();
+  const [height, setHeight] = useState(0);
+  const mark = materialIconButton.container;
+  const islandHeight = Math.max(
+    theme.touch,
+    Math.ceil((theme.type.title.line + theme.type.meta.line) * theme.fontScale + space.x2 * 2),
+  );
+  const status = connectionLabel ?? subtitle;
+  const shownModel = connectionLabel === undefined ? model : undefined;
+  const modelIcon = theme.type.meta.line;
+  const action = (
+    id: string,
+    label: string,
+    source: number,
+    onClick: () => void,
+    enabled = true,
+  ) => (
+    <IconButton
+      onClick={onClick}
+      enabled={enabled}
+      colors={{ contentColor: theme.color.fg }}
+      modifiers={[
+        size(islandHeight, islandHeight),
+        testID(id),
+        semantics({ contentDescription: label }),
+      ]}
+    >
+      <Icon source={source} size={materialIconButton.iconSize} />
+    </IconButton>
+  );
+  const { surface: island, modifiers: islandLook } = composeIsland(theme, islandHeight);
+  return (
+    <View
+      ref={modelMount}
+      testID="android-chat-header"
+      pointerEvents="box-none"
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height;
+        setHeight(next);
+        onHeight(next);
+      }}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        paddingTop: insets.top,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
+    >
+      <ChatHeaderSurface
+        height={height || insets.top + theme.touch + space.x3}
+        solid={insets.top}
+      />
+      <Host
+        matchContents={{ vertical: true }}
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
+      >
+        {selection !== undefined ? (
+          <Row
+            verticalAlignment="center"
+            horizontalArrangement={{ spacedBy: space.x2 }}
+            modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
+          >
+            <Surface {...island} modifiers={islandLook}>
+              {action(
+                'chat-selection-close',
+                t.messageSelection.close,
+                require('../../../assets/header/close.xml'),
+                selection.onCancel,
+              )}
+            </Surface>
+            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-count')]}>
+              <Row
+                verticalAlignment="center"
+                modifiers={[nativeHeight(islandHeight), padding(space.x5, 0, space.x5, 0)]}
+              >
+                <Text style={{ typography: 'titleMedium', fontWeight: 'bold' }} maxLines={1}>
+                  {t.messageSelection.count(selection.count)}
+                </Text>
+              </Row>
+            </Surface>
+            <Spacer modifiers={[weight(1)]} />
+            <Surface {...island} modifiers={[...islandLook, testID('chat-selection-actions')]}>
+              <Row verticalAlignment="center">
+                {action(
+                  'chat-selection-copy',
+                  t.copy,
+                  require('../../../assets/row-icons/copy.xml'),
+                  selection.onCopy,
+                  selection.count > 0,
+                )}
+                {action(
+                  'chat-selection-screenshot',
+                  t.feedback.screenshot,
+                  require('../../../assets/row-icons/share.xml'),
+                  selection.onScreenshot,
+                  selection.count > 0,
+                )}
+              </Row>
+            </Surface>
+          </Row>
+        ) : (
+          <Row
+            verticalAlignment="center"
+            horizontalArrangement={{ spacedBy: space.x2 }}
+            modifiers={[fillMaxWidth(), padding(space.x3, space.x2, space.x3, space.x2)]}
+          >
+            <Surface {...island} modifiers={islandLook}>
+              {action(
+                'chat-back',
+                t.back,
+                require('../../../assets/header/arrow-back.xml'),
+                onBack,
+              )}
+            </Surface>
+            <Surface
+              {...island}
+              {...(onProfile === undefined ? {} : { onClick: onProfile })}
+              modifiers={[
+                weight(1),
+                ...islandLook,
+                testID('chat-identity'),
+                semantics({
+                  contentDescription: [
+                    title,
+                    shownModel?.name,
+                    shownModel?.external ? t.routingGroup.externalEngine : undefined,
+                    status,
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
+                }),
+              ]}
+            >
+              <Row
+                verticalAlignment="center"
+                horizontalArrangement={{ spacedBy: space.x3 }}
+                modifiers={[
+                  nativeHeight(islandHeight),
+                  padding(space.x2, space.x2, space.x4, space.x2),
+                ]}
+              >
+                <RNHostView modifiers={[size(mark, mark)]}>
+                  <View accessible={false} importantForAccessibility="no-hide-descendants">
+                    {bot === undefined ? (
+                      <GroupMark
+                        avatar={avatar}
+                        {...(initial === undefined ? {} : { initial })}
+                        size={mark}
+                        corner={radius.round}
+                      />
+                    ) : (
+                      <BotAvatar bot={bot} size={mark} ring={false} />
+                    )}
+                  </View>
+                </RNHostView>
+                <Column modifiers={[weight(1)]}>
+                  <Text
+                    style={{ typography: 'titleMedium', fontWeight: 'bold' }}
+                    maxLines={1}
+                    overflow="ellipsis"
+                  >
+                    {title}
+                  </Text>
+                  {status === undefined ? null : (
+                    <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+                      {activeBots.length === 0 ? null : (
+                        <RNHostView
+                          modifiers={[
+                            size(
+                              theme.type.meta.line * Math.min(3, activeBots.length) -
+                                space.x2 * (Math.min(3, activeBots.length) - 1),
+                              theme.type.meta.line,
+                            ),
+                          ]}
+                        >
+                          <HeaderBotStack bots={activeBots} size={theme.type.meta.line} />
+                        </RNHostView>
+                      )}
+                      {shownModel === undefined ? null : (
+                        <Row
+                          verticalAlignment="center"
+                          horizontalArrangement={{ spacedBy: space.x1 }}
+                          modifiers={[testID('chat-header-model')]}
+                        >
+                          <RNHostView modifiers={[size(modelIcon, modelIcon)]}>
+                            <View
+                              accessible={false}
+                              importantForAccessibility="no-hide-descendants"
+                            >
+                              {shownModel.external ? (
+                                <EngineBrandIcon
+                                  brand={shownModel.brand}
+                                  size={modelIcon}
+                                  color={theme.color.muted}
+                                />
+                              ) : (
+                                <ModelBrandIcon
+                                  brand={shownModel.brand}
+                                  size={modelIcon}
+                                  color={theme.color.muted}
+                                />
+                              )}
+                            </View>
+                          </RNHostView>
+                          <Text
+                            color={theme.color.muted}
+                            style={{ typography: 'bodySmall' }}
+                            maxLines={1}
+                          >
+                            {`${clipModel(shownModel.short)} ·`}
+                          </Text>
+                        </Row>
+                      )}
+                      <Text
+                        modifiers={[weight(1)]}
+                        color={theme.color.muted}
+                        style={{ typography: 'bodySmall' }}
+                        maxLines={1}
+                        overflow="ellipsis"
+                      >
+                        {status}
+                      </Text>
+                    </Row>
+                  )}
+                </Column>
+                {connectionLabel === undefined ? null : (
+                  <CircularProgressIndicator
+                    color={theme.color.accent}
+                    modifiers={[
+                      size(materialIconButton.iconSize, materialIconButton.iconSize),
+                      semantics({ contentDescription: connectionLabel }),
+                    ]}
+                  />
+                )}
+              </Row>
+            </Surface>
+            {onCall === undefined && onProfile === undefined ? null : (
+              <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
+                <Row verticalAlignment="center">
+                  {onCall === undefined
+                    ? null
+                    : action(
+                        'chat-call-button',
+                        t.call.button,
+                        require('../../../assets/header/call.xml'),
+                        onCall,
+                      )}
+                  {onProfile === undefined
+                    ? null
+                    : action(
+                        'chat-profile-button',
+                        t.openProfile,
+                        require('../../../assets/header/more-vert.xml'),
+                        onProfile,
+                      )}
+                </Row>
+              </Surface>
+            )}
+          </Row>
+        )}
+      </Host>
+    </View>
+  );
+}

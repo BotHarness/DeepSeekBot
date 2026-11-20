@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
@@ -24,7 +25,7 @@ function fixture(policy?: { rules?: ToolApprovalRuleStore; autoApproval?: ToolAu
     get: (id: string) => (id === channel.id ? channel : undefined),
     message: (_id: string, messageId: string) =>
       messages.find((message) => message.id === messageId),
-    appendMessage: async (_id: string, message: ChannelMessage) => {
+    appendMessage: async (_human: unknown, _id: string, message: ChannelMessage) => {
       messages.push(message);
       return message;
     },
@@ -169,11 +170,15 @@ describe('Tob CLI operations use existing Channel approval', () => {
         reason: 'Needs review',
       },
     });
-    expect(await f.channelApproval.overrideRejection('dm-tob', 'ordinary-rejection')).toMatchObject(
-      {
-        ok: true,
-      },
-    );
+    expect(
+      await f.channelApproval.overrideRejection(
+        OWNER_HUMAN_CONTEXT,
+        'dm-tob',
+        'ordinary-rejection',
+      ),
+    ).toMatchObject({
+      ok: true,
+    });
     const pending = writeAfterApproval(f.options);
     expect(await pending.result).toMatchObject({ ok: true });
     expect(pending.write).toHaveBeenCalledTimes(1);
@@ -218,7 +223,9 @@ describe('Tob CLI operations use existing Channel approval', () => {
         f.execution.arguments,
       ),
     ).toBe(true);
-    expect(await f.channelApproval.decide('tob', card.id, 'allowed-once')).toBe(true);
+    expect(
+      await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once'),
+    ).toBe(true);
     const guard = await pending;
     expect(() => guard()).not.toThrow();
 
@@ -243,8 +250,8 @@ describe('Tob CLI operations use existing Channel approval', () => {
     const one = await f.card(0),
       two = await f.card(1);
     expect(one.toolApprovalRequest!.callId).not.toBe(two.toolApprovalRequest!.callId);
-    await f.channelApproval.decide('tob', one.id, 'rejected');
-    await f.channelApproval.decide('tob', two.id, 'rejected');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', one.id, 'rejected');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', two.id, 'rejected');
     expect(await first.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
     expect(await second.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
     expect(first.write).not.toHaveBeenCalled();
@@ -309,7 +316,7 @@ describe('Tob CLI operations use existing Channel approval', () => {
     const f = fixture();
     const pending = approveTobCliOperation(f.options);
     const card = await f.card();
-    await f.channelApproval.decide('tob', card.id, 'allowed-once');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once');
     const guard = await pending;
     f.setScope('changed');
     expect(() => guard()).toThrow('approval-authority-changed');
@@ -320,7 +327,7 @@ describe('Tob CLI operations use existing Channel approval', () => {
     const pending = writeAfterApproval(f.options);
     const card = await f.card();
     f.revoke();
-    await f.channelApproval.decide('tob', card.id, 'allowed-once');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once');
     expect(await pending.result).toMatchObject({
       ok: false,
       error: { code: 'agent-context-expired' },
@@ -400,12 +407,18 @@ describe('disruptive scoped CLI operations require Human review', () => {
       expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
       expect(template).not.toHaveBeenCalled();
       expect(review).not.toHaveBeenCalled();
-      expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-exact')).toBe(false);
-      expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-all')).toBe(false);
+      expect(
+        await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-always-exact'),
+      ).toBe(false);
+      expect(
+        await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-always-all'),
+      ).toBe(false);
       expect(createPending).toHaveBeenCalledWith(
         expect.objectContaining({ kind: 'exact', toolName: 'deepseekbot ' + command }),
       );
-      expect(await f.channelApproval.decide('tob', card.id, 'allowed-once')).toBe(true);
+      expect(
+        await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once'),
+      ).toBe(true);
       expect(await pending.result).toMatchObject({ ok: true });
       expect(pending.write).toHaveBeenCalledTimes(1);
       expect(f.channelApproval.activeMessageIds()).toEqual([]);
@@ -438,14 +451,16 @@ describe('disruptive scoped CLI operations require Human review', () => {
         reason: 'Needs review',
       },
     });
-    expect(await f.channelApproval.overrideRejection('dm-tob', 'old-rejection')).toMatchObject({
+    expect(
+      await f.channelApproval.overrideRejection(OWNER_HUMAN_CONTEXT, 'dm-tob', 'old-rejection'),
+    ).toMatchObject({
       ok: true,
     });
     const pending = writeAfterApproval({ ...f.options, operation });
     const card = await f.card();
     expect(pending.write).not.toHaveBeenCalled();
     expect(card.toolApprovalRequest!.externalDecision).toBe('operation');
-    await f.channelApproval.decide('tob', card.id, 'rejected');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'rejected');
     expect(await pending.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
   });
 
@@ -470,7 +485,7 @@ describe('disruptive scoped CLI operations require Human review', () => {
       const pending = writeAfterApproval({ ...f.options, operation: release('release-restart') });
       const card = await f.card();
       if (outcome === 'cancelled') f.controller.abort();
-      else await f.channelApproval.decide('tob', card.id, 'rejected');
+      else await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'rejected');
       expect(await pending.result).toMatchObject({
         ok: false,
         error: { code: outcome === 'rejected' ? 'approval-denied' : 'approval-cancelled' },
@@ -499,7 +514,7 @@ describe('disruptive scoped CLI operations require Human review', () => {
     const f = fixture();
     const pending = approveTobCliOperation({ ...f.options, operation: release('release-restart') });
     const card = await f.card();
-    await f.channelApproval.decide('tob', card.id, 'allowed-once');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once');
     const guard = await pending;
     f.setScope('new-scope');
     expect(() => guard()).toThrow('approval-authority-changed');
@@ -524,7 +539,63 @@ describe('disruptive scoped CLI operations require Human review', () => {
       target: 'research',
       expectedRevision: 2,
     });
-    await f.channelApproval.decide('tob', card.id, 'rejected');
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'rejected');
     await pending.result;
+  });
+});
+
+describe('typed native Shell CLI effects under Full Access', () => {
+  const externalOperation = (command: string): TobCliWriteProposal => ({
+    command,
+    target: 'fixture',
+    previousValue: null,
+    patch: {},
+  });
+
+  it.each(['git-install', 'group-invite', 'voice-provider-test'])(
+    'lets Full Access run irreversible external %s without a card',
+    async (command) => {
+      const f = fixture();
+      f.setFullAccess(true);
+      const pending = writeAfterApproval({ ...f.options, operation: externalOperation(command) });
+      expect(await pending.result).toMatchObject({ ok: true });
+      expect(pending.write).toHaveBeenCalledTimes(1);
+      expect(f.channelApproval.requests('tob')).toEqual([]);
+    },
+  );
+});
+
+describe('declared CLI management keeps caller authority separate', () => {
+  it('requires an explicit exact-command decision with zero model calls and fences revocation', async () => {
+    const review = vi.fn(async () => ({ outcome: 'allow' as const, reason: 'Allowed' }));
+    const f = fixture({
+      autoApproval: {
+        template: () => ({ name: 'all', text: 'Allow everything' }),
+        review,
+        log: vi.fn(),
+      },
+    });
+    f.setFullAccess(true);
+    const operation: TobCliWriteProposal = {
+      command: 'grant-write-set',
+      target: 'grant-write-set',
+      via: 'cli',
+      previousValue: null,
+      patch: {
+        argv: ['grant-write-set', 'bot', '--grant', 'grant', '--enabled', '--confirm'],
+        stdinBytes: 2,
+        stdinSha256: 'exact-stdin-digest',
+      },
+    };
+    const pending = approveTobCliOperation({ ...f.options, operation });
+    const card = await f.card();
+    expect(JSON.parse(card.toolApprovalRequest!.input)).toMatchObject(operation);
+    expect(review).not.toHaveBeenCalled();
+    await f.channelApproval.decide(OWNER_HUMAN_CONTEXT, 'tob', card.id, 'allowed-once');
+    const guard = await pending;
+    expect(() => guard()).not.toThrow();
+    f.revoke();
+    expect(() => guard()).toThrow('agent-context-expired');
+    expect(review).not.toHaveBeenCalled();
   });
 });

@@ -114,8 +114,8 @@ const login = async (client) => {
 const _inbox = async (client = page) => {
   await client.bringToFront();
   await client.evaluate(() => document.querySelector('.bh-panel-activity')?.click());
-  await client.waitForSelector('.bh-human-inbox-tabs');
-  await click('.bh-human-inbox-tabs button', '需要我处理', client);
+  await client.waitForSelector('.bh-activity-list-tabs');
+  await click('.bh-activity-list-tabs button', '需要我处理', client);
   await delay(700);
 };
 const _openDM = async (id, client = page) => {
@@ -306,7 +306,7 @@ try {
       );
       assert.equal((await rpc('humanAttentionStatus')).unreadCount, 1);
       await click(
-        '[data-bot-id="' + scene.decision + '"] .bh-human-inbox-row-actions button',
+        '[data-bot-id="' + scene.decision + '"] .bh-activity-list-row-actions button',
         '回答问题',
       );
       await page.waitForSelector('.bh-question-card');

@@ -1,3 +1,4 @@
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 import {
   withInlineMentions,
   mentionPeople,
@@ -5,17 +6,28 @@ import {
 } from '../messaging/mention-text.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
+import { parseGenuiContent } from '../channels/genui.js';
+import { GENUI_DOCUMENT_LIMITS } from '../channels/genui-document.js';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { MAX_BOT_HOPS, type ChannelMessage } from '../channels/channel.js';
+import type { ChannelMessage } from '../channels/channel.js';
+import { BotHopLimitReached } from '../channels/hop-limit.js';
+import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../channels/quotes.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
+import type { VoiceAttachOutcome } from '../voice/messages.js';
+import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
 
-export class BotMessageError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
+function unsupportedVoice(): VoiceAttachOutcome {
+  return {
+    status: 'failed',
+    code: 'unsupported-destination',
+    message: 'Voice messages are available in local Channels only; the text was sent.',
+  };
+}
+
+export class BotMessageError extends HarnessError {
+  constructor(code: string, message: string) {
+    super(message, code);
     this.name = 'BotMessageError';
   }
 }
@@ -23,13 +35,85 @@ export class BotMessageError extends Error {
 const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
 
+const HOP_LIMIT_NOTICE =
+  'Not sent: this Bot-to-Bot chain used its whole hop budget since the last Human message, so no colleague was messaged or woken. Tell the Humans in this conversation where the work stands: a Human can continue by messaging you directly or @-mentioning you, which starts a new chain, or raise the limit in Settings → Messaging. Do not retry the same @.';
+
 function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const woken = new Set((message.deliveries ?? []).map((delivery) => delivery.botSlug));
-  const reason =
-    (message.botCausation?.hop ?? 0) > MAX_BOT_HOPS ? 'collaboration-hop-limit' : 'not-admitted';
   return [...new Set(targets)]
-    .filter((botSlug) => !woken.has(botSlug))
-    .map((botId) => ({ botId, reason }));
+    .filter((botSlug) => !woken.has(botSlug) && !botSlug.startsWith('remote:'))
+    .map((botId) => ({ botId, reason: 'not-admitted' as const }));
+}
+
+function hopLimitRefusal(error: BotHopLimitReached, channelId: string | undefined): string {
+  return JSON.stringify({
+    status: 'refused',
+    ...(channelId === undefined ? {} : { channelId }),
+    reason: error.code,
+    hop: error.hop,
+    hopLimit: error.limit,
+    notice: HOP_LIMIT_NOTICE,
+  });
+}
+
+const DESTINATION_FIELDS = [
+  'source_event_id',
+  'channel_id',
+  'grant_id',
+  'bot_id',
+  'human_id',
+  'binding_id',
+] as const;
+
+const OPTIONAL_FIELDS = [
+  ...DESTINATION_FIELDS,
+  'conversation_id',
+  'observation_id',
+  'draft_id',
+  'recover',
+  'attachments',
+  'quotes',
+  'mention_bot_ids',
+  'mention_human_ids',
+  'freshness_override',
+  'resolve_inbox_ids',
+  'voice',
+] as const;
+
+export type SessionLinkKind = 'created' | 'sent';
+
+const SESSION_MENTION = /\[([^\]\n]{1,200})\]\(session:([A-Za-z0-9_.:-]{1,200})\)/gu;
+
+export function sessionMentionIds(body: string): string[] {
+  return [...new Set([...body.matchAll(SESSION_MENTION)].map((match) => match[2]!))];
+}
+
+export function withoutSessionMentions(body: string): string {
+  return body.replace(SESSION_MENTION, (_match, title: string) => title);
+}
+
+function isEmptyOption(value: unknown): boolean {
+  if (value === undefined || value === null || value === false) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') {
+    const override = value as { draftVersion?: unknown; reason?: unknown };
+    return (
+      Object.keys(value).every((key) => key === 'draftVersion' || key === 'reason') &&
+      (override.draftVersion === undefined ||
+        override.draftVersion === null ||
+        override.draftVersion === 0) &&
+      isEmptyOption(override.reason)
+    );
+  }
+  return false;
+}
+
+function withoutEmptyOptions<T extends object>(args: T): T {
+  const normalized = { ...args } as Record<string, unknown>;
+  for (const field of OPTIONAL_FIELDS)
+    if (isEmptyOption(normalized[field])) delete normalized[field];
+  return normalized as unknown as T;
 }
 
 export function createBotMessageTool(
@@ -38,11 +122,12 @@ export function createBotMessageTool(
     settle(channelId: string, body: string): void;
     discard(channelId: string): void;
   },
+  sentToHumanDm?: (messageId: string) => void,
 ) {
   return defineTool({
     name: 'bot_send_message',
     description:
-      'Explicitly send a text message to a Channel or external IM. Reply using a trusted source_event_id, or proactively name channel_id, bot_id, grant_id, or binding_id plus conversation_id; provide exactly one destination. Decide whether a message is useful: answer quick tasks directly, report meaningful changes, ask necessary questions, and respect silence. Ordinary assistant text is private. end_turn ends only this turn after delivery and requested Inbox resolution succeed; a question can end the turn without resolving unfinished work. Group sends retain draft review: use the returned observation and draft identifiers to revise or recover a held send. Unknown external delivery never resolves Inbox or ends the turn.',
+      'Explicitly send a text message to a Channel or external IM. Reply using a trusted source_event_id, or proactively name channel_id, bot_id, grant_id, or binding_id plus conversation_id; provide exactly one destination. Decide whether a message is useful: answer quick tasks directly, report meaningful changes, ask necessary questions, and respect silence. Ordinary assistant text is private. end_turn ends only this turn after delivery and requested Inbox resolution succeed; a question can end the turn without resolving unfinished work. Group sends retain draft review: use the returned observation and draft identifiers to revise or recover a held send. Unknown external delivery never resolves Inbox or ends the turn. For a remote Bot DM, delivery-unknown means the receiver may already have accepted it: inspect existing history and report uncertainty; never resend automatically or switch destinations to retry. unable-to-deliver and network-denied are refusals, not instructions to retry; follow the explicit Human policy for any later attempt.',
     parameters: {
       source_event_id: {
         type: 'string',
@@ -52,6 +137,11 @@ export function createBotMessageTool(
       channel_id: {
         type: 'string',
         description: 'Explicit authorized Channel destination for a proactive send.',
+      },
+      human_id: {
+        type: 'string',
+        description:
+          'Proactively DM this Host Human; requires the Bot proactive switch, current audience and no per-Bot opt-out.',
       },
       bot_id: {
         type: 'string',
@@ -90,6 +180,19 @@ export function createBotMessageTool(
           },
         },
       },
+      quotes: {
+        type: 'array',
+        description: `Cite up to ${MAX_CHANNEL_QUOTES} earlier messages of the destination Channel that this message answers, shown to the Human above your text. Give message_id, and text only to cite a part: copy that excerpt word for word from the message. Add note to answer that one quote right under it. Local Channels only.`,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            message_id: { type: 'string', required: true },
+            text: { type: 'string' },
+            note: { type: 'string' },
+          },
+        },
+      },
       mention_bot_ids: {
         type: 'array',
         items: { type: 'string' },
@@ -109,7 +212,22 @@ export function createBotMessageTool(
         },
         description: 'Explicit Group review override for the current draft version and reason.',
       },
-      body: { type: 'string', required: true, description: 'The actual message to deliver.' },
+      voice: {
+        type: 'boolean',
+        description:
+          'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
+      },
+      body: {
+        type: 'string',
+        required: true,
+        description:
+          'The actual message to deliver. To point the Human at one of your Assignments inside the text, write [Assignment title](session:<session id>) inline; it shows as a clickable chip, and external IM gets the plain title. To link a Human DM message to the Assignments it reports on, call link_message_sessions with its messageId after sending.',
+      },
+      genui_json: {
+        type: 'string',
+        description:
+          'Optional complete GenUI JSON for a Human DM only (256 KiB maximum). Prefer version:2, snapshotId, observedAt ISO date, title, html (self-contained HTML/CSS/local JavaScript, at most 192 KiB UTF-8). No network or external resources. The isolated compiler provides the global genui bridge; no Host APIs. Optional stateContract:{version:1,fields:{key:{type:string|number|boolean|choice,initial,...}}} declares at most 16 primitive fields (string maxLength<=500; number min/max; choice options<=20). Legacy version:1 reports remain supported within 64 KiB. body is the readable summary. Refresh uses a new snapshotId and predecessorMessageId.',
+      },
       resolve_inbox_ids: {
         type: 'array',
         items: { type: 'string' },
@@ -126,17 +244,15 @@ export function createBotMessageTool(
       schema: { type: 'string' },
       render: (_args, value) => [{ type: 'text', text: value }],
     },
-    execute: async (args, exec) => {
+    execute: async (rawArgs, exec) => {
       const run = current();
       exec.signal.throwIfAborted();
-      if (
-        [args.source_event_id, args.channel_id, args.grant_id, args.bot_id, args.binding_id].filter(
-          (id) => id !== undefined,
-        ).length !== 1
-      )
+      const args = withoutEmptyOptions(rawArgs);
+      const destinations = DESTINATION_FIELDS.filter((field) => args[field] !== undefined);
+      if (destinations.length !== 1)
         throw new BotMessageError(
           'destination-required',
-          'Choose exactly one trusted reply source or explicit destination.',
+          `Choose exactly one trusted reply source or explicit destination (got: ${destinations.join(', ') || 'none'}).`,
         );
       if ((args.binding_id === undefined) !== (args.conversation_id === undefined))
         throw new BotMessageError(
@@ -157,7 +273,12 @@ export function createBotMessageTool(
         throw new BotMessageError('unavailable-source', 'The trusted reply source is unavailable.');
       const external =
         reply?.kind === 'external' || args.grant_id !== undefined || args.binding_id !== undefined;
-      let channelId = reply?.kind === 'channel' ? reply.channelId : args.channel_id;
+      let channelId =
+        args.human_id === undefined
+          ? reply?.kind === 'channel'
+            ? reply.channelId
+            : args.channel_id
+          : run.channels.startHumanDm?.(args.human_id).id;
       const channel =
         external || args.bot_id !== undefined
           ? undefined
@@ -183,6 +304,19 @@ export function createBotMessageTool(
           'invalid-review',
           'Recovery requires draft_id and a fresh observation_id.',
         );
+      const genui =
+        args.genui_json === undefined
+          ? undefined
+          : (() => {
+              if (external || channel?.kind !== 'human-dm' || !args.body.trim())
+                throw new BotMessageError(
+                  'unsupported-genui-destination',
+                  'Reports require a Human DM and a readable summary.',
+                );
+              if (new TextEncoder().encode(args.genui_json).length > GENUI_DOCUMENT_LIMITS.bytes)
+                throw new BotMessageError('invalid-genui', 'Report JSON exceeds its budget.');
+              return parseGenuiContent(JSON.parse(args.genui_json));
+            })();
       if (
         args.freshness_override &&
         (!args.draft_id ||
@@ -196,6 +330,25 @@ export function createBotMessageTool(
           'invalid-review',
           'Override requires the current draft, observation, version and a reason.',
         );
+      const quotes =
+        args.quotes === undefined
+          ? undefined
+          : (() => {
+              if (external || args.bot_id !== undefined)
+                throw new BotMessageError(
+                  'unsupported-quotes',
+                  'Quotes need a local Channel destination: reply with source_event_id or name channel_id.',
+                );
+              const parsed = parseQuotesInput(
+                args.quotes!.map((quote) => ({
+                  messageId: quote.message_id,
+                  ...(quote.text === undefined ? {} : { text: quote.text }),
+                  ...(quote.note === undefined ? {} : { note: quote.note }),
+                })),
+              );
+              if (typeof parsed === 'string') throw new BotMessageError('invalid-quotes', parsed);
+              return parsed;
+            })();
       if ((args.attachments?.length ?? 0) > 10)
         throw new BotMessageError('invalid-attachments', 'At most ten attachments are supported.');
       if (
@@ -221,6 +374,14 @@ export function createBotMessageTool(
           'unsupported-attachment-send',
           'Discover the existing Bot DM Channel to send attachments.',
         );
+      const unknown = sessionMentionIds(args.body).filter(
+        (sessionId) => run.assignments.inspect(sessionId) === undefined,
+      );
+      if (unknown.length > 0)
+        throw new BotMessageError(
+          'invalid-session-links',
+          `Unknown Assignment Session in an inline mention: ${unknown.join(', ')}.`,
+        );
       const ids = args.resolve_inbox_ids;
       if (
         ids !== undefined &&
@@ -231,18 +392,26 @@ export function createBotMessageTool(
           'Only the explicitly referenced reply source can be resolved by this slice.',
         );
       let messageId: string;
+      let voice: VoiceAttachOutcome | undefined;
       let intentId: string | undefined;
       let unwoken: ReturnType<typeof notWoken> = [];
       if (args.bot_id !== undefined) {
-        const sent = await run.channels.sendToBot({
-          botSlug: args.bot_id,
-          body: args.body,
-          deliveryKey: String(exec.callId),
-        });
+        let sent: Awaited<ReturnType<typeof run.channels.sendToBot>>;
+        try {
+          sent = await run.channels.sendToBot({
+            botSlug: args.bot_id,
+            body: withoutSessionMentions(args.body),
+            deliveryKey: String(exec.callId),
+          });
+        } catch (error) {
+          if (error instanceof BotHopLimitReached) return hopLimitRefusal(error, undefined);
+          throw error;
+        }
         messageId = sent.message.id;
         channelId = sent.channelId;
         unwoken = notWoken(sent.message, [args.bot_id]);
         drafts?.settle(channelId, sent.message.body);
+        if (args.voice) voice = unsupportedVoice();
       } else if (external) {
         const messaging = run.externalMessaging;
         if (messaging === undefined)
@@ -257,12 +426,13 @@ export function createBotMessageTool(
           args.source_event_id !== undefined && /<@!?[A-Za-z0-9_-]+>/u.test(args.body)
             ? messaging.read(args.source_event_id)
             : undefined;
+        const plain = withoutSessionMentions(args.body);
         const body =
           source === undefined
-            ? withoutMentionMarkup(args.body)
+            ? withoutMentionMarkup(plain)
             : withInlineMentions(
                 source.platform,
-                args.body,
+                plain,
                 mentionPeople(source.event.actor, source.event.mentions),
               );
         const result = args.attachments?.length
@@ -299,13 +469,16 @@ export function createBotMessageTool(
           });
         messageId = result.receipt.messageId;
         intentId = result.id;
+        if (args.voice) voice = unsupportedVoice();
       } else {
         try {
           const message = await run.channels.send({
             channelId: channelId!,
             body: args.body,
             deliveryKey: String(exec.callId),
+            ...(genui === undefined ? {} : { genui }),
             ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
+            ...(quotes === undefined ? {} : { quotes }),
             ...(args.mention_bot_ids === undefined ? {} : { mentionBotIds: args.mention_bot_ids }),
             ...(args.mention_human_ids === undefined
               ? {}
@@ -318,9 +491,15 @@ export function createBotMessageTool(
             ...(args.recover === undefined ? {} : { recover: args.recover }),
             ...(reply?.kind !== 'channel'
               ? {}
-              : { replyTo: reply.messageId, replySourceEventId: args.source_event_id! }),
+              : reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
+                ? { replySourceEventId: args.source_event_id! }
+                : {
+                    replyTo: reply.messageId,
+                    replySourceEventId: args.source_event_id!,
+                  }),
           });
           messageId = message.id;
+          if (channel?.kind === 'human-dm') sentToHumanDm?.(message.id);
           unwoken = notWoken(
             message,
             channel?.kind === 'bot-dm'
@@ -330,11 +509,30 @@ export function createBotMessageTool(
               : (message.mentions ?? []).map((mention) => mention.botSlug),
           );
           drafts?.settle(channelId!, message.body);
+          if (args.voice)
+            voice =
+              run.channels.attachVoice === undefined
+                ? {
+                    status: 'failed',
+                    code: 'voice-unavailable',
+                    message: 'Voice messages are unavailable on this Host.',
+                  }
+                : await run.channels.attachVoice({
+                    channelId: channelId!,
+                    messageId,
+                    signal: exec.signal,
+                  });
         } catch (error) {
           if (error instanceof SendReviewRequired) {
             drafts?.discard(error.outcome.channelId);
             return JSON.stringify(error.outcome);
           }
+          if (error instanceof BotHopLimitReached) {
+            drafts?.discard(channelId!);
+            return hopLimitRefusal(error, channelId);
+          }
+          if (error instanceof ChannelQuoteError)
+            throw new BotMessageError(error.code, error.message);
           if (error instanceof GroupReplySourceRevoked) {
             drafts?.discard(error.channelId);
             return JSON.stringify({
@@ -380,6 +578,7 @@ export function createBotMessageTool(
         messageId,
         ...(intentId === undefined ? {} : { intentId }),
         ...(unwoken.length === 0 ? {} : { notWoken: unwoken, notice: NOT_WOKEN_NOTICE }),
+        ...(voice === undefined ? {} : { voice }),
         inboxResolution,
       });
     },

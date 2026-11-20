@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createDmActivityPreferences, visibleDmActivity } from '../src/host/dm-activity';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 
 describe('device-local DM activity preferences', () => {
   it('persists each Host and Bot independently, including changes before storage finishes loading', async () => {

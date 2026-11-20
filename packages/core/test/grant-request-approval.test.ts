@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { realpathSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -27,8 +28,8 @@ function fixture() {
     },
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const channel = core.channels.getOrCreateDm('ada', 'Ada')!;
-  const methods = createBridgeMethods({ ...core });
+  const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const payload = {
     slug: 'ada',
     channelId: channel.id,
@@ -42,7 +43,7 @@ function fixture() {
     methods,
     payload,
     request: () =>
-      core.channels.appendMessage(channel.id, {
+      core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: 'request',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -58,6 +59,26 @@ function fixture() {
 }
 
 describe('Host workspace request approval', () => {
+  it('upgrades and replays the same directory through a replacement Workspace registration', async () => {
+    const f = fixture();
+    try {
+      const original = await f.core.grants.create('ada', f.workspace.id);
+      f.workspace.id = 'replacement';
+      await f.request();
+      const payload = { ...f.payload, workspaceId: f.workspace.id };
+      const expected = {
+        ok: true,
+        value: {
+          grant: { id: original.id, workspaceId: original.workspaceId, orchestratorWrite: true },
+        },
+      };
+      expect(await f.methods.grantRequestApprove(payload)).toMatchObject(expected);
+      expect(await f.methods.grantRequestApprove(payload)).toMatchObject(expected);
+      expect(f.core.grants.list('ada')).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  });
   it('publishes writable authority with the decision and accepts one concurrent decision', async () => {
     const f = fixture();
     try {
@@ -89,6 +110,11 @@ describe('Host workspace request approval', () => {
       expect(published).not.toContain(false);
       const first = results[0];
       if (!first?.ok) throw new Error('Expected a committed approval');
+      expect(first.value.message.author).toEqual({
+        kind: 'human',
+        humanId: OWNER_HUMAN_CONTEXT.humanId,
+        displayName: 'Human',
+      });
       expect(await f.methods.grantRequestApprove(f.payload)).toMatchObject({
         ok: true,
         value: { grant: first.value.grant, message: { id: first.value.message.id } },
@@ -115,8 +141,8 @@ describe('Host workspace request approval', () => {
         const append = f.core.channels.appendMessageOnce.bind(f.core.channels);
         const injected = vi
           .spyOn(f.core.channels, 'appendMessageOnce')
-          .mockImplementationOnce((id, message, preview, origin, commit) =>
-            append(id, message, preview, origin, (db) => {
+          .mockImplementationOnce((human, id, message, preview, origin, commit) =>
+            append(human, id, message, preview, origin, (db) => {
               commit?.(db);
               throw new Error('injected-after-grant-before-decision');
             }),

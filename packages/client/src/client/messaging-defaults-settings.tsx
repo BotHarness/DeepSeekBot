@@ -1,6 +1,6 @@
+import { Switch } from './ds/switch.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 import type {
   MessagingDefaults,
   MessagingDefaultsInput,
@@ -10,7 +10,7 @@ import { loadMessagingDefaults, saveMessagingDefaults } from './bridge.js';
 import { Note } from './ds/note.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { Select } from './ds/select.js';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SettingsGroupPart, SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { useMountedResource } from './mounted-resource.js';
 
 type Platform = MessagingDefaultsInput['platform'];
@@ -138,13 +138,13 @@ function PlatformDefaultsSettings({
   };
   if (draft === undefined)
     return (
-      <div ref={mount}>
-        {error ? <Note tone="danger">{error}</Note> : <Note>{t('im.loading')}</Note>}
-      </div>
+      <SettingsGroupPart rootRef={mount}>
+        <SettingsRow title={error ? <Note tone="danger">{error}</Note> : t('im.loading')} />
+      </SettingsGroupPart>
     );
   const weixin = platform === 'weixin';
   return (
-    <div ref={mount} aria-busy={busy}>
+    <SettingsGroupPart rootRef={mount} busy={busy}>
       {weixin ? null : (
         <>
           <SettingsRow
@@ -168,7 +168,10 @@ function PlatformDefaultsSettings({
               <Select
                 label={t('defaults.wake')}
                 value={draft.wake}
-                options={WAKE_MODES.map((mode) => ({ value: mode, label: t(`im.wake.${mode}`) }))}
+                options={WAKE_MODES.map((mode) => ({
+                  value: mode,
+                  label: t(`im.wake.${mode}`),
+                }))}
                 onChange={(wake) => apply({ wake })}
               />
             }
@@ -245,7 +248,7 @@ function PlatformDefaultsSettings({
           }
         />
       )}
-      {error ? <Note tone="danger">{error}</Note> : null}
-    </div>
+      {error ? <SettingsRow title={<Note tone="danger">{error}</Note>} /> : null}
+    </SettingsGroupPart>
   );
 }

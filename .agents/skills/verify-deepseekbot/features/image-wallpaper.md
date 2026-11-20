@@ -1,5 +1,15 @@
 # DeepSeekBot image wallpaper (T5)
 
+## Sources
+
+- `packages/client/src/client/wallpaper*.{ts,tsx}`
+- `packages/core/src/bots/cli-wallpaper.ts`
+
+## Terms
+
+- Settings
+- Panel
+
 ## Sub-features
 
 - Wallpaper library: a horizontal strip with a dashed **Add** tile first (click or drop several files), a **None** tile, then every saved item; picking a tile applies it at once.

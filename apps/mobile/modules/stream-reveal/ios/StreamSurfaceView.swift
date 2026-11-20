@@ -32,7 +32,11 @@ final class StreamSurfaceView: ExpoView {
 
   // Fabric retains each child's final frame; only its parent clipping layer animates.
   override func mountChildComponentView(_ childComponentView: UIView, index: Int) {
-    surface.insertSubview(childComponentView, at: index)
+    if index < surface.subviews.count {
+      surface.insertSubview(childComponentView, belowSubview: surface.subviews[index])
+    } else {
+      surface.addSubview(childComponentView)
+    }
     surface.layer.insertSublayer(background, at: 0)
   }
 

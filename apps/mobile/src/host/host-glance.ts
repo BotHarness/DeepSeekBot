@@ -1,12 +1,17 @@
-import type { ConnectionState, HostClient } from './client';
-import type { SavedHost } from './hosts';
-import { actionCount, type InboxSnapshot } from './inbox';
-import type { HumanAttentionPage } from './wire';
+import { readHumanAttention } from '@botharness/host-client/people';
+import type { ConnectionState, DeviceRefusal, HostClient } from '@botharness/host-client/client';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import { actionCount, type InboxSnapshot } from '@botharness/host-client/inbox';
 
-export type HostStatus = 'online' | 'offline' | 'checking';
+export type HostStatus = 'online' | 'offline' | 'checking' | 'refused';
+
+export function hostUnavailable(status: HostStatus): boolean {
+  return status === 'offline' || status === 'refused';
+}
 
 export interface HostGlance {
   status: HostStatus;
+  refusal?: DeviceRefusal;
   pending?: number;
   unread?: number;
 }
@@ -22,7 +27,10 @@ export function liveGlance(connection: ConnectionState, inbox: InboxSnapshot): H
     case 'connecting':
     case 'reconnecting':
       return { status: 'checking' };
-    default:
+    case 'refused':
+      return { status: 'refused', refusal: connection.code };
+    case 'stopped':
+    case 'unreachable':
       return { status: 'offline' };
   }
 }
@@ -31,7 +39,7 @@ export async function glanceHost(client: HostClient): Promise<HostGlance> {
   try {
     const [action, unread] = await Promise.all(
       (['action', 'unread'] as const).map((category) =>
-        client.call<HumanAttentionPage>('humanAttention', { category, limit: LIMIT }),
+        readHumanAttention(client, { category, limit: LIMIT }),
       ),
     );
     return { status: 'online', pending: action!.items.length, unread: unread!.items.length };

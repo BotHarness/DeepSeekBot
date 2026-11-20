@@ -81,12 +81,12 @@ describe("developer design surface", () => {
     const context = PAGES.find((page) => page.slug === "dev/design/context");
 
     expect(context?.en?.title).toBe("BotHarness Product Context");
-    expect(context?.en?.source).toBe("CONTEXT.md");
+    expect(context?.en?.source).toBe("GLOSSARY.md");
     expect(context?.zh?.title).toBe("BotHarness 产品术语");
-    expect(context?.zh?.source).toBe("CONTEXT.zh.md");
+    expect(context?.zh?.source).toBe("GLOSSARY.zh.md");
 
-    const english = readFileSync(resolve(ROOT, "CONTEXT.md"), "utf8");
-    const chinese = readFileSync(resolve(ROOT, "CONTEXT.zh.md"), "utf8");
+    const english = readFileSync(resolve(ROOT, "GLOSSARY.md"), "utf8");
+    const chinese = readFileSync(resolve(ROOT, "GLOSSARY.zh.md"), "utf8");
     const leadingWords = (source: string) =>
       [...source.matchAll(/^\*\*(.+)\*\*[:：]/gm)].map((match) => match[1]);
 

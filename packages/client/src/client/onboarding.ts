@@ -3,6 +3,7 @@ import type { ClientTelemetryEventName } from '../../../core/src/telemetry/event
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelRouteView } from './bridge.js';
 import { requestCreation } from './create-request.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
@@ -154,6 +155,8 @@ export class OnboardingController {
     const receipt = this.state.receipt;
     if (!receipt?.journey || receipt.journey.done || receipt.tutorial !== 'not-started')
       return false;
+    const acks = hostAcknowledgements();
+    if (acks !== undefined) return acks.value(INTRO_ACK, introKey(receipt.profileId)) !== '1';
     try {
       return localStorage.getItem(introKey(receipt.profileId)) !== '1';
     } catch {
@@ -193,9 +196,12 @@ export class OnboardingController {
       });
     } else this.introEvent('onboarding:intro_dismiss', { step, via: outcome?.via ?? 'close' });
     if (!receipt) return;
-    try {
-      localStorage.setItem(introKey(receipt.profileId), '1');
-    } catch {}
+    const acks = hostAcknowledgements();
+    if (acks !== undefined) acks.record(INTRO_ACK, '1', introKey(receipt.profileId));
+    else
+      try {
+        localStorage.setItem(introKey(receipt.profileId), '1');
+      } catch {}
     if (
       receipt.tutorial === 'not-started' &&
       document.querySelector('[data-workspace-enabled]') !== null
@@ -464,7 +470,7 @@ export class OnboardingController {
     this.update({ sendOpen: false });
   }
   async saveModel(
-    route: ModelRouteView,
+    choice: ModelRouteView | { groupId: string; effort?: string },
     globalDefault: boolean,
     expectedRevision: number,
   ): Promise<void> {
@@ -472,8 +478,15 @@ export class OnboardingController {
     if (!target || this.state.busy) return;
     this.update({ busy: true, error: undefined });
     try {
-      await this.actions.onboardingModel(target.slug, expectedRevision, route, globalDefault);
-      invalidateModelPlan(target.slug);
+      if ('groupId' in choice && !globalDefault)
+        await this.actions.chooseModelPlanGroup(
+          target.slug,
+          choice.groupId,
+          expectedRevision,
+          choice.effort,
+        );
+      else await this.actions.onboardingModel(target.slug, expectedRevision, choice, globalDefault);
+      invalidateModelPlan(target.slug, this.actions);
       this.update({
         modelOpen: false,
         modelTarget: undefined,
@@ -501,12 +514,13 @@ export class OnboardingController {
     }
   }
 }
+const INTRO_ACK = 'onboarding-intro';
 function introKey(profileId: string): string {
   return `botharness/onboarding/intro-v1/${profileId}`;
 }
 
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
-export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+export const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
 type IntroProfile = {
   personas?: readonly OnboardingPersona[];
   details?: readonly PersonaDetail[];

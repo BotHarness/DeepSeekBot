@@ -1,6 +1,6 @@
 # GrokBot-like Multi-Agent IM on DeepSeek Harness
 
-> **状态**：另一位架构师的 RFC 输入，保留用于追溯；它不是当前 BotHarness 的 normative architecture。经过 grill 后的产品术语以 `CONTEXT.md` 为准，整合架构以 living architecture 为准，取舍与理由以 `docs/adr/0035`–`0045` 为准；可复用的 DSH 模型已整理进 `dsh-plugin-dev` skill。
+> **状态**：另一位架构师的 RFC 输入，保留用于追溯；它不是当前 BotHarness 的 normative architecture。经过 grill 后的产品术语以 `GLOSSARY.md` 为准，整合架构以 living architecture 为准，取舍与理由以 `docs/adr/0035`–`0045` 为准；可复用的 DSH 模型已整理进 `dsh-plugin-dev` skill。
 >
 > **文档类型**：Architecture / Context / RFC Draft
 > **目标**：在 DeepSeek Harness（DSH）上设计一个类似 GrokBot 的多人 IM + Bot Runtime。

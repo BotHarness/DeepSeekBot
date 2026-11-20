@@ -39,8 +39,8 @@ describe('functional Panel appearance owner', () => {
     owner.update({ mode: 'light', preset: 'warm-amber' });
     config = owner.getSnapshot().config;
     expect(panelMaterials(config.modes.light, 'light', messages)).toMatchObject({
-      header: { color: '#123456', blur: 14 },
-      body: { opacity: 82 },
+      header: { color: '#123456', blur: 8 },
+      body: { opacity: 64 },
     });
     expect(config.modes.dark.panels?.[messages]).toEqual({ body: { blur: 9 } });
     expect(config.modes.light.panels?.[home]).toEqual({ body: { opacity: 28 } });

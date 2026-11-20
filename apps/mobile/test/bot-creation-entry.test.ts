@@ -1,5 +1,8 @@
 import { expect, it, vi } from 'vitest';
-import { createBotCreationController, type CreationRecord } from '../src/host/bot-creation';
+import {
+  createBotCreationController,
+  type CreationRecord,
+} from '@botharness/host-client/bot-creation';
 import { enterBotCreation } from '../src/host/bot-creation-entry';
 
 const file = {

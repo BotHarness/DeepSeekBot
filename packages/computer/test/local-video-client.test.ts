@@ -7,7 +7,7 @@ import {
 } from '../src/local-video-contract.js';
 import { createLocalVideoOwner } from '../src/local-video-owner.js';
 import { localVideoCommand } from '../src/local-video-http.js';
-import { createRemoteKeyboardInput } from '../../../apps/mobile/src/host/remote-keyboard-input.js';
+import { createRemoteKeyboardInput } from '@botharness/host-client/remote-keyboard-input';
 import type { DesktopInput } from '../src/desktop-view.js';
 
 function deferred() {

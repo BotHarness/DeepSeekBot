@@ -1,60 +1,23 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type MarketplaceDetail } from '../../core/src/marketplace/client.js';
+import { type MarketplaceEntry } from '../../core/src/marketplace/client.js';
+import { type MarketplaceQuery } from '../../core/src/marketplace/client.js';
+import { type MarketplaceTopic } from '../../core/src/marketplace/client.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   relativeTime: (at: number, now: number) => ({
     unit: 'days',
     n: Math.floor((now - at) / 86_400_000),
   }),
-  IconRefreshOutlineRegular: () => null,
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  IconChevronDownOutlineRegular: () => null,
-  Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
+
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
-  SegmentedControl: (props: {
-    value: string;
-    disabled?: boolean;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      props.options.map((option) =>
-        createElement(
-          'button',
-          {
-            key: option.value,
-            role: 'tab',
-            'aria-selected': option.value === props.value,
-            disabled: props.disabled,
-            onClick: () => props.onChange(option.value),
-          },
-          option.label,
-        ),
-      ),
-    ),
-  Modal: (props: {
-    title: string;
-    description?: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    createElement(
-      'section',
-      null,
-      createElement('h1', null, props.title),
-      createElement('p', null, props.description),
-      props.children,
-      props.footer,
-    ),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -62,13 +25,7 @@ vi.mock('../src/client/avatar.js', () => ({
     createElement('span', { 'data-avatar': props.name }),
 }));
 
-import type {
-  MarketplaceDetail,
-  MarketplaceEntry,
-  MarketplacePage,
-  MarketplaceQuery,
-  MarketplaceTopic,
-} from '../../core/src/marketplace/client.js';
+import type { MarketplacePage } from '../../core/src/marketplace/client.js';
 import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
@@ -188,13 +145,17 @@ async function withMarketplace(
 }
 
 function button(host: HTMLElement, label: string): HTMLButtonElement {
-  const found = [...host.querySelectorAll('button')].find((item) => item.textContent === label);
+  const found = [...document.body.querySelectorAll('button')].find(
+    (item) => item.textContent === label,
+  );
   if (found === undefined) throw new Error(`missing button ${label}`);
   return found;
 }
 
 async function click(host: HTMLElement, label: string, index = 0) {
-  const matches = [...host.querySelectorAll('button')].filter((item) => item.textContent === label);
+  const matches = [...document.body.querySelectorAll('button')].filter(
+    (item) => item.textContent === label,
+  );
   await act(async () => matches[index]?.click());
 }
 
@@ -226,7 +187,7 @@ async function pressEnter(input: HTMLInputElement, options: { composing?: boolea
 }
 
 async function typeReason(host: HTMLElement, value: string) {
-  const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
+  const textarea = document.body.querySelector<HTMLTextAreaElement>('textarea')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
       textarea,
@@ -237,7 +198,7 @@ async function typeReason(host: HTMLElement, value: string) {
 }
 
 async function typeUrl(host: HTMLElement, value: string) {
-  const input = host.querySelector<HTMLInputElement>('input')!;
+  const input = document.body.querySelector<HTMLInputElement>('input')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -257,29 +218,33 @@ describe('Bot Marketplace modal', () => {
           ? { bots: [entry('first')], nextCursor: 'page-2' }
           : { bots: [entry('second', { descriptionGenerated: true })] },
       async ({ host, list }) => {
-        expect(host.textContent).toContain('Bot 市场');
-        expect(host.textContent).toContain('first description');
-        expect(host.querySelector('.bh-market-generated')).toBeNull();
-        expect(host.textContent).toContain('★ 7');
-        expect(host.textContent).toContain('更新于 3 天前');
-        expect(host.textContent).not.toContain('writing');
-        expect(host.querySelector('.bh-market-row .bh-market-avatar [data-avatar]')).not.toBeNull();
+        expect(document.body.textContent).toContain('Bot 市场');
+        expect(document.body.textContent).toContain('first description');
+        expect(document.body.querySelector('.bh-market-generated')).toBeNull();
+        expect(document.body.textContent).toContain('★ 7');
+        expect(document.body.textContent).toContain('更新于 3 天前');
+        expect(document.body.textContent).not.toContain('writing');
+        expect(
+          document.body.querySelector('.bh-market-row .bh-market-avatar [data-avatar]'),
+        ).not.toBeNull();
 
         await click(host, '加载更多');
 
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', cursor: 'page-2' });
         expect(
-          [...host.querySelectorAll('[data-market-bot]')].map((row) =>
+          [...document.body.querySelectorAll('[data-market-bot]')].map((row) =>
             row.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/first', 'alice/second']);
         expect(
-          [...host.querySelectorAll('.bh-market-description')].map((node) => node.textContent),
+          [...document.body.querySelectorAll('.bh-market-description')].map(
+            (node) => node.textContent,
+          ),
         ).toEqual(['first description', 'second descriptionAI 摘要']);
-        expect(host.querySelector('.bh-market-generated')?.getAttribute('title')).toBe(
+        expect(document.body.querySelector('.bh-market-generated')?.getAttribute('title')).toBe(
           '作者没写中文简介，这句由 AI 根据 README 生成',
         );
-        expect(host.textContent).not.toContain('加载更多');
+        expect(document.body.textContent).not.toContain('加载更多');
       },
     );
   });
@@ -297,7 +262,7 @@ describe('Bot Marketplace modal', () => {
         ],
       }),
       async ({ host }) => {
-        const banners = [...host.querySelectorAll('.bh-market-banner-thumb')];
+        const banners = [...document.body.querySelectorAll('.bh-market-banner-thumb')];
         expect(banners.map((banner) => banner.getAttribute('data-market-banner'))).toEqual([
           'shown',
           'none',
@@ -316,7 +281,7 @@ describe('Bot Marketplace modal', () => {
     await withMarketplace(
       async () => ({ bots: [] }),
       async ({ host, submit }) => {
-        expect(host.textContent).toContain('还没有收录的 Bot');
+        expect(document.body.textContent).toContain('还没有收录的 Bot');
 
         await typeUrl(host, ' https://github.com/alice/pasted ');
         await click(host, '收录');
@@ -325,11 +290,11 @@ describe('Bot Marketplace modal', () => {
 
         expect(submit).toHaveBeenCalledWith('https://github.com/alice/pasted', expect.any(String));
         expect(JSON.parse(atob(submit.mock.calls[0]![1]))).toMatchObject({ number: 3 });
-        await until(() => host.textContent?.includes('已收录 alice/pasted') === true);
-        expect(host.textContent).toContain('已收录 alice/pasted');
-        expect(host.querySelector('[data-market-bot]')?.getAttribute('data-market-bot')).toBe(
-          'alice/pasted',
-        );
+        await until(() => document.body.textContent?.includes('已收录 alice/pasted') === true);
+        expect(document.body.textContent).toContain('已收录 alice/pasted');
+        expect(
+          document.body.querySelector('[data-market-bot]')?.getAttribute('data-market-bot'),
+        ).toBe('alice/pasted');
       },
     );
   });
@@ -340,9 +305,11 @@ describe('Bot Marketplace modal', () => {
       async ({ host }) => {
         await typeUrl(host, 'https://github.com/alice/plain');
         await click(host, '收录');
-        await until(() => host.querySelector('[role="alert"]') !== null);
+        await until(() => document.body.querySelector('[role="alert"]') !== null);
 
-        expect(host.querySelector('[role="alert"]')?.textContent).toContain('botharness-bot 话题');
+        expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
+          'botharness-bot 话题',
+        );
       },
       async () => {
         throw new BridgeCallError('repository-missing-topic', 'repository-missing-topic');
@@ -356,9 +323,9 @@ describe('Bot Marketplace modal', () => {
       async ({ host }) => {
         await typeUrl(host, 'https://github.com/alice/plain');
         await click(host, '收录');
-        await until(() => host.querySelector('[role="alert"]') !== null);
+        await until(() => document.body.querySelector('[role="alert"]') !== null);
 
-        expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+        expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
           '这个仓库刚刚收录过，5 分钟后才能再次收录。',
         );
         expect(button(host, '收录').disabled).toBe(false);
@@ -381,36 +348,40 @@ describe('Bot Marketplace modal', () => {
       async () => ({ bots: [entry('spammy')] }),
       async ({ host, report }) => {
         await act(async () =>
-          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/spammy 详情"]')!.click(),
+          document.body
+            .querySelector<HTMLButtonElement>('[aria-label="查看 alice/spammy 详情"]')!
+            .click(),
         );
         await click(host, '举报');
-        expect(host.querySelector('[data-market-report="open"]')?.textContent).toContain(
+        expect(document.body.querySelector('[data-market-report="open"]')?.textContent).toContain(
           '不需要账号',
         );
 
         await typeReason(host, '  垃圾内容  ');
         await click(host, '提交举报');
-        await until(() => host.querySelector('[role="alert"]') !== null);
-        expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+        await until(() => document.body.querySelector('[role="alert"]') !== null);
+        expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
           '人机验证没有通过或已过期，请重试。',
         );
-        expect(host.querySelector('textarea')?.value).toBe('  垃圾内容  ');
+        expect(document.body.querySelector('textarea')?.value).toBe('  垃圾内容  ');
 
         await click(host, '提交举报');
-        await until(() => host.querySelector('[data-market-report="done"]') !== null);
+        await until(() => document.body.querySelector('[data-market-report="done"]') !== null);
 
         expect(report).toHaveBeenLastCalledWith('R_spammy', expect.any(String), '垃圾内容');
-        expect(host.textContent).toContain('已收到举报');
-        expect([...host.querySelectorAll('button')].map((item) => item.textContent)).not.toContain(
-          '举报',
-        );
+        expect(document.body.textContent).toContain('已收到举报');
+        expect(
+          [...document.body.querySelectorAll('button')].map((item) => item.textContent),
+        ).not.toContain('举报');
         await click(host, '返回');
         await act(async () =>
-          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/spammy 详情"]')!.click(),
+          document.body
+            .querySelector<HTMLButtonElement>('[aria-label="查看 alice/spammy 详情"]')!
+            .click(),
         );
         await click(host, '举报');
         await click(host, '取消');
-        expect(host.querySelector('[data-market-report]')).toBeNull();
+        expect(document.body.querySelector('[data-market-report]')).toBeNull();
       },
       undefined,
       undefined,
@@ -434,11 +405,11 @@ describe('Bot Marketplace modal', () => {
         return { bots: [entry('back')] };
       },
       async ({ host }) => {
-        expect(host.textContent).toContain('Bot 市场暂时无法访问');
+        expect(document.body.textContent).toContain('Bot 市场暂时无法访问');
 
         await click(host, '重试');
 
-        expect(host.textContent).toContain('back description');
+        expect(document.body.textContent).toContain('back description');
       },
     );
   });
@@ -449,11 +420,11 @@ describe('Bot Marketplace modal', () => {
       async ({ host, createBot, onInstalled }) => {
         await click(host, '安装');
 
-        expect(host.querySelector('h1')?.textContent).toBe('安装 helper');
-        expect(host.querySelector('[data-market-commit]')?.textContent).toBe(
+        expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe('安装 helper');
+        expect(document.body.querySelector('[data-market-commit]')?.textContent).toBe(
           '0123456 · 2026-09-30',
         );
-        expect(host.textContent).toContain('Tob 没发现风险');
+        expect(document.body.textContent).toContain('Tob 没发现风险');
         expect(createBot).not.toHaveBeenCalled();
 
         await click(host, '确认安装');
@@ -469,13 +440,13 @@ describe('Bot Marketplace modal', () => {
       async () => ({ bots: [entry('helper', { description: null, headCommit: null })] }),
       async ({ host, createBot, onInstalled }) => {
         await click(host, '安装');
-        expect(host.querySelector('[data-market-commit]')?.textContent).toBe('未知');
+        expect(document.body.querySelector('[data-market-commit]')?.textContent).toBe('未知');
 
         await click(host, '确认安装');
 
         expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
         expect(onInstalled).not.toHaveBeenCalled();
-        expect(host.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
+        expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
 
         await click(host, '返回');
         expect(button(host, '安装')).toBeDefined();
@@ -492,13 +463,13 @@ describe('Bot Marketplace modal', () => {
       async (query) =>
         query?.sort === 'stars' ? { bots: [entry('popular')] } : { bots: [entry('fresh')] },
       async ({ host, list }) => {
-        expect(host.textContent).toContain('popular description');
+        expect(document.body.textContent).toContain('popular description');
 
         await click(host, '最近更新');
 
         expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
-        expect(host.textContent).toContain('fresh description');
-        expect(host.textContent).not.toContain('popular description');
+        expect(document.body.textContent).toContain('fresh description');
+        expect(document.body.textContent).not.toContain('popular description');
 
         await click(host, '最新创建');
 
@@ -516,7 +487,7 @@ describe('Bot Marketplace modal', () => {
             ? { bots: [entry('translator')], nextCursor: 'search-2' }
             : { bots: [entry('notes')] },
       async ({ host, list }) => {
-        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        const search = document.body.querySelector<HTMLInputElement>('input[type="search"]')!;
         await typeInto(search, ' transl');
         await typeInto(search, ' translator ');
         await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
@@ -529,7 +500,7 @@ describe('Bot Marketplace modal', () => {
 
         expect(list).toHaveBeenCalledTimes(2);
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', q: 'translator' });
-        expect(host.textContent).toContain('搜索结果按相关度排序');
+        expect(document.body.textContent).toContain('搜索结果按相关度排序');
         expect(button(host, '最近更新').disabled).toBe(true);
 
         await click(host, '加载更多');
@@ -540,8 +511,8 @@ describe('Bot Marketplace modal', () => {
           q: 'translator',
           cursor: 'search-2',
         });
-        expect(host.textContent).toContain('translator description');
-        expect(host.textContent).toContain('notes description');
+        expect(document.body.textContent).toContain('translator description');
+        expect(document.body.textContent).toContain('notes description');
 
         await typeInto(search, '');
         await pressEnter(search);
@@ -554,19 +525,21 @@ describe('Bot Marketplace modal', () => {
     await withMarketplace(
       async (query) => (query?.topic === 'research' ? { bots: [] } : { bots: [entry('fresh')] }),
       async ({ host, list }) => {
-        const chip = host.querySelector<HTMLButtonElement>('[data-market-topic="research"]')!;
+        const chip = document.body.querySelector<HTMLButtonElement>(
+          '[data-market-topic="research"]',
+        )!;
         expect(chip.textContent).toBe('research4');
 
         await act(async () => chip.click());
 
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', topic: 'research' });
         expect(chip.getAttribute('aria-pressed')).toBe('true');
-        expect(host.textContent).toContain('没有符合条件的 Bot');
+        expect(document.body.textContent).toContain('没有符合条件的 Bot');
 
         await click(host, '全部');
 
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
-        expect(host.textContent).toContain('fresh description');
+        expect(document.body.textContent).toContain('fresh description');
       },
       undefined,
       undefined,
@@ -581,8 +554,8 @@ describe('Bot Marketplace modal', () => {
     await withMarketplace(
       async () => ({ bots: [entry('fresh')] }),
       async ({ host }) => {
-        expect(host.querySelector('[data-market-topic]')).toBeNull();
-        expect(host.textContent).toContain('fresh description');
+        expect(document.body.querySelector('[data-market-topic]')).toBeNull();
+        expect(document.body.textContent).toContain('fresh description');
       },
       undefined,
       undefined,
@@ -603,26 +576,27 @@ describe('Bot Marketplace modal', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host, createBot }) => {
         await act(async () =>
-          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
+          document.body
+            .querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!
+            .click(),
         );
 
         expect(detail).toHaveBeenCalledWith('R_helper', 'zh');
-        expect(host.querySelector('h1')?.textContent).toBe('helper');
-        expect(host.querySelector('[data-markdown]')?.textContent).toBe(
+        expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe('helper');
+        expect(document.body.querySelector('[data-markdown]')?.textContent).toBe(
           '# Helper\n\nReads your notes.',
         );
-        expect(host.textContent).toContain('★ 9');
+        expect(document.body.textContent).toContain('★ 9');
         expect(
-          [...host.querySelectorAll('a')].find((link) => link.textContent === '在 GitHub 查看')
-            ?.href,
+          document.body.querySelector<HTMLAnchorElement>('a[aria-label="在 GitHub 查看"]')?.href,
         ).toBe('https://github.com/alice/helper');
 
         await click(host, '安装');
-        expect(host.querySelector('[data-market-commit]')?.textContent).toBe(
+        expect(document.body.querySelector('[data-market-commit]')?.textContent).toBe(
           '0123456 · 2026-09-30',
         );
         await click(host, '返回');
-        expect(host.querySelector('[data-markdown]')).not.toBeNull();
+        expect(document.body.querySelector('[data-markdown]')).not.toBeNull();
 
         await click(host, '安装');
         await click(host, '确认安装');
@@ -646,7 +620,9 @@ describe('Bot Marketplace modal', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host, list, translate }) => {
         await act(async () =>
-          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
+          document.body
+            .querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!
+            .click(),
         );
         expect(detail).toHaveBeenLastCalledWith('R_helper', 'zh');
 
@@ -671,17 +647,19 @@ describe('Bot Marketplace modal', () => {
       async () => ({ bots: [entry('helper')] }),
       async ({ host }) => {
         await act(async () =>
-          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
+          document.body
+            .querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!
+            .click(),
         );
-        expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+        expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
           'README 加载失败：Bot 市场暂时无法访问',
         );
 
         await click(host, '重试');
 
-        expect(host.textContent).toContain('这个仓库没有 README。');
+        expect(document.body.textContent).toContain('这个仓库没有 README。');
         await click(host, '返回');
-        expect(host.querySelector('[data-market-bot="alice/helper"]')).not.toBeNull();
+        expect(document.body.querySelector('[data-market-bot="alice/helper"]')).not.toBeNull();
       },
       undefined,
       undefined,
@@ -700,14 +678,14 @@ describe('Bot Marketplace modal', () => {
         bots: [entry('helper-bot', { displayName: 'Helper', roles: ['writer', 'editor'] })],
       }),
       async ({ host, createBot }) => {
-        const row = host.querySelector('[data-market-bot="alice/helper-bot"]')!;
+        const row = document.body.querySelector('[data-market-bot="alice/helper-bot"]')!;
         expect(row.textContent).toContain('Helper');
         expect(row.textContent).toContain('alice/helper-bot');
         expect(row.textContent).toContain('writer');
         expect(row.textContent).toContain('editor');
 
         await click(host, '安装');
-        expect(host.querySelector('h1')?.textContent).toBe('安装 Helper');
+        expect(document.body.querySelector('[role="dialog"] h2')?.textContent).toBe('安装 Helper');
         await click(host, '确认安装');
 
         expect(createBot).toHaveBeenCalledWith(

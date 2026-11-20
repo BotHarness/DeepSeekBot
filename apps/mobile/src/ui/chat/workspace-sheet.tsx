@@ -4,6 +4,7 @@ import { Pressable, ScrollView, SectionList, View } from 'react-native';
 import {
   errorText,
   folderBrowsingUnavailable,
+  INHERIT_APPROVAL_TEMPLATE,
   type AccessScope,
   type ApprovalTemplate,
   type ApprovalTemplates,
@@ -14,7 +15,7 @@ import {
   type Loadable,
   type WorkspaceGrant,
   type WorkspaceOption,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
@@ -74,7 +75,7 @@ type BrowseRow =
   | { kind: 'loading'; key: string }
   | { kind: 'empty'; key: string; text: string; tone?: 'warning' };
 
-const OFF = 'off';
+const OFF = '@off';
 
 export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
   const t = useStrings();
@@ -98,6 +99,14 @@ export function templateTitle(template: Pick<ApprovalTemplate, 'name' | 'title'>
   if (template.name === 'cautious') return t.autoApprovalCautious;
   if (template.name === 'get-work-done') return t.autoApprovalGetWorkDone;
   return template.title;
+}
+
+function inheritedTemplateLabel(selection: ApprovalTemplates): string {
+  const name = selection.globalDefault;
+  if (name === undefined) return t.contextUnavailable;
+  if (name === null) return t.autoApprovalOff;
+  const template = selection.templates.find((template) => template.name === name);
+  return template === undefined ? t.autoApprovalUnavailable(name) : templateTitle(template);
 }
 
 export function templateDescription(template: ApprovalTemplate): string {
@@ -361,6 +370,12 @@ export function WorkspaceSheet({
         onTemplates(previous);
         throw cause;
       }
+      try {
+        onTemplates(await settings.loadTemplates());
+      } catch (cause) {
+        onTemplates({ templates: previous.templates, selected: name });
+        throw cause;
+      }
     });
   };
 
@@ -610,6 +625,19 @@ export function WorkspaceSheet({
       : templates.status === 'failed'
         ? [{ kind: 'failed', key: 'templates-failed', text: templates.error }]
         : [
+            ...(templates.value.globalDefault === undefined &&
+            templates.value.selected !== INHERIT_APPROVAL_TEMPLATE
+              ? []
+              : [
+                  {
+                    kind: 'template' as const,
+                    key: `template:${INHERIT_APPROVAL_TEMPLATE}`,
+                    name: INHERIT_APPROVAL_TEMPLATE,
+                    title: t.autoApprovalInherit,
+                    detail: t.autoApprovalInherited(inheritedTemplateLabel(templates.value)),
+                    selected: templates.value.selected === INHERIT_APPROVAL_TEMPLATE,
+                  },
+                ]),
             {
               kind: 'template',
               key: `template:${OFF}`,
@@ -811,6 +839,9 @@ export function WorkspaceSheet({
       case 'template':
         return (
           <SettingsRow
+            testID={
+              item.name === INHERIT_APPROVAL_TEMPLATE ? 'approval-template-inherit' : undefined
+            }
             title={item.title}
             detail={item.detail}
             selected={item.selected}

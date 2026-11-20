@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { DeviceRequestsNotice } from '../src/client/device-requests-notice.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: 'button',
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/ds/tooltip.js', () => ({
@@ -65,5 +68,55 @@ it('shows a persistent request entry without opening a modal; closing leaves the
     await act(async () => root.unmount());
     host.remove();
     vi.unstubAllGlobals();
+  }
+});
+
+it('shares one device read across notices and refreshes on change and reconnect', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.useFakeTimers();
+  const live = resourceEvents();
+  let pending = false;
+  const fetcher = vi.fn<typeof fetch>(async () =>
+    Response.json({ pendingKeys: pending ? [{ approved: false }] : [] }),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          <DeviceRequestsNotice t={t} />
+          <DeviceRequestsNotice t={t} />
+        </>,
+      ),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    pending = true;
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(host.querySelectorAll('button')).toHaveLength(0);
+    await act(async () => {
+      live.emit('devices');
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(host.querySelectorAll('button')).toHaveLength(2);
+    pending = false;
+    await act(async () => {
+      live.reconnect();
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(host.querySelectorAll('button')).toHaveLength(0);
+    await act(async () => root.unmount());
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  } finally {
+    live.dispose();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    host.remove();
   }
 });

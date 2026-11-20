@@ -1,4 +1,6 @@
-import { useId, useState, useSyncExternalStore } from 'react';
+import { outsideTimeline } from './timeline-mutations.js';
+import { useClientFields } from './use-client-store.js';
+import { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
@@ -17,6 +19,8 @@ import type {
   SessionListSnapshot,
   WorkspaceListSnapshot,
 } from './bot-session-visibility.js';
+
+const FOLDER_FIELDS = ['bots'] as const;
 
 export interface BotSessionGroup {
   botSlug: string;
@@ -60,8 +64,8 @@ export function mountNativeBotFolderHost(
     changed(host);
     previous?.remove();
   };
-  const observer = new MutationObserver(() => {
-    if (scheduled || disposed) return;
+  const observer = new MutationObserver((records) => {
+    if (scheduled || disposed || !outsideTimeline(records)) return;
     scheduled = true;
     queueMicrotask(() => {
       scheduled = false;
@@ -222,7 +226,7 @@ export function BotSessionFolders({
   t,
 }: BotSessionFoldersProps) {
   const groups = useBotFolderGroups((value) => value);
-  const bots = useSyncExternalStore(roster.subscribe, roster.getSnapshot, roster.getSnapshot).bots;
+  const bots = useClientFields(FOLDER_FIELDS, roster).bots;
   const visible = useBotFolderPrefs((value) => value.showBotSessions);
   const icon = useBotFolderPrefs((value) => value.botIcon);
   const list = useSessions((value) => value);

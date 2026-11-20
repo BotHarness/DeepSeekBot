@@ -9,6 +9,7 @@ import {
   messagePreview,
 } from '../../../core/src/channels/message-preview.js';
 import { speechBeats, beatHold, speechText } from './companion-beats.js';
+import { reportFailure } from './diagnostic-log.js';
 
 interface Source {
   addEventListener(name: string, listener: (event: Event) => void): void;
@@ -36,7 +37,8 @@ const decode = (event: Event): Record<string, unknown> | undefined => {
 export function createBotPresentation(
   store: ClientStore,
   source: (url: string) => Source = (url) => new EventSource(url),
-  diagnostic: (code: string) => void = (code) => console.warn('botharness presentation:', code),
+  diagnostic: (code: string) => void = (code) =>
+    reportFailure(`presentation-${code}`, `presentation: ${code}`),
 ): BotPresentation & { dispose(): void } {
   const readers = new Map<string, { acquire(): BotPresentationView; dispose(): void }>();
   let disposed = false;

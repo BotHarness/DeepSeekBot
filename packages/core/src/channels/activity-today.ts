@@ -1,4 +1,5 @@
-import { isBotDmChannel, LOCAL_HUMAN_ID, type ChannelMessage } from './channel.js';
+import { type HumanContext } from '../humans/context.js';
+import { isBotDmChannel, type ChannelMessage } from './channel.js';
 import type { ChannelStore } from './store.js';
 
 export interface ChannelActivityRow {
@@ -20,6 +21,7 @@ export interface ChannelActivityToday {
   channels: ChannelActivityRow[];
 }
 export function channelActivityToday(
+  human: HumanContext,
   channels: ChannelStore,
   botName: (slug: string) => string | undefined,
   now = new Date(),
@@ -31,9 +33,11 @@ export function channelActivityToday(
   const humanNames = new Map<string, string>();
   for (const channel of channels.list()) {
     if (isBotDmChannel(channel)) continue;
-    const human = channels.listHumanMembers(channel.id).find((m) => m.humanId === LOCAL_HUMAN_ID);
-    if (human === undefined) continue;
-    humanNames.set(channel.id, human.displayName);
+    const member = channels
+      .listHumanMembers(human, channel.id)
+      .find((m) => m.humanId === human.humanId);
+    if (member === undefined) continue;
+    humanNames.set(channel.id, member.displayName);
     rows.set(channel.id, {
       channelId: channel.id,
       name:
@@ -48,7 +52,7 @@ export function channelActivityToday(
       senders: [],
     });
   }
-  for (const { channelId, author, count } of channels.humanMessageCounts(from, to)) {
+  for (const { channelId, author, count } of channels.humanMessageCounts(human, from, to)) {
     const row = rows.get(channelId);
     if (row === undefined) continue;
     const displayName =

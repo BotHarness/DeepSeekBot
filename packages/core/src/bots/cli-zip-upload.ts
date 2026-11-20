@@ -1,3 +1,4 @@
+export { ZIP_UPLOAD_OPTIONS } from './cli-option-spec.js';
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import type { BotCreateCliIo, CreateValues } from './bot-create-cli.js';
@@ -13,11 +14,6 @@ export const ZIP_UPLOAD_COMMANDS = [
   'bot-zip-import',
   'bot-zip-import-status',
 ] as const;
-export const ZIP_UPLOAD_OPTIONS = {
-  'upload-key': { type: 'string' },
-  'archive-sha256': { type: 'string' },
-  'archive-size': { type: 'string' },
-} as const;
 
 export async function runZipUploadCli(
   command: string,

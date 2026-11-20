@@ -57,7 +57,14 @@ function launch(port) {
   const result = spawnSync(
     process.execPath,
     ['scripts/dev-instance.mjs', '--home', home, '--port', String(port), '--json'],
-    { cwd: root, encoding: 'utf8', timeout: 600_000, maxBuffer: 4 * 1024 * 1024 },
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 600_000,
+      maxBuffer: 4 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    },
   );
   const start = (result.stdout ?? '').indexOf('{');
   if (result.status !== 0 || start < 0)
@@ -189,6 +196,8 @@ async function main() {
       env: { ...process.env, EXPO_OFFLINE: '1' },
       timeout: 600_000,
       maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     });
     if (exported.status !== 0) throw new Error(`export:web failed: ${exported.stderr.slice(-800)}`);
     steps.push('exported the app for web');
@@ -268,7 +277,7 @@ async function main() {
     steps.push('the Bot posted 30 messages in its DM through its own bot_send_message');
 
     await page.locator(`::-p-text(${displayName})`).click();
-    await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await text('History line 30');
     checks.startsWithoutJumpButton =
       (await page.$('[aria-label="Return to latest messages"]')) === null;

@@ -2,6 +2,18 @@
 
 The Expo app exposes existing Host Bot deletion, Group Disband and Channel-section removal from long-press menus. ADR-0274 governs Group Disband; ADR-0130 governs the other deletion paths. The phone does not own a separate lifecycle.
 
+## Sources
+
+- `apps/mobile/src/host/{deletion,deletion-preview}.ts`
+- `apps/mobile/src/ui/chat/deletion-sheet.tsx`
+- `packages/core/src/bots/deletion.ts`
+
+## Terms
+
+- PersonaBot Deletion
+- Group Disband
+- Channel section
+
 ## Sub-features
 
 - `bot-menu`: ordinary Bot DMs expose Delete Bot; Tob does not. iOS retains Link.Preview. Existing pin, mute/read and section-placement actions remain available.
@@ -24,7 +36,7 @@ Use a fresh, disposable isolated Host containing only this journey's fixtures:
 2. Build the current Host and export the current Expo Web app to `apps/mobile/dist-web/`.
 3. Run `node scripts/verify-app.mjs launch --name mobile-delete`, then `doctor --name mobile-delete`.
 4. Run `node scripts/e2e-mobile-deletion-web.mjs mobile-delete`. It pairs through the UI, captures matched base/current views, opens menus and reviews, verifies Memory resets after cancellation, deletes a test Bot with Memory retained, removes a section while preserving its group, and disbands the group without retaining it in history. Canonical checks use the same Host's public APIs. It refuses to overwrite a prior journey's fixture receipt; use a fresh isolated name for another run. This script does not cover `group-open`; run that interaction separately.
-5. Inspect `.github/pr-screenshots/2783/` and `.humanlayer/verify/mobile-delete/evidence/`. Published screenshots blur the machine-local Memory path. A successful run writes `result.json`; a failure retains the ARIA tree, image and page errors. Run `observe` before retrying a surprising drive.
+5. Inspect `.humanlayer/tasks/2783/` and `.humanlayer/verify/mobile-delete/evidence/`. Blur the machine-local Memory path before privacy review. Publish each reviewed copy with `pnpm evidence:publish --file <reviewed-file> --source-sha <full-tested-source-sha> --reviewed`; see [PR UI visual evidence](../../../../docs/agents/pr-ui-visual-evidence.md) for the complete publication workflow. A successful run writes `result.json`; a failure retains the ARIA tree, image and page errors until resolved. Run `observe` before retrying a surprising drive.
 
 Native checks belong to the shared device QA runner: verify long-press and iOS preview, Android native action sheets, cancellation and Back, pending submission, screen-reader actions, default/intermediate/maximum text sizes in light/dark themes, and the same canonical outcomes. Submit through [shared device QA](../../../../docs/agents/device-qa.md). A Web pass does not prove those native behaviors.
 

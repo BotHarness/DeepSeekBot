@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ConnectionState, HostClient } from '../src/host/client';
+import type { ConnectionState, HostClient } from '@botharness/host-client/client';
 import { createHostGlances, glanceHost, liveGlance } from '../src/host/host-glance';
-import type { SavedHost } from '../src/host/hosts';
-import type { InboxSnapshot } from '../src/host/inbox';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import {
   addressLines,
   createHostDrawer,
@@ -29,8 +29,19 @@ const studio = host('studio', 'Studio Mac');
 const laptop = host('laptop', 'Laptop');
 const tower = host('tower', 'Tower');
 
-const items = (count: number) =>
-  Array.from({ length: count }, (_, index) => ({ id: `item-${index}` }) as HumanAttentionItem);
+const items = (count: number, category: 'action' | 'unread' = 'action'): HumanAttentionItem[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `item-${index}`,
+    category,
+    kind: category === 'action' ? 'user-question' : 'channel-unread',
+    channelId: 'dm-ada',
+    channelName: 'Ada',
+    botSlug: 'ada',
+    summary: 'Update',
+    createdAt: '2026-11-20T00:00:00Z',
+    messageId: `message-${index}`,
+    ...(category === 'unread' ? { unreadCount: 1 } : {}),
+  }));
 
 const ready = (action: number): InboxSnapshot => ({
   status: 'ready',
@@ -219,6 +230,40 @@ describe('Host drawer', () => {
     expect(showView.mock.calls).toEqual([['tower']]);
   });
 
+  it('passes the switch failure to the failure notice', async () => {
+    const error = new Error('keychain full');
+    const failed = vi.fn();
+    const drawer = createHostDrawer({
+      switchTo: vi.fn(async () => {
+        throw error;
+      }),
+      showView: vi.fn(),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+      failed,
+    });
+    await expect(drawer.select('laptop')).resolves.toBe(false);
+    expect(failed).toHaveBeenCalledWith(error);
+  });
+
+  it('lets a source change cancel workspace work without counting as the person choosing', () => {
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo: vi.fn(async () => true),
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
+    const selecting = drawer.beginWorkspaceSelection();
+    const scoped = drawer.captureWorkspaceSelection();
+    const chosen = drawer.captureChosenWorkspace();
+    drawer.invalidateWorkspaceSources();
+    expect(selecting()).toBe(false);
+    expect(scoped()).toBe(false);
+    expect(chosen()).toBe(true);
+    drawer.selectAll();
+    expect(chosen()).toBe(false);
+  });
+
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
     const drawer = createHostDrawer({
@@ -335,7 +380,7 @@ describe('Host rows', () => {
       status: 'checking',
     });
     expect(liveGlance(connection('unreachable'), ready(4))).toEqual({ status: 'offline' });
-    expect(liveGlance(connection('refused'), ready(4))).toEqual({ status: 'offline' });
+    expect(liveGlance(connection('refused'), ready(4))).toEqual({ status: 'refused' });
     expect(liveGlance(connection('connected'), { status: 'loading' })).toEqual({
       status: 'online',
     });
@@ -345,7 +390,7 @@ describe('Host rows', () => {
 describe('Host glances', () => {
   it('counts what needs the Human and what is unread on a Host', async () => {
     const client = answering(async (_method, args) => ({
-      items: items(args?.['category'] === 'action' ? 2 : 3),
+      items: args?.['category'] === 'action' ? items(2) : items(3, 'unread'),
     }));
     await expect(glanceHost(client)).resolves.toEqual({ status: 'online', pending: 2, unread: 3 });
     expect(client.call).toHaveBeenCalledWith('humanAttention', { category: 'action', limit: 100 });

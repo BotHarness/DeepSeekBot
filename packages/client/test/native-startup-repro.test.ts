@@ -7,19 +7,20 @@ import vm from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 const req = createRequire(resolve('packages/client/package.json'));
 const cache = new Map<string, Record<string, any>>();
-async function native(id: string): Promise<Record<string, any>> {
+async function native(id: string, from = req): Promise<Record<string, any>> {
   if (id === '@deepseek-ai/dsh-client-ui-primitives') return {};
   const cached = cache.get(id);
   if (cached) return cached;
   if (!id.startsWith('@deepseek-ai/dsh-client-')) {
-    const value = await import(req.resolve(id));
+    const resolver = /^react(?:-dom)?(?:\/|$)/.test(id) ? req : from;
+    const value = await import(resolver.resolve(id));
     cache.set(id, value);
     return value;
   }
-  const manifest = req.resolve(`${id}/package.json`);
+  const manifest = from.resolve(`${id}/package.json`);
   const client = join(dirname(manifest), 'lib', 'client.js');
   if (!id.startsWith('@deepseek-ai/dsh-client-') || !existsSync(client)) {
-    const value = await import(req.resolve(id));
+    const value = await import(from.resolve(id));
     cache.set(id, value);
     return value;
   }
@@ -27,7 +28,7 @@ async function native(id: string): Promise<Record<string, any>> {
   const dependencies = [
     ...new Set([...code.matchAll(/require\("([^"]+)"\)/g)].map((match) => match[1]!)),
   ];
-  for (const dependency of dependencies) await native(dependency);
+  for (const dependency of dependencies) await native(dependency, createRequire(manifest));
   let factory: ((require: (key: string) => unknown) => Record<string, any>) | undefined;
   vm.runInNewContext(code, {
     window: {

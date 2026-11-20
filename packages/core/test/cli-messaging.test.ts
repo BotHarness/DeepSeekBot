@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -22,41 +23,43 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    const args = method.startsWith('dsh-im/') ? body.payload : body.payload.args;
-    calls.push({ method, args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      const args = method.startsWith('dsh-im/') ? body.payload : body.payload.args;
+      calls.push({ method, args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -150,11 +153,11 @@ function snapshotHost(
 }
 
 describe('IM messaging commands', () => {
-  it('reads and sets messaging defaults for one platform', async () => {
-    const live = await snapshotHost(() => ({ platform: 'discord', revision: 2 }));
-    const read = await invoke(['messaging-defaults', 'discord'], live.url);
+  it.each(['discord', 'qq'])('reads and sets %s messaging defaults', async (platform) => {
+    const live = await snapshotHost(() => ({ platform: platform, revision: 2 }));
+    const read = await invoke(['messaging-defaults', platform], live.url);
     expect(read.code).toBe(0);
-    expect(read.json).toEqual({ platform: 'discord', revision: 2 });
+    expect(read.json).toEqual({ platform: platform, revision: 2 });
     const policy = {
       expectedRevision: 1,
       collection: 'mentions',
@@ -164,19 +167,19 @@ describe('IM messaging commands', () => {
       identityEnabled: true,
     };
     await invoke(
-      ['messaging-defaults-set', 'discord', '--input-stdin'],
+      ['messaging-defaults-set', platform, '--input-stdin'],
       live.url,
       JSON.stringify({ ...policy, platform: 'slack' }),
     );
     expect(live.calls).toEqual([
-      { method: 'messagingDefaults', args: { platform: 'discord' } },
-      { method: 'messagingDefaultsSet', args: { input: { ...policy, platform: 'discord' } } },
+      { method: 'messagingDefaults', args: { platform: platform } },
+      { method: 'messagingDefaultsSet', args: { input: { ...policy, platform: platform } } },
     ]);
     for (const [argv, stdin] of [
       [['messaging-defaults', 'telegram'], ''],
-      [['messaging-defaults-set', 'discord'], '{}'],
-      [['messaging-defaults-set', 'discord', '--input-stdin'], '[1]'],
-      [['messaging-defaults-set', 'discord', '--input-stdin'], 'nope'],
+      [['messaging-defaults-set', platform], '{}'],
+      [['messaging-defaults-set', platform, '--input-stdin'], '[1]'],
+      [['messaging-defaults-set', platform, '--input-stdin'], 'nope'],
     ] as const)
       expect((await invoke([...argv], live.url, stdin)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(2);

@@ -1,3 +1,7 @@
+import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
+import { cancelled, watchComputerStatus } from './status-live.js';
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { border, color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import {
@@ -25,7 +29,7 @@ import {
   type ComputerKey,
   type ComputerTranslate,
 } from './locale.js';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -485,12 +489,13 @@ export function ComputerEntryView(props: ComputerEntryViewProps): ReactElement {
 
 export function createComputerEntry(
   t: ComputerTranslate,
+  observeResource?: ObserveResource,
 ): (props: ChannelSidebarEntryProps) => ReactElement {
   return function ComputerEntryWithLocale(props: ChannelSidebarEntryProps): ReactElement {
     const { computerAccess } = useBotInfo(props.botSlug);
     if (computerAccess === false)
       return <PanelEmptyState icon="monitor">{t('entry.access.description')}</PanelEmptyState>;
-    return <ComputerEntry {...props} t={t} />;
+    return <ComputerEntry {...props} t={t} observeResource={observeResource} />;
   };
 }
 
@@ -682,7 +687,11 @@ export function createComputerHeader(
 function ComputerEntry({
   botSlug,
   t,
-}: ChannelSidebarEntryProps & { t: ComputerTranslate }): ReactElement {
+  observeResource,
+}: ChannelSidebarEntryProps & {
+  t: ComputerTranslate;
+  observeResource?: ObserveResource | undefined;
+}): ReactElement {
   const { displayName } = useBotInfo(botSlug);
   const [payload, setPayload] = useState<ComputerStatusPayload | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -703,30 +712,14 @@ function ComputerEntry({
       setPayload(next);
       setError(undefined);
     } catch (cause) {
-      if (!signal?.aborted) setError(String(cause));
+      if (!cancelled(signal)) setError(String(cause));
     }
   }, []);
 
   const statusResource = useMountedResource<HTMLDivElement>(() => {
     recordViewerOpen(connectionRpc, 'computer');
-    const controller = new AbortController();
-    let pending = false;
-    const poll = async (): Promise<void> => {
-      if (pending || controller.signal.aborted) return;
-      pending = true;
-      try {
-        await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
-      } finally {
-        pending = false;
-      }
-    };
-    void poll();
-    const timer = setInterval(() => void poll(), 3000);
-    return () => {
-      controller.abort();
-      clearInterval(timer);
-    };
-  }, [refresh]);
+    return watchComputerStatus(observeResource, refresh);
+  }, [observeResource, refresh]);
 
   const phase = payload?.status.phase;
   const inProgress =
@@ -794,7 +787,7 @@ function ComputerEntry({
     <div ref={statusResource} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {inProgress ? <span hidden ref={progressResource} /> : null}
       {payload?.target === 'local' ? (
-        <LocalComputerStatus t={t} />
+        <LocalComputerStatus t={t} observeResource={observeResource} />
       ) : (
         <ComputerEntryView
           t={t}
@@ -840,6 +833,7 @@ export function apply(ctx: ClientContext): void {
     ).uiWorkspace;
     const face = createComputerSettingsFace({
       prefs: settingsPrefs,
+      observeResource: workspaceCtx.get?.('botharnessResourceObserver'),
       pickDirectory: workspace?.pickDirectory?.bind(workspace),
     });
     workspaceCtx.slots.inject('botharness.settings.section', () =>
@@ -884,7 +878,7 @@ export function apply(ctx: ClientContext): void {
           label: t('entry.label'),
           order: 40,
           scope: 'personabot',
-          component: createComputerEntry(t),
+          component: createComputerEntry(t, sidebarCtx.get?.('botharnessResourceObserver')),
           headerAction: createComputerHeader(t),
           badge: createComputerBadge(t),
           tab: 'screen',

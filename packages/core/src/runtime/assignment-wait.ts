@@ -3,6 +3,9 @@ import type { AssignmentDetail } from './bot-runtime.js';
 export interface AssignmentWaitOutcome {
   outcome: 'report' | 'settled' | 'timeout';
   assignment: AssignmentDetail;
+  reportId?: string;
+  inboxIds?: string[];
+  resolveHint?: string;
 }
 
 export function waitForAssignment(options: {
@@ -33,7 +36,7 @@ export function waitForAssignment(options: {
       if (finished) return;
       finished = true;
       cleanup();
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
     };
     const check = (timeout = false) => {
       if (finished) return;
@@ -50,7 +53,11 @@ export function waitForAssignment(options: {
         if (outcome === undefined) return;
         finished = true;
         cleanup();
-        resolve({ outcome, assignment: current.assignment });
+        resolve({
+          outcome,
+          assignment: current.assignment,
+          ...(current.reportId === undefined ? {} : { reportId: current.reportId }),
+        });
       } catch (error) {
         fail(error);
       }

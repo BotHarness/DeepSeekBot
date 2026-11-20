@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
@@ -8,7 +9,11 @@ import type {
   OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
-import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import {
+  createTestNativeWorkspace,
+  createTestWorkspaceGrants,
+  TEST_GRANT_ID,
+} from './workspace-grant-fixture.js';
 
 function agents() {
   const runs: AssignmentAgentRun[] = [];
@@ -42,31 +47,21 @@ function agents() {
 
 async function fixture(home = createTempRoot('botharness-assignment-attention-')) {
   const live = agents();
+  const workspace = createTestNativeWorkspace(home);
   const core = createCore({
     dshHome: home,
     agents: live.adapter,
-    workspaces: () => ({
-      get: (id) =>
-        id === 'test-workspace'
-          ? {
-              id,
-              path: home,
-              title: 'Test Workspace',
-              status: async () => 'ok',
-            }
-          : undefined,
-      list: () => [],
-    }),
+    workspaces: () => workspace.lookup,
   });
   if (core.registry.get('ada') === undefined)
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  createTestWorkspaceGrants(core.operationalDatabase, home);
-  const dm = core.channels.getOrCreateDm('ada', 'Ada');
+  createTestWorkspaceGrants(core.operationalDatabase, workspace.path);
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('Missing DM');
   const channelId = dm.id;
-  const methods = createBridgeMethods({ ...core });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   async function start(state: 'waiting-human' | 'blocked', expectsReply = true) {
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId,
       messageId: 'human-' + crypto.randomUUID(),
       body: 'Start',
@@ -107,10 +102,13 @@ describe('owned Runtime Assignment wait', () => {
       const signal = new AbortController().signal;
       const pending = access.wait(run.sessionId, signal);
       await run.report({ state: 'progress', summary: 'Work committed' });
-      expect(await pending).toMatchObject({
+      const waited = await pending;
+      expect(waited).toMatchObject({
         outcome: 'report',
         assignment: { latestReport: { summary: 'Work committed' } },
       });
+      expect(waited.inboxIds).toHaveLength(1);
+      expect(waited.resolveHint).toContain('inbox_resolve');
       const cancelled = access.wait(run.sessionId, signal);
       const rejected = expect(cancelled).rejects.toThrow('Runtime closed');
       f.live.finish(run.sessionId);

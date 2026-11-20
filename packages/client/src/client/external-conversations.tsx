@@ -1,5 +1,8 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Button } from './ds/button.js';
+import { ReceptionStatus } from './reception-status.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
@@ -19,6 +22,7 @@ const LIMITS = { 'hourly-limit': 20, 'active-limit': 500 } as const;
 
 export function ExternalConversations({
   identity,
+  reconnect,
   snapshot,
   busy,
   t,
@@ -29,6 +33,7 @@ export function ExternalConversations({
   syncChannels = [],
 }: {
   identity: MessagingIdentityView;
+  reconnect?(): void;
   snapshot: MessagingSnapshot | undefined;
   busy: boolean;
   t: BotHarnessTranslate;
@@ -87,6 +92,7 @@ export function ExternalConversations({
   ) => (
     <Tooltip label={hint} portal side="top" maxWidth={280} delayMs={300}>
       <Button
+        type="button"
         size="sm"
         variant="outline"
         className={danger ? 'bh-im-danger-outline' : undefined}
@@ -145,7 +151,12 @@ export function ExternalConversations({
       confirmBlock(
         grant.id,
         name,
-        () => void change({ kind: 'block', grantId: grant.id, expectedRevision: grant.revision }),
+        () =>
+          void change({
+            kind: 'block',
+            grantId: grant.id,
+            expectedRevision: grant.revision,
+          }),
       ) ??
       (open === `sync:${grant.id}` && sync ? (
         <ConversationChannelSync
@@ -200,9 +211,24 @@ export function ExternalConversations({
             : []),
         ].join(' · ')}
         muted={grant.muted}
+        chips={
+          <ReceptionStatus
+            reception={grant.reception}
+            recovery={grant.recovery}
+            checking={snapshot?.checks === 'pending'}
+            t={t}
+          />
+        }
         detail={actions(
           name,
           <>
+            {identity.enabled && grant.reception !== 'receiving' && reconnect
+              ? small(
+                  t('reception.reconnectNow'),
+                  t('identity.reconnectFor', { name: identity.name }),
+                  reconnect,
+                )
+              : null}
             {sync && scope.kind === 'group'
               ? small(
                   t('conversation.sync'),
@@ -255,7 +281,9 @@ export function ExternalConversations({
     const reason =
       held.reason === 'ask'
         ? t('conversation.reason.ask')
-        : t(`conversation.reason.${held.reason}`, { count: LIMITS[held.reason] });
+        : t(`conversation.reason.${held.reason}`, {
+            count: LIMITS[held.reason],
+          });
     return (
       <SidebarCardRow
         key={key}
@@ -264,7 +292,10 @@ export function ExternalConversations({
         chips={<span className="bh-conversation-reason">{reason}</span>}
         meta={[
           kind(held.conversation.kind),
-          t('conversation.seen', { count: held.count, time: time(held.lastSeenAt) }),
+          t('conversation.seen', {
+            count: held.count,
+            time: time(held.lastSeenAt),
+          }),
         ].join(' · ')}
         detail={actions(
           held.name,
@@ -430,7 +461,10 @@ function ConversationChannelSync({
             toggleLabel={t('conversation.syncTitle')}
             value={channelId}
             disabled={busy}
-            options={channels.map((channel) => ({ value: channel.id, label: channel.name }))}
+            options={channels.map((channel) => ({
+              value: channel.id,
+              label: channel.name,
+            }))}
             onSelect={setChannelId}
           />
           <Button
@@ -441,7 +475,9 @@ function ConversationChannelSync({
               selected === undefined ||
               active.some((route) => route.channelId === channelId)
             }
-            aria-label={t('conversation.syncApply', { name: selected?.name ?? '' })}
+            aria-label={t('conversation.syncApply', {
+              name: selected?.name ?? '',
+            })}
             onClick={() => void sync(grant, channelId, true)}
           >
             {t('conversation.sync')}

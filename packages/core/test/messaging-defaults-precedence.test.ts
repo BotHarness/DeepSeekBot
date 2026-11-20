@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import { expect, it } from 'vitest';
@@ -75,13 +76,16 @@ it('restores Channel inheritance through the owning store without losing prior a
   });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const channel = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Team',
+      members: ['ada'],
+    });
     const custom = { mode: 'digest' as const, count: 2, intervalSeconds: 120 };
     core.channels.setGroupWakePolicy(channel.id, 'ada', custom);
     expect(core.channels.get(channel.id)!.wakePolicies!.ada!.revision).toBe(1);
     core.channels.setGroupWakePolicy(channel.id, 'ada', { ...custom, inherit: true });
     expect(core.channels.get(channel.id)!.wakePolicies!.ada).toBeUndefined();
-    expect(core.channels.getGroupWakePolicy(channel.id, 'ada').count).toBe(5);
+    expect(core.channels.getGroupWakePolicy(channel.id, 'ada').count).toBe(10);
     core.channels.setGroupWakePolicy(channel.id, 'ada', custom);
     expect(core.channels.get(channel.id)!.wakePolicies!.ada!.revision).toBe(3);
   } finally {

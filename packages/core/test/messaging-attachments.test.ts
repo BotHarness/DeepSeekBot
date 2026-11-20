@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -88,8 +88,7 @@ async function fixture(
           }
         : event;
   const home = realpathSync(createTempRoot('bh-bridge-files-'));
-  const project = join(home, 'project');
-  mkdirSync(project);
+  const project = createTempRoot('bh-bridge-project-');
   const workspace = {
     id: 'project',
     path: project,

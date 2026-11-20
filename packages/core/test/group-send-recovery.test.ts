@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { createCore } from '../src/plugin.js';
@@ -5,6 +6,8 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import { attachOperationalModule } from '../src/database/owner.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import { committedIntentMatches, fingerprint } from '../src/channels/send-review.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 
 function open(dshHome: string) {
   return createCore({
@@ -44,7 +47,10 @@ async function fixture(
   let core = open(home);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.registry.create({ slug: 'bob', displayName: 'Bob' });
-  const group = core.channels.createGroup({ name: 'Recovery', members: ['ada', 'bob'] });
+  const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Recovery',
+    members: ['ada', 'bob'],
+  });
   for (const bot of group.members)
     core.channels.setGroupWakePolicy(group.id, bot, {
       mode: 'silent',
@@ -71,7 +77,7 @@ async function fixture(
         core = open(home);
       },
       human: async (id, body) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           body,
           author: { kind: 'human' },
@@ -92,6 +98,19 @@ async function fixture(
     core.operationalDatabase.close();
   }
 }
+
+it('replays a commit recorded with empty attachments after empty options are omitted (#3296)', () => {
+  const message: ChannelMessage = {
+    id: 'bot-1',
+    at: '2026-11-02T00:00:00.000Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Done',
+  };
+  const legacy = fingerprint({ ...message, attachments: [] });
+  expect(committedIntentMatches(legacy, message)).toBe(true);
+  expect(committedIntentMatches(fingerprint(message), message)).toBe(true);
+  expect(committedIntentMatches(legacy, { ...message, body: 'Different intent' })).toBe(false);
+});
 
 describe('explicit Group draft recovery and commit receipts', () => {
   it('recovers an exhausted draft with a fresh post-restart read without resetting its budget', async () => {
@@ -326,7 +345,10 @@ describe('explicit Group draft recovery and commit receipts', () => {
           observation_id: fault === 'revoke' ? 'unavailable' : await f.read(),
           freshness_override: { draftVersion: held.draftVersion, reason: 'Still requested.' },
         };
-        if (fault === 'revoke') await expect(f.tool(args)).rejects.toThrow(/not a member/);
+        if (fault === 'revoke')
+          await expect(f.tool(args)).rejects.toThrow(
+            /not a member|bot-channel-access-denied|authorized Channel is unavailable/,
+          );
         else
           expect(await f.tool(args)).toMatchObject({
             reason: fault === 'expiry' ? 'draft-expired' : 'draft-terminal',
@@ -387,7 +409,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
           yield Buffer.from('Meet at 10:00');
         })(),
       });
-      await f.current().channels.appendMessage(f.channelId, {
+      await f.current().channels.appendMessage(OWNER_HUMAN_CONTEXT, f.channelId, {
         id: 'attachment-request',
         body: 'Summarize this agenda',
         author: { kind: 'human' },
@@ -483,7 +505,9 @@ describe('explicit Group draft recovery and commit receipts', () => {
     await fixture(async (f) => {
       await f.human('request', 'Private request');
       const held = await f.tool({ body: 'Private draft' });
-      const other = f.current().channels.createGroup({ name: 'Other', members: ['ada'] });
+      const other = f
+        .current()
+        .channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Other', members: ['ada'] });
       expect(
         await f.tool({
           body: '',
@@ -496,8 +520,15 @@ describe('explicit Group draft recovery and commit receipts', () => {
         .current()
         .runtime.groupSendReview!.inspect('direct:ada', f.channelId, held.draftId)!;
       f.current().channels.deleteGroup(f.channelId);
-      const preview = f.current().contentPurge.preview(f.channelId, [draft.sourceEventId]);
-      f.current().contentPurge.confirm(f.channelId, preview.sourceEventIds, preview.token);
+      const preview = f
+        .current()
+        .contentPurge.preview(OWNER_HUMAN_CONTEXT, f.channelId, [draft.sourceEventId]);
+      f.current().contentPurge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        f.channelId,
+        preview.sourceEventIds,
+        preview.token,
+      );
       expect(
         f
           .current()
@@ -638,8 +669,15 @@ describe('explicit Group draft recovery and commit receipts', () => {
             .get(f.channelId, committed.messageId)!.source_event_id,
       );
       f.current().channels.deleteGroup(f.channelId);
-      const preview = f.current().contentPurge.preview(f.channelId, [String(source)]);
-      f.current().contentPurge.confirm(f.channelId, preview.sourceEventIds, preview.token);
+      const preview = f
+        .current()
+        .contentPurge.preview(OWNER_HUMAN_CONTEXT, f.channelId, [String(source)]);
+      f.current().contentPurge.confirm(
+        OWNER_HUMAN_CONTEXT,
+        f.channelId,
+        preview.sourceEventIds,
+        preview.token,
+      );
       await f.restart();
       expect(
         f.current().runtime.groupSendReview!.inspectRecords('direct:ada', f.channelId, draftId),
@@ -678,9 +716,10 @@ describe('explicit Group draft recovery and commit receipts', () => {
         }),
       ).toMatchObject({ status: 'expired' });
       f.current().channels.removeGroupMember(f.channelId, 'ada');
-      await expect(f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).rejects.toThrow(
-        /not a member/,
-      );
+      expect(await f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).toMatchObject({
+        status: 'refused',
+        reason: 'draft-access-unavailable',
+      });
       expect(
         f
           .current()

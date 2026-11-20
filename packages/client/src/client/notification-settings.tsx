@@ -1,7 +1,9 @@
+import { Button } from './ds/button.js';
+import { Switch } from './ds/switch.js';
 import { useSyncExternalStore, type ReactElement } from 'react';
-import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { DesktopNotificationPrefs } from './desktop-notifications.js';
+import { Icon } from './ds/icon.js';
 import { SettingsRow } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ShortcutHelp } from './shortcut-help.js';
@@ -27,6 +29,7 @@ export function DesktopNotificationSetting({
   return (
     <SettingsRow
       title={t('desktopNotify.row.title')}
+      icon={<Icon name="bell" />}
       description={description}
       data={{ 'data-bh-setting': 'desktop-notifications' }}
       control={

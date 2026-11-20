@@ -3,7 +3,6 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const chrome = vi.hoisted(() => ({ progress: 0 }));
 type NativeStyle = { marginTop?: number; transform?: Array<{ translateY: number }> };
 function view({ children, style }: { children?: ReactNode; style?: NativeStyle | NativeStyle[] }) {
   const flat = Object.assign({}, ...(Array.isArray(style) ? style : [style]));
@@ -43,11 +42,6 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
-vi.mock('../src/ui/shell/scroll-chrome', () => ({
-  CollapsingToolbar: ({ children }: { children: ReactNode }) =>
-    createElement('div', { 'data-testid': 'collapsing' }, children),
-  useChromeProgress: () => ({ value: chrome.progress, get: () => chrome.progress }),
-}));
 vi.mock('../src/ui/shell/floating-tab-inset', () => ({ useFloatingTabInset: () => 0 }));
 
 import { SettingsForm } from '../src/ui/primitives/settings-form';
@@ -57,18 +51,17 @@ import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 afterEach(() => {
-  chrome.progress = 0;
   act(() => root?.unmount());
   root = undefined;
   document.body.innerHTML = '';
 });
 
-it('keeps the scrolling viewport stationary while chrome hides and shows', () => {
+it('keeps the scrolling viewport below a fixed header across rerenders', () => {
   const host = document.createElement('div');
   root = createRoot(host);
   const render = () =>
     root?.render(
-      <SettingsTabPage onScroll={() => {}}>
+      <SettingsTabPage>
         <SettingsForm testID="settings-form">
           <span>row</span>
         </SettingsForm>
@@ -85,30 +78,29 @@ it('keeps the scrolling viewport stationary while chrome hides and shows', () =>
     return y;
   };
   const initial = offset();
-  for (const progress of [0.5, 1, 0.5, 0]) {
-    chrome.progress = progress;
+  for (let pass = 0; pass < 4; pass++) {
     act(render);
     expect(offset()).toBe(initial);
   }
 });
 
-it('puts the Settings title in a collapsing bar and wires the form scroll to it', () => {
+it('keeps the Settings title outside the form without a scroll visibility handler', () => {
   const host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
   act(() =>
     root?.render(
-      <SettingsTabPage onScroll={() => {}}>
+      <SettingsTabPage>
         <SettingsForm testID="settings-form">
           <span>row</span>
         </SettingsForm>
       </SettingsTabPage>,
     ),
   );
-  const bar = host.querySelector('[data-testid="collapsing"]');
+  const bar = host.querySelector('[role="header"]')?.parentElement;
   expect(bar?.querySelector('[role="header"]')?.textContent).toBe(t.settings);
   expect(host.querySelector('[data-testid="settings-form"]')?.getAttribute('data-scroll')).toBe(
-    'on',
+    null,
   );
 });
 

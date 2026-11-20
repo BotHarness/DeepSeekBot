@@ -2,7 +2,7 @@
 
 The repository is still a source preview. The commands below build and test real
 npm tarballs locally; they do not publish packages or claim that a public product
-release exists. See [ADR-0127](adr/0127-product-artifacts-compose-an-independently-versioned-im-provider.md)
+release exists. See [ADR-0127](decisions/im-providers.md#adr-0127)
 for the distribution decision and [#823](https://github.com/BotHarness/BotHarness/issues/823)
 for the initial Lark qualification and Human QA evidence. [#868](https://github.com/BotHarness/BotHarness/issues/868) extends the independently pinned product Provider to the accepted Slack artifact `4.32.0-botharness.3`; this does not publish a registry release. [#878](https://github.com/BotHarness/BotHarness/issues/878) selects locally qualified `4.32.0-botharness.4` with real paired-owner WeChat receive/model/reply verified after installation; Human QA approved this first slice; registry publication remains separate.
 
@@ -35,14 +35,14 @@ fails before packing.
 
 ```bash
 git clone https://github.com/DoodleBears/dsh-im.git /tmp/bh-im-source
-git -C /tmp/bh-im-source checkout 7505ce6fcda26c02810781fde9d4da81dab28a68
+git -C /tmp/bh-im-source checkout bb0c7956896f5f5845950a0707837cd7938a11b3
 npm ci --prefix /tmp/bh-im-source --ignore-scripts --no-audit --no-fund
 pnpm install --frozen-lockfile
 pnpm build
 node scripts/product-artifacts.mjs \
   --provider-source /tmp/bh-im-source \
   --output /tmp/bh-product-artifacts \
-  --version 1.3.0-test.1155.1
+  --version 1.3.0-test.1615.1
 ```
 
 Choose a fresh output directory. `artifacts.json` records the six actual tarballs,

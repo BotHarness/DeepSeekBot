@@ -8,7 +8,7 @@ import {
   type CreationReceipt,
   type CreationRecord,
   type BotCreationDraft,
-} from '../src/host/bot-creation';
+} from '@botharness/host-client/bot-creation';
 
 const draft = {
   hostId: 'B',
@@ -376,7 +376,7 @@ describe('native blank Bot creation recovery', () => {
 });
 
 it('persists an avatar choice in the draft and rejects a malformed one', async () => {
-  const { parseCreationRecord } = await import('../src/host/bot-creation');
+  const { parseCreationRecord } = await import('@botharness/host-client/bot-creation');
   const draft = { hostId: 'A', displayName: 'Ada', persona: '', description: '', tags: '' };
   expect(
     parseCreationRecord({
@@ -404,6 +404,6 @@ it.each([
   ['https://gitlab.example/acme/bots/notes/', 'notes'],
   ['https://github.com/acme/helper?tab=readme', 'helper'],
 ])('names a Git import %s after its repository by default', async (url, name) => {
-  const { repositoryName } = await import('../src/host/bot-creation');
+  const { repositoryName } = await import('@botharness/host-client/bot-creation');
   expect(repositoryName(url)).toBe(name);
 });

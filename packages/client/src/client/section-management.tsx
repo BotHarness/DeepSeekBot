@@ -1,15 +1,12 @@
-import { useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
+import { rosterStyles } from './ds/roster-styles.js';
+import { Icon } from './ds/icon.js';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
-import {
-  IconCheckOutlineRegular,
-  IconEditOutlineRegular,
-  IconTrashOutlineRegular,
-  type MenuEntry,
-  type MenuItem,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry, type MenuItem } from './ds/menu.js';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ConfirmDialog, FormDialog, type DialogLabels } from './ds/form-dialog.js';
@@ -59,12 +56,12 @@ export function sectionMenuItems(
     {
       id: 'rename',
       label: t('section.rename'),
-      icon: <IconEditOutlineRegular />,
+      icon: <Icon name="pencil" />,
     },
     {
       id: 'delete',
       label: t('section.delete'),
-      icon: <IconTrashOutlineRegular />,
+      icon: <Icon name="trash" />,
       danger: true,
     },
   ];
@@ -77,9 +74,9 @@ export const NEW_SECTION_MOVE_TARGET = 'new-section';
 const CHANNEL_NAME_MAX = 200;
 function checkedTargetLabel(text: string): ReactElement {
   return (
-    <span className="bh-move-checked">
-      <span className="bh-move-checked-text">{text}</span>
-      <IconCheckOutlineRegular />
+    <span {...stylex.props(rosterStyles.menuLabel)}>
+      <span {...stylex.props(rosterStyles.truncate)}>{text}</span>
+      <Icon name="check" />
     </span>
   );
 }
@@ -112,11 +109,34 @@ export interface SectionRenameModalProps {
   section: RosterSection;
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onRename: (name: string) => void;
+  onRename: (name: string) => Promise<boolean>;
 }
 
 function dialogLabels(t: BotHarnessTranslate): DialogLabels {
   return { close: t('common.close'), cancel: t('common.cancel') };
+}
+
+function useSectionMutation(operation: () => Promise<boolean>) {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const submit = (): void => {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setFailed(false);
+    void Promise.resolve()
+      .then(operation)
+      .then(
+        (success) => setFailed(!success),
+        () => setFailed(true),
+      )
+      .finally(() => {
+        pending.current = false;
+        setBusy(false);
+      });
+  };
+  return { busy, failed, submit };
 }
 
 export function SectionRenameModal({
@@ -127,14 +147,19 @@ export function SectionRenameModal({
 }: SectionRenameModalProps): ReactElement {
   const [draft, setDraft] = useState(section.name);
   const trimmed = draft.trim();
+  const mutation = useSectionMutation(() => onRename(trimmed));
   return (
     <FormDialog
       title={t('section.rename.title')}
       labels={dialogLabels(t)}
       submitLabel={t('common.rename')}
       submitDisabled={trimmed.length === 0}
-      onCancel={onCancel}
-      onSubmit={() => onRename(trimmed)}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onSubmit={mutation.submit}
     >
       <TextField
         label={t('section.name.label')}
@@ -191,7 +216,7 @@ export interface SectionDeleteModalProps {
   section: RosterSection;
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<boolean>;
 }
 
 export function SectionDeleteModal({
@@ -200,14 +225,19 @@ export function SectionDeleteModal({
   onCancel,
   onDelete,
 }: SectionDeleteModalProps): ReactElement {
+  const mutation = useSectionMutation(onDelete);
   return (
     <ConfirmDialog
       title={t('section.delete.title')}
       description={t('section.delete.description', { name: section.name })}
       labels={dialogLabels(t)}
       confirmLabel={t('common.delete')}
-      onCancel={onCancel}
-      onConfirm={onDelete}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onConfirm={mutation.submit}
     />
   );
 }
@@ -215,7 +245,7 @@ export function SectionDeleteModal({
 export interface CreateSectionModalProps {
   t: BotHarnessTranslate;
   onCancel: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string) => Promise<boolean>;
 }
 
 export function CreateSectionModal({
@@ -225,14 +255,19 @@ export function CreateSectionModal({
 }: CreateSectionModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
+  const mutation = useSectionMutation(() => onCreate(trimmed));
   return (
     <FormDialog
       title={t('section.create.title')}
       labels={dialogLabels(t)}
       submitLabel={t('common.create')}
       submitDisabled={trimmed.length === 0}
-      onCancel={onCancel}
-      onSubmit={() => onCreate(trimmed)}
+      busy={mutation.busy}
+      error={mutation.failed ? t('section.updateFailed') : undefined}
+      onCancel={() => {
+        if (!mutation.busy) onCancel();
+      }}
+      onSubmit={mutation.submit}
     >
       <TextField
         label={t('section.name.label')}
@@ -246,6 +281,10 @@ export function CreateSectionModal({
 }
 
 export interface CreateChannelModalProps {
+  committed?: boolean;
+  submitted?: boolean;
+  target?: ReactNode;
+  targetUnavailable?: boolean;
   sectionName?: string | undefined;
   t: BotHarnessTranslate;
   onCancel: () => void;
@@ -253,6 +292,10 @@ export interface CreateChannelModalProps {
 }
 
 export function CreateChannelModal({
+  committed = false,
+  submitted = false,
+  target,
+  targetUnavailable = false,
   sectionName,
   t,
   onCancel,
@@ -260,17 +303,26 @@ export function CreateChannelModal({
 }: CreateChannelModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const [creating, setCreating] = useState(false);
+  const pending = useRef(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const trimmed = draft.trim();
   const submit = (): void => {
+    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable) return;
+    pending.current = true;
     setCreating(true);
     setError(undefined);
     void onCreate(trimmed).then(
       () => {
+        pending.current = false;
         setCreating(false);
       },
       (cause: unknown) => {
-        setError(errorMessage(cause));
+        pending.current = false;
+        setError(
+          cause instanceof BridgeCallError && cause.code === 'connection-host-changed'
+            ? t('environment.create.changed')
+            : errorMessage(cause),
+        );
         setCreating(false);
       },
     );
@@ -283,15 +335,36 @@ export function CreateChannelModal({
           : t('channel.create.inSection', { name: sectionName })
       }
       labels={dialogLabels(t)}
-      submitLabel={t('common.create')}
-      submitDisabled={!hasVisibleText(trimmed)}
+      submitLabel={t(
+        committed
+          ? 'environment.create.finish'
+          : submitted
+            ? 'environment.create.retry'
+            : 'common.create',
+      )}
+      submitDisabled={!hasVisibleText(trimmed) || targetUnavailable}
       busy={creating}
-      error={error === undefined ? undefined : t('create.failed', { error })}
-      onCancel={onCancel}
+      error={
+        error === undefined
+          ? undefined
+          : t(
+              committed
+                ? 'environment.create.finishFailed'
+                : submitted
+                  ? 'environment.create.unknown'
+                  : 'create.failed',
+              { error },
+            )
+      }
+      onCancel={() => {
+        if (!creating) onCancel();
+      }}
       onSubmit={submit}
     >
+      {target}
       <TextField
         label={t('channel.name.label')}
+        disabled={creating || committed || submitted}
         placeholder={t('channel.name.placeholder')}
         value={draft}
         onChange={setDraft}

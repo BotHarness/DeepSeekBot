@@ -1,0 +1,250 @@
+---
+title: "Desktop and Web UI decisions"
+sidebar:
+  order: 0
+untranslated: true
+---
+
+
+# Desktop and Web UI decisions
+
+Tobs extends the DSH Web Client with chat-first Bot mode. This page covers Client ownership, layout and presentation. [Onboarding and Simple layout guidance](https://github.com/BotHarness/BotHarness/blob/main/docs/decisions/onboarding.md) own the first-use journey.
+
+## Administration lives inside the Host's DSH Client
+
+<a id="adr-0007"></a>
+
+Tobs uses authenticated DSH Client surfaces for setup, Bot and Channel settings, Memory and diagnostics. Headless administration uses the CLI against the applicable owner.
+
+Why: The Client already knows which Host and Profile the Human is operating. Keeping administration there avoids an extra console, deployment and credential boundary.
+
+Enforced by: [onboarding](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/onboarding.test.ts), [Bot Settings](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/bot-settings.test.ts), [Channel settings](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-settings.test.ts).
+
+## Plugin composition stays separate from product settings
+
+<a id="adr-0022"></a>
+
+The exported Cordis Config and Profile composition determine whether the Host plugin starts. Product settings consume their owning service where available. Missing optional settings contributions do not keep the Host plugin pending.
+
+Why: Startup must work in minimal and headless Profiles. Shell Settings sections should be optional Consumers of Host capability.
+
+Enforced by: [Host composition and disabled plugin](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/plugin.test.ts), [DSH compatibility](https://github.com/BotHarness/BotHarness/blob/main/scripts/test/manifest-engines.test.mjs).
+
+## The Client calls the Host through Gateway RPC and read models
+
+<a id="adr-0023"></a>
+
+The Web Client runs in a separate Cordis application. The Host registers the application-defined Typert remote in DSH's API Gateway and registers explicit fetch endpoints where needed. Client source consumes wire values and shared Client contracts. New dependencies use RPC or shared packages. A shrinking baseline tracks existing direct imports from core. DSH retains the sole `/api` interceptor.
+
+Why: A Host Service object cannot cross the process boundary. Using the Gateway preserves native endpoints, authentication and ownership while letting the independent Client Bundle consume typed results.
+
+Enforced by: [package boundaries](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-package-boundaries.mjs), [Client Bundle contract](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/client-bundle.test.ts).
+
+## Tobs owns Bot mode's design system
+
+<a id="adr-0028"></a>
+<a id="adr-0194"></a>
+<a id="adr-0348"></a>
+
+[#4282](https://github.com/BotHarness/DeepSeekBot/issues/4282) supersedes the DSH token and primitive requirements for Bot mode. The DTCG resolver at `design/tokens/tobs.resolver.json` composes shared core values, Web semantic roles, colour modes and style sets. The generator emits CSS custom properties and StyleX constants. The shared `ds/` components own row alignment and content controls. Existing DSH imports and token references follow a shrinking migration baseline. [Base UI overlays](#adr-0349) use the shell layer for focus and keyboard ownership. DSH-owned surfaces retain their own components, and the docs site uses COSS.
+
+Why: Tobs needs to set its own hierarchy, alignment and colours while living inside the native shell. Central roles keep the same controls consistent across Panels, and one overlay seam preserves keyboard order across both owners.
+
+Enforced by: [resolver and generated outputs](https://github.com/BotHarness/BotHarness/blob/main/scripts/generate-tokens.mjs), [migration guard](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-design-tokens.mjs), [UI rules](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-ui-rules.mjs), [dialog and shell layering](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/tobs-dialog.test.tsx).
+
+## Tobs overlays use Base UI and share the DSH layer stack
+
+<a id="adr-0349"></a>
+
+Tobs overlays use `@base-ui/react` for structure and Tobs tokens for styling. The pinned UI dependency is inlined in the Client Bundle. `ds/shell-layer.ts` is the sole DSH overlay-stack seam, so the top layer owns Escape, Tab and focus return across Tobs and DSH. In the settings dialog, Base UI handles the portal, accessibility and lifecycle in non-modal mode. The shell handles the keyboard, and the scrim alone handles pointer dismissal outside the dialog.
+
+Existing DSH overlays migrate through the shrinking import baseline. DSH-owned pages keep their own controls, and the docs site uses COSS.
+
+Why: Base UI gives Tobs control of overlay markup and styling. The shared shell stack keeps keyboard and focus behavior coherent when either owner opens a layer above the other.
+
+Enforced by: [Client Bundle inlining](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/client-bundle.test.ts), [dialog behavior](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/tobs-dialog.test.tsx), and [DSH import guard](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-design-tokens.mjs).
+
+## Style, colour mode and accent resolve independently
+
+<a id="adr-0351"></a>
+
+The Client Appearance owner resolves colour mode, style and accent separately. Default, Apple and Material styles use shared roles for control height, type, grouping, radius, selected state and chat geometry. A style selects aliases from shared scales. Accent presets supply generated semantic roles, while a custom colour resolves at runtime. Material can tint neutral layers and muted ink and checks the result for contrast. Text roles meet 4.5:1, and `ink.quiet` is reserved for icons and decoration at 3:1. Surfaces are separated by gaps that show the canvas, not by lines; borders remain only for inputs, focus rings and the row separators inside the Apple style's grouped cards. Focus rings are 2px in every style, drawn outside controls and inset on list rows, using the `edge.focus-offset` token. Selection leaves geometry intact. Narrow Web shares the same style contract, and the native apps use their own platform chrome with shared colours.
+
+Why: Independent axes let a Human change the accent without replacing the layout language. Shared roles apply one choice across Panels and let contrast checks exercise every shipped combination.
+
+Enforced by: [style, mode and preset contrast](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/tobs-tokens.test.ts), [Client Appearance persistence](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/appearance.test.ts), [token and line rules](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-design-tokens.mjs).
+
+## The Roster opens conversations
+
+<a id="adr-0029"></a>
+
+Selecting a PersonaBot opens its Human DM. The conversation is the primary place to ask for work and receive reports. The Sessions panel provides separate scoped inspection of Assignments and other execution records. Group Channels have their own chat and scope-specific Panels.
+
+Why: Humans can ask one Bot for several lines of work in one conversation, while retaining access to individual executions when they need to inspect them.
+
+Enforced by: [Bot mode entry and Channel navigation](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/bot-panel-entry.test.ts), [Sessions projection](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/sessions-entry.test.ts), [Bot DM contract](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-dm.test.ts).
+
+## Roster arrangement is durable and hiding is reversible
+
+<a id="adr-0031"></a>
+
+Host-owned Roster arrangement records pins, section membership, mixed loose/section placement and hidden Channels. Sections have manual or inherited sort policy. Recent sorting uses latest visible activity within loose runs and applicable sections. Pinning and hiding preserve underlying placement. Channel membership, execution, readability and history keep their domain owners.
+
+Why: New and returning Clients should see the same arrangement. Keeping placement when a Channel is hidden or pinned lets the Human restore it without reconstructing the old order.
+
+Enforced by: [Roster persistence](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/roster-store.test.ts), [ordering](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/roster-order.test.ts), [Roster bridge](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/roster-bridge.test.ts).
+
+## Channel sidebar contributions have a stable scope
+
+<a id="adr-0053"></a>
+
+The Client registry exposes ordered, disposable Channel-scoped entries with stable IDs and applicability. In wide Bot mode, compatible content entries contribute Dock Panels. The narrow responsive path exposes scope-appropriate entries through Channel navigation. Settings entries use the [Channel settings dialog](#adr-0183).
+
+Why: Independently installed plugins can contribute controls without importing the conversation shell. Applicability follows the selected Channel and its owners.
+
+Enforced by: [sidebar registry and scope](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-sidebar.test.ts), [Dock Panel registration](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/dock-panels.test.ts).
+
+## Bot Settings owns product-wide presentation
+
+<a id="adr-0056"></a>
+<a id="adr-0153"></a>
+
+Bot Settings is a Client-owned dialog with registered sections, stable section IDs and a responsive section picker. The DSH Settings contribution opens that dialog. A product command or feature can request a specific section. PersonaBot and Channel configuration use their scoped dialogs.
+
+Why: Product settings need their own navigation and deep links while retaining the existing preference and feature owners.
+
+Enforced by: [Bot Settings sections](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/bot-settings.test.ts), [DSH Settings handoff](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/dsh-bot-settings-item.test.ts), [responsive Settings](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/settings-zoom-responsive.test.tsx).
+
+## Profile detail occupies the Messages panel and preserves Channel context
+
+<a id="adr-0085"></a>
+
+The Channel header and Roster can open Profile detail in Messages, bringing the panel into view when necessary. Back or Escape returns to chat. Profile Cards consume registered read models for the applicable PersonaBot or Group.
+
+Why: Keeping Profile detail inside Messages keeps navigation attached to the active conversation and makes room for identity and activity cards.
+
+Enforced by: [PersonaBot Profile](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/personabot-profile.test.ts), [Channel Dock](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-dock.test.tsx).
+
+## Profiles show portable identity and activity
+
+<a id="adr-0138"></a>
+
+The PersonaBot Profile shows editable identity such as name, Avatar, banner, tags and bio, plus read-only activity. The Group Profile shows its own identity and activity. Sharing exports portable data. Model, wake, connector and access controls live in Channel settings.
+
+Why: Showing the data that travels with a Bot makes the sharing boundary visible. Operational controls have a separate scope and authority.
+
+Enforced by: [Profile](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/personabot-profile.test.ts), [banner persistence](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/bot-banner.test.ts), [Channel settings](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-settings.test.ts).
+
+## Window Companions observe qualified activity and committed output
+
+<a id="adr-0144"></a>
+
+Window Companions render the selected PersonaBot's appearance in the Host window using shared Activity facts and a visibility-scoped read feed of committed Bot output. A fresh observation starts at the current baseline. Short reconnect can recover bounded output after that baseline. Playback, cards, movement and collapse are Client resources, independent of Channel pins and Bot execution.
+
+Why: A companion can continue across Client pages without becoming an execution authority or an independent message store. A bounded observation feed keeps its selected-Bot visibility from turning into general Channel access.
+
+Enforced by: [scope and feed](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/companion-channel-scope.test.ts), [recovery](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/companion-recovery.test.ts), [archival and deletion](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/companion-lifecycle.test.ts).
+
+## Companion requests use the same live decision owners as chat
+
+<a id="adr-0150"></a>
+
+Companions project current Tool Approval and formal question requests from their owners. A qualified live target can use the same controls without selecting the source conversation. Settlement, cancellation, disconnection or unpinning reconcile the presentation without creating a second request or decision authority.
+
+Why: A Human should be able to unblock a Bot from the companion. Reusing the request owners prevents stale history and competing presentations from settling a request twice.
+
+Enforced by: [companion approvals](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/companion-approval.test.ts), [companion questions](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/companion-question.test.ts).
+
+## Channel settings is a scoped dialog
+
+<a id="adr-0183"></a>
+
+Channel configuration registers as settings sections for the selected Channel. An attention probe can lead the Human to a section that needs action. The dialog uses the same responsive shell as Bot Settings. Operational reads and writes stay with the relevant Host features.
+
+Why: The Humans' monitoring Panels stay visible while they work. Configuration gets room for its own controls and uses an explicit Channel scope.
+
+Enforced by: [settings registration](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-sidebar-settings.test.ts), [Channel settings behaviors](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-settings.test.ts).
+
+## Diagnostic Bundles are scoped, redacted local exports
+
+<a id="adr-0185"></a>
+
+A Diagnostic Bundle exports a bounded closure of Channel, Inbox and owned Session facts around a selected message range. A read-only Host owner collects and applies best-effort redaction. The download uses the same bounded artifact as the preview. The Human controls any sharing. The bundle excludes Memory and Workspace files, attachment bytes, settings values and credentials.
+
+Why: Debugging a delivery can require both Channel facts and execution traces. A range and preview expose the relevant evidence without requiring a full Profile Backup or automatic upload.
+
+Enforced by: [collection, redaction and download](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/diagnostic-bundle.test.ts), [Client diagnostic export](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/diagnostic-bundle.test.ts).
+
+## The wide workspace is dockable and responsive
+
+<a id="adr-0203"></a>
+
+Qualified wide Bot mode uses Dockview for the Control Rail, Channel list, Messages and global Panels. Simple and Advanced are saved desktop choices. Narrow Bot mode uses single-column navigation. The scoped shell adapter releases native sidebar space only on recognized frames and restores shell geometry and shortcuts on exit. Channel selection preserves the workspace and its unrelated Panels. The public Dock Panel registry supports additive, disposable contributions through native Client plugin composition.
+
+Why: Docking lets Humans arrange one workspace without changing which Channel or Host executes work. A scoped adapter preserves the native shell outside Bot mode and across unsupported layouts.
+
+Enforced by: [Dock registrations](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/dock-panels.test.ts), [workspace layout](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/workspace-layout.test.ts), [responsive mode](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/mobile-bot-panel.test.ts), [Channel Dock](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-dock.test.tsx).
+
+## Sessions has one panel with explicit query scope
+
+<a id="adr-0220"></a>
+
+In a PersonaBot DM, Sessions follows that Bot. In a Group, Current channel is the default and an accessible member can be selected explicitly. An invalid selection clears to Current channel. The scope changes the query only and preserves original Session ownership and reporting. It does not enable other Bot-only panels.
+
+Why: One panel avoids presenting Channel Assignments and Bot Sessions as different execution systems. Explicit scope makes it possible to inspect another Bot without changing the conversation's authority.
+
+Enforced by: [Sessions scope and selection](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/sessions-entry.test.ts), [Assignment work projection](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/assignment-work.test.ts).
+
+## Global and Channel workspaces own placement independently
+
+<a id="adr-0221"></a>
+
+The Global workspace contains the Control Rail, global Panels and one Messages panel. Messages owns the active Channel workspace and its applicable child Panels. Hiding Messages hides its children while retaining their state. A scoped shortcut can reopen its parent and target without changing execution. Bot-only children require an applicable DM and remain unavailable in Groups.
+
+Why: Closely related content moves together, and Control Rail and Messages controls communicate their scope. Local presentation changes should preserve resource ownership and read authorization.
+
+Enforced by: [workspace preference migrations](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/workspace-layout.test.ts), [Channel subpanel applicability and shortcuts](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-dock.test.tsx).
+
+## The Channel workspace saves a proportional split tree
+
+<a id="adr-0222"></a>
+
+Each stable Channel ID has split geometry with a fixed axis, proportional allocation and leaves for message content and subpanels. Closing a leaf projects it out while preserving its placement. Moving a leaf retains its mounted content. Legacy side and fraction records seed equivalent positions.
+
+Why: Splitting relative to siblings supports ordinary rows and columns. A stable content instance preserves drafts and ongoing reads while geometry changes.
+
+Enforced by: [split geometry and move](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/channel-dock-layout.test.ts), [workspace migration and persistence](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/workspace-layout.test.ts).
+
+## Plugin Panel instances own explicit bindings
+
+<a id="adr-0234"></a>
+
+Native Plugins contribute Panel implementations. An independently placed instance can retain an explicit Bot or Channel binding across conversation changes. Inside Messages an applicable Panel follows the active Channel. The Panel is a Consumer of domain-owned data and notifications, and its installation or binding creates no access. Required shell roles and fallback remain under shell composition.
+
+Why: Separate registration, instance and binding lifetimes let the same implementation be reused without copying persistent state or introducing a second plugin runtime.
+
+Enforced by: [fixed bindings and plugin reload](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/panel-instances.test.ts), [registration lifetime](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/dock-panels.test.ts).
+
+## Appearance is Client-local and paint is scoped
+
+<a id="adr-0236"></a>
+
+The browser or Desktop Client owns the versioned appearance preferences, independent of the Host and Bot identity. Tobs paints only its own surfaces. Header and Body materials resolve field by field from the functional Panel override, mode default and applicable style layer. Nested Panels resolve independently. Wallpaper lives in a separate Client-local media record. A failure after preference reset but before wallpaper removal is reported as partial success.
+
+Online CLI requests select an explicit Client and carry the observed revision for writes. The authenticated Host relay uses ephemeral leases and keeps no durable appearance mirror. A delivery timeout after dispatch requires a fresh read before retry.
+
+Why: Appearance belongs to the device where it is viewed. Scoped paint and explicit targets prevent changes to the native shell or a different Client, while revision and storage refusals preserve the owner's accepted state.
+
+Enforced by: [Client appearance storage](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/appearance.test.ts), [scope](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/appearance-scope.test.ts), [nested materials](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/appearance-nested.test.tsx), [wallpaper recovery](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/appearance-recovery.test.ts), [explicit Client relay](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/appearance-control.test.ts), [package boundaries](https://github.com/BotHarness/BotHarness/blob/main/scripts/check-package-boundaries.mjs).
+
+## Desktop whole-window zoom is owned by the Client
+
+<a id="adr-0237"></a>
+
+The desktop zoom owner persists a device-local default and the primary window's current level. Root CSS zoom scales the Client, and Dock geometry compensates in local units while native window chrome keeps its viewport footprint. The native shortcut registry owns input. The optional macOS/Windows theme adapter leases shortcut ownership after the exact product-carried payload passes setup checks. Setup uses the existing Profile writer lock after Desktop quits.
+
+Explicit online CLI delivery uses ephemeral Client leases and revision checks. Ordinary Web continues to use browser zoom. Setup admission and native interaction qualification have separate evidence.
+
+Why: One zoom owner coordinates window presentation and native shortcuts without changing DSH's Host settings. Versioned payload validation limits the scope of the compatibility adapter.
+
+Enforced by: [zoom preferences](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/window-zoom.test.ts), [Dockview geometry](https://github.com/BotHarness/BotHarness/blob/main/packages/client/test/dock-zoom-geometry.test.ts), [desktop setup](https://github.com/BotHarness/BotHarness/blob/main/scripts/test/desktop-zoom-setup.test.mjs), [explicit Client relay](https://github.com/BotHarness/BotHarness/blob/main/packages/core/test/window-zoom-control.test.ts).

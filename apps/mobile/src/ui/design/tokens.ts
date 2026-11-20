@@ -11,6 +11,8 @@ export const space = {
   x6: 24,
 } as const;
 
+export const statusChip = { height: 36, dot: 8 } as const;
+
 export const groupUnavailable = { icon: 48 } as const;
 
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
@@ -42,6 +44,14 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const alertOverlay = {
+  maxHeightFraction: 0.5,
+  swipeStart: 12,
+  swipeCommit: 48,
+  swipeFlick: 800,
+  settle: 400,
+} as const;
+
 export const edge = {
   hairline: 1,
   focus: 2,
@@ -53,6 +63,14 @@ export const stateRing = {
   inset: 3,
   segment: 0.26,
   period: 1300,
+} as const;
+export const callBubble = {
+  avatarScale: 1.25,
+  badge: 20,
+  capsuleOverlap: 8,
+  pulsePeriod: 1400,
+  pulseGrowth: 0.35,
+  maxTextScale: 1.4,
 } as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
 export const accountActionIcon = {
@@ -201,6 +219,18 @@ export const glass = {
   saturate: 180,
 } as const;
 
+export const draftEditor = { aboveMax: '40%' } as const;
+
+export const island = {
+  fade: { curve: 0.85, peak: 0.91 },
+  ink: { light: '#000000', dark: '#ffffff' },
+  light: '#ffffff',
+  shade: '#000000',
+  rim: { width: 0.5, light: 0.1, dark: 0.1 },
+  highlight: { width: 1, light: 0.55, dark: 0.08 },
+  shadow: { radius: 2.7, offsetY: 0.85, light: 0.13, dark: 0.3 },
+} as const;
+
 export const edgeFade = {
   bottom: 24,
   stops: [
@@ -274,6 +304,13 @@ export const decelerate: Record<PlatformOS, readonly [number, number, number, nu
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
+export const sendFly = {
+  duration: 250,
+  vertical: [0.199, 0.011, 0.279, 0.91],
+  horizontal: [0.23, 1, 0.32, 1],
+  settle: [0, 0, 0.58, 1],
+} as const;
+
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
 export const doubleTap = { window: 300, emoji: '👍' } as const;
@@ -281,6 +318,8 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 export const recentChats = { limit: 3 } as const;
 
 export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+export const cornerBadge = { maxTextScale: 1.2, materialLabel: 11 } as const;
+export const environmentBadge = { size: 20, glyphRatio: 0.62 } as const;
 
 export const swipeOpen = {
   start: 24,
@@ -298,11 +337,42 @@ export const swipeOpen = {
 export const swipeReply = {
   start: 12,
   verticalFail: 10,
+  backFail: 8,
   commit: 56,
   reach: 72,
   icon: 28,
   bar: 3,
 } as const;
+
+export const replyQuote = { tint: 0.13 } as const;
+
+export const replyThumb = { size: 32 } as const;
+
+export const mediaBubble = {
+  maxWidth: 280,
+  widthRatio: 0.72,
+  gap: 0,
+  more: '#0000008c',
+  ink: '#ffffff',
+} as const;
+
+export const fileTile = {
+  size: 40,
+  radius: 10,
+  ink: '#ffffff',
+  fill: {
+    pdf: '#d93d42',
+    sheet: '#24804a',
+    doc: '#3358d4',
+    slides: '#c4510d',
+    archive: '#7d45b8',
+    media: '#c2368f',
+    code: '#0b68b5',
+    other: '#62616b',
+  },
+} as const;
+
+export const voiceRow = { play: 36, wave: 24, bar: 3, unplayed: 0.3 } as const;
 
 export const topEntrance = {
   edge: 20,
@@ -422,3 +492,20 @@ export const memoryGrid = {
   icon: 28,
   gap: space.x3,
 } as const;
+
+export const signInBrand = {
+  height: 50,
+  mark: 20,
+  apple: {
+    light: { fill: '#000000', label: '#ffffff', edge: '#000000' },
+    dark: { fill: '#ffffff', label: '#000000', edge: '#ffffff' },
+  },
+  google: {
+    light: { fill: '#ffffff', label: '#1f1f1f', edge: '#747775' },
+    dark: { fill: '#131314', label: '#e3e3e3', edge: '#8e918f' },
+  },
+  googleMark: { red: '#ea4335', blue: '#4285f4', yellow: '#fbbc05', green: '#34a853' },
+  appIcon: 64,
+} as const;
+
+export const qrCode = { ink: '#000000', paper: '#ffffff' } as const;

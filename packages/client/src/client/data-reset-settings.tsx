@@ -1,7 +1,6 @@
+import { Checkbox } from './ds/checkbox.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { formatBotZipSize } from './bot-zip.js';
 import {
@@ -17,7 +16,8 @@ import { DangerTextButton, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { color, space, text } from './ds/tokens.stylex.js';
-import type { BotHarnessKey } from './locale.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { font } from './ds/tobs.stylex.js';
 
 const styles = stylex.create({
   content: {
@@ -63,7 +63,7 @@ const styles = stylex.create({
   },
   path: {
     overflowWrap: 'anywhere',
-    fontFamily: 'var(--dsw-font-family-mono)',
+    fontFamily: font.familyMono,
   },
   choice: {
     color: color.fg,
@@ -127,7 +127,10 @@ function Item({
   );
 }
 
-export type DataResetSettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface DataResetSettingsProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+}
 
 export function DataResetSettings({ call, t }: DataResetSettingsProps): ReactElement {
   const [open, setOpen] = useState(false);

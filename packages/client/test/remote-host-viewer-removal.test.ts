@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
-import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
 import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 
@@ -121,8 +121,10 @@ describe.each(['browser', 'computer'] as const)('remove a Host during %s takeove
       const removing = h.sources.remove(h.host.hostId);
       await h.viewer.send({ kind: 'type', text: 'after-remove' });
       expect(h.events).toEqual(['takeover:true']);
-      expect(h.sources.getSnapshot().hosts).toHaveLength(0);
-      expect(h.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
+      await vi.waitFor(() => expect(h.sources.getSnapshot().hosts).toHaveLength(0));
+      expect(JSON.parse(h.values.get(REMOTE_HOSTS_STORAGE_KEY) ?? '[]')).toEqual([
+        expect.objectContaining({ kind: 'automatic-enrollment-suppressed', hostId: h.host.hostId }),
+      ]);
       const stale = createRemoteHostViewer(h.client, kind, 'ada');
       const stopStale = stale.subscribe(() => {});
       await stale.setControl(true);

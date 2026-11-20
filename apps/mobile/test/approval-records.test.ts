@@ -6,7 +6,7 @@ import {
   revokeApprovalRule,
   type ApprovalRule,
 } from '../src/host/approval-records';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import {
   historyDetail,
   inputSummary,
@@ -16,7 +16,7 @@ import {
   toolGlyph,
 } from '../src/ui/chat/approval-records-text';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';
@@ -106,7 +106,14 @@ describe('approval history and always-allow rules on the phone', () => {
           input: '{"command":"pnpm test"}',
           autoApprovedCount: 3,
         },
-        { ...base, id: 'old', kind: 'tool', toolName: 'bash', input: '', revokedAt: 'x' },
+        {
+          ...base,
+          id: 'old',
+          kind: 'tool',
+          toolName: 'bash',
+          input: '',
+          revokedAt: '2026-10-26T00:00:00.000Z',
+        },
         {
           ...base,
           id: 'legacy',
@@ -118,7 +125,15 @@ describe('approval history and always-allow rules on the phone', () => {
       ],
     }));
     fake.methods.set('toolApprovalRuleRevoke', (args) => ({
-      rule: { ...base, id: args['id'], revokedAt: '2026-10-27T00:00:00.000Z' },
+      rule: {
+        ...base,
+        id: args['id'],
+        kind: 'exact',
+        toolName: 'bash',
+        input: '{"command":"pnpm test"}',
+        autoApprovedCount: 3,
+        revokedAt: '2026-10-27T00:00:00.000Z',
+      },
     }));
     const host = client(fake);
     const rules = await loadApprovalRules(host, slug);

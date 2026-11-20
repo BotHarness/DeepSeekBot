@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_ILLUSTRATED_RECIPE } from '../src/bots/avatar-appearance.js';
 import { MAX_PERSONA_BOT_AVATAR_BYTES } from '../src/bots/persona-bot.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
+import { createTempRoot } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
 
 const PNG = Buffer.from(
@@ -14,34 +14,23 @@ const PNG = Buffer.from(
   'base64',
 );
 
-const roots: string[] = [];
-
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
 function git(cwd: string, ...args: string[]): void {
-  execFileSync('git', [
-    '-C',
-    cwd,
-    '-c',
-    'user.name=QA',
-    '-c',
-    'user.email=qa@example.test',
-    ...args,
-  ]);
+  execFileSync(
+    'git',
+    ['-C', cwd, '-c', 'user.name=QA', '-c', 'user.email=qa@example.test', ...args],
+    { shell: false, windowsHide: true },
+  );
 }
 
 function bareRepository(
   files: Record<string, string | Buffer>,
   links: Record<string, string> = {},
 ) {
-  const root = mkdtempSync(join(tmpdir(), 'botharness-presentation-'));
-  roots.push(root);
+  const root = createTempRoot('botharness-presentation-');
   const work = join(root, 'work');
   const bare = join(root, 'bot.git');
   mkdirSync(work);
-  execFileSync('git', ['init', '-q', '-b', 'main', work]);
+  execFileSync('git', ['init', '-q', '-b', 'main', work], { shell: false, windowsHide: true });
   writeFileSync(join(work, 'PERSONA.md'), '# Shared Bot\n');
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(work, path)), { recursive: true });
@@ -53,7 +42,7 @@ function bareRepository(
   }
   git(work, 'add', '.');
   git(work, 'commit', '-qm', 'Shared Bot');
-  execFileSync('git', ['clone', '-q', '--bare', work, bare]);
+  execFileSync('git', ['clone', '-q', '--bare', work, bare], { shell: false, windowsHide: true });
   return { root, bare };
 }
 
@@ -63,7 +52,10 @@ async function install(files: Record<string, string | Buffer>, links?: Record<st
     rootDir: join(root, 'bots'),
     initializeMemory: (memoryDir) => ({ ok: ensureMemoryRepository({ memoryDir }).ok }),
     cloneMemory: async (destination) => {
-      execFileSync('git', ['clone', '-q', '--', bare, destination]);
+      execFileSync('git', ['clone', '-q', '--', bare, destination], {
+        shell: false,
+        windowsHide: true,
+      });
       return { ok: true };
     },
   });
@@ -129,8 +121,7 @@ describe('shared presentation after a Git install', () => {
   });
 
   it('refuses an avatar symlink that leaves the cloned tree', async () => {
-    const outside = mkdtempSync(join(tmpdir(), 'botharness-outside-'));
-    roots.push(outside);
+    const outside = createTempRoot('botharness-outside-');
     writeFileSync(join(outside, 'secret.png'), PNG);
 
     const record = await install(

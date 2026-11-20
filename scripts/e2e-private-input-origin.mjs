@@ -336,6 +336,7 @@ try {
             },
             stdio: ['pipe', 'pipe', 'pipe'],
             windowsHide: true,
+            shell: false,
           },
         );
         let stdout = '';

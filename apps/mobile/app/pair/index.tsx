@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Linking, ScrollView } from 'react-native';
 
 import { cloudAvailable } from '../../src/cloud/available';
+import { pairingLinkMode } from '@botharness/host-client/pairing';
 import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { space } from '../../src/ui/design/tokens';
@@ -24,7 +25,11 @@ export default function PairChoiceScreen() {
       if (forwarded.current) return;
       if (typeof params.p === 'string') {
         forwarded.current = true;
-        router.push({ pathname: '/pair/tailscale', params: { p: params.p } });
+        const mode = pairingLinkMode(params.p);
+        router.push({
+          pathname: '/pair/tailscale',
+          params: mode === undefined ? { p: params.p } : { p: params.p, mode },
+        });
       } else if (typeof params.account === 'string') {
         forwarded.current = true;
         router.push({
@@ -42,6 +47,15 @@ export default function PairChoiceScreen() {
     >
       <SettingsSection on={SHEET_GROUP} footer={t.pairChoice.needs}>
         <SettingsRow
+          testID="pair-choice-private"
+          on={SHEET_GROUP}
+          title={t.pairChoice.private}
+          detail={t.pairChoice.privateDetail}
+          icon="lan"
+          disclosure
+          onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'private' } })}
+        />
+        <SettingsRow
           testID="pair-choice-lan"
           on={SHEET_GROUP}
           title={t.pairChoice.lan}
@@ -54,6 +68,15 @@ export default function PairChoiceScreen() {
               params: { mode: 'lan' },
             })
           }
+        />
+        <SettingsRow
+          testID="pair-choice-team"
+          on={SHEET_GROUP}
+          title={t.pairChoice.team}
+          detail={t.pairChoice.teamDetail}
+          icon="account"
+          disclosure
+          onPress={() => router.push('/pair/team')}
         />
         <SettingsRow
           testID="pair-choice-account"

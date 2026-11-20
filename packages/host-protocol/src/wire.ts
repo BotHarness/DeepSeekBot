@@ -1,0 +1,902 @@
+import type { TurnTarget } from './turn-target';
+import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
+import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
+import type { ChannelReplyPreviewMedia } from '../../core/src/channels/reply-preview';
+import type { SkillOwner } from '../../core/src/skills/entries';
+
+export type AggregatedState = 'idle' | 'thinking' | 'working' | 'waiting' | 'blocked';
+
+export interface WireMessage {
+  id: string;
+  at: string;
+  body: string;
+  author?: WireAuthor;
+}
+
+export type WireAuthor =
+  | { kind: 'human'; humanId?: string; displayName?: string }
+  | { kind: 'bot'; slug: string }
+  | { kind: 'remote-bot'; hostId: string; slug: string }
+  | { kind: 'bridged'; source: string }
+  | { kind: 'system' };
+
+export interface WireReplyPreview {
+  author: WireAuthor;
+  body: string;
+  media?: WireReplyPreviewMedia;
+}
+
+export type WireReplyPreviewMedia = ChannelReplyPreviewMedia<AttachmentRef>;
+
+export interface WireReaction {
+  emoji: string;
+  actors: { kind: 'human' | 'bot'; id: string }[];
+}
+
+export interface WireMention {
+  botSlug: string;
+  label: string;
+  start: number;
+  end: number;
+}
+
+export interface WireAllBotPreview {
+  revision: string;
+  recipients: { botSlug: string; label: string }[];
+}
+
+export interface WireAllBotMention {
+  start: number;
+  end: number;
+  label: string;
+  preview: WireAllBotPreview;
+}
+
+export type WireDeliveryState =
+  | 'pending'
+  | 'observed'
+  | 'running'
+  | 'retryable'
+  | 'needs-repair'
+  | 'handled'
+  | 'ignored';
+
+export interface WireDelivery {
+  botSlug: string;
+  state: WireDeliveryState;
+}
+
+export interface WireSkillInvocation {
+  name: string;
+  owner: SkillOwner;
+  start: number;
+  end: number;
+}
+
+export interface ChannelWireMessage extends WireMessage {
+  turnTargets?: TurnTarget[];
+  contentPurge?: unknown;
+  author: WireAuthor;
+  mentions?: WireMention[];
+  skillInvocations?: WireSkillInvocation[];
+  replyTo?: string;
+  replyToPreview?: WireReplyPreview | null;
+  reactions?: WireReaction[];
+  deliveries?: WireDelivery[];
+  attachments?: readonly AttachmentRef[];
+  genui?: unknown;
+  voice?: WireMessageVoice;
+  clearedAttachments?: readonly {
+    name: string;
+    mime: string;
+    size: number;
+    clearedAt: string;
+  }[];
+  bridgeMedia?: {
+    items: readonly BridgeMediaItem[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+  };
+  bridgeOrigin?: { sourceEventId: string };
+  toolApprovalRequest?: unknown;
+  toolAutoApproval?: unknown;
+  userQuestionRequest?: unknown;
+  privateInputRequest?: unknown;
+  takeoverRequest?: unknown;
+  takeoverResolution?: unknown;
+  sessionFailure?: unknown;
+  grantRequest?: true;
+  grantRequestResolved?: boolean;
+  grantRequestResolution?: unknown;
+  privateInputResolution?: unknown;
+  toolApprovalDecision?: unknown;
+  userQuestionResolution?: unknown;
+  onboardingWelcome?: unknown;
+  botDmAction?: unknown;
+  botChannelPost?: unknown;
+  botChannelPostPreview?: unknown;
+  memoryCommit?: unknown;
+  noticeOrigin?: unknown;
+  botCreateAction?: unknown;
+  memberDeparture?: unknown;
+  turnStop?: unknown;
+  modelSwitch?: unknown;
+  voiceCallRecord?: unknown;
+}
+
+export interface WireMessageVoice {
+  state: 'pending' | 'ready' | 'failed';
+  attachment?: string;
+  durationMs?: number;
+  code?: string;
+  error?: string;
+}
+
+export interface BridgeMediaItem {
+  id: string;
+  kind: 'image' | 'file' | 'audio' | 'video';
+  name: string;
+  sizeBytes?: number;
+}
+
+export interface AttachmentRef {
+  name: string;
+  mime: string;
+  size: number;
+  fileId?: string;
+  hash?: string;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
+}
+
+export interface JournalEntry {
+  channelId: string;
+  message: ChannelWireMessage;
+  revision: number;
+}
+
+export interface JournalPage {
+  entries: JournalEntry[];
+  olderCursor: string | null;
+  hasOlder: boolean;
+}
+
+export interface WireDraft {
+  channelId: string;
+  draftId: string;
+  attemptId: string;
+  botSlug: string;
+  body: string;
+  revision: number;
+}
+
+export interface WireDraftAppend {
+  draftId: string;
+  revision: number;
+  base: number;
+  offset: number;
+  append: string;
+}
+
+export type ChannelNotification =
+  | {
+      kind: 'admission';
+      channelId: string;
+      messageId: string;
+      deliveries?: WireDelivery[];
+    }
+  | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
+  | {
+      kind: 'reaction';
+      channelId: string;
+      messageId: string;
+      reactions: WireReaction[];
+    }
+  | {
+      kind: 'voice';
+      channelId: string;
+      messageId: string;
+      voice: WireMessageVoice;
+      attachments: readonly AttachmentRef[];
+    }
+  | {
+      kind: 'attachments';
+      channelId: string;
+      messageId: string;
+      attachments: readonly AttachmentRef[];
+      clearedAttachments: readonly {
+        name: string;
+        mime: string;
+        size: number;
+        clearedAt: string;
+      }[];
+    }
+  | {
+      kind: 'session-links';
+      channelId: string;
+      messageId: string;
+      sessionLinks: readonly { sessionId: string; kind: 'created' | 'sent'; title: string }[];
+    }
+  | {
+      kind: 'draft-baseline';
+      channelId: string;
+      revision: number;
+      drafts: WireDraft[];
+    }
+  | { kind: 'draft'; draft: WireDraft }
+  | { kind: 'draft-append'; append: WireDraftAppend }
+  | {
+      kind: 'draft-settled' | 'draft-abandoned';
+      event: {
+        channelId: string;
+        draftId: string;
+        attemptId: string;
+        revision: number;
+      };
+    };
+
+export type ChannelLiveFrame =
+  | {
+      type: 'opened';
+      cursor: number;
+      page?: JournalPage;
+      changes?: { epoch: string; seq: number };
+    }
+  | { type: 'entry'; entry: JournalEntry }
+  | { type: 'notification'; notification: ChannelNotification };
+
+export interface SendStatus {
+  sourceEventId: string;
+  state: string;
+  replies: ChannelWireMessage[];
+}
+
+export type WireBotBanner = { recipe: { scene: string; seed: number } } | { image: string };
+
+export interface OrchestratorRunner {
+  engine: string;
+  displayName: string;
+  account?: string;
+  model?: string;
+}
+
+export interface PersonaBotSummary {
+  orchestratorRunner?: OrchestratorRunner;
+  tob?: { defaultName: boolean; defaultAvatar: boolean };
+  slug: string;
+  displayName: string;
+  avatar?: string;
+  appearance?: unknown;
+  avatarSeed?: 2;
+  banner?: WireBotBanner;
+  primaryColor?: BotPrimaryColor;
+  roles?: string[];
+  description?: string;
+  computerAccess?: boolean;
+  browserAccess?: boolean;
+  paused?: boolean;
+  deleted?: boolean;
+  aggregateState: AggregatedState;
+}
+
+export interface MemoryStanding {
+  path: string;
+  role: 'soul' | 'coreMemory';
+  chars: number;
+  limit: number;
+}
+
+export interface MemorySnapshot {
+  head: string | null;
+  files: string[];
+  provisional: boolean;
+  standing: MemoryStanding[];
+}
+
+export interface MemoryFile {
+  path: string;
+  body: string;
+  head: string;
+  binary?: boolean;
+  image?: MemoryImage;
+  markdown?: MemoryMarkdown;
+}
+
+export interface MemoryImage {
+  source: string;
+  status: 'ready' | 'missing' | 'unsupported' | 'too-large' | 'stale';
+  revision?: string;
+  mime?: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/svg+xml';
+  size?: number;
+  width?: number;
+  height?: number;
+}
+
+export interface MemoryMarkdown {
+  source: string;
+  status: MemoryImage['status'];
+  revision?: string;
+  body: string;
+}
+
+export type ScheduleTrigger =
+  | { kind: 'every'; everySeconds: number }
+  | { kind: 'daily'; time: string; timeZone: string }
+  | { kind: 'weekly'; time: string; timeZone: string; weekdays: number[] }
+  | { kind: 'once'; date: string; time: string; timeZone: string }
+  | { kind: 'cron'; expression: string; timeZone: string };
+
+export type ScheduleFiringState = 'pending' | 'observed' | 'handled' | 'coalesced' | 'skipped';
+
+export interface BotScheduleFiring {
+  id: string;
+  scheduleId: string;
+  trigger: 'planned' | 'manual';
+  occurrenceAt: string;
+  firedAt: string;
+  state: ScheduleFiringState;
+}
+
+export interface BotScheduleSummary {
+  id: string;
+  title: string;
+  prompt?: string;
+  trigger: ScheduleTrigger;
+  enabled: boolean;
+  nextRunAt?: string;
+  lastFiring?: BotScheduleFiring;
+}
+
+export interface WorkspaceGrantSummary {
+  id: string;
+  workspacePath: string;
+  workspaceTitle: string;
+  revokedAt?: string;
+  orchestratorWrite?: boolean;
+}
+
+export interface ProfileActivityDay {
+  day: string;
+  count: number;
+}
+
+export interface ProfileActivityReasonDay extends ProfileActivityDay {
+  reason: string;
+}
+
+export interface ProfileTokenBuckets {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+export interface ProfileActivityTokensDay extends ProfileTokenBuckets {
+  day: string;
+}
+
+export interface ProfileModelUsageRow {
+  partial?: boolean;
+  day: string;
+  purpose: string;
+  provider: string;
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface ProfileActivity {
+  weeks: number;
+  before?: string;
+  createdDay?: string;
+  today: string;
+  events: ProfileActivityReasonDay[];
+  memoryCommits: ProfileActivityDay[];
+  tokens: ProfileActivityTokensDay[];
+  modelUsageRows: ProfileModelUsageRow[];
+  modelUsageStatus: 'ready' | 'unavailable';
+}
+
+export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
+export type AssignmentReportState =
+  | 'progress'
+  | 'completed'
+  | 'blocked'
+  | 'waiting-human'
+  | 'failed';
+
+export interface AssignmentReportInput {
+  state: AssignmentReportState;
+  summary: string;
+
+  expectsReply?: boolean;
+}
+
+export interface AssignmentReport extends AssignmentReportInput {
+  at: string;
+}
+
+export interface ChannelAssignmentSummary {
+  sessionId: string;
+  botSlug: string;
+  title: string;
+  description: string;
+  activity: AssignmentActivity;
+  latestReport?: AssignmentReport;
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  subagentCount?: number;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChannelListItem {
+  id: string;
+  createdAt?: string;
+  updatedAt?: string;
+  type: 'dm' | 'group' | (string & {});
+  name: string;
+  members: string[];
+  botSlug?: string;
+  humanParticipants?: string[];
+  humanMembers?: Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
+  avatar?: string;
+  ownerBotSlug?: string;
+  invitations?: WireGroupInvitation[];
+  joinRequests?: WireGroupJoinRequest[];
+  deletedAt?: string;
+  latestMessage?: WireMessage;
+}
+
+export interface WireGroupInvitation {
+  id: string;
+  targetBotSlug: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+}
+
+export interface WireGroupJoinRequest {
+  id: string;
+  requesterBotSlug: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+}
+
+export type RosterResourceChange = {
+  resource: string;
+  revision: number;
+  channelId?: string;
+  messageId?: string;
+  slug?: string;
+};
+
+export type RosterLiveFrame =
+  | { type: 'skills'; change: { botSlugs: string[]; channelIds: string[] } }
+  | { type: 'attention' }
+  | { type: 'resource'; change: RosterResourceChange }
+  | { type: 'baseline'; placements: unknown[] }
+  | { type: 'changed' }
+  | { type: 'latest'; channelId: string; message: WireMessage }
+  | { type: 'purged'; placements: unknown[] };
+
+export interface WireToolActivity {
+  effect: 'thinking-dots' | 'searching' | 'coding' | 'executing' | 'generic-working';
+  toolName?: string;
+  publicDetail?: string;
+  activeToolCount: number;
+}
+
+export interface WireSessionActivity {
+  id: string;
+  role: 'orchestrator' | 'assignment' | 'subagent';
+  name?: string;
+  state: Exclude<AggregatedState, 'idle'>;
+  activity?: WireToolActivity;
+}
+
+export interface WireBotActivity {
+  slug: string;
+  state: AggregatedState;
+  active?: boolean;
+  activity?: WireToolActivity;
+  sessions?: readonly WireSessionActivity[];
+}
+
+export interface ActivitySnapshot {
+  generation: string;
+  revision: number;
+  bots: readonly WireBotActivity[];
+}
+
+export type ActivityLiveFrame =
+  | { type: 'baseline'; snapshot: ActivitySnapshot }
+  | { type: 'changed'; snapshot: ActivitySnapshot };
+
+export interface ClientRequest {
+  type: 'client-request';
+  rpcId: string;
+  method: string;
+  payload: { args: Record<string, unknown> };
+}
+
+export type MuxClientFrame =
+  | {
+      type: 'open';
+      streamId: string;
+      endpoint: string;
+      payload: { args: Record<string, unknown> };
+    }
+  | { type: 'cancel'; streamId: string };
+
+export type MuxServerFrame =
+  | { type: 'item'; streamId: string; value?: unknown }
+  | {
+      type: 'error';
+      streamId: string;
+      error: { code: string; message: string; details: object };
+    }
+  | { type: 'end'; streamId: string };
+
+export const REMOTE_STREAM_MUX_PATH = '/api/remote.mux';
+
+export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
+
+export interface HumanAttentionItem {
+  id: string;
+  category: HumanAttentionCategory;
+  kind: string;
+  createdAt: string;
+  channelId?: string;
+  channelName?: string;
+  botSlug: string;
+  summary: string;
+  messageId?: string;
+  requestId?: string;
+  assignmentSessionId?: string;
+  sourceEventId?: string;
+  responseMessageId?: string;
+  unreadCount?: number;
+  isUnread?: boolean;
+  snoozedUntil?: string;
+  autoRejection?: {
+    sessionId: string;
+    toolName: string;
+    input: string;
+    template: string;
+    reason: string;
+  };
+}
+
+export interface HumanAssignmentReport {
+  sourceEventId: string;
+  at: string;
+  state: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
+  summary: string;
+}
+
+export interface HumanAssignmentContext {
+  botSlug: string;
+  sessionId: string;
+  purpose: string;
+  sourceEventId: string;
+  reports: HumanAssignmentReport[];
+  canReply: boolean;
+  reply?: { id: string; at: string; body: string };
+}
+
+export type BotInboxState =
+  | 'pending'
+  | 'processing'
+  | 'observed'
+  | 'deferred'
+  | 'needs-repair'
+  | 'open'
+  | 'snoozed'
+  | 'handled'
+  | 'ignored';
+
+export interface BotInboxItem {
+  id: string;
+  botSlug: string;
+  reason: string;
+  state: BotInboxState;
+  createdAt: string;
+  resolutionNote?: string;
+  snoozeNote?: string;
+  sourceKind: string;
+  sourceChannelName?: string;
+  sourceMessageId?: string;
+  externalOrigin?: { conversationName: string };
+  summary: string;
+}
+
+export interface BotInboxPage {
+  items: BotInboxItem[];
+  nextCursor?: string;
+}
+
+export interface HumanAttentionPage {
+  queryVersion?: number;
+  notificationVersion?: number;
+  items: HumanAttentionItem[];
+  nextCursor?: string;
+}
+
+export interface ToolApprovalRequestCard {
+  effects?: ToolEffects;
+  toolName: string;
+  role: 'orchestrator' | 'assignment';
+  cwd: string;
+  input: string;
+  allowAlways?: boolean;
+}
+
+export type ToolApprovalOutcome =
+  | 'allowed-once'
+  | 'allowed-always-tool'
+  | 'allowed-always-exact'
+  | 'allowed-always-all'
+  | 'rejected';
+
+export interface QuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface QuestionItem {
+  id: string;
+  question: string;
+  detail?: string;
+  header?: string;
+  options?: QuestionOption[];
+  multiSelect?: boolean;
+}
+
+export interface QuestionAnswerItem {
+  id: string;
+  selected: string[];
+  custom?: string;
+}
+
+export interface QuestionAnswer {
+  answers: QuestionAnswerItem[];
+}
+
+export interface TimelineMessage {
+  contentPurge?: unknown;
+  id: string;
+  body: string;
+  toolApprovalRequest?: ToolApprovalRequestCard;
+  toolApprovalDecision?: {
+    requestMessageId: string;
+    outcome: ToolApprovalOutcome;
+  };
+  userQuestionRequest?: { questions: QuestionItem[] };
+  userQuestionResolution?: {
+    requestMessageId: string;
+    state: 'answered' | 'cancelled';
+  };
+  author?: WireAuthor;
+  grantRequest?: true;
+  grantRequestResolved?: boolean;
+  grantRequestResolution?: { requestMessageId: string; grantId: string };
+}
+
+export interface TimelinePage {
+  entries: TimelineMessage[];
+}
+
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
+export type UserQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
+
+export type UsagePeriod = 'today' | 'week' | 'month' | 'quarter';
+
+export interface UsageBuckets {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  totalTokens: number | null;
+  partial?: boolean;
+}
+
+export interface UsageBot extends UsageBuckets {
+  slug: string;
+  displayName: string;
+  current: boolean;
+  primaryColor: string;
+}
+
+export interface OverviewUsage {
+  period: UsagePeriod;
+  start: string;
+  end: string;
+  timezone: string;
+  nextRefreshAt: string;
+  totals: UsageBuckets;
+  days: (UsageBuckets & { day: string })[];
+  bots: UsageBot[];
+  nextCursor?: string;
+  freshness: 'ready' | 'reconciling' | 'degraded';
+  readAt: string;
+  reconciledAt: string | null;
+  legacyBaseline: boolean;
+}
+
+export type MemoryActivityBot = { slug: string; displayName: string } & (
+  | { state: 'ready'; total: number; counts: number[]; dirty: boolean }
+  | { state: 'unavailable' }
+);
+
+export interface OverviewMemory {
+  start: string;
+  end: string;
+  days: string[];
+  timezone: string;
+  readAt: string;
+  nextRefreshAt: string;
+  bots: MemoryActivityBot[];
+  nextCursor?: string;
+}
+
+export interface WireBotAttentionItem extends BotInboxItem {
+  observedAt?: string;
+  handledAt?: string;
+  ignoredAt?: string;
+  snoozedUntil?: string;
+  sourceChannelId?: string;
+  assignmentSessionId?: string;
+  assignmentTitle?: string;
+  assignmentReportState?: HumanAssignmentReport['state'];
+  assignmentTurn?: number;
+  relatedReportSourceEventId?: string;
+  scheduleId?: string;
+  sourceAvailable: boolean;
+  authorKind: 'human' | 'bot' | 'bridged' | 'system';
+  authorBotSlug?: string;
+  externalOrigin?: {
+    platform: string;
+    accountName: string;
+    conversationName: string;
+    conversationId: string;
+    senderId: string;
+    senderName?: string;
+    voice?: {
+      transcript: 'platform' | 'unavailable';
+      itemId?: string;
+      durationMs?: number;
+      encodeType?: number;
+      sampleRate?: number;
+      bitsPerSample?: number;
+    };
+  };
+}
+
+export interface WireBotAttentionPage {
+  items: WireBotAttentionItem[];
+  nextCursor?: string;
+}
+
+export interface WireStoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export interface WireSessionStopResult {
+  stopped: WireStoppedSessionRef[];
+  alreadyIdle: WireStoppedSessionRef[];
+  messageId?: string;
+}
+
+export interface WireBotCompactResult {
+  outcome: 'compacted' | 'nothing' | 'busy' | 'not-loaded';
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+}
+
+export interface WireApprovalTemplate {
+  name: string;
+  title: string;
+  description: string;
+  builtIn: boolean;
+  usedBy: string[];
+  text: string;
+}
+
+export interface WireApprovalTemplates {
+  templates: WireApprovalTemplate[];
+  selected?: string | null;
+  globalDefault?: string | null;
+  effective?: string | null;
+  source?: 'global' | 'specific' | 'off';
+}
+
+export interface WireApprovalActor {
+  platform: 'feishu';
+  bindingId: string;
+  fingerprint: string;
+  actorId: string;
+  pairingId: string;
+  pairingRevision: number;
+  conversationId: string;
+  messageId: string;
+}
+
+export interface WireApprovalRule {
+  id: string;
+  botSlug: string;
+  role: 'orchestrator' | 'assignment';
+  scopeKey: string;
+  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+  toolName: string;
+  input: string;
+  createdAt: string;
+  revokedAt?: string;
+  externalCreator?: WireApprovalActor;
+  autoApprovedCount?: number;
+}
+
+export type WireApprovalCard = {
+  kind: 'tool-approval' | 'user-question' | 'private-input';
+  botSlug: string;
+  state: string;
+  requestedAt: string;
+  decidedAt?: string;
+} & (
+  | { masked: true }
+  | { masked: false; opaque: boolean; decidedBy?: { humanId: string; displayName?: string } }
+);
+
+export interface WireAdministrativeBot {
+  slug: string;
+  displayName: string;
+  ownerHumanId: string;
+  owner: boolean;
+  paused: boolean;
+  createdAt: string;
+}
+
+export type WireToolApprovalExecution =
+  | 'waiting-human'
+  | 'waiting-capacity'
+  | 'running'
+  | 'settled'
+  | 'needs-repair';
+
+export interface WireToolApprovalState {
+  status: ToolApprovalStatus;
+  expiresAt?: string;
+  execution?: WireToolApprovalExecution;
+  approval?: WireApprovalCard;
+}
+
+export interface WireUserQuestionState {
+  status: UserQuestionStatus;
+  approval?: WireApprovalCard;
+}
+
+export type {
+  WireAdministrativeDeletion,
+  WireAdministrativeDeletionPreview,
+  WireAssignmentAccessPreset,
+  WireAssignmentTimeline,
+  WireAssignmentTimelineEntry,
+  WireAssignmentTimelineLane,
+  WireAssignmentTimelineRound,
+  WireAttentionDismissal,
+  WireBotDeletion,
+  WireBotDeletionPreview,
+  WireGrantApprovalMessage,
+  WireHumanAssignmentContext,
+  WireHumanAttentionItem,
+  WireHumanAttentionPage,
+  WireHumanAvatar,
+  WireHumanIdentity,
+  WireProfileActivity,
+  WireRosterSnapshot,
+  WireTeamMode,
+  WireWorkspaceGrant,
+} from './management-wire';

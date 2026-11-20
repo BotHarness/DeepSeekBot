@@ -49,7 +49,9 @@ describe('nested Channel workspace', () => {
       const drag = (target: Element) => {
         const event = new Event('dragstart', { bubbles: true, cancelable: true });
         Object.defineProperty(event, 'dataTransfer', { value: transfer });
-        act(() => target.dispatchEvent(event));
+        act(() => {
+          target.dispatchEvent(event);
+        });
         return event;
       };
       expect(drag(header).defaultPrevented).toBe(true);

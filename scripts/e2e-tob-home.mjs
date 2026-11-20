@@ -199,7 +199,7 @@ async function humanSettingsSet(settings, value) {
           assignmentConcurrencyLimit: settings.value.assignmentConcurrencyLimit ?? 8,
         }),
       ],
-      { env, stdio: ['pipe', 'pipe', 'pipe'] },
+      { env, stdio: ['pipe', 'pipe', 'pipe'], shell: false, windowsHide: true },
     );
     let stdout = '';
     const timer = setTimeout(() => child.kill('SIGTERM'), 30000);

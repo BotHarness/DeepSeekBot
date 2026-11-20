@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 export const FOUNDATION_SCHEMA_GENERATION = 1;
 
 export interface SchemaMigration {
-  generation: number;
+  readonly id: string;
 
   module: string;
   description: string;
@@ -12,9 +12,15 @@ export interface SchemaMigration {
   migrate(database: DatabaseSync): void;
 }
 
+export type PlannedSchemaMigration = Readonly<SchemaMigration & { generation: number }>;
+
+export const FOUNDATION_SCHEMA_ID = 'foundation';
+export const LEGACY_SCHEMA_GENERATION_LIMIT = 153;
+
 export interface SchemaPlan {
   readonly targetGeneration: number;
-  readonly migrations: readonly SchemaMigration[];
+  readonly migrations: readonly PlannedSchemaMigration[];
+  generationOf(id: string): number;
 }
 
 export interface LegacyForwardMigrationPlanEntry {
@@ -40,24 +46,34 @@ export const LEGACY_FORWARD_MIGRATION_PLAN: readonly LegacyForwardMigrationPlanE
 ];
 
 export function defineSchemaPlan(migrations: readonly SchemaMigration[] = []): SchemaPlan {
-  const ordered = [...migrations].sort((left, right) => left.generation - right.generation);
-  let expected = FOUNDATION_SCHEMA_GENERATION + 1;
-
-  for (const migration of ordered) {
-    if (!Number.isSafeInteger(migration.generation) || migration.generation !== expected) {
-      throw new TypeError(
-        `Schema migrations must be contiguous from generation ${FOUNDATION_SCHEMA_GENERATION + 1}; expected ${expected}, received ${migration.generation}`,
-      );
+  const ids = new Set([FOUNDATION_SCHEMA_ID]);
+  const ordered = migrations.map((migration, index) => {
+    if (
+      typeof migration.id !== 'string' ||
+      !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(migration.id) ||
+      ids.has(migration.id)
+    ) {
+      throw new TypeError(`Schema migration id must be unique kebab-case: ${migration.id}`);
+    }
+    ids.add(migration.id);
+    if (typeof migration.migrate !== 'function') {
+      throw new TypeError(`Schema migration ${migration.id} must define a synchronous migration`);
     }
     if (migration.module.trim().length === 0) {
-      throw new TypeError(`Schema migration ${migration.generation} must name its owning module`);
+      throw new TypeError(`Schema migration ${migration.id} must name its owning module`);
     }
-    expected += 1;
-  }
+    return Object.freeze({ ...migration, generation: FOUNDATION_SCHEMA_GENERATION + index + 1 });
+  });
 
   return Object.freeze({
-    targetGeneration: expected - 1,
+    targetGeneration: FOUNDATION_SCHEMA_GENERATION + ordered.length,
     migrations: Object.freeze(ordered),
+    generationOf(id: string): number {
+      if (id === FOUNDATION_SCHEMA_ID) return FOUNDATION_SCHEMA_GENERATION;
+      const migration = ordered.find((entry) => entry.id === id);
+      if (migration === undefined) throw new TypeError(`Unknown schema migration id: ${id}`);
+      return migration.generation;
+    },
   });
 }
 

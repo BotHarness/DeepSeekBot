@@ -1,3 +1,6 @@
+import { hasPresetEngines } from '../models/presets.js';
+import { ownsBot } from '../team/bot-access.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ModelCatalog } from '../models/catalog.js';
@@ -11,6 +14,7 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { PreparedTobOperation } from './cli-operations.js';
+import type { RoutingGroupStore } from '../models/routing-groups.js';
 import { TobError } from './service.js';
 
 export const TOB_MODEL_CAPABILITIES = [
@@ -41,10 +45,12 @@ export interface TobNativeSettings {
 }
 export interface TobModelOperationDependencies {
   registry: PersonaBotRegistry;
+  human?: () => HumanContext;
   presets: ModelPresetStore;
   catalog: ModelCatalog;
   settings: () => TobNativeSettings | undefined;
   defaultModel?: { currentSelection(): ModelRoute };
+  routingGroups?: Pick<RoutingGroupStore, 'defaultGroup' | 'setDefaultGroup'>;
   runtimeChanged?: (patch: Record<string, unknown>) => void;
 }
 const runtimeFields = [
@@ -77,6 +83,10 @@ function route(value: unknown): ModelRoute {
   text(value.provider);
   text(value.model);
   return structuredClone(value);
+}
+function openFlag(value: unknown): boolean | undefined {
+  if (value !== undefined && typeof value !== 'boolean') throw new TobError('invalid-input');
+  return value;
 }
 function choices(value: unknown): AssignmentModelOption[] {
   if (!Array.isArray(value) || !value.every(isAssignmentModelOption))
@@ -125,6 +135,8 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
   const bot = (slug: string) => {
     const record = deps.registry.get(slug);
     if (!record) throw new TobError('unknown-bot');
+    if (!ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, record))
+      throw new TobError('permission-required');
     return record;
   };
   const plan = (slug: string) => {
@@ -186,7 +198,10 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         run: (guard) => {
           guard();
           return {
-            bots: deps.registry.list().map(({ slug, displayName }) => ({ slug, displayName })),
+            bots: deps.registry
+              .list()
+              .filter((record) => ownsBot(deps.human?.() ?? OWNER_HUMAN_CONTEXT, record))
+              .map(({ slug, displayName }) => ({ slug, displayName })),
           };
         },
       };
@@ -303,6 +318,9 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
           )
             throw new TobError('setting-readback-mismatch');
           if (!isDefault) deps.runtimeChanged?.(patch);
+          const group = isDefault ? deps.routingGroups?.defaultGroup() : undefined;
+          if (group?.groupId !== undefined)
+            deps.routingGroups!.setDefaultGroup(undefined, group.revision);
           return isDefault ? { route: saved.value, revision: saved.revision } : saved;
         },
       );
@@ -314,8 +332,10 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         'orchestrator',
         'assignmentDefault',
         'assignmentModels',
+        'openAssignmentModels',
         ...(update ? ['id', 'expectedRevision'] : []),
       ]);
+      const open = openFlag(args.openAssignmentModels);
       const id = update ? text(args.id) : undefined;
       const current = id ? deps.presets.get(id) : undefined;
       if (update && !current) throw new TobError('unknown-preset');
@@ -334,6 +354,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         orchestrator,
         assignmentDefault,
         ...(assignmentModels ? { assignmentModels } : {}),
+        ...(open === undefined ? {} : { openAssignmentModels: open }),
       };
       const routes = [
         orchestrator,
@@ -381,6 +402,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       const id = text(args.presetId),
         preset = deps.presets.get(id);
       if (!preset) throw new TobError('unknown-preset');
+      if (hasPresetEngines(preset)) throw new TobError('engine-unavailable');
       same(preset.revision, revision(args.expectedPresetRevision));
       patch = { presetId: id, presetRevision: preset.revision, plan: preset };
       routes = [
@@ -406,14 +428,21 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         'slug',
         'assignmentDefault',
         'assignmentModels',
+        'openAssignmentModels',
         'expectedRevision',
         ...(full ? ['orchestrator'] : []),
       ]);
+      const open = openFlag(args.openAssignmentModels);
       const assignmentDefault = route(args.assignmentDefault),
         assignmentModels = choices(args.assignmentModels);
       const orchestrator = full ? route(args.orchestrator) : undefined;
       if (!full && !current.plan) throw new TobError('model-plan-required');
-      patch = { assignmentDefault, assignmentModels, ...(orchestrator ? { orchestrator } : {}) };
+      patch = {
+        assignmentDefault,
+        assignmentModels,
+        ...(orchestrator ? { orchestrator } : {}),
+        ...(open === undefined ? {} : { openAssignmentModels: open }),
+      };
       routes = [
         ...(orchestrator ? [orchestrator] : []),
         ...assignmentRoutes(assignmentDefault, assignmentModels),
@@ -422,10 +451,21 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         orchestrator
           ? deps.registry.setModelPlan(
               slug,
-              { orchestrator, assignmentDefault, assignmentModels },
+              {
+                orchestrator,
+                assignmentDefault,
+                assignmentModels,
+                ...(open === undefined ? {} : { openAssignmentModels: open }),
+              },
               expected,
             )
-          : deps.registry.setAssignmentModels(slug, assignmentDefault, assignmentModels, expected);
+          : deps.registry.setAssignmentModels(
+              slug,
+              assignmentDefault,
+              assignmentModels,
+              expected,
+              open,
+            );
     }
     await validate(routes);
     return prepared(command, slug, current, patch, expected, async (guard, beforeEffect) => {
