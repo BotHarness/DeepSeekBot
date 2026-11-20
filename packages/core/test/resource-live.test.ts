@@ -1,15 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createChannelLiveHub,
   CHANNEL_STREAM_PATH,
   type ChannelLiveHub,
 } from '../src/channels/live.js';
-import { RESOURCE_CHANGED_EVENT, type LiveResource } from '../src/channels/resource-events.js';
+import { RESOURCE_CHANGED_EVENT, type UnscopedResource } from '../src/channels/resource-events.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { createDevicePairing } from '../src/devices/pairing.js';
+import { createDevicePairing, PAIRING_OFFER_TTL_MS } from '../src/devices/pairing.js';
 import { createHostRelationships } from '../src/devices/relationships.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
@@ -42,8 +42,9 @@ async function readUntil(
 }
 
 describe('resource changes on the live stream', () => {
-  it.each<LiveResource>([
+  it.each<UnscopedResource>([
     'devices',
+    'relationships',
     'computer',
     'browser',
     'reachable-posts',
@@ -115,6 +116,51 @@ describe('resource changes on the live stream', () => {
     await frames.return?.();
   });
 
+  it('delivers scoped card changes only to current eligible Humans and retains distinct cards', async () => {
+    const live = hub();
+    const controller = new AbortController();
+    const member = { ...OWNER_HUMAN_CONTEXT, humanId: 'h_member' };
+    const outsider = { ...OWNER_HUMAN_CONTEXT, humanId: 'h_outsider' };
+    let admitted = true;
+    const visible = (human: typeof member) => admitted && human.humanId === member.humanId;
+    const frames = live.followRoster(member, controller.signal)[Symbol.asyncIterator]();
+    const denied = live.followRoster(outsider, controller.signal)[Symbol.asyncIterator]();
+    const guestSse = live
+      .open(outsider, new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`))
+      .body!.getReader();
+    const memberSse = live
+      .open(member, new Request(`http://localhost${CHANNEL_STREAM_PATH}?scope=roster`))
+      .body!.getReader();
+    try {
+      await frames.next();
+      await denied.next();
+      await readUntil(guestSse, 'retry:');
+      await readUntil(memberSse, 'retry:');
+      const publish = (messageId: string) =>
+        live.publishScopedResourceChanged(
+          { resource: 'tool-approval', channelId: 'private', messageId },
+          visible,
+        );
+      publish('one');
+      publish('two');
+      expect((await frames.next()).value).toMatchObject({ change: { messageId: 'one' } });
+      expect((await frames.next()).value).toMatchObject({ change: { messageId: 'two' } });
+      expect(await readUntil(memberSse, 'two')).toContain(RESOURCE_CHANGED_EVENT);
+      publish('revoked-before-delivery');
+      admitted = false;
+      live.publishRosterCommitted();
+      expect((await frames.next()).value).toEqual({ type: 'changed' });
+      expect((await denied.next()).value).toEqual({ type: 'changed' });
+      expect(await readUntil(guestSse, 'roster/changed')).not.toContain(RESOURCE_CHANGED_EVENT);
+    } finally {
+      controller.abort();
+      await frames.return?.();
+      await denied.return?.();
+      await guestSse.cancel();
+      await memberSse.cancel();
+    }
+  });
+
   it('announces every device pairing step the Devices page shows', () => {
     const owner = trackTestOwner(
       mountOperationalDatabase({
@@ -122,7 +168,7 @@ describe('resource changes on the live stream', () => {
         schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
       }),
     );
-    const changes: LiveResource[] = [];
+    const changes: UnscopedResource[] = [];
     owner.subscribe(({ topics }) => {
       if (topics.includes('paired-devices')) changes.push('devices');
     });
@@ -145,6 +191,7 @@ describe('resource changes on the live stream', () => {
       0,
     );
     expect(step(() => pairing.approveKey(offer.receipt, publicKey))).toBe(1);
+    expect(step(() => pairing.approveKey(offer.receipt, publicKey))).toBe(0);
     let deviceId = '';
     expect(
       step(() => {
@@ -157,6 +204,35 @@ describe('resource changes on the live stream', () => {
     pairing.createOffer();
     expect(step(() => pairing.clearOffers())).toBe(1);
     expect(step(() => pairing.clearOffers())).toBe(0);
+  });
+
+  it('expires a pending device key and publishes once without a client read', () => {
+    const owner = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: createTempRoot('botharness-resource-expiry-'),
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
+    const changed = vi.fn();
+    vi.useFakeTimers();
+    const pairing = createDevicePairing({
+      database: attachOperationalModule(owner, 'device-pairing'),
+      hostName: 'studio',
+      onChange: changed,
+    });
+    try {
+      const offer = pairing.createOffer();
+      pairing.requestKey({ offer: offer.offer, publicKey: 'ab'.repeat(32) });
+      expect(changed).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(PAIRING_OFFER_TTL_MS);
+      expect(changed).toHaveBeenCalledTimes(2);
+      expect(pairing.pendingKeys()).toEqual([]);
+      vi.advanceTimersByTime(PAIRING_OFFER_TTL_MS);
+      expect(changed).toHaveBeenCalledTimes(2);
+    } finally {
+      pairing.stopOfferExpiry();
+      vi.useRealTimers();
+    }
   });
 
   it('does not announce relationship changes when the retry sweep finds nothing to do', () => {

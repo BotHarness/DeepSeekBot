@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { resourceEvents } from './resource-events-fixture.js';
 import { type BotSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -137,6 +138,72 @@ const ada: BotSummary = {
   createdAt: '',
 };
 const grace = { ...ada, slug: 'composer-grace', displayName: 'Grace' };
+
+it('refreshes context in place for the selected Bot and keeps the last snapshot on timeout', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.useFakeTimers();
+  const live = resourceEvents();
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const sample = {
+    sessionId: 'session',
+    usedTokens: 2000,
+    contextWindow: 10000,
+    capacitySource: 'model',
+    thresholdTokens: 8000,
+  };
+  const botContext = vi
+    .fn()
+    .mockResolvedValueOnce(sample)
+    .mockRejectedValueOnce(new Error('read timed out'))
+    .mockResolvedValue({ ...sample, usedTokens: 4000 });
+  const actions = {
+    botContext,
+    modelPlanState: async () => ({}),
+    modelCatalog: async () => ({ models: [] }),
+    modelPresets: async () => [],
+    listWorkspaceGrants: async () => [],
+  } as unknown as BridgeActions;
+  function Harness() {
+    return useDmComposerContext({
+      bot: ada,
+      channelId: 'dm-' + ada.slug,
+      actions,
+      companion: undefined,
+      activity: undefined,
+      loading: false,
+      t: zhTranslate,
+      onUsage() {},
+    })?.content;
+  }
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const label = () => host.querySelector('[data-composer-chip="usage"]')?.textContent;
+    expect(label()).toContain('20%');
+    await act(async () => {
+      live.emit({ resource: 'bot-context', slug: grace.slug });
+      await vi.advanceTimersByTimeAsync(9_000);
+    });
+    expect(botContext).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      live.emit({ resource: 'bot-context', slug: ada.slug });
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(botContext).toHaveBeenCalledTimes(2);
+    expect(label()).toContain('20%');
+    await act(async () => {
+      live.reconnect();
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(label()).toContain('40%');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    live.dispose();
+    vi.useRealTimers();
+  }
+});
 
 it('keeps model, workspace and usage actions available across mobile and desktop layouts', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

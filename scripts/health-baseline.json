@@ -123,7 +123,6 @@
     "packages/core/test/team-member-lifecycle.test.ts",
     "packages/core/test/team-mode.test.ts",
     "packages/core/test/team-spaces.test.ts",
-    "packages/core/test/user-questions.test.ts",
     "packages/core/test/voice-calls.test.ts",
     "packages/host-client/src/bot-creation.ts",
     "packages/host-client/src/client.ts",
@@ -184,5 +183,5 @@
     "apps/mobile/test/viewer-header.test.tsx",
     "apps/mobile/test/workspace-panel-root.test.ts"
   ],
-  "agent-prose-bytes": 20525
+  "agent-prose-bytes": 20397
 }

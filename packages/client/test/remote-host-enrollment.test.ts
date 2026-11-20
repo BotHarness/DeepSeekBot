@@ -8,6 +8,7 @@ import {
   type HostStorage,
 } from '../src/client/remote-hosts.js';
 import { withRemoteHostStorageLock } from '../src/client/remote-host-storage-lock.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { startAccountEnvironments } from '../src/client/account-environments.js';
 
 function memoryStorage(): HostStorage & { values: Map<string, string> } {
@@ -111,27 +112,29 @@ it.each(['enroll', 'route'] as const)(
       attempts.push(peer.id);
       throw new Error('route-update-refused');
     });
+    const live = resourceEvents();
     const stop = startAccountEnvironments({
       sources: source,
       clientName: 'Desktop',
       request: async () => ({ state: 'complete', generation: 'account', relationships }),
     });
     try {
-      await vi.advanceTimersByTimeAsync(40_000);
+      await vi.advanceTimersByTimeAsync(0);
       expect(attempts).toEqual(relationships.map((item) => item.peer.id));
       clock.mockReturnValue(30_000);
-      await vi.advanceTimersByTimeAsync(2500);
-      expect(attempts.slice(-2)).toEqual(['peer-0', 'peer-1']);
-      await vi.advanceTimersByTimeAsync(2500);
-      expect(attempts.slice(-2)).toEqual(['peer-2', 'peer-3']);
+      live.emit('relationships');
+      await vi.advanceTimersByTimeAsync(25);
+      expect(attempts).toHaveLength(64);
       relationships = [make(33)];
-      await vi.advanceTimersByTimeAsync(2500);
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(attempts).toHaveLength(64);
+      live.reconnect();
+      await vi.advanceTimersByTimeAsync(25);
       expect(attempts.at(-1)).toBe('peer-33');
-      const count = attempts.length;
-      await vi.advanceTimersByTimeAsync(5000);
-      expect(attempts).toHaveLength(count);
+      expect(attempts).toHaveLength(65);
     } finally {
       stop();
+      live.dispose();
       clock.mockRestore();
       vi.useRealTimers();
     }
@@ -173,20 +176,21 @@ it('keeps other enrollment work moving around an unavailable Host and cancels pe
       }
       return { ok: false, code: 'unreachable' };
     });
+  const live = resourceEvents();
   const stop = startAccountEnvironments({ sources: source, clientName: 'Desktop', request });
   try {
     await vi.advanceTimersByTimeAsync(0);
-    expect(enroll.mock.calls.map(([item]) => item.peer.id)).toEqual(['b', 'c']);
-    await vi.advanceTimersByTimeAsync(2500);
     expect(enroll.mock.calls.map(([item]) => item.peer.id)).toEqual(['b', 'c', 'd']);
     signedOut = true;
-    await vi.advanceTimersByTimeAsync(2500);
+    live.emit('account');
+    await vi.advanceTimersByTimeAsync(25);
     expect(pendingSignal?.aborted).toBe(true);
     expect(pendingSignal?.reason).toBe('account-changed');
     await vi.advanceTimersByTimeAsync(30_000);
     expect(enroll).toHaveBeenCalledTimes(3);
   } finally {
     stop();
+    live.dispose();
     release();
     await held;
     vi.useRealTimers();

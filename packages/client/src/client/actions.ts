@@ -1067,8 +1067,10 @@ export interface BridgeActions extends BotModeActions {
     messageId: string,
   ): Promise<{
     status: import('./bridge.js').ToolApprovalStatus;
+    execution?: ToolApprovalExecutionState;
     expiresAt?: string;
   }>;
+  requestHost?(): import('@botharness/host-client/client').HostClient;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
