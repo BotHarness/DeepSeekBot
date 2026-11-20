@@ -212,3 +212,15 @@ export const accent = stylex.defineConsts({
   selection: 'var(--tobs-accent-selection)',
   onSelection: 'var(--tobs-accent-on-selection)',
 });
+
+export const breakpoint = stylex.defineConsts({
+  medium: '600px',
+  expanded: '840px',
+});
+
+export const media = stylex.defineConsts({
+  minMedium: '@media (min-width: 600px)',
+  maxMedium: '@media (max-width: 600px)',
+  minExpanded: '@media (min-width: 840px)',
+  maxExpanded: '@media (max-width: 840px)',
+});
