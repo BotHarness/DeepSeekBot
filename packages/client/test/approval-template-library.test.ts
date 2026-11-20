@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { type Root } from 'react-dom/client';
+import { fakeBotDetail } from '../../host-client/test/fake-host.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -39,6 +40,7 @@ const templates = ['cautious', 'get-work-done'].map((name) => ({
   description: '',
   builtIn: true,
   usedBy: [],
+  text: '# ' + name,
 }));
 function trigger(): HTMLButtonElement {
   const found = host.querySelector<HTMLButtonElement>(
@@ -701,7 +703,7 @@ it('resaves the visible original text after save succeeds but applying fails', a
     if (endpoint === 'botApprovalTemplateSet') {
       if (++attempts === 1) throw new Error('apply failed');
       applied.push(template.text);
-      return { ok: true, value: { bot: { slug: 'qa' } } };
+      return { ok: true, value: { bot: fakeBotDetail('qa', 'QA') } };
     }
     throw new Error('Unexpected endpoint ' + endpoint);
   };
@@ -743,7 +745,14 @@ it('keeps a custom template named off separate from the Off option', async () =>
         value: {
           templates: [
             ...templates,
-            { name: 'off', title: 'Off template', description: '', builtIn: false, usedBy: [] },
+            {
+              name: 'off',
+              title: 'Off template',
+              description: '',
+              builtIn: false,
+              usedBy: [],
+              text: '# Off template',
+            },
           ],
           globalDefault: selected,
         },
@@ -869,7 +878,7 @@ it.each([
         if (selections === 1) throw new Error('Apply unavailable');
         if (saved === undefined) throw new Error('Missing persisted template');
         applied.push(saved.text);
-        return { ok: true, value: { bot: { slug: 'qa' } } };
+        return { ok: true, value: { bot: fakeBotDetail('qa', 'QA') } };
       }
       throw new Error('Unexpected endpoint ' + endpoint);
     };

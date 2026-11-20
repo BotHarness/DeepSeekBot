@@ -1,4 +1,8 @@
 import {
+  readApprovalTemplates,
+  setBotApprovalTemplate,
+} from '@botharness/host-client/approval-readers';
+import {
   encodeApprovalTemplateGuidance,
   parseApprovalTemplateGuidance,
 } from '../workspaces/approval-template-guidance.js';
@@ -136,16 +140,17 @@ export async function runApprovalTemplateCommand(
       usage('approval-template-set needs a bot id and a template name (or off).');
     const rpc = await connect();
     const template = rest[1]!.trim();
-    return rpc('botApprovalTemplateSet', {
-      slug: rest[0]!.trim(),
-      template: values['literal-template']
+    return setBotApprovalTemplate(
+      { call: (method, args = {}) => rpc(method, args) },
+      rest[0]!.trim(),
+      values['literal-template']
         ? template
         : template === 'off'
           ? null
           : template === 'inherit'
             ? '@global'
             : template,
-    });
+    );
   }
   const { subcommand, args } = normalize(command, rest);
   if (args.length !== POSITIONALS[subcommand] || args.some((value) => !value.trim()))
@@ -163,7 +168,11 @@ export async function runApprovalTemplateCommand(
     usage('--apply-to requires create or edit.');
   const apply = async (rpc: Rpc, result: unknown): Promise<unknown> => {
     if (values['apply-to'] === undefined) return result;
-    await rpc('botApprovalTemplateSet', { slug: values['apply-to'], template: name });
+    await setBotApprovalTemplate(
+      { call: (method, args = {}) => rpc(method, args) },
+      values['apply-to'],
+      name,
+    );
     return result;
   };
   if (subcommand === 'create') {
@@ -213,16 +222,11 @@ export async function runApprovalTemplateCommand(
   }
   const rpc = await connect();
   const bot = subcommand === 'list' ? values.bot?.trim() : undefined;
-  const listed = (await rpc('approvalTemplates', bot ? { slug: bot } : {})) as {
-    templates?: unknown;
-    selected?: unknown;
-    globalDefault?: unknown;
-    effective?: unknown;
-    source?: unknown;
-  };
-  const templates = Array.isArray(listed?.templates)
-    ? (listed.templates as { name: string; text: string }[])
-    : [];
+  const listed = await readApprovalTemplates(
+    { call: (method, args = {}) => rpc(method, args) },
+    bot || undefined,
+  );
+  const { templates } = listed;
   if (subcommand === 'list')
     return {
       templates: templates.map(({ text: _text, ...summary }) => summary),

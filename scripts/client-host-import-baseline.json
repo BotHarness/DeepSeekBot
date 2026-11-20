@@ -152,7 +152,7 @@
     "../../../core/src/usage/query.js": 2,
     "../../../core/src/workspaces/approval-template-deletion-contract.js": 1,
     "../../../core/src/workspaces/folder-browse.js": 1,
-    "../../../core/src/workspaces/tool-approval-actor.js": 2,
+    "../../../core/src/workspaces/tool-approval-actor.js": 1,
     "../../../core/src/workspaces/tool-approval.js": 1,
     "../../../core/src/workspaces/tool-effects-contract.js": 1
   },

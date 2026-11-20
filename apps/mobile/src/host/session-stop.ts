@@ -1,3 +1,4 @@
+import { stopBot, stopSession } from '@botharness/host-client/bot-control';
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import type { WireSessionActivity } from '@botharness/host-protocol/wire';
 
@@ -31,10 +32,10 @@ export function sessionStopper(
   const notice = channelId === undefined ? {} : { channelId };
   return {
     async stopSession(botSlug, sessionId) {
-      await client.call('sessionStop', { botSlug, activityId: sessionId, ...notice });
+      await stopSession(client, { botSlug, activityId: sessionId, ...notice });
     },
     async stopBot(botSlug) {
-      await client.call('botStop', { botSlug, ...notice });
+      await stopBot(client, { botSlug, ...notice });
     },
   };
 }

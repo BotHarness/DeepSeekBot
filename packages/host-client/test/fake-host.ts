@@ -581,3 +581,16 @@ export class FakeHost {
 function response(status: number, body: string) {
   return { status, text: async () => body };
 }
+
+export function fakeBotDetail(slug: string, displayName: string) {
+  return {
+    slug,
+    displayName,
+    aggregateState: 'idle',
+    roles: [],
+    workspaces: [],
+    createdAt: '2026-11-20T00:00:00Z',
+    standingLimits: { soul: 1500, coreMemory: 2000 },
+    sessions: {},
+  };
+}

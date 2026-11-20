@@ -1,3 +1,4 @@
+import { compactBot, newBotSession, readBotAttention } from '@botharness/host-client/bot-control';
 import { expandGitHubRef } from './bot-create-cli.js';
 import { parseMemoryGitUrl } from '../memory/clone.js';
 import { parseAgentBots } from './cli-agent-bots.js';
@@ -312,8 +313,9 @@ export async function runOnlineManagement(
     return rpc('modelPresetApply', { slug, presetId: values.preset!.trim(), ...revisions });
   }
   if (command === 'model-plan') return rpc('modelPlan', { slug });
-  if (command === 'bot-new-session') return rpc('botNewSession', { slug });
-  if (command === 'bot-compact') return rpc('botCompact', { slug });
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (command === 'bot-new-session') return newBotSession(reader, slug!);
+  if (command === 'bot-compact') return compactBot(reader, slug!);
   if (command === 'bot-context') return rpc('botContext', { slug });
   if (command === 'bot-system-prompt') return rpc('botSystemPrompt', { slug });
   if (command === 'bot-delete-preview') return rpc('deletionPreview', { slug });
@@ -331,7 +333,7 @@ export async function runOnlineManagement(
     return rpc('deletionRetry', { slug });
   }
   if (command === 'bot-attention')
-    return rpc('botAttention', {
+    return readBotAttention(reader, {
       slug,
       limit,
       ...(values.cursor === undefined ? {} : { cursor: values.cursor }),

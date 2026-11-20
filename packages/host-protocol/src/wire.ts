@@ -740,3 +740,140 @@ export interface OverviewMemory {
   bots: MemoryActivityBot[];
   nextCursor?: string;
 }
+
+export interface WireBotAttentionItem extends BotInboxItem {
+  observedAt?: string;
+  handledAt?: string;
+  ignoredAt?: string;
+  snoozedUntil?: string;
+  sourceChannelId?: string;
+  assignmentSessionId?: string;
+  assignmentTitle?: string;
+  assignmentReportState?: HumanAssignmentReport['state'];
+  assignmentTurn?: number;
+  relatedReportSourceEventId?: string;
+  scheduleId?: string;
+  sourceAvailable: boolean;
+  authorKind: 'human' | 'bot' | 'bridged' | 'system';
+  authorBotSlug?: string;
+  externalOrigin?: {
+    platform: string;
+    accountName: string;
+    conversationName: string;
+    conversationId: string;
+    senderId: string;
+    senderName?: string;
+    voice?: {
+      transcript: 'platform' | 'unavailable';
+      itemId?: string;
+      durationMs?: number;
+      encodeType?: number;
+      sampleRate?: number;
+      bitsPerSample?: number;
+    };
+  };
+}
+
+export interface WireBotAttentionPage {
+  items: WireBotAttentionItem[];
+  nextCursor?: string;
+}
+
+export interface WireStoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export interface WireSessionStopResult {
+  stopped: WireStoppedSessionRef[];
+  alreadyIdle: WireStoppedSessionRef[];
+  messageId?: string;
+}
+
+export interface WireBotCompactResult {
+  outcome: 'compacted' | 'nothing' | 'busy' | 'not-loaded';
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+}
+
+export interface WireApprovalTemplate {
+  name: string;
+  title: string;
+  description: string;
+  builtIn: boolean;
+  usedBy: string[];
+  text: string;
+}
+
+export interface WireApprovalTemplates {
+  templates: WireApprovalTemplate[];
+  selected?: string | null;
+  globalDefault?: string | null;
+  effective?: string | null;
+  source?: 'global' | 'specific' | 'off';
+}
+
+export interface WireApprovalActor {
+  platform: 'feishu';
+  bindingId: string;
+  fingerprint: string;
+  actorId: string;
+  pairingId: string;
+  pairingRevision: number;
+  conversationId: string;
+  messageId: string;
+}
+
+export interface WireApprovalRule {
+  id: string;
+  botSlug: string;
+  role: 'orchestrator' | 'assignment';
+  scopeKey: string;
+  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+  toolName: string;
+  input: string;
+  createdAt: string;
+  revokedAt?: string;
+  externalCreator?: WireApprovalActor;
+  autoApprovedCount?: number;
+}
+
+export type WireApprovalCard = {
+  kind: 'tool-approval' | 'user-question' | 'private-input';
+  botSlug: string;
+  state: string;
+  requestedAt: string;
+  decidedAt?: string;
+} & (
+  | { masked: true }
+  | { masked: false; opaque: boolean; decidedBy?: { humanId: string; displayName?: string } }
+);
+
+export interface WireAdministrativeBot {
+  slug: string;
+  displayName: string;
+  ownerHumanId: string;
+  owner: boolean;
+  paused: boolean;
+  createdAt: string;
+}
+
+export type WireToolApprovalExecution =
+  | 'waiting-human'
+  | 'waiting-capacity'
+  | 'running'
+  | 'settled'
+  | 'needs-repair';
+
+export interface WireToolApprovalState {
+  status: ToolApprovalStatus;
+  expiresAt?: string;
+  execution?: WireToolApprovalExecution;
+  approval?: WireApprovalCard;
+}
+
+export interface WireUserQuestionState {
+  status: UserQuestionStatus;
+  approval?: WireApprovalCard;
+}

@@ -1,3 +1,4 @@
+import { setBotAvatar } from './bot-control';
 import { createHostClient, deviceRefusal, MethodRefused } from './client';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { SavedHost } from './hosts';
@@ -148,10 +149,13 @@ export function botCreationTransport(
     lookup: (operation) => call(operation, true),
     async applyAvatar(operation, receipt, avatar) {
       if (avatar.kind === 'photo')
-        await request(operation, 'botAvatarSet', {
-          channelId: receipt.channelId,
-          avatar: avatar.image,
-        });
+        await setBotAvatar(
+          { call: (method, args = {}) => request(operation, method, args) },
+          {
+            channelId: receipt.channelId,
+            avatar: avatar.image,
+          },
+        );
       else
         await request(operation, 'botAppearanceSet', {
           channelId: receipt.channelId,

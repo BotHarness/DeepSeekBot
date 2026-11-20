@@ -1,14 +1,7 @@
 [
-  "approvalTemplates",
   "assignmentAccessGet",
   "assignmentAccessSet",
   "assignmentTimeline",
-  "botApprovalTemplateSet",
-  "botAttention",
-  "botAvatarSet",
-  "botCompact",
-  "botNewSession",
-  "botStop",
   "deletionConfirm",
   "deletionPreview",
   "deletionRetry",
@@ -27,13 +20,5 @@
   "profileActivity",
   "rosterBatch",
   "rosterGet",
-  "sessionStop",
-  "teamMode",
-  "toolApprovalDecide",
-  "toolApprovalRuleRevoke",
-  "toolApprovalRules",
-  "toolApprovalStatus",
-  "toolAutoRejectionOverride",
-  "userQuestionAnswer",
-  "userQuestionStatus"
+  "teamMode"
 ]
