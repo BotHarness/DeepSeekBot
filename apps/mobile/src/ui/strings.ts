@@ -38,6 +38,11 @@ const engineEffortZh = {
 const en = {
   avatarEditor: {
     title: 'Customize',
+    style: 'Avatar style',
+    pixel: 'Pixel',
+    tilties: 'Tilties',
+    collections: 'Tilties collections',
+    tiltiesName: (en: string, _zh: string) => en,
     preview: 'Avatar preview',
     saveFailed: 'Could not save the avatar. Try again.',
     unavailable: 'Open Bot creation to customize its avatar.',
@@ -2858,6 +2863,11 @@ const en = {
 const zh: typeof en = {
   avatarEditor: {
     title: '捏人',
+    style: '头像风格',
+    pixel: '像素风',
+    tilties: '歪头团',
+    collections: '歪头团分组',
+    tiltiesName: (_en, zh) => zh,
     preview: '头像预览',
     saveFailed: '头像未保存，请重试。',
     unavailable: '请先打开创建 Bot。',

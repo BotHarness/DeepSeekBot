@@ -32,7 +32,7 @@ import {
   type EngineModelView,
   type EngineStatusView,
 } from './engine-choice.js';
-import { engineName } from './session-engine.js';
+import { engineAccountTitle, engineName } from './session-engine.js';
 import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
@@ -261,7 +261,6 @@ export function engineMenuItems(
   signingIn: string | undefined,
   t: BotHarnessTranslate,
 ): ModelMenuItem[] {
-  const multipleCodex = engines.filter(({ engine }) => engine === 'codex').length > 1;
   return engines.flatMap((status): ModelMenuItem[] => {
     const { engine, accountId, accountName } = status;
     const key = engineModelKey(engine, accountId);
@@ -271,8 +270,9 @@ export function engineMenuItems(
       ...(accountId === undefined ? {} : { accountId }),
     };
     const name = engineName(engine);
+    const title = engineAccountTitle(engine, accountName);
     const hint =
-      multipleCodex && accountName !== undefined
+      accountName !== undefined && accountName !== name
         ? t('modelProviders.accountHint', { engine: name, name: accountName })
         : t('engine.subscription', { engine: name });
     if (status.available) {
@@ -294,8 +294,8 @@ export function engineMenuItems(
         {
           ...base,
           value: `engine-status:${key}`,
-          name,
-          label: name,
+          name: title,
+          label: title,
           hint: t(status.reason === 'host-not-local' ? 'engine.localOnly' : 'engine.notInstalled', {
             engine: name,
           }),
@@ -303,7 +303,7 @@ export function engineMenuItems(
         },
       ];
     const label = t(signingIn === key ? 'engine.signingIn' : 'engine.signInLabel', {
-      engine: multipleCodex ? (accountName ?? name) : name,
+      engine: title,
     });
     return [
       {

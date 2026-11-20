@@ -1,3 +1,4 @@
+import { ENGINE_IDS } from '@botharness/host-protocol/subscription-engine';
 import { z } from 'zod';
 
 import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
@@ -15,6 +16,7 @@ type Accounts = Pick<
   | 'removeAccount'
   | 'target'
   | 'login'
+  | 'submitClaudeCode'
   | 'resolveAccount'
 >;
 type AccountList = ReturnType<Accounts['accounts']> & {
@@ -34,15 +36,26 @@ export interface EngineAccountBridgeMethods {
   engineAccountLogin(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<Accounts['login']>>>>;
+  engineAccountSubmitCode(
+    payload: unknown,
+  ): Promise<BridgeResult<Awaited<ReturnType<Accounts['submitClaudeCode']>>>>;
 }
 
 const id = z.string().trim().min(1);
 const name = z.string().trim().min(1).max(80);
 const expectedRevision = z.number().int().nonnegative();
-const add = z.object({ engine: z.literal('codex'), name, expectedRevision });
+const engine = z.enum(ENGINE_IDS);
+const add = z.object({ engine, name, expectedRevision });
 const rename = z.object({ id, name, expectedRevision });
 const remove = z.object({ id, expectedRevision, confirm: z.literal(true) });
-const login = z.object({ id });
+const login = z.object({ id, engine: engine.optional() });
+const submitCode = z.object({
+  id,
+  code: z
+    .string()
+    .trim()
+    .regex(/^[!-~]{1,2048}$/u),
+});
 
 export function createEngineAccountBridge(
   human: HumanContext,
@@ -73,7 +86,7 @@ export function createEngineAccountBridge(
     },
     engineAccountAdd(payload) {
       return run(add, payload, (host, input) =>
-        host.addAccount(input.name, input.expectedRevision),
+        host.addAccount(input.engine, input.name, input.expectedRevision),
       );
     },
     engineAccountRename(payload) {
@@ -88,9 +101,15 @@ export function createEngineAccountBridge(
     },
     engineAccountLogin(payload) {
       return run(login, payload, (host, input) => {
-        const account = host.target(input.id);
+        const account =
+          input.engine === undefined
+            ? host.target(input.id)
+            : host.resolveAccount(input.engine, input.id);
         return host.login(account.engine, account.id);
       });
+    },
+    engineAccountSubmitCode(payload) {
+      return run(submitCode, payload, (host, input) => host.submitClaudeCode(input.id, input.code));
     },
   };
 }

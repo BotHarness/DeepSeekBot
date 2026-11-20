@@ -1078,22 +1078,25 @@ deepseekbot engine approvals
 deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine accounts
-deepseekbot engine account-add codex --name <name> --expected-revision <r>
+deepseekbot engine account-add codex|claude --name <name> --expected-revision <r>
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
 deepseekbot engine login codex
 deepseekbot engine login <account-id>
-deepseekbot engine login claude
+deepseekbot engine login claude [--account <account-id>]
+deepseekbot engine login claude [--account <account-id>] --code-stdin < <code-file>
 deepseekbot engine models <account-id>|codex|claude
 deepseekbot engine use <bot> codex --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
-deepseekbot engine use <bot> claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
+deepseekbot engine use <bot> claude --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
 deepseekbot engine use <bot> codex|claude|none --role assignment [--account <account-id>] [--model <id>] [--effort <level>]
 ```
 
 `engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 清除显式引擎选择，恢复 Bot 的 Orchestrator 模型选择，包括已配置的路由组。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
 
-Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 账号都有 Host 管理的独立目录。已有 Codex 选择和 `codex` 参数仍指向 `codex-default`，该账号沿用原目录。Claude Code 保留单账号。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
+Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 或 Claude Code 账号都使用独立的 Bot 专用配置目录。已有模型选择以及 `codex` 和 `claude` 参数继续使用原来的目录，对应账号 ID 为 `codex-default` 和 `claude`。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
+
+如果 Claude 的浏览器回调无法连接 Host，且页面给出授权码，可在模型提供商页面使用 **粘贴授权码**，或运行 `engine login claude --code-stdin` 从标准输入读取授权码。指定与发起登录时相同的 `--account`。Claude Code 的登录进程必须先提示输入授权码。如果没有提示，Host 返回 `engine-code-not-requested`。登录未开始或已结束时返回 `engine-login-not-pending`。成功写入标准输入后返回 `{"submitted":true}`。用 `engine status` 确认登录结果。
 
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。运行 `engine use <bot> none --role orchestrator` 切回 DSH 模型后，会在同一个 Session 中继续，并能看到引擎执行的轮次。
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。清除显式引擎选择后，DSH 目标可以在同一个 Session 中继续，并读取引擎执行的轮次。
