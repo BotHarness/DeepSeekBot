@@ -1,3 +1,5 @@
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
+
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 
 import { randomUUID } from 'node:crypto';
@@ -227,21 +229,12 @@ export class EngineHost {
     };
   }
 
-  #turnTarget(request: EngineTurnRequest): EngineTurnRequest['target'] {
-    return this.#options.local ? request.target : undefined;
-  }
-
-  async #routingGroupSelection(
-    request: EngineTurnRequest,
-    target: NonNullable<EngineTurnRequest['target']>,
-  ) {
-    const shared =
-      target.reasoningEffort === undefined
-        ? (request.groupEffort ??
-          ((request.role ?? 'orchestrator') === 'orchestrator'
-            ? this.#options.routingGroupEffort?.(request.botSlug)
-            : undefined))
-        : undefined;
+  async #routingGroupSelection(request: EngineTurnRequest, target: RoutingGroupEngineMember) {
+    const groupEffort =
+      request.role === 'assignment'
+        ? request.groupEffort
+        : this.#options.routingGroupEffort?.(request.botSlug);
+    const shared = target.reasoningEffort === undefined ? groupEffort : undefined;
     const models = shared === undefined ? [] : await this.models(target.engine).catch(() => []);
     return { engine: target.engine, choice: routingGroupEngineChoice(target, shared, models) };
   }
@@ -472,7 +465,9 @@ export class EngineHost {
   ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
-    const selected = this.#turnTarget(request)?.engine ?? this.engineFor(request.botSlug, role);
+    const selected =
+      (this.#options.local ? request.target?.engine : undefined) ??
+      this.engineFor(request.botSlug, role);
     if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
@@ -766,7 +761,7 @@ export class EngineHost {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const { cwd, sessionId } = request;
     const live = this.#live.get(sessionId);
-    const target = this.#turnTarget(request);
+    const target = this.#options.local ? request.target : undefined;
     let routed: { engine: EngineId; choice: EngineChoice } | undefined;
     if (live !== undefined) {
       let mode: EngineWorkspaceMode;
