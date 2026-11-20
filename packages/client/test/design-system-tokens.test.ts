@@ -205,6 +205,10 @@ const ALLOWANCES: readonly Allowance[] = [
 ];
 
 function maskSheet(source: string, sheet?: string): string {
+  if (!sheet && (source.match(/^export const \w+\s*=/gm) ?? []).length !== 1)
+    throw new Error(
+      'a discovered stylesheet fragment must export exactly one CSS string, or later exports go unscanned',
+    );
   const declaration = sheet ? new RegExp(`const ${sheet}\\b[^=]*=`) : /^export const \w+\s*=/m;
   const at = source.search(declaration);
   if (at < 0) throw new Error(`missing stylesheet matching ${declaration}`);
