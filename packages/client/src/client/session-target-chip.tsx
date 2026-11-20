@@ -8,6 +8,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { modelShortName, TargetBrandIcon } from './model-brand.js';
 import { engineChipLabel, engineQuotaText, routingGroupEngineCopy } from './session-engine.js';
 import { SessionMetaChip } from './session-progress-view.js';
+import { modelRouteText } from './session-rows.js';
 
 export function SessionTargetChip({
   target,
@@ -43,13 +44,15 @@ export function SessionTargetChip({
     selected.kind === 'dsh'
       ? models?.find((item) => item.provider === selected.provider && item.model === selected.model)
       : undefined;
-  const nativeEffort =
+  const nativeRoute =
     selected.kind === 'dsh' &&
     route?.provider === selected.provider &&
     route.model === selected.model
-      ? (nativeModel?.efforts?.find((item) => item.id === route.reasoningEffort)?.name ??
-        route.reasoningEffort)
+      ? route
       : undefined;
+  const nativeEffortId = nativeRoute?.reasoningEffort;
+  const nativeEffort =
+    nativeModel?.efforts?.find((item) => item.id === nativeEffortId)?.name ?? nativeEffortId;
   const short =
     !header && selected.kind === 'dsh' && nativeModel === undefined
       ? modelShortName(selected.model, label.brand)
@@ -57,9 +60,12 @@ export function SessionTargetChip({
   const text = [short, header ? undefined : (label.effort ?? nativeEffort)]
     .filter(Boolean)
     .join(' · ');
-  const title = [sessionHeaderTargetLabel(selected, models).name, engineQuotaText(engine?.quota, t)]
-    .filter(Boolean)
-    .join(' · ');
+  const title =
+    selected.kind === 'dsh'
+      ? modelRouteText(nativeRoute ?? selected)
+      : [sessionHeaderTargetLabel(selected, models).name, engineQuotaText(engine?.quota, t)]
+          .filter(Boolean)
+          .join(' · ');
   return (
     <SessionMetaChip
       kind={label.external ? 'engine' : 'model'}

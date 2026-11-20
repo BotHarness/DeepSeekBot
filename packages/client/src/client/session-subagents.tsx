@@ -4,7 +4,7 @@ import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
-import type { SessionModelRoute, SessionSubagent } from './bridge.js';
+import type { SessionSubagent } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -12,6 +12,7 @@ import { color, space, text } from './ds/tokens.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { modelRouteText } from './session-rows.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 const styles = stylex.create({
@@ -27,12 +28,6 @@ export const SUBAGENT_STATE_TONE = {
   cancelled: 'quiet',
   idle: 'quiet',
 } as const;
-
-export function modelRouteText(route: SessionModelRoute): string {
-  return `${route.provider}/${route.model}${
-    route.reasoningEffort === undefined ? '' : ` · ${route.reasoningEffort}`
-  }`;
-}
 
 export function SessionSubagentToggle({
   count,
