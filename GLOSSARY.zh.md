@@ -474,9 +474,21 @@ _避免使用_：Channel authority、database backup、live inbox
 一种 inactive 的导入 reference，用来描述 Human 可以在本地重新连接并授权的 provider account 或 authority；在此之前，它不能 admit event、wake PersonaBot 或执行 Service Action。
 _避免使用_：credential、Service Grant、automatic reconnect
 
-**Bot Marketplace**：
-harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。同时列出两种条目：Indexed Repository 和 Uploaded Bot（ADR-0131、ADR-0267）。
+**Marketplace**：
+harness 中打开的 hosted catalog，用于浏览、搜索和取用可分享的内容：安装 Bot、应用 Marketplace Avatar，以后还有 Skill。每类内容有自己的搜索结果和动作，导航、作者身份和举报是共用的。
 _避免使用_：store、hub、Soul registry
+
+**Bot Marketplace**：
+Marketplace 中的 Bots 分区，用于浏览、搜索和安装可分享的 Bot。同时列出两种条目：Indexed Repository 和 Uploaded Bot（ADR-0131、ADR-0267）。
+_避免使用_：store、hub、Soul registry
+
+**Marketplace Avatar**：
+已登录的作者发布到 Marketplace 的一张静态图片，带名称、标签和简介，供 Human 应用到自己有权编辑的 Bot。图片来自文件，或来自作者有权编辑的某只 PersonaBot 已存的 Avatar 图片；自动生成的 Blobatar 不能发布。文字可以编辑，图片不能修改；换一张图就是一个新的 Marketplace Avatar。作者删除、账号注销或平台下架后，它不能再被找到或应用，但已经应用出去的副本不受影响。
+_避免使用_：Avatar（指市场条目时）、Listing、sticker、skin、Avatar Appearance
+
+**Apply (a Marketplace Avatar)**：
+把 Marketplace Avatar 图片的一份副本设为某只 PersonaBot 的 Avatar，并替换它原有的 Avatar Appearance。副本归这只 PersonaBot 所有，之后 Marketplace Avatar 被删除也会保留。
+_避免使用_：install、download、subscribe
 
 **Indexed Repository**：
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
@@ -494,6 +506,10 @@ _避免使用_：export、snapshot、redacted Memory
 安装完成后 Host 向 Bot Marketplace 上报的一次计数，以只用于市场的随机 Host 标识去重，因此每台 Host 对每个条目只计一次。
 _避免使用_：download、clone count、Telemetry event
 
+**Apply Count**：
+一个 Marketplace Avatar 曾被应用到的不同 PersonaBot 的数量。同一只 PersonaBot 重复应用、换走再换回都不会增加计数；删除这只 PersonaBot 或给它换头像也不会减少计数。
+_避免使用_：download count、install count、uses
+
 **Marketplace Digest**：
 Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
 _避免使用_：newsletter、push notification、blog post
@@ -507,7 +523,7 @@ _避免使用_：featured Bot、编辑推荐、推广 Bot
 _避免使用_：缩略图、hero 图、生成图片
 
 **Marketplace Ranking**：
-榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+榜单：Marketplace 每个分区每天为在架条目生成的三个列表：热门（最近 7 天安装或应用最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装或应用增长最多）。Bot 按安装数排名，Marketplace Avatar 按应用数排名。榜单每天重算一次，读取当天的快照。
 _避免使用_：section、货架、排行榜
 
 **Bot Zip**：
