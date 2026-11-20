@@ -8,6 +8,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
 import { ModelProvidersSettings } from '../src/client/model-providers-settings.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 
 it('renders the provider name, masked key and provider brand', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -201,7 +202,7 @@ it('lists named subscription accounts and adds, renames and removes one', async 
   const call = vi.fn<BridgeCall>(async (method, args) => {
     switch (method) {
       case 'teamMode':
-        return { ok: true, value: { enabled: true, viewer: { kind: 'owner', humanId: 'owner' } } };
+        return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
       case 'modelProviders':
         return { ok: true, value: { revision: 1, providers: [] } };
       case 'engineAccounts':
@@ -297,8 +298,12 @@ it('shows the signing-in state only for the selected subscription account', asyn
       return {
         ok: true,
         value: {
+          ...fakeTeamMode({
+            kind: 'member',
+            humanId: 'manager',
+            permissions: ['modelSources.manage'],
+          }),
           enabled: true,
-          viewer: { kind: 'member', humanId: 'manager', permissions: ['modelSources.manage'] },
         },
       };
     if (method === 'engineAccountLogin') {
@@ -343,8 +348,8 @@ it('omits the subscription write controls for a Team member without modelSources
       return {
         ok: true,
         value: {
+          ...fakeTeamMode({ kind: 'member', humanId: 'member', permissions: ['roles.manage'] }),
           enabled: true,
-          viewer: { kind: 'member', humanId: 'member', permissions: ['roles.manage'] },
         },
       };
     if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
