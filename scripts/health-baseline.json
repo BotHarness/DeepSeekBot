@@ -80,7 +80,6 @@
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/devices/connect-account.ts",
     "packages/core/src/devices/mount.ts",
-    "packages/core/src/diagnostics/diagnostic-log.ts",
     "packages/core/src/memory/accepted.ts",
     "packages/core/src/messaging/dsh-im.ts",
     "packages/core/src/messaging/inbound.ts",
