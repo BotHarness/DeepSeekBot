@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
-  DEFAULT_CODEX_ACCOUNT,
+  ENGINE_DEFINITIONS,
+  ENGINE_IDS,
   engineAccountKey,
   type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
@@ -34,57 +35,58 @@ interface AccountSettings {
   accounts: StoredEngineAccount[];
 }
 
-function codexAccount(id: string, name: string): StoredEngineAccount {
+function storedAccount(engine: EngineId, id: string, name: string): StoredEngineAccount {
   return {
     id,
     name,
-    engine: 'codex',
-    homeDir: id === DEFAULT_CODEX_ACCOUNT ? 'codex/home' : `codex/accounts/${id}`,
+    engine,
+    homeDir: id === engineAccountKey(engine) ? `${engine}/home` : `${engine}/accounts/${id}`,
   };
 }
 
-const claudeAccount: StoredEngineAccount = {
-  id: 'claude',
-  name: 'Claude Code',
-  engine: 'claude',
-  homeDir: 'claude/home',
-};
+function defaultAccount(engine: EngineId): StoredEngineAccount {
+  return storedAccount(engine, engineAccountKey(engine), ENGINE_DEFINITIONS[engine].displayName);
+}
 
 function legacyAccounts(): AccountSettings {
-  return { revision: 0, accounts: [codexAccount(DEFAULT_CODEX_ACCOUNT, 'Codex')] };
+  return { revision: 0, accounts: ENGINE_IDS.map(defaultAccount) };
 }
 
 function parseAccounts(raw: unknown): AccountSettings {
   const settings = fields(raw);
   const revision = settings?.['revision'];
-  const accounts = settings?.['accounts'];
-  if (
-    typeof revision !== 'number' ||
-    !Number.isSafeInteger(revision) ||
-    revision < 0 ||
-    !Array.isArray(accounts)
-  )
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)
     throw new Error('Invalid Subscription Account settings');
-  const seen = new Set<string>();
+  const claude = settings?.['claudeAccounts'];
   return {
     revision,
-    accounts: accounts.map((value: unknown) => {
-      const row = fields(value);
-      const id = row?.['id'];
-      const name = row?.['name'];
-      if (
-        typeof id !== 'string' ||
-        !/^codex-(?:default|[\da-f-]{36})$/u.test(id) ||
-        typeof name !== 'string' ||
-        name.trim() === '' ||
-        row?.['engine'] !== 'codex' ||
-        seen.has(id)
-      )
-        throw new Error('Invalid Codex account settings');
-      seen.add(id);
-      return codexAccount(id, name);
-    }),
+    accounts: [
+      ...parseAccountList('codex', settings?.['accounts']),
+      ...(claude === undefined ? [defaultAccount('claude')] : parseAccountList('claude', claude)),
+    ],
   };
+}
+
+function parseAccountList(engine: EngineId, accounts: unknown): StoredEngineAccount[] {
+  if (!Array.isArray(accounts)) throw new Error('Invalid Subscription Account settings');
+  const seen = new Set<string>();
+  return accounts.map((value: unknown) => {
+    const row = fields(value);
+    const id = row?.['id'];
+    const name = row?.['name'];
+    if (
+      row?.['engine'] !== engine ||
+      typeof id !== 'string' ||
+      (id !== engineAccountKey(engine) &&
+        (!id.startsWith(`${engine}-`) || !/^[\da-f-]{36}$/u.test(id.slice(engine.length + 1)))) ||
+      typeof name !== 'string' ||
+      name.trim() === '' ||
+      seen.has(id)
+    )
+      throw new Error('Invalid Subscription Account settings');
+    seen.add(id);
+    return storedAccount(engine, id, name);
+  });
 }
 
 interface EngineThread {
@@ -131,7 +133,8 @@ export interface EngineStore {
   selections(): EngineSelection[];
   accounts(): AccountSettings;
   resolveAccount(engine: EngineId, accountId?: string): StoredEngineAccount;
-  addAccount(name: string, expectedRevision: number): NamedEngineAccount;
+  accountById(id: string): StoredEngineAccount;
+  addAccount(engine: EngineId, name: string, expectedRevision: number): NamedEngineAccount;
   renameAccount(id: string, name: string, expectedRevision: number): NamedEngineAccount;
   removeAccount(
     id: string,
@@ -199,11 +202,10 @@ function parse(text: string, path: string): EngineFile {
       models,
     };
   }
-  for (const [engine, raw] of Object.entries(fields(value['quota']) ?? {})) {
+  for (const [key, raw] of Object.entries(fields(value['quota']) ?? {})) {
     const quota = parseQuota(raw);
-    const id = engine === 'codex' ? DEFAULT_CODEX_ACCOUNT : engine;
-    if ((id === 'claude' || accountIds.has(id)) && quota !== undefined)
-      (file.quota ??= {})[id] = quota;
+    const id = isEngineId(key) ? engineAccountKey(key) : key;
+    if (accountIds.has(id) && quota !== undefined) (file.quota ??= {})[id] = quota;
   }
   for (const [id, raw] of Object.entries(fields(value['sessions']) ?? {})) {
     const entry = fields(raw);
@@ -258,10 +260,18 @@ export function createEngineStore(path: string): EngineStore {
     return cache;
   };
   const write = (file: EngineFile) => {
-    file.subscriptionAccounts ??= legacyAccounts();
+    const { revision, accounts } = (file.subscriptionAccounts ??= legacyAccounts());
+    const data = {
+      ...file,
+      subscriptionAccounts: {
+        revision,
+        accounts: accounts.filter((account) => account.engine === 'codex'),
+        claudeAccounts: accounts.filter((account) => account.engine === 'claude'),
+      },
+    };
     mkdirSync(dirname(path), { recursive: true });
     const temporary = `${path}.${process.pid}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
+    writeFileSync(temporary, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
     renameSync(temporary, path);
     cache = file;
   };
@@ -283,16 +293,12 @@ export function createEngineStore(path: string): EngineStore {
         'engine-account-conflict',
         'Subscription accounts changed. Read them again.',
       );
-    return { revision: current.revision + 1, accounts: [...current.accounts] };
+    return { ...current, revision: current.revision + 1, accounts: [...current.accounts] };
   };
-  const resolveAccount = (engine: EngineId, accountId?: string): StoredEngineAccount => {
-    const id = engineAccountKey(engine, accountId);
-    const account =
-      engine === 'claude'
-        ? id === claudeAccount.id
-          ? claudeAccount
-          : undefined
-        : settings().accounts.find((row) => row.id === id);
+  const accountById = (id: string, engine?: EngineId): StoredEngineAccount => {
+    const account = settings().accounts.find(
+      (row) => row.id === id && (engine === undefined || row.engine === engine),
+    );
     if (account === undefined)
       throw new EngineRefusal(
         'engine-account-not-found',
@@ -375,21 +381,27 @@ export function createEngineStore(path: string): EngineStore {
             ]),
       ]),
     accounts: () => {
-      const { revision, accounts } = settings();
-      return { revision, accounts: [...accounts, claudeAccount] };
+      const current = settings();
+      return {
+        ...current,
+        accounts: ENGINE_IDS.flatMap((engine) =>
+          current.accounts.filter((account) => account.engine === engine),
+        ),
+      };
     },
-    resolveAccount,
-    addAccount: (name, expectedRevision) => {
+    resolveAccount: (engine, id) => accountById(engineAccountKey(engine, id), engine),
+    accountById,
+    addAccount: (engine, name, expectedRevision) => {
       const subscriptionAccounts = editAccounts(expectedRevision);
-      const account = codexAccount(`codex-${randomUUID()}`, name);
+      const account = storedAccount(engine, `${engine}-${randomUUID()}`, name);
       subscriptionAccounts.accounts.push(account);
       writeAccounts({ ...read(), subscriptionAccounts });
       return account;
     },
     renameAccount: (id, name, expectedRevision) => {
       const subscriptionAccounts = editAccounts(expectedRevision);
-      resolveAccount('codex', id);
-      const renamed = codexAccount(id, name);
+      const account = accountById(id);
+      const renamed = { ...account, name };
       subscriptionAccounts.accounts = subscriptionAccounts.accounts.map((row) =>
         row.id === id ? renamed : row,
       );
@@ -398,7 +410,7 @@ export function createEngineStore(path: string): EngineStore {
     },
     removeAccount: (id, expectedRevision, assertUnused) => {
       const subscriptionAccounts = editAccounts(expectedRevision);
-      const removed = resolveAccount('codex', id);
+      const removed = accountById(id);
       assertUnused();
       subscriptionAccounts.accounts = subscriptionAccounts.accounts.filter((row) => row.id !== id);
       const quota = { ...read().quota };

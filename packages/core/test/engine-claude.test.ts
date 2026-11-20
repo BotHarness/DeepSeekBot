@@ -309,6 +309,27 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     });
   });
 
+  it('opens a fresh Claude thread in the selected account home after using the legacy default', async () => {
+    const root = createTempRoot('claude-account-switch-');
+    const { host, request, replay } = setup([RECORDING, RECORDING], root);
+    const other = host.addAccount('claude', 'Work', 0);
+    try {
+      await host.runTurn(request);
+      const legacyThread = host.store.nativeSession(request.sessionId)?.nativeId;
+      expect(replay.options[0]?.env?.CLAUDE_CONFIG_DIR).toBe(join(root, 'claude', 'home'));
+      host.use('ada', 'orchestrator', 'claude', { accountId: other.id });
+      await host.runTurn(request);
+      expect(replay.options[1]?.env?.CLAUDE_CONFIG_DIR).toBe(
+        join(root, 'claude', 'accounts', other.id),
+      );
+      expect(replay.options[1]?.resume).toBeUndefined();
+      expect(replay.options[1]?.sessionId).not.toBe(legacyThread);
+      expect(host.store.nativeSession(request.sessionId)?.accountId).toBe(other.id);
+    } finally {
+      await host.close();
+    }
+  });
+
   it('resumes the stored native session and starts a new one only when Claude has lost it', async () => {
     const root = createTempRoot('claude-resume-');
     const first = setup([RECORDING], root);
@@ -390,6 +411,8 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       {
         engine: 'claude',
         displayName: 'Claude Code',
+        accountId: 'claude',
+        accountName: 'Claude Code',
         available: true,
         installed: true,
         version: '2.1.327',

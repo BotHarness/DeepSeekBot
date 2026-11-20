@@ -174,6 +174,43 @@ async function submit(host: HTMLElement) {
   await act(async () => buttonNamed('创建', document.body).click());
 }
 
+describe('built-in avatar selection', () => {
+  it('creates the Bot with the displayed Tilties portrait after shuffling', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      const preview = () =>
+        document.querySelector('[data-create-avatar-preview] img')?.getAttribute('src');
+      await choose(host, '头像风格', 'tilties');
+      const first = preview();
+      expect(first).toMatch(/^data:image\/webp;base64,/u);
+      await act(async () => buttonNamed('随机', document.body).click());
+      expect(create).not.toHaveBeenCalled();
+      const shuffled = preview();
+      expect(shuffled).toMatch(/^data:image\/webp;base64,/u);
+      expect(shuffled).not.toBe(first);
+      await submit(host);
+      expect(create).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '', avatar: shuffled },
+        undefined,
+      );
+    });
+  });
+
+  it('restores the generated pixel avatar when Pixel is selected again', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      await choose(host, '头像风格', 'tilties');
+      await choose(host, '头像风格', 'pixel');
+      await submit(host);
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '' },
+        undefined,
+      );
+    });
+  });
+});
+
 describe('editable creation starting points', () => {
   it('retains independent drafts while switching and submits exact edited persona without preset metadata', async () => {
     await withForm(async (host, create) => {

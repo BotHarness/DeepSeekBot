@@ -30,7 +30,7 @@
     "lineBorder": 3
   },
   "packages/client/src/client/avatar-appearance-editor.tsx": {
-    "rawControl": 13
+    "rawControl": 11
   },
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "rawControl": 1
@@ -408,8 +408,8 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1720,
-    "lineBorder": 95
+    "legacyCss": 1707,
+    "lineBorder": 94
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1

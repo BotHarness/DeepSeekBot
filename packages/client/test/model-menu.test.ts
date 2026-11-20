@@ -519,3 +519,33 @@ it('gives the same Codex model a separate row and hint for each named account', 
     { accountId: 'codex-work', value: 'engine:codex-work:gpt-5.4', hint: 'Codex · 工作' },
   ]);
 });
+
+it('includes the Claude account in model identity and the named row label', () => {
+  const catalog = [{ id: 'sonnet', name: 'Sonnet', efforts: [] }];
+  expect(
+    engineMenuItems(
+      [
+        {
+          engine: 'claude',
+          installed: true,
+          available: true,
+          accountId: 'claude',
+          accountName: 'Claude Code',
+        },
+        {
+          engine: 'claude',
+          installed: true,
+          available: true,
+          accountId: 'claude-work',
+          accountName: '工作',
+        },
+      ],
+      { claude: catalog, 'claude-work': catalog },
+      undefined,
+      zhTranslate,
+    ),
+  ).toMatchObject([
+    { accountId: 'claude', value: 'engine:claude:sonnet', hint: 'Claude Code 订阅' },
+    { accountId: 'claude-work', value: 'engine:claude-work:sonnet', hint: 'Claude Code · 工作' },
+  ]);
+});

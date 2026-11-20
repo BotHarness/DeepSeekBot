@@ -92,6 +92,7 @@ export interface LiveValues
   conversation?: string;
   out?: string;
   'args-stdin'?: boolean;
+  'code-stdin'?: boolean;
   'cause-event'?: string;
   session?: string;
   turns?: string;

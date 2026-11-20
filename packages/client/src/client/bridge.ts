@@ -547,6 +547,7 @@ export interface CreatePersonaBotInput {
   roles: string[];
   description?: string;
   gitUrl?: string;
+  avatar?: string;
   origin?: 'marketplace';
   listingId?: string;
   memoryLocation?: string;

@@ -1,21 +1,21 @@
 import type {} from '../../core/src/channels/resource-events.js';
 import { coalesce } from '../../core/src/runtime/coalesce.js';
 import { openComputerPermissionSettings } from './permission-settings.js';
-import { spawn } from 'node:child_process';
 import ComputerUseRegistry from './native-registry.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
-import { createReadStream, createWriteStream, existsSync } from 'node:fs';
-import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
-import { homedir } from 'node:os';
-import { basename, isAbsolute, join } from 'node:path';
-import { Readable, type Duplex } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { join } from 'node:path';
+import type { Duplex } from 'node:stream';
 
-import type { Context, Volatile } from '@deepseek-ai/cordis';
+import type { Context } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-settings';
-import Schema from '@deepseek-ai/schemastery';
+import {
+  createComputerConfig,
+  desktopLocale,
+  readLive,
+  type ComputerRuntimeConfig,
+} from './computer-config.js';
 
 import { DIAGNOSTICS_LIMIT, createComputerDiagnostics, toLogEntry } from './diagnostics.js';
 import {
@@ -25,8 +25,15 @@ import {
   type LogQuery,
 } from '../../core/src/logs/log-db.js';
 import { createTransferTokens } from './transfer-tokens.js';
+import { createArchiveHandlers, defaultExportDir } from './archive-http.js';
+import { createProcessRunner } from './process-runner.js';
 import { createIdleWatcher } from './idle.js';
-import { DesktopViewError, createDesktopView, parseDesktopInput } from './desktop-view.js';
+import { createDesktopView } from './desktop-view.js';
+import { createDesktopHandlers } from './desktop-http.js';
+import {
+  createDesktopProvisioningHandlers,
+  createDesktopProvisioningState,
+} from './desktop-provisioning-http.js';
 import { createComputerPauseStore, createLocalVideoOwner } from './local-video-owner.js';
 import { createMacScroll } from './macos-scroll.js';
 import { createLocalVideoHttp } from './local-video-http.js';
@@ -39,20 +46,12 @@ import { createCallMedia } from './media/call-supervisor.js';
 import { createLocalVideoMedia } from './media/supervisor.js';
 import { resolveDshHome } from '../../core/src/im/config-store.js';
 import type { ComputerSettings } from './settings.js';
-import { DEFAULT_DOCKER_CONFIG, createDockerComputerProvider } from './providers/docker.js';
-import type {
-  ComputerRuntimeResult,
-  ComputerRuntimeRunner,
-  ComputerRuntimeRunOptions,
-  ComputerStatus,
-} from './provider.js';
+import { createDockerComputerProvider } from './providers/docker.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
-import { installSystemPackages } from '../../core/src/system/system-packages.js';
 import { detectTailnetAddress } from '../../core/src/devices/routes.js';
 import { createSelkiesWebRtc } from '../../core/src/http/selkies-webrtc.js';
-import { missingDesktopPackages } from './tool/local-display.js';
 import { createLocalComputerProvider } from './providers/local.js';
 import { computerTarget, createComputerTargetRuntime, type ComputerTarget } from './target.js';
 import { COMPUTER_GUIDANCE, localComputerGuidance } from './tool/catalog.js';
@@ -68,246 +67,17 @@ import { ViewerProxy, proxyUpgrade, viewerUpgradePaths } from './viewer.js';
 export const name = 'botharness-computer';
 stampReleaseComponent(apply, import.meta.url);
 
-const TAKEOVER_DRAIN_MS = 10_000;
+export const { DEFAULT_CONFIG, Config } = createComputerConfig();
+export { desktopLocale, type ComputerConfig } from './computer-config.js';
 
-export interface ComputerConfig {
-  target: ComputerTarget;
-  enabled: boolean;
-  image: string;
-  containerName: string;
-  volumeName: string;
-  hostPort: number;
-  cpus: number;
-  memory: string;
-  resolution: string;
-  shmSize: string;
-  pidsLimit: number;
-  idleStopMinutes: number;
-  hardenDesktop: boolean;
-  language: string;
-  exportDir: string;
-  autoAllowActions: boolean;
-  dataDir: string;
-}
-
-type ComputerRuntimeConfig = Omit<
-  ComputerConfig,
-  'exportDir' | 'idleStopMinutes' | 'autoAllowActions' | 'target'
-> & {
-  target: ComputerTarget | Volatile<ComputerTarget>;
-  exportDir: string | Volatile<string>;
-  idleStopMinutes: number | Volatile<number>;
-  autoAllowActions: boolean | Volatile<boolean>;
-};
-
-function readLive<T>(value: T | Volatile<T>): T {
-  return typeof value === 'object' && value !== null && 'get' in value
-    ? ((value as Volatile<T>).get() as T)
-    : (value as T);
-}
-export function desktopLocale(language: string): string {
-  return /^zh([-_]|$)/i.test(language) ? 'zh_CN.UTF-8' : 'en_US.UTF-8';
-}
-
-export const DEFAULT_CONFIG: ComputerConfig = {
-  target: 'local',
-  enabled: true,
-  image: DEFAULT_DOCKER_CONFIG.image,
-  containerName: DEFAULT_DOCKER_CONFIG.containerName,
-  volumeName: DEFAULT_DOCKER_CONFIG.volumeName,
-  hostPort: DEFAULT_DOCKER_CONFIG.hostPort,
-  cpus: DEFAULT_DOCKER_CONFIG.cpus,
-  memory: DEFAULT_DOCKER_CONFIG.memory,
-  resolution: DEFAULT_DOCKER_CONFIG.resolution,
-  shmSize: DEFAULT_DOCKER_CONFIG.shmSize,
-  pidsLimit: DEFAULT_DOCKER_CONFIG.pidsLimit,
-  idleStopMinutes: DEFAULT_DOCKER_CONFIG.idleStopMinutes,
-  hardenDesktop: DEFAULT_DOCKER_CONFIG.hardenDesktop,
-  language: DEFAULT_DOCKER_CONFIG.language,
-  exportDir: '',
-  autoAllowActions: false,
-  dataDir: '',
-};
-
-type ComputerSchemaConfig = Omit<
-  ComputerConfig,
-  'target' | 'exportDir' | 'idleStopMinutes' | 'autoAllowActions'
-> & {
-  target: Volatile<ComputerTarget>;
-  exportDir: Volatile<string>;
-  idleStopMinutes: Volatile<number>;
-  autoAllowActions: Volatile<boolean>;
-};
-
-export const Config: Schema<Partial<ComputerConfig>, ComputerSchemaConfig> = Schema.object({
-  target: Schema.union([Schema.const('local'), Schema.const('container')])
-    .default('container')
-    .volatile(),
-  enabled: Schema.boolean().default(DEFAULT_CONFIG.enabled).description('启用 Computer'),
-  image: Schema.string().default(DEFAULT_CONFIG.image),
-  containerName: Schema.string().default(DEFAULT_CONFIG.containerName),
-  volumeName: Schema.string().default(DEFAULT_CONFIG.volumeName),
-  hostPort: Schema.number().default(DEFAULT_CONFIG.hostPort),
-  cpus: Schema.number().default(DEFAULT_CONFIG.cpus),
-  memory: Schema.string().default(DEFAULT_CONFIG.memory),
-  resolution: Schema.string()
-    .default(DEFAULT_CONFIG.resolution)
-    .description(
-      '桌面分辨率上限（Xvfb MAX_RES）；viewer 不缩放画面，需覆盖最大观看画布，默认 2560x1600',
-    ),
-  shmSize: Schema.string().default(DEFAULT_CONFIG.shmSize),
-  pidsLimit: Schema.number().default(DEFAULT_CONFIG.pidsLimit),
-  idleStopMinutes: Schema.number().default(DEFAULT_CONFIG.idleStopMinutes).volatile(),
-  hardenDesktop: Schema.boolean()
-    .default(DEFAULT_CONFIG.hardenDesktop)
-    .description(
-      '硬化桌面（禁用 sudo/终端/xfce 启动器）；查看专用部署可选开，computer use 需要保持关闭',
-    ),
-  language: Schema.string().default(DEFAULT_CONFIG.language),
-  exportDir: Schema.string()
-    .default(DEFAULT_CONFIG.exportDir)
-    .description(
-      '导出目录；为空时回退到默认目录（~/Desktop/BotHarness Exports，无 Desktop 时为 ~/BotHarness Exports）',
-    )
-    .volatile(),
-  autoAllowActions: Schema.boolean()
-    .default(DEFAULT_CONFIG.autoAllowActions)
-    .description('自动允许 PersonaBot 操作 Computer（跳过按会话的人工授权）')
-    .volatile(),
-  dataDir: Schema.string()
-    .default(DEFAULT_CONFIG.dataDir)
-    .description('持久目录（仅 Linux 生效，bind mount 到 /config；为空时用命名卷）'),
-});
-
-export function isSafeArchiveName(name: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*\.tar$/u.test(name) && !name.includes('..');
-}
-
-export async function streamArchiveResponse(archivePath: string): Promise<Response> {
-  const info = await stat(archivePath);
-  const body = Readable.toWeb(createReadStream(archivePath));
-  return new Response(body as BodyInit, {
-    status: 200,
-    headers: {
-      'content-type': 'application/x-tar',
-      'content-disposition': `attachment; filename="${basename(archivePath)}"`,
-      'content-length': String(info.size),
-    },
-  });
-}
-
-export async function receiveUploadBody(
-  body: ReadableStream<Uint8Array> | null,
-  destPath: string,
-): Promise<void> {
-  if (body === null) throw new Error('empty upload body');
-  const out = createWriteStream(destPath);
-  try {
-    await pipeline(body, out);
-  } catch (error) {
-    await rm(destPath, { force: true });
-    throw error;
-  }
-}
-
-export async function storeUploadBody(
-  body: ReadableStream<Uint8Array> | null,
-  destPath: string,
-): Promise<void> {
-  const tmp = `${destPath}.part`;
-  await receiveUploadBody(body, tmp);
-  await rename(tmp, destPath);
-}
-
-export function defaultExportDir(home = homedir()): string {
-  const desktop = join(home, 'Desktop');
-  return existsSync(desktop)
-    ? join(desktop, 'BotHarness Exports')
-    : join(home, 'BotHarness Exports');
-}
-
-export function createProcessRunner(): ComputerRuntimeRunner {
-  const spawnOnce = (
-    argv: readonly string[],
-    onChunk?: (chunk: string) => void,
-    options?: ComputerRuntimeRunOptions,
-  ): Promise<ComputerRuntimeResult> =>
-    new Promise((resolve) => {
-      if (options?.signal?.aborted) {
-        resolve({ code: -1, stdout: '', stderr: 'Computer subprocess cancelled before start' });
-        return;
-      }
-      const child = spawn(argv[0] ?? '', argv.slice(1), {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        ...(options?.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
-        shell: false,
-        windowsHide: true,
-      });
-      let stdout = '';
-      let stderr = '';
-      let outputBytes = 0;
-      let refusal: string | undefined;
-      let settled = false;
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      let stopTimeout: ReturnType<typeof setTimeout> | undefined;
-      const finish = (code: number): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        clearTimeout(stopTimeout);
-        options?.signal?.removeEventListener('abort', abort);
-        resolve({ code: refusal === undefined ? code : -1, stdout, stderr: refusal ?? stderr });
-      };
-      const stop = (reason: string): void => {
-        if (settled || refusal !== undefined) return;
-        refusal = reason;
-        child.kill('SIGKILL');
-        stopTimeout = setTimeout(() => {
-          child.stdout.destroy();
-          child.stderr.destroy();
-          finish(-1);
-        }, 2_000);
-      };
-      const abort = (): void => stop('Computer subprocess cancelled');
-      options?.signal?.addEventListener('abort', abort, { once: true });
-      if (options?.signal?.aborted) abort();
-      if (options?.timeoutMs !== undefined)
-        timeout = setTimeout(() => stop('Computer subprocess timed out'), options.timeoutMs);
-      const append = (chunk: Buffer): string | undefined => {
-        if (settled || refusal !== undefined) return undefined;
-        outputBytes += chunk.byteLength;
-        if (options?.maxOutputBytes !== undefined && outputBytes > options.maxOutputBytes) {
-          stop('Computer subprocess output limit exceeded');
-          return undefined;
-        }
-        return chunk.toString();
-      };
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = append(chunk);
-        if (text === undefined) return;
-        stdout += text;
-        onChunk?.(text);
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        const text = append(chunk);
-        if (text === undefined) return;
-        stderr += text;
-        onChunk?.(text);
-      });
-      child.on('error', (error) => {
-        stderr = `${stderr}${String(error)}`;
-        finish(-1);
-      });
-      child.on('close', (code) => {
-        finish(code ?? -1);
-      });
-    });
-
-  return {
-    run: (argv, options) => spawnOnce(argv, undefined, options),
-    runStreaming: (argv, onChunk) => spawnOnce(argv, onChunk),
-  };
-}
+export {
+  defaultExportDir,
+  isSafeArchiveName,
+  receiveUploadBody,
+  storeUploadBody,
+  streamArchiveResponse,
+} from './archive-http.js';
+export { createProcessRunner } from './process-runner.js';
 
 interface HostConnectionLike {
   readonly fetch: {
@@ -363,15 +133,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   const service: ComputerService = createComputerService();
   let requestedLanguage = '';
   const runner = createProcessRunner();
-  let packageInstall:
-    | {
-        state: 'installing' | 'installed' | 'failed';
-        packages: readonly string[];
-        percent: number;
-        text: string;
-      }
-    | undefined;
-  let recheckingDesktop = false;
+  const installState = createDesktopProvisioningState();
   let authorizationRevision = 0;
   const authorizationScope = (): string => `${target()}:${String(authorizationRevision)}`;
   const target = (): ComputerTarget => computerTarget(readLive(config.target));
@@ -641,9 +403,6 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     const json = (value: unknown, status = 200): Response =>
       Response.json(value as Record<string, unknown>, { status });
 
-    const unknownToken = (kind: string): Response =>
-      json({ ok: false, code: 'unknown-token', error: `unknown or expired ${kind} token` }, 404);
-
     connectionCtx.effect(
       () =>
         connection.fetch.register({
@@ -677,45 +436,24 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       'botharness-computer: WebRTC status route',
     );
 
+    const provisioningHttp = createDesktopProvisioningHandlers({
+      json,
+      installState,
+      service,
+      log,
+      toolProvider,
+      target,
+      resolveExportDir,
+      config,
+      statusChanged,
+      runner,
+    });
+
     const statusRoute = {
       path: '/api/computer/status',
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (): Promise<Response> => {
-        const probe = await service
-          .probe()
-          .catch((error: unknown) => ({ available: false, detail: String(error) }));
-        const status: ComputerStatus = await service
-          .status()
-          .catch((error: unknown) => ({ state: 'failed' as const, detail: String(error) }));
-        if (
-          status.missing !== undefined &&
-          packageInstall?.state !== 'installing' &&
-          !recheckingDesktop
-        ) {
-          const still = await missingDesktopPackages();
-          if (!still.includes('xvfb') && !still.includes('openbox')) {
-            recheckingDesktop = true;
-            log('desktop packages present; checking Local Computer again');
-            void service
-              .start()
-              .then(() => toolProvider.reconcileAll())
-              .catch(() => undefined)
-              .finally(() => {
-                recheckingDesktop = false;
-              });
-          }
-        }
-        return json({
-          target: target(),
-          provider: service.providerName ?? null,
-          probe,
-          status,
-          exportDir: target() === 'container' ? resolveExportDir() : '',
-          ...(packageInstall === undefined ? {} : { install: packageInstall }),
-          ...(target() === 'container' ? { resolution: config.resolution } : {}),
-        });
-      },
+      fetch: provisioningHttp.status,
     };
     connectionCtx.effect(
       () => connection.fetch.register(statusRoute),
@@ -776,76 +514,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/install-packages',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        const body = await request
-          .json()
-          .then((value) => value as { authorize?: unknown })
-          .catch(() => ({}) as { authorize?: unknown });
-        if (body.authorize !== true)
-          return json(
-            { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
-            400,
-          );
-        if (packageInstall?.state === 'installing')
-          return json({ ok: false, code: 'install-running', error: 'an install is running' }, 409);
-        const missing = target() === 'local' ? (await service.status()).missing : undefined;
-        if (missing === undefined || missing.packages.length === 0)
-          return json({ ok: false, code: 'nothing-missing', error: 'nothing to install' }, 409);
-        if (missing.install === 'none')
-          return json(
-            {
-              ok: false,
-              code: 'needs-administrator',
-              error: `Run this on the Host: ${missing.command}`,
-            },
-            403,
-          );
-        const started = Date.now();
-        packageInstall = { state: 'installing', packages: missing.packages, percent: 0, text: '' };
-        statusChanged.schedule();
-        log(
-          `install-packages start packages=${missing.packages.join(',')} access=${missing.install}`,
-        );
-        void installSystemPackages({
-          packages: missing.packages,
-          access: missing.install,
-          runner,
-          onProgress: (progress) => {
-            packageInstall = {
-              state: 'installing',
-              packages: missing.packages,
-              percent: progress.percent,
-              text: progress.text,
-            };
-            statusChanged.schedule();
-          },
-        })
-          .then(async () => {
-            packageInstall = {
-              state: 'installed',
-              packages: missing.packages,
-              percent: 100,
-              text: '',
-            };
-            statusChanged.schedule();
-            log(`install-packages done durationMs=${String(Date.now() - started)}`);
-            await service.start();
-            await toolProvider.reconcileAll();
-          })
-          .catch((error: unknown) => {
-            const detail = error instanceof Error ? error.message : String(error);
-            if (packageInstall?.state === 'installing')
-              packageInstall = {
-                state: 'failed',
-                packages: missing.packages,
-                percent: packageInstall.percent,
-                text: detail,
-              };
-            statusChanged.schedule();
-            log(`install-packages refused detail=${detail}`);
-          });
-        return json({ ok: true, started: true });
-      },
+      fetch: provisioningHttp.install,
     };
     connectionCtx.effect(
       () => connection.fetch.register(installRoute),
@@ -944,34 +613,24 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       'botharness-computer: direct tool route',
     );
 
-    const desktopRefusal = (error: unknown): Response => {
-      if (error instanceof DesktopViewError)
-        return json(
-          { ok: false, code: error.code, error: error.message },
-          error.code === 'not-running' || error.code === 'not-paused' ? 409 : 502,
-        );
-      return json({ ok: false, code: 'capture-failed', error: String(error) }, 502);
-    };
+    const desktopHttp = createDesktopHandlers({
+      json,
+      migratedLocal,
+      legacyLocalRefusal,
+      desktopView,
+      activity,
+      target,
+      parseBody: (request) => parseBody(request),
+      runtime,
+      toolProvider,
+      diagnostics,
+    });
 
     const frameRoute = {
       path: '/api/computer/frame',
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (migratedLocal()) return legacyLocalRefusal();
-        const raw = new URL(request.url).searchParams.get('after');
-        const after = raw === null || raw === '' ? undefined : Number(raw);
-        if (after !== undefined && !Number.isSafeInteger(after))
-          return json({ ok: false, code: 'invalid-after', error: 'after must be an integer' }, 400);
-        try {
-          const frame = await desktopView.next(after, request.signal);
-          if (frame === undefined) return new Response(null, { status: 204 });
-          activity.touch();
-          return json({ ok: true, target: target(), paused: desktopView.isPaused(), ...frame });
-        } catch (error) {
-          return desktopRefusal(error);
-        }
-      },
+      fetch: desktopHttp.frame,
     };
     connectionCtx.effect(
       () => connection.fetch.register(frameRoute),
@@ -982,22 +641,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/takeover',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (migratedLocal()) return legacyLocalRefusal();
-        const body = await parseBody(request);
-        if (typeof body['active'] !== 'boolean')
-          return json({ ok: false, code: 'invalid-input', error: 'active must be a boolean' }, 400);
-        if (body['active'] && !runtime.isRunning())
-          return json(
-            { ok: false, code: 'not-running', error: 'The Computer is not running.' },
-            409,
-          );
-        const paused = desktopView.setPaused(body['active']);
-        if (paused) await toolProvider.drain(TAKEOVER_DRAIN_MS);
-        activity.touch();
-        diagnostics.record('computer-action', `viewer takeover ${paused ? 'on' : 'off'}`);
-        return json({ ok: true, paused });
-      },
+      fetch: desktopHttp.takeover,
     };
     connectionCtx.effect(
       () => connection.fetch.register(takeoverRoute),
@@ -1008,30 +652,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/input',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (migratedLocal()) return legacyLocalRefusal();
-        const input = parseDesktopInput(await parseBody(request));
-        if (input === undefined)
-          return json(
-            {
-              ok: false,
-              code: 'invalid-input',
-              error: 'input must be a click, scroll, type or key action',
-            },
-            400,
-          );
-        diagnostics.record(
-          'computer-action',
-          `viewer input kind=${input.kind}${input.kind === 'type' ? ` chars=${String(input.text.length)}` : ''}`,
-        );
-        try {
-          await desktopView.input(input, request.signal);
-          activity.touch();
-          return json({ ok: true });
-        } catch (error) {
-          return desktopRefusal(error);
-        }
-      },
+      fetch: desktopHttp.input,
     };
     connectionCtx.effect(
       () => connection.fetch.register(inputRoute),
@@ -1075,40 +696,22 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       'botharness-computer: permission settings route',
     );
 
+    const archiveHttp = createArchiveHandlers({
+      json,
+      parseBody,
+      unauthorized,
+      target,
+      resolveExportDir,
+      service,
+      transferTokens: () => transferTokens,
+      log,
+    });
+
     const exportRoute = {
       path: '/api/computer/export',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const body = await parseBody(request);
-        if (body.authorize !== true) return unauthorized();
-        const requested = typeof body.dir === 'string' && body.dir !== '' ? body.dir : undefined;
-        if (requested !== undefined && !isAbsolute(requested)) {
-          return json({ ok: false, code: 'dir-invalid', error: 'dir must be absolute' }, 400);
-        }
-        const exportDir = requested ?? resolveExportDir();
-        log(`export requested (panel)${requested === undefined ? '' : ` → ${requested}`}`);
-        try {
-          await mkdir(exportDir, { recursive: true });
-          const archive = await service.exportTo(exportDir);
-          return json({
-            ok: true,
-            archive,
-            downloadToken: transferTokens.mint(archive, 'download'),
-          });
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: archiveHttp.exportArchive,
     };
     connectionCtx.effect(
       () => connection.fetch.register(exportRoute),
@@ -1119,50 +722,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/open-dir',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const body = await parseBody(request);
-        if (body.authorize !== true) return unauthorized();
-        const requested = typeof body.dir === 'string' && body.dir !== '' ? body.dir : undefined;
-        if (requested !== undefined && !isAbsolute(requested)) {
-          return json({ ok: false, code: 'dir-invalid', error: 'dir must be absolute' }, 400);
-        }
-        const dir = requested ?? resolveExportDir();
-        const opener =
-          process.platform === 'darwin'
-            ? 'open'
-            : process.platform === 'win32'
-              ? 'explorer'
-              : 'xdg-open';
-        try {
-          await mkdir(dir, { recursive: true });
-          const child = spawn(opener, [dir], {
-            windowsHide: false,
-            detached: true,
-            stdio: 'ignore',
-            shell: false,
-          });
-          await new Promise<void>((resolve, reject) => {
-            child.once('spawn', () => {
-              child.unref();
-              resolve();
-            });
-            child.once('error', reject);
-          });
-          log(`opened directory (${dir})`);
-          return json({ ok: true });
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: archiveHttp.openDirectory,
     };
     connectionCtx.effect(
       () => connection.fetch.register(openDirRoute),
@@ -1229,27 +789,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/exports',
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const exportDir = resolveExportDir();
-        try {
-          const entries = await readdir(exportDir);
-          return json({ ok: true, files: entries.filter(isSafeArchiveName).sort() });
-        } catch (error) {
-          if ((error as { code?: string }).code === 'ENOENT') {
-            return json({ ok: true, files: [] });
-          }
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: archiveHttp.listArchives,
     };
     connectionCtx.effect(
       () => connection.fetch.register(exportsRoute),
@@ -1260,31 +800,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/import',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const body = await parseBody(request);
-        if (body.authorize !== true) return unauthorized();
-        const exportDir = resolveExportDir();
-        const file = typeof body.file === 'string' ? body.file : '';
-        if (!isSafeArchiveName(file)) {
-          return json({ ok: false, code: 'invalid-archive', error: 'invalid archive name' }, 400);
-        }
-        log(`import requested (panel): ${file}`);
-        try {
-          await service.importFrom(join(exportDir, file));
-          return json({ ok: true });
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: archiveHttp.importArchive,
     };
     connectionCtx.effect(
       () => connection.fetch.register(importRoute),
@@ -1295,29 +811,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/download',
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const token = new URL(request.url).searchParams.get('token') ?? '';
-        const archive = transferTokens.consume(token, 'download');
-        if (archive === undefined) return unknownToken('download');
-        try {
-          log(`download requested (panel): ${basename(archive)}`);
-          return await streamArchiveResponse(archive);
-        } catch {
-          return json(
-            { ok: false, code: 'archive-missing', error: 'archive is no longer available' },
-            404,
-          );
-        }
-      },
+      fetch: archiveHttp.download,
     };
     connectionCtx.effect(
       () => connection.fetch.register(downloadRoute),
@@ -1328,32 +822,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       path: '/api/computer/upload',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const body = await parseBody(request);
-        if (body.authorize !== true) return unauthorized();
-        const file = typeof body.file === 'string' ? body.file : '';
-        if (!isSafeArchiveName(file)) {
-          return json({ ok: false, code: 'invalid-archive', error: 'invalid archive name' }, 400);
-        }
-        const exportDir = resolveExportDir();
-        try {
-          await mkdir(exportDir, { recursive: true });
-          const uploadToken = transferTokens.mint(join(exportDir, file), 'upload');
-          log(`upload requested (panel): ${file}`);
-          return json({ ok: true, uploadToken });
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-      },
+      fetch: archiveHttp.upload,
     };
     connectionCtx.effect(
       () => connection.fetch.register(uploadRoute),
@@ -1363,33 +832,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     const uploadContentRoute = {
       path: '/api/computer/upload-content',
       methods: ['POST'] as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() !== 'container')
-          return json(
-            {
-              ok: false,
-              code: 'container-only',
-              error: 'Archive transfer is only available for Container Computer',
-            },
-            400,
-          );
-        const token = new URL(request.url).searchParams.get('token') ?? '';
-        const dest = transferTokens.consume(token, 'upload');
-        if (dest === undefined) return unknownToken('upload');
-        log(
-          `upload streaming in (panel): ${request.method} ` +
-            `content-type=${request.headers.get('content-type') ?? '?'} ` +
-            `length=${request.headers.get('content-length') ?? '?'} ` +
-            `encoding=${request.headers.get('transfer-encoding') ?? 'identity'}`,
-        );
-        try {
-          await storeUploadBody(request.body, dest);
-        } catch (error) {
-          return json({ ok: false, error: String(error) }, 500);
-        }
-        log(`upload received (panel): ${basename(dest)}`);
-        return json({ ok: true });
-      },
+      fetch: archiveHttp.uploadContent,
     };
     const registerUploadContent = (): (() => Promise<void>) =>
       connection.fetch.register({

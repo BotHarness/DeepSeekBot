@@ -124,6 +124,7 @@ export const bridgeMethodInventory = [
   'engineAccountRename',
   'engineAccountRemove',
   'engineAccountLogin',
+  'engineAccountSubmitCode',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
