@@ -1,6 +1,5 @@
 {
   "long-files": [
-    "apps/mobile/src/cloud/client.ts",
     "apps/mobile/src/host/host-session.ts",
     "apps/mobile/src/ui/chat/bot-profile.tsx",
     "apps/mobile/src/ui/chat/conversation-screen.tsx",
