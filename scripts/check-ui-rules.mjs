@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -29,6 +31,22 @@ const WORD = /\p{L}{2,}/u;
 const FILE_NAME = /^[\w-]+\.[a-z]{1,5}$/iu;
 
 export const RULES = {
+  styleLiteral: {
+    help: 'replace the literal with a matching role from ds/tobs.stylex.ts; run pnpm lint:fix for nearby px tokens',
+    section: 'G1 rule 1, dsh-ui § Tokens over literals',
+  },
+  breakpoint: {
+    help: 'use the medium or expanded token from ds/tobs.stylex.ts in the media query; pnpm lint:fix can migrate px queries',
+    section: 'G1 rule 2, #4282 decision 8',
+  },
+  motionToken: {
+    help: 'use duration and easing roles from ds/tobs.stylex.ts; run pnpm lint:fix for recognized values',
+    section: 'G1 rule 6, docs/agents/ui-design.md § Component names and motion',
+  },
+  reducedMotion: {
+    help: 'disable or shorten the motion in a prefers-reduced-motion override on the same style',
+    section: 'G1 rule 6, docs/agents/ui-design.md § Component names and motion',
+  },
   jsxCopy: {
     help: 'move visible text into locale.ts (Web) or strings.ts (mobile)',
     section: 'docs/agents/ui-copy.md § Where copy lives',
@@ -68,7 +86,7 @@ function literalTexts(node) {
   return [];
 }
 
-function walk(node, visit) {
+export function walk(node, visit) {
   if (!node || typeof node.type !== 'string') return;
   visit(node);
   for (const key of Object.keys(node)) {
@@ -80,8 +98,7 @@ function walk(node, visit) {
   }
 }
 
-export function jsxCopy(source, file) {
-  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+export function jsxCopy(source, file, ast = parseSource(source, file)) {
   const found = [];
   const add = (text, line) => {
     if (isCopy(text))
@@ -103,8 +120,7 @@ export function jsxCopy(source, file) {
   return found.sort((a, b) => a.line - b.line);
 }
 
-export function pressables(source, file) {
-  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+export function pressables(source, file, ast = parseSource(source, file)) {
   const sized = TOUCH_TOKEN.test(source);
   const found = [];
   walk(ast.program, (node) => {
@@ -125,20 +141,39 @@ export function pressables(source, file) {
   return found.sort((a, b) => a.line - b.line);
 }
 
+export function parseSource(source, file) {
+  return parse(source, {
+    sourceType: 'module',
+    plugins: file.endsWith('.ts') ? ['typescript'] : ['typescript', 'jsx'],
+  });
+}
+
 function files(directory) {
   return readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) return files(path);
-    return entry.name.endsWith('.tsx') && !SKIP.test(path) ? [path] : [];
+    const extensions = MOBILE.test(path) ? /\.tsx$/u : /\.(?:ts|tsx)$/u;
+    return extensions.test(path) && !entry.name.endsWith('.d.ts') && !SKIP.test(path) ? [path] : [];
   });
 }
 
-export function scan() {
+export function scan(fix = false) {
   return SCAN.flatMap(files)
     .sort()
     .flatMap((file) => {
-      const source = readFileSync(join(root, file), 'utf8');
-      return [...jsxCopy(source, file), ...(MOBILE.test(file) ? pressables(source, file) : [])];
+      const path = join(root, file);
+      let source = readFileSync(path, 'utf8');
+      let ast = parseSource(source, file);
+      if (MOBILE.test(file))
+        return [...jsxCopy(source, file, ast), ...pressables(source, file, ast)];
+      let styles = desktopStyles(source, file, ast, walk);
+      if (fix && styles.some(({ edit }) => edit)) {
+        source = fixDesktopStyles(source, file, ast, styles);
+        writeFileSync(path, source);
+        ast = parseSource(source, file);
+        styles = desktopStyles(source, file, ast, walk);
+      }
+      return [...(file.endsWith('.tsx') ? jsxCopy(source, file, ast) : []), ...styles];
     });
 }
 
@@ -151,7 +186,7 @@ export function findings(found) {
       .map((rule) => [
         rule,
         Object.fromEntries(
-          Object.keys(byRule[rule])
+          Object.keys(byRule[rule] ?? {})
             .sort()
             .map((file) => [file, byRule[rule][file].sort()]),
         ),
@@ -189,10 +224,52 @@ export function compare(found, baseline) {
   return { problems, stale };
 }
 
+export function baselineGrowth(current, previous) {
+  const found = [];
+  for (const [rule, files] of Object.entries(previous)) {
+    if (!Object.hasOwn(current, rule)) {
+      found.push(
+        `missing baseline key ${rule}; keep an empty object when the last finding is fixed`,
+      );
+      continue;
+    }
+    for (const [file, list] of Object.entries(current[rule])) {
+      const allowed = counts(files[file] ?? []);
+      for (const [text, count] of counts(list))
+        if (count > (allowed.get(text) ?? 0)) found.push(`${rule} ${file} "${text}"`);
+    }
+  }
+  return found;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const found = scan();
-  const current = findings(found);
   const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+  const base = process.argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
+  if (base !== undefined) {
+    const previous = JSON.parse(
+      execFileSync('git', ['show', `${base}:scripts/ui-rules-baseline.json`], {
+        cwd: root,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
+    );
+    const grown = baselineGrowth(baseline, previous);
+    for (const finding of grown) console.error(`ui rules: baseline grew: ${finding}`);
+    if (grown.length) process.exit(1);
+    console.log('UI rules baseline only shrank.');
+    process.exit(0);
+  }
+  const fix = process.argv.includes('--fix');
+  const found = scan(fix);
+  if (fix && !process.argv.includes('--write')) {
+    console.log(
+      'Applied desktop UI autofixes. Run the checker and use --write to clear fixed baseline entries.',
+    );
+    process.exit(0);
+  }
+  const present = findings(found);
+  const current = Object.fromEntries(Object.keys(RULES).map((rule) => [rule, present[rule] ?? {}]));
   const { problems, stale } = compare(found, baseline);
   const write = process.argv.includes('--write');
   if (write) {
