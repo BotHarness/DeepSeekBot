@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 
 import {
   type EngineCommand,
+  type EngineLoginCodeInput,
+  type EngineLoginProcess,
   engineVersion,
   runEngineCommand,
   startEngineLogin,
@@ -69,12 +71,20 @@ export async function detectClaude(options: ClaudeCommandOptions): Promise<Claud
 }
 
 export function startClaudeLogin(
-  options: ClaudeCommandOptions,
+  options: ClaudeCommandOptions &
+    EngineLoginProcess & { onCodeInput?(submit: EngineLoginCodeInput): void },
   timeoutMs = 10_000,
 ): Promise<{ url?: string }> {
   mkdirSync(options.home, { recursive: true });
   return startEngineLogin(
-    { ...claudeCommandTarget(options), name: 'claude', label: 'Claude Code' },
+    {
+      ...claudeCommandTarget(options),
+      name: 'claude',
+      label: 'Claude Code',
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.onExit === undefined ? {} : { onExit: options.onExit }),
+      ...(options.onCodeInput === undefined ? {} : { onCodeInput: options.onCodeInput }),
+    },
     ['auth', 'login', '--claudeai'],
     timeoutMs,
   );

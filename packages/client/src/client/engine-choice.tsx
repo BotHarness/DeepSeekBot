@@ -8,6 +8,7 @@ import {
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
+import { parseSessionEngineQuota, type SessionEngineQuota } from './bridge.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -25,6 +26,7 @@ export type EngineStatusView = {
   engine: EngineId;
   installed: boolean;
   version?: string;
+  quota?: SessionEngineQuota;
 } & EngineAccountIdentity &
   ({ available: true } | { available: false; reason: EngineUnavailableReason });
 
@@ -72,9 +74,11 @@ function parseStatus(value: unknown): EngineStatusView | undefined {
   const entry = record(value);
   const engine = entry?.['engine'];
   if (entry === undefined || !isEngineId(engine)) return undefined;
+  const quota = parseSessionEngineQuota(entry['quota']);
   const base = {
     engine,
     installed: entry['installed'] === true,
+    ...(quota === undefined ? {} : { quota }),
     ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
     ...(typeof entry['accountName'] === 'string' ? { accountName: entry['accountName'] } : {}),
     ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),

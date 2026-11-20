@@ -1,8 +1,6 @@
 {
   "long-files": [
     "apps/mobile/src/host/host-session.ts",
-    "apps/mobile/src/ui/chat/bot-profile.tsx",
-    "apps/mobile/src/ui/shell/activity-feed.tsx",
     "apps/mobile/src/ui/strings.ts",
     "apps/mobile/test/bot-profile-sheet.test.tsx",
     "apps/mobile/test/cloud-client.test.ts",
@@ -87,14 +85,11 @@
     "packages/core/test/call-visual.test.ts",
     "packages/core/test/channel-management.test.ts",
     "packages/core/test/cli-team.test.ts",
-    "packages/core/test/connect-account.test.ts",
     "packages/core/test/device-gateway.test.ts",
     "packages/core/test/dsh-bot-agent-adapter.test.ts",
     "packages/core/test/grant-execution.test.ts",
     "packages/core/test/group-send-review.test.ts",
     "packages/core/test/lark-approval.test.ts",
-    "packages/core/test/messaging-default-traffic.test.ts",
-    "packages/core/test/messaging-inbound.test.ts",
     "packages/core/test/messaging-weixin-dm-mirror.test.ts",
     "packages/core/test/operational-database.test.ts",
     "packages/core/test/private-inputs.test.ts",

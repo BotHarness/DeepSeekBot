@@ -81,7 +81,7 @@ export function routingGroupEnginePresentation(
     name,
     detail: [
       engineName,
-      accountName,
+      accountName === engineName ? undefined : accountName,
       copy.subscription(member.engine === 'codex' ? 'ChatGPT' : 'Claude'),
     ]
       .filter(Boolean)
