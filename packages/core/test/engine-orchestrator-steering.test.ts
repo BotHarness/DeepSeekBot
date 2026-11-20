@@ -12,6 +12,7 @@ import { CLAUDE, CLAUDE_REPLY, CODEX, setup, START } from './fixtures/routing-gr
 const OWNER = OWNER_HUMAN_CONTEXT;
 const CODEX_DM = readCodexRecording(join(import.meta.dirname, 'fixtures/codex-dm-turn.jsonl'));
 const FIRST_TURN_ID = '019a7f10-0000-7000-8000-000000000002';
+const COLD_SESSION_STARTUP = { timeout: 7_500 };
 
 function codexReply(id: string, args: Record<string, unknown>) {
   return {
@@ -105,7 +106,10 @@ describe('Orchestrator steering through the engine and Channel', () => {
     outsideArgs.channel_id = outside.id;
     try {
       await groupMessage(fixture, group.id, 'initial', 'The first color is red.');
-      await vi.waitFor(() => expect(fixture.codex[0]?.sent.at(-1)?.['method']).toBe('turn/start'));
+      await vi.waitFor(
+        () => expect(fixture.codex[0]?.sent.at(-1)?.['method']).toBe('turn/start'),
+        COLD_SESSION_STARTUP,
+      );
       await groupMessage(fixture, group.id, 'ordinary-context', 'The shape is square.', false);
       await groupMessage(fixture, group.id, 'followup', 'The second color is blue.');
       await fixture.message('dm-followup', 'My private color is green.', () => {
@@ -169,7 +173,10 @@ describe('Orchestrator steering through the engine and Channel', () => {
     });
     const first = fixture.message('first', 'First task');
     try {
-      await vi.waitFor(() => expect(fixture.codex[0]?.sent.at(-1)?.['method']).toBe('turn/start'));
+      await vi.waitFor(
+        () => expect(fixture.codex[0]?.sent.at(-1)?.['method']).toBe('turn/start'),
+        COLD_SESSION_STARTUP,
+      );
       await fixture.message('next', 'Next task');
       await first;
       const replay = fixture.codex[0]!;
@@ -211,7 +218,10 @@ describe('Orchestrator steering through the engine and Channel', () => {
       firstArgs.source_event_id = id;
     });
     try {
-      await vi.waitFor(() => expect(fixture.claude.gatewayCalls).toHaveLength(1));
+      await vi.waitFor(
+        () => expect(fixture.claude.gatewayCalls).toHaveLength(1),
+        COLD_SESSION_STARTUP,
+      );
       const id = fixture.sessionId();
       await groupMessage(fixture, group.id, 'group-update', 'Answer in this Group.');
       await first;

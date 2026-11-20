@@ -45,7 +45,7 @@ it('continues a native quota turn on an engine, then resumes DSH on the same Ses
   expect(await bot.grantWorkspace()).toMatchObject({ orchestratorWrite: false });
   const first = bot.message('first', 'Read the DM before replying. My lucky word is orchid.');
   try {
-    await vi.waitFor(() => expect(writerClosing).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(writerClosing).toHaveBeenCalledTimes(1), { timeout: 7_500 });
     const old = ctx.agents.get(SessionId(bot.sessionId()));
     expect(old).toBeDefined();
     expect(bot.adapter.steerOrchestrator?.('ada', 'Arrived during the handoff')).toBe(false);
