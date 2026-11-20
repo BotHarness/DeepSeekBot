@@ -1,9 +1,18 @@
+import type { RoutingGroupEngineCopy } from '@botharness/host-client/model-catalog';
 import type {
   EngineId,
   RoutingGroupEngineUnavailable,
 } from '@botharness/host-protocol/subscription-engine';
 import type { SessionEngine, SessionEngineQuota } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
+
+export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
+  return {
+    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
+    subscription: (source) => t('engine.subscription', { engine: source }),
+    effort: (level) => t(`engine.effort.${level}`),
+  };
+}
 
 export function shortTime(at: string): string {
   return new Date(at).toLocaleString(undefined, {

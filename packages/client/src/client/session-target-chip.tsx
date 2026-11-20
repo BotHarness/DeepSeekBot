@@ -6,8 +6,7 @@ import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { SessionEngine, SessionModelRoute } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { TargetBrandIcon } from './model-brand.js';
-import { routingGroupEngineCopy } from './model-menu.js';
-import { engineChipLabel, engineQuotaText } from './session-engine.js';
+import { engineChipLabel, engineQuotaText, routingGroupEngineCopy } from './session-engine.js';
 import { SessionMetaChip } from './session-progress-view.js';
 
 export function SessionTargetChip({

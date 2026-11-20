@@ -10,7 +10,7 @@ import type { BridgeActions } from './actions.js';
 import type { SessionTranscriptItem } from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
 import { TargetBrandIcon } from './model-brand.js';
-import { routingGroupEngineCopy } from './model-menu.js';
+import { routingGroupEngineCopy } from './session-engine.js';
 
 const styles = stylex.create({
   path: {

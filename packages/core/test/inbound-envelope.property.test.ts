@@ -131,6 +131,14 @@ describe('inbound envelopes', () => {
 });
 
 describe('inbound Session titles', () => {
+  it('projects a DM with the inline engine reply reminder removed', () => {
+    const text =
+      '[Human DM]\n' +
+      metadata +
+      'First line\nSecond line\n\n[Host reply transport reminder] Use bot_send_message.';
+    const envelope = parseInboundEnvelope(text);
+    expect(envelope && inboundEnvelopeBody(envelope)).toBe('First line\nSecond line');
+  });
   it('uses the Human text after retry notices and speaker policy context', () => {
     const text =
       '[Host: the Human stopped the previous turn.]\n\nCurrent Channel Human: {"displayName":"Ada"}\n[Human DM]\n' +

@@ -86,7 +86,7 @@ export function parseInboundEnvelope(text: string): InboundEnvelope | undefined 
 }
 
 const HUMAN_CONTEXT =
-  /\n+(?:\[Host [^\]\n]{1,80}\]|\[Bot Inbox(?:\]|: (?:pending (?:DM|Group) context|Group digest)\])|\[Open Inbox\]|\[The Human invoked this Skill with \/\.\]|\[Quoted messages: the sender cites these earlier messages of this Channel\])(?:\n|$)/u;
+  /\n+(?:\[Host [^\]\n]{1,80}\]|\[Bot Inbox(?:\]|: (?:pending (?:DM|Group) context|Group digest)\])|\[Open Inbox\]|\[The Human invoked this Skill with \/\.\]|\[Quoted messages: the sender cites these earlier messages of this Channel\])(?=[ \t\n]|$)/u;
 
 export function inboundEnvelopeBody(envelope: InboundEnvelope): string {
   if (envelope.messageId === undefined || envelope.channelId === undefined) return envelope.body;

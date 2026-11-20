@@ -22,10 +22,9 @@ import {
   engineMenuKey,
   groupMenuKey,
   ModelMenu,
-  routingGroupEngineCopy,
   type ModelMenuItem,
 } from './model-menu.js';
-import { routingGroupEngineReason } from './session-engine.js';
+import { routingGroupEngineCopy, routingGroupEngineReason } from './session-engine.js';
 
 export function routingGroupMemberKey(member: RoutingGroupMemberView): string {
   switch (member.kind) {

@@ -12,7 +12,6 @@ import {
 import {
   modelCatalogGroupFront,
   modelCatalogGroupMemberLabels,
-  type RoutingGroupEngineCopy,
 } from '@botharness/host-client/model-catalog';
 import type {
   ModelCatalogEntryView,
@@ -32,7 +31,7 @@ import {
   type EngineModelView,
   type EngineStatusView,
 } from './engine-choice.js';
-import { engineAccountTitle, engineName } from './session-engine.js';
+import { engineAccountTitle, engineName, routingGroupEngineCopy } from './session-engine.js';
 import { EngineBrandIcon, ModelBrandIcon, TargetBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
@@ -85,14 +84,6 @@ export function presetMenuId(key: string): string | undefined {
 function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1]): string {
   const short = modelShortName(name, brand);
   return /\p{L}/u.test(short) ? short : name;
-}
-
-export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
-  return {
-    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
-    subscription: (source) => t('engine.subscription', { engine: source }),
-    effort: (level) => t(`engine.effort.${level}`),
-  };
 }
 
 export function restingHint(until: string, t: BotHarnessTranslate): string {
