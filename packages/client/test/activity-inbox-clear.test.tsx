@@ -113,7 +113,12 @@ it('clears every Activity item of one kind from the menu after confirmation', as
       if (payload.category === 'action') cleared = true;
       return {
         ok: true,
-        value: { accepted: true, dismissed: payload.category === 'action' ? 1 : 0, more: false },
+        value: {
+          accepted: true,
+          dismissed: payload.category === 'action' ? 1 : 0,
+          read: 0,
+          more: false,
+        },
       };
     }
     return { ok: true, value: {} };

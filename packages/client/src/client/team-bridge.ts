@@ -1,4 +1,5 @@
-import { BridgeCallError, type BridgeCall } from './bridge.js';
+import { readTeamMode } from '@botharness/host-client/people';
+import { BridgeCallError, bridgeHost, type BridgeCall } from './bridge.js';
 
 export type TeamViewerKind = 'owner' | 'member';
 
@@ -206,7 +207,17 @@ export function list<T>(value: unknown, parse: (item: unknown) => T | undefined)
 }
 
 export async function loadTeamMode(call: BridgeCall, signal?: AbortSignal): Promise<TeamModeView> {
-  return parseTeamMode(await unwrap(call, 'teamMode', {}, signal));
+  const { enabled, ownerPasswordSet, insecureHttpAllowed, memberUrls, isolation, viewer } =
+    await readTeamMode(bridgeHost(call, signal));
+  const { humanId, kind, displayName, mustChangePassword, owner, permissions, roleIds } = viewer;
+  return {
+    enabled,
+    ownerPasswordSet,
+    insecureHttpAllowed,
+    memberUrls,
+    isolation,
+    viewer: { humanId, kind, displayName, mustChangePassword, owner, permissions, roleIds },
+  };
 }
 
 export async function setTeamMode(call: BridgeCall, enabled: boolean): Promise<TeamModeView> {

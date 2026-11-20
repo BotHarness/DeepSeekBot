@@ -1,4 +1,10 @@
 import {
+  createGrant,
+  readAssignmentAccess,
+  readWorkspaceGrants,
+  writeAssignmentAccess,
+} from '@botharness/host-client/access-readers';
+import {
   answerUserQuestion,
   decideToolApproval,
   readToolApprovalStatus,
@@ -1271,9 +1277,11 @@ export async function runLiveCli(
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return (await connectLiveHost(values, io, signal)).rpc('grants', {
-      slug: rest[0].trim(),
-    });
+    const { rpc } = await connectLiveHost(values, io, signal);
+    return readWorkspaceGrants(
+      { call: (method, args = {}) => rpc(method, args) },
+      { slug: rest[0].trim() },
+    );
   }
   if (IM_CONTROL_COMMANDS.some((entry) => entry === command))
     return runImControlCommand(command as (typeof IM_CONTROL_COMMANDS)[number], rest, values, io);
@@ -1616,7 +1624,7 @@ export async function runLiveCli(
     return answerUserQuestion(reader, target, messageId!, answer as QuestionAnswer);
   if (command === 'workspace-options') return rpc('workspaceOptions', {});
   if (command === 'grant-create')
-    return rpc('grantCreate', { slug: target, workspaceId: values.workspace });
+    return createGrant(reader, { slug: target, workspaceId: values.workspace! });
   return rpc('releaseInfo', values.since === undefined ? {} : { since: values.since });
 }
 
@@ -1671,18 +1679,21 @@ async function runControlCommand(
       enabled: values.enabled === true,
     });
   if (command === 'access' || command === 'access-set') {
+    const reader = { call: (method: string, args = {}) => rpc(method, args) };
+    const mode = values.mode === 'danger-full-access' ? 'danger-full-access' : 'workspace-write';
+    const scope =
+      values.scope === 'chat' || values.scope === 'assignments' ? values.scope : undefined;
     const result = await (command === 'access'
-      ? rpc('assignmentAccessGet', { slug: target })
-      : rpc('assignmentAccessSet', {
+      ? readAssignmentAccess(reader, target)
+      : writeAssignmentAccess(reader, {
           slug: target,
-          mode: values.mode,
-          ...(values.scope === undefined ? {} : { scope: values.scope }),
-          ...(values.mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
+          mode,
+          ...(scope === undefined ? {} : { scope }),
+          ...(mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
         }));
-    const access = record(result);
-    return record(access['preset'])['mode'] === 'danger-full-access'
+    return result.preset.mode === 'danger-full-access'
       ? {
-          ...access,
+          ...result,
           warning:
             'The Bot can run commands that change or delete files anywhere without approval.',
         }

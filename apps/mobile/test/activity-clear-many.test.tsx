@@ -119,7 +119,7 @@ it('marks everything read from the ⋯ menu, then clears one kind, then everythi
       .filter((item) => !cleared.has(item.kind))
       .map((item) => item.kind);
     for (const kind of kinds) cleared.add(kind);
-    return { accepted: true, dismissed: kinds.length, more: false };
+    return { accepted: true, dismissed: kinds.length, read: 0, more: false };
   });
   secure.set(
     'deepseekbot.hosts.v3',

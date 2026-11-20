@@ -29,8 +29,19 @@ const studio = host('studio', 'Studio Mac');
 const laptop = host('laptop', 'Laptop');
 const tower = host('tower', 'Tower');
 
-const items = (count: number) =>
-  Array.from({ length: count }, (_, index) => ({ id: `item-${index}` }) as HumanAttentionItem);
+const items = (count: number, category: 'action' | 'unread' = 'action'): HumanAttentionItem[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `item-${index}`,
+    category,
+    kind: category === 'action' ? 'user-question' : 'channel-unread',
+    channelId: 'dm-ada',
+    channelName: 'Ada',
+    botSlug: 'ada',
+    summary: 'Update',
+    createdAt: '2026-11-20T00:00:00Z',
+    messageId: `message-${index}`,
+    ...(category === 'unread' ? { unreadCount: 1 } : {}),
+  }));
 
 const ready = (action: number): InboxSnapshot => ({
   status: 'ready',
@@ -379,7 +390,7 @@ describe('Host rows', () => {
 describe('Host glances', () => {
   it('counts what needs the Human and what is unread on a Host', async () => {
     const client = answering(async (_method, args) => ({
-      items: items(args?.['category'] === 'action' ? 2 : 3),
+      items: args?.['category'] === 'action' ? items(2) : items(3, 'unread'),
     }));
     await expect(glanceHost(client)).resolves.toEqual({ status: 'online', pending: 2, unread: 3 });
     expect(client.call).toHaveBeenCalledWith('humanAttention', { category: 'action', limit: 100 });

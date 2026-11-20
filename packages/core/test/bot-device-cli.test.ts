@@ -523,8 +523,18 @@ describe('Agent Browser and Computer commands', () => {
   });
 
   it('lists workspace grants from a live Host', async () => {
-    const live = await host(() => ({ json: { ok: true, value: { grants: [{ id: 'g1' }] } } }));
-    expect((await invoke(['grants', 'ada'], live.url)).json).toEqual({ grants: [{ id: 'g1' }] });
+    const grants = [
+      {
+        id: 'g1',
+        botSlug: 'ada',
+        workspaceId: 'workspace-1',
+        workspacePath: '/srv/workspace',
+        workspaceTitle: 'Workspace',
+        createdAt: '2026-11-20T00:00:00.000Z',
+      },
+    ];
+    const live = await host(() => ({ json: { ok: true, value: { grants } } }));
+    expect((await invoke(['grants', 'ada'], live.url)).json).toEqual({ grants });
     expect(live.calls).toEqual([{ method: 'POST', path: 'grants', body: { slug: 'ada' } }]);
   });
 

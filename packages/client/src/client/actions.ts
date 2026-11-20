@@ -1,3 +1,4 @@
+import * as deletionReaders from '@botharness/host-client/deletion-readers';
 import * as botControl from '@botharness/host-client/bot-control';
 import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
@@ -2009,9 +2010,7 @@ export function createActions(
   const host: prompts.PromptPresetClient = {
     call: (method, args) => invoke(method, args ?? {}),
   };
-  const humanAvatars = createHumanAvatarCache(async (humanIds) => ({
-    avatars: await loadHumanAvatars(call, humanIds),
-  }));
+  const humanAvatars = createHumanAvatarCache((humanIds) => loadHumanAvatars(call, humanIds));
   const actions: BridgeActions = {
     ...botModeActions(call),
     teamCall: call,
@@ -2429,25 +2428,21 @@ export function createActions(
       await refreshRoster(signal);
     },
     async deletionPreview(slug) {
-      const result = await call('deletionPreview', { slug });
-      if (!result.ok) throw new Error(result.error.message);
-      return (result.value as { preview: PersonaBotDeletionPreview }).preview;
+      return (await deletionReaders.previewBotDeletion(bridgeHost(call), slug)).preview;
     },
     async deletionConfirm(slug, token, eraseMemory) {
-      const result = await call('deletionConfirm', {
+      const { deletion } = await deletionReaders.confirmBotDeletion(bridgeHost(call), {
         slug,
         token,
         eraseMemory,
       });
-      if (!result.ok) throw new Error(result.error.message);
       await refreshRoster();
-      return (result.value as { deletion: PersonaBotDeletion }).deletion;
+      return deletion;
     },
     async deletionRetry(slug) {
-      const result = await call('deletionRetry', { slug });
-      if (!result.ok) throw new Error(result.error.message);
+      const { deletion } = await deletionReaders.retryBotDeletion(bridgeHost(call), slug);
       await refreshRoster();
-      return (result.value as { deletion: PersonaBotDeletion }).deletion;
+      return deletion;
     },
     async deletionFolderApplications(slug) {
       const result = await call('deletionMemoryFolder', { slug });

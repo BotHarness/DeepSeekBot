@@ -128,7 +128,7 @@ export async function revokeToolApprovalRule(
   return { rule };
 }
 
-function isApprovalCard(value: unknown): value is WireApprovalCard {
+export function isApprovalCard(value: unknown): value is WireApprovalCard {
   const row = record(value);
   const kind = row?.['kind'];
   if (

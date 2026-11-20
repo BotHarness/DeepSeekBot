@@ -2,8 +2,8 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
+import type { WireTeamMode } from '@botharness/host-protocol/wire';
 import type { BridgeCall } from '../src/client/bridge.js';
-import type { TeamModeView } from '../src/client/team-bridge.js';
 import {
   isolateTeamIdentity,
   refreshTeamMode,
@@ -13,9 +13,10 @@ import {
 } from '../src/client/team-state.js';
 import { selfHumanId, setSelfHumanId } from '../src/client/self-human.js';
 
-function view(humanId: string, kind: 'owner' | 'member'): TeamModeView {
+function view(humanId: string, kind: 'owner' | 'member'): WireTeamMode {
   return {
     enabled: true,
+    activeMembers: 2,
     ownerPasswordSet: true,
     insecureHttpAllowed: false,
     memberUrls: [],
@@ -25,6 +26,7 @@ function view(humanId: string, kind: 'owner' | 'member'): TeamModeView {
       kind,
       displayName: humanId,
       mustChangePassword: false,
+      models: { all: true },
       owner: kind === 'owner',
       permissions: [],
       roleIds: [],

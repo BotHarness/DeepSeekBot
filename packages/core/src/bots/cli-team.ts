@@ -1,3 +1,4 @@
+import { readTeamMode } from '@botharness/host-client/people';
 import { readChannel } from '@botharness/host-client/channel-management';
 export { TEAM_OPTIONS } from './cli-option-spec.js';
 import { botVisibilitySchema, rolePolicySchema } from '../team/bot-contract.js';
@@ -114,9 +115,7 @@ function secretJson<T>(schema: z.ZodType<T>, text: string): T {
 
 const memberRow = z.object({ humanId: z.string(), username: z.string() });
 async function memberId(username: string, rpc: Rpc, as?: string): Promise<string> {
-  const mode = z
-    .object({ viewer: z.object({ humanId: z.string() }) })
-    .parse(await rpc('teamMode', {}));
+  const mode = await readTeamMode({ call: (method, args = {}) => rpc(method, args) });
   if (as === username) return mode.viewer.humanId;
   const rows = z.array(memberRow).safeParse(await rpc('members', {}));
   if (!rows.success) throw new CliLiveError('host-protocol-error', 'member-response-invalid');
@@ -365,7 +364,8 @@ export async function runTeamCommand(
       return rpc('ownerTransfer', { humanId, password: await secret(io) });
     }
 
-    if (action === 'status' && rest.length === 1) return rpc('teamMode', {});
+    if (action === 'status' && rest.length === 1)
+      return readTeamMode({ call: (method, args = {}) => rpc(method, args) });
     if ((action === 'on' || action === 'off') && rest.length === 1)
       return rpc('teamModeSet', { enabled: action === 'on' });
     if (action === 'owner-password' && values['password-stdin'] && rest.length === 1) {

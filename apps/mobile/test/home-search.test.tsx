@@ -1647,6 +1647,7 @@ describe('Activity Channel navigation', () => {
         botSlug: 'ada',
         channelId: 'dm-ada',
         messageId: 'card',
+        channelName: 'Ada',
         summary: 'Check deployment',
       },
     ];

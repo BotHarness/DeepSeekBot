@@ -57,6 +57,7 @@ const step = (tool: string, round: number, status = 'done', detail?: string) => 
 const TIMELINE = {
   assignment: {
     ...ASSIGNMENT,
+    sourceEventId: 'source-1',
     latestReport: { state: 'progress', summary: 'Half way', at: AT },
   },
   rounds: [
@@ -93,7 +94,6 @@ const TIMELINE = {
       entries: [],
       omitted: 0,
     },
-    { role: 'other', index: 3, sessionId: 'bad', entries: [] },
   ],
   omittedSubagents: 0,
   omittedRounds: 0,
@@ -130,7 +130,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('reads the rounds, lanes and steps of an Assignment and drops unreadable ones', async () => {
+it('reads the rounds, lanes and steps of an Assignment and refuses unreadable answers', async () => {
   const read = call(TIMELINE);
   const work = await loadAssignmentWork(read, 'ada', 's-run');
   expect(read).toHaveBeenCalledWith(
@@ -143,7 +143,7 @@ it('reads the rounds, lanes and steps of an Assignment and drops unreadable ones
   expect(work.rounds.map((round) => round.kind)).toEqual(['created', 'continued']);
   expect(work.lanes.map((lane) => lane.sessionId)).toEqual(['s-run', 'sub-1', 'sub-2']);
   await expect(loadAssignmentWork(call({ lanes: [] }), 'ada', 's-run')).rejects.toThrow(
-    'invalid assignmentTimeline response',
+    'assignmentTimeline returned an invalid answer.',
   );
 });
 

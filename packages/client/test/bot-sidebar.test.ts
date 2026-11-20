@@ -175,7 +175,7 @@ function stubActions(): BridgeActions {
     sendGenuiReply: vi.fn(),
     humanIdentity: vi.fn(),
     humanAvatarSet: vi.fn(),
-    humanAvatars: createHumanAvatarCache(async () => ({ avatars: [] })),
+    humanAvatars: createHumanAvatarCache(async () => []),
     tobHome: vi.fn(),
     sendHome: vi.fn(),
     channelHistory: vi.fn(),

@@ -1,4 +1,9 @@
 import {
+  confirmBotDeletion as confirmDeletion,
+  previewBotDeletion,
+  retryBotDeletion as retryDeletion,
+} from '@botharness/host-client/deletion-readers';
+import {
   deleteGroupChannel,
   removeRosterSection,
 } from '@botharness/host-client/channel-management';
@@ -23,64 +28,16 @@ export type DeletionResult = Pick<
   'phase' | 'memory' | 'eraseMemory' | 'failure'
 >;
 
-function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
-    throw new Error('Invalid deletion response');
-  return Object.fromEntries(Object.entries(value));
-}
-function text(value: unknown): string {
-  if (typeof value !== 'string') throw new Error('Invalid deletion response');
-  return value;
-}
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new Error('Invalid deletion dependencies');
-  return value.map(text);
-}
-function result(value: unknown): DeletionResult {
-  const entry = record(value);
-  const phase = entry['phase'];
-  const memory = entry['memory'];
-  if (
-    (phase !== 'stopping' &&
-      phase !== 'cleanup' &&
-      phase !== 'complete' &&
-      phase !== 'incomplete') ||
-    (memory !== 'retained' && memory !== 'pending' && memory !== 'erased') ||
-    typeof entry['eraseMemory'] !== 'boolean'
-  )
-    throw new Error('Invalid deletion result');
-  return {
-    phase,
-    memory,
-    eraseMemory: entry['eraseMemory'],
-    ...(entry['failure'] === undefined ? {} : { failure: text(entry['failure']) }),
-  };
+function deletionView({ phase, memory, eraseMemory, failure }: PersonaBotDeletion): DeletionResult {
+  return { phase, memory, eraseMemory, ...(failure === undefined ? {} : { failure }) };
 }
 
 export async function previewDeletion(
   client: DeletionClient,
   slug: string,
 ): Promise<DeletionPreview> {
-  const entry = record(record(await client.call('deletionPreview', { slug }))['preview']);
-  const dependencies = record(entry['dependencies']);
-  if (entry['slug'] !== slug || typeof entry['eraseAvailable'] !== 'boolean')
-    throw new Error('Invalid deletion preview');
-  return {
-    slug,
-    displayName: text(entry['displayName']),
-    memoryDir: text(entry['memoryDir']),
-    token: text(entry['token']),
-    eraseAvailable: entry['eraseAvailable'],
-    ...(entry['refusal'] === undefined ? {} : { refusal: text(entry['refusal']) }),
-    dependencies: {
-      sessions: strings(dependencies['sessions']),
-      workspaces: strings(dependencies['workspaces']),
-      grants: strings(dependencies['grants']),
-      identities: strings(dependencies['identities']),
-      channels: strings(dependencies['channels']),
-    },
-    ...(entry['deletion'] === undefined ? {} : { deletion: result(entry['deletion']) }),
-  };
+  const { deletion, ...preview } = (await previewBotDeletion(client, slug)).preview;
+  return { ...preview, ...(deletion === undefined ? {} : { deletion: deletionView(deletion) }) };
 }
 
 export async function confirmBotDeletion(
@@ -88,16 +45,16 @@ export async function confirmBotDeletion(
   preview: DeletionPreview,
   eraseMemory: boolean,
 ) {
-  const response = await client.call('deletionConfirm', {
+  const { deletion } = await confirmDeletion(client, {
     slug: preview.slug,
     token: preview.token,
     eraseMemory,
   });
-  return result(record(response)['deletion']);
+  return deletionView(deletion);
 }
 
 export async function retryBotDeletion(client: DeletionClient, slug: string) {
-  return result(record(await client.call('deletionRetry', { slug }))['deletion']);
+  return deletionView((await retryDeletion(client, slug)).deletion);
 }
 
 export async function deleteGroupOrSection(

@@ -420,10 +420,10 @@ async function remoteFixture(host: FakeHost) {
   };
 }
 
-it('isolates invalid remote items from the shared Inbox and retries the affected section', async () => {
+it('retains a verified Inbox page after malformed Host data and retries the same section', async () => {
   const host = new FakeHost();
   const valid = approval('tob');
-  let invalid = true;
+  let invalid = false;
   host.methods.set('humanAttention', (args) => ({
     queryVersion: 1,
     items:
@@ -466,16 +466,21 @@ it('isolates invalid remote items from the shared Inbox and retries the affected
   host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
   const fixture = await remoteFixture(host);
   try {
+    await fixture.render();
+    invalid = true;
+    await act(async () => {
+      await fixture.sources.activity(host.hostId)!.getInbox()!.refresh();
+    });
     expect(fixture.sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
       status: 'ready',
-      sections: { action: expect.arrayContaining([{ id: 'broken' }]) },
+      sections: { action: [valid] },
     });
-    await fixture.render();
     expect(fixture.element.querySelectorAll('.bh-activity-list-row')).toHaveLength(1);
-    expect(fixture.element.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
-      zhTranslate('activityList.failed'),
-    );
+    expect(
+      [...fixture.element.querySelectorAll('[role="alert"]')].some((alert) =>
+        alert.textContent?.includes(zhTranslate('activityList.failed')),
+      ),
+    ).toBe(true);
     await act(async () =>
       fixture.element.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
     );

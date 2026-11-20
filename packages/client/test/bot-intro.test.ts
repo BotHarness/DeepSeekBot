@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { type MouseEvent, type PropsWithChildren } from 'react';
 import { type Root } from 'react-dom/client';
 import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
@@ -565,7 +566,7 @@ describe('intro modal', () => {
     expect(call).toHaveBeenLastCalledWith('teamMode', {}, undefined);
     expect(modelCatalog).toHaveBeenCalledOnce();
     expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
-    await act(async () => viewer.resolve({ ok: true, value: { viewer: ownerViewer } }));
+    await act(async () => viewer.resolve({ ok: true, value: fakeTeamMode(ownerViewer) }));
     await click(zhTranslate('intro.next'));
     expect(base.onboardingModel).toHaveBeenCalledWith(
       undefined,
@@ -629,7 +630,7 @@ describe('intro modal', () => {
         default: { provider: 'p', model: 'main' },
       })),
     } as unknown as BridgeActions;
-    const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: { viewer: ownerViewer } }));
+    const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: fakeTeamMode(ownerViewer) }));
     await mountModelStep(actions, { call });
     await pickModel('onboarding.model');
     await click(zhTranslate('intro.next'));

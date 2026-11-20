@@ -1,15 +1,19 @@
 import { expect, it, vi } from 'vitest';
 import { createInbox, prepareNotificationBaseline } from '@botharness/host-client/inbox';
 import type { HostClient } from '@botharness/host-client/client';
-import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
+import type { WireHumanAttentionItem } from '@botharness/host-protocol/wire';
 
-const item = (id: string): HumanAttentionItem => ({
+const item = (id: string): WireHumanAttentionItem => ({
   id,
   kind: 'channel-reply',
   category: 'replies',
   botSlug: 'ada',
   summary: id,
   createdAt: '2026-10-01T00:00:00Z',
+  channelId: 'dm-ada',
+  messageId: 'message-' + id,
+  sourceEventId: 'event-' + id,
+  isUnread: true,
 });
 
 it('publishes only complete notification discovery and restarts a scan invalidated between pages', async () => {

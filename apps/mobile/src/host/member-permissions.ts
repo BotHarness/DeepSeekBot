@@ -1,3 +1,4 @@
+import { readTeamMode } from '@botharness/host-client/people';
 import { useSyncExternalStore } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
 
@@ -12,19 +13,10 @@ function publish(): void {
   for (const listener of listeners) listener();
 }
 
-export function memberPermissionsOf(value: unknown): readonly string[] | undefined {
-  const viewer =
-    typeof value === 'object' && value !== null
-      ? (value as { viewer?: { permissions?: unknown } }).viewer
-      : undefined;
-  return Array.isArray(viewer?.permissions)
-    ? viewer.permissions.filter((item): item is string => typeof item === 'string')
-    : undefined;
-}
-
 export async function refreshMemberPermissions(hostId: string, client: HostClient): Promise<void> {
-  const permissions = memberPermissionsOf(await client.call<unknown>('teamMode'));
-  if (permissions === undefined) return;
+  const {
+    viewer: { permissions },
+  } = await readTeamMode(client);
   const allowed = BOT_CREATION.some((permission) => permissions.includes(permission));
   if (creation.get(hostId) === allowed) return;
   creation.set(hostId, allowed);

@@ -222,7 +222,7 @@ const reportStates: ReadonlySet<unknown> = new Set<AssignmentReportState>([
   'failed',
 ]);
 
-function isAssignment(value: unknown): value is ChannelAssignmentSummary {
+export function isAssignment(value: unknown): value is ChannelAssignmentSummary {
   const row = record(value);
   if (row === undefined) return false;
   const report = record(row['latestReport']);
