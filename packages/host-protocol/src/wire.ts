@@ -848,6 +848,15 @@ export type WireApprovalCard = {
   | { masked: false; opaque: boolean; decidedBy?: { humanId: string; displayName?: string } }
 );
 
+export interface WireAdministrativeBot {
+  slug: string;
+  displayName: string;
+  ownerHumanId: string;
+  owner: boolean;
+  paused: boolean;
+  createdAt: string;
+}
+
 export type WireToolApprovalExecution =
   | 'waiting-human'
   | 'waiting-capacity'

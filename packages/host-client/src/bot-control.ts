@@ -1,5 +1,7 @@
+import { readAdministrativeBot } from './bot-administration';
 import type {
   BotInboxState,
+  WireAdministrativeBot,
   WireBotAttentionItem,
   WireBotAttentionPage,
   WireBotCompactResult,
@@ -116,8 +118,13 @@ export async function readBotAttention(
 export async function setBotAvatar(
   host: HostCall,
   args: { channelId: string; avatar: unknown },
-): Promise<ChangedBotAnswer> {
-  return readChangedBot(await host.call('botAvatarSet', args), 'botAvatarSet');
+): Promise<ChangedBotAnswer | { metadataOnly: true; bot: WireAdministrativeBot }> {
+  const reply = record(await host.call('botAvatarSet', args));
+  if (reply?.['metadataOnly'] === true)
+    return { metadataOnly: true, bot: readAdministrativeBot(reply['bot'], 'botAvatarSet') };
+  if (reply?.['metadataOnly'] !== undefined)
+    throw new HostAnswerInvalid('botAvatarSet returned an invalid metadata flag.');
+  return readChangedBot(reply, 'botAvatarSet');
 }
 
 function isCompaction(value: unknown): value is WireBotCompactResult {

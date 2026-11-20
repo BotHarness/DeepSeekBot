@@ -115,6 +115,25 @@ describe('Bot avatar', () => {
     await expect(runAvatar({ bot: updated })).resolves.toEqual({ bot: updated });
   });
 
+  it('preserves metadata-only Team administration replies', async () => {
+    const metadata = {
+      slug: 'tea',
+      displayName: 'Tea',
+      ownerHumanId: 'mia',
+      owner: false,
+      paused: false,
+      createdAt: at,
+    };
+    const reply = { metadataOnly: true, bot: metadata };
+    await expect(runAvatar(reply)).resolves.toEqual(reply);
+    await expect(runAvatar({ ...reply, bot: { ...metadata, owner: null } })).rejects.toBeInstanceOf(
+      HostAnswerInvalid,
+    );
+    await expect(runAvatar({ metadataOnly: 'true', bot })).rejects.toBeInstanceOf(
+      HostAnswerInvalid,
+    );
+  });
+
   it.each([
     { displayName: undefined },
     { standingLimits: null },
