@@ -66,7 +66,8 @@ export function recordTurnTarget(
       db.prepare(`
       INSERT INTO session_turn_targets (session_id, turn, step, request_id, target_json)
       VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT (session_id, turn, step) DO UPDATE SET target_json = excluded.target_json
+      ON CONFLICT (session_id, turn, step) DO UPDATE SET
+        request_id = excluded.request_id, target_json = excluded.target_json
     `).run(sessionId, segment.turn, segment.step, segment.request, JSON.stringify(segment.target));
     },
     [TURN_TARGET_TOPIC + sessionId],

@@ -322,10 +322,16 @@ export function summarizeSessionTranscript(input: {
       const source = object(object(data['message'])['source']);
       const provider = source['provider'];
       const model = source['model'];
-      if (targets.length === 0 && typeof provider === 'string' && provider.trim() !== '') {
-        if (isEngineId(provider)) targets = [{ kind: 'engine', engine: provider }];
-        else if (typeof model === 'string' && model.trim() !== '')
-          targets = [{ kind: 'dsh', provider, model }];
+      const last = targets.at(-1);
+      if (last?.kind !== 'engine' && typeof provider === 'string' && provider.trim() !== '') {
+        if (last === undefined && isEngineId(provider))
+          targets = [{ kind: 'engine', engine: provider }];
+        else if (
+          typeof model === 'string' &&
+          model.trim() !== '' &&
+          (last?.provider !== provider || last.model !== model)
+        )
+          targets = [...targets.slice(-31), { kind: 'dsh', provider, model }];
       }
       const parts = blocks(data);
       const reasoning = joined(parts, 'reasoning');
