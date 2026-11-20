@@ -1,69 +1,36 @@
 import { parseInvitationLink } from './invitation-link';
 import { parsePendingWork, type PendingWork } from './work-contract';
-import { parseAgent, parseAgentHandoff, validAgentId, type AgentHandoff } from './agent-contract';
-import {
-  parseInvitation,
-  parsePendingInvitation,
-  validInvitationId,
-  type PendingInvitation,
-} from './invitation-contract';
+import { parseAgent, parseAgentHandoff, validAgentId } from './agent-contract';
+import { parseInvitation, validInvitationId } from './invitation-contract';
 import {
   parseChannel,
   parseMessage,
-  parsePendingChannelAction,
   validChannelId,
   type PendingChannelAction,
 } from './channel-contract';
 import {
-  ClientError,
   connectionKey,
   MOBILE_REDIRECT_URI,
   parseInstance,
   type InstanceConfig,
 } from './instance-contract';
+import {
+  type Vault,
+  type Identity,
+  type Organization,
+  type CloudSnapshot,
+  cloudRows,
+  decodeVault,
+  type Entry,
+} from './client-storage';
+import { fail, cloudError, requestJson, record } from './client-transport';
+import { checkDiscovery, parseCloudQr } from './client-instance';
+import { tokenPair, nearExpiry, login } from './client-auth';
+export type { Identity, Organization, CloudRow, CloudSnapshot } from './client-storage';
+export { cloudError, canRetainCloudCache } from './client-transport';
+export { parseCloudQr, configurationChanges } from './client-instance';
+export { callbackCode } from './client-auth';
 
-export type Identity = { userId: string; instanceId: string; instanceRole: 'admin' | 'user' };
-type Session = {
-  accessToken: string;
-  refreshToken: string;
-  userId?: string | undefined;
-  organizationId?: string | undefined;
-};
-export type Organization = {
-  organizationId: string;
-  name: string;
-  description: string;
-  version: number;
-  role: 'owner' | 'member';
-};
-type Entry = {
-  agentHandoff?: AgentHandoff | undefined;
-  config: InstanceConfig;
-  session?: Session;
-  pendingCreate?: { name: string; operation: string } | undefined;
-  pendingChannelAction?: PendingChannelAction | undefined;
-  pendingInvitation?: PendingInvitation | undefined;
-  pendingWork?: PendingWork | undefined;
-};
-type Vault = { version: 1; entries: Entry[] };
-export type CloudRow = {
-  agentHandoff?: Omit<AgentHandoff, 'secret'> | undefined;
-  config: InstanceConfig;
-  hasSession: boolean;
-  sessionUserId?: string | undefined;
-  identity?: Identity | undefined;
-  organization?: Organization | undefined;
-  pendingCreate?: { name: string; operation: string } | undefined;
-  pendingChannelAction?: PendingChannelAction | undefined;
-  pendingInvitation?: PendingInvitation | undefined;
-  pendingWork?: PendingWork | undefined;
-};
-export type CloudSnapshot = {
-  ready: boolean;
-  busy: boolean;
-  rows: CloudRow[];
-  error?: string | undefined;
-};
 export interface CloudRuntime {
   read(): Promise<string | null>;
   write(value: string): Promise<void>;
@@ -73,92 +40,6 @@ export interface CloudRuntime {
   digest(value: string): Promise<string>;
   authorize(url: string, callback: string): Promise<string | null>;
   now(): number;
-}
-const fail = (code: string): never => {
-  throw new ClientError(code);
-};
-export const cloudError = (e: unknown) => (e instanceof ClientError ? e.code : 'CLOUD_UNAVAILABLE');
-export const canRetainCloudCache = (error: unknown) =>
-  [
-    'NETWORK_UNAVAILABLE',
-    'CLOUD_UNAVAILABLE',
-    'INSTANCE_UNAVAILABLE',
-    'SESSION_BUSY',
-    'AUTH_RETRY_REQUIRED',
-  ].includes(cloudError(error));
-function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fail('INVALID_RESPONSE');
-  return value as Record<string, unknown>;
-}
-function tokenPair(value: unknown): Session {
-  const v = record(value);
-  if (
-    typeof v.access_token !== 'string' ||
-    !v.access_token ||
-    v.access_token.length > 16384 ||
-    typeof v.refresh_token !== 'string' ||
-    !v.refresh_token ||
-    v.refresh_token.length > 16384
-  )
-    return fail('INVALID_RESPONSE');
-  return { accessToken: v.access_token, refreshToken: v.refresh_token };
-}
-export function parseCloudQr(text: string): InstanceConfig {
-  if (text.length > 4096) return fail('INVALID_INSTANCE_CONFIG');
-  try {
-    return parseInstance(JSON.parse(text));
-  } catch {
-    return fail('INVALID_INSTANCE_CONFIG');
-  }
-}
-export function configurationChanges(previous: InstanceConfig, next: InstanceConfig) {
-  const fields = (c: InstanceConfig): Record<string, string> => ({
-    server: c.server,
-    instanceId: c.instanceId,
-    environment: c.environment,
-    clientId: c.auth.clientId,
-    issuer: c.auth.issuer,
-    authkitDomain: c.auth.authkitDomain,
-    deviceAuthorizationEndpoint: c.auth.deviceAuthorizationEndpoint,
-    tokenEndpoint: c.auth.tokenEndpoint,
-    jwksUri: c.auth.jwksUri,
-    mobileRedirectUris: c.auth.mobileRedirectUris.join(', '),
-  });
-  const before = fields(previous),
-    after = fields(next);
-  return Object.keys(before)
-    .filter((field) => before[field] !== after[field])
-    .map((field) => ({ field, previous: before[field], next: after[field] }));
-}
-export function callbackCode(url: string, state: string): string {
-  let callback: URL;
-  try {
-    callback = new URL(url);
-  } catch {
-    return fail('INVALID_CALLBACK');
-  }
-  if (
-    url.split('?')[0] !== MOBILE_REDIRECT_URI ||
-    callback.hash ||
-    callback.searchParams.getAll('state').length !== 1 ||
-    callback.searchParams.get('state') !== state
-  )
-    return fail('INVALID_CALLBACK');
-  if (callback.searchParams.has('error')) return fail('LOGIN_DENIED');
-  const code = callback.searchParams.get('code');
-  if (callback.searchParams.getAll('code').length !== 1 || !code || code.length > 4096)
-    return fail('INVALID_CALLBACK');
-  return code;
-}
-function nearExpiry(token: string, now: number): boolean {
-  try {
-    const part = token.split('.')[1];
-    if (!part) return true;
-    const v = record(JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/'))));
-    return typeof v.exp !== 'number' || v.exp * 1000 <= now + 30000;
-  } catch {
-    return true;
-  }
 }
 
 export class CloudClient {
@@ -180,28 +61,7 @@ export class CloudClient {
     this.snapshot = {
       ...this.snapshot,
       ...patch,
-      rows: this.vault.entries.map((e) => ({
-        config: e.config,
-        hasSession: !!e.session,
-        sessionUserId: e.session?.userId,
-        pendingCreate: e.pendingCreate,
-        pendingChannelAction: e.pendingChannelAction,
-        pendingInvitation: e.pendingInvitation,
-        pendingWork: e.pendingWork,
-        agentHandoff: e.agentHandoff
-          ? {
-              actorId: e.agentHandoff.actorId,
-              organizationId: e.agentHandoff.organizationId,
-              channelId: e.agentHandoff.channelId,
-              ownerUserId: e.agentHandoff.ownerUserId,
-              name: e.agentHandoff.name,
-              operationId: e.agentHandoff.operationId,
-              ready: e.agentHandoff.ready,
-            }
-          : undefined,
-        identity: this.identities.get(e.config.instanceId),
-        organization: this.organizations.get(e.config.instanceId),
-      })),
+      rows: cloudRows(this.vault, this.identities, this.organizations),
     };
     for (const listener of this.listeners) listener();
   }
@@ -210,64 +70,7 @@ export class CloudClient {
       try {
         const raw = await this.rt.read();
         if (raw) {
-          const v = record(JSON.parse(raw));
-          if (v.version !== 1 || !Array.isArray(v.entries) || v.entries.length > 20)
-            fail('INVALID_LOCAL_STATE');
-          const entries = (v.entries as unknown[]).map((value) => {
-            const e = record(value),
-              config = parseInstance(e.config);
-            let pendingCreate: Entry['pendingCreate'];
-            if (e.pendingCreate !== undefined) {
-              const pending = record(e.pendingCreate);
-              if (
-                typeof pending.name !== 'string' ||
-                pending.name.length > 80 ||
-                typeof pending.operation !== 'string' ||
-                !/^[A-Za-z0-9_-]{16,100}$/.test(pending.operation)
-              )
-                fail('INVALID_LOCAL_STATE');
-              pendingCreate = {
-                name: pending.name as string,
-                operation: pending.operation as string,
-              };
-            }
-            if (e.session === undefined) return { config, pendingCreate };
-            const saved = record(e.session);
-            const session = tokenPair({
-              access_token: saved.accessToken,
-              refresh_token: saved.refreshToken,
-            });
-            if (
-              saved.userId !== undefined &&
-              (typeof saved.userId !== 'string' || !saved.userId.startsWith('user_'))
-            )
-              fail('INVALID_LOCAL_STATE');
-            if (
-              saved.organizationId !== undefined &&
-              (typeof saved.organizationId !== 'string' ||
-                !/^org_[A-Za-z0-9]+$/.test(saved.organizationId))
-            )
-              fail('INVALID_LOCAL_STATE');
-            return {
-              config,
-              pendingCreate,
-              pendingChannelAction: parsePendingChannelAction(e.pendingChannelAction),
-              pendingInvitation: parsePendingInvitation(e.pendingInvitation),
-              pendingWork: parsePendingWork(e.pendingWork),
-              agentHandoff: parseAgentHandoff(e.agentHandoff),
-              session: {
-                ...session,
-                userId: saved.userId as string | undefined,
-                organizationId: saved.organizationId as string | undefined,
-              },
-            };
-          });
-          if (
-            new Set(entries.map((e) => e.config.instanceId)).size !== entries.length ||
-            new Set(entries.map((e) => e.config.server)).size !== entries.length
-          )
-            fail('INVALID_LOCAL_STATE');
-          this.vault = { version: 1, entries };
+          this.vault = decodeVault(raw);
         }
         this.publish({ ready: true });
       } catch {
@@ -306,52 +109,11 @@ export class CloudClient {
     this.vault = next;
     this.publish();
   }
-  private async json(url: string, init: RequestInit = {}) {
-    let response: Response;
-    try {
-      response = await this.rt.request(url, { ...init, redirect: 'error', credentials: 'omit' });
-    } catch {
-      return fail('NETWORK_UNAVAILABLE');
-    }
-    if (response.redirected || (response.status >= 300 && response.status < 400))
-      return fail('REDIRECT_REFUSED');
-    if (Number(response.headers.get('content-length')) > 65536) return fail('INVALID_RESPONSE');
-    const reader = response.body?.getReader();
-    if (!reader) return fail('INVALID_RESPONSE');
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    try {
-      while (true) {
-        const part = await reader.read();
-        if (part.done) break;
-        size += part.value.length;
-        if (size > 65536) {
-          await reader.cancel();
-          return fail('INVALID_RESPONSE');
-        }
-        chunks.push(part.value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-    const text = new TextDecoder().decode(bytes);
-    try {
-      return { status: response.status, ok: response.ok, value: record(JSON.parse(text)) };
-    } catch {
-      return fail('INVALID_RESPONSE');
-    }
+  private json(url: string, init: RequestInit = {}) {
+    return requestJson(this.rt, url, init);
   }
-  private async discovery(config: InstanceConfig) {
-    const r = await this.json(config.server + '/.well-known/open-cloud-groups');
-    if (!r.ok) return fail('INSTANCE_UNAVAILABLE');
-    if (connectionKey(parseInstance(r.value)) !== connectionKey(config))
-      return fail('INSTANCE_CONFIG_CHANGED');
+  private discovery(config: InstanceConfig) {
+    return checkDiscovery((url) => this.json(url), config);
   }
   inspectInvitationService = (link: string) =>
     this.lock(async () => {
@@ -1192,45 +954,19 @@ export class CloudClient {
       return value;
     });
   login = (id: string) =>
-    this.lock(async () => {
-      let entry = this.entry(id);
-      if (entry.session) return fail('ALREADY_LOGGED_IN');
-      await this.discovery(entry.config);
-      const verifier = this.rt.random(),
-        state = this.rt.random(),
-        challenge = await this.rt.challenge(verifier);
-      const deadline = this.rt.now() + 10 * 60 * 1000;
-      const url = new URL('https://api.workos.com/user_management/authorize');
-      url.search = new URLSearchParams({
-        client_id: entry.config.auth.clientId,
-        provider: 'authkit',
-        response_type: 'code',
-        redirect_uri: MOBILE_REDIRECT_URI,
-        state,
-        code_challenge: challenge,
-        code_challenge_method: 'S256',
-        max_age: '0',
-      }).toString();
-      const callback = await this.rt.authorize(url.href, MOBILE_REDIRECT_URI);
-      if (!callback) return fail('LOGIN_CANCELLED');
-      if (this.rt.now() >= deadline) return fail('LOGIN_EXPIRED');
-      const code = callbackCode(callback, state);
-      await this.discovery(entry.config);
-      const r = await this.json(entry.config.auth.tokenEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: entry.config.auth.clientId,
-          grant_type: 'authorization_code',
-          code,
-          code_verifier: verifier,
-          redirect_uri: MOBILE_REDIRECT_URI,
-        }).toString(),
-      });
-      if (!r.ok) return fail('LOGIN_FAILED');
-      entry = await this.acceptTokens(entry, r.value);
-      return this.me(entry);
-    });
+    this.lock(() =>
+      login(
+        {
+          rt: this.rt,
+          getEntry: (id) => this.entry(id),
+          discovery: (config) => this.discovery(config),
+          json: (url, init) => this.json(url, init),
+          acceptTokens: (entry, value) => this.acceptTokens(entry, value),
+          me: (entry) => this.me(entry),
+        },
+        id,
+      ),
+    );
   whoami = (id: string) =>
     this.lock(async () => {
       const e = this.entry(id);

@@ -10,6 +10,7 @@ import { ModelProvidersSettings } from '../src/client/model-providers-settings.j
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { menuItem, typeInto } from './primitive-mocks.js';
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 
 it('renders the provider name, masked key and provider brand', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -224,7 +225,7 @@ it('lists named subscription accounts and adds, renames and removes one', async 
   const call = vi.fn<BridgeCall>(async (method, args) => {
     switch (method) {
       case 'teamMode':
-        return { ok: true, value: teamMode('owner') };
+        return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
       case 'modelProviders':
         return { ok: true, value: { revision: 1, providers: [] } };
       case 'engineAccounts':
@@ -405,7 +406,17 @@ it('shows the signing-in state only for the selected subscription account', asyn
   });
   const call = vi.fn<BridgeCall>(async (method) => {
     if (method === 'teamMode')
-      return { ok: true, value: teamMode('member', ['modelSources.manage']) };
+      return {
+        ok: true,
+        value: {
+          ...fakeTeamMode({
+            kind: 'member',
+            humanId: 'manager',
+            permissions: ['modelSources.manage'],
+          }),
+          enabled: true,
+        },
+      };
     if (method === 'engineAccountLogin') {
       await login;
       return { ok: true, value: {} };
@@ -444,7 +455,14 @@ it('shows the signing-in state only for the selected subscription account', asyn
 
 it('omits the subscription write controls for a Team member without modelSources.manage', async () => {
   const call = vi.fn<BridgeCall>(async (method) => {
-    if (method === 'teamMode') return { ok: true, value: teamMode('member', ['roles.manage']) };
+    if (method === 'teamMode')
+      return {
+        ok: true,
+        value: {
+          ...fakeTeamMode({ kind: 'member', humanId: 'member', permissions: ['roles.manage'] }),
+          enabled: true,
+        },
+      };
     if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
     if (method === 'engineAccounts')
       return {
