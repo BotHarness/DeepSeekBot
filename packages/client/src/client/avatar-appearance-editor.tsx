@@ -1,3 +1,5 @@
+import * as stylex from '@stylexjs/stylex';
+import { radius, space } from './ds/tobs.stylex.js';
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
@@ -398,6 +400,21 @@ function OptionTile({
     </button>
   );
 }
+
+const portraitStyles = stylex.create({
+  button: {
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '1',
+    padding: space.x1,
+  },
+  image: {
+    display: 'block',
+    width: '100%',
+    aspectRatio: '1',
+    borderRadius: radius.full,
+  },
+});
 
 export function AvatarAppearanceEditor({
   bot,
@@ -976,18 +993,23 @@ export function AvatarAppearanceEditor({
                         {portraits.map(({ id, en, zh, image }) => {
                           const label = t('profile.avatar.tiltiesName', { en, zh });
                           return (
-                            <button
+                            <Button
                               key={id}
                               type="button"
-                              className="bh-avatar-option"
+                              xstyle={portraitStyles.button}
                               aria-label={label}
                               title={label}
                               data-tilties-avatar={id}
                               disabled={imageBusy}
                               onClick={() => onChooseImage(image)}
                             >
-                              <img src={image} alt="" decoding="async" />
-                            </button>
+                              <img
+                                src={image}
+                                alt=""
+                                decoding="async"
+                                {...stylex.props(portraitStyles.image)}
+                              />
+                            </Button>
                           );
                         })}
                       </div>
