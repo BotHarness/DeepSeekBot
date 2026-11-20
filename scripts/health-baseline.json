@@ -5,7 +5,6 @@
     "apps/mobile/src/ui/chat/bot-profile.tsx",
     "apps/mobile/src/ui/chat/conversation-screen.tsx",
     "apps/mobile/src/ui/shell/activity-feed.tsx",
-    "apps/mobile/src/ui/shell/host-drawer.tsx",
     "apps/mobile/src/ui/strings.ts",
     "apps/mobile/test/bot-profile-sheet.test.tsx",
     "apps/mobile/test/cloud-client.test.ts",
