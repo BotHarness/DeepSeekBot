@@ -1,6 +1,6 @@
 import { turnTargetLabel } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import { observeHostResource } from './messaging-defaults-live.js';
+import { observeHostResource, observeResource } from './messaging-defaults-live.js';
 import { useMessageHost } from './message-host.js';
 import { useScopedState } from './scoped-state.js';
 import {
@@ -137,6 +137,7 @@ export function useDmComposerContext({
     if (modelSlug === undefined) return;
     let active = true;
     let generation = 0;
+    let hasGroup = false;
     const refresh = (): void => {
       const current = ++generation;
       setModelData(undefined);
@@ -152,6 +153,10 @@ export function useDmComposerContext({
               .catch((): ModelPresetView[] => []),
           ]);
           if (!active || current !== generation) return;
+          hasGroup =
+            (state?.plan === undefined
+              ? catalog.defaultGroupId
+              : state.plan.orchestratorGroupId) !== undefined;
           const route = catalog.default;
           const inheritedRoute =
             state?.plan === undefined &&
@@ -189,9 +194,10 @@ export function useDmComposerContext({
     const unsubscribe = subscribeModelPlans(() => {
       if (modelPlanOf(modelSlug, actions) === undefined) refresh();
     }, actions);
-    const stop = observeHostResource(
+    const stop = observeResource(
       (change) => change.resource === 'bot-context' && change.slug === modelSlug,
       async () => {
+        if (!hasGroup) return;
         const current = generation;
         const state = await actions.modelPlanState(modelSlug);
         if (!active || current !== generation) return;
@@ -199,6 +205,9 @@ export function useDmComposerContext({
           value?.slug !== modelSlug ? value : { ...value, state: state ?? value.state },
         );
       },
+      undefined,
+      undefined,
+      false,
       modelHost,
     );
     return () => {

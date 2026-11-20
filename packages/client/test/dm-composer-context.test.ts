@@ -696,7 +696,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
   }
 });
 
-it('runs the DM Bot on a Routing Group chosen from the header model menu (#4421)', async () => {
+it('selects a Routing Group without presenting its configured route as executed', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const host = document.createElement('div');
   document.body.append(host);
@@ -768,7 +768,7 @@ it('runs the DM Bot on a Routing Group chosen from the header model menu (#4421)
       orchestratorGroupId: 'daily',
       expectedRevision: 2,
     });
-    expect(chip.title).toBe('Daily · Flash');
+    expect(chip.title).toBe('Daily');
     await act(async () => chip.click());
     expect(
       document.body
