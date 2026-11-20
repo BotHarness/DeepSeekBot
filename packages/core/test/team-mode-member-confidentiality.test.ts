@@ -391,6 +391,7 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       channelChanges: { sinceSeq: start.seq, epoch: start.epoch },
       create: { displayName: 'Member Bot' },
       createLookup: { operationKey: 'audit-create-0001', displayName: 'Member Bot' },
+      marketplaceAvatarDetail: { id: '00000000-0000-4000-8000-000000000000' },
       followChannel: { limit: 10 },
     };
     const forbidden = [
@@ -489,6 +490,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           });
         else if (method === 'voiceProviders')
           expect(error).toMatchObject({ code: 'voice-unavailable' });
+        else if (method === 'marketplaceAvatarList' || method === 'marketplaceAvatarDetail')
+          expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'usageByMember')
           expect(error).toMatchObject({
             code: 'permission-required',
