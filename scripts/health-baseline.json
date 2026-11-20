@@ -63,7 +63,6 @@
     "packages/connect-relay/src/relay.ts",
     "packages/connect-relay/test/connect-relay.test.ts",
     "packages/core/src/bots/bot-create-cli.ts",
-    "packages/core/src/bots/cli-live.ts",
     "packages/core/src/bots/registry.ts",
     "packages/core/src/bridge/methods.ts",
     "packages/core/src/bridge/rpc.ts",
