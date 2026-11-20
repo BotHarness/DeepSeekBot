@@ -21,15 +21,8 @@ import {
   spawnCodexTransport,
 } from './codex-engine.js';
 import type { CodexStatus } from './codex-status.js';
-import {
-  CLAUDE_MIN_VERSION,
-  type ClaudeEngineOptions,
-  type ClaudeQueryFactory,
-  ClaudeEngineSession,
-  olderThan,
-  sdkClaudeQuery,
-} from './claude-engine.js';
-import { type ClaudeStatus, detectClaude } from './claude-status.js';
+import type { ClaudeQueryFactory } from './claude-engine.js';
+import type { ClaudeStatus } from './claude-status.js';
 import {
   buildEngineContextSeed,
   type EngineContextRecord,
@@ -57,7 +50,6 @@ import {
   type EngineApprovalRequest,
   type EngineSessionDescription,
 } from './engine-host-types.js';
-import { resolveEngineCommand } from './engine-launch.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
   ENGINE_DEFINITIONS,
@@ -207,7 +199,6 @@ export class EngineHost {
         [...this.#openingAccounts.values()].includes(id) ||
         [...this.#releasingAccounts.values()].includes(id) ||
         [...this.#live.values()].some((session) => session.accountId === id),
-      (input) => this.#claudeSession(input),
     );
   }
 
@@ -384,37 +375,6 @@ export class EngineHost {
     if (base === undefined) return undefined;
     const quota = this.quota(base.engine, base.accountId);
     return quota === undefined ? base : { ...base, quota };
-  }
-
-  async #claudeSession(
-    options: { cwd: string; instructions: string; resume?: string } & Pick<
-      ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
-    >,
-  ): Promise<ClaudeEngineSession> {
-    const claude = this.#accounts.claude();
-    const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
-    if (executable === undefined)
-      throw new EngineRefusal(
-        'engine-not-installed',
-        'Claude Code is not installed on this computer',
-      );
-    const { version } = await (this.#options.detectClaude ?? detectClaude)({
-      ...claude,
-      command: executable,
-    });
-    if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
-      throw new EngineRefusal(
-        'engine-unavailable',
-        `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
-      );
-    return new ClaudeEngineSession({
-      query: this.#options.openClaude ?? sdkClaudeQuery,
-      executable,
-      home: claude.home,
-      ...(claude.env === undefined ? {} : { env: claude.env }),
-      ...options,
-    });
   }
 
   steerAssignment(sessionId: string, text: string): boolean {
@@ -939,7 +899,7 @@ export class EngineHost {
           ...choice,
         });
       } else {
-        opened = await this.#claudeSession({
+        opened = await this.#accounts.openClaudeSession({
           cwd,
           instructions: request.instructions,
           contextSeed,

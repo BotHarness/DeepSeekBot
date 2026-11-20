@@ -5,6 +5,14 @@ import {
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  CLAUDE_MIN_VERSION,
+  type ClaudeEngineOptions,
+  ClaudeEngineSession,
+  olderThan,
+  sdkClaudeQuery,
+} from './claude-engine.js';
+import { resolveEngineCommand } from './engine-launch.js';
 import { detectClaude, startClaudeLogin, type ClaudeStatus } from './claude-status.js';
 import { CodexEngineSession, spawnCodexTransport } from './codex-engine.js';
 import { detectCodex, startCodexLogin, type CodexStatus } from './codex-status.js';
@@ -24,7 +32,6 @@ import {
   type EngineEvent,
   type EngineId,
   type EngineModel,
-  type EngineSession,
 } from './engine-session.js';
 import type { EngineStore, StoredEngineAccount } from './engine-store.js';
 
@@ -34,22 +41,15 @@ export class EngineHostAccounts {
   readonly #store: EngineStore;
   readonly #options: EngineHostOptions;
   readonly #busy: (id: string) => boolean;
-  readonly #openClaude: (input: { cwd: string; instructions: string }) => Promise<EngineSession>;
   readonly #models = new Map<string, { at: number; models: Promise<EngineModel[]> }>();
   readonly #statusProbes = new Map<string, Promise<CodexStatus | ClaudeStatus>>();
   readonly #readingModels = new Map<string, Promise<EngineModel[]>>();
   readonly #logins = new Map<string, AbortController>();
 
-  constructor(
-    store: EngineStore,
-    options: EngineHostOptions,
-    busy: (id: string) => boolean,
-    openClaude: (input: { cwd: string; instructions: string }) => Promise<EngineSession>,
-  ) {
+  constructor(store: EngineStore, options: EngineHostOptions, busy: (id: string) => boolean) {
     this.#store = store;
     this.#options = options;
     this.#busy = busy;
-    this.#openClaude = openClaude;
   }
 
   close(): void {
@@ -168,7 +168,7 @@ export class EngineHostAccounts {
     }
   }
 
-  claude(): {
+  #claude(): {
     command: string;
     home: string;
     env?: Readonly<Record<string, string | undefined>>;
@@ -178,6 +178,37 @@ export class EngineHostAccounts {
       home: join(this.#options.root, 'claude', 'home'),
       ...(this.#options.env === undefined ? {} : { env: this.#options.env }),
     };
+  }
+
+  async openClaudeSession(
+    options: { cwd: string; instructions: string; resume?: string } & Pick<
+      ClaudeEngineOptions,
+      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
+    >,
+  ): Promise<ClaudeEngineSession> {
+    const claude = this.#claude();
+    const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
+    if (executable === undefined)
+      throw new EngineRefusal(
+        'engine-not-installed',
+        'Claude Code is not installed on this computer',
+      );
+    const { version } = await (this.#options.detectClaude ?? detectClaude)({
+      ...claude,
+      command: executable,
+    });
+    if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
+      throw new EngineRefusal(
+        'engine-unavailable',
+        `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
+      );
+    return new ClaudeEngineSession({
+      query: this.#options.openClaude ?? sdkClaudeQuery,
+      executable,
+      home: claude.home,
+      ...(claude.env === undefined ? {} : { env: claude.env }),
+      ...options,
+    });
   }
 
   limit(engine: EngineId, accountId?: string): { account: string; until: string } | undefined {
@@ -223,7 +254,7 @@ export class EngineHostAccounts {
         const { id, engine, name } = account;
         if (engine === 'claude') {
           const detected = await probeStatus(() =>
-            (this.#options.detectClaude ?? detectClaude)(this.claude()),
+            (this.#options.detectClaude ?? detectClaude)(this.#claude()),
           );
           return statusReport(engine, detected, 'subscription', this.quota(engine));
         }
@@ -247,7 +278,7 @@ export class EngineHostAccounts {
       return {
         engine,
         started: true,
-        ...(await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.claude())),
+        ...(await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude())),
       };
     if (this.#logins.has(account.id))
       throw new EngineRefusal(
@@ -306,7 +337,7 @@ export class EngineHostAccounts {
             (this.#options.openCodex ?? spawnCodexTransport)({ ...this.codex(account), cwd }),
             { cwd, instructions: '' },
           )
-        : await this.#openClaude({ cwd, instructions: '' });
+        : await this.openClaudeSession({ cwd, instructions: '' });
     try {
       requireSubscription(await readEngineAccount(session), account.id);
       return await session.models();
