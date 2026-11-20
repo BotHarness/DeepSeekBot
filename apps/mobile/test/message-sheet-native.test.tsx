@@ -268,14 +268,25 @@ describe('iOS message sheet', () => {
     const message: ConversationMessage = {
       ...bot,
       turnTargets: [
-        { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
+        { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
         { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
       ],
     };
-    mount(ios.MessageActions, { target: { message, anchor, group } });
+    mount(ios.MessageActions, {
+      target: { message, anchor, group },
+      catalog: [
+        {
+          provider: 'opencode-go',
+          providerName: 'OpenCode Go',
+          model: 'deepseek-v4.1-flash',
+          modelName: 'DeepSeek V4.1 Flash',
+        },
+      ],
+    });
     const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
-    expect(attribution?.textContent).toContain(t.routingGroup.externalEngine);
-    expect(attribution?.textContent).toMatch(/high.*→.*v4.1 flash/u);
+    expect(attribution?.querySelector('[data-testid="external-engine-badge"]')).not.toBeNull();
+    expect(byLabel(`GPT-6.2-Sol · Codex · high, ${t.routingGroup.externalEngine}`)).not.toBeNull();
+    expect(attribution?.textContent).toBe('GPT-6.2-Sol · high→V4.1 Flash');
   });
 
   it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {

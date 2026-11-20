@@ -163,6 +163,7 @@ function ActionIcon({
 
 export function MessageActions({
   target,
+  catalog,
   readOnly = false,
   onClose,
   onReact,
@@ -187,6 +188,7 @@ export function MessageActions({
           <MessageMenu
             key={target.message.id}
             target={target}
+            catalog={catalog}
             readOnly={readOnly}
             onClose={onClose}
             onReact={onReact}
@@ -216,6 +218,7 @@ export function MessageActions({
 
 function MessageMenu({
   target,
+  catalog,
   readOnly,
   onClose,
   onReact,
@@ -227,6 +230,7 @@ function MessageMenu({
   onChooseAttachments,
 }: {
   target: MessageMenuTarget;
+  catalog: MessageActionsProps['catalog'];
   readOnly: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
@@ -385,7 +389,7 @@ function MessageMenu({
               )}
               {message.turnTargets === undefined ? null : (
                 <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x2 }}>
-                  <MessageTurnTargets targets={message.turnTargets} />
+                  <MessageTurnTargets targets={message.turnTargets} catalog={catalog} />
                 </View>
               )}
               {actions.map((action, index) => (

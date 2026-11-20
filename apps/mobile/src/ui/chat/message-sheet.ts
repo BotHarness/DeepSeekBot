@@ -3,6 +3,7 @@ import {
   type ConversationMessage,
   type MessageAttachment,
 } from '@botharness/host-client/conversation';
+import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 import { dateLocale, t } from '../strings';
 import type { BubbleGroup } from './bubble-shape';
 import type { Rect } from './menu-placement';
@@ -39,6 +40,7 @@ function downloads(message: ConversationMessage): MessageMenuAction[] {
 
 export type MessageActionsProps = {
   target: MessageMenuTarget | undefined;
+  catalog?: readonly ModelCatalogEntry[] | undefined;
   readOnly?: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;

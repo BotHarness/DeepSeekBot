@@ -163,6 +163,7 @@ const zh = {
 describe('Routing Group engine presentation', () => {
   it.each([
     ['codex', 'gpt-5.4', undefined, 'openai', 'GPT-5.4', 'Codex · ChatGPT subscription'],
+    ['codex', 'gpt-6.2-sol', undefined, 'openai', 'GPT-6.2-Sol', 'Codex · ChatGPT subscription'],
     [
       'codex',
       undefined,

@@ -69,7 +69,7 @@ export function routingGroupEnginePresentation(
         member.model.replace(
           /^gpt(-[0-9.]+)(?:-([a-z]+))?$/iu,
           (_id: string, version: string, variant: string | undefined) =>
-            `GPT${version}${variant === undefined ? '' : ` ${variant.charAt(0).toUpperCase()}${variant.slice(1)}`}`,
+            `GPT${version}${variant === undefined ? '' : `-${variant.charAt(0).toUpperCase()}${variant.slice(1)}`}`,
         ));
   const short = member.model === undefined ? name : modelShortName(name, brand);
   return {

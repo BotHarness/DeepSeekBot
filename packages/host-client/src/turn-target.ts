@@ -13,6 +13,7 @@ export function turnTargetLabel(target: TurnTarget, catalog: readonly ModelCatal
     return {
       brand,
       short: title,
+      effort: target.reasoningEffort,
       name: [name, name === engine ? undefined : engine, target.reasoningEffort]
         .filter(Boolean)
         .join(' · '),
@@ -26,7 +27,7 @@ export function turnTargetLabel(target: TurnTarget, catalog: readonly ModelCatal
   const brand = modelBrand({ provider: target.provider, model: target.model, name: model });
   return {
     brand,
-    short: modelShortName(model, brand),
+    short: entry === undefined ? model : modelShortName(model, brand),
     name: `${model} · ${entry?.providerName ?? target.provider}`,
     external: false as const,
   };

@@ -66,6 +66,7 @@ export {
 
 export function MessageActions({
   target,
+  catalog,
   readOnly = false,
   onClose,
   onReact,
@@ -123,6 +124,7 @@ export function MessageActions({
             <SheetContent
               onHeight={setContentHeight}
               target={shown}
+              catalog={catalog}
               readOnly={readOnly}
               selectCopy={onSelectCopy !== undefined}
               onReact={(emoji, active) => {
@@ -153,6 +155,7 @@ export function MessageActions({
 function SheetContent({
   onHeight,
   target,
+  catalog,
   readOnly,
   selectCopy,
   onReact,
@@ -160,6 +163,7 @@ function SheetContent({
 }: {
   onHeight(height: number): void;
   target: MessageMenuTarget;
+  catalog: MessageActionsProps['catalog'];
   readOnly: boolean;
   selectCopy: boolean;
   onReact(emoji: string, active: boolean): void;
@@ -189,7 +193,7 @@ function SheetContent({
       </Text>
       {message.turnTargets === undefined ? null : (
         <RNHostView matchContents={{ vertical: true }}>
-          <MessageTurnTargets targets={message.turnTargets} />
+          <MessageTurnTargets targets={message.turnTargets} catalog={catalog} />
         </RNHostView>
       )}
       {menuReactions(target, readOnly) ? (

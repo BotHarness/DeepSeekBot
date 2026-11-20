@@ -1,21 +1,28 @@
 import { View } from 'react-native';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 import { turnTargetLabel } from '@botharness/host-client/turn-target';
 
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { EngineBrandIcon } from './engine-brand-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 
-export function MessageTurnTargets({ targets }: { targets: readonly TurnTarget[] }) {
+export function MessageTurnTargets({
+  targets,
+  catalog,
+}: {
+  targets: readonly TurnTarget[];
+  catalog: readonly ModelCatalogEntry[] | undefined;
+}) {
   const theme = useDesignTheme();
   const t = useStrings();
   return (
     <View testID="message-menu-turn-targets" style={{ gap: space.x1 }}>
       {targets.map((target, index) => {
-        const label = turnTargetLabel(target);
+        const label = turnTargetLabel(target, catalog);
         return (
           <View
             key={index}
@@ -47,26 +54,8 @@ export function MessageTurnTargets({ targets }: { targets: readonly TurnTarget[]
               />
             )}
             <Text variant="meta" tone="muted" style={{ flexShrink: 1 }}>
-              {label.short}
+              {[label.short, label.effort].filter(Boolean).join(' · ')}
             </Text>
-            {target.kind === 'engine' && target.reasoningEffort !== undefined ? (
-              <Text variant="meta" tone="muted">
-                {target.reasoningEffort}
-              </Text>
-            ) : null}
-            {label.external ? (
-              <View
-                style={{
-                  borderRadius: radius.round,
-                  backgroundColor: theme.layer.raised.inset,
-                  paddingHorizontal: space.x2,
-                }}
-              >
-                <Text variant="meta" tone="muted">
-                  {t.routingGroup.externalEngine}
-                </Text>
-              </View>
-            ) : null}
           </View>
         );
       })}

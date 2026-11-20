@@ -20,6 +20,7 @@ import { ToolRuntime } from '@deepseek-ai/dsh-tools';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { dmChannelId } from '../src/channels/channel.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
@@ -28,6 +29,7 @@ import { createRouteRests } from '../src/models/route-rest.js';
 import type { RoutingGroupMember } from '../src/models/routing-groups.js';
 import { createCore } from '../src/plugin.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { readTurnTargets } from '../src/runtime/turn-targets.js';
 import { engineWorkspaceMode } from '../src/workspaces/grant-execution.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { claudeReplay, readClaudeRecording } from './fixtures/claude-replay.js';
@@ -425,14 +427,16 @@ function setup(options: {
         const writer = await dsh.persistence.open(SessionId(id), 'write');
         const { events } = await writer.read();
         await writer.close();
+        const segments = readTurnTargets(
+          attachOperationalModule(reopened.operationalDatabase, 'bot-runtime'),
+          id,
+        );
         return {
+          events,
+          segments,
           messages: reopened.channels.readMessages(channel.id),
           current: reopened.runtime.currentTurnTarget?.('ada'),
-          transcript: summarizeSessionTranscript({
-            sessionId: id,
-            events,
-            segments: reopened.runtime.sessionTurnTargets?.(id) ?? [],
-          }).items,
+          transcript: summarizeSessionTranscript({ sessionId: id, events, segments }).items,
         };
       } finally {
         await reopened.runtime.close();
@@ -942,6 +946,22 @@ it.each([
     );
 
     const reopened = await bot.reopen(sessionId);
+    const turnStarts = reopened.events.flatMap((event) =>
+      event.type === 'turn/start' ? [event.data.turn] : [],
+    );
+    expect(turnStarts).toHaveLength(turnTargets.length);
+    expect(reopened.segments).toEqual(
+      turnTargets.map((target, index) => ({
+        turn: turnStarts[index],
+        step: index < members.length ? 0 : 1,
+        request: expect.any(String),
+        target,
+      })),
+    );
+    expect(new Set(reopened.segments.map((segment) => segment.request)).size).toBe(1);
+    expect(new Set(reopened.segments.map(({ turn, step }) => `${turn}:${step}`)).size).toBe(
+      turnTargets.length,
+    );
     expect(reopened.current).toEqual(current);
     expect(reopened.messages).toContainEqual(expect.objectContaining({ body: text, turnTargets }));
     expect(reopened.transcript).toContainEqual(
