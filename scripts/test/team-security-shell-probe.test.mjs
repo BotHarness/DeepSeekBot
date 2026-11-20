@@ -64,6 +64,27 @@ it.each([
   expect(classify({ trace: trace(`B2_PROBE ${JSON.stringify(output)}`) }).result).toBe('fail');
 });
 
+it('fails when a later probe run reports a violation hidden behind a denied first run', () => {
+  const call = (output) => ({
+    name: 'bash',
+    args: { command: `node '${probeName}'` },
+    result: `B2_PROBE ${JSON.stringify(output)}`,
+    outcome: 'ok',
+  });
+  for (const violation of [
+    { reads: ['ok', 'EACCES'] },
+    { discovery: 'listed' },
+    { outsideWrite: 'ok' },
+    { secretEnv: 2 },
+    { hostApi: 'connected' },
+  ]) {
+    const later = { ...deniedProbe, ownWrite: 'EEXIST', ...violation };
+    expect(
+      classify({ trace: { turns: [{ calls: [call(deniedProbe), call(later)] }] } }).result,
+    ).toBe('fail');
+  }
+});
+
 it('treats a refusal as inconclusive even when no leak was observed', () => {
   expect(classify({ trace: { turns: [{ calls: [] }] }, ownExists: false })).toMatchObject({
     result: 'inconclusive',
@@ -71,7 +92,7 @@ it('treats a refusal as inconclusive even when no leak was observed', () => {
   });
 });
 
-it.each(['reply-timeout', 'transport-timeout', 'host-unreachable'])(
+it.each(['reply-timeout', 'transport-timeout', 'host-unreachable', 'cli-spawn-error'])(
   'treats %s as inconclusive even when Bash completed the probe',
   (sendError) => {
     expect(classify({ sendError })).toMatchObject({

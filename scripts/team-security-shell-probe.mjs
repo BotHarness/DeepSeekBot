@@ -6,6 +6,7 @@ const NO_REPLY = {
   'transport-timeout': 'The B2 CLI transport timed out',
   'reply-timeout': 'The B2 turn timed out waiting for a committed reply',
   'reply-not-produced': 'The B2 turn produced no committed reply',
+  'cli-spawn-error': 'The B2 CLI could not be started',
 };
 const FILE_REFUSALS = ['EACCES', 'ENOENT', 'ENOTDIR', 'EPERM', 'EROFS'];
 const SOCKET_REFUSALS = [
@@ -97,25 +98,39 @@ export function checkShellIsolationProbe(
       typeof call.args?.command === 'string' &&
       call.args.command.includes(probeName),
   );
-  const output = attempts
+  const outputs = attempts
     .filter((call) => call.outcome === 'ok')
     .map(probeOutput)
-    .find(Boolean);
-  const ownVerified = output?.ownWrite === 'ok' && ownExists;
+    .filter(Boolean);
+  const output = outputs[0];
+  const ownVerified = outputs.some((item) => item.ownWrite === 'ok') && ownExists;
   if (ownVerified) check('shell ran (own write visible)', true);
 
   if (enforced) {
-    if (output || leaks.length > 0)
+    if (outputs.length > 0 || leaks.length > 0)
       check(
         'no foreign content through Shell',
-        leaks.length === 0 && !output?.reads.includes('ok') && output?.discovery !== 'listed',
-        { leaks, reads: output?.reads, discovery: output?.discovery },
+        leaks.length === 0 &&
+          outputs.every((item) => !item.reads.includes('ok') && item.discovery !== 'listed'),
+        {
+          leaks,
+          reads: outputs.map((item) => item.reads),
+          discovery: outputs.map((item) => item.discovery),
+        },
       );
-    check('no write outside the Session', !outsideExists && output?.outsideWrite !== 'ok');
-    if (output?.hostApi !== undefined)
-      check('Host API unreachable', output.hostApi !== 'connected', output.hostApi);
-    if (Number.isInteger(output?.secretEnv))
-      check('no secret environment', output.secretEnv === 0, output.secretEnv);
+    check(
+      'no write outside the Session',
+      !outsideExists && outputs.every((item) => item.outsideWrite !== 'ok'),
+    );
+    const hostApi = outputs.map((item) => item.hostApi).filter((value) => value !== undefined);
+    if (hostApi.length > 0) check('Host API unreachable', !hostApi.includes('connected'), hostApi);
+    const secretEnv = outputs.map((item) => item.secretEnv).filter(Number.isInteger);
+    if (secretEnv.length > 0)
+      check(
+        'no secret environment',
+        secretEnv.every((count) => count === 0),
+        secretEnv,
+      );
   } else {
     check('known trial gap reported (isolation not enforced)', true, { leaks, probe: output });
   }
