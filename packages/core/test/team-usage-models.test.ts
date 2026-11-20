@@ -1133,7 +1133,12 @@ it('migrates route-only Host Roles with identical route grants and leaves all gr
   const before = trackTestOwner(
     mountOperationalDatabase({
       dshHome: home,
-      schemaPlan: defineSchemaPlan(migrations.slice(0, -1)),
+      schemaPlan: defineSchemaPlan(
+        migrations.slice(
+          0,
+          migrations.findIndex(({ id }) => id === 'role-model-providers'),
+        ),
+      ),
     }),
   );
   const models = { kind: 'only', routes: ['p/nested/model', 'p/another'] };
