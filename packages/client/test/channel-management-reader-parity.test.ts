@@ -22,7 +22,10 @@ import { bridgeHost } from '../src/client/bridge.js';
 const group = { id: 'group-team', type: 'group', name: 'Team', members: ['ada'] };
 const dm = { id: 'dm-ada', type: 'dm', name: 'Ada', members: ['ada'], botSlug: 'ada' };
 const join = { channelId: group.id, requestId: 'join-1', accept: true };
-const decided = { ...group, joinRequests: [{ id: join.requestId, status: 'accepted' }] };
+const decided = {
+  ...group,
+  joinRequests: [{ id: join.requestId, requesterBotSlug: 'grace', status: 'accepted' }],
+};
 const create = { name: group.name, members: group.members, operationKey: 'operation-1' };
 const receipt = { operationKey: create.operationKey, status: 'completed', channelId: group.id };
 const access = { role: 'owner', policyRevision: 'test-revision' };

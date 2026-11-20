@@ -1696,7 +1696,13 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
       type: 'group',
       name: 'Same Group',
       members: [],
-      joinRequests: [{ id: args.requestId, status: args.accept ? 'accepted' : 'declined' }],
+      joinRequests: [
+        {
+          id: args.requestId,
+          requesterBotSlug: 'ada',
+          status: args.accept ? 'accepted' : 'declined',
+        },
+      ],
     },
   }));
   host.methods.set('humanAttentionSnooze', () => ({ accepted: true }));

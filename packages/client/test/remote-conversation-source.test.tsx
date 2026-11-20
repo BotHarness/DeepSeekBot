@@ -2,6 +2,7 @@
 import { type RemoteConversationTarget } from '../src/client/remote-hosts.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { ChannelListItem } from '@botharness/host-protocol/wire';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { RemoteHosts } from '../src/client/remote-hosts.js';
 const fixture = vi.hoisted(() => ({ sources: undefined as RemoteHosts | undefined }));
@@ -88,7 +89,8 @@ async function mount(
   store.select(undefined);
   const hosts = { b: new FakeHost(), c: new FakeHost() };
   for (const [id, host] of Object.entries(hosts)) {
-    const channels = ['shared', 'other'].map((channelId) => ({
+    const botName = 'Ada ' + id;
+    const channels: ChannelListItem[] = ['shared', 'other'].map((channelId) => ({
       id: channelId,
       type: 'group',
       name: 'Shared ' + id.toUpperCase(),
@@ -100,6 +102,16 @@ async function mount(
       createdAt: at,
       updatedAt: at,
     }));
+    if (bots)
+      channels.push({
+        id: 'dm-ada',
+        type: 'dm',
+        name: botName,
+        members: ['ada'],
+        botSlug: 'ada',
+        createdAt: at,
+        updatedAt: at,
+      });
     host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
     host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
     host.methods.set('channelMarkRead', () => ({ accepted: true }));
@@ -125,7 +137,7 @@ async function mount(
         ? [
             {
               slug: 'ada',
-              displayName: 'Ada ' + id,
+              displayName: botName,
               roles: [],
               aggregateState: 'idle',
               workspaces: [],
@@ -147,8 +159,7 @@ async function mount(
     host.methods.set('channelFilesPage', () => ({ entries: [] }));
     host.methods.set('channelAveragePerf', () => ({}));
     host.methods.set('channelAllBotPreview', () => ({ recipients: [], excluded: [] }));
-    host.channel('shared');
-    host.channel('other');
+    for (const channel of channels) host.channel(channel.id);
     configure?.(host, id);
   }
   const routed = (url: string) => (new URL(url).hostname === 'b.test.ts.net' ? hosts.b : hosts.c);
@@ -581,10 +592,11 @@ it('rejects offline file drops before inserting an uploading item and keeps the 
 });
 
 it('keeps navigation inside the target Host when the connection returns', async () => {
-  const view = await mount((host) => {
+  const view = await mount((host, id) => {
     host
       .channel('shared')
       .append({ id: 'bot', body: 'Open my native DM', author: { kind: 'bot', slug: 'ada' } });
+    host.channel('dm-ada').append({ id: 'dm-message', body: 'Native DM on ' + id });
   });
   try {
     await act(async () =>
@@ -607,7 +619,10 @@ it('keeps navigation inside the target Host when the connection returns', async 
       await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
     });
     await act(async () =>
-      vi.waitFor(() => expect(view.input().getAttribute('aria-label')).toContain('Ada b')),
+      vi.waitFor(() => {
+        expect(view.input()?.getAttribute('aria-label')).toContain('Ada b');
+        expect(view.element.textContent).toContain('Native DM on b');
+      }),
     );
     expect(view.element.querySelector('[data-message-id="bot"]')).toBeNull();
   } finally {

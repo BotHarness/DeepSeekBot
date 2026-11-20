@@ -109,7 +109,13 @@ function host(): FakeHost {
       type: 'group',
       name: 'Launch',
       members: [],
-      joinRequests: [{ id: 'r1', status: args['accept'] === true ? 'accepted' : 'declined' }],
+      joinRequests: [
+        {
+          id: 'r1',
+          requesterBotSlug: 'ada',
+          status: args['accept'] === true ? 'accepted' : 'declined',
+        },
+      ],
     },
   }));
   fake.methods.set('humanAssignmentContext', () => ({
@@ -291,7 +297,7 @@ describe('Phone actions for Inbox items', () => {
         type: 'group',
         name: 'Launch',
         members: [],
-        joinRequests: [{ id: 'r1', status: 'pending' }],
+        joinRequests: [{ id: 'r1', requesterBotSlug: 'ada', status: 'pending' }],
       },
     }));
     const target = connect(fake);

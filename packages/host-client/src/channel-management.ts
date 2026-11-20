@@ -4,6 +4,7 @@ import type {
   ChannelAssignmentSummary,
   ChannelListItem,
   WireAllBotPreview,
+  WireGroupJoinRequest,
 } from '@botharness/host-protocol/wire';
 import type { RosterSection } from './client';
 import { answerRecord, HostAnswerInvalid, record, type HostCall } from './host-answer';
@@ -14,24 +15,104 @@ function strings(value: unknown): value is string[] {
 
 type ManagedChannel = ChannelListItem & Record<string, unknown>;
 
-function channelOf(value: unknown): ManagedChannel | undefined {
-  const channel = record(value);
-  const id = channel?.['id'];
-  const type = channel?.['type'];
-  if (
-    typeof id !== 'string' ||
-    id.length === 0 ||
-    (type !== 'dm' && type !== 'group') ||
-    typeof channel?.['name'] !== 'string' ||
-    !strings(channel['members'])
-  )
-    return undefined;
-  return channel as ManagedChannel;
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string';
+}
+
+function optionalRows(
+  value: unknown,
+  validRow: (row: Record<string, unknown>) => boolean,
+): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.every((entry: unknown) => {
+        const row = record(entry);
+        return row !== undefined && validRow(row);
+      }))
+  );
+}
+
+function isMessageAuthor(value: unknown): boolean {
+  const author = record(value);
+  switch (author?.['kind']) {
+    case 'human':
+      return optionalString(author['humanId']) && optionalString(author['displayName']);
+    case 'bot':
+      return typeof author['slug'] === 'string';
+    case 'remote-bot':
+      return typeof author['hostId'] === 'string' && typeof author['slug'] === 'string';
+    case 'bridged':
+      return typeof author['source'] === 'string';
+    case 'system':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isLatestMessage(value: unknown): boolean {
+  const message = record(value);
+  return (
+    typeof message?.['id'] === 'string' &&
+    typeof message['at'] === 'string' &&
+    typeof message['body'] === 'string' &&
+    (message['author'] === undefined || isMessageAuthor(message['author']))
+  );
+}
+
+const decisionStatuses: ReadonlySet<unknown> = new Set<WireGroupJoinRequest['status']>([
+  'pending',
+  'accepted',
+  'declined',
+  'cancelled',
+]);
+
+function isManagedChannel(channel: Record<string, unknown>): channel is ManagedChannel {
+  const id = channel['id'];
+  const type = channel['type'];
+  return (
+    typeof id === 'string' &&
+    id.length > 0 &&
+    (type === 'dm' || type === 'group') &&
+    typeof channel['name'] === 'string' &&
+    strings(channel['members']) &&
+    optionalString(channel['createdAt']) &&
+    optionalString(channel['updatedAt']) &&
+    optionalString(channel['deletedAt']) &&
+    optionalString(channel['botSlug']) &&
+    optionalString(channel['avatar']) &&
+    optionalString(channel['ownerBotSlug']) &&
+    (channel['humanParticipants'] === undefined || strings(channel['humanParticipants'])) &&
+    optionalRows(
+      channel['humanMembers'],
+      (member) =>
+        typeof member['humanId'] === 'string' &&
+        typeof member['displayName'] === 'string' &&
+        optionalString(member['avatarVersion']),
+    ) &&
+    optionalRows(
+      channel['invitations'],
+      (invitation) =>
+        typeof invitation['id'] === 'string' &&
+        typeof invitation['targetBotSlug'] === 'string' &&
+        decisionStatuses.has(invitation['status']),
+    ) &&
+    optionalRows(
+      channel['joinRequests'],
+      (request) =>
+        typeof request['id'] === 'string' &&
+        typeof request['requesterBotSlug'] === 'string' &&
+        decisionStatuses.has(request['status']),
+    ) &&
+    (channel['latestMessage'] === undefined || isLatestMessage(channel['latestMessage']))
+  );
 }
 
 function requiredChannel(value: unknown, method: string): ManagedChannel {
-  const channel = channelOf(value);
-  if (channel === undefined) throw new HostAnswerInvalid(`${method} returned an invalid Channel.`);
+  const channel = record(value);
+  if (channel === undefined || !isManagedChannel(channel))
+    throw new HostAnswerInvalid(`${method} returned an invalid Channel.`);
   return channel;
 }
 
@@ -111,11 +192,8 @@ export async function decideGroupJoin(
   );
   const channel = requiredChannel(answer['channel'], 'channelGroupJoinDecide');
   if (options?.confirm) {
-    const requests = channel.joinRequests;
-    const decided = Array.isArray(requests)
-      ? requests.map(record).find((row) => row?.['id'] === args.requestId)
-      : undefined;
-    if (decided?.['status'] !== (args.accept ? 'accepted' : 'declined'))
+    const decided = channel.joinRequests?.find((request) => request.id === args.requestId);
+    if (decided?.status !== (args.accept ? 'accepted' : 'declined'))
       throw new HostAnswerInvalid('The computer did not confirm the decision.');
   }
   return channel;
@@ -148,6 +226,7 @@ function isAssignment(value: unknown): value is ChannelAssignmentSummary {
   const row = record(value);
   if (row === undefined) return false;
   const report = record(row['latestReport']);
+  const modelRoute = record(row['modelRoute']);
   return (
     typeof row['sessionId'] === 'string' &&
     typeof row['botSlug'] === 'string' &&
@@ -156,11 +235,19 @@ function isAssignment(value: unknown): value is ChannelAssignmentSummary {
     activities.has(row['activity']) &&
     typeof row['createdAt'] === 'string' &&
     typeof row['updatedAt'] === 'string' &&
+    optionalString(row['archivedAt']) &&
+    (row['subagentCount'] === undefined || typeof row['subagentCount'] === 'number') &&
+    (row['modelRoute'] === undefined ||
+      (modelRoute !== undefined &&
+        typeof modelRoute['provider'] === 'string' &&
+        typeof modelRoute['model'] === 'string' &&
+        optionalString(modelRoute['reasoningEffort']))) &&
     (row['latestReport'] === undefined ||
       (report !== undefined &&
         reportStates.has(report['state']) &&
         typeof report['summary'] === 'string' &&
-        typeof report['at'] === 'string'))
+        typeof report['at'] === 'string' &&
+        (report['expectsReply'] === undefined || typeof report['expectsReply'] === 'boolean')))
   );
 }
 
