@@ -124,7 +124,12 @@ function writeJson(path, value) {
 }
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options });
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    shell: false,
+    ...options,
+    windowsHide: true,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} failed: ${result.stderr?.slice(-2500)}`);
   return result.stdout;

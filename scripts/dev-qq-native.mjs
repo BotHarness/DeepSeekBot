@@ -214,6 +214,8 @@ export async function runQqNative(request, { sshConfig, remoteNode } = {}) {
     timeout: 150000,
     maxBuffer: 65536,
     stdio: ['pipe', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   });
   if (result.error || result.status !== 0)
     throw new Error('QQ SSH operation failed; inspect the exact receiver before retrying');

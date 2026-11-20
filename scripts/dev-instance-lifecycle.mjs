@@ -29,11 +29,13 @@ function existingHost(home) {
           '-Command',
           'Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress',
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', shell: false, windowsHide: true },
       )
     : spawnSync('ps', ['axeww', '-o', 'pid=,command='], {
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
+        shell: false,
+        windowsHide: true,
       });
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify development Home process ownership');
@@ -174,6 +176,8 @@ export function acquireHome(home) {
           env: { ...(options.env ?? process.env), BOTHARNESS_PROCESS_OWNER: ownershipToken },
           detached: true,
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+          shell: false,
+          windowsHide: true,
         },
       );
       child.ownedProcessGroup = process.platform !== 'win32';
@@ -251,14 +255,14 @@ function descendants(pid, ownedProcessGroup, ownershipToken) {
           '-Command',
           'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress',
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', shell: false, windowsHide: true },
       )
     : spawnSync(
         'ps',
         ownershipToken
           ? ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,ppid=,pgid=,command=']
           : ['-eo', 'pid=,ppid=,pgid='],
-        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, shell: false, windowsHide: true },
       );
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify Host child processes; preserve its Home and log');

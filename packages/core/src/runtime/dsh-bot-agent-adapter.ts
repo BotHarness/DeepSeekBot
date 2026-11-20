@@ -508,6 +508,7 @@ export interface DshBotAgentAdapterOptions {
   agents: DshAgentHost;
   defaultModel: DshDefaultModelHost;
   resolveModelPlan?: (botSlug: string) => PersonaBotModelPlan | undefined;
+  modelFilter?: (botSlug: string) => (route: ModelRoute) => boolean;
   openAssignmentRoutes?: OpenAssignmentRoutes;
   orchestratorRoute?: (sessionId: string) => ModelRoute | undefined;
   assignmentGroups?: AssignmentGroupRoutes;
@@ -773,6 +774,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #agents: DshAgentHost;
   readonly #defaultModel: DshDefaultModelHost;
   readonly #resolveModelPlan: ((botSlug: string) => PersonaBotModelPlan | undefined) | undefined;
+  readonly #modelFilter: DshBotAgentAdapterOptions['modelFilter'];
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
   readonly #openAssignmentRoutes: OpenAssignmentRoutes | undefined;
   readonly #orchestratorRoute: DshBotAgentAdapterOptions['orchestratorRoute'];
@@ -846,6 +848,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#agents = options.agents;
     this.#defaultModel = options.defaultModel;
     this.#resolveModelPlan = options.resolveModelPlan;
+    this.#modelFilter = options.modelFilter;
     this.#subagentTools = options.subagentTools;
     this.#openAssignmentRoutes = options.openAssignmentRoutes;
     this.#orchestratorRoute = options.orchestratorRoute;
@@ -2271,13 +2274,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             }),
           );
           const groups = this.#assignmentGroups;
+          const allowed = this.#modelFilter?.(run.bot.slug) ?? (() => true);
           const resting = <T extends { provider: string; model: string }>(route: T) => {
             const rest = groups?.restingUntil(route);
             return rest === undefined ? route : { ...route, restingUntil: rest.until };
           };
           const describeGroup = (id: string, isDefault: boolean) => {
             const group = groups?.describe(id);
-            if (group === undefined) return [];
+            if (group === undefined || !group.routes.every(allowed)) return [];
             const members = group.routes.map(resting);
             const until = members.map((member) =>
               'restingUntil' in member ? member.restingUntil : undefined,
@@ -2330,8 +2334,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           return JSON.stringify({
             configured: true,
             revision: plan.revision,
-            assignmentDefault: resting(plan.assignmentDefault),
-            assignmentModels: assignmentModelsOf(plan).map(resting),
+            ...(allowed(plan.assignmentDefault)
+              ? { assignmentDefault: resting(plan.assignmentDefault) }
+              : {}),
+            assignmentModels: assignmentModelsOf(plan).filter(allowed).map(resting),
             ...(assignmentGroups.length === 0 ? {} : { assignmentGroups }),
             ...(open
               ? {

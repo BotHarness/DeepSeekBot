@@ -2278,8 +2278,15 @@ Password changes default to signing out every other browser and paired device; `
 deepseekbot usage members --period week [--as <username>]
 deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot roles update <roleId> --model-providers <provider-id>,<provider-id> [--models <provider-id>/<model-id>] [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+On `roles create` and `roles update`, these flags replace the model grant. `--model-providers`
+grants every route from the named provider IDs, including future models. Use `--models` in the
+same command to include exact routes. Omitted lists are empty when either flag is set. Use
+`--models all` alone for unrestricted access. `roles list` returns `models.providers` and
+`models.routes` for restricted roles. `models allowed` returns the caller's union across roles.
 
 ### Bot access and Role Policy (M7)
 

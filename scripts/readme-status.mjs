@@ -56,7 +56,13 @@ export function activityWindow(now = new Date()) {
 
 export async function collectStatus({
   api,
-  git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(),
+  git = (args) =>
+    execFileSync('git', args, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim(),
   now = new Date(),
 }) {
   const repo = await api(`repos/${REPOSITORY}`);

@@ -319,6 +319,8 @@ export function trackedFiles(root = ROOT) {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 1 << 26,
+    shell: false,
+    windowsHide: true,
   })
     .split('\0')
     .filter(Boolean);
@@ -524,7 +526,8 @@ export function parseGitChanges(text) {
 }
 
 export function gitChanges(base, root = ROOT) {
-  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', shell: false, windowsHide: true });
   const mergeBase = git('merge-base', base, 'HEAD').trim();
   const changes = parseGitChanges(git('diff', '--name-status', '-M', mergeBase));
   for (const path of git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean))

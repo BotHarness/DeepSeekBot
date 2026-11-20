@@ -22,6 +22,9 @@ import { observeResource } from './messaging-defaults-live.js';
 import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { shortTime, engineName } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { roleLabel } from './team-roles.js';
+import { canManage, loadRoles, roleAllowsProvider, type TeamRole } from './team-roles-bridge.js';
+import { useTeamMode } from './team-state.js';
 
 type Template = 'opencode-go' | 'deepseek' | 'custom';
 
@@ -420,6 +423,7 @@ export function ModelProvidersSettings({
   t: BotHarnessTranslate;
 }): ReactElement {
   const [view, setView] = useState<ModelProvidersView>();
+  const [roles, setRoles] = useState<TeamRole[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
@@ -427,9 +431,21 @@ export function ModelProvidersSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [refresh, setRefresh] = useState(0);
+  const team = useTeamMode(call);
+  const readRoles =
+    team?.enabled === true &&
+    (canManage(team.viewer, 'roles.manage') || canManage(team.viewer, 'members.manage'));
 
   const mount = useMountedResource<HTMLElement>(() => {
     const request = new AbortController();
+    setRoles([]);
+    if (readRoles)
+      void loadRoles(call, request.signal).then(
+        (result) => {
+          if (!request.signal.aborted) setRoles(result);
+        },
+        () => {},
+      );
     const load = async () => {
       try {
         const result = await bridgeHost(call, request.signal).call<ModelProvidersView>(
@@ -450,7 +466,7 @@ export function ModelProvidersSettings({
       request.abort();
       stop();
     };
-  }, [call, refresh]);
+  }, [call, readRoles, refresh]);
 
   const reload = () => setRefresh((value) => value + 1);
   const close = () => {
@@ -620,30 +636,46 @@ export function ModelProvidersSettings({
           <Note>{t('modelProviders.empty')}</Note>
         ) : (
           <SidebarCardList label={t('modelProviders.apiKey')}>
-            {view.providers.map((provider) => (
-              <SidebarCardRow
-                key={provider.id}
-                leading={
-                  <ModelBrandIcon brand={providerBrand(provider.id, provider.name)} size={20} />
-                }
-                title={provider.name}
-                summary={providerSummary(provider, t)}
-                trailing={
-                  provider.canRename || provider.canReplaceKey ? (
-                    <Button
-                      variant="outline"
-                      aria-label={t('modelProviders.editTitle', { name: provider.name })}
-                      onClick={() => {
-                        setDraft({ ...blankDraft(), name: provider.name });
-                        setDialog({ kind: 'edit', provider });
-                      }}
-                    >
-                      {t(provider.keyStored ? 'modelProviders.edit' : 'modelProviders.addKey')}
-                    </Button>
-                  ) : undefined
-                }
-              />
-            ))}
+            {view.providers.map((provider) => {
+              const names = readRoles
+                ? roles
+                    .filter((role) => roleAllowsProvider(role, provider.id))
+                    .map((role) => roleLabel(t, role))
+                : [];
+              return (
+                <SidebarCardRow
+                  key={provider.id}
+                  leading={
+                    <ModelBrandIcon brand={providerBrand(provider.id, provider.name)} size={20} />
+                  }
+                  title={provider.name}
+                  summary={[
+                    providerSummary(provider, t),
+                    ...(names.length === 0
+                      ? []
+                      : [
+                          t('modelProviders.rolesAllowed', {
+                            roles: names.join(t('modelProviders.roleSeparator')),
+                          }),
+                        ]),
+                  ].join(' · ')}
+                  trailing={
+                    provider.canRename || provider.canReplaceKey ? (
+                      <Button
+                        variant="outline"
+                        aria-label={t('modelProviders.editTitle', { name: provider.name })}
+                        onClick={() => {
+                          setDraft({ ...blankDraft(), name: provider.name });
+                          setDialog({ kind: 'edit', provider });
+                        }}
+                      >
+                        {t(provider.keyStored ? 'modelProviders.edit' : 'modelProviders.addKey')}
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              );
+            })}
           </SidebarCardList>
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}

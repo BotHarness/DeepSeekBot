@@ -322,7 +322,14 @@ function RoleDialog({
           );
         })}
         {builtin === 'admin' ? null : (
-          <RoleModelsField call={call} t={t} value={models} disabled={busy} onChange={setModels} />
+          <RoleModelsField
+            call={call}
+            t={t}
+            viewer={viewer}
+            value={models}
+            disabled={busy}
+            onChange={setModels}
+          />
         )}
         <RolePolicyField t={t} value={policy} disabled={busy} onChange={setPolicy} />
       </FieldStack>

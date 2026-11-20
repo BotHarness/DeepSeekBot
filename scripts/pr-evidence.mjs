@@ -114,6 +114,8 @@ export async function uploadEvidence(receipt, bytes) {
           NODE_OPTIONS:
             `${process.env.NODE_OPTIONS ?? ''} --no-network-family-autoselection --dns-result-order=ipv4first`.trim(),
         },
+        shell: false,
+        windowsHide: true,
       },
     );
   } catch {

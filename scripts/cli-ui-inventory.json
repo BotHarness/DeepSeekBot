@@ -1215,7 +1215,7 @@
     },
     {
       "id": "team-members",
-      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation.",
+      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
       "scope": "Host / Human",
       "surfaces": [
         "route:packages/core/src/team/mount.ts:'/api/botharness/team-as'",

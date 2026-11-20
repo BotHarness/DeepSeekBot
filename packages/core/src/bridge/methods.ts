@@ -21,6 +21,7 @@ import {
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { requireBotModel, botModelAllowed } from '../team/models.js';
+import { allowsModel } from '../team/permissions.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
@@ -4002,6 +4003,7 @@ function buildBridgeMethods(
       if ((bot?.modelPlan?.revision ?? bot?.modelPlanRevision ?? 0) !== revision)
         return invalidInput('Bot model changed; reopen before saving');
       try {
+        if (slug !== undefined && !source['globalDefault']) requireRoutes(slug, [route]);
         await deps.modelCatalog.validate(route);
         if (source['globalDefault']) {
           let savedDefaultRevision = 0;
@@ -4110,6 +4112,7 @@ function buildBridgeMethods(
           return this.modelPlanInherit({ slug, expectedRevision: revision });
         }
         if (slug === undefined) return invalidInput('Choose a Bot for an individual model');
+        requireRoutes(slug, [route]);
         const result = deps.registry.setModelPlan(
           slug,
           {
@@ -4141,6 +4144,7 @@ function buildBridgeMethods(
             },
           };
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
+        if (error instanceof TeamError) return modelFailure(error);
         return invalidInput(error instanceof Error ? error.message : 'Model unavailable');
       }
     },
@@ -4406,9 +4410,7 @@ function buildBridgeMethods(
         const owner = isHostOwner();
         const allowed = !owner ? deps.team?.roles.modelsAllowed(human) : undefined;
         const isAllowed = (route: ModelRoute) =>
-          allowed === undefined ||
-          allowed.all ||
-          allowed.routes.includes(`${route.provider}/${route.model}`);
+          allowed === undefined || allowsModel(allowed, route);
         const credentialGated = owner
           ? new Set<string>()
           : new Set(models.filter((route) => route.credential !== undefined).map(routeKey));
@@ -4719,6 +4721,7 @@ function buildBridgeMethods(
         await validateGroupEffort(preset);
         if (changed()) return stale();
         requireRoutes(slug, [
+          orchestrator,
           preset.orchestrator,
           preset.assignmentDefault,
           ...(preset.assignmentModels ?? []),
@@ -4991,13 +4994,12 @@ function buildBridgeMethods(
       try {
         requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
         await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
-        for (const id of (assignmentGroups ?? []) as string[]) {
-          if (deps.routingGroups?.get(id) === undefined)
-            throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
-          requireRoutes(slug, deps.routingGroups.routes(id));
-        }
         await validateGroupOptions(groupOptions);
+        requireRoutes(slug, [
+          assignmentDefault,
+          ...assignmentModels,
+          ...((assignmentGroups ?? []) as string[]).flatMap(groupRoutes),
+        ]);
         const result = deps.registry.setAssignmentModels(
           slug,
           assignmentDefault,

@@ -34,6 +34,8 @@ export function installSourceProfile({ home, profile, artifacts, dsh = 'dsh' }) 
       env: environment,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     });
     if (result.error) throw result.error;
     if (result.status !== 0) {

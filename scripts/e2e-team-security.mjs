@@ -912,6 +912,23 @@ export async function main(argv = process.argv.slice(2)) {
         JSON.stringify(allowed).includes('deepseek-v4.1-flash') && allowed?.all !== true,
         allowed,
       );
+      s.cli(['roles', 'update', fx.roles.limited.roleId, '--model-providers', 'opencode-go']);
+      const grants = s.cli(['models', 'allowed'], { as: fx.users.dave });
+      const catalog = s.cli(['model-catalog'], { as: fx.users.dave });
+      const providers = [...new Set(catalog.models.map(({ provider }) => provider))];
+      check(
+        'member receives the whole provider grant without any exact routes',
+        grants?.all === false &&
+          grants.providers?.join(',') === 'opencode-go' &&
+          grants.routes?.length === 0,
+        grants,
+      );
+      check(
+        'provider catalog includes additional models and excludes other providers',
+        providers.join(',') === 'opencode-go' &&
+          catalog.models.some(({ model }) => model !== 'deepseek-v4.1-flash'),
+        { providers, modelCount: catalog.models.length },
+      );
       s.cli(['roles', 'update', fx.roles.limited.roleId, '--models', 'all']);
       s.cli(['members', 'deactivate', fx.users.dave]);
       const refused = s.cli(['bots', 'reachable'], { as: fx.users.dave, allowFail: true });
