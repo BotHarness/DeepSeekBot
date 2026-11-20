@@ -9,7 +9,7 @@ import { useId, useState, type ReactElement } from 'react';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { SegmentedControl } from './ds/segmented.js';
-import { accent, radius, size, space } from './ds/tobs.stylex.js';
+import { accent, edge, radius, size, space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const pixelTile = `calc(${size.rowLarge} + ${space.x5})`;
@@ -42,7 +42,7 @@ const styles = stylex.create({
     paddingInline: space.x1,
     boxShadow: {
       default: 'none',
-      ':is([aria-pressed=true])': `inset 0 0 0 2px ${accent.focus}`,
+      ':is([aria-pressed=true])': `inset 0 0 0 ${edge.focus} ${accent.focus}`,
     },
   },
   image: {
