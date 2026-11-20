@@ -19,7 +19,7 @@
 
 ## How to get to it (user POV)
 
-- Early Tob DM with no usable model: enter Bot mode, dismiss first-run welcome, select Tob, enter a draft and press Enter. Choose a model opens before sending. Select Open model settings.
+- Early Tob DM with no usable model: enter Bot mode, dismiss first-run welcome, select Tob, enter a draft and press Enter. The Model Choice dialog (`Choose a model`) opens before sending. Select Open model settings.
 - A model failure card for missing or invalid credentials, authentication or quota also offers Open model settings.
 - First-run welcome step 3 now connects providers inline and opens Bot Settings → Model providers for an already configured provider. That journey uses Bot Settings.
 
