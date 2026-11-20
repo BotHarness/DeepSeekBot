@@ -1,3 +1,5 @@
+import * as promptsRpc from '../features/prompts/rpc.js';
+import { toRemoteError, unwrap, unwrapAsync } from './rpc-result.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
@@ -182,9 +184,7 @@ import type {
 } from '../models/presets.js';
 import type { RoutingGroup, RoutingGroupMember } from '../models/routing-groups.js';
 import type {
-  BridgeError,
   BridgeMethods,
-  BridgeResult,
   ChannelListItem,
   ChannelListChanges,
   MessagingAppsView,
@@ -315,19 +315,6 @@ export interface BridgeLive {
     lastEventId: string,
     signal: AbortSignal,
   ): AsyncIterable<CompanionLiveFrame>;
-}
-
-function toRemoteError(error: BridgeError): RemoteError {
-  return new RemoteError(error.code as RemoteError['code'], error.message, error.details ?? {});
-}
-
-function unwrap<T>(result: BridgeResult<T>): T {
-  if (result.ok) return result.value;
-  throw toRemoteError(result.error);
-}
-
-async function unwrapAsync<T>(result: Promise<BridgeResult<T>>): Promise<T> {
-  return unwrap(await result);
 }
 
 export function resolveInvocationHuman(
@@ -1174,7 +1161,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   botSystemPrompt(
     slug: string,
   ): Promise<import('../runtime/prompt-inspection.js').BotSystemPromptView> {
-    return unwrapAsync(this.methods.botSystemPrompt({ slug }));
+    return promptsRpc.botSystemPrompt(this.methods, slug);
   }
   botTurnInput(
     slug: string,
@@ -1821,11 +1808,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
-    return unwrap(this.methods.promptParts({}));
+    return promptsRpc.promptParts(this.methods);
   }
 
   promptPresets(): { presets: PromptPreset[]; globalPresetId: string | null } {
-    return unwrap(this.methods.promptPresets({}));
+    return promptsRpc.promptPresets(this.methods);
   }
 
   promptPresetCreate(
@@ -1833,13 +1820,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     parts?: Record<string, unknown>,
     limits?: Record<string, unknown>,
   ): { preset: PromptPreset } {
-    return unwrap(
-      this.methods.promptPresetCreate({
-        name,
-        ...(parts === undefined ? {} : { parts }),
-        ...(limits === undefined ? {} : { limits }),
-      }),
-    );
+    return promptsRpc.promptPresetCreate(this.methods, name, parts, limits);
   }
 
   promptPresetUpdate(
@@ -1849,27 +1830,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision?: number,
     limits?: Record<string, unknown>,
   ): { preset: PromptPreset } {
-    return unwrap(
-      this.methods.promptPresetUpdate({
-        id,
-        ...(name === undefined ? {} : { name }),
-        ...(parts === undefined ? {} : { parts }),
-        ...(limits === undefined ? {} : { limits }),
-        ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      }),
-    );
+    return promptsRpc.promptPresetUpdate(this.methods, id, name, parts, expectedRevision, limits);
   }
 
   promptPresetDelete(id: string): { id: string; clearedBots: string[] } {
-    return unwrap(this.methods.promptPresetDelete({ id }));
+    return promptsRpc.promptPresetDelete(this.methods, id);
   }
 
   promptGlobalSet(presetId: string | null): { presetId: string | null } {
-    return unwrap(this.methods.promptGlobalSet({ presetId }));
+    return promptsRpc.promptGlobalSet(this.methods, presetId);
   }
 
   botPrompt(slug: string): BotPromptView {
-    return unwrap(this.methods.botPrompt({ slug }));
+    return promptsRpc.botPrompt(this.methods, slug);
   }
 
   botPromptSet(
@@ -1878,14 +1851,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     parts?: Record<string, unknown>,
     limits?: Record<string, unknown>,
   ): BotPromptView {
-    return unwrap(
-      this.methods.botPromptSet({
-        slug,
-        ...(presetId === undefined ? {} : { presetId }),
-        ...(parts === undefined ? {} : { parts }),
-        ...(limits === undefined ? {} : { limits }),
-      }),
-    );
+    return promptsRpc.botPromptSet(this.methods, slug, presetId, parts, limits);
   }
 
   approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
