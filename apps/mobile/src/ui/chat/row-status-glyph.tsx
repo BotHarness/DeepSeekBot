@@ -31,7 +31,8 @@ function colorOf(theme: Theme, status: Shown): string {
     case 'done':
     case 'paused':
       return theme.inkSoft;
-    default:
+    case 'done-unread':
+    case 'working':
       return theme.ink;
   }
 }

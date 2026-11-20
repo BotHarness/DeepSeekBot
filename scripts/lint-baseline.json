@@ -1,41 +1,18 @@
 {
   "typescript/no-misused-promises": {},
-  "typescript/switch-exhaustiveness-check": {
-    "apps/mobile/src/host/bot-creation-steps.ts": 1,
-    "apps/mobile/src/host/host-glance.ts": 1,
-    "apps/mobile/src/ui/chat/call-activity.ts": 1,
-    "apps/mobile/src/ui/chat/call-audio-symbol.ts": 1,
-    "apps/mobile/src/ui/chat/call-model.ts": 1,
-    "apps/mobile/src/ui/chat/delivery-stack.tsx": 1,
-    "apps/mobile/src/ui/chat/local-computer-screen.android.tsx": 1,
-    "apps/mobile/src/ui/chat/reply-quote.tsx": 2,
-    "apps/mobile/src/ui/chat/row-status-glyph.tsx": 1,
-    "apps/mobile/src/ui/theme.ts": 1,
-    "packages/browser/src/runtime/provision.ts": 1,
-    "packages/computer/src/client/local-setup-copy.ts": 1
-  },
+  "typescript/switch-exhaustiveness-check": {},
   "typescript/only-throw-error": {},
   "typescript/prefer-promise-reject-errors": {},
   "typescript/no-implied-eval": {
     "packages/browser/test/snapshot.test.ts": 1,
     "packages/browser/test/type-editability.test.ts": 1,
     "packages/browser/test/viewer-local.test.ts": 1,
-    "scripts/test/desktop-zoom-compat.test.mjs": 2,
-    "scripts/test/desktop-zoom-package.test.mjs": 1,
+    "scripts/test/desktop-zoom-compat.test.mjs": 1,
     "scripts/test/release-ci.test.mjs": 1
   },
   "typescript/no-unsafe-enum-comparison": {},
   "eslint/preserve-caught-error": {},
-  "eslint/no-unsafe-finally": {
-    "packages/deepseekbot/src/desktop-zoom-setup.mjs": 1,
-    "scripts/e2e-browser-lifecycle.mjs": 1,
-    "scripts/e2e-hidden-channel-search.mjs": 1,
-    "scripts/e2e-memory-restore.mjs": 1,
-    "scripts/e2e-settings-loading.mjs": 1,
-    "scripts/e2e-workspace-grant.mjs": 1,
-    "scripts/test/dev-instance-lifecycle.test.mjs": 1,
-    "scripts/test/readme-status.test.mjs": 1
-  },
+  "eslint/no-unsafe-finally": {},
   "eslint/no-unsafe-optional-chaining": {},
   "eslint/no-constant-condition": {},
   "unicorn/require-post-message-target-origin": {
