@@ -337,16 +337,21 @@ describe('Bot profile page', () => {
     );
     expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
     expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    const fantasy = [...view.querySelectorAll('button')].find((button) =>
-      ['Fantasy', '奇幻'].includes(button.textContent?.trim() ?? ''),
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="tilties-collections"]')?.click(),
     );
-    expect(fantasy).toBeDefined();
-    await act(async () => fantasy?.click());
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelectorAll('[data-testid^="tilties-collection-"]')).toHaveLength(16);
     await act(async () =>
       view
-        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!
-        .click(),
+        .querySelector<HTMLButtonElement>('[data-testid="tilties-collection-star-rail-3"]')
+        ?.click(),
+    );
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).toBeNull();
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-star-rail-robin"]')
+        ?.click(),
     );
     expect(avatar.save).toHaveBeenCalledOnce();
     expect(avatar.save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));

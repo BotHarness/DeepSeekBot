@@ -9,6 +9,7 @@ import { useId, useState, type ReactElement } from 'react';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { SegmentedControl } from './ds/segmented.js';
+import { Select } from './ds/select.js';
 import { accent, edge, size, space, style as controlStyle } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -150,8 +151,8 @@ export function AvatarPresetPicker<Recipe>({
           </>
         ) : (
           <>
-            <SegmentedControl<TiltiesCollectionId>
-              id={`${id}-collection`}
+            <Select<TiltiesCollectionId>
+              align="start"
               label={t('profile.avatar.collections')}
               options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
                 value: id,

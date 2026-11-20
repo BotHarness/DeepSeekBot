@@ -1,4 +1,8 @@
-import webp from '../assets/tilties.json';
+import originalWebp from '../assets/tilties.json';
+import gameWebp from '../assets/tilties-games.json';
+import { TILTIES_GAME_COLLECTIONS } from './tilties-game-collections.js';
+
+const webp = { ...originalWebp, ...gameWebp };
 
 const collections = [
   {
@@ -65,6 +69,7 @@ const collections = [
       ['frost-archivist', 'Frost Archivist', '霜羽档案员'],
     ],
   },
+  ...TILTIES_GAME_COLLECTIONS,
 ] as const;
 
 export type TiltiesCollectionId = (typeof collections)[number]['id'];

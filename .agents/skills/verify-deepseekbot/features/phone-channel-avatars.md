@@ -18,7 +18,7 @@ Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, sha
 ## How to get to it (user POV)
 
 - Group: Chats → group → title → tap the large avatar or Change avatar. Chat background is a separate row.
-- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar. Open Tilties in the Bot avatar settings to see AI Girls first, switch between the four collections, and choose a portrait. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
+- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar. Open Tilties in the Bot avatar settings to see AI Girls first, open the collection row and pick a game or original collection, and choose a portrait. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
 
 ## Driving it with verify-app
 
