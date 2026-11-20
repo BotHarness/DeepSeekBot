@@ -2206,7 +2206,6 @@ export const zh = {
   'market.avatar.publish': '发布头像',
   'market.avatar.empty': '还没有发布的头像。',
   'market.avatar.author': '作者 {name}（作者 ID：{id}）',
-  'market.avatar.applyCount': '应用次数 {count}',
   'market.avatar.chooseFile': '选择图片',
   'market.avatar.preview': '裁剪后的头像预览',
   'market.avatar.publicNotice':
@@ -2218,7 +2217,6 @@ export const zh = {
   'market.avatar.unprocessed': '选择一张图片并重新裁剪。',
   'market.avatar.notFound': '找不到这个头像。',
   'market.avatar.limit': '每个账号最多发布 20 个头像。',
-  'market.avatar.signIn': '在设置的「设备」中登录 Tobs Connect，再回到这里重试。',
   'market.avatar.authorChanged': '登录的账户已更改。重新打开发布对话框，确认作者身份。',
   'market.language': 'zh',
   'market.descriptionGenerated': '作者没写中文简介，这句由 AI 根据 README 生成',
@@ -2281,6 +2279,7 @@ export const zh = {
   'market.stars': '★ {count}',
   'market.installs': '{count} 次安装',
   'market.installsCount': '↓ {count}',
+  'market.applyCount': '应用次数 {count}',
   'market.updated': '更新于 {date}',
   'market.created': '创建于 {date}',
   'market.import': '导入',
@@ -8646,7 +8645,6 @@ export const en = {
   'market.avatar.publish': 'Publish Avatar',
   'market.avatar.empty': 'No Marketplace Avatars yet.',
   'market.avatar.author': 'By {name} (Author ID {id})',
-  'market.avatar.applyCount': 'Apply Count {count}',
   'market.avatar.chooseFile': 'Choose image',
   'market.avatar.preview': 'Cropped avatar preview',
   'market.avatar.publicNotice':
@@ -8658,8 +8656,6 @@ export const en = {
   'market.avatar.unprocessed': 'Choose an image and crop it again.',
   'market.avatar.notFound': 'This Avatar could not be found.',
   'market.avatar.limit': 'Each account can publish up to 20 Avatars.',
-  'market.avatar.signIn':
-    'Sign in to Tobs Connect under Devices in Settings, then return here and retry.',
   'market.avatar.authorChanged':
     'The signed-in account changed. Reopen the publish dialog to confirm the author.',
   'market.language': 'en',
@@ -8726,6 +8722,7 @@ export const en = {
   'market.stars': '★ {count}',
   'market.installs': '{count} installs',
   'market.installsCount': '↓ {count}',
+  'market.applyCount': 'Apply count {count}',
   'market.updated': 'Updated {date}',
   'market.created': 'Created {date}',
   'market.import': 'Import',

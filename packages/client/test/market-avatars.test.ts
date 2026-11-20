@@ -7,8 +7,6 @@ import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { MarketAvatars, MarketAvatarPublishDialog } from '../src/client/market-avatars.js';
 import { PersonaBotAvatarCropModal } from '../src/client/personabot-avatar-crop.js';
-import { parseTeamMode } from '../src/client/team-bridge.js';
-import { isolateTeamIdentity, setTeamModeSnapshot } from '../src/client/team-state.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
@@ -56,7 +54,6 @@ afterEach(() => {
 
 function actionsFor() {
   return {
-    teamCall: async () => ({ ok: true as const, value: {} }),
     marketplaceAccount: vi.fn(async () => ({
       signedIn: true,
       author: { ...avatar.author, avatar: null, termsAcceptedAt: '2026-11-21' },
@@ -166,9 +163,9 @@ it('publishes the displayed crop under the confirmed author and keeps the key wh
   await act(async () => file.dispatchEvent(new Event('change', { bubbles: true })));
   await loadSource(256, 256);
   await act(async () => buttonNamed(t('profile.avatar.crop.save')).click());
-  expect(
-    document.querySelector(`img[alt="${t('market.avatar.preview')}"]`)?.getAttribute('src'),
-  ).toBe(image);
+  expect(document.querySelector('[data-market-avatar-preview] img')?.getAttribute('src')).toBe(
+    image,
+  );
   const submit = buttonNamed(t('market.avatar.publish'));
   expect(submit.disabled).toBe(true);
   const name = fieldNamed(t('market.direct.name'));
@@ -216,26 +213,35 @@ it('publishes the displayed crop under the confirmed author and keeps the key wh
   expect(published).toHaveBeenCalledWith(avatar);
 });
 
-it('lets a Team member page and read details while hiding the publish entry', async () => {
+it('paginates the grid and opens the Avatar hero and tags', async () => {
   const actions = actionsFor();
-  isolateTeamIdentity(actions.teamCall);
-  setTeamModeSnapshot(
-    actions.teamCall,
-    parseTeamMode({
-      enabled: true,
-      viewer: { kind: 'member', humanId: 'member', permissions: ['bots.manageAll'] },
-    }),
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, publishing: false, onClosePublish: vi.fn(), t }),
+    ),
   );
-  await act(async () => root.render(createElement(MarketAvatars, { actions, active: true, t })));
   expect(document.body.textContent).not.toContain(t('market.avatar.publish'));
   expect(actions.marketplaceAccount).not.toHaveBeenCalled();
+  let finishPage = () => {};
+  const pendingPage = new Promise<void>((resolve) => {
+    finishPage = resolve;
+  });
+  actions.marketplaceAvatarList.mockImplementationOnce(async () => {
+    await pendingPage;
+    return { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null };
+  });
   await act(async () => buttonNamed(t('market.loadMore')).click());
+  expect(buttonNamed(t('market.loadingMore')).disabled).toBe(true);
   expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith('next');
-  expect(buttonNamed('Bear')).toBeTruthy();
-  await act(async () => buttonNamed('Otter').click());
+  await act(async () => finishPage());
+  expect(buttonNamed(t('market.detail.open', { name: 'Bear' }))).toBeTruthy();
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
   expect(actions.marketplaceAvatarDetail).toHaveBeenCalledWith('avatar-a');
-  expect(document.body.textContent).toContain(
-    t('market.avatar.author', { name: 'Alice', id: 'k7m2pq' }),
+  expect(host.querySelector('.bh-market-hero-name .bh-market-owner')?.textContent).toBe(
+    'Alice #k7m2pq',
   );
-  expect(document.body.textContent).toContain(t('market.avatar.applyCount', { count: 0 }));
+  expect(host.querySelector('.bh-market-hero .bh-market-meta')?.textContent).toContain(
+    t('market.applyCount', { count: 0 }),
+  );
+  expect(host.querySelector('.bh-market-hero [data-tone="neutral"]')?.textContent).toBe('Blue');
 });
