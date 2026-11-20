@@ -24,7 +24,7 @@ import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
 import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 import { z } from 'zod';
 import { mountContentPurge } from '../src/purge/owner.js';
 import { TeamService } from '../src/team/service.js';
@@ -61,7 +61,7 @@ export function teamFixture(
     database: db,
     ...(options.now ? { now: () => new Date(options.now!()) } : {}),
   });
-  const diagnostics = vi.fn();
+  const diagnostics: Mock = vi.fn();
   const team = new TeamService(database, channels, {
     purge,
     log: diagnostics,
@@ -80,7 +80,7 @@ export function teamFixture(
   team.onAccessChanged(() => live.refreshAccess());
   const ctx = new Context();
   const peers: Peer[] = [];
-  const invalidate = vi.fn();
+  const invalidate: Mock = vi.fn();
   const off = team.bindRuntime({
     createPeer: (principal) => {
       const peer = new Peer(ctx, { principal });
