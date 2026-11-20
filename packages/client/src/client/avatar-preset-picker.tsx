@@ -9,7 +9,7 @@ import { useId, useState, type ReactElement } from 'react';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { SegmentedControl } from './ds/segmented.js';
-import { accent, edge, radius, size, space } from './ds/tobs.stylex.js';
+import { accent, edge, size, space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
@@ -29,18 +29,20 @@ const styles = stylex.create({
   tile: {
     width: `calc(${size.rowLarge} + ${size.control})`,
     aspectRatio: '1',
-    paddingBlock: space.x1,
-    paddingInline: space.x1,
-    boxShadow: {
-      default: 'none',
-      ':is([aria-pressed=true])': `inset 0 0 0 ${edge.focus} ${accent.focus}`,
-    },
+  },
+  selected: {
+    content: { default: null, '::after': '""' },
+    position: { default: null, '::after': 'absolute' },
+    inset: { default: null, '::after': 0 },
+    borderRadius: { default: null, '::after': 'inherit' },
+    boxShadow: { default: null, '::after': `inset 0 0 0 ${edge.focus} ${accent.focus}` },
+    pointerEvents: { default: null, '::after': 'none' },
   },
   image: {
     display: 'block',
     width: '100%',
-    aspectRatio: '1',
-    borderRadius: radius.full,
+    height: '100%',
+    objectFit: 'contain',
   },
 });
 
@@ -111,14 +113,15 @@ export function AvatarPresetPicker<Recipe>({
               >
                 {pixelPresets.map(({ recipe, image }, index) => {
                   const label = t('profile.avatar.preset', { index: String(index + 1) });
+                  const pressed = selected?.kind === 'pixel' && selected.recipe === recipe;
                   return (
                     <Button
                       key={index}
                       variant="preview"
                       type="button"
-                      xstyle={styles.tile}
+                      xstyle={[styles.tile, pressed && styles.selected]}
                       aria-label={label}
-                      aria-pressed={selected?.kind === 'pixel' && selected.recipe === recipe}
+                      aria-pressed={pressed}
                       data-avatar-preset={index}
                       disabled={disabled}
                       onClick={() => onChoose({ kind: 'pixel', recipe })}
@@ -161,14 +164,15 @@ export function AvatarPresetPicker<Recipe>({
             >
               {portraits.map(({ id, en, zh, image }) => {
                 const label = t('profile.avatar.tiltiesName', { en, zh });
+                const pressed = selected?.kind === 'tilties' && selected.image === image;
                 return (
                   <Button
                     key={id}
                     variant="preview"
                     type="button"
-                    xstyle={styles.tile}
+                    xstyle={[styles.tile, pressed && styles.selected]}
                     aria-label={label}
-                    aria-pressed={selected?.kind === 'tilties' && selected.image === image}
+                    aria-pressed={pressed}
                     title={label}
                     data-tilties-avatar={id}
                     disabled={disabled}

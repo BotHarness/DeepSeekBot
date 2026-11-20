@@ -413,10 +413,13 @@ const editorStyles = stylex.create({
 let pixelPresets: readonly { recipe: AvatarRecipe; image: string }[] | undefined;
 
 function getPixelPresets() {
-  return (pixelPresets ??= AVATAR_PRESETS.map((recipe) => ({
-    recipe,
-    image: `data:image/svg+xml,${encodeURIComponent(avatarSvg(recipe))}`,
-  })));
+  return (pixelPresets ??= AVATAR_PRESETS.map((recipe) => {
+    const svg = avatarSvg(recipe).replace(
+      '<rect width="32" height="32" rx="6" ',
+      '<rect width="32" height="32" ',
+    );
+    return { recipe, image: `data:image/svg+xml,${encodeURIComponent(svg)}` };
+  }));
 }
 
 export function AvatarAppearanceEditor({
