@@ -1,10 +1,10 @@
-import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { createMarketplaceClient, type MarketplaceClient } from '../src/marketplace/client.js';
 import { createMarketplaceUploads, planUpload } from '../src/marketplace/uploaded-bots.js';
 import {
@@ -13,6 +13,8 @@ import {
 } from '../src/marketplace/install-review.js';
 import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createCore } from '../src/plugin.js';
+import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { createMarket } from '../../market/test/market-harness.js';
 import { createTempRoot } from './helpers.js';
 
@@ -93,7 +95,7 @@ function fixture() {
   };
   const captures: [string, Record<string, unknown> | undefined][] = [];
   const warnings: string[] = [];
-  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+  const bridgeDeps: BridgeMethodsDeps = {
     ...core,
     warn: (message: string) => warnings.push(message),
     telemetry: {
@@ -118,8 +120,9 @@ function fixture() {
         return reviewer.run(prompt, name);
       },
     }),
-  });
-  return { core, bridge, market, session, reviewer, receipts, captures, warnings };
+  };
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, bridgeDeps);
+  return { core, bridge, bridgeDeps, market, session, reviewer, receipts, captures, warnings };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -570,4 +573,65 @@ it('still reports a successful upload when remembering the local Bot fails', asy
   expect(f.warnings.map((line) => JSON.parse(line))).toContainEqual(
     expect.objectContaining({ phase: 'upload-link-not-saved', reason: 'disk full' }),
   );
+});
+
+it('publishes an Avatar as the Host owner and lets a Team member browse without using the Connect token', async () => {
+  const f = fixture();
+  const member = humanContext('market-member');
+  attachOperationalModule(f.core.operationalDatabase, 'market-avatar-test').transaction((sql) => {
+    sql.prepare('UPDATE team_settings SET enabled=1').run();
+    sql.prepare("INSERT INTO humans VALUES (?,?,'active','now')").run(member.humanId, 'Member');
+    sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(member.humanId);
+  });
+  const role = f.core.team.roles.create(OWNER_HUMAN_CONTEXT, 'Bot manager', [
+    'bots.manageAll',
+  ]).role;
+  f.core.team.roles.set(OWNER_HUMAN_CONTEXT, member.humanId, ['member', role.roleId]);
+  const memberBridge = createBridgeMethods(member, f.bridgeDeps);
+  const input = {
+    name: 'Otter',
+    description: 'River',
+    tags: ['Blue'],
+    image: avatarDataUrl('png'),
+    confirm: true,
+    requestKey: 'avatar-otter',
+  };
+
+  expect(await memberBridge.marketplaceAvatarPublish(input)).toMatchObject({
+    ok: false,
+    error: { code: 'permission-required' },
+  });
+  expect(await f.bridge.marketplaceAvatarPublish(input)).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-required' },
+  });
+  expect(await memberBridge.marketplaceAvatarList({})).toEqual({
+    ok: true,
+    value: { avatars: [], nextCursor: null },
+  });
+
+  f.session.state = 'signed-in';
+  expect(
+    await f.bridge.marketplaceAuthorSave({ displayName: 'River Artist', acceptTerms: true }),
+  ).toMatchObject({ ok: true });
+  f.session.tokens = ['expired'];
+  const published = await f.bridge.marketplaceAvatarPublish(input);
+  if (!published.ok) throw new Error(published.error.code);
+  expect(f.session.fresh).toBe(1);
+  expect(published.value).toMatchObject({
+    name: input.name,
+    description: input.description,
+    tags: input.tags,
+    author: { name: 'River Artist', id: expect.any(String) },
+    applyCount: 0,
+  });
+
+  expect(await f.bridge.marketplaceAvatarPublish(input)).toEqual(published);
+  f.session.state = 'signed-out';
+  expect(await memberBridge.marketplaceAvatarDetail({ id: published.value.id })).toEqual(published);
+  expect(await memberBridge.marketplaceAvatarList({})).toEqual({
+    ok: true,
+    value: { avatars: [published.value], nextCursor: null },
+  });
+  expect(f.market.bucket.objects.size).toBe(1);
 });

@@ -1,3 +1,5 @@
+import { AVATAR_ROUTE } from './avatars.js';
+
 export const PUBLIC_ORIGINS: readonly string[] = [
   'https://tobs.app',
   'https://deepseekbot.app',
@@ -15,6 +17,7 @@ export const PREFLIGHT_MAX_AGE_SECONDS = 86_400;
 export function isPublicRead(pathname: string): boolean {
   return (
     pathname === '/v1/bots' ||
+    AVATAR_ROUTE.test(pathname) ||
     pathname === '/v1/topics' ||
     /^\/v1\/sections\/[^/]+$/u.test(pathname) ||
     pathname === '/v1/digests' ||
@@ -44,11 +47,12 @@ export function preflight(request: Request): Response {
   return new Response(null, { status: 204, headers });
 }
 
-export function publicResponse(request: Request, response: Response): Response {
+export function publicResponse(
+  request: Request,
+  response: Response,
+  cacheControl = PUBLIC_CACHE_CONTROL,
+): Response {
   grant(request, response.headers);
-  response.headers.set(
-    'cache-control',
-    response.status === 200 ? PUBLIC_CACHE_CONTROL : 'no-store',
-  );
+  response.headers.set('cache-control', response.status === 200 ? cacheControl : 'no-store');
   return response;
 }

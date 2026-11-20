@@ -1,4 +1,9 @@
 import {
+  parseMarketplaceAvatarPublish,
+  type MarketplaceAvatar,
+  type MarketplaceAvatarPage,
+} from '@botharness/host-protocol/marketplace-avatar';
+import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   type EngineAccountOperations,
@@ -1321,6 +1326,9 @@ export interface BridgeMethods
     payload: unknown,
   ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
   marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
+  marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
+  marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
+  marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -5893,6 +5901,32 @@ function buildBridgeMethods(
           },
         };
       }
+    },
+    marketplaceAvatarList(payload) {
+      const { cursor } = asObject(payload);
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
+        return Promise.resolve(invalidInput('invalid cursor'));
+      return marketplaceCall((client) => client.avatarList(cursor));
+    },
+    marketplaceAvatarDetail(payload) {
+      const { id } = asObject(payload);
+      if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/u.test(id))
+        return Promise.resolve(invalidInput('invalid Avatar ID'));
+      return marketplaceCall((client) => client.avatarDetail(id));
+    },
+    async marketplaceAvatarPublish(payload) {
+      if (!isHostOwner() || human.caller === 'bot')
+        return {
+          ok: false,
+          error: {
+            code: 'permission-required',
+            message: 'Only the Host owner may publish Marketplace Avatars',
+          },
+        };
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const input = parseMarketplaceAvatarPublish(asObject(payload));
+      if (input === undefined) return invalidInput('invalid Marketplace Avatar publish payload');
+      return uploadResult(await deps.marketplaceUploads.publishAvatar(input));
     },
     marketplaceDetail(payload) {
       const { id, lang: langValue } = asObject(payload);

@@ -182,6 +182,24 @@ afterEach(() => {
 });
 
 describe('Market panel', () => {
+  it('fetches Avatars only when opened and keeps the Bots results mounted', async () => {
+    const avatars = vi.fn(async () => ({ avatars: [], nextCursor: null }));
+    await withPanel(
+      async () => ({ bots: [entry('writer')] }),
+      async ({ host, list }) => {
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(avatars).not.toHaveBeenCalled();
+        await click(host, zhTranslate('market.avatar.title'));
+        expect(avatars).toHaveBeenCalledTimes(1);
+        expect(host.textContent).toContain(zhTranslate('market.avatar.empty'));
+        await click(host, zhTranslate('market.avatar.bots'));
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(host.textContent).toContain('writer');
+      },
+      { marketplaceAvatarList: avatars },
+    );
+  });
+
   it('shows the Daily Picks row with a cover per pick count and at most seven days', async () => {
     const pick = (name: string) => ({
       id: `R_${name}`,

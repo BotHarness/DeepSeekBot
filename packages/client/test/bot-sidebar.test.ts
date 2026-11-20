@@ -211,6 +211,9 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAvatarList: vi.fn(),
+    marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarPublish: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');

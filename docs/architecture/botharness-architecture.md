@@ -979,6 +979,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 [ADR-0131](../decisions/marketplace.md#adr-0131) 与 #18 让 Bot Marketplace 先作为 GitHub 索引目录上线：作者给公开仓库加 `botharness-bot` topic 即同意收录，也可在 Marketplace 贴链接立即抓取。独立的 Cloudflare Worker 与 D1 每日按 topic 切片发现、每小时用 GraphQL 批量刷新，README 进入 FTS5 索引；浏览用 keyset cursor，搜索只取前 200 条。harness 的 Marketplace modal 展示 README 详情；安装复用 #298 的 Git URL 创建路径，确认框显示最新提交并提示第三方仓库风险。贴链接与一键举报共用 ALTCHA 和限流。之后 [ADR-0267](../decisions/marketplace.md#adr-0267) 允许已登录 Connect 的作者在同一目录发布 Uploaded Bot，并统计完成的安装次数。另外，[ADR-0135](../decisions/bots.md#adr-0135) 提供 Bot Zip 这种可携带形式：把单个 Bot 交给别人或换设备时，在 harness 里导出 Bot Zip（默认只含 Memory 文件和 `.botharness/bot.json`，整包导出时可选带 Git 历史），对方从创建菜单的「从 zip 导入」得到新的 PersonaBot。
 
+Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀。Web 裁剪并重新编码图片，CLI 校验已处理的文件。两者通过同一个 Host 方法发布，由 Host 校验所有者身份并从 Connect 取账户令牌。Worker 按 [ADR-0359](../adr/0359-marketplace-avatar-images-are-processed-on-the-client.md) 检查文件头和分块结构，以作者账户和请求键去重，写入完成后公开提供分页列表、详情和图片。
+
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
 [ADR-0267](../decisions/marketplace.md#adr-0267) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。

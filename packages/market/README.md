@@ -20,6 +20,12 @@ The Bot Marketplace Worker ([ADR-0131](../../docs/decisions/marketplace.md#adr-0
 
 Most-starred browsing orders by `stars DESC, pushed_at DESC, created_at DESC, node_id DESC`. Migration `0011_star_tiebreaks.sql` replaces only the supporting index. Stars cursors include all four keys; pre-migration three-field cursors return `invalid-cursor` and clients restart at page one. Updated and created cursors are unchanged.
 
+## Marketplace Avatars
+
+- `GET /v1/avatars?cursor=<nextCursor>` returns `{ avatars, nextCursor }` in pages of 24. `GET /v1/avatars/{id}` returns `{ avatar }` with the preview URL, author display name and Author ID, and Apply Count. `GET /v1/avatars/{id}/image` serves the stored image bytes.
+- `POST /v1/avatars` takes a Connect bearer token and a JSON body with `name`, `description`, `tags`, `image` (an image data URL), `confirm: true` and `requestKey`. An optional `expectedAuthorId` binds the request to the identity the user confirmed. The same account and request key return the existing Avatar. Each account can publish up to 20.
+- Clients process the image before upload. The Worker checks signatures, dimensions, animation markers, metadata chunks, and the 128 KiB limit. See [ADR-0359](../../docs/adr/0359-marketplace-avatar-images-are-processed-on-the-client.md).
+
 ## Public read API (v1)
 
 The product site ([deepseekbot.app](https://deepseekbot.app) `/market` and `/en/market`, repository `BotHarness/deepseekbot-site`) reads the same `/v1` routes the Host uses. They need no authentication. The `v1` contract only grows: new fields may be added, existing fields keep their names and types, and a breaking change gets a new `/v2` path.
