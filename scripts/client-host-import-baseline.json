@@ -143,7 +143,6 @@
     "../../../core/src/messaging/thread-policy.js": 1,
     "../../../core/src/runtime/assignment-human-context.js": 2,
     "../../../core/src/runtime/bot-runtime.js": 1,
-    "../../../core/src/schedules/bot-schedules.js": 2,
     "../../../core/src/skills/entries.js": 1,
     "../../../core/src/skills/events.js": 1,
     "../../../core/src/takeover/contracts.js": 1,
