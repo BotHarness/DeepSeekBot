@@ -166,6 +166,14 @@ After every isolated launch, Client reload and relevant UI action, read the real
 
 Ordinary localhost pages do not open the application-defined development-refresh SSE. Add `?botharness-dev-reload=1` only while iterating on Client builds, then remove it for first-run or long-request UX verification.
 
+### Native Settings dialog identity (#4703)
+
+During a handoff, the outgoing dialog can still be mounted when the native Settings navigation
+starts. In Chinese, the outgoing model picker and the native Models section both read `模型`.
+Find the DSH Settings dialog via `data-shortcut-modal="settings"` and look up the section in its
+navigation. In a Web check, require the native Models heading and Add model provider action,
+then close the dialog and confirm the Bot view returns.
+
 ## Prime directive: `/api` belongs to the API gateway
 
 ### Timed-question recovery Registry trap (#4066)

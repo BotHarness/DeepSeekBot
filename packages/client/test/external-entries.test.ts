@@ -282,12 +282,15 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
   document.body.prepend(trigger);
   const settings = document.createElement('div');
   settings.setAttribute('role', 'dialog');
+  settings.dataset.shortcutModal = 'settings';
+  const navigation = document.createElement('nav');
   const nav = document.createElement('button');
   nav.textContent = 'IM机器人';
   const platform = document.createElement('button');
   platform.textContent = '飞书';
   nav.onclick = () => settings.append(platform);
-  settings.append(nav);
+  navigation.append(nav);
+  settings.append(navigation);
   trigger.onclick = () => document.body.append(settings);
   await act(async () =>
     root.render(
@@ -431,9 +434,12 @@ it('releases the settings return watcher when the Bot sidebar unmounts', async (
   trigger.setAttribute('aria-label', 'Settings');
   const settings = document.createElement('div');
   settings.setAttribute('role', 'dialog');
+  settings.dataset.shortcutModal = 'settings';
+  const navigation = document.createElement('nav');
   const nav = document.createElement('button');
   nav.textContent = 'IM机器人';
-  settings.append(nav);
+  navigation.append(nav);
+  settings.append(navigation);
   trigger.onclick = () => document.body.append(settings);
   document.body.prepend(trigger);
   await act(async () =>
