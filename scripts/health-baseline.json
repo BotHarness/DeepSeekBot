@@ -12,7 +12,6 @@
     "apps/mobile/test/host-client.test.ts",
     "apps/mobile/test/message-bubble.test.tsx",
     "packages/browser/src/index.ts",
-    "packages/browser/src/runtime/browser.ts",
     "packages/browser/src/tool/provider.ts",
     "packages/browser/src/viewer-local.ts",
     "packages/browser/test/browser-tools.test.ts",
