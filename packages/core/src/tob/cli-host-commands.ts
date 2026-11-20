@@ -273,10 +273,10 @@ export function spawnHostCli(options: {
       const child = spawn(process.execPath, ['--input-type=module', '-e', code, '--', ...argv], {
         env,
         ...(cwd === undefined ? {} : { cwd }),
-        shell: false,
-        windowsHide: true,
         stdio: ['pipe', 'pipe', 'ignore'],
         ...(signal === undefined ? {} : { signal }),
+        shell: false,
+        windowsHide: true,
       });
       const chunks: Buffer[] = [];
       let bytes = 0;

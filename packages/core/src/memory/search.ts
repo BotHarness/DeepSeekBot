@@ -21,7 +21,8 @@ export function hasRipgrep(): boolean {
   if (ripgrepDetected === undefined) {
     try {
       ripgrepDetected =
-        spawnSync('rg', ['--version'], { windowsHide: true, stdio: 'ignore' }).status === 0;
+        spawnSync('rg', ['--version'], { windowsHide: true, stdio: 'ignore', shell: false })
+          .status === 0;
     } catch {
       ripgrepDetected = false;
     }
@@ -45,7 +46,7 @@ function run(
     execFile(
       file,
       args,
-      { windowsHide: true, cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+      { windowsHide: true, cwd, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, shell: false },
       (error, stdout) => {
         const rawCode = error === null ? 0 : (error.code as unknown);
         resolve({ stdout, code: typeof rawCode === 'number' ? rawCode : null });

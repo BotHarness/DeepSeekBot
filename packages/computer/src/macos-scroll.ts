@@ -73,6 +73,7 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
     const current = spawn('/usr/bin/osascript', ['-l', 'JavaScript', '-e', program], {
       windowsHide: true,
       stdio: 'pipe',
+      shell: false,
     });
     child = current;
     pending = false;

@@ -300,6 +300,8 @@ describe('the folder reader process', () => {
         if (spawned === 1) {
           const stuck = spawnProcess(process.execPath, ['-e', 'process.on("message", () => {})'], {
             stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+            shell: false,
+            windowsHide: true,
           });
           stuck.on('exit', () => killed.push(true));
           return stuck;
@@ -333,6 +335,8 @@ describe('the folder reader process', () => {
       spawn: () =>
         spawnProcess(process.execPath, ['-e', 'process.on("message", () => {})'], {
           stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+          shell: false,
+          windowsHide: true,
         }),
     });
     const pending = refusal(() =>
@@ -348,6 +352,8 @@ describe('the folder reader process', () => {
       spawn: () =>
         spawnProcess(process.execPath, ['-e', 'process.on("message", () => process.exit(3))'], {
           stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+          shell: false,
+          windowsHide: true,
         }),
     });
     closers.push(() => worker.close());

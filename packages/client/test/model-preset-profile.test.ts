@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { type Root } from 'react-dom/client';
-import { type ModelPlanView } from '../src/client/bridge.js';
-import { dialog } from './primitive-mocks.js';
+import type { BridgeCall, ModelPlanView } from '../src/client/bridge.js';
+import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -25,6 +25,8 @@ import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store
 import { draftOf, planParts, withAdvanced } from '../src/client/model-preset-draft.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
+import { ModelPresetsSettings } from '../src/client/model-presets-settings.js';
+import { setTeamModeSnapshot } from '../src/client/team-state.js';
 import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
 import { RemoteHostModels } from '../src/client/remote-host-models.js';
 import { createHostClient } from '@botharness/host-client/client';
@@ -140,6 +142,7 @@ function remoteOwner() {
   });
   return {
     core,
+    bridge,
     client,
     first,
     second,
@@ -440,7 +443,7 @@ describe('Model entry', () => {
     );
     await choose('Task model', 'pro', 'Pro');
     await act(async () => button('Choose preset').click());
-    expect(document.body.textContent).toContain('No presets yet');
+    expect(document.body.textContent).toContain('No Model Presets yet');
     expect(document.querySelector('input[aria-label="Main model"]')).toBeNull();
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Specific models').click());
@@ -814,7 +817,7 @@ describe('Model entry', () => {
     expect(cards(host)).not.toContain('Deep');
   });
 
-  it('puts Routing Groups in every slot and saves them in a new preset (#4501)', async () => {
+  it('puts Routing Groups in every slot and saves them in a Bot plan (#4501)', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
       revision: 3,
@@ -836,14 +839,12 @@ describe('Model entry', () => {
       },
       { id: 'side', name: 'Side', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
     ];
-    const createModelPreset = vi.fn(async () => ({ id: 'mine' }) as ModelPresetView);
-    const applyModelPreset = vi.fn(async () => plan);
+    const setModelPlan = vi.fn(async () => plan);
     const host = await render({
       modelPlanState: vi.fn(async () => ({ plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
-      createModelPreset,
-      applyModelPreset,
+      setModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
     await choose(translate('modelPreset.orchestrator'), 'Main', 'Main');
@@ -868,18 +869,10 @@ describe('Model entry', () => {
         .find((item) => item.textContent === 'Make default')!
         .click(),
     );
-    await act(async () => button('Save as preset').click());
-    const name = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        name,
-        'Grouped',
-      );
-      name.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await act(async () => button('Save preset').click());
-    expect(createModelPreset).toHaveBeenCalledExactlyOnceWith(
-      'Grouped',
+    await act(async () => button('Save').click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      3,
       { provider: 'deepseek', model: 'flash' },
       route,
       [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
@@ -893,7 +886,6 @@ describe('Model entry', () => {
         ],
       },
     );
-    expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
   });
 
   it('offers a group the efforts of its reasoning members in advanced mode', async () => {
@@ -1043,70 +1035,19 @@ describe('Model entry', () => {
     expect(dialog().textContent).toContain(translate('modelPreset.allowedEfforts'));
   });
 
-  it('saves the current settings as a new preset and links the Bot to it', async () => {
-    const route = { provider: 'deepseek', model: 'pro' };
-    let plan: ModelPlanView = {
-      revision: 3,
-      sourcePresetId: '',
-      sourcePresetName: '',
-      orchestrator: route,
-      assignmentDefault: route,
-      appliedAt: '',
-    };
-    const presets: ModelPresetView[] = [];
-    const createModelPreset = vi.fn(
-      async (
-        name: string,
-        orchestrator: ModelPlanView['orchestrator'],
-        assignmentDefault: NonNullable<ModelPlanView['assignmentDefault']>,
-        assignmentModels: ModelPlanView['assignmentModels'],
-      ) => {
-        const preset = {
-          id: 'mine',
-          name,
-          revision: 1,
-          orchestrator,
-          assignmentDefault,
-          assignmentModels,
-          createdAt: '',
-        } as ModelPresetView;
-        presets.push(preset);
-        return preset;
-      },
-    );
-    const applyModelPreset = vi.fn(async () => {
-      plan = presetPlan(presets[0]!, 4);
-      return plan;
-    });
+  it('opens Model Presets in Bot Settings from the Bot model dialog', async () => {
+    const openModelPresets = vi.fn();
     const host = await render({
-      modelPlanState: vi.fn(async () => ({ plan })),
-      modelPresets: vi.fn(async () => [...presets]),
+      modelPlanState: vi.fn(async () => ({})),
+      modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      createModelPreset,
-      applyModelPreset,
+      openModelPresets,
     } as unknown as BridgeActions);
     await openEditor(host);
-    await act(async () => button('Advanced').click());
-    await choose('Add an allowed model', 'kimi', 'Kimi K2');
-    expect(document.querySelector('.bh-model-cards')?.textContent).toContain('Kimi K2');
-    await act(async () => button('Save as preset').click());
-    const name = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        name,
-        'My setup',
-      );
-      name.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await act(async () => button('Save preset').click());
-    expect(createModelPreset).toHaveBeenCalledExactlyOnceWith('My setup', route, route, [
-      { provider: 'kimi', model: 'k2', allowedEfforts: [''], defaultEffort: '' },
-      { provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' },
-    ]);
-    expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'mine');
+    expect(button('Choose preset')).toBeTruthy();
+    await act(async () => button('Open Model Presets').click());
+    expect(openModelPresets).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(cards(host)).toContain('My setup');
-    expect(cards(host)).toContain('+1 allowed');
   });
 
   it('switches the task model to advanced cards with notes, efforts and a chosen default', async () => {
@@ -1538,7 +1479,6 @@ it('keeps inherited Assignment settings when editing an Orchestrator-only plan',
   expect(cards(host)).toContain(translate('onboarding.inherit'));
   await openEditor(host);
   expect(picked(translate('modelPreset.assignment'))).toBe(translate('onboarding.inherit'));
-  expect(button(translate('modelPreset.saveAs')).disabled).toBe(true);
   await act(async () => button(translate('modelPreset.save')).click());
   expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
     'ada',
@@ -1726,13 +1666,6 @@ describe('Subscription models in the model dialog', () => {
         selections = selections.filter((entry) => entry.botSlug !== botSlug || entry.role !== role);
         if (engine !== null) selections.push({ botSlug, role, engine, ...options });
       });
-    const create = vi.fn(async (): Promise<ModelPresetView> => ({
-      id: 'engine-preset',
-      name: 'Subscription setup',
-      revision: 1,
-      orchestrator: route,
-      assignmentDefault: route,
-    }));
     const apply = vi.fn(async () => plan);
     const set = vi.fn(async () => ({ ...plan, revision: 8 }));
     const actions = {
@@ -1740,10 +1673,9 @@ describe('Subscription models in the model dialog', () => {
       modelCatalog: async () => ({ models: catalog }),
       modelPresets: async () => presets,
       setModelPlan: set,
-      createModelPreset: create,
       applyModelPreset: apply,
     } as unknown as BridgeActions;
-    return { actions, read, use, create, apply, set };
+    return { actions, read, use, apply, set };
   }
 
   afterEach(() => vi.restoreAllMocks());
@@ -1798,26 +1730,6 @@ describe('Subscription models in the model dialog', () => {
     expect(set.mock.invocationCallOrder[0]).toBeLessThan(use.mock.invocationCallOrder[0]!);
   });
 
-  it('stores a subscription model and effort in a reusable preset', async () => {
-    const { actions, create, apply } = fixture();
-    await render(markOriginActions(actions), vi.fn());
-    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
-    await act(async () => button('Save as preset').click());
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
-    await search(input, 'Subscription setup');
-    await act(async () => button('Save preset').click());
-    expect(create).toHaveBeenCalledExactlyOnceWith(
-      'Subscription setup',
-      route,
-      route,
-      [{ ...route, allowedEfforts: [''], defaultEffort: '' }],
-      undefined,
-      undefined,
-      { orchestratorEngine: { engine: 'codex', model: 'gpt-6', effort: 'medium' } },
-    );
-    expect(apply).toHaveBeenCalledExactlyOnceWith('ada', 'engine-preset');
-  });
-
   it('previews both DSH models and enables Save when staging a DSH preset over live engines', async () => {
     const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
     const preset: ModelPresetView = {
@@ -1860,5 +1772,103 @@ describe('Subscription models in the model dialog', () => {
     await openPicker('Main model');
     expect(document.querySelector('[data-picker-filter="engine:codex"]')).toBeNull();
     expect(read).not.toHaveBeenCalled();
+  });
+});
+
+describe('Model Presets Settings', () => {
+  async function renderLibrary(permissions: string[], owner = remoteOwner()) {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const { bridge } = owner;
+    const endpoints = new Map<string, (payload: unknown) => unknown>([
+      ['modelPresets', bridge.modelPresets],
+      ['modelPresetCreate', bridge.modelPresetCreate],
+      ['modelPresetUpdate', bridge.modelPresetUpdate],
+      ['modelPresetDelete', bridge.modelPresetDelete],
+    ]);
+    const call = vi.fn<BridgeCall>(async (method, args) => {
+      const run = endpoints.get(method);
+      if (run === undefined) throw new Error('Unexpected method');
+      const result = await run(args);
+      if (typeof result !== 'object' || result === null || !('ok' in result))
+        throw new Error('Unexpected answer');
+      return result as Awaited<ReturnType<BridgeCall>>;
+    });
+    setTeamModeSnapshot(call, {
+      enabled: true,
+      ownerPasswordSet: true,
+      insecureHttpAllowed: false,
+      memberUrls: [],
+      isolation: 'trial',
+      viewer: {
+        humanId: 'reviewer',
+        displayName: 'Reviewer',
+        kind: 'member',
+        owner: false,
+        mustChangePassword: false,
+        permissions,
+        roleIds: [],
+      },
+    });
+    await act(async () =>
+      root!.render(
+        createElement(ModelPresetsSettings, {
+          call,
+          actions: {
+            modelCatalog: async () => ({ models: catalog }),
+            routingGroups: async () => ({ groups: [], rests: [] }),
+          },
+          t: translate,
+        }),
+      ),
+    );
+    return { ...owner, call, host: container };
+  }
+
+  it('lists all presets and both provider choices for a read-only Member', async () => {
+    const { host, call } = await renderLibrary(['models.use']);
+    expect(host.textContent).toContain('First');
+    expect(host.textContent).toContain('Second');
+    expect(host.textContent).toContain('Main model · Flash · DeepSeek');
+    expect(host.textContent).toContain('Task model · Flash · DeepSeek');
+    expect(host.textContent).toContain('Used by 0 Bots');
+    expect(host.querySelector('button')).toBeNull();
+    expect(call).toHaveBeenCalledExactlyOnceWith('modelPresets', { includeUsage: true }, undefined);
+  });
+
+  it('creates and edits choices and policy, then confirms deletion with the names of affected Bots', async () => {
+    const owner = remoteOwner();
+    owner.core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    owner.core.registry.applyModelPreset('ada', owner.first);
+    const { host, call } = await renderLibrary(['models.configure'], owner);
+    expect(host.textContent).toContain('Used by 1 Bot');
+    await act(async () => button('Create preset').click());
+    await typeInto(fieldNamed('Preset name', dialog()), 'Third');
+    await choose('Main model', 'pro', 'Pro');
+    await choose('Task model', 'k2', 'Kimi K2');
+    await act(async () => button('Save').click());
+    expect(host.textContent).toContain('Third');
+    expect(host.textContent).toContain('Kimi K2 · Moonshot');
+
+    await act(async () => buttonNamed('Edit preset “Third”').click());
+    await typeInto(fieldNamed('Preset name', dialog()), 'Renamed');
+    await act(async () => button('Advanced').click());
+    await choose('Add an allowed model', 'flash', 'Flash');
+    await act(async () => button('Save').click());
+    expect(
+      owner.core.modelPresets.list().find((preset) => preset.name === 'Renamed'),
+    ).toMatchObject({
+      assignmentModels: expect.arrayContaining([expect.objectContaining({ model: 'flash' })]),
+    });
+
+    await act(async () => buttonNamed('Delete preset “First”').click());
+    expect(dialog().textContent).toContain('Ada');
+    expect(dialog().textContent).toContain('keep their applied model settings');
+    expect(call.mock.calls.some(([method]) => method === 'modelPresetDelete')).toBe(false);
+    await act(async () => buttonNamed('Delete', dialog()).click());
+    expect(owner.core.modelPresets.get(owner.first.id)).toBeUndefined();
+    expect(owner.core.registry.get('ada')?.modelPlan?.sourcePresetId).toBe(owner.first.id);
   });
 });

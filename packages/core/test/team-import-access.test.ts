@@ -162,7 +162,12 @@ it.each([false, true])(
   async (receipt) => {
     const root = createTempRoot('member-git-source-');
     const git = (...args: string[]) =>
-      execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+      execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        windowsHide: true,
+        shell: false,
+      }).trim();
     git('init', '--quiet');
     git('config', 'user.name', 'Import fixture');
     git('config', 'user.email', 'fixture@example.test');

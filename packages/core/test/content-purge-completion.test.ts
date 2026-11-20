@@ -420,10 +420,11 @@ it('reports a recorded Memory derivative through a deleted identity locator and 
     core.memory.prepareTurn('ada', 'memory-reference-turn');
     const path = join(root, 'derived.md');
     writeFileSync(path, 'synthetic retained Memory derivative');
-    execFileSync('git', ['add', '.'], { cwd: root, windowsHide: true });
+    execFileSync('git', ['add', '.'], { cwd: root, windowsHide: true, shell: false });
     execFileSync('git', ['commit', '-m', 'Synthetic derived memory'], {
       cwd: root,
       windowsHide: true,
+      shell: false,
     });
     const [commit] = core.memory.reconcileTurn({
       botSlug: 'ada',
@@ -468,6 +469,7 @@ it('reports a recorded Memory derivative through a deleted identity locator and 
         cwd: root,
         encoding: 'utf8',
         windowsHide: true,
+        shell: false,
       }),
     ).toBe('synthetic retained Memory derivative');
     expect(JSON.stringify(core.contentPurge.checkpoint())).not.toContain(root);

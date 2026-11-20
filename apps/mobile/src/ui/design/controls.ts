@@ -1,4 +1,4 @@
-import type { DesignTheme } from './resolve-theme';
+import { contrast, type DesignTheme } from './resolve-theme';
 import { readable as readableColor } from '@botharness/host-client/shared/bot-name-color';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
@@ -83,8 +83,38 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
   };
 }
 
-export function cardDecisionInk(theme: DesignTheme, tone: ButtonTone): string {
-  return tone === 'danger' ? theme.color.danger : theme.color.accentText;
+export function cardChoiceColors(
+  theme: DesignTheme,
+  tone: ButtonTone,
+  state: 'rest' | 'pressed' | 'disabled' | 'selected-disabled' = 'rest',
+): { fill: string; ink: string } {
+  const { color, layer } = theme;
+  const primary = tone === 'primary';
+  const danger = tone === 'danger';
+  const disabled = state === 'disabled';
+  const solid = disabled
+    ? layer.raised.inset
+    : primary
+      ? color.accent
+      : danger
+        ? layer.raised.danger
+        : layer.raised.selected;
+  const preferred = disabled
+    ? color.muted
+    : primary
+      ? color.onAccent
+      : danger
+        ? color.danger
+        : color.fg;
+  const pressToward =
+    contrast(preferred, color.base) > contrast(preferred, color.fg) ? color.base : color.fg;
+  const fill =
+    state === 'pressed'
+      ? tint(solid, pressToward, 0.16)
+      : state === 'selected-disabled'
+        ? tint(solid, layer.raised.inset, 0.35)
+        : solid;
+  return { fill, ink: readable(preferred, fill) };
 }
 
 export type SwitchColors = {

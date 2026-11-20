@@ -42,7 +42,7 @@ const decoded = spawnSync(
     'rgb24',
     'pipe:1',
   ],
-  { maxBuffer: 200 * 1024 * 1024 },
+  { maxBuffer: 200 * 1024 * 1024, shell: false, windowsHide: true },
 );
 if (decoded.error || decoded.status !== 0)
   throw new Error('VIDEO_DECODE_FAILED: ' + (decoded.error?.message ?? decoded.stderr.toString()));

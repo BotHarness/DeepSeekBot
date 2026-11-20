@@ -103,7 +103,10 @@ describe('telemetry tracking plan', () => {
     const plan = renderPlan();
     if (process.env['BOTHARNESS_WRITE_TELEMETRY_PLAN'] === '1') {
       writeFileSync(PLAN, plan);
-      execFileSync('pnpm', ['exec', 'oxfmt', '--write', fileURLToPath(PLAN)]);
+      execFileSync('pnpm', ['exec', 'oxfmt', '--write', fileURLToPath(PLAN)], {
+        shell: false,
+        windowsHide: true,
+      });
     }
     expect(unpadded(readFileSync(PLAN, 'utf8')), 'run pnpm telemetry:plan').toBe(unpadded(plan));
   });

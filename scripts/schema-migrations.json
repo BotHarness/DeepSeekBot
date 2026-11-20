@@ -688,6 +688,10 @@
     "sha256": "2eb1bb384be7c934d15ffcc336ee1378897fcd89e6c6c11e82ed62cd6cc6a40a"
   },
   {
+    "id": "models-configure-permission",
+    "sha256": "91bc800372d75b2547a7ebee953d4e08c2c9fc947533b8d639836dad9cd37099"
+  },
+  {
     "id": "session-turn-targets",
     "sha256": "74622d7ae29e7d9994e23f1bdf8f6e5676ddd8ececc62c80ee1c123ebe80563d"
   }

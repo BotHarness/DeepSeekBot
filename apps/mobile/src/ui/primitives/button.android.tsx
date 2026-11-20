@@ -5,6 +5,7 @@ import {
   FilledTonalButton,
   Host,
   Icon,
+  RNHostView,
   Row,
   Text,
   TextButton,
@@ -16,14 +17,14 @@ import {
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { cardDecisionInk } from '../design/controls';
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator, materialButton } from '../design/tokens';
 import { controlCase } from '../platform-copy';
 import { useStrings } from '../strings';
 import type { Button as SharedButton, ButtonSymbol } from './button';
-import { useComposeTree } from './compose-tree';
+import { ComposeTreeContext, useComposeTree } from './compose-tree';
+import { Button as PressableButton } from './pressable-button';
 
 export type { ButtonTone } from '../design/controls';
 export type { ButtonSymbol } from './button';
@@ -45,7 +46,24 @@ const symbols: Record<ButtonSymbol, number> = {
   photo: require('../../../assets/button/photo.xml'),
 };
 
-export function Button({
+export function Button(props: ComponentProps<typeof SharedButton>) {
+  const tree = useComposeTree();
+  if (props.variant !== 'card-solid') return <NativeButton {...props} />;
+  if (tree === undefined) return <PressableButton {...props} />;
+  const fullWidth = tree.fill && !props.fit;
+  return (
+    <RNHostView
+      matchContents={fullWidth ? { vertical: true } : true}
+      {...(fullWidth ? { modifiers: [fillMaxWidth()] } : {})}
+    >
+      <ComposeTreeContext.Provider value={undefined}>
+        <PressableButton {...props} />
+      </ComposeTreeContext.Provider>
+    </RNHostView>
+  );
+}
+
+function NativeButton({
   label,
   onPress,
   tone = 'secondary',
@@ -63,8 +81,7 @@ export function Button({
   const tree = useComposeTree();
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
-  const text = variant !== 'filled';
-  const textInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
+  const text = variant === 'text';
   const Control = text
     ? TextButton
     : tone === 'primary' || danger
@@ -80,9 +97,9 @@ export function Button({
     : tone === 'primary'
       ? roles.onPrimary
       : roles.onSecondaryContainer;
-  const contentColor = textInk ?? (danger ? roles.error : roles.primary);
+  const contentColor = danger ? roles.error : roles.primary;
   const colors = text
-    ? textInk !== undefined || danger || selected
+    ? danger || selected
       ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
       : undefined
     : danger || selected
@@ -93,6 +110,7 @@ export function Button({
             : {}),
         }
       : undefined;
+  const fullWidth = tree?.fill !== false && !fit;
   const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
@@ -100,7 +118,7 @@ export function Button({
       onClick={onPress}
       {...(colors ? { colors } : {})}
       modifiers={[
-        ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
+        ...(fullWidth ? [fillMaxWidth()] : []),
         defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
         ...(selected ? [semantics({ contentDescription: shownLabel })] : []),

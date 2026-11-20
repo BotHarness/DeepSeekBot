@@ -43,12 +43,15 @@ const approval = requestRef(items('humanAttention.action')[0]!)!;
 const question = requestRef(items('humanAttention.actionQuestion')[0]!)!;
 const expired = { ok: true, value: { status: 'expired' } };
 
-function oneQuestion(): unknown {
+function oneQuestion(multiSelect = false): unknown {
   const timeline = recorded('channelTimeline.questionPending') as {
-    value: { page: { entries: Array<{ userQuestionRequest: { questions: unknown[] } }> } };
+    value: {
+      page: { entries: Array<{ userQuestionRequest: { questions: { multiSelect?: boolean }[] } }> };
+    };
   };
   const request = timeline.value.page.entries[0]!.userQuestionRequest;
   request.questions = request.questions.slice(0, 1);
+  request.questions[0]!.multiSelect = multiSelect;
   return timeline;
 }
 
@@ -640,17 +643,62 @@ describe('Question card in the DM', () => {
     expect(view.querySelector(`button[aria-label="${t.submitChoice}"]`)).toBeNull();
     expect(view.querySelector('textarea')).toBeNull();
     expect(view.textContent).toContain(t.replyInChat);
-    await press(button(view, t.option('B', 'Amber')));
-    expect(sent[0]?.['answer']).toEqual({ answers: [{ id: 'colour', selected: ['Amber'] }] });
-    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
+    const amber = button(view, t.option('B', 'Amber'));
+    const teal = button(view, t.option('A', 'Teal'));
+    await act(async () => {
+      amber.click();
+      amber.click();
+      teal.click();
+    });
+    await settle();
+    expect(sent.map((args) => args['answer'])).toEqual([
+      { answers: [{ id: 'colour', selected: ['Amber'] }] },
+    ]);
+    expect(view.textContent).toContain(t.cardAnswered);
+    expect(amber.getAttribute('aria-checked')).toBe('true');
+    expect(teal.getAttribute('aria-checked')).toBe('false');
+    expect(amber.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe('B');
+    expect(amber.disabled).toBe(true);
+    expect(teal.disabled).toBe(true);
+    expect(view.querySelector('[data-testid="question-submit"]')).toBeNull();
   });
 
-  it('keeps the typed answer and Submit outside the DM', async () => {
+  it('keeps a multiple-choice answer local until Submit is pressed', async () => {
+    const fake = host();
+    fake.answers.set('channelTimeline', () => oneQuestion(true));
+    const send = vi.fn(() => recorded('userQuestionAnswer.accepted'));
+    fake.answers.set('userQuestionAnswer', send);
+    const view = await render(card(connect(fake), { replyInChat: true }));
+    const submit = button(view, t.submitChoice);
+    expect(submit.disabled).toBe(true);
+    const amber = button(view, t.option('B', 'Amber'));
+    await press(amber);
+    expect(amber.getAttribute('aria-checked')).toBe('true');
+    expect(amber.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe('B');
+    expect(send).not.toHaveBeenCalled();
+    expect(submit.disabled).toBe(false);
+    await press(submit);
+    expect(send).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ answer: { answers: [{ id: 'colour', selected: ['Amber'] }] } }),
+    );
+  });
+
+  it('sends a custom single-choice answer from the draft editor outside the DM', async () => {
     const fake = host();
     fake.answers.set('channelTimeline', () => oneQuestion());
+    const send = vi.fn(() => recorded('userQuestionAnswer.accepted'));
+    fake.answers.set('userQuestionAnswer', send);
     const view = await render(card(connect(fake)));
-    await type(view, `${t.otherAnswer}: Which colour?`, 'violet');
-    expect(button(view, t.submitChoice).disabled).toBe(false);
+    await press(button(view, `${t.otherAnswer}: Which colour?`));
+    await type(view, t.editDraft, 'violet');
+    expect(view.querySelector('[data-testid="question-submit"]')).toBeNull();
+    await press(button(view, t.send));
+    expect(send).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        answer: { answers: [{ id: 'colour', selected: [], custom: 'violet' }] },
+      }),
+    );
+    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
   });
 
   it('retains an expanded chat answer across closing and reopening without submitting it', async () => {

@@ -61,7 +61,7 @@ async function startServer() {
       ...(eventsFile === undefined ? [] : ['--log', eventsFile]),
       ...(workloadFile === undefined ? [] : ['--workload', workloadFile]),
     ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
+    { stdio: ['ignore', 'pipe', 'pipe'], shell: false, windowsHide: true },
   );
   const [chunk] = await once(child.stdout!, 'data');
   const { listening } = JSON.parse(String(chunk));

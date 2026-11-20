@@ -250,6 +250,7 @@ export async function stageGitRepository(input: {
       timeout: 30_000,
       maxBuffer: 64 * 1024,
       windowsHide: true,
+      shell: false,
     });
     const files: StagedFile[] = [];
     for (const path of listBotFiles(destination))

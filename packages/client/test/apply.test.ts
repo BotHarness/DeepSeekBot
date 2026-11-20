@@ -369,6 +369,7 @@ describe('client apply', () => {
       { id: 'shortcuts', order: 22 },
       { id: 'model-providers', order: 9 },
       { id: 'models', order: 10 },
+      { id: 'model-presets', order: 11 },
       { id: 'auto-approval', order: 15 },
       { id: 'prompts', order: 16 },
       { id: 'voice', order: 17 },

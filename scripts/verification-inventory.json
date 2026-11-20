@@ -1112,6 +1112,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/model-providers.md",
       "task": 4657,
       "gap": "Run provider CRUD, branding and member visibility in the Web Client and M15 C3 for member bridge and CLI refusals."
+    },
+    {
+      "id": "settings.model-presets",
+      "label": "Model Presets settings and Team model configuration permission",
+      "source": "packages/client/src/client/model-presets-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/model-presets.md",
+      "task": 4657,
+      "gap": "Run preset CRUD and application in the Web Client and M15 C4 for the Member and Admin CLI authorization paths."
     }
   ],
   "scripts": [
@@ -2773,10 +2781,10 @@
     {
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
-      "behaviors": ["team.security-suite", "settings.model-providers"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant.",
+      "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups.",
       "task": 4197,
-      "sha256": "3dd94b5bfc123e7751315290be271696ef5fa3ea9bedb9c39fdfe4a677d1bf99"
+      "sha256": "d80ee4462ceae22cae7350a789a4a6c392963e8c04833089c98edc22ad3bf136"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

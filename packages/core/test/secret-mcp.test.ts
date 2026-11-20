@@ -92,6 +92,8 @@ describe('Host-started MCP server with Owner secrets', () => {
           AMBIENT_HOST_SETTING: 'ambient',
           [SECRET_MCP_KEEP]: 'PATH,DEMO_TOKEN',
         },
+        shell: false,
+        windowsHide: true,
       },
     );
     expect(result.status).toBe(0);

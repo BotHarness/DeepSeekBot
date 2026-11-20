@@ -65,6 +65,16 @@ describe('Team mode Host Permission ceiling', () => {
     );
   });
 
+  it('gives the default Admin shared model configuration and lets them delegate it', () => {
+    const { roles } = fixture();
+    roles.set(owner, member.humanId, ['admin']);
+    expect(roles.permissions(member)).toContain('models.configure');
+    expect(roles.permissions(member)).not.toContain('modelSources.manage');
+    expect(
+      roles.create(member, 'Model Configurator', ['models.configure']).role.permissions,
+    ).toEqual(['models.configure']);
+  });
+
   it('requires role management and permits delegating only held, delegable permissions', () => {
     const { roles, first, second } = fixture();
     fc.assert(

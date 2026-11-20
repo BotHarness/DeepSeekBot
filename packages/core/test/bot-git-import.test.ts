@@ -46,7 +46,12 @@ function fixture(home = createTempRoot('git-import-receipt-'), warn?: (message: 
 function repository() {
   const dir = createTempRoot('git-import-source-');
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8', windowsHide: true }).trim();
+    execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: false,
+    }).trim();
   git('init', '--quiet');
   git('config', 'user.name', 'Import fixture');
   git('config', 'user.email', 'fixture@example.test');

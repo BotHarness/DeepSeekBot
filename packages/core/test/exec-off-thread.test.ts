@@ -44,6 +44,7 @@ describe('processes started off the Host thread', () => {
         encoding: 'utf8',
         timeout: 10_000,
         windowsHide: true,
+        shell: false,
       }),
     ).toBe('first|last|ENOENT|again');
   }, 15_000);

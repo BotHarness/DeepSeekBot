@@ -243,6 +243,50 @@ export async function loadModelPresets(host: HostCall): Promise<ModelPreset[]> {
   return some(presets, parseModelPreset);
 }
 
+export type ModelPresetUsage = { presetId: string; count: number; botNames: string[] };
+
+function parseModelPresetUsage(value: unknown): ModelPresetUsage | undefined {
+  const row = record(value);
+  const id = row?.['presetId'];
+  const count = row?.['count'];
+  const names: unknown = row?.['botNames'];
+  if (
+    typeof id !== 'string' ||
+    typeof count !== 'number' ||
+    !Number.isSafeInteger(count) ||
+    count < 0 ||
+    !Array.isArray(names) ||
+    !names.every((name): name is string => typeof name === 'string') ||
+    names.length > count
+  )
+    return undefined;
+  return { presetId: id, count, botNames: names };
+}
+
+export async function loadModelPresetLibrary(host: HostCall): Promise<{
+  presets: ModelPreset[];
+  usage: ModelPresetUsage[];
+}> {
+  const result = record(await host.call('modelPresets', { includeUsage: true }));
+  const presets = result?.['presets'];
+  const usage = result?.['usage'];
+  if (!Array.isArray(presets) || !Array.isArray(usage))
+    throw new HostAnswerInvalid('modelPresets returned no library.');
+  return { presets: some(presets, parseModelPreset), usage: some(usage, parseModelPresetUsage) };
+}
+
+export async function deleteModelPreset(
+  host: HostCall,
+  id: string,
+  expectedRevision: number,
+): Promise<void> {
+  const result = record(
+    await host.call('modelPresetDelete', { id, expectedRevision, confirmed: true }),
+  );
+  if (result?.['id'] !== id)
+    throw new HostAnswerInvalid('modelPresetDelete returned no matching preset id.');
+}
+
 export async function loadModelPlanState(host: HostCall, slug: string): Promise<ModelPlanState> {
   const value = record(await host.call('modelPlan', { slug }));
   if (value === undefined) throw new HostAnswerInvalid('modelPlan returned no answer.');

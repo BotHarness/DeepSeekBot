@@ -17,7 +17,12 @@ import { createTempRoot } from './helpers.js';
 const AT = '2026-10-10T00:00:00.000Z';
 
 function git(root: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+    shell: false,
+  }).trim();
 }
 
 function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentAdapter {

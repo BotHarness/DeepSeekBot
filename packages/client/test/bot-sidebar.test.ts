@@ -323,12 +323,6 @@ function stubActions(): BridgeActions {
     deleteRoutingGroup: vi.fn(),
     modelPlan: vi.fn(async () => undefined),
     modelPlanState: vi.fn(async () => ({})),
-    createModelPreset: vi.fn(async () => {
-      throw new Error('unexpected Model Preset creation');
-    }),
-    updateModelPreset: vi.fn(async () => {
-      throw new Error('unexpected Model Preset update');
-    }),
     applyModelPreset: vi.fn(async () => {
       throw new Error('unexpected Model Preset application');
     }),
