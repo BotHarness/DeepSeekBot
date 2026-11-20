@@ -228,6 +228,8 @@ function ComputerScreen({
       case 'video':
         void viewer?.reconnect();
         break;
+      case undefined:
+        break;
     }
   };
   const toggleDisabled =

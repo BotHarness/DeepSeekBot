@@ -291,7 +291,7 @@ describe('Home resource ownership across handoff and interruption', () => {
   );
   it.skipIf(process.platform === 'win32')(
     'blocks reuse after interrupting a real offline pnpm installation',
-    async () => {
+    async ({ onTestFinished }) => {
       const home = mkdtempSync(join(tmpdir(), 'bh-install-interruption-'));
       writeFileSync(
         join(home, 'package.json'),
@@ -314,26 +314,7 @@ describe('Home resource ownership across handoff and interruption', () => {
         windowsHide: true,
       });
       let resources = [];
-      try {
-        await until(() => existsSync(join(home, 'install-ready')));
-        resources = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8')).resources;
-        expect(resources.length).toBe(1);
-        launcher.kill('SIGKILL');
-        await once(launcher, 'exit');
-        expect(members(resources[0].pid).length).toBeGreaterThan(0);
-        expect(() => acquireHome(home)).toThrow('in use');
-        writeFileSync(join(home, 'install-release'), 'done');
-        await until(() => {
-          try {
-            if (processIsRunning(resources[0].pid)) return false;
-            return members(resources[0].pid).length === 0;
-          } catch {
-            return members(resources[0].pid).length === 0;
-          }
-        });
-        const next = acquireHome(home);
-        next.release();
-      } finally {
+      onTestFinished(async () => {
         writeFileSync(join(home, 'install-release'), 'done');
         if (launcher.exitCode === null && launcher.signalCode === null) {
           launcher.kill();
@@ -360,7 +341,25 @@ describe('Home resource ownership across handoff and interruption', () => {
           });
         }
         rmSync(home, { recursive: true, force: true });
-      }
+      });
+      await until(() => existsSync(join(home, 'install-ready')));
+      resources = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8')).resources;
+      expect(resources.length).toBe(1);
+      launcher.kill('SIGKILL');
+      await once(launcher, 'exit');
+      expect(members(resources[0].pid).length).toBeGreaterThan(0);
+      expect(() => acquireHome(home)).toThrow('in use');
+      writeFileSync(join(home, 'install-release'), 'done');
+      await until(() => {
+        try {
+          if (processIsRunning(resources[0].pid)) return false;
+          return members(resources[0].pid).length === 0;
+        } catch {
+          return members(resources[0].pid).length === 0;
+        }
+      });
+      const next = acquireHome(home);
+      next.release();
     },
     45_000,
   );
