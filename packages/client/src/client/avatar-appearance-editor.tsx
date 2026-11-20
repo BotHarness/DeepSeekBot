@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import { radius, space } from './ds/tobs.stylex.js';
+import { radius, size, space } from './ds/tobs.stylex.js';
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
@@ -402,6 +402,19 @@ function OptionTile({
 }
 
 const portraitStyles = stylex.create({
+  collection: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x3,
+  },
+  gallery: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: space.x3,
+    width: '100%',
+    maxWidth: `calc(3 * ${size.rowLarge} + 2 * ${space.x3})`,
+  },
   button: {
     width: '100%',
     height: 'auto',
@@ -973,7 +986,7 @@ export function AvatarAppearanceEditor({
                     {t('profile.avatar.tilties')}
                   </Button>
                   {tiltiesOpen ? (
-                    <>
+                    <div {...stylex.props(portraitStyles.collection)}>
                       <SegmentedControl
                         id={collectionControlId}
                         label={t('profile.avatar.collections')}
@@ -986,7 +999,7 @@ export function AvatarAppearanceEditor({
                         disabled={imageBusy}
                       />
                       <div
-                        className="bh-avatar-options"
+                        {...stylex.props(portraitStyles.gallery)}
                         role="group"
                         aria-label={t('profile.avatar.tilties')}
                       >
@@ -1013,7 +1026,7 @@ export function AvatarAppearanceEditor({
                           );
                         })}
                       </div>
-                    </>
+                    </div>
                   ) : null}
                 </>
               )}
