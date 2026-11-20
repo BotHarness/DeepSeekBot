@@ -4,7 +4,7 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
-- `packages/client/src/client/{marketplace,market-panel}.tsx`
+- `packages/client/src/client/{marketplace,market-panel,market-avatars,personabot-avatar-crop}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -46,6 +46,14 @@ Launch a task-owned instance with `node scripts/verify-app.mjs launch --name <n>
 6. Open five full-height columns at 1440px (Bot Marketplace, Messages, Activity Center, Generated files, Channels). The Market column shows a Sort menu instead of tabs; open it, pick Recently updated, and confirm the list request and the tabs (after widening) both read `updated`.
 
 For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/market-search.test.ts`; it walks 1/2/3/50-item pages through the production Worker and D1 adapter with independent ties at every level. A live Host can point at a task-local Worker using the existing `marketplaceUrl` Plugin configuration, then exercise `deepseekbot marketplace-list --sort stars`.
+
+## Marketplace Avatars on Web
+
+1. Point a task-owned Host at an isolated Marketplace Worker with its D1 migrations and R2 binding. Sign the owner in to Connect and accept upload terms.
+2. Open **Avatars → Publish Avatar**, choose a rectangular image with both sides at least 256 px, move the crop, and save. Fill in the name, description and tags. Verify the confirmation identifies the author by display name and Author ID and explains that applied copies stay with other Bots.
+3. Publish and compare the detail image with the form preview. Verify the description, tags, author and Apply Count of 0. Read the canonical result with `deepseekbot marketplace-avatar-detail <id>`. Confirm a file with a 255 px side is refused.
+4. Seed more than 24 listings from at least two accounts, use **Load more**, and compare the visible IDs with `deepseekbot marketplace-avatar-list [--cursor <cursor>]`. Browse as a Team member, verify the publish entry is absent, and verify a member publish call receives `permission-required`.
+5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
 
 ## Tob install review
 

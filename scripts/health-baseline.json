@@ -1,6 +1,5 @@
 {
   "long-files": [
-    "apps/mobile/src/ui/strings.ts",
     "apps/mobile/test/bot-profile-sheet.test.tsx",
     "apps/mobile/test/cloud-client.test.ts",
     "apps/mobile/test/conversation-navigation.test.tsx",
@@ -22,7 +21,6 @@
     "packages/client/src/client/channel-message-body.tsx",
     "packages/client/src/client/channel-sidebar-builtins.tsx",
     "packages/client/src/client/channel-sidebar-icon.tsx",
-    "packages/client/src/client/locale.ts",
     "packages/client/src/client/remote-hosts.ts",
     "packages/client/src/client/schedules-entry.tsx",
     "packages/client/src/client/styles.ts",
@@ -59,9 +57,7 @@
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/devices/connect-account.ts",
     "packages/core/src/devices/mount.ts",
-    "packages/core/src/memory/accepted.ts",
     "packages/core/src/messaging/dsh-im.ts",
-    "packages/core/src/messaging/inbound.ts",
     "packages/core/src/plugin.ts",
     "packages/core/src/purge/owner.ts",
     "packages/core/src/runtime/bot-runtime.ts",

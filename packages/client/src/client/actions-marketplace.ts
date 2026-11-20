@@ -31,6 +31,10 @@ export function createMarketplaceActions(
   openCreatedBot: ReturnType<typeof createBotActions>['openCreatedBot'],
 ) {
   return {
+    marketplaceAvatarList: (cursor) =>
+      invoke('marketplaceAvatarList', cursor === undefined ? {} : { cursor }),
+    marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
+    marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -63,6 +67,9 @@ export function createMarketplaceActions(
   } satisfies MarketplaceActions &
     Pick<
       BridgeActions,
+      | 'marketplaceAvatarList'
+      | 'marketplaceAvatarDetail'
+      | 'marketplaceAvatarPublish'
       | 'marketplaceList'
       | 'marketplaceChallenge'
       | 'marketplaceSubmit'

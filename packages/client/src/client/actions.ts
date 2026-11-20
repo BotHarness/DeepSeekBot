@@ -1,3 +1,8 @@
+import type {
+  MarketplaceAvatar,
+  MarketplaceAvatarPage,
+  MarketplaceAvatarPublish,
+} from '@botharness/host-protocol/marketplace-avatar';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
 import type * as prompts from '@botharness/host-client/prompt-presets';
@@ -333,6 +338,9 @@ export interface BridgeActions
   marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
   marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
   marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
+  marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar>;
+  marketplaceAvatarPublish(input: MarketplaceAvatarPublish): Promise<MarketplaceAvatar>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -776,6 +784,9 @@ export function createActions(
     marketplaceSections: marketplaceActions.marketplaceSections,
     marketplaceDigests: marketplaceActions.marketplaceDigests,
     marketplaceDigest: marketplaceActions.marketplaceDigest,
+    marketplaceAvatarList: marketplaceActions.marketplaceAvatarList,
+    marketplaceAvatarDetail: marketplaceActions.marketplaceAvatarDetail,
+    marketplaceAvatarPublish: marketplaceActions.marketplaceAvatarPublish,
     marketplaceDetail: marketplaceActions.marketplaceDetail,
     marketplaceFile: marketplaceActions.marketplaceFile,
     marketplaceAccount: marketplaceActions.marketplaceAccount,

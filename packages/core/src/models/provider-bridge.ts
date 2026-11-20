@@ -1,3 +1,5 @@
+import { invalidInput } from '../bridge/method-utils.js';
+export { invalidInput } from '../bridge/method-utils.js';
 import type {
   ModelProviderRemoval,
   ModelProviderSave,
@@ -44,9 +46,6 @@ export function modelFailure(error: unknown): BridgeResult<never> {
       },
     };
   return invalidInput(error instanceof Error ? error.message : String(error));
-}
-export function invalidInput(message: string): BridgeResult<never> {
-  return { ok: false, error: { code: 'invalid-input', message } };
 }
 
 export function requireModelSources(human: HumanContext, team: BridgeMethodsDeps['team']): void {

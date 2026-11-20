@@ -50,9 +50,19 @@ function styleBlocks(source: string): { text: string; start: number }[] {
   return blocks;
 }
 
-const STYLESHEETS: readonly { file: string; sheet: string }[] = [
+const featureStylesheets = readdirSync(new URL('../src/client/features/', import.meta.url), {
+  encoding: 'utf8',
+  recursive: true,
+})
+  .filter((file) => /(?:^|[\\/])(?:[\w-]+-)?styles\.ts$/.test(file))
+  .map((file) => ({ file: `client/src/client/features/${file}` }));
+
+const STYLESHEETS: readonly { file: string; sheet?: string }[] = [
   { file: 'client/src/client/workspace-styles.ts', sheet: 'WORKSPACE_CSS' },
   { file: 'client/src/client/styles.ts', sheet: 'CSS' },
+  { file: 'client/src/client/shell-and-roster-styles.ts' },
+  { file: 'client/src/client/shared-styles.ts' },
+  ...featureStylesheets,
   { file: 'client/src/client/composer-context-styles.ts', sheet: 'COMPOSER_CONTEXT_CSS' },
   { file: 'client/src/client/internal-tour-styles.ts', sheet: 'INTERNAL_TOUR_CSS' },
   { file: 'client/src/client/combobox.tsx', sheet: 'COMBOBOX_CSS' },
@@ -194,9 +204,14 @@ const ALLOWANCES: readonly Allowance[] = [
   },
 ];
 
-function maskSheet(source: string, sheet: string): string {
-  const at = source.search(new RegExp(`const ${sheet}\\b[^=]*=`));
-  if (at < 0) throw new Error(`missing stylesheet ${sheet}`);
+function maskSheet(source: string, sheet?: string): string {
+  if (!sheet && (source.match(/^export const \w+\s*=/gm) ?? []).length !== 1)
+    throw new Error(
+      'a discovered stylesheet fragment must export exactly one CSS string, or later exports go unscanned',
+    );
+  const declaration = sheet ? new RegExp(`const ${sheet}\\b[^=]*=`) : /^export const \w+\s*=/m;
+  const at = source.search(declaration);
+  if (at < 0) throw new Error(`missing stylesheet matching ${declaration}`);
   const mask: string[] = Array.from(source, (char) => (char === '\n' ? '\n' : ' '));
   let inTemplate = false;
   for (let index = source.indexOf('=', at) + 1; index < source.length; index++) {

@@ -210,6 +210,77 @@
   "packages/client/src/client/environment-panel.tsx": {
     "rawControl": 2
   },
+  "packages/client/src/client/features/activity/styles.ts": {
+    "legacyCss": 131,
+    "lineBorder": 9
+  },
+  "packages/client/src/client/features/appearance/styles.ts": {
+    "legacyCss": 26,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/approvals/styles.ts": {
+    "legacyCss": 3
+  },
+  "packages/client/src/client/features/assignments/styles.ts": {
+    "legacyCss": 1
+  },
+  "packages/client/src/client/features/avatars/styles.ts": {
+    "legacyCss": 46,
+    "lineBorder": 3
+  },
+  "packages/client/src/client/features/channel-files/styles.ts": {
+    "legacyCss": 63
+  },
+  "packages/client/src/client/features/channels/styles.ts": {
+    "legacyCss": 155,
+    "lineBorder": 2
+  },
+  "packages/client/src/client/features/channels/timeline-styles.ts": {
+    "legacyCss": 65
+  },
+  "packages/client/src/client/features/marketplace/styles.ts": {
+    "legacyCss": 122,
+    "lineBorder": 3
+  },
+  "packages/client/src/client/features/memory/styles.ts": {
+    "legacyCss": 155,
+    "lineBorder": 5
+  },
+  "packages/client/src/client/features/messaging/styles.ts": {
+    "legacyCss": 93,
+    "lineBorder": 10
+  },
+  "packages/client/src/client/features/models/styles.ts": {
+    "legacyCss": 14
+  },
+  "packages/client/src/client/features/personabots/styles.ts": {
+    "legacyCss": 57,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/private-input/styles.ts": {
+    "legacyCss": 6
+  },
+  "packages/client/src/client/features/release/styles.ts": {
+    "legacyCss": 16,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/schedules/styles.ts": {
+    "legacyCss": 5
+  },
+  "packages/client/src/client/features/sessions/styles.ts": {
+    "legacyCss": 11
+  },
+  "packages/client/src/client/features/skills/styles.ts": {
+    "legacyCss": 13
+  },
+  "packages/client/src/client/features/usage/styles.ts": {
+    "legacyCss": 91,
+    "lineBorder": 3
+  },
+  "packages/client/src/client/features/workspaces/styles.ts": {
+    "legacyCss": 16,
+    "lineBorder": 2
+  },
   "packages/client/src/client/generated-files-styles.ts": {
     "legacyCss": 19
   },
@@ -404,12 +475,20 @@
   "packages/client/src/client/session-return-action.tsx": {
     "dshImport": 1
   },
+  "packages/client/src/client/shared-styles.ts": {
+    "legacyCss": 63,
+    "lineBorder": 5
+  },
+  "packages/client/src/client/shell-and-roster-styles.ts": {
+    "legacyCss": 199,
+    "lineBorder": 13
+  },
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 1707,
-    "lineBorder": 94
+    "legacyCss": 356,
+    "lineBorder": 36
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1

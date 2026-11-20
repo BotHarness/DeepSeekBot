@@ -8,6 +8,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 import { COMBOBOX_CSS } from '../src/client/combobox.js';
 import { COMPOSER_CONTEXT_CSS } from '../src/client/composer-context-styles.js';
 import { INTERNAL_TOUR_CSS } from '../src/client/internal-tour-styles.js';
+import { STYLEX_CSS } from '../src/client/ds/stylex-css.js';
+import { channelsCss } from '../src/client/features/channels/styles.js';
+import { timelineCss } from '../src/client/features/channels/timeline-styles.js';
+import { personabotsCss } from '../src/client/features/personabots/styles.js';
+import { releaseCss } from '../src/client/features/release/styles.js';
+import { sharedCss } from '../src/client/shared-styles.js';
+import { SHELL_AND_ROSTER_CSS } from '../src/client/shell-and-roster-styles.js';
 import { CSS } from '../src/client/styles.js';
 import { WINDOW_COMPANION_CSS } from '../src/client/window-companion-styles.js';
 
@@ -30,6 +37,25 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
+  it('keeps shared, feature and retained rules interleaved in cascade order', () => {
+    const fragments = [
+      SHELL_AND_ROSTER_CSS,
+      '.bh-root .bh-multi-selected {',
+      personabotsCss.contact,
+      sharedCss.note,
+      channelsCss.main,
+      timelineCss.chatLayout,
+      channelsCss.composerReply,
+      releaseCss.releaseNote,
+      sharedCss.cardList,
+      STYLEX_CSS,
+    ];
+    const offsets = fragments.map((fragment) => CSS.indexOf(fragment));
+    expect(offsets.every((offset) => offset >= 0)).toBe(true);
+    expect(offsets).toEqual(offsets.toSorted((left, right) => left - right));
+    expect(CSS.endsWith(STYLEX_CSS)).toBe(true);
+  });
+
   it('uses Tobs colours in Bot-mode styles', () => {
     expect(CSS).not.toMatch(/--dsw-|--dsh-content-font-size/);
   });
