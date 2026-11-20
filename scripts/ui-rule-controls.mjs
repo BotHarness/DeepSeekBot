@@ -89,7 +89,7 @@ function decorative(child, imports) {
     return child.expression.type === 'JSXEmptyExpression' || decorative(child.expression, imports);
   if (child.type === 'JSXFragment')
     return child.children.every((item) => decorative(item, imports));
-  if (child.type !== 'JSXElement') return false;
+  if (child.type !== 'JSXElement') return child.type === 'BooleanLiteral' || emptyValue(child);
   const opening = child.openingElement;
   const name = jsxName(opening.name);
   if (
@@ -154,40 +154,70 @@ function inspectNames(node, imports, add) {
 const FOCUS = /:focus-visible|\[data-focus-visible(?:\]|=)/u;
 const DISABLED = /:disabled|\[(?:aria-disabled|data-disabled|disabled)(?:\]|=)/u;
 
-function isStyleProps(node) {
+function positiveSelector(selector) {
+  let depth = 0;
+  let start = 0;
+  let positive = '';
+  const tokens = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\\.|:not\(|[()]/giu;
+  for (const { 0: token, index } of selector.matchAll(tokens)) {
+    const negation = token.toLowerCase() === ':not(';
+    if (depth === 0) {
+      if (!negation) continue;
+      positive += selector.slice(start, index);
+      depth = 1;
+    } else if (negation || token === '(') {
+      depth += 1;
+    } else if (token === ')') {
+      depth -= 1;
+      if (depth === 0) start = index + 1;
+    }
+  }
+  return positive + (depth === 0 ? selector.slice(start) : '');
+}
+
+function isStyleCall(node, method) {
   return (
     node?.type === 'CallExpression' &&
     node.callee.type === 'MemberExpression' &&
     node.callee.object.name === 'stylex' &&
-    node.callee.property.name === 'props'
+    node.callee.property.name === method
   );
 }
 
-function styleReferences(opening, localStyles, walk) {
-  const references = new Set();
+function appliedStyleBlocks(opening) {
+  const blocks = new Set();
   const followed = new Set();
-  function collect(expression) {
-    if (!expression) return;
-    if (expression.type === 'Identifier' && localStyles.has(expression.name)) {
-      if (followed.has(expression.name)) return;
-      followed.add(expression.name);
-      walk(localStyles.get(expression.name), collect);
-      return;
-    }
-    if (
-      expression.type === 'MemberExpression' &&
-      expression.object.type === 'Identifier' &&
-      expression.property.type === 'Identifier'
-    )
-      references.add(`${expression.object.name}.${expression.property.name}`);
-  }
-  for (const attr of opening.attributes)
-    if (attr.type === 'JSXSpreadAttribute' || ['className', 'style'].includes(attr.name.name))
-      walk(attr.type === 'JSXSpreadAttribute' ? attr.argument : jsxValue(attr), collect);
-  return references;
+  const visitors = {
+    ReferencedIdentifier(path) {
+      const binding = path.scope.getBinding(path.node.name);
+      if (!binding?.path.isVariableDeclarator() || followed.has(binding)) return;
+      const init = binding.path.get('init');
+      if (!isStyleCall(init.node, 'props')) return;
+      followed.add(binding);
+      init.traverse(visitors);
+    },
+    MemberExpression(path) {
+      const { object, property } = path.node;
+      if (object.type !== 'Identifier' || property.type !== 'Identifier') return;
+      const declaration = path.scope.getBinding(object.name)?.path;
+      if (!declaration?.isVariableDeclarator()) return;
+      const init = declaration.node.init;
+      if (!isStyleCall(init, 'create') || init.arguments[0]?.type !== 'ObjectExpression') return;
+      const block = init.arguments[0].properties.findLast(
+        (entry) =>
+          entry.type === 'ObjectProperty' && (entry.key.name ?? entry.key.value) === property.name,
+      );
+      if (block) blocks.add(block);
+    },
+  };
+  for (const attr of opening.get('attributes'))
+    if (attr.isJSXSpreadAttribute() || ['className', 'style'].includes(attr.node.name.name))
+      attr.traverse(visitors);
+  return blocks;
 }
 
-function inspectFocus(node, source, cssBlocks, localStyles, baseUi, add, walk) {
+function inspectFocus(opening, source, baseUi, add, walk) {
+  const node = opening.node;
   const name = jsxName(node.name);
   const role = jsxValue(attribute(node, 'role'))?.value;
   const [namespace, member] = name?.split('.') ?? [];
@@ -209,14 +239,17 @@ function inspectFocus(node, source, cssBlocks, localStyles, baseUi, add, walk) {
     (member === 'Root' && /\/(?:checkbox|switch)$/u.test(baseUi.get(namespace) ?? ''));
   const link = name === 'a' && attribute(node, 'href');
   if ((!widget && !link) || jsxValue(attribute(node, 'type'))?.value === 'hidden') return;
-  const references = styleReferences(node, localStyles, walk);
-  const blocks = [...references].flatMap((ref) => (cssBlocks.has(ref) ? [cssBlocks.get(ref)] : []));
   let focus = false;
   let disabled = false;
-  for (const block of blocks)
-    walk(block, (entry) => {
-      const key =
-        entry.type === 'ObjectProperty' ? source.slice(entry.key.start, entry.key.end) : '';
+  for (const block of appliedStyleBlocks(opening)) {
+    disabled ||= /^disabled\w*$/iu.test(block.key.name ?? block.key.value);
+    walk(block.value, (entry) => {
+      if (entry.type !== 'ObjectProperty') return;
+      const key = positiveSelector(
+        entry.key.type === 'StringLiteral'
+          ? entry.key.value
+          : source.slice(entry.key.start, entry.key.end),
+      );
       if (
         FOCUS.test(key) &&
         !emptyValue(entry.value) &&
@@ -225,7 +258,7 @@ function inspectFocus(node, source, cssBlocks, localStyles, baseUi, add, walk) {
         focus = true;
       disabled ||= DISABLED.test(key);
     });
-  disabled ||= [...references].some((ref) => /\.disabled\w*$/iu.test(ref) && cssBlocks.has(ref));
+  }
   if (!focus) add('focusVisible', name, node);
   if (widget && !disabled) add('disabledStyle', name, node);
 }
@@ -235,8 +268,6 @@ export function desktopControls(source, file, ast, walk) {
   const imports = dsImports(ast, file);
   const baseUi = new Map();
   const dshNamespaces = new Set();
-  const cssBlocks = new Map();
-  const localStyles = new Map();
   const found = [];
   const add = (rule, text, node) => found.push({ rule, file, line: node.loc.start.line, text });
   walk(ast.program, (node) => {
@@ -280,23 +311,8 @@ export function desktopControls(source, file, ast, walk) {
         (node.type === 'StringLiteral' && /<svg[\s>]/u.test(node.value)))
     )
       add('iconSource', '<svg> markup', node);
-    if (inDs && node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
-      if (isStyleProps(node.init)) localStyles.set(node.id.name, node.init);
-      const callee = node.init?.callee;
-      if (
-        callee?.type === 'MemberExpression' &&
-        callee.object.name === 'stylex' &&
-        callee.property.name === 'create' &&
-        node.init.arguments[0]?.type === 'ObjectExpression'
-      )
-        for (const item of node.init.arguments[0].properties) {
-          const key = item.key?.name ?? item.key?.value;
-          if (key && item.value) cssBlocks.set(`${node.id.name}.${key}`, item.value);
-        }
-    }
   });
-  walk(ast.program, (node) => {
-    if (node.type !== 'JSXElement') return;
+  function inspectElement(node) {
     const opening = node.openingElement;
     const name = jsxName(opening.name);
     if (!inDs && file !== LEGACY_RENDERER && name === 'svg') add('iconSource', '<svg>', opening);
@@ -304,8 +320,19 @@ export function desktopControls(source, file, ast, walk) {
     if (dshNamespaces.has(namespace) && ICON_EXPORT.test(iconMember ?? ''))
       add('iconSource', name, opening);
     inspectNames(node, imports, add);
-    if (inDs) inspectFocus(opening, source, cssBlocks, localStyles, baseUi, add, walk);
-  });
+  }
+  if (inDs) {
+    traverse(ast, {
+      JSXElement(path) {
+        inspectElement(path.node);
+        inspectFocus(path.get('openingElement'), source, baseUi, add, walk);
+      },
+    });
+  } else {
+    walk(ast.program, (node) => {
+      if (node.type === 'JSXElement') inspectElement(node);
+    });
+  }
   return found;
 }
 

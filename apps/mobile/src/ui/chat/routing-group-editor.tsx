@@ -10,7 +10,7 @@ import {
 import { MethodRefused } from '@botharness/host-client/client';
 import {
   loadRoutingGroupEngines,
-  routingGroupEnginePresentation,
+  routingGroupEngineMemberRow,
   type ModelCatalogAnswer,
   type RoutingGroup,
   type RoutingGroupMember,
@@ -280,14 +280,16 @@ function RoutingGroupEditor({
             item.kind === 'engine'
               ? engines?.find((option) => option.engine === item.engine)
               : undefined;
-          const listedModel =
-            engine?.available === true && item.kind === 'engine'
-              ? engine.models.find((model) => model.id === item.model)?.name
-              : undefined;
           const engineRow =
             item.kind === 'engine'
-              ? routingGroupEnginePresentation(item, copy.engineRow, listedModel)
+              ? routingGroupEngineMemberRow(item, engine, copy.engineRow)
               : undefined;
+          const engineReason =
+            engine?.available === false
+              ? copy.engineUnavailable[engine.reason]
+              : engineRow?.unavailable
+                ? copy.engineModelUnavailable
+                : undefined;
           const entry =
             item.kind === 'model'
               ? catalog.models.find((model) => sameModel(model, item))
@@ -316,9 +318,7 @@ function RoutingGroupEditor({
                 detail={detail}
                 brand={brand}
                 engineRow={engineRow}
-                engineReason={
-                  engine?.available === false ? copy.engineUnavailable[engine.reason] : undefined
-                }
+                engineReason={engineReason}
                 usable={availability?.usable ?? true}
                 moveUp={busy || index === 0 ? undefined : () => move(item, -1)}
                 moveDown={busy || index === members.length - 1 ? undefined : () => move(item, 1)}
@@ -347,6 +347,7 @@ function RoutingGroupEditor({
                     ? undefined
                     : () => {
                         Keyboard.dismiss();
+                        refreshEngines();
                         setPicking(true);
                       }
                 }

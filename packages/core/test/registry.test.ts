@@ -367,24 +367,30 @@ describe('createPersonaBotRegistry', () => {
     const root = createRoot();
     const source = join(root, 'source');
     mkdirSync(source);
-    execFileSync('git', ['init', '-q', source]);
+    execFileSync('git', ['init', '-q', source], { shell: false, windowsHide: true });
     writeFileSync(join(source, '.gitattributes'), '* text eol=lf\n');
     writeFileSync(join(source, 'PERSONA.md'), '# Imported persona\n');
     writeFileSync(join(source, 'notes.txt'), 'Imported memory\n');
-    execFileSync('git', ['-C', source, 'add', '.']);
-    execFileSync('git', [
-      '-C',
-      source,
-      '-c',
-      'user.name=QA',
-      '-c',
-      'user.email=qa@example.test',
-      'commit',
-      '-qm',
-      'Imported',
-    ]);
+    execFileSync('git', ['-C', source, 'add', '.'], { shell: false, windowsHide: true });
+    execFileSync(
+      'git',
+      [
+        '-C',
+        source,
+        '-c',
+        'user.name=QA',
+        '-c',
+        'user.email=qa@example.test',
+        'commit',
+        '-qm',
+        'Imported',
+      ],
+      { shell: false, windowsHide: true },
+    );
     const originalHead = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], {
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     }).trim();
 
     let rejectClone = true;
@@ -396,7 +402,10 @@ describe('createPersonaBotRegistry', () => {
           writeFileSync(join(destination, 'partial.txt'), 'partial');
           return { ok: false, code: 'git-clone-failed' };
         }
-        execFileSync('git', ['clone', '--', source, destination]);
+        execFileSync('git', ['clone', '--', source, destination], {
+          shell: false,
+          windowsHide: true,
+        });
         return { ok: true };
       },
     });
@@ -417,7 +426,11 @@ describe('createPersonaBotRegistry', () => {
     );
     const imported = join(root, 'bots', 'imported', 'memory');
     expect(
-      execFileSync('git', ['-C', imported, 'rev-parse', 'HEAD~1'], { encoding: 'utf8' }).trim(),
+      execFileSync('git', ['-C', imported, 'rev-parse', 'HEAD~1'], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim(),
     ).toBe(originalHead);
     expect(readFileSync(join(imported, 'SOUL.md'), 'utf8')).toBe('# Imported persona\n');
     expect(existsSync(join(imported, 'PERSONA.md'))).toBe(false);

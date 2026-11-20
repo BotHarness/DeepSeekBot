@@ -513,7 +513,7 @@ describe('Model commands', () => {
 describe('Routing Group commands', () => {
   const go = { kind: 'model', provider: 'opencode-go', model: 'flash' };
   const deepseek = { kind: 'model', provider: 'deepseek', model: 'flash' };
-  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4' };
+  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4', reasoningEffort: 'high' };
   const claude = { kind: 'engine', engine: 'claude' };
   const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [codex, go] };
 

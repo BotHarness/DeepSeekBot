@@ -1053,13 +1053,18 @@ it('accepts a bring-your-own HTTPS origin only after its public check, with admi
   gateway.close();
 });
 
-const openssl = spawnSync('openssl', ['version']).status === 0;
+const openssl = spawnSync('openssl', ['version'], { shell: false, windowsHide: true }).status === 0;
 it.skipIf(!openssl)(
   'checks HTTPS origins against the given trust store and reports untrusted certificates as tls',
   async () => {
     const dir = createTempRoot('private-ingress-ca-');
     const run = (...args: string[]) => {
-      const result = spawnSync('openssl', args, { cwd: dir, encoding: 'utf8' });
+      const result = spawnSync('openssl', args, {
+        cwd: dir,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      });
       if (result.status !== 0) throw new Error(result.stderr);
     };
     writeFileSync(

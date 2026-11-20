@@ -68,7 +68,7 @@ afterEach(async () => {
 
 function setup(
   recordings: ClaudeRecordedLine[][],
-  detectors: Pick<EngineHostOptions, 'detectCodex' | 'detectClaude'> = {},
+  options: Pick<EngineHostOptions, 'detectCodex' | 'detectClaude' | 'routingGroupEffort'> = {},
 ) {
   const root = createTempRoot('engine-models-');
   const dsh = memoryDsh();
@@ -86,7 +86,7 @@ function setup(
     openClaude: replay.factory,
     detectCodex: async () => ({ installed: false, login: 'unknown' }),
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
-    ...detectors,
+    ...options,
   });
   const request = {
     botSlug: 'ada',
@@ -121,15 +121,20 @@ describe('Subscription Engine models', () => {
     try {
       const [codex, claude] = await routingGroupEngineOptions(host);
       expect(codex).toEqual({ engine: 'codex', available: false, reason: 'login-unknown' });
-      expect(claude).toEqual({
+      expect(claude).toMatchObject({
         engine: 'claude',
         available: true,
         models: [
-          { id: 'default', name: 'Default (recommended)' },
-          { id: 'sonnet', name: 'Sonnet' },
-          { id: 'fable', name: 'Fable' },
-          { id: 'opus', name: 'Opus' },
-          { id: 'haiku', name: 'Haiku' },
+          {
+            id: 'claude-sonnet-5-5',
+            name: 'Sonnet',
+            isDefault: true,
+            aliases: ['default', 'sonnet'],
+            efforts: expect.arrayContaining([{ id: 'max', name: 'Max' }]),
+          },
+          { id: 'claude-fable-5-2', name: 'Fable' },
+          { id: 'claude-opus-5-5', name: 'Opus' },
+          { id: 'claude-haiku-5-5', name: 'Haiku' },
         ],
       });
       expect(replay.prompts).toEqual([]);
@@ -155,6 +160,7 @@ describe('Subscription Engine models', () => {
     expect(models[3]).toEqual({
       id: 'opus',
       name: 'Opus',
+      resolvedModel: 'claude-opus-5-5',
       description: 'Opus 5.5 · Best for everyday, complex tasks',
       efforts: [
         { id: 'low', name: 'Low' },
@@ -240,6 +246,39 @@ describe('Subscription Engine models', () => {
     expect(host.store.choice('ada', 'orchestrator')).toEqual({});
     await host.close();
   });
+
+  it.each([
+    { override: 'low', shared: 'high', expected: 'low' },
+    { shared: 'high', expected: 'high' },
+    { shared: 'turbo', expected: undefined },
+  ])(
+    'passes a concrete Routing Group model and the applicable effort to start',
+    async ({ override, shared, expected }) => {
+      const { host, replay, request } = setup([LISTING, RECORDING], {
+        routingGroupEffort: () => shared,
+      });
+      try {
+        const model = 'claude-opus-5-5';
+        await expect(
+          host.validateChoice('claude', { model, effort: 'high' }),
+        ).resolves.toBeUndefined();
+        await host.runTurn({
+          ...request,
+          target: {
+            kind: 'engine',
+            engine: 'claude',
+            model,
+            ...(override === undefined ? {} : { reasoningEffort: override }),
+          },
+        });
+        expect(replay.options[1]?.model).toBe(model);
+        expect(replay.options[1]?.effort).toBe(expected);
+        expect(host.store.choice('ada', 'orchestrator')).toEqual({});
+      } finally {
+        await host.close();
+      }
+    },
+  );
 
   it('refuses a model or effort the subscription does not offer', async () => {
     const { host, route } = setup([LISTING]);

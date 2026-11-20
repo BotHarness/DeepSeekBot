@@ -22,7 +22,7 @@ export const SECRET_MCP_LAUNCHER = [
   'const env = {};',
   'for (const name of keep) if (name && process.env[name] !== undefined) env[name] = process.env[name];',
   'const argv = process.argv.slice(1);',
-  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit' });",
+  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit', shell: false, windowsHide: true });",
   "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal));",
   "child.on('error', () => process.exit(127));",
   "child.on('exit', (code, signal) => process.exit(code === null ? (signal ? 1 : 0) : code));",

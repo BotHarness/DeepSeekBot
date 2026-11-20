@@ -20,7 +20,7 @@ import kotlin.math.roundToInt
  * ([speaker]) leaves room for the speaker's avatar and shows [name] above the first bubble of a run.
  */
 data class TextRow(
-  val key: String, val human: Boolean, val first: Boolean, val last: Boolean, val body: String, val time: String,
+  val key: String, val human: Boolean, val first: Boolean, val last: Boolean, val body: String,
   val markdown: Boolean = false, val speaker: Boolean = false, val name: String? = null,
 ) {
   companion object {
@@ -32,7 +32,6 @@ data class TextRow(
         value["first"] == true,
         value["last"] == true,
         value["body"] as? String ?: return null,
-        value["time"] as? String ?: "",
         value["markdown"] == true,
         value["speaker"] == true,
         value["name"] as? String,
@@ -46,8 +45,8 @@ data class TextRowStyle(
   val accent: Int, val surface: Int, val onAccent: Int, val fg: Int, val muted: Int,
   val bodySize: Float, val bodyLine: Float, val metaSize: Float, val metaLine: Float, val fontScale: Float,
   val rowInset: Float, val firstGap: Float, val joinGap: Float, val lastGap: Float,
-  val padX: Float, val padY: Float, val timeGap: Float, val stackGap: Float,
-  val open: Float, val join: Float, val tail: Float, val besideMax: Int, val maxWidth: Float,
+  val padX: Float, val padY: Float,
+  val open: Float, val join: Float, val tail: Float, val maxWidth: Float,
   val paragraphGap: Float = 0f,
   val markdown: Map<String, Any?>? = null,
   val touch: TouchStyle? = null,
@@ -65,9 +64,9 @@ data class TextRowStyle(
         number("bodySize") ?: return null, number("bodyLine") ?: return null,
         number("metaSize") ?: return null, number("metaLine") ?: return null, number("fontScale") ?: 1f,
         number("rowInset") ?: 0f, number("firstGap") ?: 0f, number("joinGap") ?: 0f, number("lastGap") ?: 0f,
-        number("padX") ?: 0f, number("padY") ?: 0f, number("timeGap") ?: 0f, number("stackGap") ?: 0f,
+        number("padX") ?: 0f, number("padY") ?: 0f,
         number("open") ?: 0f, number("join") ?: 0f, number("tail") ?: 0f,
-        number("besideMax")?.toInt() ?: 60, number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
+        number("maxWidth") ?: 0.88f, number("paragraphGap") ?: 0f,
         @Suppress("UNCHECKED_CAST") (value["markdown"] as? Map<String, Any?>),
         @Suppress("UNCHECKED_CAST") (value["touch"] as? Map<String, Any?>)?.let(TouchStyle::from),
         number("avatar") ?: 32f, number("avatarGap") ?: 12f, number("nameGap") ?: 4f,
@@ -130,10 +129,7 @@ class TextBubbleLayout(
   private val scale = density * tokens.fontScale
   val paragraphs: List<StaticLayout>
   private val paragraphGap: Float
-  val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
   val bubble: RectF
-  val timeX: Float
-  val timeBaseline: Float
   val height: Int
   val fill = if (row.human) tokens.accent else tokens.surface
   val radii: FloatArray
@@ -150,13 +146,10 @@ class TextBubbleLayout(
       textSize = tokens.bodySize * scale
       color = if (row.human) tokens.onAccent else tokens.fg
     }
-    timePaint.textSize = tokens.metaSize * scale
-    timePaint.color = if (row.human) tokens.onAccent else tokens.muted
     val line = tokens.bodyLine * scale
     val metaLine = tokens.metaLine * scale
     val padX = tokens.padX * density
     val padY = tokens.padY * density
-    val gap = tokens.timeGap * density
     val inset = tokens.rowInset * density
     val lead = if (row.speaker) (tokens.avatar + tokens.avatarGap) * density else 0f
     val inner = max(1, ((width - 2 * inset - lead) * tokens.maxWidth - 2 * padX).toInt())
@@ -175,31 +168,12 @@ class TextBubbleLayout(
         .setLineSpacing(if (styled != null) 0f else spacing, 1f)
         .build()
     }
-    val last = paragraphs.last()
-    val lines = paragraphs.sumOf { it.lineCount }
     val wrapped = paragraphs.any { it.lineCount > 1 }
     val textWidth = if (wrapped) inner.toFloat()
       else paragraphs.maxOf { layout -> (0 until layout.lineCount).maxOf { layout.getLineRight(it) } }
-    val lastWidth = last.getLineRight(last.lineCount - 1)
-    val timeWidth = timePaint.measureText(row.time)
     val textHeight = paragraphs.sumOf { it.height }.toFloat() + paragraphGap * (paragraphs.size - 1)
-    val beside = !row.human && lines == 1 && !row.body.contains('\n') &&
-      row.body.length <= tokens.besideMax && textWidth + gap + timeWidth <= inner
-    val contentWidth: Float
-    val contentHeight: Float
-    if (row.human) {
-      val fits = lastWidth + gap + timeWidth <= inner
-      contentWidth = if (fits) max(textWidth, lastWidth + gap + timeWidth) else max(textWidth, timeWidth)
-      contentHeight = textHeight + if (fits) 0f else metaLine
-    } else if (beside) {
-      contentWidth = textWidth + gap + timeWidth
-      contentHeight = max(textHeight, metaLine)
-    } else {
-      contentWidth = max(textWidth, timeWidth)
-      contentHeight = textHeight + tokens.stackGap * density + metaLine
-    }
-    val bubbleWidth = contentWidth + 2 * padX
-    val bubbleHeight = contentHeight + 2 * padY
+    val bubbleWidth = textWidth + 2 * padX
+    val bubbleHeight = textHeight + 2 * padY
     val rowTop = (if (row.first) tokens.firstGap else tokens.joinGap) * density
     val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       textSize = tokens.metaSize * scale
@@ -218,8 +192,6 @@ class TextBubbleLayout(
     val top = rowTop + (name?.let { it.height + tokens.nameGap * density } ?: 0f)
     val left = if (row.human) width - inset - bubbleWidth else inset + lead
     bubble = RectF(left, top, left + bubbleWidth, top + bubbleHeight)
-    timeX = bubble.right - padX - timeWidth
-    timeBaseline = bubble.bottom - padY - timePaint.fontMetrics.descent
     height = ceil(bubble.bottom + (if (row.last) tokens.lastGap else 0f) * density).toInt()
     val open = tokens.open * density
     val join = tokens.join * density
@@ -257,6 +229,5 @@ class TextBubbleLayout(
       canvas.translate(0f, layout.height + paragraphGap)
     }
     canvas.restore()
-    canvas.drawText(row.time, timeX, timeBaseline, timePaint)
   }
 }

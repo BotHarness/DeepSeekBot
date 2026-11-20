@@ -136,7 +136,7 @@ export default function Landing({ recent, lang = "en" }: Props) {
           <span
             aria-hidden="true"
             className="size-1.5 shrink-0 rounded-full"
-            style={{ background: "var(--bh-brand-strong, #15803d)" }}
+            style={{ background: "var(--bh-brand-strong)" }}
           />
           {t.badge}
         </Badge>

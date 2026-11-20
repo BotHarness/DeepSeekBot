@@ -25,7 +25,7 @@ const row = (overrides: Partial<ConversationMessage> = {}): ChatRow => ({
 const context = { dm: true, selecting: false, latest: 'latest', reading: new Map() };
 
 describe('native text rows', () => {
-  it('describes a committed plain DM message with its grouping and time', () => {
+  it('describes a committed plain DM message with its grouping and body', () => {
     const native = nativeTextRow(row(), context);
     expect(native).toMatchObject({
       key: 'm1',
@@ -34,11 +34,13 @@ describe('native text rows', () => {
       last: false,
       body: 'Plain reply about the history window.',
     });
-    expect(native?.time).toMatch(/\d/);
+    expect(native).not.toHaveProperty('time');
   });
 
-  it('adds the delivered check to the Human time', () => {
-    expect(nativeTextRow(row({ author: 'human' }), context)?.time.endsWith(' ✓')).toBe(true);
+  it('renders a committed Human body without timestamp metadata', () => {
+    const native = nativeTextRow(row({ author: 'human', body: 'Please continue.' }), context);
+    expect(native).toMatchObject({ human: true, body: 'Please continue.' });
+    expect(native).not.toHaveProperty('time');
   });
 
   it('keeps every live or decorated message on React rows', () => {

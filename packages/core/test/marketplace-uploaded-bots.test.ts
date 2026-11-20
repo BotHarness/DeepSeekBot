@@ -360,6 +360,8 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
   const commits = execFileSync('git', ['rev-list', '--count', 'HEAD'], {
     cwd: copy,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   });
   expect(commits.trim()).toBe('1');
 

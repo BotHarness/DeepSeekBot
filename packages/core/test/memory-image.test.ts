@@ -42,7 +42,12 @@ function fixture() {
   const memory = createMemoryService({ registry, ownership: createTestOwnership(), database });
   const root = registry.memoryDirFor('atlas')!;
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    execFileSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   const save = (bytes: Buffer, commit = false, path = 'preview.png') => {
     writeFileSync(join(root, path), bytes);
     if (commit) {

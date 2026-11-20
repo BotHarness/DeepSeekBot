@@ -182,6 +182,7 @@ export function runSecretCommand(
       env,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
     });
     const output = { stdout: '', stderr: '' };
     let truncated = false;

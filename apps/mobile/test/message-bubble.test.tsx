@@ -914,7 +914,16 @@ describe('the long-press menu', () => {
   it('heads the actions with the message time, marking today', () => {
     const now = new Date('2026-10-14T09:00:00.000Z');
     expect(menuTime(bot.at, now).startsWith(`${t.today} `)).toBe(true);
-    expect(menuTime('2026-10-13T08:00:00.000Z', now).startsWith(t.yesterday)).toBe(true);
+    const earlier = new Date(2026, 9, 13, 8);
+    expect(menuTime(earlier.toISOString(), now)).toBe(
+      new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(earlier),
+    );
+    expect(menuTime('invalid', now)).toBe('');
   });
 
   it('opens the share sheet on iOS only once the menu has gone', () => {
@@ -1185,76 +1194,17 @@ describe('message time', () => {
       ...overrides,
     });
 
-  it("shows the time inside a committed bubble, with a check after the Human's", () => {
-    expect(time(renderToStaticMarkup(<MessageBubble message={human({})} />))).toMatch(
-      /^\d{1,2}:\d{2}.*✓$/,
-    );
-    expect(time(renderToStaticMarkup(<MessageBubble message={bot({})} />))).toMatch(
-      /^\d{1,2}:\d{2}(?:\s?[AP]M)?$/,
-    );
-  });
-
-  it("puts a one-line Bot reply's time beside its text, and a longer reply's on its own line", () => {
-    const container = document.createElement('div');
-    const root = createRoot(container);
-    const timeRow = () =>
-      container.querySelector('[data-testid="message-time"]')?.parentElement?.dataset['testid'];
-    try {
-      act(() => root.render(<MessageBubble message={bot({ body: 'On it' })} />));
-      expect(timeRow()).toBe('message-body-row');
-      act(() =>
-        native.layouts.get('message-body')!({
-          nativeEvent: { layout: { height: 22 } },
-        }),
-      );
-      expect(timeRow()).toBe('message-body-row');
-      act(() =>
-        native.layouts.get('message-body')!({
-          nativeEvent: { layout: { height: 66 } },
-        }),
-      );
-      expect(timeRow()).not.toBe('message-body-row');
-      expect(
-        container
-          .querySelector('[data-testid="message-time"]')
-          ?.previousElementSibling?.getAttribute('data-native'),
-      ).toBe('EnrichedMarkdownText');
-      act(() =>
-        root.render(<MessageBubble message={bot({ body: 'First paragraph\n\nSecond one' })} />),
-      );
-      expect(timeRow()).not.toBe('message-body-row');
-    } finally {
-      act(() => root.unmount());
-    }
-  });
-
-  it("lets the Human's text flow around its time, which a screen reader hears once", () => {
-    const container = document.createElement('div');
-    container.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
-    const shown = container.querySelector('[data-testid="message-time"]')!;
-    const text = container.querySelector('[data-testid="message-text"]')!;
-    expect(text.contains(shown)).toBe(false);
-    const spacer = text.querySelector('[data-importantforaccessibility="no-hide-descendants"]');
-    expect(spacer?.getAttribute('data-accessibilityelementshidden')).toBe('true');
-    expect(spacer?.textContent).toBe(shown.textContent);
-  });
-
-  it('keeps the time row while a message is sending or failed, with the check hidden until commit', () => {
-    const committed = document.createElement('div');
-    committed.innerHTML = renderToStaticMarkup(<MessageBubble message={human({})} />);
-    const shown = committed.querySelector('[data-testid="message-time"]')!;
-    for (const message of [human({ delivery: 'pending' }), human({ delivery: 'failed' })]) {
-      const container = document.createElement('div');
-      container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} />);
-      const unsent = container.querySelector('[data-testid="message-time"]')!;
-      expect(unsent.textContent).toBe(shown.textContent);
-      expect(unsent.getAttribute('data-accessibilitylabel')).toMatch(/^\d{1,2}:\d{2}/);
-      expect(unsent.getAttribute('data-accessibilitylabel')).not.toContain('✓');
-      expect(container.querySelector('[data-testid="message-time-unsent"]')?.textContent).toBe(
-        '\u00a0✓',
-      );
-    }
-    expect(committed.querySelector('[data-testid="message-time-unsent"]')).toBeNull();
+  it.each([
+    human({}),
+    bot({}),
+    bot({ body: 'First paragraph\n\nSecond one' }),
+    human({ delivery: 'pending' }),
+    human({ delivery: 'failed' }),
+  ])('keeps the timestamp off a $delivery $author bubble', (message) => {
+    const html = renderToStaticMarkup(<MessageBubble message={message} />);
+    expect(time(html)).toBeUndefined();
+    expect(html).not.toContain('message-time-unsent');
+    expect(html).not.toContain('✓');
   });
 
   it('shows no time while a reply streams', () => {
@@ -1439,24 +1389,22 @@ describe('media bubbles', () => {
     expect(select).not.toHaveBeenCalled();
   });
 
-  it('puts the time of an uncaptioned image on a pill over the image', () => {
+  it('shows an uncaptioned image without a time pill', () => {
     const container = render(human({ body: '', attachments: [image(1)] }));
     const album = byTest(container, 'message-album')[0]!;
     expect(byTest(album, 'message-album-tile')).toHaveLength(1);
-    const pill = byTest(container, 'message-image-time')[0]!;
-    expect(album.contains(pill)).toBe(true);
-    expect(pill.querySelector('[data-testid="message-time"]')?.textContent).toMatch(/✓$/);
-    expect(byTest(container, 'message-time')).toHaveLength(1);
+    expect(byTest(container, 'message-image-time')).toHaveLength(0);
+    expect(byTest(container, 'message-time')).toHaveLength(0);
   });
 
-  it('puts a caption below the image with the time after it', () => {
+  it('puts a caption below the image without a bubble time', () => {
     const container = render(human({ body: 'Sunset', attachments: [image(1)] }));
     const album = byTest(container, 'message-album')[0]!;
     const caption = byTest(container, 'message-text')[0]!;
     expect(album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(byTest(container, 'message-image-time')).toHaveLength(0);
     expect(album.querySelector('[data-testid="message-time"]')).toBeNull();
-    expect(byTest(container, 'message-time')).toHaveLength(1);
+    expect(byTest(container, 'message-time')).toHaveLength(0);
   });
 
   it('gathers several images into one album with +N on the last tile', () => {

@@ -8,6 +8,7 @@ import {
   parseModelCatalog,
   parseRoutingGroup,
   routingGroupEngineChoices,
+  routingGroupEngineMemberRow,
   routingGroupEnginePresentation,
 } from '../src/model-catalog.js';
 
@@ -229,34 +230,69 @@ describe('Routing Group engine presentation', () => {
     ]);
   });
 
-  it('offers defaults and reported models only for available engines', async () => {
+  it('keeps the engine source, default, and reasoning metadata for concrete choices', async () => {
+    const high = { id: 'high', name: 'High' };
+    const codex = {
+      id: 'gpt-5.4',
+      name: 'GPT-5.4',
+      efforts: [high],
+      defaultEffort: 'high',
+      isDefault: true,
+    };
+    const claude = {
+      id: 'claude-sonnet-5-5',
+      name: 'Sonnet',
+      efforts: [],
+      isDefault: true,
+      aliases: ['sonnet', 'default'],
+    };
     const engines = await loadRoutingGroupEngines({
       async call(method, args) {
         expect(method).toBe('modelCatalog');
         expect(args).toEqual({ includeRoutingGroupEngines: true });
         return {
           routingGroupEngines: [
-            {
-              engine: 'codex',
-              available: true,
-              models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }, { id: '' }],
-            },
-            {
-              engine: 'claude',
-              available: false,
-              reason: 'signed-out',
-              models: [{ id: 'sonnet', name: 'Sonnet' }],
-            },
+            { engine: 'codex', available: true, models: [codex, { id: '' }] },
+            { engine: 'claude', available: true, models: [claude] },
           ],
         };
       },
     });
-    expect(
-      routingGroupEngineChoices(engines).map(({ member, status }) => [member, status.available]),
-    ).toEqual([
-      [{ kind: 'engine', engine: 'codex' }, true],
-      [{ kind: 'engine', engine: 'codex', model: 'gpt-5.4' }, true],
-      [{ kind: 'engine', engine: 'claude' }, false],
+    expect(routingGroupEngineChoices(engines)).toEqual([
+      {
+        member: { kind: 'engine', engine: 'codex', model: codex.id },
+        model: codex,
+        isDefault: true,
+      },
+      {
+        member: { kind: 'engine', engine: 'claude', model: claude.id },
+        model: claude,
+        isDefault: true,
+      },
     ]);
+    const copy = { defaultModel: (name: string) => name, subscription: (name: string) => name };
+    const legacy = { kind: 'engine', engine: 'claude' } as const;
+    expect(routingGroupEngineMemberRow(legacy, engines[1], copy)).toMatchObject({
+      name: 'Sonnet',
+      isDefault: true,
+      unavailable: false,
+    });
+    expect(
+      routingGroupEngineMemberRow({ ...legacy, model: 'sonnet' }, engines[1], copy),
+    ).toMatchObject({
+      name: 'Sonnet',
+      isDefault: true,
+      unavailable: false,
+    });
+    expect(
+      routingGroupEngineMemberRow({ ...legacy, model: 'missing' }, engines[1], copy),
+    ).toMatchObject({
+      name: 'missing',
+      isDefault: false,
+      unavailable: true,
+    });
+    expect(
+      routingGroupEngineChoices([{ engine: 'claude', available: false, reason: 'signed-out' }]),
+    ).toEqual([]);
   });
 });

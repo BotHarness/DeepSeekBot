@@ -74,12 +74,13 @@ function openSettingsSection(
       return;
     }
     if (selected) return;
-    dialog ??= [...doc.querySelectorAll<HTMLElement>('[role="dialog"]')].find(
-      (candidate) => namedControl(candidate, labels) !== undefined,
-    );
+    dialog ??=
+      doc.querySelector<HTMLElement>('[role="dialog"][data-shortcut-modal="settings"]') ??
+      undefined;
     if (dialog !== undefined) {
-      const nav = namedControl(dialog, labels);
-      if (nav !== undefined && select(dialog, nav)) {
+      const navigation = dialog.querySelector(':scope > nav');
+      const section = navigation === null ? undefined : namedControl(navigation, labels);
+      if (section !== undefined && select(dialog, section)) {
         selected = true;
         clearTimeout(timer);
         callbacks.ready?.(dialog);

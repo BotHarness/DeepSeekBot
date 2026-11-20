@@ -13,7 +13,11 @@ export function syncGitSteps<T>(steps: GitSteps<T>): T {
   while (!step.done) {
     let result: Buffer;
     try {
-      result = execFileSync('git', step.value.args, step.value.options);
+      result = execFileSync('git', step.value.args, {
+        ...step.value.options,
+        shell: false,
+        windowsHide: true,
+      });
     } catch (error) {
       step = steps.throw(error);
       continue;

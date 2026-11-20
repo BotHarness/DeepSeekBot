@@ -76,6 +76,30 @@ describe('Android message menu', () => {
     expect(byLabel(t.shareText)).not.toBeNull();
   });
 
+  it('shows a calendar date and time even when there are no action rows', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 13, 15));
+    const at = new Date(2026, 10, 12, 9, 30);
+    try {
+      mount({
+        ...target,
+        group: { first: true, last: true },
+        message: { ...bot, at: at.toISOString(), body: '' },
+      });
+      expect(host?.querySelector('[data-testid="message-menu-time"]')?.textContent).toBe(
+        new Intl.DateTimeFormat(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        }).format(at),
+      );
+      expect(byLabel(t.copy)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('toggles a reaction and closes', () => {
     const handlers = mount({ ...target, group: { first: true, last: true } });
     act(() => byLabel(t.unreact('🔥'))?.click());

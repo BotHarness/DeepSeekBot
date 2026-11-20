@@ -79,6 +79,27 @@ const view = <>
 `;
     expect(scan(source)).toEqual([]);
   });
+
+  it('requires names when an icon is accompanied only by non-rendering children', () => {
+    const source = `
+const view = <>
+  <button><Icon name="x" />{null}</button>
+  <button><Icon name="x" />{false}</button>
+  <button><Icon name="x" />{true}</button>
+  <button><Icon name="x" />{undefined}</button>
+  <button><Icon name="x" />{''}</button>
+  <button><Icon name="x" />{'Close'}</button>
+  <button><Icon name="x" />{0}</button>
+</>;
+`;
+    expect(scan(source).map(({ rule, line }) => [rule, line])).toEqual([
+      ['accessibleName', 3],
+      ['accessibleName', 4],
+      ['accessibleName', 5],
+      ['accessibleName', 6],
+      ['accessibleName', 7],
+    ]);
+  });
 });
 
 describe('G1 rule 5', () => {
@@ -115,5 +136,50 @@ const styles = stylex.create({ button: {
 const view = <button {...stylex.props(styles.button)}>{label}</button>;
 `;
     expect(scan(source, designSystem)).toEqual([]);
+  });
+
+  it('counts positive focus and disabled selectors outside negations', () => {
+    const source = `
+const styles = stylex.create({
+  negated: {
+    opacity: { default: 1, ':hover:not(:disabled, :is([data-disabled]))': 0.5 },
+    outline: { default: 'none', ':not(:focus-visible)': ring },
+  },
+  positive: {
+    opacity: { default: 1, ':not([aria-busy="true"]):is(:disabled, [aria-disabled="true"])': 0.5 },
+    outline: { default: 'none', ':focus-visible:not(:disabled)': ring },
+  },
+});
+const view = <>
+  <button {...stylex.props(styles.negated)}>{label}</button>
+  <input {...stylex.props(styles.positive)} />
+</>;
+`;
+    expect(scan(source, designSystem).map(({ rule, text }) => [rule, text])).toEqual([
+      ['focusVisible', 'button'],
+      ['disabledStyle', 'button'],
+    ]);
+  });
+
+  it('resolves same-named applied styles in each control’s lexical scope', () => {
+    const source = `
+const styles = stylex.create({
+  complete: { outline: { default: 'none', ':focus-visible': ring },
+    opacity: { default: 1, ':disabled': 0.5 } },
+  incomplete: { color: color.base },
+});
+function CloseButton() {
+  const applied = stylex.props(styles.complete);
+  return <button {...applied}>{label}</button>;
+}
+function Field() {
+  const applied = stylex.props(styles.incomplete);
+  return <input {...applied} />;
+}
+`;
+    expect(scan(source, designSystem).map(({ rule, text }) => [rule, text])).toEqual([
+      ['focusVisible', 'input'],
+      ['disabledStyle', 'input'],
+    ]);
   });
 });

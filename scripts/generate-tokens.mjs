@@ -16,6 +16,8 @@ export const MOBILE_OUTPUT = fileURLToPath(
   new URL('packages/host-client/src/ui/design/palette.generated.ts', root),
 );
 
+export const SITE_OUTPUT = fileURLToPath(new URL('design/tokens/tobs-core.generated.css', root));
+
 const isToken = (node) => node !== null && typeof node === 'object' && '$value' in node;
 
 function merge(target, source) {
@@ -468,6 +470,60 @@ export function mobileTokens(source = readResolver()) {
   };
 }
 
+export function siteColors(source = readResolver()) {
+  const statusSeeds = {
+    success: 'status.green',
+    warning: 'status.amber',
+    danger: 'status.red',
+    info: 'accent.classic-blue',
+  };
+  return Object.fromEntries(
+    contexts(source, 'mode').map((mode) => {
+      const resolve = resolver(leavesOf(resolveTree({ mode }, source)));
+      const light = mode === 'light';
+      const canvas = resolve(`palette.neutral.${light ? 100 : 0}`);
+      const surface = resolve(`palette.neutral.${light ? 97 : 20}`);
+      const onSolid = resolve(`palette.neutral.${light ? 100 : 7}`);
+      const brand = reach(resolve('palette.brand'), [surface, onSolid], 4.6, light);
+      const hover = mix(brand, resolve(`palette.neutral.${light ? 0 : 100}`), 0.9);
+      const accents = contexts(source, 'accent').map((name) => [
+        `accent-${name}`,
+        resolve(`palette.accent.${name}`),
+      ]);
+      const statuses = Object.entries(statusSeeds).flatMap(([name, path]) => {
+        const seed = resolve(`palette.${path}`);
+        const tint = mix(seed, canvas, light ? 0.08 : 0.16);
+        const ink = reach(seed, [surface, onSolid, tint], 4.6, light);
+        return [
+          [name, ink],
+          [`${name}-tint`, tint],
+        ];
+      });
+      return [
+        mode,
+        Object.fromEntries([
+          ['brand', brand],
+          ['brand-hover', hover],
+          ['on-solid', onSolid],
+          ...accents,
+          ...statuses,
+        ]),
+      ];
+    }),
+  );
+}
+
+export function renderSite(colors = siteColors()) {
+  const rules = (selector, values) =>
+    `${selector} {\n${Object.entries(values)
+      .map(([name, value]) => `  --tobs-core-${name}: ${value};`)
+      .join('\n')}\n}`;
+  return `${rules(':root', colors.light)}\n\n${rules(
+    ":root[data-mode='dark'],\n:root[data-theme='dark']",
+    colors.dark,
+  )}\n`;
+}
+
 export const camel = (parts) =>
   parts
     .join('-')
@@ -605,6 +661,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     [CSS_OUTPUT, renderCss(web)],
     [STYLEX_OUTPUT, renderStylex(web)],
     [MOBILE_OUTPUT, renderMobile(mobileTokens(source))],
+    [SITE_OUTPUT, renderSite(siteColors(source))],
   ];
   const check = process.argv.includes('--check');
   let stale = false;

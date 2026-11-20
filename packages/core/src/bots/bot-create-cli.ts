@@ -1545,6 +1545,7 @@ function currentHead(dataDir: string): string {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      shell: false,
     }).trim();
   } catch {
     throw new CliFailure('memory-unavailable', 'The Bot memory history could not be read.', 1);
