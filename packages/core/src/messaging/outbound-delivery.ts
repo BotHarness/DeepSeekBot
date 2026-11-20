@@ -25,7 +25,7 @@ import type {
   AccountReader,
   OutboxState,
   OutboxIntent,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { StatementSync } from 'node:sqlite';
 import type { OutboundMessagingOptions } from './outbound.js';
 

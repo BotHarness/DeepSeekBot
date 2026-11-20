@@ -13,7 +13,7 @@ import type {
   AccountReader,
   ProviderRegistration,
   OutboundMessaging,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { OutboundMessagingOptions } from './outbound.js';
 
 export function createOutboundMedia(context: {

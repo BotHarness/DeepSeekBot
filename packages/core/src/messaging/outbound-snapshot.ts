@@ -34,7 +34,7 @@ import type {
   AccountReader,
   MessagingGrant,
   OutboxIntent,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { OutboundMessagingOptions } from './outbound.js';
 
 export function createOutboundSnapshot(context: {

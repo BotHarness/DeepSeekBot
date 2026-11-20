@@ -26,7 +26,7 @@ import type { InboundMessaging } from './inbound.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { MessagingError } from './provider.js';
-import type { MessagingGrant, OutboundMessaging } from './outbound-contract.js';
+import type { MessagingGrant, OutboundMessaging } from './outbound-types.js';
 import type { OutboundMessagingOptions } from './outbound.js';
 
 export function createOutboundConversations({

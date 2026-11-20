@@ -15,7 +15,7 @@ import type {
   ProviderRegistration,
   OutboundMessaging,
   MessagingGrant,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { OutboundMessagingOptions } from './outbound.js';
 
 export function createOutboundBinding(context: {

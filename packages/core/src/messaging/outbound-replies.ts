@@ -10,7 +10,7 @@ import type {
   ProviderRegistration,
   OutboxIntent,
   OutboundMessaging,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 
 export function createOutboundReplies(context: {
   inbound: InboundMessaging;

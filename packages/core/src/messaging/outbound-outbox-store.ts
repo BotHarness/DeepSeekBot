@@ -8,7 +8,7 @@ import type {
   MessagingGrant,
   OutboxState,
   OutboundMessaging,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { StatementSync } from 'node:sqlite';
 
 export type StoredIntent = OutboxIntent & { requestId: string; payloadHash: string };

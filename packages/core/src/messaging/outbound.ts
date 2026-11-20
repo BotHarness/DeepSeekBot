@@ -18,7 +18,7 @@ import { CONNECTOR_TYPES as TELEMETRY_CONNECTOR_TYPES } from '../telemetry/event
 import type { TelemetryCapture } from '../telemetry/service.js';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import { MessagingError } from './provider.js';
-import type { ProviderRegistration, OutboundMessaging } from './outbound-contract.js';
+import type { ProviderRegistration, OutboundMessaging } from './outbound-types.js';
 import { createOutboxStore } from './outbound-outbox-store.js';
 import { createOutboundDelivery } from './outbound-delivery.js';
 import { createOutboundDmMirror } from './outbound-dm-mirror.js';
@@ -38,7 +38,7 @@ export type {
   MessagingReadMode,
   MessagingSnapshot,
   OutboundMessaging,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 export type OutboundMessagingOptions = {
   database: OperationalDatabaseModulePort;
   channels?: Pick<ChannelStore, 'get' | 'getOrCreateDm'>;

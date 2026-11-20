@@ -15,7 +15,7 @@ import type {
   ProviderRegistration,
   AccountReader,
   OutboundMessaging,
-} from './outbound-contract.js';
+} from './outbound-types.js';
 import type { StoredIntent } from './outbound-outbox-store.js';
 import type { StatementSync } from 'node:sqlite';
 import type { OutboundMessagingOptions } from './outbound.js';
