@@ -33,7 +33,6 @@
     "packages/client/src/client/channel-message-body.tsx",
     "packages/client/src/client/channel-sidebar-builtins.tsx",
     "packages/client/src/client/channel-sidebar-icon.tsx",
-    "packages/client/src/client/index.ts",
     "packages/client/src/client/locale.ts",
     "packages/client/src/client/marketplace.tsx",
     "packages/client/src/client/memory-entry.tsx",

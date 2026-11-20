@@ -22,7 +22,7 @@ const ROW_TAGS = new Set(['SettingsRow', 'SettingsSection']);
 const files = new Map<string, Node>();
 
 export const SECTION_ENTRIES = [
-  resolve(PACKAGES, 'client/src/client/index.ts'),
+  resolve(PACKAGES, 'client/src/client/client-settings-registration.ts'),
   resolve(PACKAGES, 'client/src/client/bot-settings-sections.tsx'),
   resolve(PACKAGES, 'browser/src/client/settings.tsx'),
   resolve(PACKAGES, 'computer/src/client/index.tsx'),
