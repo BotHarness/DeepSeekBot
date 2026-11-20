@@ -20,7 +20,7 @@ import {
 } from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
-import { requireBotModel, botModelAllowed } from '../team/models.js';
+import { botIsHostOwner, requireBotModel, botModelAllowed } from '../team/models.js';
 import { allowsModel } from '../team/permissions.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
@@ -1478,6 +1478,7 @@ export interface BridgeMethodsDeps {
   subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
     store: Pick<EngineHost['store'], 'selection'>;
   };
+  localSubscriptionEngines?: boolean;
   routingGroupEngineOptions?(): Promise<RoutingGroupEngineOptions[]>;
   releaseEngineQuotaHold?(slug: string): void;
   modelFavorites?: ModelFavoriteStore;
@@ -2515,6 +2516,7 @@ function buildBridgeMethods(
   ): { groups?: ModelCatalogGroup[] } => {
     const store = deps.routingGroups;
     if (store === undefined) return {};
+    const engineGroupsAllowed = canChooseRoutingEngines();
     return {
       groups: store.list().flatMap((group) => {
         let routes: ModelRoute[];
@@ -2523,7 +2525,12 @@ function buildBridgeMethods(
         } catch {
           return [];
         }
-        if (routes.length === 0 || !routes.every(allowed)) return [];
+        if (
+          routes.length === 0 ||
+          !routes.every(allowed) ||
+          (!engineGroupsAllowed && hasGroupEngine(group.id))
+        )
+          return [];
         const untils = routes.map((route) => rests.get(routeKey(route)));
         const restingUntil = untils.every((until) => until !== undefined)
           ? [...(untils as string[])].sort()[0]
@@ -2546,6 +2553,18 @@ function buildBridgeMethods(
     deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
+  const canChooseRoutingEngines = () => isHostOwner() && deps.localSubscriptionEngines !== false;
+  const hasGroupEngine = (id: string): boolean =>
+    deps.routingGroups?.targets(id).some((target) => target.kind === 'engine') ?? false;
+  const requireGroupEngineOwner = (id: string, slug?: string): void => {
+    if (!hasGroupEngine(id)) return;
+    const bot = slug === undefined ? undefined : deps.registry.get(slug);
+    if (
+      !canChooseRoutingEngines() ||
+      (bot !== undefined && deps.team && !botIsHostOwner(deps.team, bot))
+    )
+      throw new TeamError('model-not-allowed');
+  };
   const channelSkillBots = (channel: ChannelRecord): string[] => {
     if (channel.type === 'group')
       return channel.members.filter((slug) => {
@@ -2667,11 +2686,15 @@ function buildBridgeMethods(
     );
   };
 
-  const presetGroupRoutes = (groups: ModelPresetGroups): ModelRoute[] =>
+  const presetGroupRoutes = (groups: ModelPresetGroups, slug?: string): ModelRoute[] =>
     [
       ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
       ...(groups.assignmentGroups ?? []),
-    ].flatMap(groupRoutes);
+    ].flatMap((id) => {
+      const routes = groupRoutes(id);
+      if (slug !== undefined) requireGroupEngineOwner(id, slug);
+      return routes;
+    });
   const requireGroupEfforts = async (group: string, efforts: readonly string[]): Promise<void> => {
     if (efforts.length === 0) return;
     if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
@@ -3970,6 +3993,7 @@ function buildBridgeMethods(
         try {
           if (deps.routingGroups?.get(groupId) === undefined)
             throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
+          requireGroupEngineOwner(groupId);
           if (effort !== undefined) await requireGroupEfforts(groupId, [effort]);
           const first = await firstUsableRoute(deps.routingGroups.routes(groupId));
           route =
@@ -4423,6 +4447,10 @@ function buildBridgeMethods(
           ?.describe({ redactSecrets: true })
           .find((entry) => entry.ns === 'agent-default-model')?.revision;
         const defaultGroup = deps.routingGroups?.defaultGroup();
+        const groups = catalogGroups(rests, isListed);
+        const defaultGroupVisible = groups.groups?.some(
+          (group) => group.id === defaultGroup?.groupId,
+        );
         return {
           ok: true,
           value: {
@@ -4433,15 +4461,15 @@ function buildBridgeMethods(
             }),
             ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
             ...(defaultRevision === undefined ? {} : { defaultRevision }),
-            ...(defaultGroup?.groupId === undefined
+            ...(!defaultGroupVisible || defaultGroup?.groupId === undefined
               ? {}
               : { defaultGroupId: defaultGroup.groupId }),
-            ...(defaultGroup?.effort === undefined
+            ...(!defaultGroupVisible || defaultGroup?.effort === undefined
               ? {}
               : { defaultGroupEffort: defaultGroup.effort }),
             ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
             ...favoritesOf(),
-            ...catalogGroups(rests, isListed),
+            ...groups,
             ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
             (owner || deps.team?.roles.permissions(human).includes('models.configure')) &&
             deps.routingGroupEngineOptions !== undefined
@@ -4706,7 +4734,7 @@ function buildBridgeMethods(
           preset.orchestrator,
           preset.assignmentDefault,
           ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset),
+          ...presetGroupRoutes(preset, slug),
         ]);
         const orchestrator =
           preset.orchestratorGroupId === undefined
@@ -4725,7 +4753,7 @@ function buildBridgeMethods(
           preset.orchestrator,
           preset.assignmentDefault,
           ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset),
+          ...presetGroupRoutes(preset, slug),
         ]);
         const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
@@ -4926,11 +4954,13 @@ function buildBridgeMethods(
           group === undefined
             ? [source['orchestrator'] as ModelRoute]
             : deps.routingGroups!.routes(group.id);
+        if (group !== undefined) requireGroupEngineOwner(group.id, slug);
         requireRoutes(slug, candidates);
         if (group !== undefined && typeof groupEffort === 'string')
           await requireGroupEfforts(group.id, [groupEffort.trim()]);
         const orchestrator = await firstUsableRoute(candidates);
         beforeCommit?.();
+        if (group !== undefined) requireGroupEngineOwner(group.id, slug);
         requireRoutes(slug, candidates);
         if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
           return invalidInput('Routing Group changed; read it again before saving');
@@ -4998,7 +5028,13 @@ function buildBridgeMethods(
         requireRoutes(slug, [
           assignmentDefault,
           ...assignmentModels,
-          ...((assignmentGroups ?? []) as string[]).flatMap(groupRoutes),
+          ...presetGroupRoutes(
+            {
+              assignmentGroups:
+                (assignmentGroups as string[] | undefined) ?? bot.modelPlan.assignmentGroups ?? [],
+            },
+            slug,
+          ),
         ]);
         const result = deps.registry.setAssignmentModels(
           slug,
@@ -5150,7 +5186,7 @@ function buildBridgeMethods(
       const bot = deps.registry.get(slug);
       if (bot === undefined) return unknownBot(slug);
       try {
-        const grouped = groups === undefined ? [] : presetGroupRoutes(groups);
+        const grouped = groups === undefined ? [] : presetGroupRoutes(groups, slug);
         requireRoutes(slug, grouped);
         await validateGroupOptions(groups?.assignmentGroupOptions);
         await validateGroupEffort(groups);
@@ -5163,7 +5199,7 @@ function buildBridgeMethods(
           route,
           assignmentDefault,
           ...assignmentModels,
-          ...(groups === undefined ? grouped : presetGroupRoutes(groups)),
+          ...(groups === undefined ? grouped : presetGroupRoutes(groups, slug)),
         ]);
         const result = deps.registry.setModelPlan(
           slug,

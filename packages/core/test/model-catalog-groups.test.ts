@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ModelCatalogEntry } from '../src/models/catalog.js';
-import type { RoutingGroup } from '../src/models/routing-groups.js';
+import {
+  expandRoutingGroup,
+  expandRoutingTargets,
+  type RoutingGroup,
+} from '../src/models/routing-groups.js';
 
 const flash = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
@@ -28,6 +32,7 @@ function methods(
   options: { team?: unknown } = {},
 ) {
   const groups = [group('daily', [flash, pro]), group('go', [flash])];
+  const groupsById = new Map(groups.map((entry) => [entry.id, entry]));
   return createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     modelCatalog: {
       list: async () => [entry(flash), entry(pro)],
@@ -36,13 +41,8 @@ function methods(
     routingGroups: {
       list: () => groups,
       defaultGroup: () => ({ revision: 0 }),
-      routes: (id: string) => {
-        const found = groups.find((candidate) => candidate.id === id);
-        if (found === undefined) throw new Error('missing');
-        return found.members.flatMap((member) =>
-          member.kind === 'model' ? [{ provider: member.provider, model: member.model }] : [],
-        );
-      },
+      routes: (id: string) => expandRoutingGroup(id, groupsById),
+      targets: (id: string) => expandRoutingTargets(id, groupsById),
     },
     routeRests: { list: () => rests },
     ...options,

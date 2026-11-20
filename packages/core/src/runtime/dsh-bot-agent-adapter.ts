@@ -53,7 +53,12 @@ import {
   type PersonaBotModelPlan,
 } from '../models/presets.js';
 import type { OpenAssignmentRoutes } from '../models/open-assignments.js';
-import type { GroupPick } from '../models/group-fallback.js';
+import {
+  routingTargetRestKey,
+  type GroupPick,
+  type MixedGroupPick,
+} from '../models/group-fallback.js';
+import type { RoutingTarget } from '../models/routing-groups.js';
 import type { RestingRoute } from '../models/route-rest.js';
 
 import { MemoryAcceptError } from '../memory/accepted.js';
@@ -88,7 +93,12 @@ import {
   type EngineTurnRequest,
 } from '../engines/engine-host.js';
 import { engineAssignmentInstructions, engineInstructions } from '../engines/engine-persona.js';
-import { EngineRefusal, type EngineWorkspaceMode } from '../engines/engine-session.js';
+import {
+  EngineLimitError,
+  EngineRefusal,
+  type EngineId,
+  type EngineWorkspaceMode,
+} from '../engines/engine-session.js';
 import {
   ENGINE_LISTED_TOOLS,
   ENGINE_UNSUPPORTED_TOOLS,
@@ -101,8 +111,12 @@ import {
 } from '../engines/engine-tools.js';
 
 export interface AssignmentGroupRoutes {
-  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
-  describe(groupId: string): { name: string; routes: ModelRoute[] } | undefined;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick | MixedGroupPick>;
+  describe(
+    groupId: string,
+    botSlug: string,
+  ): { name: string; routes: ModelRoute[]; targets?: RoutingTarget[] } | undefined;
+  engineRestingUntil?(engine: EngineId): string | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
   inheritedEffort?(): string | undefined;
@@ -1181,7 +1195,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
         ...(sessionCwd === undefined ? {} : { sessionCwd }),
         workspaceMode: () => this.#engineWorkspaceMode?.(run.bot.slug) ?? 'workspace-write',
-        releaseNativeSession: () => this.#releaseNativeOrchestrator(run.sessionId),
+        releaseNativeSession: () => this.#releaseNativeSession(run.sessionId, 'orchestrator'),
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
         input: `${text}\n\n${replyReminder(promptText)}`,
@@ -1240,11 +1254,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
-  async #releaseNativeOrchestrator(sessionId: string): Promise<boolean> {
+  async #releaseNativeSession(
+    sessionId: string,
+    role: 'orchestrator' | 'assignment',
+  ): Promise<boolean> {
     const handle = this.#liveHandle(sessionId);
     const agent = handle?.agent ?? this.#agents.get?.(SessionId(sessionId));
     if (agent === undefined) return false;
-    this.#authorizeBorrow?.(agent, 'orchestrator');
+    this.#authorizeBorrow?.(agent, role);
     const release = this.#releaseNativeAgent?.(agent);
     if (release !== undefined) {
       if (!(await release))
@@ -1560,6 +1577,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
     if (active?.role === 'assignment' && this.#engines?.steerAssignment?.(run.sessionId, run.text))
       return { delivery: 'steer' };
+    if (this.#assignmentGroupRuns.has(run.sessionId))
+      throw new Error('Assignment is selecting a Routing Group member');
     let accept!: () => void;
     let refuse!: (error: unknown) => void;
     const accepted = new Promise<void>((resolve, reject) => {
@@ -1626,7 +1645,87 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     }
   }
 
+  readonly #assignmentGroupRuns = new Set<string>();
+
   async #driveAssignment(run: AssignmentAgentRun, accepted?: () => void): Promise<void> {
+    const select = run.selectGroupTarget;
+    if (select === undefined) return this.#driveAssignmentAttempt(run, accepted);
+    const { bot, sessionId, modelRoute: _modelRoute, ...initial } = run;
+    const attempted = new Set<string>();
+    let next = initial;
+    let acceptedInput = false;
+    let terminalReport = false;
+    let failure: Parameters<NonNullable<AssignmentAgentRun['failedTurn']>>[0] | undefined;
+    this.#assignmentGroupRuns.add(sessionId);
+    try {
+      let target = await select(attempted);
+      if (target === undefined) throw new Error('Assignment stopped before Inbox acceptance');
+      for (;;) {
+        if (this.#stopping.has(sessionId) || this.#closed) {
+          if (!acceptedInput) throw new Error('Assignment stopped before Inbox acceptance');
+          return;
+        }
+        const current = target;
+        attempted.add(routingTargetRestKey(current));
+        let acceptedThisAttempt = false;
+        try {
+          await this.#driveAssignmentAttempt({
+            ...next,
+            bot,
+            sessionId,
+            routingTarget: current,
+            ...(current.kind === 'route' ? { modelRoute: current.route } : {}),
+            report: async (input, execution) => {
+              const report = await run.report(input, execution);
+              terminalReport ||= input.state === 'completed' || input.state === 'failed';
+              return report;
+            },
+            failedTurn: (execution) => {
+              failure = execution;
+            },
+            accepted: () => {
+              acceptedThisAttempt = true;
+              if (!acceptedInput) {
+                acceptedInput = true;
+                accepted?.();
+                run.accepted?.();
+              }
+            },
+          });
+          return;
+        } catch (error) {
+          if (this.#stopping.has(sessionId) || this.#closed) return;
+          if (terminalReport && error instanceof EngineLimitError) return;
+          target = await select(attempted, error);
+          if (target === undefined) return;
+          const inputRecorded =
+            current.kind === 'route'
+              ? acceptedThisAttempt
+              : error instanceof EngineLimitError && error.inputRecorded;
+          const { acceptNativeInput: _accept, beginTurn: _begin, ...continuation } = next;
+          next = {
+            ...continuation,
+            text: inputRecorded
+              ? '[Host: The previous model reached its limit. Continue the current Assignment from the saved Session. Use completed tool results and verify interrupted effects before retrying.]'
+              : next.text,
+            resume: true,
+            ...(initial.resume === true ? {} : { continueInitialGroupTurn: true }),
+            ...(current.kind === 'route' && acceptedThisAttempt
+              ? { continuingFromNativeRoute: true }
+              : {}),
+          };
+          failure = undefined;
+        }
+      }
+    } catch (error) {
+      if (failure !== undefined) run.failedTurn?.(failure);
+      throw error;
+    } finally {
+      this.#assignmentGroupRuns.delete(sessionId);
+    }
+  }
+
+  async #driveAssignmentAttempt(run: AssignmentAgentRun, accepted?: () => void): Promise<void> {
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
     const entry: ActiveRun = { role: 'assignment', run, reported: false };
     this.#runs.set(run.sessionId, entry);
@@ -1634,7 +1733,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const abandonable = this.#abandonable(run.sessionId);
     try {
       const engines = this.#engines;
-      if (engines !== undefined && this.runsOnEngine(run.bot.slug, 'assignment')) {
+      if (
+        engines !== undefined &&
+        (run.routingTarget === undefined
+          ? this.runsOnEngine(run.bot.slug, 'assignment')
+          : run.routingTarget.kind === 'engine')
+      ) {
         await this.#runEngineAssignment(run, engines, entry, abandonable.abandoned, accepted);
         return;
       }
@@ -1688,7 +1792,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         this.#turnRefusal?.(run.sessionId),
       );
       run.completedTurn?.(completion);
-      if (run.resume === true) return;
+      if (run.resume === true && run.continueInitialGroupTurn !== true) return;
       if (!entry.reported) {
         const text = finalAssistantText(handle, fromSeq);
         if (text !== undefined) {
@@ -1730,11 +1834,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       | { inputRevision: number; published: ReturnType<AssignmentAgentRun['report']> }
       | undefined;
     try {
-      const native = this.#handles.get(run.sessionId);
-      if (native !== undefined) {
-        this.#forgetHandle(run.sessionId);
-        await native.dispose();
-      }
       if (stopped()) throw new Error('Assignment stopped before Inbox acceptance');
       run.setExecutionReady?.(true);
       run.requireContent?.();
@@ -1747,6 +1846,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         (await engines.runTurn({
           botSlug: run.bot.slug,
           role: 'assignment',
+          ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
+          ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
+          ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
+          releaseNativeSession: () => this.#releaseNativeSession(run.sessionId, 'assignment'),
           cwd: run.permission.primaryCwd,
           workspaceMode: () =>
             this.#engineWorkspaceMode?.(run.bot.slug, run.permission) ?? 'read-only',
@@ -1834,7 +1937,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (stopped()) return;
       if (outcome.turn !== undefined && outcome.endSeq !== undefined)
         run.completedTurn?.({ turn: outcome.turn, endSeq: outcome.endSeq });
-      if (run.resume === true) return;
+      if (run.resume === true && run.continueInitialGroupTurn !== true) return;
       if (!entry.reported && outcome.text !== undefined && outcome.text.trim() !== '') {
         await run.report(
           { state: 'completed', summary: `${UNREPORTED_FINAL_PREFIX}\n\n${outcome.text.trim()}` },
@@ -2280,9 +2383,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             return rest === undefined ? route : { ...route, restingUntil: rest.until };
           };
           const describeGroup = (id: string, isDefault: boolean) => {
-            const group = groups?.describe(id);
+            const group = groups?.describe(id, run.bot.slug);
             if (group === undefined || !group.routes.every(allowed)) return [];
-            const members = group.routes.map(resting);
+            const members =
+              group.targets === undefined
+                ? group.routes.map(resting)
+                : group.targets.map((target) => {
+                    if (target.kind === 'route') return resting(target.route);
+                    const until = groups?.engineRestingUntil?.(target.engine);
+                    return until === undefined ? target : { ...target, restingUntil: until };
+                  });
             const until = members.map((member) =>
               'restingUntil' in member ? member.restingUntil : undefined,
             );
@@ -2296,7 +2406,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                 ...(option?.note === undefined ? {} : { note: option.note }),
                 ...(front === undefined
                   ? {}
-                  : { front: { provider: front.provider, model: front.model } }),
+                  : {
+                      front:
+                        'engine' in front
+                          ? front
+                          : { provider: front.provider, model: front.model },
+                    }),
                 ...(option?.allowedEfforts === undefined
                   ? {}
                   : { efforts: option.allowedEfforts, defaultEffort: option.defaultEffort }),
@@ -2445,12 +2560,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               : (args.reasoning_effort ??
                 assignmentGroupOptionOf(plan, groupId)?.defaultEffort ??
                 (groupId === inherited ? this.#assignmentGroups?.inheritedEffort?.() : undefined));
-          let picked: ModelRoute | undefined;
+          let picked: RoutingTarget | undefined;
           if (groupId !== undefined) {
             if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
             const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
-            if (pick?.kind !== 'route')
+            if (pick?.kind !== 'route' && pick?.kind !== 'target')
               return JSON.stringify({
                 outcome: 'refused',
                 retryable: false,
@@ -2459,7 +2574,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                     ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
                     : `Routing Group ${groupId} has no usable model`,
               });
-            picked = pick.route;
+            picked = pick.kind === 'target' ? pick.target : { kind: 'route', route: pick.route };
           }
           if (args.provider !== undefined)
             await this.#openAssignmentRoutes?.require(run.bot.slug, {
@@ -2486,7 +2601,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(args.mode === undefined ? {} : { mode: args.mode }),
             ...(picked !== undefined && groupId !== undefined
               ? {
-                  model: picked,
+                  ...(picked.kind === 'route'
+                    ? { model: picked.route }
+                    : { routingTarget: picked }),
                   modelGroupId: groupId,
                   ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
                 }

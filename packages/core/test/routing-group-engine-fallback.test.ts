@@ -140,6 +140,24 @@ class NativeReplay extends LlmAdapter {
   }
 }
 
+class AssignmentReplay extends NativeReplay {
+  constructor(private readonly quota: boolean) {
+    super(false);
+  }
+
+  override async *stream(options: GenerateOptions): AsyncGenerator<StreamChunk> {
+    this.requests.push(options);
+    if (this.quota) throw new LlmError('Fixture quota', 'QUOTA_EXHAUSTED');
+    yield { type: 'block-start', index: 0, blockType: 'text' };
+    yield {
+      type: 'block-end',
+      index: 0,
+      block: { type: 'text', text: 'The native Assignment finished.' },
+    };
+    yield { type: 'finish', reason: { kind: 'stop' } };
+  }
+}
+
 async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () => Promise<void>) {
   const ctx = new Context();
   cleanups.push(() => ctx.fiber.dispose());
@@ -284,7 +302,6 @@ function setup(options: {
     routes: (id): (typeof API)[] => core.routingGroups.routes(id),
     engines: {
       targets: (id) => core.routingGroups.targets(id),
-      canRoute: (slug) => host.engineFor(slug) === undefined,
       allowed: () => options.enginesAllowed ?? true,
       limit: (engine) => {
         options.beforeEngineLimit?.(engine, clock);
@@ -319,6 +336,19 @@ function setup(options: {
       dsh.stored.has(id) || native.sessions.some((session) => session.id === id),
     defaultModel: { currentSelection: () => API },
     orchestratorRoute: (id) => groupFallback.route(id),
+    assignmentGroups: {
+      pick: async (slug, id, effort) =>
+        (await groupFallback.pickMixedAssignment(slug, id, effort)) ??
+        groupFallback.pick(slug, id, effort),
+      describe: (id) => ({
+        name: group.name,
+        routes: core.routingGroups.routes(id),
+        targets: core.routingGroups.targets(id),
+      }),
+      restingUntil: (route) => routeRests.restingUntil(route),
+      engineRestingUntil: (engine) => host.limit(engine)?.until,
+      inherited: () => core.routingGroups.defaultGroup().groupId,
+    },
   });
   options.nativeRuntime?.ctx.on(
     'agent/assistant-stream',
@@ -409,6 +439,11 @@ function setup(options: {
         reopened.operationalDatabase.close();
       }
     },
+    tool: (name: string, args: Record<string, unknown> = {}) =>
+      core.runtime.runDirectBotTool?.('ada', name, args, AbortSignal.timeout(10_000)),
+    assignment: (id: string) => core.runtime.getAssignment('ada', id),
+    idle: () => core.runtime.whenIdle(),
+    groupId: group.id,
   };
 }
 
@@ -977,5 +1012,84 @@ it.each([
       expect(reopened.transcript).toContainEqual(
         expect.objectContaining({ kind: 'reply', text, turnTargets: targets }),
       );
+  },
+);
+
+it.each(['api-first', 'engine-first'] as const)(
+  'continues a mixed Assignment on the same Session after quota (%s)',
+  async (order) => {
+    const apiFirst = order === 'api-first';
+    const model = new AssignmentReplay(apiFirst);
+    const native = await nativeRuntime(model);
+    const bot = setup({
+      members: [apiFirst ? CLAUDE : CODEX],
+      nativeFirst: apiFirst,
+      nativeRuntime: native,
+      inherited: true,
+      claudeRecording: [
+        ...CLAUDE_REPLY.slice(0, -1),
+        {
+          kind: 'message',
+          msg: {
+            type: 'assistant',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'The engine Assignment finished.' }],
+            },
+          },
+        },
+        ...CLAUDE_REPLY.slice(-1),
+      ],
+    });
+    const grant = await bot.grantWorkspace();
+    expect(await bot.tool('list_assignment_models')).toMatchObject({
+      result: {
+        assignmentGroups: [
+          {
+            group: bot.groupId,
+            members: apiFirst ? [API, CLAUDE] : [CODEX, API],
+          },
+        ],
+      },
+    });
+    const created = await bot.tool('create_assignment', {
+      title: 'Mixed group assignment',
+      description: 'Finish the fixture task and report.',
+      grant_id: grant.id,
+      group: bot.groupId,
+    });
+    expect(created).toMatchObject({
+      result: { outcome: 'created', sessionId: expect.any(String) },
+    });
+    const result = created?.result;
+    if (
+      typeof result !== 'object' ||
+      result === null ||
+      !('sessionId' in result) ||
+      typeof result.sessionId !== 'string'
+    )
+      throw new Error('Assignment creation produced no Session');
+    const { sessionId } = result;
+    await bot.idle();
+    expect(
+      bot.channelMessages().filter((message) => message.sessionFailure?.sessionId === sessionId),
+    ).toEqual([]);
+    expect(bot.assignment(sessionId)).toMatchObject({
+      activity: 'idle',
+      latestReport: { state: 'completed' },
+    });
+    expect(bot.channelMessages().flatMap((message) => message.modelSwitch ?? [])).toContainEqual(
+      expect.objectContaining({
+        sessionId,
+        from: apiFirst ? API : { provider: 'codex', model: CODEX.model },
+        to: apiFirst ? { provider: 'claude', model: CLAUDE.model } : API,
+      }),
+    );
+    expect(
+      bot.dsh.stored.get(sessionId)?.events.filter((event) => event.type === 'turn/end'),
+    ).toHaveLength(2);
+    expect(model.requests.filter((request) => request.sessionId === sessionId)).toHaveLength(1);
+    if (apiFirst) expect(bot.claude.prompts[0]).toContain('Finish the fixture task and report.');
+    else expect(bot.codex).toHaveLength(1);
   },
 );
