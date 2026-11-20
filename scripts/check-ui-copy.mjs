@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { globSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,10 +10,17 @@ const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 
 export const BASELINE = join(root, 'scripts/ui-copy-baseline.json');
+const featureSources = (name, glob) =>
+  globSync(glob, { cwd: root })
+    .sort()
+    .map((file) => ({ name, file }));
+
 export const SOURCES = [
   { name: 'client', file: 'packages/client/src/client/locale.ts' },
   { name: 'client', file: 'packages/client/src/client/model-provider-copy.ts' },
+  ...featureSources('client', 'packages/client/src/client/features/*/*locale.ts'),
   { name: 'mobile', file: 'apps/mobile/src/ui/strings.ts' },
+  ...featureSources('mobile', 'apps/mobile/src/features/*/*strings.ts'),
 ];
 const GUIDE = 'docs/agents/ui-copy.md';
 
