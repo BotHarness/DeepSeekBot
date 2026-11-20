@@ -79,6 +79,7 @@ export function ProfileShell({
           </HeaderCircleButton>
         </View>
       )}
+      <View pointerEvents="box-none">{identity}</View>
       <Tabs.Container
         containerStyle={{ overflow: 'hidden' }}
         initialTabName={tab}
@@ -89,7 +90,6 @@ export function ProfileShell({
           elevation: 0,
           shadowOpacity: 0,
         }}
-        renderHeader={() => <View pointerEvents="box-none">{identity}</View>}
         {...(showTabs ? {} : { tabBarHeight: 0 })}
         renderTabBar={
           showTabs

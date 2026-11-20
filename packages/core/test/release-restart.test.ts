@@ -71,7 +71,7 @@ describe('process restarter', () => {
     expect(spawn).toHaveBeenCalledExactlyOnceWith(
       '/usr/bin/node',
       ['--enable-source-maps', '/dsh/bin.js', 'web', '--port', '4310', '--no-open'],
-      { cwd: '/work', env: { DSH_HOME: '/home/dsh' }, stdio: 'inherit' },
+      { cwd: '/work', env: { DSH_HOME: '/home/dsh' }, stdio: 'inherit', windowsHide: true },
     );
 
     events.emit('SIGTERM');
@@ -88,5 +88,24 @@ describe('process restarter', () => {
     timers.run(300);
     timers.run(8_000);
     expect(spawn).toHaveBeenCalledTimes(1);
+  });
+  it('observes spawn errors while preserving native error handling', () => {
+    const { host, events } = fakeHost(['node', '/dsh/bin.js', 'web']);
+    const timers = fakeTimers();
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    const onFailure = vi.fn();
+    createProcessRestarter({
+      exit: vi.fn(),
+      host,
+      spawn: () => child as never,
+      setTimer: timers.setTimer,
+      onFailure,
+    }).restart();
+    timers.run(300);
+    events.emit('beforeExit');
+    expect(() => child.emit('error', new Error('fixture spawn error'))).toThrow(
+      'fixture spawn error',
+    );
+    expect(onFailure).toHaveBeenCalledOnce();
   });
 });

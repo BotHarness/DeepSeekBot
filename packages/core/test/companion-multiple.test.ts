@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -14,7 +15,7 @@ it('keeps one future-only stream while independently selecting two owned DM auth
         rootRole: 'orchestrator',
         at: FIXED_NOW().toISOString(),
       });
-      core.channels.getOrCreateDm(slug, slug);
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug);
     }
     const response = core.companions.open(
       new Request('http://localhost/api/botharness/companion?subscribe=1'),
@@ -54,8 +55,9 @@ it('keeps one future-only stream while independently selecting two owned DM auth
     expect(selected.name).toBe('companion/selection');
     expect(selected.data['bots']).toMatchObject([{ slug: 'ada' }, { slug: 'grace' }]);
     const commit = async (slug: string, id: string) => {
-      const channel = core.channels.getOrCreateDm(slug, slug)!;
+      const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, slug)!;
       await core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         channel.id,
         { id, at: FIXED_NOW().toISOString(), author: { kind: 'bot', slug }, body: id },
         { sessionId: slug },

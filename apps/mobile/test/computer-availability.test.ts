@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readComputerAvailability } from '../src/host/computer-availability';
+import { readComputerAvailability } from '@botharness/host-client/computer-availability';
 
 describe('paired Host Computer discovery', () => {
   it('discovers Local Computer without opening a viewer or selecting a Bot', async () => {
@@ -33,9 +33,9 @@ describe('paired Host Computer discovery', () => {
     },
   );
 });
-import { createHostClient, type HostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
-import wire from './fixtures/host-wire.json';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import wire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import { afterEach } from 'vitest';
 const clients: HostClient[] = [];
 afterEach(() => {

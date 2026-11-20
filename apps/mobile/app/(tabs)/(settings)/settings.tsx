@@ -1,10 +1,10 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { Platform } from 'react-native';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
-import { loadUsage } from '../../../src/host/usage';
+import { loadHumanIdentity, useHumanIdentity } from '../../../src/host/human-profile';
+import { loadUsage } from '@botharness/host-client/usage';
 import { appBuildLabel } from '../../../src/ui/app-build';
 import { copyMessage } from '../../../src/ui/chat/message-menu';
 import { currentAppBuild } from '../../../src/ui/native-app-build';
@@ -13,34 +13,43 @@ import { MessageDisplaySetting } from '../../../src/ui/shell/message-display-set
 import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings';
 import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
+import { SendJumpSetting } from '../../../src/ui/shell/send-jump-setting';
+import { HeaderModelSetting } from '../../../src/ui/shell/header-model-setting';
 import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
 import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
-import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
-  const onScroll = useChromeScroll(true, Platform.OS !== 'android');
+  const human = useHumanIdentity(client);
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
-    }, []),
+      if (client !== undefined) void loadHumanIdentity(client).catch(() => undefined);
+    }, [client]),
   );
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
     [client],
   );
   return (
-    <SettingsTabPage onScroll={onScroll}>
+    <SettingsTabPage>
       <SettingsView
-        profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
+        profile={
+          <AccountProfileRow
+            chat={{ name: human.identity?.displayName, avatar: human.avatar, mount: human.mount }}
+            onPress={() => router.push('/settings/profile')}
+          />
+        }
         statistics={<StatisticsSettings />}
         messageDisplay={<MessageDisplaySetting />}
+        sendJump={<SendJumpSetting />}
+        headerModel={<HeaderModelSetting />}
         activityCount={<ActivityCountLink />}
         hapticFeedback={<HapticFeedbackSetting />}
         deliveryReceipts={<DeliveryReceiptSetting />}
@@ -62,6 +71,7 @@ export default function SettingsScreen() {
           onNotifications: () => router.push('/settings/notifications'),
           onStorage: () => router.push('/settings/storage'),
           onModels: () => router.push('/settings/models'),
+          onPrompts: () => router.push('/settings/prompts'),
           onCopyVersion: copyMessage,
         }}
       />

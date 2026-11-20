@@ -48,7 +48,9 @@ function update(path, operation) {
     mkdirSync(lock, { mode: 0o700 });
   } catch (error) {
     if (error.code === 'EEXIST')
-      throw new Error('QQ registry busy; inspect the current writer before recovering its lock');
+      throw new Error('QQ registry busy; inspect the current writer before recovering its lock', {
+        cause: error,
+      });
     throw error;
   }
   const temporary = join(dirname(path), `.qq-test-clients-${randomUUID()}.tmp`);

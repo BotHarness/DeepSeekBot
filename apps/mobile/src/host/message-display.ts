@@ -1,5 +1,5 @@
-import type { ConversationMessage } from './conversation';
-import type { ChannelWireMessage } from './wire';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import type { ChannelWireMessage } from '@botharness/host-protocol/wire';
 
 export function messageForDisplay(message: ConversationMessage): ChannelWireMessage {
   return (
@@ -10,7 +10,13 @@ export function messageForDisplay(message: ConversationMessage): ChannelWireMess
       author:
         message.author === 'bot'
           ? { kind: 'bot', slug: message.bot ?? '' }
-          : { kind: message.author },
+          : message.author === 'person'
+            ? {
+                kind: 'human',
+                humanId: message.person?.humanId ?? '',
+                displayName: message.person?.name ?? '',
+              }
+            : { kind: message.author },
     }
   );
 }

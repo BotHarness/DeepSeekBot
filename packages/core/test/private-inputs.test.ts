@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
@@ -47,8 +48,8 @@ async function fixture(
   registry.create({ slug: 'ada', displayName: 'Ada' });
   registry.create({ slug: 'bea', displayName: 'Bea' });
   const channels = createChannelStore({ rootDir: join(root, 'channels') });
-  channels.getOrCreateDm('ada', 'Ada');
-  channels.getOrCreateDm('bea', 'Bea');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
   const ownership = createTestOwnership({
     'ada-session': { botSlug: 'ada', rootRole: 'orchestrator' },
     'bea-session': { botSlug: 'bea', rootRole: 'orchestrator' },
@@ -97,7 +98,10 @@ describe('private input card in the Channel the task came from', () => {
     let group = '';
     const f = await fixture(true, undefined, { askChannel: () => group });
     try {
-      group = f.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] }).id;
+      group = f.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      }).id;
       const result = f.owner.ask(f.agent, declaration, new AbortController().signal);
       await vi.waitFor(() =>
         expect(f.channels.readMessages(group).some((message) => message.privateInputRequest)).toBe(
@@ -195,7 +199,13 @@ describe('IM private input origin leases', () => {
       ).toEqual({ httpStatus: 200 });
       expect(JSON.stringify(notify.mock.calls)).not.toContain(values.api_key);
       expect(JSON.stringify(f.channels.readMessages('dm-ada'))).not.toContain(values.api_secret);
-      await f.owner.revoke(true, 'dm-ada', id);
+      const acting = humanContext('acting-owner');
+      await f.owner.revoke(true, 'dm-ada', id, acting);
+      expect(
+        f.channels
+          .readMessages('dm-ada')
+          .find((message) => message.id.startsWith('private-revocation-'))?.author,
+      ).toEqual({ kind: 'human', humanId: acting.humanId, displayName: 'Human' });
       expect(delivery?.signal.aborted).toBe(true);
       expect(delivery?.current()).toBe(false);
       expect(disposeReply).not.toHaveBeenCalled();
@@ -495,6 +505,12 @@ describe('private input native authority and reference contract', () => {
       { status: 'replacing', messageId: ada.messageId, replacementMessageId: replacementId },
     ]);
     expect(await f.owner.cancel(true, 'dm-ada', replacementId!)).toBe(true);
+    expect(
+      f.channels
+        .readMessages('dm-ada')
+        .find((message) => message.privateInputResolution?.requestMessageId === replacementId)
+        ?.author,
+    ).toEqual({ kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' });
     expect((await f.owner.accounts(true, 'ada'))?.[0]?.status).toBe('configured');
 
     const grants = async () =>
@@ -835,9 +851,13 @@ describe('private input native authority and reference contract', () => {
         result.references,
         consume,
       ),
-    ).rejects.toThrow(/unavailable/);
+    ).rejects.toThrow(/live main conversation Session of a PersonaBot/);
     expect(consume).not.toHaveBeenCalled();
     expect(await f.owner.submit(true, { channelId: 'dm-ada', messageId, values })).toBe(false);
+    expect(await f.owner.submission(true, { channelId: 'dm-ada', messageId, values })).toEqual({
+      accepted: false,
+      reason: 'not-pending',
+    });
     expect(
       (await f.credentials.listRecords()).filter((entry) =>
         entry.key.startsWith('botharness-private/grant-'),
@@ -866,7 +886,7 @@ describe('private input native authority and reference contract', () => {
 
   it('checks the actual Remote invocation peer rather than a Client-supplied Owner', async () => {
     const f = await fixture();
-    const remote = registerBridge(f.ctx, {} as BridgeMethods, f.owner);
+    const remote = registerBridge(f.ctx, () => ({}) as BridgeMethods, f.owner);
     expect(() => remote.privateInputStatus('dm-ada', 'missing')).toThrow(/authenticated Owner/);
     const forged = Object.create(remote) as typeof remote;
     Object.defineProperty(forged, 'ctx', {
@@ -998,6 +1018,11 @@ describe('private input native authority and reference contract', () => {
       expect(card.privateInputRequest?.expiresAt).toBeDefined();
       expect((await wait).status).toBe('expired');
       expect(f.owner.status('dm-ada', card.id)).toBe('expired');
+      expect(
+        f.channels
+          .readMessages('dm-ada')
+          .find((message) => message.privateInputResolution?.requestMessageId === card.id)?.author,
+      ).toEqual({ kind: 'human', humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' });
       expect(await f.owner.submit(true, { channelId: 'dm-ada', messageId: card.id, values })).toBe(
         false,
       );
@@ -1188,6 +1213,84 @@ describe('private input native authority and reference contract', () => {
       await replacement.close();
       await f.close();
       await lost;
+    }
+  });
+});
+
+describe('private input failure reasons', () => {
+  it('names why a submission was not received and logs the stage without values', async () => {
+    let failWrites = false;
+    let failReads = false;
+    const f = await fixture(true, undefined, {
+      credentials: () =>
+        new Proxy(f.credentials, {
+          get(target, key, receiver) {
+            const value = Reflect.get(target, key, receiver) as unknown;
+            if (key === 'modifyRecord' && failWrites)
+              return () => Promise.reject(new Error('disk full'));
+            if (key === 'readRecord' && failReads) return () => Promise.reject(new Error('locked'));
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        }),
+    });
+    try {
+      const asked = f.owner.ask(f.agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
+      const messageId = f.channels.readMessages('dm-ada')[0]!.id;
+      expect(
+        await f.owner.submission(true, {
+          channelId: 'dm-ada',
+          messageId,
+          values: { api_key: 'only-one' },
+        }),
+      ).toEqual({ accepted: false, reason: 'invalid-fields' });
+      failWrites = true;
+      expect(await f.owner.submission(true, { channelId: 'dm-ada', messageId, values })).toEqual({
+        accepted: false,
+        reason: 'save-failed',
+      });
+      expect((await asked).status).toBe('expired');
+      const log = (f.owner as unknown as { deps: { log: ReturnType<typeof vi.fn> } }).deps.log;
+      expect(log).toHaveBeenCalledWith(
+        'submit-refused',
+        expect.objectContaining({ reason: 'invalid-fields', requestId: messageId }),
+      );
+      expect(log).toHaveBeenCalledWith(
+        'submit-failed',
+        expect.objectContaining({ reason: 'save-failed', errorName: 'Error' }),
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(values.api_key);
+
+      failWrites = false;
+      const second = f.owner.ask(f.agent, declaration, new AbortController().signal);
+      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada').length).toBeGreaterThan(2));
+      const next = f.channels.readMessages('dm-ada')[0]!.id;
+      expect(next).not.toBe(messageId);
+      expect(
+        await f.owner.submission(true, { channelId: 'dm-ada', messageId: next, values }),
+      ).toEqual({ accepted: true });
+      const configured = await second;
+      await expect(
+        f.owner.consume(f.agent, declaration.account, configured.references, async () => {
+          throw new TypeError('boom');
+        }),
+      ).rejects.toThrow('Protected credential consumer failed (TypeError)');
+      failReads = true;
+      await expect(
+        f.owner.consume(f.agent, declaration.account, configured.references, async () => 'ok'),
+      ).rejects.toThrow(/could not read the saved private information/);
+      expect(log).toHaveBeenCalledWith(
+        'consume-refused',
+        expect.objectContaining({ reason: 'store-unreadable' }),
+      );
+      expect(log).toHaveBeenCalledWith(
+        'consume-failed',
+        expect.objectContaining({ reason: 'consumer-error', errorName: 'TypeError' }),
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(values.api_key);
+    } finally {
+      failReads = false;
+      await f.close();
     }
   });
 });

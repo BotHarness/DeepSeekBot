@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type PixelCustomPart } from '../../core/src/bots/avatar-appearance.js';
+import { type PartLibraryEntry } from '../../core/src/bots/part-library.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
 }));
 import { AvatarAppearanceEditor } from '../src/client/avatar-appearance-editor.js';
 import { PersonaBotAvatar } from '../src/client/avatar.js';
@@ -29,10 +29,9 @@ import {
   replacePartStart,
   headpieceStart,
   withAvatarBuiltInHeadpiece,
-  type PixelCustomPart,
 } from '../../core/src/bots/avatar-appearance.js';
-import type { PartLibraryEntry } from '../../core/src/bots/part-library.js';
-import { LINE_PARTS, LINE_PRESETS, seededLineRecipe } from '../../core/src/bots/avatar-line.js';
+
+import { LINE_PARTS, seededLineRecipe } from '../../core/src/bots/avatar-line.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 describe('Profile Avatar Appearance editing', () => {

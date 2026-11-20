@@ -16,6 +16,7 @@ import {
   size,
   testID,
 } from '@expo/ui/jetpack-compose/modifiers';
+import { cardDecisionInk } from '../design/controls';
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator, materialButton } from '../design/tokens';
@@ -32,6 +33,7 @@ const symbols: Record<ButtonSymbol, number> = {
   check: require('../../../assets/button/check.xml'),
   'shield-check': require('../../../assets/button/shield-check.xml'),
   x: require('../../../assets/button/x.xml'),
+  trash: require('../../../assets/button/trash.xml'),
   archive: require('../../../assets/button/archive.xml'),
   plus: require('../../../assets/button/plus.xml'),
   'message-square': require('../../../assets/button/message-square.xml'),
@@ -49,6 +51,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID: id,
@@ -60,17 +63,37 @@ export function Button({
   const tree = useComposeTree();
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
-  const Control =
-    variant === 'text'
-      ? TextButton
-      : tone === 'primary' || danger
-        ? FilledButton
-        : FilledTonalButton;
-  const colors = !danger
-    ? undefined
-    : variant === 'text'
-      ? { contentColor: roles.error }
-      : { containerColor: roles.error, contentColor: roles.onError };
+  const text = variant !== 'filled';
+  const textInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
+  const Control = text
+    ? TextButton
+    : tone === 'primary' || danger
+      ? FilledButton
+      : FilledTonalButton;
+  const chosenFill = danger
+    ? roles.error
+    : tone === 'primary'
+      ? roles.primary
+      : roles.secondaryContainer;
+  const chosenInk = danger
+    ? roles.onError
+    : tone === 'primary'
+      ? roles.onPrimary
+      : roles.onSecondaryContainer;
+  const contentColor = textInk ?? (danger ? roles.error : roles.primary);
+  const colors = text
+    ? textInk !== undefined || danger || selected
+      ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
+      : undefined
+    : danger || selected
+      ? {
+          ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+          ...(selected
+            ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+            : {}),
+        }
+      : undefined;
+  const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
       enabled={!disabled && !busy}
@@ -80,6 +103,7 @@ export function Button({
         ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
         defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
+        ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}
     >
       <Row horizontalArrangement={{ spacedBy: materialButton.iconGap }} verticalAlignment="center">
@@ -95,7 +119,7 @@ export function Button({
         ) : symbol ? (
           <Icon source={symbols[symbol]} size={materialButton.icon} />
         ) : null}
-        <Text style={{ textAlign: 'center' }}>{controlCase(label)}</Text>
+        <Text style={{ textAlign: 'center' }}>{controlCase(shownLabel)}</Text>
       </Row>
     </Control>
   );

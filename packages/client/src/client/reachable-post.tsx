@@ -1,5 +1,6 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 import type { MessagingReachablePage } from '../../../core/src/messaging/provider.js';
 import type { BridgeActions } from './actions.js';
@@ -7,6 +8,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
 import { Combobox } from './combobox.js';
 import { useMountedResource } from './mounted-resource.js';
+import { observeResource } from './messaging-defaults-live.js';
 import { reachablePostRequests } from './reachable-post-requests.js';
 
 export function ReachablePostDialog({
@@ -51,8 +53,6 @@ export function ReachablePostDialog({
   const [legacy, setLegacy] = useState(false);
   const live = useRef(false);
   const request = useSyncExternalStore(requests.subscribe, () => requests.read(group, text));
-  const selected = useRef({ group, text });
-  selected.current = { group, text };
   const load = async (next?: string) => {
     setLoading(true);
     setError('');
@@ -82,45 +82,60 @@ export function ReachablePostDialog({
   const mount = useMountedResource<HTMLDivElement>(() => {
     live.current = true;
     void load();
-    let reading = false;
-    const reconcile = async () => {
-      const draft = requests.read(selected.current.group, selected.current.text);
-      if (
-        requests.failed ||
-        reading ||
-        !actions.messagingPostRequest ||
-        !draft ||
-        !['pending', 'in-flight', 'response-lost'].includes(draft.state)
-      )
-        return;
-      reading = true;
-      try {
-        const intent = await actions.messagingPostRequest(
-          slug,
-          identity.id,
-          draft.group,
-          draft.id,
-          draft.text,
-        );
-        if (
-          intent?.botSlug === slug &&
-          intent.text === draft.text &&
-          intent.report?.conversationId === draft.group
-        )
-          requests.finish(draft, intent.state, intent.reason);
-      } catch {
-        return;
-      } finally {
-        reading = false;
-      }
-    };
-    void reconcile();
-    const timer = setInterval(() => void reconcile(), 2_000);
     return () => {
       live.current = false;
-      clearInterval(timer);
     };
   }, [identity.id, requests]);
+  const unresolved =
+    request?.state === 'pending' ||
+    request?.state === 'in-flight' ||
+    request?.state === 'response-lost';
+  const requestResource = useMountedResource<HTMLSpanElement>(
+    () =>
+      observeResource(
+        'reachable-posts',
+        async () => {
+          const draft = requests.read(group, text);
+          if (
+            requests.failed ||
+            !actions.messagingPostRequest ||
+            !draft ||
+            !['pending', 'in-flight', 'response-lost'].includes(draft.state)
+          )
+            return;
+          try {
+            const intent = await actions.messagingPostRequest(
+              slug,
+              identity.id,
+              draft.group,
+              draft.id,
+              draft.text,
+            );
+            if (
+              intent?.botSlug === slug &&
+              intent.text === draft.text &&
+              intent.report?.conversationId === draft.group
+            )
+              requests.finish(draft, intent.state, intent.reason);
+          } catch {
+            return;
+          }
+        },
+        10_000,
+        60_000,
+        true,
+      ),
+    [
+      actions,
+      group,
+      identity.id,
+      request?.id,
+      request?.state === 'response-lost',
+      requests,
+      slug,
+      text,
+    ],
+  );
   const unknown = request?.state === 'unknown-outcome';
   const pending = request?.state === 'pending' || request?.state === 'in-flight';
   const send = async () => {
@@ -235,6 +250,7 @@ export function ReachablePostDialog({
       }
     >
       <div ref={mount} className="bh-im-fields">
+        {unresolved ? <span ref={requestResource} hidden /> : null}
         <p className="bh-sidebar-modal-subject">{identity.name}</p>
         <p className="bh-note">{t('proactive.description')}</p>
         {legacy ? (
@@ -253,7 +269,10 @@ export function ReachablePostDialog({
                 placeholder={t('proactive.chooseGroup')}
                 emptyLabel={t('proactive.empty')}
                 disabled={loading || busy}
-                options={groups.map((value) => ({ value: value.id, label: value.name }))}
+                options={groups.map((value) => ({
+                  value: value.id,
+                  label: value.name,
+                }))}
               />
             </div>
             {loading ? <p role="status">{t('im.loading')}</p> : null}

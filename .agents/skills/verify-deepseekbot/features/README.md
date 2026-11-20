@@ -2,38 +2,52 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Anonymous Bot Session token telemetry | only for live reply proof | `scripts/e2e-token-telemetry.mjs` | [token-telemetry.md](token-telemetry.md) |
+| Saved IM settings before connection checks | no | `verify-app` isolated settings path and read-mode CLI | [im-settings-loading.md](im-settings-loading.md) |
+| Lightweight settings during first-Tob preparation | no | `scripts/e2e-settings-loading.mjs` | [settings-loading.md](settings-loading.md) |
+| Durable timed-question answers across Host restart | yes | `verify-app` original card + `user-question-answer` | [timed-question-recovery.md](timed-question-recovery.md) |
+| Tobs channel group create, rename, delete and failure recovery | no | `verify-app` sidebar path | [channel-sections.md](channel-sections.md) |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
 
 | Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
 | Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
+| Bot calls: iPhone, Android and Mac or Windows desktop | yes for replies | `scripts/e2e-call-media.mjs`; `scripts/e2e-desktop-call.mjs`; `deepseekbot call-simulate` | [bot-call.md](bot-call.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Bot Marketplace cards, filters, remembered sorting, upload/import and Tob's install review | yes | `verify-app` Bot mode path; `scripts/e2e-install-review.mjs` | [marketplace.md](marketplace.md) |
-| Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
+| Connect account recovery, encrypted pairing, resources and native private input | yes for DM/tool/private request; no for account recovery | `scripts/e2e-connect-account-recovery.mjs`; `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | SSH tunnel to an existing Linux Host | no | `verify-app` two-Host path and system SSH | [ssh-host.md](ssh-host.md) |
 | Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+| Exact remote Channel owner Bot name, models, Workspace grants and approval templates | no | `verify-app` isolated two-Host path + direct CLI | [remote-bot-settings.md](remote-bot-settings.md) |
 
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
 | Global search: Alt/Option+K, settings results and pinyin matching | no | `verify-app` Bot mode path | [global-search.md](global-search.md) |
+| Team mode: Owner password, members, member sign-in, automatic Channel membership, M15 security suite | no | `verify-app` Owner path + member browser + `deepseekbot --as`, `scripts/e2e-team-auto-join.mjs`, `scripts/e2e-team-human-dm.mjs`, `scripts/e2e-team-profile-setup.mjs`, `scripts/e2e-team-security.mjs`, `scripts/e2e-team-security-engines.mjs` | [team-mode.md](team-mode.md) |
 | DeepSeekBot device-local appearance | no | `scripts/e2e-local-appearance.mjs` | [local-appearance.md](local-appearance.md) |
 | Functional Panel appearance | no | `scripts/e2e-panel-appearance.mjs`, `scripts/e2e-nested-appearance.mjs` | [panel-appearance.md](panel-appearance.md) |
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
-| Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates) | yes for reply and approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
+| Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
+| Subscription Engine Session context, idle resume and lost-session recovery | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
 
 | Feature                                                                                            | Needs a model              | Scripted journey                                                                                     | File                                                 |
 | -------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | Bot mode entry and the default DeepSeek Bot                                                        | no                         | `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-bot-mode-exit.mjs`                                                                   | [bot-mode.md](bot-mode.md)                           |
-| Bot mode dock (desktop layout, unified Sessions, Channel header, Profile, settings, files and Inbox) | no | `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-channel-sessions.mjs`, `scripts/e2e-bot-subpanels.mjs`, `scripts/e2e-browser-computer-subpanels.mjs`, `scripts/e2e-panel-size-persistence.mjs`, `scripts/e2e-panel-resize-stability.mjs`, `scripts/e2e-nested-channel-panels.mjs`, `scripts/e2e-channel-sessions-desktop.mjs`, `scripts/e2e-bot-mode-sidebar.mjs` | [bot-mode-dock.md](bot-mode-dock.md) |
-| Orchestrator model switching | yes, for reply evidence | none | [orchestrator-model-switch.md](orchestrator-model-switch.md) |
+| Bot mode dock (desktop layout, unified Sessions, Channel header, Profile, settings, files and Inbox) | no | `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-channel-sessions.mjs`, `scripts/e2e-bot-subpanels.mjs`, `scripts/e2e-browser-computer-subpanels.mjs`, `scripts/e2e-panel-size-persistence.mjs`, `scripts/e2e-panel-resize-stability.mjs`, `scripts/e2e-nested-channel-panels.mjs`, `scripts/e2e-channel-sessions-desktop.mjs`, `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-subpanel-drag.mjs`, `scripts/e2e-avatar-scroll.mjs` | [bot-mode-dock.md](bot-mode-dock.md) |
+| Composer main/task model settings, presets and Orchestrator shortcuts | yes, for reply evidence | none | [orchestrator-model-switch.md](orchestrator-model-switch.md) |
+| Model providers and permission | yes, for reply evidence | `scripts/e2e-team-security.mjs` (C3) | [model-providers.md](model-providers.md) |
+| Subscription Engines in Routing Groups | no | `verify-app` model settings and `deepseekbot model-group-create` / `model-group-update` | [routing-group-engine-members.md](routing-group-engine-members.md) |
+| Native model settings handoff | no | `verify-app` settings path | [native-settings-handoff.md](native-settings-handoff.md) |
+| Live IM Bot pickers | no | `verify-app` settings path | [im-bot-pickers.md](im-bot-pickers.md) |
 | Private input with mixed local/IM sources | yes, for native tool/approval proof | `scripts/e2e-private-input-origin.mjs` | [private-input-origin.md](private-input-origin.md) |
-| Bot DM reply                                                                                       | yes                        | `scripts/e2e-llm-scenarios.mjs --scenario dm-reply`                                                  | [bot-dm-reply.md](bot-dm-reply.md)                   |
+| Bot DM reply, cross-Host route continuity and LAN admission                                                                       | yes                        | `scripts/e2e-llm-scenarios.mjs --scenario dm-reply`                                                  | [bot-dm-reply.md](bot-dm-reply.md)                   |
 | Bot-to-Bot Group mentions and wake                                                                 | yes                        | `scripts/e2e-llm-scenarios.mjs` (nightly)                                                            | [bot-group-mention.md](bot-group-mention.md)         |
 | Group send review | yes for A/B; no for direct tools | `scripts/e2e-group-send-review.mjs`, `scripts/e2e-group-peer-review.mjs`, `scripts/e2e-group-busy-review.mjs`, `scripts/e2e-group-responsibility.mjs` | [group-send-review.md](group-send-review.md) |
-| Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention | for replies | `scripts/e2e-timeline-navigation.mjs` | [conversation-timeline.md](conversation-timeline.md) |
+| Group invitation candidates | no | `verify-app` Group Members path | [group-invitations.md](group-invitations.md) |
+| Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention, iOS/Android raw-source selection, GenUI documents and reports | for replies; GenUI model optional | `scripts/e2e-context-overflow.mjs`, `scripts/e2e-timeline-navigation.mjs`, `scripts/e2e-genui-reports.mjs`, `scripts/e2e-genui-documents.mjs` | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
 | Phone pairing, QR images, app variants and LAN/Tailscale guidance | no | `scripts/e2e-mobile-pairing-web.mjs`, `scripts/e2e-device-pairing.mjs`, `scripts/e2e-mobile-sim.mjs`, `scripts/e2e-mobile-pair-android.mjs`, `scripts/e2e-phone-recovery.mjs` | [phone-pairing.md](phone-pairing.md) |
@@ -47,6 +61,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android launch, sheets, shell and chat presentation | no | Launch: queued native check; interactions: `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
+| Phone Routing Group editing | no | shared-device queue and Host CLI readback | [phone-routing-groups.md](phone-routing-groups.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |
 | Bot Browser on the phone                                                                           | no                         | `scripts/e2e-mobile-browser-web.mjs`                                                                 | [phone-browser.md](phone-browser.md)                 |
 | Token usage on the phone                                                                           | yes                        | `scripts/e2e-mobile-usage-web.mjs`                                                                   | [phone-usage.md](phone-usage.md)                     |
@@ -59,11 +74,15 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Historical Overview: idle PersonaBot (retired by #2026) | no | `scripts/e2e-activity-idle.mjs` | [activity-center-idle.md](activity-center-idle.md) |
 | Temporary Workspace Grant authorization, read and revocation | no | `scripts/e2e-workspace-grant.mjs` | [workspace-grant.md](workspace-grant.md) |
 | Default Bot Browser open, observe, stop and Access refusal | no | `scripts/e2e-browser-lifecycle.mjs` | [browser-lifecycle.md](browser-lifecycle.md) |
+| Skill Invocation from `/` and Bot-installed Skills in a Bot DM or Group Channel | yes for the reply | `verify-app` DM/Group; `skills-list`, `send --skill` / `channelSend` | [skill-invocation.md](skill-invocation.md) |
 | Composer footer customization and optional reply speed | yes for a speed sample | none (Web interaction path) | [composer-footer.md](composer-footer.md) |
-| Disposable Memory history, restore and stale-head refusal | no | `scripts/e2e-memory-restore.mjs` | [memory-restore.md](memory-restore.md) |
+| Disposable Memory history, restore, stale-head refusal and member own-Bot CLI | no | `scripts/e2e-memory-restore.mjs`, `scripts/e2e-team-bot-memory.mjs` | [memory-restore.md](memory-restore.md) |
 | Version-bound Memory images, Markdown previews and CLI export | no | `scripts/e2e-memory-images.mjs`, `scripts/e2e-memory-markdown.mjs`, `scripts/e2e-memory-formats.mjs` | [memory-images.md](memory-images.md) |
 
-| Activity Center: approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
+| Activity Center: shared header Environment selector, per-item source badges, approvals, Remote Host actions, Channel mute and independent control-rail indicator; page and Dock | yes (real pending requests) | `scripts/e2e-inbox-tool-approval.mjs`, `scripts/e2e-activity-live.mjs`, `scripts/e2e-activity-approve-sync.mjs`, `scripts/e2e-activity-load.mjs` | [activity-inline-approval.md](activity-inline-approval.md) |
+
+| Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
+| Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
 
 ## Coverage and maintenance
 

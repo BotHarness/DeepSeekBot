@@ -3,14 +3,18 @@ import { describe, expect, it } from 'vitest';
 import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 import { visibleDmMessages } from '../../../packages/client/src/client/dm-actions';
 import { en, zh } from '../../../packages/client/src/client/locale';
-import { activityOf } from '../src/host/channel-activity';
-import { reactable, shownInChat, type ConversationMessage } from '../src/host/conversation';
-import type { RosterView } from '../src/host/client';
+import { activityOf } from '@botharness/host-client/channel-activity';
+import {
+  reactable,
+  shownInChat,
+  type ConversationMessage,
+} from '@botharness/host-client/conversation';
+import type { RosterView } from '@botharness/host-client/client';
 import { visibleDmActivity } from '../src/host/dm-activity';
-import type { ChannelWireMessage } from '../src/host/wire';
+import type { ChannelWireMessage } from '@botharness/host-protocol/wire';
 import { activityText } from '../src/ui/chat/activity-text';
 import { activityStrings } from '../src/ui/strings';
-import fixture from './fixtures/host-wire.json';
+import fixture from '../../../packages/host-client/test/fixtures/host-wire.json';
 
 const recorded = fixture.activityJournal;
 const messages = recorded.page.entries.map((entry) => entry.message) as ChannelMessage[];
@@ -175,4 +179,99 @@ describe('Channel activity on mobile', () => {
       expect(shownInChat(presented({ ...message, body: 'fallback text' }))).toBe(true);
     }
   });
+  it('names the stopped Session or the whole Bot in the stop notice', () => {
+    const notice = (target: unknown): ChannelWireMessage =>
+      ({
+        id: 'turn-stopped-1',
+        at: '2026-11-04T00:00:00.000Z',
+        author: { kind: 'system' },
+        body: 'Human stopped Ada.',
+        turnStop: {
+          botSlug: 'ada',
+          botName: 'Ada',
+          humanName: 'Human',
+          sessionId: 's-1',
+          cause: 'human-stop',
+          target,
+        },
+      }) as unknown as ChannelWireMessage;
+    const text = (target: unknown) => {
+      const message = presented(notice(target));
+      return activityText(message, message.activity!, undefined, 1, activityStrings.zh);
+    };
+    expect(text({ scope: 'bot' })).toEqual(
+      expect.objectContaining({ verb: '停止了 Ada 的全部 Session' }),
+    );
+    expect(text({ scope: 'bot' })).not.toHaveProperty('detail');
+    expect(text({ scope: 'session', role: 'orchestrator', sessionId: 's-1' })).toMatchObject({
+      verb: '停止了 Ada 的 Orchestrator',
+      detail: 'Assignment 继续运行',
+    });
+    expect(
+      text({ scope: 'session', role: 'assignment', sessionId: 's-2', title: 'Crawl' }).verb,
+    ).toBe('停止了 Ada 的 Assignment「Crawl」');
+    expect(activityOf(notice({ scope: 'other' }))).not.toHaveProperty('target');
+  });
+});
+
+it.each(['allowed', 'ask-human', 'rejected'] as const)(
+  'projects the canonical %s Reviewer record as a compact activity',
+  (outcome) => {
+    const message: ChannelWireMessage = {
+      id: 'review',
+      at: '2026-11-16T01:00:00Z',
+      author: { kind: 'system' },
+      body: 'Review',
+      toolAutoApproval: {
+        botSlug: 'ada',
+        sessionId: 'session',
+        callId: 'call',
+        toolName: 'bash',
+        input: '{"command":"echo QA"}',
+        template: 'cautious',
+        templateVersion: 'snapshot',
+        outcome,
+        reason: 'Confirm this command.',
+      },
+    };
+    const activity = activityOf(message);
+    expect(activity?.kind).toBe('approval-review');
+    if (activity === undefined) throw new Error('Missing Reviewer activity');
+    expect(activityText(presented(message), activity, roster).detail).toBe('Confirm this command.');
+    expect(activityText(presented(message), activity, roster).verb).toContain('cautious');
+    expect(activityOf({ ...message, contentPurge: {} })).toBeUndefined();
+    expect(activityOf({ ...message, toolAutoApproval: { outcome } })).toBeUndefined();
+  },
+);
+
+it('shows a Model Switch Notice as a compact activity naming both routes and the reset (#4417)', () => {
+  const message = {
+    id: 'model-switch-1',
+    at: '2026-11-18T00:00:00Z',
+    author: { kind: 'system' },
+    body: '',
+    modelSwitch: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      sessionId: 's-1',
+      from: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      to: { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+      reason: 'quota',
+      until: '2026-11-22T10:00:00Z',
+    },
+  } as unknown as ChannelWireMessage;
+  const activity = activityOf(message);
+  expect(activity?.kind).toBe('model-switch');
+  const shown = presented(message);
+  expect(reactable(shown)).toBe(false);
+  const text = activityText(shown, activity!, roster, 1, activityStrings.zh);
+  expect(text).toMatchObject({
+    botSlug: 'ada',
+    name: 'Ada',
+    verb: '切换模型：opencode-go/deepseek-v4.1-flash → deepseek-official/deepseek-v4-pro',
+  });
+  expect(text.detail).toMatch(/^额度用完，.+ 重置$/u);
+  expect(
+    activityOf({ ...message, modelSwitch: { botSlug: 'ada' } } as unknown as ChannelWireMessage),
+  ).toBeUndefined();
 });

@@ -1,8 +1,8 @@
+import { revealDesktopWindow } from './desktop-window.js';
 import type { ConfigStorage } from './roster-config.js';
 import type { ChannelSummary, HumanAttentionItem } from './store.js';
 
 export const DESKTOP_NOTIFICATIONS_KEY = 'botharness.desktopNotifications';
-export const DESKTOP_NOTIFICATION_POLL_MS = 15_000;
 
 export type DesktopNotificationPermission = 'default' | 'granted' | 'denied' | 'unsupported';
 
@@ -157,7 +157,6 @@ export interface DesktopNotifierDeps {
   title(kind: DesktopNoticeKind, item: HumanAttentionItem): string;
   open(item: HumanAttentionItem): void;
   lang?: () => string;
-  intervalMs?: number;
 }
 
 export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void {
@@ -165,7 +164,7 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
   let running = false;
   let again = false;
   let disposed = false;
-  const shown = new Set<DesktopNotificationHandle>();
+  const shown = new Map<DesktopNotificationHandle, string>();
 
   const check = async (): Promise<void> => {
     if (running) {
@@ -193,6 +192,14 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
           seen = new Set(keys);
           continue;
         }
+        const open = new Set(
+          items.filter((item) => item.isUnread !== false).map((item) => item.id),
+        );
+        for (const [handle, id] of shown)
+          if (!open.has(id)) {
+            handle.close();
+            shown.delete(handle);
+          }
         const channels = deps.channels();
         for (const item of items) {
           const key = desktopNoticeKey(item);
@@ -220,10 +227,10 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
     } catch {
       return;
     }
-    shown.add(handle);
+    shown.set(handle, item.id);
     handle.onclick = (event) => {
       event.preventDefault();
-      if (typeof window !== 'undefined') window.focus();
+      revealDesktopWindow();
       handle.close();
       shown.delete(handle);
       deps.open(item);
@@ -231,7 +238,7 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
   };
 
   const closeAll = (): void => {
-    for (const handle of shown) handle.close();
+    for (const handle of shown.keys()) handle.close();
     shown.clear();
   };
 
@@ -239,12 +246,10 @@ export function mountDesktopNotifications(deps: DesktopNotifierDeps): () => void
     if (!disposed) void check();
   };
   const unsubscribe = deps.subscribe(trigger);
-  const timer = setInterval(trigger, deps.intervalMs ?? DESKTOP_NOTIFICATION_POLL_MS);
   trigger();
   return () => {
     disposed = true;
     unsubscribe();
-    clearInterval(timer);
     shown.clear();
   };
 }

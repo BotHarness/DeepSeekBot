@@ -1,0 +1,13 @@
+# S4 route-continuity evidence
+
+Captured 2026-11-01 from real isolated Windows and Linux DSH Hosts. The screenshots are the Windows Web Client at 1440 × 900; the remote Bot used a real model. No production Host was restarted or reconfigured.
+
+- `before.png`: base `825c5ef08811ed865e463a70dbbda38e982e05fa`. After both routes were discovered, a process-confined hook made Tailnet unavailable in both directions. The explicit new message `S4-BASE-ISOLATED-1101-L` returned `unable-to-deliver` and was absent from the receiver. The screenshot shows retained history, not a UI error banner. Subsequent Client discovery can show Available through Connect despite the earlier failed send.
+- `after.png`: implementation `90743e4af68fc5ad6ba4af63fbe95a35e623d9df`, same Profile, peer, viewport, theme and fault. A new explicit `S4-HEAD-ISOLATED-1101-M` and its ACK each appear once in both canonical histories, in the same pre-existing DM. Structured logs record Connect send and receive acceptance. L remains absent.
+- `profile.png`: implementation `90743e4af68fc5ad6ba4af63fbe95a35e623d9df`, real public profile in dark mode. It shows updated description and reported device facts; unavailable model/capability facts are not fabricated. This is supplemental evidence, not the comparison pair.
+
+Both comparison captures had zero browser console issues. Earlier failed experiments are retained privately: an outbound-only Tailnet fault caused reverse identity verification to fail; a later restart omitted the isolated Relay override and received an account refusal. Neither experiment is counted as passed. The final comparison used a fixed launcher with the explicit isolated Relay and checked both original QA account/Host identities before sending.
+
+Other real two-device checks passed: Tailnet/Connect continuity, lost acknowledgement after receiver commit with the alternate route restored, offline refusal/recovery, same-name separation and restart without replay. Unknown/refused payloads were never retried. The lost-ack test inspected the receiver's canonical commit before dropping the authenticated response; the sender returned `delivery-unknown` and did not send through the alternate route.
+
+Test qualification: the same six related files passed all 24 tests with two workers in an isolated Linux copy (21.00 seconds). Windows default-concurrency full-suite results were 10,740 passed, 485 failed and 61 skipped; the related two-worker run failed 5 of 24. All five new continuity cases passed standalone. Those Windows failures remain unresolved qualification limits; Linux success does not classify them as baseline failures.

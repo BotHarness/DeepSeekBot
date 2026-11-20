@@ -1,37 +1,17 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ConversationIngestRow } from '../../core/src/messaging/conversation-ingest.js';
+import { type ConversationIngestSnapshot } from '../../core/src/messaging/conversation-ingest.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  Switch: ({
-    checked,
-    label,
-    disabled,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-checked': checked,
-      'aria-label': label,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
 }));
 
-import type {
-  ConversationIngestRow,
-  ConversationIngestSnapshot,
-} from '../../core/src/messaging/conversation-ingest.js';
 import { ConversationIngestRows } from '../src/client/conversation-ingest-list.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import {

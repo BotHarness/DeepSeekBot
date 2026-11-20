@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
@@ -57,11 +57,13 @@ export function EditableAvatar({
   children,
   corner,
   testID,
+  label,
 }: {
   editor: AvatarEditor;
   children: ReactNode;
   corner: number;
   testID: string;
+  label?: string;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -69,7 +71,7 @@ export function EditableAvatar({
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={t.avatarChange}
+      accessibilityLabel={label ?? t.avatarChange}
       accessibilityState={{ disabled: editor.busy, busy: editor.busy }}
       disabled={editor.busy}
       onPress={() => void editor.choose()}

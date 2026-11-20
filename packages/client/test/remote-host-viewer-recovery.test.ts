@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBrowserViewer } from '../../../apps/mobile/src/host/browser-viewer.js';
-import { createComputerViewer } from '../../../apps/mobile/src/host/computer-viewer.js';
-import type {
-  HostApiAnswer,
-  HostApiInit,
-  HostClient,
-} from '../../../apps/mobile/src/host/client.js';
+import { createBrowserViewer } from '@botharness/host-client/browser-viewer';
+import { createComputerViewer } from '@botharness/host-client/computer-viewer';
+import type { HostApiAnswer, HostApiInit, HostClient } from '@botharness/host-client/client';
 import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
 
 afterEach(() => vi.useRealTimers());

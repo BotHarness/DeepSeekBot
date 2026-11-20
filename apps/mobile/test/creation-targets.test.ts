@@ -46,6 +46,20 @@ describe('source-bound creation choices', () => {
       'marketplace',
     ]);
   });
+  it('hides Bot creation from a member who may not create Bots', () => {
+    const member = [
+      {
+        kind: 'computer' as const,
+        key: computerEnvironmentKey('team'),
+        hostId: 'team',
+        name: 'Team',
+        botCreation: false,
+      },
+    ];
+    expect(creationActions('all', member)).toEqual(['channel', 'join']);
+    expect(creationActions(computerEnvironmentKey('team'), member)).toEqual(['channel']);
+    expect(targetsFor('bot', 'all', member)).toEqual([]);
+  });
   it('does not fall back to All for a removed source, member or channel-only guest', () => {
     for (const scope of [
       cloudEnvironmentKey('alice', 'org_b'),

@@ -1,25 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactElement } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  Button: ({ children }: { children: string }) => createElement('button', null, children),
-  Input: ({
-    className,
-    value,
-    onChange,
-  }: {
-    className: string;
-    value: string;
-    onChange: (event: { currentTarget: { value: string } }) => void;
-  }) =>
-    createElement(
-      'button',
-      { className, onClick: () => onChange({ currentTarget: { value: 'team' } }) },
-      value || 'search',
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 vi.mock('../src/client/modal.js', () => ({
@@ -30,6 +17,7 @@ import { createChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.j
 import { useChannelSidebar } from '../src/client/channel-sidebar-view.js';
 import { useDelayedSearch } from '../src/client/delayed-search.js';
 import { HiddenChannelsModal } from '../src/client/hidden-channels.js';
+import { typeInto } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { createStore } from '../src/client/store.js';
 
@@ -111,7 +99,7 @@ it('filters hidden Channels only after the current query delay', async () => {
     ),
   );
   expect(host.textContent).toContain('Other');
-  await act(async () => host.querySelector<HTMLButtonElement>('.bh-hidden-search')?.click());
+  await typeInto(host.querySelector<HTMLInputElement>('.bh-hidden-search input')!, 'Team');
   expect(host.textContent).toContain('Other');
   await act(async () => vi.advanceTimersByTime(180));
   expect(host.textContent).toContain('Team A');

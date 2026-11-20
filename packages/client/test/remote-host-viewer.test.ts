@@ -4,7 +4,7 @@ import type {
   HostApiInit,
   HostClient,
   HostSnapshot,
-} from '../../../apps/mobile/src/host/client.js';
+} from '@botharness/host-client/client';
 import { createRemoteHostViewer } from '../src/client/remote-host-viewer.js';
 
 afterEach(() => vi.useRealTimers());

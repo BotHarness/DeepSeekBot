@@ -1,30 +1,23 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarTab } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ open, anchor, children }: { open: boolean; anchor: ReactNode; children: ReactNode }) =>
-    createElement('div', null, anchor, open ? children : null),
-  MenuItemButton: ({ onSelect, children }: { onSelect(): void; children: ReactNode }) =>
-    createElement('button', { onClick: onSelect }, children),
-  MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('div', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { ChannelSidebarTabs } from '../src/client/channel-sidebar-tabs.js';
 import {
   createChannelSidebarRegistry,
   resolveChannelSidebarTabs,
-  type ChannelSidebarEntry,
   type ChannelSidebarEntryProps,
-  type ChannelSidebarTab,
 } from '../src/client/channel-sidebar.js';
 import {
   channelSidebarScopeKey,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { mergeSavedOrder } from '../src/client/channel-sidebar-order.js';

@@ -141,6 +141,8 @@ vi.mock('@expo/ui/swift-ui', () => {
       <div
         data-native="picker"
         data-testid={props.testID}
+        data-element={JSON.stringify(find(props, 'accessibilityElement') ?? null)}
+        {...a11y(props)}
         data-style={JSON.stringify(find(props, 'pickerStyle'))}
         data-tint={JSON.stringify(find(props, 'tint') ?? null)}
       >
@@ -156,6 +158,8 @@ vi.mock('@expo/ui/swift-ui', () => {
     Menu: box('menu'),
   };
 });
+
+import { Dimensions } from 'react-native';
 
 import { DesignThemeProvider } from '../src/ui/design/theme';
 import { LoadingIndicator } from '../src/ui/primitives/loading-indicator';
@@ -224,6 +228,32 @@ it('pushes through the caller with an SF Symbol label and the system chevron', a
   expect(JSON.parse(button.getAttribute('data-tint')!)).toMatch(/^#/);
   await act(async () => button.click());
   expect(open).toHaveBeenCalledOnce();
+});
+
+it('keeps a wrapped detail in the text column beside the symbol at accessibility sizes', async () => {
+  vi.spyOn(Dimensions, 'get').mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 2 });
+  const host = await render(
+    <SettingsForm>
+      <SettingsSection>
+        <SettingsRow
+          title="Storage"
+          detail="Space used on this computer"
+          leading={<RowIcon name="notifications" />}
+          disclosure
+          testID="settings-storage"
+          onPress={() => {}}
+        />
+      </SettingsSection>
+    </SettingsForm>,
+  );
+  vi.restoreAllMocks();
+  const button = host.querySelector('[data-testid="settings-storage"]')!;
+  expect(button.querySelector('[data-native="label"]')).toBeNull();
+  const symbol = button.querySelector('[data-symbol="bell"]')!;
+  const column = symbol.nextElementSibling!;
+  expect(symbol.parentElement!.getAttribute('data-native')).toBe('hstack');
+  expect(column.getAttribute('data-native')).toBe('vstack');
+  expect(column.textContent).toBe('StorageSpace used on this computer');
 });
 
 it('turns a trailing Toggle into a native SwiftUI toggle with the row as its label', async () => {
@@ -357,6 +387,10 @@ it('renders a preference as a native menu picker inside a form', async () => {
   expect(JSON.parse(picker.getAttribute('data-style')!)).toBe('menu');
   expect(JSON.parse(picker.getAttribute('data-tint')!)).toMatch(/^#/);
   expect(picker.querySelector('[data-system-image="circle.lefthalf.filled"]')).not.toBeNull();
+  expect(JSON.parse(picker.getAttribute('data-element')!)).toBe('combine');
+  expect(picker.getAttribute('aria-label')).toBe('Appearance');
+  expect(picker.getAttribute('data-value')).toBe('Follow system');
+  expect(JSON.parse(picker.getAttribute('data-traits')!)).toEqual(['isButton']);
   const select = picker.querySelector('select')!;
   await act(async () => {
     select.value = 'dark';

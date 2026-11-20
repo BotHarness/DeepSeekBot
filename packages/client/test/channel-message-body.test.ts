@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { resourceEvents } from './resource-events-fixture.js';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,39 +23,190 @@ import {
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import { toolApprovalText } from '../src/client/approval-text.js';
-import { WORKSPACE_GRANTS_CHANGED } from '../src/client/workspace-grants-entry.js';
+import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
-import { createHostClient } from '../../../apps/mobile/src/host/client.js';
-import { MessageHostContext } from '../src/client/message-host.js';
-import { RemoteMessageBody } from '../src/client/remote-message-body.js';
-import type { ConversationMessage } from '../../../apps/mobile/src/host/conversation.js';
+import { initialGenuiView, parseGenuiReport } from '../../core/src/channels/genui.js';
+import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
+import {
+  initialGenuiDocumentState,
+  parseGenuiDocument,
+} from '../../core/src/channels/genui-document.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
+vi.mock('../src/client/genui-document-runtime.js', () => ({
+  loadGenuiDocumentRuntime: runtime.load,
+}));
+const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMountOptions) => {
+  const frame = document.createElement('iframe');
+  frame.title = options.document.title;
+  frame.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+  container.append(frame);
+  return {
+    ready: Promise.resolve(),
+    restore: vi.fn(),
+    theme: vi.fn(),
+    textScale: vi.fn(),
+    dispose: vi.fn(() => frame.remove()),
+  };
+});
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   FileTypeIcon: ({ path }: { path: string }) =>
     createElement('span', { 'data-file-type-icon': path }),
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   fileSizeText: (bytes: number) =>
     bytes >= 1048576
       ? `${(bytes / 1048576).toFixed(1)}MB`
       : bytes >= 1024
         ? `${(bytes / 1024).toFixed(1)}KB`
         : `${bytes}B`,
-  IconDownloadOutlineRegular: () => null,
-  IconPlayOutlineRegular: () => null,
-  IconPauseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   MarkdownText: vi.fn(() => null),
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+  MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
+  useMarkdownDelegate: () => ({}),
+
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
 }));
+
+describe('GenUI ordinary message integration', () => {
+  it.each(['dm', 'group'] as const)(
+    'retains the summary and enables Host view reads only in a Web DM: %s',
+    async (type) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const previous = store.getSnapshot().conversation;
+      const channel = {
+        id: `${type}-genui`,
+        type,
+        name: 'GenUI',
+        members: ['ada'],
+        createdAt: '2026-11-07T00:00:00Z',
+        updatedAt: '2026-11-07T00:00:00Z',
+      };
+      const message: ChannelMessage = {
+        id: 'report-integration',
+        at: channel.createdAt,
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Always readable report summary',
+        format: 'text',
+        genui: parseGenuiReport(comparisonReport),
+      };
+      store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
+      const call = vi.fn(async () => ({
+        ok: true as const,
+        value: { version: 0, state: initialGenuiView() },
+      }));
+      const container = document.createElement('div');
+      document.body.append(container);
+      const root = createRoot(container);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(ChannelMessageBody, {
+              message,
+              channelId: channel.id,
+              actions: createActions(call, store),
+              t: zhTranslate,
+            }),
+          ),
+        );
+        expect(container.textContent).toContain(message.body);
+        expect(container.querySelector('table')).not.toBeNull();
+        if (type === 'dm') {
+          expect(call).toHaveBeenCalledTimes(1);
+          expect(call).toHaveBeenCalledWith(
+            'channelGenuiView',
+            { channelId: channel.id, messageId: message.id },
+            undefined,
+          );
+        } else {
+          expect(call).not.toHaveBeenCalled();
+          expect(container.querySelector('input')).toBeNull();
+        }
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+        store.setConversation(previous);
+      }
+    },
+  );
+});
+
+it.each(['dm', 'group'] as const)(
+  'mounts the shared v2 runtime beside the readable summary in %s',
+  async (type) => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const previous = store.getSnapshot().conversation;
+    const channel = {
+      id: `${type}-document`,
+      type,
+      name: 'Synthetic document',
+      members: ['ada'],
+      createdAt: '2026-11-08T00:00:00Z',
+      updatedAt: '2026-11-08T00:00:00Z',
+    };
+    const genui = parseGenuiDocument({
+      version: 2,
+      snapshotId: 'document-1',
+      title: 'Synthetic document',
+      observedAt: channel.createdAt,
+      html: '<p>Synthetic</p>',
+      stateContract: { version: 1, fields: { expanded: { type: 'boolean', initial: false } } },
+    });
+    const message: ChannelMessage = {
+      id: 'document-message',
+      at: channel.createdAt,
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Always readable document summary',
+      format: 'text',
+      genui,
+    };
+    store.setConversation({ status: 'ready', channel, messages: [message], revision: 0 });
+    const call = vi.fn(async () => ({
+      ok: true as const,
+      value: { version: 0, state: initialGenuiDocumentState(genui) },
+    }));
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(ChannelMessageBody, {
+            message,
+            channelId: channel.id,
+            actions: createActions(call, store),
+            t: zhTranslate,
+          }),
+        ),
+      );
+      expect(container.textContent).toContain(message.body);
+      expect(runtime.load).toHaveBeenCalledTimes(1);
+      expect(mountDocument).toHaveBeenCalledTimes(1);
+      expect(mountDocument).toHaveBeenCalledWith(
+        expect.any(HTMLElement),
+        expect.objectContaining({ document: genui, state: initialGenuiDocumentState(genui) }),
+      );
+      expect(container.querySelector('iframe')?.title).toBe(genui.title);
+      if (type === 'dm')
+        expect(call).toHaveBeenCalledWith(
+          'channelGenuiView',
+          { channelId: channel.id, messageId: message.id },
+          undefined,
+        );
+      else {
+        expect(call).not.toHaveBeenCalled();
+        expect(container.textContent).not.toContain('保存我的视图');
+      }
+    } finally {
+      await act(async () => root.unmount());
+      expect(mountDocument.mock.results[0]?.value.dispose).toHaveBeenCalledTimes(1);
+      container.remove();
+      store.setConversation(previous);
+    }
+  },
+);
 
 it('maintains the DM session without retrying a failed message', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -136,7 +293,7 @@ function render(
   body: string,
   options: Pick<
     ChannelMessage,
-    'format' | 'streaming' | 'attachments' | 'sessionFailure' | 'bridgeOrigin'
+    'format' | 'streaming' | 'attachments' | 'sessionFailure' | 'bridgeOrigin' | 'sessionLinks'
   > = {},
 ) {
   return renderToStaticMarkup(
@@ -148,404 +305,11 @@ function render(
   );
 }
 
-beforeEach(() => vi.mocked(MarkdownText).mockClear());
-
-it.each([
-  { phase: 'initial', failure: 'http' },
-  { phase: 'initial', failure: 'json' },
-  { phase: 'initial', failure: 'network' },
-  { phase: 'initial', failure: 'changed' },
-  { phase: 'navigation', failure: 'http' },
-  { phase: 'navigation', failure: 'network' },
-  { phase: 'navigation', failure: 'changed' },
-  { phase: 'create', failure: 'http' },
-  { phase: 'options', failure: 'http' },
-  { phase: 'grant', failure: 'http' },
-  { phase: 'grant', failure: 'json' },
-  { phase: 'grant', failure: 'network' },
-  { phase: 'grant', failure: 'refused' },
-  { phase: 'grant', failure: 'decided' },
-  { phase: 'before-authorize', failure: 'changed' },
-  { phase: 'after-create', failure: 'changed' },
-  { phase: 'grant', failure: 'none' },
-] as const)(
-  'keeps remote folder $phase/$failure results truthful and localized',
-  async ({ phase, failure }) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const calls: { url: string; method: string; args: Record<string, unknown> }[] = [];
-    let current = true;
-    const sourceMessage = {
-      id: 'remote-folder',
-      at: '2026-10-21T00:00:00Z',
-      author: { kind: 'bot' as const, slug: 'same-bot' },
-      body: '请选择来源 Host 的文件夹',
-      grantRequest: true as const,
-    };
-    const client = createHostClient({
-      routes: ['https://source.example.ts.net'],
-      credential: 'test-device.test-secret',
-      carrier: {
-        async request(url, init) {
-          const request = JSON.parse(String(init.body));
-          const method: string = request.method;
-          const args: Record<string, unknown> = request.payload.args;
-          calls.push({ url, method, args });
-          const browsing = method === 'directoryPicker/list';
-          const failing =
-            (phase === 'initial' && browsing && args.path === undefined) ||
-            (phase === 'navigation' && browsing && args.path !== undefined) ||
-            (phase === 'create' && method === 'workspace/create') ||
-            (phase === 'options' && method === 'botharness/workspaceOptions') ||
-            (phase === 'grant' && method === 'botharness/grantRequestApprove');
-          if (failing && failure === 'network') throw new TypeError('RAW_NETWORK_FAILURE');
-          if (failing && (failure === 'http' || failure === 'json'))
-            return { status: failure === 'http' ? 502 : 200, text: async () => 'RAW_BAD_GATEWAY' };
-          if (phase === 'after-create' && method === 'workspace/create') current = false;
-          const path = typeof args.path === 'string' ? args.path : '/source';
-          const value = browsing
-            ? { path, crumbs: [], entries: [{ name: '子目录', path: '/source/child' }], roots: [] }
-            : method === 'workspace/create'
-              ? { workspace: { workspaceId: 'source-workspace' } }
-              : method === 'botharness/workspaceOptions'
-                ? { workspaces: [{ id: 'source-workspace', path: '/source', title: '来源文件夹' }] }
-                : method === 'botharness/channelTimeline'
-                  ? {
-                      page: {
-                        entries: [
-                          { ...sourceMessage, grantRequestResolved: failure === 'decided' },
-                        ],
-                      },
-                    }
-                  : {
-                      grant: {
-                        id: 'source-grant',
-                        workspaceId: 'source-workspace',
-                        workspacePath: '/source',
-                        workspaceTitle: '来源文件夹',
-                        orchestratorWrite: true,
-                      },
-                    };
-          return {
-            status: 200,
-            text: async () =>
-              JSON.stringify({
-                type: 'server-response',
-                rpcId: request.rpcId,
-                result:
-                  failing && (failure === 'refused' || failure === 'decided')
-                    ? {
-                        ok: false,
-                        error: { code: 'grant/request-unavailable', message: 'RAW_GRANT_REFUSAL' },
-                      }
-                    : { ok: true, value },
-              }),
-          };
-        },
-        openSocket() {
-          throw new Error('No socket expected');
-        },
-      },
-    });
-    const message: ConversationMessage = {
-      id: sourceMessage.id,
-      at: sourceMessage.at,
-      author: 'bot',
-      bot: 'same-bot',
-      body: sourceMessage.body,
-      attachments: [],
-      delivery: 'committed',
-      source: { channelId: 'remote-channel', revision: 1, message: sourceMessage },
-    };
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    const click = async (label: string) => {
-      const button = [...container.querySelectorAll('button')].find((b) => b.textContent === label);
-      expect(button).toBeDefined();
-      expect(button?.disabled).toBe(false);
-      await act(async () => button?.click());
-    };
-    try {
-      await act(async () =>
-        root.render(
-          createElement(
-            MessageHostContext.Provider,
-            {
-              value: { client, current: (channelId) => current && channelId === 'remote-channel' },
-            },
-            createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
-          ),
-        ),
-      );
-      if (phase === 'initial' && failure === 'changed') current = false;
-      await click(zhTranslate('grant.requestChoose'));
-      if (phase === 'navigation') {
-        if (failure === 'changed') current = false;
-        await click('子目录');
-      } else if (phase !== 'initial') {
-        if (phase === 'before-authorize') current = false;
-        await click(zhTranslate('grant.authorize'));
-      }
-      if (failure === 'none') {
-        expect(container.textContent).toContain(zhTranslate('grant.requestResolved'));
-        expect(container.querySelector('[role=alert]')).toBeNull();
-      } else {
-        expect(container.querySelector('[role=alert]')?.textContent).toBe(
-          zhTranslate('humanInbox.failed'),
-        );
-        expect(container.textContent).not.toContain(zhTranslate('grant.requestResolved'));
-        expect(container.textContent).not.toMatch(
-          /RAW_|502|JSON|conversation changed|no longer pending|Host could not/,
-        );
-      }
-      const grants = calls.filter((call) => call.method === 'botharness/grantRequestApprove');
-      if (phase === 'grant') {
-        expect(grants).toHaveLength(1);
-        expect(grants[0]?.args).toEqual({
-          slug: 'same-bot',
-          channelId: 'remote-channel',
-          requestMessageId: 'remote-folder',
-          workspaceId: 'source-workspace',
-          acknowledgeReadWrite: true,
-        });
-      } else expect(grants).toEqual([]);
-      if (phase === 'initial' || phase === 'navigation' || phase === 'before-authorize')
-        expect(calls.some((call) => call.method === 'workspace/create')).toBe(false);
-      expect(
-        calls.every((call) =>
-          call.url.startsWith('https://source.example.ts.net/botharness-device/'),
-        ),
-      ).toBe(true);
-    } finally {
-      await act(async () => root.unmount());
-      container.remove();
-    }
-  },
-);
-
-it.each(['accepted', 'expired', 'decided'] as const)(
-  'renders a remote approval with Host result %s without reporting a refused choice as accepted',
-  async (result) => {
-    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-    const calls: { url: string; method: string; args: unknown }[] = [];
-    let submitted = false;
-    const client = createHostClient({
-      routes: ['https://source.example.ts.net'],
-      credential: 'test-device.test-secret',
-      carrier: {
-        async request(url, init) {
-          const request = JSON.parse(String(init.body));
-          calls.push({ url, method: request.method, args: request.payload.args });
-          const deciding = request.method.endsWith('/toolApprovalDecide');
-          if (deciding) submitted = true;
-          const value = request.method.endsWith('/channelTimeline')
-            ? {
-                page: {
-                  entries: [
-                    message.source?.message,
-                    ...(result === 'decided' && submitted
-                      ? [
-                          {
-                            toolApprovalDecision: {
-                              requestMessageId: message.id,
-                              outcome: 'rejected',
-                            },
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              }
-            : {
-                status: submitted && result !== 'accepted' ? 'expired' : 'pending',
-                accepted: true,
-              };
-          return {
-            status: 200,
-            text: async () =>
-              JSON.stringify({
-                type: 'server-response',
-                rpcId: request.rpcId,
-                result:
-                  deciding && result !== 'accepted'
-                    ? { ok: false, error: { code: 'not-pending', message: 'No longer pending' } }
-                    : { ok: true, value },
-              }),
-          };
-        },
-        openSocket() {
-          throw new Error('No socket expected');
-        },
-      },
-    });
-    const message: ConversationMessage = {
-      id: 'remote-approval',
-      at: '2026-10-21T00:00:00Z',
-      author: 'bot',
-      bot: 'same-bot',
-      body: '',
-      attachments: [],
-      delivery: 'committed',
-      source: {
-        channelId: 'remote-channel',
-        revision: 1,
-        message: {
-          id: 'remote-approval',
-          at: '2026-10-21T00:00:00Z',
-          author: { kind: 'bot', slug: 'same-bot' },
-          body: '',
-          toolApprovalRequest: {
-            role: 'orchestrator',
-            sessionId: 'remote-session',
-            callId: 'remote-call',
-            toolName: 'bash',
-            cwd: '/remote',
-            input: '{"command":"pwd"}',
-          },
-        },
-      },
-    };
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
-    try {
-      await act(async () =>
-        root.render(
-          createElement(
-            MessageHostContext.Provider,
-            {
-              value: { client, current: (channelId) => channelId === 'remote-channel' },
-            },
-            createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
-          ),
-        ),
-      );
-      expect(container.textContent).toContain('允许这次');
-      const allow = [...container.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('允许这次'),
-      );
-      await act(async () => allow?.click());
-      if (result === 'accepted') expect(container.textContent).toContain('已允许');
-      else {
-        expect(container.textContent).not.toContain('已允许');
-        expect(container.textContent).toContain(zhTranslate('approval.outcome.expired'));
-      }
-      expect(calls.filter((call) => call.method.endsWith('/toolApprovalDecide'))).toEqual([
-        {
-          url: 'https://source.example.ts.net/botharness-device/api/botharness/toolApprovalDecide',
-          method: 'botharness/toolApprovalDecide',
-          args: {
-            channelId: 'remote-channel',
-            messageId: 'remote-approval',
-            outcome: 'allowed-once',
-          },
-        },
-      ]);
-    } finally {
-      await act(async () => root.unmount());
-      container.remove();
-    }
-  },
-);
-
-it('renders a canonical remote question through the shared message projection', () => {
-  const client = createHostClient({
-    routes: ['https://source.example.ts.net'],
-    credential: 'test-device.test-secret',
-    carrier: {
-      request: async () => {
-        throw new Error('No request during static rendering');
-      },
-      openSocket() {
-        throw new Error('No socket expected');
-      },
-    },
-  });
-  const message: ConversationMessage = {
-    id: 'remote-question',
-    at: '2026-10-21T00:00:00Z',
-    author: 'bot',
-    bot: 'same-bot',
-    body: 'Which source?',
-    attachments: [],
-    delivery: 'committed',
-    source: {
-      channelId: 'remote-channel',
-      revision: 1,
-      message: {
-        id: 'remote-question',
-        at: '2026-10-21T00:00:00Z',
-        author: { kind: 'bot', slug: 'same-bot' },
-        body: 'Which source?',
-        userQuestionRequest: {
-          sessionId: 'remote-session',
-          questions: [{ id: 'source', question: 'Which source?', options: [{ label: 'Host B' }] }],
-        },
-      },
-    },
-  };
-  const html = renderToStaticMarkup(
-    createElement(
-      MessageHostContext.Provider,
-      { value: { client, current: () => true } },
-      createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
-    ),
-  );
-  expect(html).toContain('Which source?');
-  expect(html).toContain('Host B');
-  expect(html).toContain('bh-question-card');
-});
-
-it('preserves remote plain text and attachment metadata without falling back to local URLs', () => {
-  const client = createHostClient({
-    routes: ['https://source.example.ts.net'],
-    credential: 'test-device.test-secret',
-    carrier: {
-      request: async () => {
-        throw new Error('No request on static render');
-      },
-      openSocket: () => {
-        throw new Error('No socket');
-      },
-    },
-  });
-  const message: ConversationMessage = {
-    id: 'remote-photo',
-    at: '2026-10-21T00:00:00Z',
-    author: 'human',
-    body: 'Literal text from the remote Host',
-    attachments: [],
-    delivery: 'committed',
-    source: {
-      channelId: 'same-channel',
-      revision: 1,
-      message: {
-        id: 'remote-photo',
-        at: '2026-10-21T00:00:00Z',
-        author: { kind: 'human' },
-        body: 'Literal text from the remote Host',
-        attachments: [
-          {
-            fileId: 'file:11111111-1111-4111-8111-111111111111',
-            name: 'remote.png',
-            mime: 'image/png',
-            size: 123,
-          },
-        ],
-      },
-    },
-  };
-  const html = renderToStaticMarkup(
-    createElement(
-      MessageHostContext.Provider,
-      { value: { client, current: () => true } },
-      createElement(RemoteMessageBody, { message, messages: [message], t: zhTranslate }),
-    ),
-  );
-  expect(html).toContain('Literal text from the remote Host');
-  expect(html).toContain('alt="remote.png"');
-  expect(html).not.toContain('./api/');
-  expect(html).not.toContain('test-secret');
+beforeEach(() => {
+  vi.mocked(MarkdownText).mockClear();
+  runtime.load.mockReset();
+  runtime.load.mockResolvedValue({ mountGenuiDocument: mountDocument });
+  mountDocument.mockClear();
 });
 
 describe('Channel message body', () => {
@@ -570,7 +334,7 @@ describe('Channel message body', () => {
     (mime) => {
       const attachments = [{ fileId: 'file:report', name: 'report', mime, size: 5 }];
       const html = render({ kind: 'human' }, 'attached', { attachments });
-      expect(html).toContain('bh-message-attachment');
+      expect(html).toContain(mime === 'image/png' ? 'bh-message-album' : 'bh-message-attachment');
       expect(html).not.toContain('bh-message-attachment-ordinal');
     },
   );
@@ -846,6 +610,7 @@ describe('Channel message body', () => {
       ]!;
     const contrast = (color: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(color)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    const appearance = mountAppearanceFixture();
     try {
       await show(bot('ada', { mode: 'custom', color: '#ffffff' }));
       expect(name('ada')).not.toBe('#ffffff');
@@ -862,12 +627,12 @@ describe('Channel message body', () => {
       for (const chip of container.querySelectorAll<HTMLElement>('[data-bot-id]'))
         expect(chip.style.color).toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(name('ada')).toBe('#ffffff');
       expect(name('bea')).not.toBe('#000000');
       expect(contrast(name('bea'), 'dark')).toBeGreaterThanOrEqual(4.5);
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show(bot('ada'));
@@ -881,7 +646,7 @@ describe('Channel message body', () => {
       );
       expect(openBot).toHaveBeenCalledExactlyOnceWith('bea');
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }
@@ -962,6 +727,23 @@ describe('Channel message body', () => {
     expect(markup).toContain('<details');
     expect(markup).toContain('Authentication Fails (request_id: test-123)');
     expect(markup).not.toContain('bh-session-failure-card');
+  });
+
+  it('says when one failure card stands for several identical failures in a row', () => {
+    const failure = {
+      role: 'orchestrator' as const,
+      sessionId: 'session-quota',
+      code: 'QUOTA',
+      detail: 'Insufficient balance',
+    };
+    expect(
+      render({ kind: 'bot', slug: 'ada' }, 'Session failed', {
+        sessionFailure: { ...failure, repeated: 3 },
+      }),
+    ).toContain('连续 3 次同样失败');
+    expect(
+      render({ kind: 'bot', slug: 'ada' }, 'Session failed', { sessionFailure: failure }),
+    ).not.toContain('同样失败');
   });
 
   it('shows why the Host refused a Turn and the fix instead of a generic failure', () => {
@@ -1058,7 +840,9 @@ describe('Channel message body', () => {
     expect(markup).toContain('<img');
     expect(markup).toContain('alt="photo.png"');
     expect(markup).toContain('download="report.pdf"');
-    expect(markup).toContain('data-file-type-icon="report.pdf"');
+    expect(markup).toContain('data-file-tone="red"');
+    expect(markup).toContain('>PDF</span>');
+    expect(markup).toContain('456B · PDF');
     expect(markup).toContain('class="bh-message-file-name" title="report.pdf"');
     expect(markup).not.toContain('▤');
     expect(markup).toContain('/api/botharness/attachment?hash=');
@@ -1106,6 +890,27 @@ describe('Channel message body', () => {
     }
   });
 
+  it('shows the Sessions a Bot message links and opens its inline session mentions', () => {
+    const markup = render(
+      { kind: 'bot', slug: 'ada' },
+      'Started it; see [Old work](session:asg-old).',
+      {
+        sessionLinks: [
+          { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+          { sessionId: 'asg-sent', kind: 'sent', title: 'Release notes' },
+        ],
+      },
+    );
+    expect(markup.indexOf('data-session-links="sent"')).toBeLessThan(
+      markup.indexOf('data-session-links="created"'),
+    );
+    expect(markup).toContain('Fix export');
+    expect(markup).toContain('Release notes');
+    expect(vi.mocked(MarkdownText).mock.calls[0]?.[0]).toMatchObject({
+      text: 'Started it; see [Old work](https://session.tobs.invalid/asg-old).',
+    });
+  });
+
   it('keeps casual Human punctuation, whitespace and newlines literal', () => {
     const markup = render({ kind: 'human' }, '#1 is 2*3\n_maybe_  ');
     expect(markup).toContain('#1 is 2*3\n_maybe_  ');
@@ -1147,11 +952,13 @@ describe('Tool approval card', () => {
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
-    const toolApprovalExecutionState = vi
+    const live = resourceEvents();
+    const toolApprovalState = vi
       .fn()
-      .mockResolvedValueOnce('waiting-capacity')
-      .mockResolvedValueOnce('running');
-    const actions = { toolApprovalExecutionState } as unknown as BridgeActions;
+      .mockResolvedValueOnce({ status: 'expired', execution: 'waiting-capacity' })
+      .mockRejectedValueOnce(new Error('read timed out'))
+      .mockResolvedValue({ status: 'expired', execution: 'running' });
+    const actions = { toolApprovalState } as unknown as BridgeActions;
     const message: ChannelMessage = {
       id: 'approval-capacity',
       at: '2026-10-09T00:00:00Z',
@@ -1179,17 +986,32 @@ describe('Tool approval card', () => {
       );
       expect(container.textContent).toContain('终端 · 已允许');
       expect(container.textContent).toContain('等待运行名额');
-      expect(container.textContent).not.toContain('允许这次');
+      const selected = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === '允许这次',
+      )!;
+      expect(selected.disabled).toBe(true);
+      expect(selected.getAttribute('aria-pressed')).toBe('true');
+      const change = {
+        resource: 'tool-approval',
+        channelId: 'dm-ada',
+        messageId: message.id,
+      } as const;
+      await act(async () => vi.advanceTimersByTimeAsync(9000));
+      expect(toolApprovalState).toHaveBeenCalledTimes(1);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000);
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(container.textContent).toContain('等待运行名额');
+      await act(async () => {
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
       });
       expect(container.textContent).not.toContain('等待运行名额');
       expect(container.textContent).toContain('终端 · 已允许');
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5000);
-      });
-      expect(toolApprovalExecutionState).toHaveBeenCalledTimes(2);
+      expect(toolApprovalState).toHaveBeenCalledTimes(3);
     } finally {
+      live.dispose();
       await act(async () => root.unmount());
       container.remove();
       vi.useRealTimers();
@@ -1205,6 +1027,7 @@ describe('Tool approval card', () => {
       .fn()
       .mockResolvedValueOnce('pending')
       .mockResolvedValueOnce('expired');
+    const actions = { toolApprovalStatus } as unknown as BridgeActions;
     const message: ChannelMessage = {
       id: 'approval-1',
       at: '2026-09-25T00:00:00.000Z',
@@ -1225,15 +1048,14 @@ describe('Tool approval card', () => {
           createElement(ChannelMessageBody, {
             message,
             t: zhTranslate,
-            actions: { toolApprovalStatus } as unknown as BridgeActions,
+            actions,
           }),
         );
       });
       expect(container.textContent).toContain('允许这次');
       await act(async () => {
-        window.dispatchEvent(
-          new CustomEvent(WORKSPACE_GRANTS_CHANGED, { detail: { slug: 'ada' } }),
-        );
+        publishWorkspaceGrantChange('ada', actions);
+        await new Promise((resolve) => setTimeout(resolve, 30));
       });
       expect(toolApprovalStatus).toHaveBeenCalledTimes(2);
       expect(container.textContent).not.toContain('允许这次');

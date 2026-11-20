@@ -1,6 +1,6 @@
 # Bot 收件箱
 
-打开 **Bot 私聊 → Channel sidebar → Bot 收件箱**。这里展示当前 Bot 收到的来源，包括 Channel 消息和 Assignment 报告。它与 **活动中心 / Human Inbox** 不同，后者用于处理需要你回答或批准的请求。
+打开 **Bot 私聊 → Channel sidebar → Bot 收件箱**。这里展示当前 Bot 收到的来源，包括 Channel 消息和 Assignment 报告。它与 **「活动」 / Activity** 不同，后者用于处理需要你回答或批准的请求。
 
 ## 检查一条收件
 
@@ -32,6 +32,6 @@
 
 没有记录时，入口可能不显示；如果被隐藏，可从[显示与布局](/zh/docs/channel-sidebar/display)恢复。消息已到达但没有唤醒 Bot 时，按[唤醒策略](/zh/docs/channel-sidebar/wake-policy)检查来源规则；收件、唤醒策略和模型成功处理要分别核对。
 
-需要你回答或批准工具时，使用真实操作卡片或 **活动中心**。Bot 收件箱侧栏不能替代 Human 批准。外部连接仍按 [Lark](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection)教程配置。
+需要你回答或批准工具时，使用真实操作卡片或 **「活动」**。Bot 收件箱侧栏不能替代 Human 批准。外部连接仍按 [Lark](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection)教程配置。
 
 相关教程：[会话](/zh/docs/channel-sidebar/sessions)、[侧栏总览](/zh/docs/channel-sidebar)。

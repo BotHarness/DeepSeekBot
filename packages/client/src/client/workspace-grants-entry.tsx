@@ -1,3 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { Switch } from './ds/switch.js';
 import {
   useCallback,
   useId,
@@ -7,17 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import {
-  Button,
-  IconChevronDownOutlineRegular,
-  IconCloseOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconPlusOutlineRegular,
-  IconTrashOutlineRegular,
-  Input,
-  Switch,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -99,7 +94,7 @@ export function FolderSectionSummary({ children }: { children: ReactNode }): Rea
   return (
     <summary className="bh-channel-sidebar-entry-head">
       <span className="bh-channel-sidebar-entry-chevron" aria-hidden="true">
-        <IconChevronDownOutlineRegular size={14} />
+        <Icon name="chevron-down" size={14} />
       </span>
       <span className="bh-channel-sidebar-entry-label">{children}</span>
     </summary>
@@ -115,20 +110,14 @@ export function withWorkspaceActionDeadline<T>(
       () => reject(new Error(timeoutMessage)),
       WORKSPACE_ACTION_TIMEOUT_MS,
     );
-    void promise.then(
-      (value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      },
-      (cause: unknown) => {
-        window.clearTimeout(timer);
-        reject(cause);
-      },
-    );
+    void promise.finally(() => window.clearTimeout(timer)).then(resolve, reject);
   });
 }
 
-function secretCliRuleLabel(input: string): { program: string; account: string } {
+function secretCliRuleLabel(input: string): {
+  program: string;
+  account: string;
+} {
   try {
     const kind = JSON.parse(input) as { program?: unknown; account?: unknown };
     return {
@@ -142,7 +131,16 @@ function secretCliRuleLabel(input: string): { program: string; account: string }
 
 function approvalRulePath(rule: ToolApprovalRuleView): string {
   try {
-    const scope = JSON.parse(rule.scopeKey) as unknown;
+    let scope: unknown = JSON.parse(rule.scopeKey);
+    if (
+      Array.isArray(scope) &&
+      typeof scope[0] === 'string' &&
+      ((scope.length === 2 && scope[1] === 'explicit-approval') ||
+        (scope.length === 3 &&
+          (scope[1] === 'browser' || scope[1] === 'computer' || scope[1] === null) &&
+          typeof scope[2] === 'string'))
+    )
+      scope = JSON.parse(scope[0]);
     if (Array.isArray(scope) && typeof scope[1] === 'string') return scope[1];
   } catch {}
   return rule.scopeKey;
@@ -202,11 +200,12 @@ export function FolderRow({
               disabled={remove === undefined || disabled}
               onClick={remove}
             >
-              <IconTrashOutlineRegular size={16} />
+              <Icon name="trash" size={16} />
               {removeText}
             </Button>
           )}
-          <IconChevronDownOutlineRegular
+          <Icon
+            name="chevron-down"
             size={14}
             className={
               expanded ? 'bh-workspace-folder-chevron bh-expanded' : 'bh-workspace-folder-chevron'
@@ -243,7 +242,7 @@ export function AddFolderRow({
 }): ReactElement {
   return (
     <SidebarCardRow
-      leading={<IconPlusOutlineRegular size={16} />}
+      leading={<Icon name="plus" size={16} />}
       title={label}
       mainClassName="bh-workspace-folder-add"
       disabled={disabled}
@@ -264,12 +263,27 @@ function pickerUnavailable(cause: unknown): boolean {
 }
 
 const accessStyles = stylex.create({
-  stack: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: space.x3 },
-  actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: space.x2 },
+  stack: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: space.x3,
+  },
+  actions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: space.x2,
+  },
 });
 
 const memoryMoveStyles = stylex.create({
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
+  },
   grow: { flexGrow: 1, minWidth: 0 },
 });
 
@@ -344,7 +358,9 @@ export interface FolderBrowserActions {
   ): Promise<Omit<HostDirectoryListing, 'home'>>;
 }
 
-type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & { home?: string };
+type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & {
+  home?: string;
+};
 
 const FOLDER_CACHE_MS = 15_000;
 const FOLDER_PREFETCH_DELAY_MS = 150;
@@ -479,7 +495,10 @@ export function FolderBrowser({
       .then(
         (next) => {
           if (controller.signal.aborted || next.path !== listing.path) return;
-          const merged = { ...next, entries: [...listing.entries, ...next.entries] };
+          const merged = {
+            ...next,
+            entries: [...listing.entries, ...next.entries],
+          };
           rememberFolder(actions, listing.path, merged);
           setListing(merged);
         },
@@ -618,7 +637,7 @@ export function FolderBrowser({
               onBlur={cool}
               {...stylex.props(browserStyles.item)}
             >
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
               <span>{entry.name}</span>
             </button>
           ))}
@@ -673,10 +692,13 @@ export function WorkspaceGrantsEntry({
 }): ReactElement {
   const slug = botSlug ?? '';
   const subscribeChanges = useCallback(
-    (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener),
-    [slug],
+    (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener, actions),
+    [slug, actions],
   );
-  const getChangeRevision = useCallback(() => workspaceGrantRevision(slug), [slug]);
+  const getChangeRevision = useCallback(
+    () => workspaceGrantRevision(slug, actions),
+    [slug, actions],
+  );
   const changeRevision = useSyncExternalStore(
     subscribeChanges,
     getChangeRevision,
@@ -688,7 +710,10 @@ export function WorkspaceGrantsEntry({
   const [rules, setRules] = useState<ToolApprovalRuleView[]>(cached?.rules ?? []);
   const [access, setAccess] = useState<AssignmentAccessPresetView | undefined>(cached?.access);
   const [confirmDanger, setConfirmDanger] = useState(false);
-  const [pendingGrant, setPendingGrant] = useState<{ path: string; workspaceId?: string }>();
+  const [pendingGrant, setPendingGrant] = useState<{
+    path: string;
+    workspaceId?: string;
+  }>();
   const [memoryDir, setMemoryDir] = useState<string | undefined>(cached?.memoryDir);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPath, setManualPath] = useState('');
@@ -783,7 +808,7 @@ export function WorkspaceGrantsEntry({
     void (async () => {
       try {
         const operation = action().then((value) => {
-          publishWorkspaceGrantChange(botSlug);
+          publishWorkspaceGrantChange(botSlug, actions);
           return value;
         });
         await withWorkspaceActionDeadline(operation, t('grant.operationTimeout'));
@@ -1052,7 +1077,9 @@ export function WorkspaceGrantsEntry({
                                     const next = current.map((row) =>
                                       row.id === updated.id ? updated : row,
                                     );
-                                    rememberWorkspace(actions, botSlug, { grants: next });
+                                    rememberWorkspace(actions, botSlug, {
+                                      grants: next,
+                                    });
                                     if (activeSlug.current === botSlug) setGrants(next);
                                   })
                                 }
@@ -1079,7 +1106,9 @@ export function WorkspaceGrantsEntry({
                             const next = current.map((row) =>
                               row.id === revokedGrant.id ? revokedGrant : row,
                             );
-                            rememberWorkspace(actions, botSlug, { grants: next });
+                            rememberWorkspace(actions, botSlug, {
+                              grants: next,
+                            });
                             if (activeSlug.current === botSlug) setGrants(next);
                           })
                         }
@@ -1088,7 +1117,10 @@ export function WorkspaceGrantsEntry({
                   </>
                 }
                 onChoose={(path, workspaceId) =>
-                  setPendingGrant({ path, ...(workspaceId === undefined ? {} : { workspaceId }) })
+                  setPendingGrant({
+                    path,
+                    ...(workspaceId === undefined ? {} : { workspaceId }),
+                  })
                 }
               />
             ) : (
@@ -1217,7 +1249,9 @@ export function WorkspaceGrantsEntry({
                                 const next = current.map((row) =>
                                   row.id === updated.id ? updated : row,
                                 );
-                                rememberWorkspace(actions, botSlug, { grants: next });
+                                rememberWorkspace(actions, botSlug, {
+                                  grants: next,
+                                });
                                 if (activeSlug.current === botSlug) setGrants(next);
                               })
                             }
@@ -1315,7 +1349,10 @@ export function WorkspaceGrantsEntry({
                           disabled={busy !== undefined}
                           onClick={() => {
                             if (composerOnly)
-                              setPendingGrant({ path: workspace.path, workspaceId: workspace.id });
+                              setPendingGrant({
+                                path: workspace.path,
+                                workspaceId: workspace.id,
+                              });
                             else
                               mutate(workspace.id, async () =>
                                 showGrant(
@@ -1423,7 +1460,10 @@ export function WorkspaceGrantsEntry({
                       disabled={loading || busy !== undefined}
                       options={[
                         { value: 'chat', label: t('access.scopeChat') },
-                        { value: 'assignments', label: t('access.scopeAssignments') },
+                        {
+                          value: 'assignments',
+                          label: t('access.scopeAssignments'),
+                        },
                       ]}
                       onChange={(scope) =>
                         mutate('access-scope', () =>
@@ -1446,14 +1486,28 @@ export function WorkspaceGrantsEntry({
           />
         ) : null}
       </SettingsRows>
-      {composerOnly || rules.length === 0 ? null : (
+      {rules.length === 0 ? null : (
         <details className="bh-workspace-folder-secondary">
           <FolderSectionSummary>{t('approval.rulesTitle')}</FolderSectionSummary>
+          <details className="bh-workspace-folder-secondary">
+            <FolderSectionSummary>{t('approval.ruleDetails')}</FolderSectionSummary>
+            <div className="bh-note">{t('approval.rulesHint')}</div>
+          </details>
+          <Button
+            size="sm"
+            variant="toolbar"
+            disabled={busy !== undefined}
+            onClick={() => publishWorkspaceGrantChange(botSlug, actions)}
+          >
+            {t('autoApproval.reload')}
+          </Button>
           <div className="bh-workspace-folder-table">
             {rules.map((rule) => (
-              <div key={rule.id} className="bh-workspace-folder-row">
+              <div key={rule.id} className="bh-workspace-folder-row" data-tool-rule={rule.id}>
                 <div className="bh-workspace-folder-main">
                   <span className="bh-workspace-folder-toggle">
+                    <Tag>{t('approval.ruleFromCard')}</Tag>
+                    {' · '}
                     {rule.kind === 'tool'
                       ? t('approval.toolRule', { tool: rule.toolName })
                       : rule.kind === 'exact'
@@ -1471,25 +1525,25 @@ export function WorkspaceGrantsEntry({
                   <button
                     type="button"
                     className="bh-workspace-folder-remove"
-                    aria-label={t('approval.revokeRule')}
+                    aria-label={t('approval.revokeRule') + ': ' + rule.toolName}
                     disabled={busy !== undefined || rule.revokedAt !== undefined}
                     onClick={() =>
                       mutate(rule.id, () => actions.revokeToolApprovalRule(botSlug, rule.id))
                     }
                   >
-                    <IconCloseOutlineRegular />
+                    <Icon name="x" />
                   </button>
                 </div>
+                <div className="bh-note">{t('approval.cwd', { path: approvalRulePath(rule) })}</div>
                 <details className="bh-workspace-folder-secondary">
                   <FolderSectionSummary>{t('approval.ruleDetails')}</FolderSectionSummary>
-                  <div className="bh-note">
-                    {t('approval.cwd', { path: approvalRulePath(rule) })}
-                  </div>
                   <div className="bh-note">{t('approval.ruleScope')}</div>
                   <pre className="bh-tool-approval-input">{rule.scopeKey}</pre>
                   {rule.externalCreator ? (
                     <div className="bh-note">
-                      {t('approval.externalCreator', { actor: rule.externalCreator.actorId })}
+                      {t('approval.externalCreator', {
+                        actor: rule.externalCreator.actorId,
+                      })}
                     </div>
                   ) : null}
                   {rule.kind !== 'all-opaque' && rule.kind !== 'tool' ? (
@@ -1503,7 +1557,9 @@ export function WorkspaceGrantsEntry({
       )}
       {pendingGrant === undefined ? null : (
         <WorkspaceGrantConfirmation
-          title={t('composerContext.confirmGrant', { name: botName ?? botSlug })}
+          title={t('composerContext.confirmGrant', {
+            name: botName ?? botSlug,
+          })}
         >
           <p>{t('composerContext.grantScope', { path: pendingGrant.path })}</p>
           <Button

@@ -130,6 +130,8 @@ describe('hosted Connect route', () => {
     await new Promise<void>((done) => origin.listen(0, '127.0.0.1', done));
     const base = `http://127.0.0.1:${(origin.address() as AddressInfo).port}`;
     for (const path of [
+      '/botharness-device/bots/v1/handshake',
+      '/botharness-device/bots/v1/request',
       '/botharness-device/api/computer/video',
       '/botharness-device/web/api/computer/video',
       '/botharness-device/api/computer/%76ideo?command=input',
@@ -238,7 +240,9 @@ describe('device Connect tunnel', () => {
     });
 
     const origin = connect.status().origin ?? '';
+    expect(connect.idleSeconds?.()).toBeUndefined();
     expect((await get(origin, '/botharness-device/pair')).status).toBe(404);
+    expect(connect.idleSeconds?.()).toBeUndefined();
     expect(await get(origin, '/botharness-device/channel')).toEqual({
       status: 200,
       body: 'dsh /botharness-device/channel',
@@ -249,6 +253,7 @@ describe('device Connect tunnel', () => {
       'x-path: /botharness-device/channel',
     );
     expect(await upgrade(origin, '/botharness-device/api/remote.mux')).toContain('404 Not Found');
+    expect(connect.idleSeconds?.()).toBeLessThanOrEqual(1);
     expect(await upgrade(origin, '/api/remote.mux')).toContain('404 Not Found');
 
     const stored = [...credentials.records.values()][0] as {

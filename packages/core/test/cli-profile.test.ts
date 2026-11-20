@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -20,27 +21,32 @@ afterEach(async () => {
 
 async function host(handler: (method: string, args: Record<string, unknown>) => unknown) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result:
+            method === 'channelDm'
+              ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+              : handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -87,19 +93,27 @@ describe('Bot profile and appearance commands', () => {
     await invoke(['bot-primary-color-set', 'ada', '--automatic'], live.url);
     const dataUrl = `data:image/png;base64,${PNG.toString('base64')}`;
     expect(live.calls).toEqual([
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: dataUrl } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAvatarSet', args: { channelId: 'dm-ada', avatar: null } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: { image: dataUrl } } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botBannerSet',
         args: { channelId: 'dm-ada', banner: { recipe: { scene: 'meadow', seed: 7 } } },
       },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: null } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       { method: 'botAppearanceSet', args: { channelId: 'dm-ada', recipe: { hair: 'bob' } } },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botPrimaryColorSet',
         args: { channelId: 'dm-ada', primaryColor: { mode: 'custom', color: '#aabbcc' } },
       },
+      { method: 'channelDm', args: { slug: 'ada' } },
       {
         method: 'botPrimaryColorSet',
         args: { channelId: 'dm-ada', primaryColor: { mode: 'automatic' } },

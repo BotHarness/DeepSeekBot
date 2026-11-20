@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it } from 'vitest';
 
@@ -69,7 +70,10 @@ async function fixture(
     );
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Silent', members: ['ada'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Silent',
+      members: ['ada'],
+    });
     groupId = group.id;
     core.channels.setGroupWakePolicy(groupId, 'ada', {
       mode: 'silent',
@@ -77,19 +81,23 @@ async function fixture(
       intervalSeconds: 30,
     });
     for (const message of seed) {
-      await core.channels.appendMessageOnce(groupId, message);
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, groupId, message);
       core.runtime.admitGroupMessage(groupId, message.id);
     }
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     for (let turn = 0; turn < turns; turn += 1) {
       const messageId = 'trigger-' + turn;
-      await core.channels.appendMessageOnce(dm.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, dm.id, {
         id: messageId,
         at: '2026-09-03T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Read the silent history',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId, body: 'Read the silent history' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId,
+        body: 'Read the silent history',
+      });
       await core.runtime.whenIdle();
     }
     expect(failures).toEqual([]);
@@ -199,13 +207,16 @@ describe('bounded model Channel read and exact Inbox settlement', () => {
 
   it('bounds a merged joined page before observing messages from another Channel', async () => {
     const result = await fixture(seed, async ({ tools, core, groupId, states }) => {
-      const other = core.channels.createGroup({ name: 'Other', members: ['ada'] });
+      const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Other',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(other.id, 'ada', {
         mode: 'silent',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessageOnce(other.id, {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, other.id, {
         id: 'cross',
         at: '2026-09-01T00:00:09.000Z',
         author: { kind: 'human' },
@@ -365,13 +376,20 @@ describe('bounded model Channel read and exact Inbox settlement', () => {
         call(tools, { channel_id: groupId, message_id: 'long', content_cursor: 'broken' }),
       ).rejects.toThrow('invalid content_cursor');
       core.channels.removeGroupMember(groupId, 'ada');
+      attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(groupId),
+      );
       await expect(
         call(tools, {
           channel_id: groupId,
           message_id: 'long',
           content_cursor: first.contentCursor,
         }),
-      ).rejects.toThrow('not a member');
+      ).rejects.toThrow('bot-channel-access-denied');
     });
   });
 
@@ -422,7 +440,7 @@ describe('bounded model Channel read and exact Inbox settlement', () => {
             );
           })(),
         });
-        await core.channels.appendMessageOnce(groupId, {
+        await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, groupId, {
           id: 'image',
           at: '2026-09-01T00:00:03.000Z',
           author: { kind: 'human' },

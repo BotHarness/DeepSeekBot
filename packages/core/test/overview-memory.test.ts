@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { execFileSync } from 'node:child_process';
@@ -34,7 +35,7 @@ function setup() {
     ownership,
     now: () => new Date(2026, 9, 2, 12),
   });
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     ownership,
     memory,
@@ -80,9 +81,8 @@ it('shows ordinary Memory commits by committer day once across refs, separately 
     git(['diff', '--cached']),
   ];
   expect(
-    memory
-      .activity?.('ada', '2026-09-26T00:00:00+09:00')
-      .map(({ at }) => new Date(at).toISOString())
+    (await memory.activity?.('ada', '2026-09-26T00:00:00+09:00'))
+      ?.map(({ at }) => new Date(at).toISOString())
       .sort(),
   ).toEqual(['2026-09-26T03:00:00.000Z', '2026-10-01T03:00:00.000Z', '2026-10-02T03:00:00.000Z']);
   const result = await methods.overviewMemory({});

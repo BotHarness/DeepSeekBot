@@ -1,11 +1,12 @@
+import { prepareConversation } from '../../host/host-session';
 import { Platform } from 'react-native';
 import { showActionMenu } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
-import type { HostClient, RosterArrangement } from '../../host/client';
+import type { HostClient, RosterArrangement } from '@botharness/host-client/client';
 import type { DeletionTarget } from '../../host/deletion';
-import type { Inbox } from '../../host/inbox';
-import type { HostLook } from '../design/host-look';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import { ItemMenu } from '../primitives/item-menu';
 import { conversationPeek } from '../shell/conversation-peek';
 import { conversationHref, openConversation } from '../shell/open-conversation';
@@ -45,7 +46,16 @@ export function ManagedConversationRow({
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const openChannel = () => {
-    if (!openConversation(navigation, row, hostId)) onError();
+    if (!openConversation(navigation, row, hostId)) {
+      onError();
+      return;
+    }
+    const channelId = conversationChannelId(row);
+    if (Platform.OS === 'android' && client && hostId && channelId)
+      prepareConversation(client, hostId, {
+        channelId,
+        ...(row.kind === 'bot' ? { bot: row.bot } : {}),
+      });
   };
   const channelId = conversationChannelId(row);
   const state = { pinned, hostMuted: arrangement?.muted?.includes(channelId ?? '') === true };

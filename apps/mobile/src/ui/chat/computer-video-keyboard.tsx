@@ -4,7 +4,7 @@ import { View, type NativeSyntheticEvent, type ViewProps } from 'react-native';
 import {
   createRemoteKeyboardInput,
   type RemoteKeyboardFailure,
-} from '../../host/remote-keyboard-input';
+} from '@botharness/host-client/remote-keyboard-input';
 import { useMounted } from '../mounted';
 import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
 import { edge } from '../design/tokens';

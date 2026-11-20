@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -10,7 +11,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -82,13 +83,287 @@ afterEach(async () => {
 });
 
 describe('confirmed terminal PersonaBot deletion', () => {
+  it('removes a deleted Bot from every Group and leaves member management usable', async () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    fixtureState.create('b');
+    fixtureState.create('c');
+    const core = fixtureState.core;
+    core.configureGroupInvitations(() => false);
+    const groups = ['First', 'Second'].map((name) =>
+      core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name,
+        members: ['a', 'b'],
+        ownerBotSlug: 'a',
+      }),
+    );
+    for (const group of groups) {
+      const target = core.registry.get('c')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'c', target.displayName)!;
+      expect(
+        core.channels.inviteGroupBot({
+          channelId: group.id,
+          inviterBotSlug: 'a',
+          targetBotSlug: 'c',
+          targetBotCreatedAt: target.createdAt,
+          targetDmChannelId: dm.id,
+        }).status,
+      ).toBe('pending');
+      core.channels.setGroupWakePolicy(group.id, 'a', {
+        mode: 'mentions',
+        count: 1,
+        intervalSeconds: 30,
+      });
+      core.channels.setGroupWakePolicy(group.id, 'b', {
+        mode: 'silent',
+        count: 1,
+        intervalSeconds: 30,
+      });
+    }
+    const preview = core.deletions.preview('a');
+    expect(await core.deletions.confirm('a', preview.token, false)).toMatchObject({
+      phase: 'complete',
+    });
+    expect(core.registry.get('a')).toBeUndefined();
+    for (const group of groups) {
+      expect(core.channels.get(group.id)?.members).toEqual(['b']);
+      expect(core.channels.get(group.id)?.ownerBotSlug).toBeUndefined();
+      expect(core.channels.get(group.id)?.wakePolicies?.a).toBeUndefined();
+      expect(core.channels.getGroupWakePolicy(group.id, 'b').mode).toBe('silent');
+      const invitation = core.channels.get(group.id)?.invitations?.[0];
+      expect(invitation?.status).toBe('cancelled');
+      const admission = attachOperationalModule(core.operationalDatabase, 'messaging').read(
+        (database) =>
+          database
+            .prepare(`SELECT attempt_state FROM inbox_admissions
+          WHERE reason = 'group-invite' AND source_event_id IN (
+            SELECT source_event_id FROM source_events WHERE message_id = ?
+          )`)
+            .get(invitation!.id),
+      );
+      expect(admission).toMatchObject({ attempt_state: 'handled' });
+      expect(
+        core.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
+          channelId: group.id,
+          botSlug: 'b',
+        }).channel.members,
+      ).toEqual([]);
+    }
+  });
+
+  it('allows removing an already missing Bot member without requiring an active Bot', async () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    const core = fixtureState.core;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Legacy',
+      members: ['a'],
+    });
+    const preview = fixtureState.deletion.preview('a');
+    await fixtureState.deletion.confirm('a', preview.token, false);
+    expect(core.registry.get('a')).toBeUndefined();
+    expect(() =>
+      core.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        botSlug: 'a',
+        expectedChannel: '0'.repeat(64),
+      }),
+    ).toThrow('stale-channel');
+    expect(() =>
+      core.channelManagement.setWake(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        botSlug: 'a',
+        mode: 'mentions',
+        count: 1,
+        intervalSeconds: 30,
+      }),
+    ).toThrow('unknown-bot');
+    expect(
+      core.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        botSlug: 'a',
+      }).channel.members,
+    ).toEqual([]);
+  });
+
+  it('hides references that become invalid after startup on Group reads', async () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    fixtureState.create('b');
+    const core = fixtureState.core;
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Running Host',
+      members: ['a', 'b'],
+      ownerBotSlug: 'a',
+    });
+    core.channels.setGroupWakePolicy(group.id, 'a', {
+      mode: 'mentions',
+      count: 1,
+      intervalSeconds: 30,
+    });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      deletions: core.deletions,
+    });
+    expect(methods.channelGet({ channelId: group.id })).toMatchObject({
+      ok: true,
+      value: { channel: { members: ['a', 'b'], ownerBotSlug: 'a' } },
+    });
+    const preview = fixtureState.deletion.preview('a');
+    await fixtureState.deletion.confirm('a', preview.token, false);
+    const lookup = vi.spyOn(core.registry, 'get');
+    const result = methods.channelGet({ channelId: group.id });
+    expect(lookup.mock.calls.map(([slug]) => slug)).toEqual(['a', 'b']);
+    lookup.mockRestore();
+    expect(result).toMatchObject({
+      ok: true,
+      value: { channel: { members: ['b'] }, wakePolicies: [{ botSlug: 'b' }] },
+    });
+    if (!result.ok || !('channelFingerprint' in result.value))
+      throw new Error('Owner Group management read failed');
+    expect(result.value.channel.ownerBotSlug).toBeUndefined();
+    expect(result.value.channel.wakePolicies?.a).toBeUndefined();
+    expect(await methods.channels({})).toMatchObject({
+      ok: true,
+      value: {
+        channels: expect.arrayContaining([
+          expect.objectContaining({ id: group.id, members: ['b'] }),
+        ]),
+      },
+    });
+    expect(core.channels.get(group.id)?.members).toEqual(['a', 'b']);
+    expect(
+      core.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        botSlug: 'b',
+        ...(result.value.channelFingerprint === undefined
+          ? {}
+          : { expectedChannel: result.value.channelFingerprint }),
+      }).channel.members,
+    ).toEqual(['a']);
+  });
+
+  it.each(['membership', 'tombstone'])(
+    'rolls back every Group and Bot deletion on %s failure',
+    async (failure) => {
+      const fixtureState = fixture();
+      fixtureState.create('a');
+      fixtureState.create('b');
+      const core = fixtureState.core;
+      const groups = ['First', 'Second'].map((name) =>
+        core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name,
+          members: ['a', 'b'],
+          ownerBotSlug: 'a',
+        }),
+      );
+      const port = attachOperationalModule(core.operationalDatabase, 'messaging');
+      port.transaction((database) => {
+        database.exec(
+          failure === 'membership'
+            ? `CREATE TRIGGER fail_cleanup BEFORE UPDATE ON channel_records
+           WHEN OLD.channel_id = '${groups[1]!.id}' BEGIN SELECT RAISE(ABORT, 'injected'); END`
+            : `CREATE TRIGGER fail_cleanup BEFORE INSERT ON persona_bot_deletions
+           BEGIN SELECT RAISE(ABORT, 'injected'); END`,
+        );
+      });
+      const preview = core.deletions.preview('a');
+      await expect(core.deletions.confirm('a', preview.token, false)).rejects.toThrow();
+      expect(core.registry.get('a')).toBeDefined();
+      expect(core.deletions.get('a')).toBeUndefined();
+      for (const group of groups) expect(core.channels.get(group.id)).toEqual(group);
+      port.transaction((database) => database.exec('DROP TRIGGER fail_cleanup'));
+      expect(await core.deletions.confirm('a', preview.token, false)).toMatchObject({
+        phase: 'complete',
+      });
+      for (const group of groups) expect(core.channels.get(group.id)?.members).toEqual(['b']);
+    },
+  );
+
+  it('repairs legacy missing members and owners on restart without rewriting history', async () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    fixtureState.create('b');
+    const core = fixtureState.core;
+    const groups = ['First', 'Second'].map((name) =>
+      core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name,
+        members: ['a', 'b'],
+        ownerBotSlug: 'a',
+      }),
+    );
+    groups.push(
+      core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Missing identity',
+        members: ['missing-forever', 'b'],
+        ownerBotSlug: 'missing-forever',
+      }),
+    );
+    const preview = fixtureState.deletion.preview('a');
+    for (const group of groups) {
+      await core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'original-removal',
+        at: '2026-11-07T00:00:00.000Z',
+        author: { kind: 'system' },
+        body: 'Same name was removed from the Channel.',
+      });
+    }
+    await fixtureState.deletion.confirm('a', preview.token, false);
+    const before = groups.map((group) =>
+      core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, group.id),
+    );
+    await core.runtime.close();
+    core.externalMessaging.close();
+    core.operationalDatabase.close();
+    const restarted = createCore({ dshHome: fixtureState.home });
+    cores.push(restarted);
+    for (const [index, group] of groups.entries()) {
+      expect(restarted.channels.get(group.id)?.members).toEqual(['b']);
+      expect(restarted.channels.get(group.id)?.ownerBotSlug).toBeUndefined();
+      expect(restarted.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, group.id)).toEqual(
+        before[index],
+      );
+      expect(
+        restarted.channelManagement.removeMember(OWNER_HUMAN_CONTEXT, {
+          channelId: group.id,
+          botSlug: 'b',
+        }).channel.members,
+      ).toEqual([]);
+    }
+  });
+
+  it('cleans many Groups with one write transaction and leaves unrelated Groups untouched', () => {
+    const fixtureState = fixture();
+    fixtureState.create('a');
+    fixtureState.create('b');
+    const core = fixtureState.core;
+    const groups = Array.from({ length: 24 }, (_, index) =>
+      core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: `Group ${index}`,
+        members: ['a', 'b'],
+      }),
+    );
+    const unrelated = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Unrelated',
+      members: ['b'],
+    });
+    const before = core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
+    core.channels.removeBotFromGroups('a');
+    expect(core.operationalDatabase.diagnostics().metrics.transactionsCommitted - before).toBe(1);
+    for (const group of groups) expect(core.channels.get(group.id)?.members).toEqual(['b']);
+    expect(core.channels.get(unrelated.id)).toEqual(unrelated);
+    const records = core.channels.list();
+    core.channels.removeBotFromGroups('a');
+    expect(core.channels.list()).toEqual(records);
+  });
+
   it('retains all Memory bytes/Git and history, blocks identity reuse and late control after cold restart', async () => {
     const f = fixture();
     const path = f.create();
     writeFileSync(join(path, 'uncommitted.md'), 'private draft');
-    const channel = f.core.channels.getOrCreateDm('a', 'Same name');
+    const channel = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'a', 'Same name');
     if (channel === undefined) throw new Error('fixture DM unavailable');
-    await f.core.channels.appendMessageOnce(channel.id, {
+    await f.core.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, channel.id, {
       id: 'history',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -214,6 +489,28 @@ describe('confirmed terminal PersonaBot deletion', () => {
     symlinkSync(f.home, join(path, 'escape'));
     expect(f.deletion.preview('b').refusal).toContain('symbolic link');
   });
+  it('still refuses a symlink below the canonical managed root and an invalid retained ownership proof', () => {
+    const f = fixture();
+    const memory = f.create('a');
+    const directory = dirname(memory);
+    renameSync(directory, directory + '-retained');
+    symlinkSync(directory + '-retained', directory, 'dir');
+    expect(f.deletion.preview('a')).toMatchObject({ eraseAvailable: false });
+    expect(f.deletion.preview('a').refusal).toContain('symbolic link');
+    expect(existsSync(memory)).toBe(true);
+    const other = f.create('b');
+    attachOperationalModule(f.core.operationalDatabase, 'invalid-memory-proof-test').transaction(
+      (db) => {
+        db.prepare('UPDATE persona_bot_memory_ownership SET body = ? WHERE slug = ?').run(
+          JSON.stringify({ path: '', device: -1, inode: -1 }),
+          'b',
+        );
+      },
+    );
+    expect(f.deletion.preview('b')).toMatchObject({ eraseAvailable: false });
+    expect(f.deletion.preview('b').refusal).toContain('ownership');
+    expect(existsSync(other)).toBe(true);
+  });
   it('refuses stale dependency/name/path previews without disabling the Bot', async () => {
     const f = fixture();
     const path = f.create();
@@ -333,19 +630,22 @@ describe('confirmed terminal PersonaBot deletion', () => {
   it('uses the production bridge to keep history readable while rejecting deleted DM input and restart', async () => {
     const f = fixture();
     f.create();
-    const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
-    const channel = f.core.channels.getOrCreateDm('a', 'Same name');
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...f.core,
+      deletions: f.core.deletions,
+    });
+    const channel = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'a', 'Same name');
     if (channel === undefined) throw new Error('fixture DM unavailable');
-    const erased = createBridgeMethods({
+    const erased = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...f.core,
       memory: {
         ...f.core.memory,
-        activity: () => {
+        activity: async () => {
           throw new Error('Memory repository is missing');
         },
       },
     });
-    expect(() => erased.profileActivity({ channelId: channel.id })).toThrow(
+    await expect(erased.profileActivity({ channelId: channel.id })).rejects.toThrow(
       'Memory repository is missing',
     );
     const reviewed = f.core.deletions.preview('a');
@@ -359,11 +659,11 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(methods.sessions({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.assignments({ slug: 'a' })).toMatchObject({ ok: true });
     expect(methods.botAttention({ slug: 'a' })).toMatchObject({ ok: true });
-    expect(methods.profileActivity({ channelId: channel.id })).toMatchObject({
+    expect(await methods.profileActivity({ channelId: channel.id })).toMatchObject({
       ok: true,
       value: { slug: 'a' },
     });
-    expect(erased.profileActivity({ channelId: channel.id })).toMatchObject({
+    expect(await erased.profileActivity({ channelId: channel.id })).toMatchObject({
       ok: true,
       value: { slug: 'a', memoryCommits: [] },
     });
@@ -386,7 +686,10 @@ describe('confirmed terminal PersonaBot deletion', () => {
     expect(f.core.registry.update('image', { avatar: image }).ok).toBe(true);
     expect(f.core.registry.setAppearance('live', recipe).ok).toBe(true);
     const seeded = resolveBotPrimaryColor(f.core.registry.get('seeded')!).color;
-    const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...f.core,
+      deletions: f.core.deletions,
+    });
     const listed = (source = methods) => {
       const result = source.list({});
       if (!result.ok) throw new Error('list failed');
@@ -489,7 +792,10 @@ describe('confirmed terminal PersonaBot deletion', () => {
     cores.splice(cores.indexOf(f.core), 1);
     const restarted = createCore({ dshHome: f.home });
     cores.push(restarted);
-    const again = createBridgeMethods({ ...restarted, deletions: restarted.deletions });
+    const again = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...restarted,
+      deletions: restarted.deletions,
+    });
     check(listed(again));
     expect(usageRows(again)['custom']).toMatchObject({
       current: false,
@@ -509,7 +815,10 @@ describe('confirmed terminal PersonaBot deletion', () => {
       ['bot-registry'],
     );
     expect(f.core.registry.get('kept')?.primaryColor?.retained).toBeDefined();
-    const methods = createBridgeMethods({ ...f.core, deletions: f.core.deletions });
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...f.core,
+      deletions: f.core.deletions,
+    });
     const result = methods.list({});
     if (!result.ok) throw new Error('list failed');
     expect(result.value.bots[0]!.primaryColor).toBeUndefined();

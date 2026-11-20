@@ -3,9 +3,9 @@ import { act, useImperativeHandle, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ChannelActivity } from '../src/host/channel-activity';
-import type { RosterView } from '../src/host/client';
-import type { ConversationMessage } from '../src/host/conversation';
+import type { ChannelActivity } from '@botharness/host-client/channel-activity';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { bubbleRow } from '../src/ui/chat/bubble-shape';
 import { space } from '../src/ui/design/tokens';
 
@@ -142,7 +142,9 @@ describe('activity row layout and interaction', () => {
     const button = container.querySelector('button')!;
     act(() => button.click());
     expect(opened).not.toHaveBeenCalled();
-    act(() => button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    act(() => {
+      button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    });
     expect(opened).toHaveBeenCalledWith(
       { x: 12, y: 120, width: 366, height: 18 },
       expect.stringContaining('First line.\nSecond line.'),
@@ -179,16 +181,28 @@ describe('activity row layout and interaction', () => {
     expect(activityPeer(post, 'ada', roster)).toBeUndefined();
   });
 
+  it('marks a Human stop with one stop symbol and no person icon in a Group', () => {
+    render({
+      kind: 'turn-stop',
+      humanName: 'You',
+      botName: 'Ada',
+      botSlug: 'ada',
+      sessionId: 'session',
+    });
+    expect(container.querySelectorAll('[data-icon]')).toHaveLength(1);
+    expect(container.querySelector('[data-avatar]')).toBeNull();
+  });
+
   it('still exposes details for an activity with no destination', () => {
     render(
       { kind: 'turn-stop', humanName: 'You', botName: 'Ada', botSlug: 'ada', sessionId: 'session' },
       'ada',
     );
-    act(() =>
+    act(() => {
       container
         .querySelector('button')!
-        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })),
-    );
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    });
     expect(opened).toHaveBeenCalledWith(expect.any(Object), expect.any(String), undefined);
   });
 });

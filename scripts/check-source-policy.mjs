@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from './source-policy.mjs';
 
@@ -10,14 +10,20 @@ function describe(item) {
 }
 
 try {
-  if (process.argv.length > 2) throw new Error('source policy checker takes no arguments');
-  const issues = await scanRepository(root);
+  const files = process.argv
+    .slice(2)
+    .map((path) => relative(root, resolve(path)).replaceAll('\\', '/'));
+  const issues = await scanRepository(root, files.length ? files : undefined);
   if (issues.length) {
-    console.error('Code comments and React useEffect calls are prohibited:');
+    console.error(
+      'Code comments, React useEffect calls and whole client-store subscriptions are prohibited (docs/agents/ui-state.md):',
+    );
     for (const item of issues) console.error(describe(item));
     process.exitCode = 1;
   } else {
-    console.log('source policy: no code comments or React useEffect calls');
+    console.log(
+      'source policy: no code comments, React useEffect calls or whole client-store subscriptions',
+    );
   }
 } catch (error) {
   console.error(`source policy: ${error.message}`);

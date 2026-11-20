@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -29,7 +30,7 @@ async function fixture() {
     rootDir: join(home, 'botharness', 'channels'),
     attachments,
   });
-  channels.getOrCreateDm('ada', 'Ada');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const upload = (name: string, bytes: Buffer) =>
     attachments.upload({
       data: (async function* () {
@@ -40,7 +41,7 @@ async function fixture() {
   let sequence = 0;
   const send = (at: string, refs: NonNullable<ChannelMessage['attachments']>) => {
     sequence += 1;
-    return channels.appendMessage('dm-ada', {
+    return channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: `m-${sequence}`,
       at,
       author: { kind: 'human' },
@@ -52,7 +53,9 @@ async function fixture() {
     attachOperationalModule(database, 'test').transaction((db) =>
       db.prepare("UPDATE inbox_admissions SET attempt_state = 'handled'").run(),
     );
+  const clearedPlacements: { channelId: string; messageId: string }[] = [];
   const storage = createStorageCleanup({
+    cleared: (placements) => clearedPlacements.push(...placements),
     dshHome: home,
     database,
     attachments,
@@ -62,7 +65,7 @@ async function fixture() {
     botName: () => 'Ada',
     now: () => new Date('2026-10-20T00:00:00.000Z'),
   });
-  return { attachments, channels, upload, send, settle, storage };
+  return { attachments, channels, upload, send, settle, storage, clearedPlacements };
 }
 
 describe('storage media cleanup', () => {
@@ -117,6 +120,7 @@ describe('storage media cleanup', () => {
       removedFiles: 1,
       pendingFiles: 0,
     });
+    expect(f.clearedPlacements).toEqual([{ channelId: 'dm-ada', messageId: old!.id }]);
     const after = f.channels.readMessages('dm-ada');
     const cleared = after.find((item) => item.id === old!.id)!;
     expect(cleared.body).toBe('message 1');

@@ -1,4 +1,7 @@
-import { isBotModeSortMode, type BotModeSortMode } from '../bot-mode-settings.js';
+import {
+  isBotModeSortMode,
+  type BotModeSortMode,
+} from '@botharness/host-client/shared/bot-mode-settings';
 import { uniqueStrings } from './roster.js';
 
 export interface RosterConfig {

@@ -12,9 +12,13 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-import type { ApprovalRequest, DecisionResult, QuestionRequest } from '../src/host/requests';
+import type {
+  ApprovalRequest,
+  DecisionResult,
+  QuestionRequest,
+} from '@botharness/host-client/requests';
 import { ApprovalView, type ApprovalPort } from '../src/ui/approval-view';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { JoinRequestView } from '../src/ui/attention-view';
 import { ApprovalCard } from '../src/ui/chat/approval-card';
 import { GrantRequestCard, type GrantRequestPort } from '../src/ui/chat/grant-request-card';
@@ -149,6 +153,36 @@ for (const surface of approvalSurfaces) {
         );
       });
     }
+
+    it('shows a request whose Session was stopped as stopped, not expired', async () => {
+      const port = {
+        load: vi.fn(async () => ({ ...approval, status: 'stopped' as const })),
+        decide: vi.fn(async () => 'accepted' as const),
+      };
+      await render(surface.element(port));
+      expect(container.textContent).toContain(
+        surface.name === 'approval screen' ? t.stopped : t.cardStopped,
+      );
+      expect(container.textContent).not.toContain(
+        surface.name === 'approval screen' ? t.expired : t.cardExpired,
+      );
+    });
+
+    it('reports a decision refused because the Session stopped as stopped', async () => {
+      const response = deferred();
+      const port = {
+        load: vi.fn(async () => approval),
+        decide: vi.fn(() => response.promise),
+      };
+      await render(surface.element(port));
+      port.load.mockImplementation(async () => ({ ...approval, status: 'stopped' as const }));
+      await act(async () => button(t.allowOnce).click());
+      await act(async () => response.resolve('expired'));
+      expect(played).toEqual([]);
+      expect(container.textContent).toContain(
+        surface.name === 'approval screen' ? t.stopped : t.cardStopped,
+      );
+    });
 
     it('keeps failure visible and permits a single retry', async () => {
       const response = deferred();

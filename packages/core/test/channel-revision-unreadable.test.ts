@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -22,7 +23,7 @@ describe('channel revisions', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const database = attachOperationalModule(core.operationalDatabase, 'channel-revision-test');
       const sourceEventId = randomUUID();
       const at = '2026-10-16T00:00:00.000Z';
@@ -44,7 +45,7 @@ describe('channel revisions', () => {
           VALUES (?, 1, ?, 'unreadable')`).run(dm.id, sourceEventId);
       }, []);
 
-      const appended = await core.channels.appendMessage(dm.id, {
+      const appended = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'after-unreadable',
         at: '2026-10-16T00:00:01.000Z',
         author: { kind: 'human' },
@@ -62,7 +63,9 @@ describe('channel revisions', () => {
           channelRevision: 1,
         },
       ]);
-      expect(core.channels.readHumanJournalPage(dm.id, { through: 2 })).toMatchObject({
+      expect(
+        core.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, dm.id, { through: 2 }),
+      ).toMatchObject({
         entries: [
           { revision: 1, message: { id: 'unreadable' } },
           { revision: 2, message: { id: 'after-unreadable' } },

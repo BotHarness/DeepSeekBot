@@ -1,6 +1,6 @@
 # DSH 上的 BotHarness Runtime 架构
 
-这份由 BotHarness 产品文档拥有的参考，描述构建在 DSH-native Agent、Session、Workspace、Tool 与 Subagent 之上的 **BotHarness-proposed** 产品层。它不是上游 API 清单。产品术语的定义只存在于根目录 [`CONTEXT.md`](/zh/dev/design/context)，DSH/Cordis 术语则归 [DSH 规范 Context](/zh/dsh/context)；本页只解释两层对象在运行时的关系。
+这份由 BotHarness 产品文档拥有的参考，描述构建在 DSH-native Agent、Session、Workspace、Tool 与 Subagent 之上的 **BotHarness-proposed** 产品层。它不是上游 API 清单。产品术语的定义只存在于根目录 [`GLOSSARY.md`](/zh/dev/design/context)，DSH/Cordis 术语则归 [DSH 规范 Context](/zh/dsh/context)；本页只解释两层对象在运行时的关系。
 
 ## 不变量
 
@@ -18,7 +18,7 @@ Chat UI != Session
 Assignment 运行许可没有释放。Orchestrator 自己的原生审批／正式提问仍持有当前 Step，
 Admission 和 steering 接受不等于模型处理，原操作决定并返回后才开始处理无关输入。
 原 Session／call 归属及当前 Grant 检查保持权威，变更／撤销范围拒绝原调用。
-[ADR-0045](../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md#native-human-wait-qualification-2026-10-09)
+[ADR-0045](../decisions/sessions.md#adr-0045)
 记录此资格边界，不改变 ADR-0035 的单一 Orchestrator root 约束。
 [#1220](https://github.com/BotHarness/DeepSeekBot/issues/1220) 阻塞缺失的受支持机制；
 #1037／#1038 生产 continuation 仍保持 gate。

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,7 +17,7 @@ function setup(maxBytes = 1024) {
   roots.push(rootDir);
   const store = createAttachmentStore({ rootDir, maxBytes });
   const channels = createChannelStore({ rootDir: join(rootDir, 'channels'), attachments: store });
-  const channel = channels.createGroup({ name: 'Files', members: [] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Files', members: [] });
   const http = createAttachmentHttp(store, channels);
   return async (request: Request) => {
     const response = await http(request);
@@ -24,7 +25,7 @@ function setup(maxBytes = 1024) {
       const { attachment } = (await response.clone().json()) as {
         attachment: ChannelAttachmentRef;
       };
-      await channels.appendMessage(channel.id, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
         id: attachment.fileId!,
         at: new Date().toISOString(),
         author: { kind: 'human' },

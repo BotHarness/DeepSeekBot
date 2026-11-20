@@ -1,8 +1,11 @@
 import { createServer } from 'node:http';
 import { describe, expect, it } from 'vitest';
 
-import { createBrowserViewer, type BrowserViewerState } from '../src/host/browser-viewer';
-import { createHostClient } from '../src/host/client';
+import {
+  createBrowserViewer,
+  type BrowserViewerState,
+} from '@botharness/host-client/browser-viewer';
+import { createHostClient } from '@botharness/host-client/client';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

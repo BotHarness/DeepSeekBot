@@ -2,6 +2,12 @@
 
 Hosted Connect and TOB sign in through TOB's WorkOS environments (ADR-0241). In **Staging (UAT)**, WorkOS provides default Google, Microsoft, GitHub and Apple credentials for testing only. Their consent screens show WorkOS's name and logo. **Production has no default credentials**: every provider it offers needs its own OAuth client. This runbook registers our own clients for both environments, enters them in WorkOS, and stores them machine-locally.
 
+## WorkOS account and API keys
+
+- Dashboard account: `yang@deepseekbot.app`, team **BotHarness**, project **TOB**. The WorkOS MCP plugin is signed in to the same account. Other WorkOS teams the Human can reach (for example VeReach) are unrelated.
+- Production: `client_01M5F0C09JH5QPFX9160RFCKTH` (Hosted Connect relay `WORKOS_CLIENT_ID`, AuthKit `opportune-twilight-26.authkit.app`). Staging (UAT): `client_01M54TZZAA0Y6A248NCFYD84A5`.
+- Secret API keys (`sk_…`) live only in the Mac's login Keychain as `botharness.workos.<staging|production>`, with the client id in `~/.config/botharness/workos/<env>.client_id`. Store them with `node scripts/workos-secret.mjs set <env>` (hidden input) and check with `node scripts/workos-secret.mjs check`. `probe-email-code staging` verifies Magic Auth sign-in and secret-free refresh without printing any key or token (ADR-0296).
+
 ## Who does what
 
 - The Human signs in to every console: WorkOS, Google Cloud, Azure, GitHub and Apple Developer. An agent never types a password, OTP or passkey, and never creates an account.
@@ -30,7 +36,7 @@ Load a file with `set -a; . .secrets/google-oauth.env; set +a` and never echo it
 
 Status on 2026-10-21: Google and Apple are registered for UAT and Prod, and Production Apple authorization was verified in the browser. Microsoft and GitHub are not registered.
 
-Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. Today that is UAT's `client_01M54TZZAA0Y6A248NCFYD84A5`, which the relay publishes at `https://connect.botharness.ai/v1/config`.
+Client IDs and Redirect URIs are not secret, but they sit next to the secrets so one file describes the environment. Only the WorkOS client IDs belong in committed code. The hosted relay publishes Production's `client_01M5F0C09JH5QPFX9160RFCKTH` at `https://connect.botharness.ai/v1/config` (checked 2026-11-06).
 
 ## Steps, per environment (do UAT first, then Prod)
 
@@ -84,10 +90,10 @@ WorkOS custom domains, which put the sign-in page and OAuth callbacks on our own
   - Run `deepseekbot connect-sign-in --wait` on an isolated Host and choose the provider on the AuthKit page. The Human completes the login.
   - Confirm `connect-status` shows `signed-in` with that account's email, then `connect-sign-out`.
   - Check that the consent screen shows DeepSeekBot, not WorkOS.
-- **The phone (UAT):** sign in from the Pair screen's account section on the dev app through the shared device QA queue ([device-qa.md](device-qa.md)).
+- **The phone (Prod, through the hosted relay; a dev build with `EXPO_PUBLIC_CONNECT_RELAY` pointing at a local `dev:email-code staging` relay uses UAT):** sign in from the Pair screen's account section on the dev app through the shared device QA queue ([device-qa.md](device-qa.md)).
 - Report pass or fail per provider and environment, with no identifiers beyond the provider name.
 
 ## Open questions for the Human
 
-- **Prod:** confirm which WorkOS environment Prod is. The relay and the phone use UAT's client today, so switching them to Prod is a separate change.
+- **Prod:** the hosted relay publishes Production's client, and the phone reads its client id from the relay's `/v1/config`, so both use Production. Local QA relays (`dev:email-code staging`) use UAT.
 - **Store app redirect:** the store app (`app.deepseekbot.mobile`) needs its own redirect URI, because the phone's code currently uses `ai.botharness.deepseekbot.dev:/oauth2redirect`. Decide this before Prod sign-in on store builds.

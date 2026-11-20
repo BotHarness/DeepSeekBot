@@ -1,71 +1,12 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type PropsWithChildren } from 'react';
+import { type ReactNode } from 'react';
+import { type PairingRequest } from '../../core/src/messaging/pairing.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-  IconChevronDownOutlineRegular: () => createElement('svg', { 'aria-hidden': true }),
-  SegmentedTabs: ({
-    items,
-    value,
-    onChange,
-  }: {
-    items: { value: string; label: string; id: string; panelId: string }[];
-    value: string;
-    onChange(value: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'tablist' },
-      items.map((item) =>
-        createElement(
-          'button',
-          {
-            key: item.value,
-            role: 'tab',
-            'aria-selected': item.value === value,
-            onClick: () => onChange(item.value),
-          },
-          item.label,
-        ),
-      ),
-    ),
-  Checkbox: ({
-    checked,
-    label,
-    disabled,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    disabled?: boolean;
-    onChange(value: boolean): void;
-  }) =>
-    createElement(
-      'label',
-      null,
-      createElement('input', {
-        type: 'checkbox',
-        checked,
-        disabled,
-        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-      }),
-      label,
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/messaging-help.js', () => ({
   MessagingHelp: ({ title }: { title: string }) =>
@@ -120,7 +61,7 @@ import {
   BehaviorPermissionsPanel,
 } from '../src/client/behavior-permission-settings.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { PairingRequest } from '../../core/src/messaging/pairing.js';
+
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const request: PairingRequest = {
   id: 'qa-request',

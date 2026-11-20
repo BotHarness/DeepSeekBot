@@ -1,7 +1,9 @@
-import { useId, useState, type ReactElement } from 'react';
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { BotCreateSteps } from './bot-create-source.js';
+import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-
-import { Button, Input, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
@@ -11,6 +13,7 @@ import { color, radius, space, text } from './ds/tokens.stylex.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { TagEditor, tagsWithDraft } from './tag-editor.js';
+import { font } from './ds/tobs.stylex.js';
 
 export { normalizeRoleBadges } from './tag-editor.js';
 
@@ -20,6 +23,8 @@ export function personaBotCreateError(
 ): string {
   if (error instanceof BridgeCallError) {
     switch (error.code) {
+      case 'connection-host-changed':
+        return t('environment.create.changed');
       case 'duplicate':
         return t('bot.create.error.identity');
       case 'invalid-input':
@@ -65,7 +70,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: color.surface,
     color: color.fg,
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     whiteSpace: 'pre-wrap',
@@ -81,7 +86,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   detail: {
-    fontFamily: 'var(--dsw-font-family-mono, monospace)',
+    fontFamily: font.familyMono,
     overflowWrap: 'anywhere',
   },
   advanced: {
@@ -122,7 +127,13 @@ export function CreatePersonaBotModal({
   sectionName,
   t = zhTranslate,
   onCancel,
+  onBack,
   onCreated,
+  target,
+  targetUnavailable = false,
+  remote = false,
+  committed = false,
+  submitted = false,
 }: {
   actions: BridgeActions;
   source?: 'empty' | 'git';
@@ -130,7 +141,13 @@ export function CreatePersonaBotModal({
   sectionName?: string;
   t?: BotHarnessTranslate | undefined;
   onCancel: () => void;
+  onBack?: (() => void) | undefined;
   onCreated: () => void;
+  target?: ReactNode;
+  targetUnavailable?: boolean;
+  remote?: boolean;
+  committed?: boolean;
+  submitted?: boolean;
 }): ReactElement {
   const personaPresetId = useId();
   const [displayName, setDisplayName] = useState('');
@@ -149,21 +166,30 @@ export function CreatePersonaBotModal({
   const [creating, setCreating] = useState(false);
   const [cause, setCause] = useState<unknown | undefined>(undefined);
   const [fallback, setFallback] = useState<CreatedBot | undefined>(undefined);
+  const folderTarget = useRef({ actions, remote });
+  folderTarget.current = { actions, remote };
+  const fieldsLocked = creating || committed || submitted;
   const chosenLocation = memoryLocation.trim();
   const locationInvalid = chosenLocation.length > 0 && !isAbsoluteHostPath(chosenLocation);
   const invalid =
     displayName.trim().length === 0 ||
     (source === 'git' && gitUrl.trim().length === 0) ||
-    locationInvalid;
+    locationInvalid ||
+    targetUnavailable;
 
   const chooseFolder = (): void => {
-    if (pickingFolder || creating) return;
+    if (pickingFolder || fieldsLocked || remote) return;
     setPickingFolder(true);
     void actions
       .pickWorkspaceFolder()
       .then(
         (path) => {
-          if (path !== null) setMemoryLocation(path);
+          if (
+            path !== null &&
+            !folderTarget.current.remote &&
+            folderTarget.current.actions === actions
+          )
+            setMemoryLocation(path);
         },
         (rejection: unknown) => setCause(rejection),
       )
@@ -211,7 +237,13 @@ export function CreatePersonaBotModal({
   if (fallback?.httpsFallback !== undefined) {
     const { from, to, reason, detail } = fallback.httpsFallback;
     const done = (): void => {
-      void actions.openCreatedBot(fallback, sectionId).finally(onCreated);
+      if (creating) return;
+      setCreating(true);
+      setCause(undefined);
+      void actions.openCreatedBot(fallback, sectionId).then(onCreated, (error: unknown) => {
+        setCause(error);
+        setCreating(false);
+      });
     };
     return (
       <FormDialog
@@ -220,9 +252,12 @@ export function CreatePersonaBotModal({
         submitLabel={t('bot.create.httpsFallback.done')}
         submitData={{ 'data-https-fallback-done': '' }}
         showCancel={false}
-        onCancel={done}
+        busy={creating}
+        error={cause === undefined ? undefined : personaBotCreateError(cause, t)}
+        onCancel={onCancel}
         onSubmit={done}
       >
+        {target}
         <div data-https-fallback="" {...stylex.props(styles.fallback)}>
           <span>{t('bot.create.httpsFallback.body')}</span>
           <pre {...stylex.props(styles.code)}>
@@ -258,22 +293,37 @@ export function CreatePersonaBotModal({
       description={t('bot.create.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={
-        creating
-          ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
-          : t('common.create')
+        committed
+          ? t(creating ? 'environment.create.finishing' : 'environment.create.finish')
+          : submitted
+            ? t(creating ? 'environment.create.confirming' : 'environment.create.retry')
+            : creating
+              ? t(source === 'git' ? 'bot.create.importing' : 'bot.create.creating')
+              : t('common.create')
       }
       submitDisabled={invalid}
       busy={creating}
       error={
         cause === undefined
           ? undefined
-          : t('create.failed', { error: personaBotCreateError(cause, t) })
+          : t(
+              committed
+                ? 'environment.create.finishFailed'
+                : submitted
+                  ? 'environment.create.unknown'
+                  : 'create.failed',
+              {
+                error: personaBotCreateError(cause, t),
+              },
+            )
       }
       onCancel={() => {
         if (!creating) onCancel();
       }}
       onSubmit={submit}
     >
+      {onBack ? <BotCreateSteps t={t} onBack={onBack} disabled={fieldsLocked} /> : null}
+      {target}
       {source === 'git' ? (
         <TextField
           label={t('bot.create.gitUrl.label')}
@@ -283,7 +333,7 @@ export function CreatePersonaBotModal({
           autoComplete="off"
           spellCheck={false}
           value={gitUrl}
-          disabled={creating}
+          disabled={fieldsLocked}
           placeholder={t('bot.create.gitUrl.placeholder')}
           onChange={setGitUrl}
         />
@@ -306,7 +356,7 @@ export function CreatePersonaBotModal({
               data-modal-autofocus=""
               className={stylex.props(styles.grow).className ?? ''}
               value={displayName}
-              disabled={creating}
+              disabled={fieldsLocked}
               placeholder={t('bot.create.name.placeholder')}
               onChange={(event) => setDisplayName(event.currentTarget.value)}
             />
@@ -319,7 +369,7 @@ export function CreatePersonaBotModal({
             id={control.id}
             tags={roles}
             draft={roleDraft}
-            disabled={creating}
+            disabled={fieldsLocked}
             t={t}
             onTags={setRoles}
             onDraft={setRoleDraft}
@@ -330,7 +380,7 @@ export function CreatePersonaBotModal({
         label={t('bot.create.about.label')}
         hint={t('bot.create.about.hint')}
         value={description}
-        disabled={creating}
+        disabled={fieldsLocked}
         placeholder={t('bot.create.about.placeholder')}
         onChange={setDescription}
       />
@@ -353,7 +403,7 @@ export function CreatePersonaBotModal({
                     label: t('bot.create.persona.roleplay'),
                   },
                 ]}
-                disabled={creating}
+                disabled={fieldsLocked}
                 onChange={setPersonaPreset}
               />
             )}
@@ -363,10 +413,13 @@ export function CreatePersonaBotModal({
             hint={t('bot.create.persona.hint')}
             rows={6}
             value={personaDrafts[personaPreset]}
-            disabled={creating}
+            disabled={fieldsLocked}
             placeholder={t('bot.create.persona.placeholder')}
             onChange={(value) =>
-              setPersonaDrafts((current) => ({ ...current, [personaPreset]: value }))
+              setPersonaDrafts((current) => ({
+                ...current,
+                [personaPreset]: value,
+              }))
             }
           />
           <details data-create-advanced="" {...stylex.props(styles.advanced)}>
@@ -383,7 +436,7 @@ export function CreatePersonaBotModal({
                       {...control}
                       className={stylex.props(styles.grow).className ?? ''}
                       value={memoryLocation}
-                      disabled={creating}
+                      disabled={fieldsLocked}
                       autoCapitalize="none"
                       autoComplete="off"
                       spellCheck={false}
@@ -392,7 +445,7 @@ export function CreatePersonaBotModal({
                     />
                     <Button
                       variant="outline"
-                      disabled={creating || pickingFolder}
+                      disabled={fieldsLocked || pickingFolder || remote}
                       onClick={chooseFolder}
                     >
                       {t('bot.create.memoryLocation.choose')}

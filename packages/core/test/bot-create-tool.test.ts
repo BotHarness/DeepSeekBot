@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -40,7 +41,7 @@ function setup() {
     databaseOwnerReady: true,
     now: FIXED_NOW,
   });
-  channels.getOrCreateDm('ada', 'Ada');
+  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   const agents = createDshBotAgentAdapter({
     agents: new FakeAgentHost({ kind: 'completed' }),
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },

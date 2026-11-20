@@ -1,6 +1,6 @@
 # Secret input in an ordinary Profile
 
-Since [ADR-0189](../../adr/0189-secret-input-is-available-in-ordinary-profiles.md) a PersonaBot can ask for a secret in any Profile. No Docker, no opt-in.
+Since [ADR-0189](../../decisions/secrets.md#adr-0189) a PersonaBot can ask for a secret in any Profile. No Docker, no opt-in.
 
 ## What the Bot can do
 
@@ -12,7 +12,7 @@ Since [ADR-0189](../../adr/0189-secret-input-is-available-in-ordinary-profiles.m
 | `secret_cli`         | Runs one installed command-line tool with secrets in its environment. The Host starts the program without a shell, in the Bot's working folder, inside the Shell sandbox, with a clean environment.         |
 | `secret_mcp_connect` | Starts an MCP server for this Bot's chat Session with secrets in its environment; its tools appear as `mcp__<server_name>__<tool>`. `secret_mcp_disconnect` stops it or lists what is connected.            |
 
-Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` card offers allow once, always allow this kind, and reject. The kind is the program, the account and the set of environment variable names; arguments are not part of it. Always allow saves a revocable `secret-cli` rule for that Bot and role, so later calls of the same kind run with any arguments without a card, and a different program, account or variable set gets a new card. No exact or all-opaque rule covers `secret_cli` ([ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md), [ADR-0208](../../adr/0208-secret-cli-can-be-always-allowed-per-program-and-account.md)).
+Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` card offers allow once, always allow this kind, and reject. The kind is the program, the account and the set of environment variable names; arguments are not part of it. Always allow saves a revocable `secret-cli` rule for that Bot and role, so later calls of the same kind run with any arguments without a card, and a different program, account or variable set gets a new card. No exact or all-opaque rule covers `secret_cli` ([ADR-0191](../../decisions/secrets.md#adr-0191), [ADR-0208](../../decisions/secrets.md#adr-0208)).
 
 A local DM or Group interaction can reuse configured accounts while IM requests arrive in the same turn. Omit `source_event_id` for local work. For IM work, select a live accepted source with `ask_secret` when needed before calling a consumer such as `secret_cli`, which has no source selector. Two IM sources that select the same account in one turn remain ambiguous; a revoked source stays refused until that turn ends. Historical messages never qualify as current interaction.
 
@@ -20,7 +20,7 @@ A local DM or Group interaction can reuse configured accounts while IM requests 
 
 - Values live in DSH's native credential store, bound to the requesting Bot and account. Another Bot cannot use them.
 - Channel history holds the request and the references only.
-- `secret_http` never sends a secret anywhere but the Owner-entered endpoint. Redirects are refused. Plain http is accepted only for a local address. The endpoint may carry its own query string, which stays on every request and is masked in the response like a secret. A request the Host refuses before sending comes back as `refused` with the reason, so the Bot can explain it. Secret values are masked in the returned text in raw, base64 and URL-encoded form; that masking is a courtesy, not a boundary.
+- `secret_http` never sends a secret anywhere but the Owner-entered endpoint. Redirects are not followed: a redirect comes back as its status and `location` (secrets masked). Plain http is accepted only for a local address. The endpoint may carry its own query string, which stays on every request and is masked in the response like a secret. A request the Host refuses before sending, or one that cannot reach the API (timeout, unresolved host name, refused connection, rejected certificate), comes back as `refused` with the reason, so the Bot can explain it. Secret values are masked in the returned text in raw, base64 and URL-encoded form; that masking is a courtesy, not a boundary.
 - An Agent cannot read the credential store. DSH runs every Shell command inside an OS sandbox, and the Host adds a rule that the store is unreadable: a Seatbelt rule on macOS, an empty-file mask under bwrap on Linux. Agent file tools that target the store, and Shell commands that name it, are refused before any approval card.
 
 ## Limits
@@ -55,11 +55,19 @@ Connect the GitHub MCP server: npx -y @modelcontextprotocol/server-github, which
 GITHUB_PERSONAL_ACCESS_TOKEN. Ask me for the token with ask_secret first.
 ```
 
-The Bot calls `secret_mcp_connect`. Expect an approval card that names the launcher and arguments, says the program keeps running, and offers allow once, allow and remember, and reject. After approval the Bot lists the server's tools; each tool call then asks in the usual way. With allow once the server stops on `secret_mcp_disconnect`, when the account is revoked, or when the Host restarts, and reconnecting needs a new approval. With allow and remember it is started again whenever this Bot's chat Session starts, and it appears under Secrets in every Bot's settings ([ADR-0198](../../adr/0198-a-remembered-secret-mcp-server-serves-every-personabot.md)): another Bot gets it when you turn its switch on there, running its own copy with the secret of the Bot that set it up. Removing it in any Bot's settings removes it for all ([ADR-0196](../../adr/0196-approved-secret-mcp-servers-can-be-remembered.md)). It is not available to Assignments ([ADR-0195](../../adr/0195-a-bot-starts-an-mcp-server-with-owner-secrets-per-approved-start.md)).
+The Bot calls `secret_mcp_connect`. Expect an approval card that names the launcher and arguments, says the program keeps running, and offers allow once, allow and remember, and reject. After approval the Bot lists the server's tools; each tool call then asks in the usual way. With allow once the server stops on `secret_mcp_disconnect`, when the account is revoked, or when the Host restarts, and reconnecting needs a new approval. With allow and remember it is started again whenever this Bot's chat Session starts, and it appears under Secrets in every Bot's settings ([ADR-0198](../../decisions/secrets.md#adr-0198)): another Bot gets it when you turn its switch on there, running its own copy with the secret of the Bot that set it up. Removing it in any Bot's settings removes it for all ([ADR-0196](../../decisions/secrets.md#adr-0196)). It is not available to Assignments ([ADR-0195](../../decisions/secrets.md#adr-0195)).
 
 Treat an MCP server as a program you install and trust, as other MCP clients do. Besides receiving the secret, it can add its own instructions to the Bot's system prompt, and its tool descriptions and results reach the model. Text from the server, or from data it returns such as an issue someone else wrote, can steer the Bot. Each tool call still asks for approval unless you saved a rule or turned on full access.
 
 For a local check without a real service, start `node scripts/ask-secret-fixture.mjs 31381` and ask the Bot to connect `node <repo>/scripts/secret-mcp-fixture.mjs` with `STATUS_ENDPOINT`, `STATUS_API_KEY` and `STATUS_API_SECRET`, then call `check_status` (expect 200) and `describe_setup` (expect the key shown as `[secret]`).
+
+## When something fails
+
+Every failure names its reason, and none of them contains a secret value:
+
+- A submission the Host does not receive shows a reason code on the card, such as `not-pending` (the request expired, was answered, or was lost in a Host restart), `invalid-fields`, `store-unavailable`, `save-failed` or `version-changed`. `deepseekbot ask-secret-submit` prints the same code.
+- A tool call that uses the secret tells the Bot why it failed: the API timed out, its host name did not resolve, the connection was refused, the certificate was rejected, the endpoint is not https, a redirect was not followed, the helper or command timed out, an MCP server did not finish starting, or the Host could not read the credential store. A store read error no longer reads as "the account was removed", so the Bot does not ask for the secret again.
+- Each step (request, submission, use, refusal, failure) is written to the global diagnostic log under the source `private-input`, failures as warnings, with the Bot, request id, tool and reason. Exporting the diagnostic log gives a report to attach to an issue.
 
 ## Owner CLI
 

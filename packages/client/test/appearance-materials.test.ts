@@ -7,6 +7,8 @@ import {
 } from '../src/client/appearance.js';
 import { appearanceMaterials } from '../src/client/appearance-materials.js';
 import { appearanceCss } from '../src/client/appearance-scope.js';
+import { TOBS_TOKENS } from '../src/client/ds/tobs-tokens.generated.js';
+import { tobsTokens } from '../src/client/tobs-theme.js';
 function fixture() {
   const data = new Map<string, string>();
   const storage = {
@@ -33,13 +35,13 @@ describe('global Header/Body appearance', () => {
     const next = new Appearance(storage, () => 'light').getSnapshot().config;
     expect(appearanceMaterials(next.modes.light, 'light')).toEqual({
       header: { color: '#123456', opacity: 32, blur: 0 },
-      body: { color: '#fdfefe', opacity: 22, blur: 14 },
+      body: { color: TOBS_TOKENS.light['--tobs-layer-canvas'], opacity: 22, blur: 14 },
     });
     expect(appearanceMaterials(next.modes.dark, 'dark')).toMatchObject({
-      body: { color: '#345678', opacity: 80, blur: 12 },
+      body: { color: '#345678', opacity: 100, blur: 0 },
     });
   });
-  it('applies a new preset to all known global adjustments while retaining other-mode and future data', () => {
+  it('changes the accent preset and preserves global and per-panel material adjustments', () => {
     const { owner, storage } = fixture();
     const original = parseAppearance(null);
     original.wallpaper = { asset: 'kept' };
@@ -55,12 +57,12 @@ describe('global Header/Body appearance', () => {
     expect(next.modes.dark).toEqual(original.modes.dark);
     expect(next.wallpaper).toEqual(original.wallpaper);
     expect(next.modes.light.panels).toEqual(original.modes.light.panels);
-    expect(next.modes.light.materials?.header).toEqual({ future: 3 });
+    expect(next.modes.light.materials).toEqual(original.modes.light.materials);
     expect(next.modes.light.primary).toBeUndefined();
     expect(appearanceMaterials(next.modes.light, 'light').body).toEqual({
-      color: '#fcf7ed',
-      opacity: 82,
-      blur: 10,
+      color: TOBS_TOKENS.light['--tobs-layer-canvas'],
+      opacity: 100,
+      blur: 0,
     });
   });
   it('keeps accepted materials and bytes when storage refuses', () => {
@@ -90,15 +92,16 @@ describe('global Header/Body appearance', () => {
       'appearance-invalid-input',
     );
   });
-  it('ships four light/dark presets, with an opaque default and scoped surface-only alpha', () => {
+  it('uses the same Default style materials across presets and applies opacity only to the surface', () => {
     const { owner } = fixture();
     for (const mode of ['light', 'dark'] as const)
       for (const preset of ['classic-blue', 'mist-purple', 'forest-green', 'warm-amber'] as const) {
         owner.update({ preference: mode, mode, preset });
         const resolved = appearanceMaterials(owner.getSnapshot().config.modes[mode], mode);
-        expect(resolved.body.opacity).toBe(
-          preset === 'classic-blue' ? 100 : preset === 'warm-amber' ? 82 : 80,
-        );
+        expect(resolved).toEqual({
+          header: { color: TOBS_TOKENS[mode]['--tobs-layer-raised'], opacity: 100, blur: 0 },
+          body: { color: TOBS_TOKENS[mode]['--tobs-layer-canvas'], opacity: 100, blur: 0 },
+        });
         const css = appearanceCss(owner.getSnapshot());
         expect(css).toContain('backdrop-filter:blur(var(--bh-global-body-blur))');
         expect(css).not.toMatch(/(?:^|[;{])opacity:/);
@@ -106,5 +109,27 @@ describe('global Header/Body appearance', () => {
           ':root .bh-workspace-mount[data-workspace-enabled] .dv-content-container',
         );
       }
+  });
+  it('uses resolved Material style layers under saved overrides in the same paint scope', () => {
+    const { owner } = fixture();
+    owner.setTargetSource(() => [{ id: 'dock:messages', label: 'Messages' }]);
+    owner.update({
+      style: 'c',
+      mode: 'light',
+      preset: 'mist-purple',
+      materials: { body: { opacity: 70 } },
+    });
+    owner.update({
+      mode: 'light',
+      panel: { id: 'dock:messages', materials: { body: { opacity: 40, blur: 5 } } },
+    });
+    const css = appearanceCss(owner.getSnapshot());
+    const tokens = tobsTokens('light', 'mist-purple', undefined, 'c');
+    const canvas = tokens['--tobs-layer-canvas'];
+    expect(canvas).not.toBe(TOBS_TOKENS.light['--tobs-layer-canvas']);
+    expect(css).toContain(`--bh-global-body-fill:color-mix(in srgb, ${canvas} 70%, transparent)`);
+    expect(css).toContain(
+      `[data-appearance-body="messages"] { background:color-mix(in srgb, ${canvas} 40%, transparent); backdrop-filter:blur(5px); }`,
+    );
   });
 });

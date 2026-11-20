@@ -1,44 +1,38 @@
-import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
 import { space } from './ds/tokens.stylex.js';
 import { panelMaterials, validTargetId } from './appearance-panels.js';
-import { appearanceMaterials } from './appearance-materials.js';
-import {
-  APPEARANCE_KEY,
-  APPEARANCE_PRIMARY,
-  Appearance,
-  type AppearanceSnapshot,
-} from './appearance.js';
-import { NATIVE_LIGHT, NATIVE_DARK } from './appearance-native-tokens.js';
+import { appearanceMaterials, type MaterialLayers } from './appearance-materials.js';
+import { APPEARANCE_KEY, type Appearance, type AppearanceSnapshot } from './appearance.js';
+import { tobsTokens } from './tobs-theme.js';
 export const APPEARANCE_CLASS = 'bh-appearance-scope';
+const OWNED_SCOPE = `.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]`;
+const WALLPAPER_INK = [
+  ['--tobs-ink-secondary', 40],
+  ['--tobs-ink-tertiary', 35],
+  ['--tobs-ink-quiet', 30],
+] as const;
 export function appearanceCss(snapshot: AppearanceSnapshot): string {
   const { config, mode } = snapshot;
   const selected = config.modes[mode];
-  const primary = selected.primary ?? APPEARANCE_PRIMARY[selected.preset][mode];
-  const materials = appearanceMaterials(selected, mode);
-  const tokens: Record<string, string> = {
-    ...NATIVE_LIGHT,
-    ...(mode === 'dark' ? NATIVE_DARK : {}),
-  };
+  const tokens = tobsTokens(mode, selected.preset, selected.primary, config.style);
+  const materials = appearanceMaterials(selected, mode, tokens);
+  const owned: Record<string, string> = { color: 'var(--tobs-ink-primary)', 'color-scheme': mode };
+  if (mode === 'light')
+    for (const [token, share] of WALLPAPER_INK)
+      owned[token] =
+        `color-mix(in srgb, ${tokens['--tobs-ink-primary']} calc(var(--bh-wallpaper-ink, 0) * ${share}%), ${tokens[token]})`;
   for (const part of ['header', 'body'] as const) {
     const material = materials[part];
-    tokens[`--bh-global-${part}-fill`] =
+    owned[`--bh-global-${part}-fill`] =
       `color-mix(in srgb, ${material.color} ${material.opacity}%, transparent)`;
-    tokens[`--bh-global-${part}-blur`] = `${material.blur}px`;
+    owned[`--bh-global-${part}-blur`] = `${material.blur}px`;
   }
-  tokens['--dsw-alias-state-business-primary'] = primary;
-  tokens['--dsw-alias-link'] = readable(primary, BUBBLE_SURFACES[mode].surface, 4.6);
-  tokens['--dsw-alias-state-business-secondary'] =
-    `color-mix(in srgb, ${primary} 45%, transparent)`;
-  tokens['--dsw-alias-state-business-tertiary'] = `color-mix(in srgb, ${primary} 14%, transparent)`;
-  tokens['--dsw-specific-sidebar-nav-item-active'] =
-    `color-mix(in srgb, ${primary} 14%, transparent)`;
-  return `.bh-root,.bh-workspace-mount[data-workspace-enabled],.${APPEARANCE_CLASS},[data-bh-appearance-owned]{color:var(--dsw-alias-label-primary);color-scheme:${mode};${Object.entries(
-    tokens,
-  )
-    .map(([k, v]) => `${k}:${v}`)
-    .join(
-      ';',
-    )}}:root [data-bh-appearance-owned][data-menu-material],:root .${APPEARANCE_CLASS}[data-menu-material],:root .${APPEARANCE_CLASS} [data-menu-material]{--dsw-elevation-stroke-color:var(--dsw-alias-border-${mode === 'dark' ? 'l3' : 'l4'})}${materialCss()}${panelCss(snapshot)}`;
+  return `body,${OWNED_SCOPE}{${declarations(tokens)}}${OWNED_SCOPE}{${declarations(owned)}}${materialCss()}${panelCss(snapshot, tokens)}`;
+}
+
+function declarations(properties: Record<string, string>): string {
+  return Object.entries(properties)
+    .map(([name, value]) => `${name}:${value}`)
+    .join(';');
 }
 
 export function mountAppearance(owner: Appearance): () => void {
@@ -48,20 +42,24 @@ export function mountAppearance(owner: Appearance): () => void {
   const update = () => {
     style.textContent = appearanceCss(owner.getSnapshot());
     style.dataset.bhAppearance = owner.getSnapshot().mode;
+    document.documentElement.dataset.bhAppearance = owner.getSnapshot().mode;
+    document.documentElement.dataset.tobsStyle = owner.getSnapshot().config.style ?? 'a';
   };
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const media = window.matchMedia?.('(prefers-color-scheme: dark)');
   const onStorage = (event: StorageEvent) => {
     if (event.key === APPEARANCE_KEY || event.key === null) owner.refresh();
   };
   update();
   document.head.appendChild(style);
   const off = owner.subscribe(update);
-  media.addEventListener('change', owner.refresh);
+  media?.addEventListener('change', owner.refresh);
   window.addEventListener('storage', onStorage);
   return () => {
     off();
     style.remove();
-    media.removeEventListener('change', owner.refresh);
+    delete document.documentElement.dataset.bhAppearance;
+    delete document.documentElement.dataset.tobsStyle;
+    media?.removeEventListener('change', owner.refresh);
     window.removeEventListener('storage', onStorage);
   };
 }
@@ -82,11 +80,11 @@ ${scope} [data-appearance-body], ${scope} .dv-content-container { background:var
 `;
 }
 
-function panelCss({ config, mode }: AppearanceSnapshot): string {
+function panelCss({ config, mode }: AppearanceSnapshot, layers: MaterialLayers): string {
   return Object.keys(config.modes[mode].panels ?? {})
     .filter(validTargetId)
     .map((id) => {
-      const material = panelMaterials(config.modes[mode], mode, id);
+      const material = panelMaterials(config.modes[mode], mode, id, layers);
       const scope = `:root .bh-workspace-mount[data-workspace-enabled] .dv-groupview:has(> .dv-tabs-and-actions-container .dv-active-tab [data-dock-header="${id.slice(5)}"])`;
       return (['header', 'body'] as const)
         .map(

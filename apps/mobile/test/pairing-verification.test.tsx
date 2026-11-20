@@ -7,6 +7,8 @@ const history = channelNavigationHarness(true);
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('@expo/ui', () => ({
   Host: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
   save: vi.fn(),
   initialize: vi.fn(),
+  savePairing: vi.fn(async (_key: string, save: () => Promise<void>) => save()),
   filter: vi.fn(),
 }));
 vi.mock('expo-router', () => ({
@@ -34,7 +37,9 @@ vi.mock('../src/host/host-session', () => ({
   hostSession: { pair: mocks.save, getState: mocks.getState },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
-vi.mock('../src/host/native-connect-account', () => ({ connectAccount: { offer: mocks.offer } }));
+vi.mock('../src/host/native-connect-account', () => ({
+  connectAccount: { offer: mocks.offer, savePairing: mocks.savePairing },
+}));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { initialize: mocks.initialize } }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: mocks.filter },
@@ -42,10 +47,13 @@ vi.mock('../src/host/native-conversation-filter', () => ({
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
 }));
-vi.mock('../src/host/pairing', () => ({ pairHost: mocks.pairHost }));
+vi.mock('@botharness/host-client/pairing', () => ({
+  pairHost: mocks.pairHost,
+  pairingDeviceKey: () => '11'.repeat(32),
+}));
 
-import type { pairHost } from '../src/host/pairing';
-import type { SavedHost } from '../src/host/hosts';
+import type { pairHost } from '@botharness/host-client/pairing';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { computerEnvironmentKey } from '../src/host/conversation-environments';
 import { PairingVerification } from '../src/ui/shell/pairing-verification';
 import { usePairing } from '../src/ui/shell/use-pairing';
@@ -101,12 +109,16 @@ async function setup() {
   });
   return { confirmed, approve: async () => act(async () => resolvePair!({ ok: true })) };
 }
+function shownFingerprint() {
+  const rows = view.querySelector('[data-testid="pairing-fingerprint-rows"]')!;
+  return Array.from(rows.children, (row) => row.textContent).join(' ');
+}
 async function click(id: string) {
   await act(async () => view.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
 }
 it('shows the complete fingerprint and optional explanation without granting trust', async () => {
   const { confirmed, approve } = await setup();
-  expect(view.querySelector('[data-testid="pairing-fingerprint"]')!.textContent).toBe(fingerprint);
+  expect(shownFingerprint()).toBe(fingerprint);
   expect(view.textContent).toContain('Studio');
   expect(view.textContent).not.toContain(t.pairingVerification.explanation);
   await click('pairing-fingerprint-details');
@@ -119,6 +131,23 @@ it('shows the complete fingerprint and optional explanation without granting tru
   expect(mocks.dismissTo).not.toHaveBeenCalled();
   await approve();
   expect(mocks.dismissTo).toHaveBeenCalledWith('/');
+  expect(pairing.busy).toBe(true);
+  expect(view.textContent).toContain(t.pairingVerification.paired);
+});
+it('stops asking for approval once the computer approved, even when the page is still open', async () => {
+  const { approve } = await setup();
+  await click('pairing-fingerprint-match');
+  expect(view.textContent).toContain(t.pairingVerification.waiting);
+  const spinner = '[role="progressbar"]';
+  expect(view.querySelector(spinner)).not.toBeNull();
+  await approve();
+  expect(mocks.dismissTo).toHaveBeenCalledTimes(1);
+  expect(view.textContent).toContain(t.pairingVerification.paired);
+  expect(view.textContent).not.toContain(t.pairingVerification.waiting);
+  expect(view.querySelector(spinner)).toBeNull();
+  expect(view.querySelector('[data-testid="pairing-fingerprint-cancel"]')).toBeNull();
+  await click('pairing-done');
+  expect(mocks.dismissTo).toHaveBeenCalledTimes(2);
 });
 it('refuses a mismatch without proceeding to device approval', async () => {
   const { confirmed } = await setup();
@@ -188,7 +217,7 @@ it.each([false, true])(
     await act(async () => {
       await pairing.pair('new-link', 'paste');
     });
-    expect(mocks.initialize).toHaveBeenCalledWith('new-b', ['new-b'], undefined);
+    expect(mocks.initialize).toHaveBeenCalledWith('new-b', ['new-b'], undefined, undefined);
     if (batch) {
       expect(mocks.filter).not.toHaveBeenCalled();
       act(() => {
@@ -232,7 +261,10 @@ it.each([false, true])(
     await act(async () => {
       await pairing.pair('new-link', 'paste');
     });
-    if (batch) act(() => pairing.finishSetup());
+    if (batch)
+      act(() => {
+        pairing.finishSetup();
+      });
     expect(history.state.routes.map((route) => route.name)).toEqual([
       '(tabs)',
       '(bot-creation)',
@@ -248,6 +280,55 @@ it.each([false, true])(
   },
 );
 
+it('seeds the verified paired identity from the account computer appearance only after saving the pairing', async () => {
+  pairingOptions = { stayOnPage: true };
+  mocks.getState.mockReturnValue({ hosts: [] });
+  view = document.createElement('div');
+  root = createRoot(view);
+  await act(async () => root.render(<Harness />));
+  const saved: SavedHost = {
+    hostId: 'verified-host',
+    hostName: 'Studio',
+    routes: ['https://studio.connect.example'],
+    deviceId: 'phone',
+    credential: 'test',
+  };
+  mocks.offer.mockResolvedValue({
+    ok: true,
+    value: {
+      routes: saved.routes,
+      sessionKey: 'test-session',
+      accountOwner: {
+        issuer: 'https://api.workos.com',
+        relay: 'https://relay.example',
+        clientId: 'client',
+        subject: 'user',
+      },
+    },
+  });
+  mocks.save.mockImplementation(async () =>
+    mocks.getState.mockReturnValue({ hosts: [saved], saved }),
+  );
+  mocks.pairHost.mockImplementation(async (options: Parameters<typeof pairHost>[0]) => {
+    if (typeof options.text === 'function') await options.text();
+    await options.save(saved);
+    return { ok: true };
+  });
+  await act(async () => {
+    await pairing.pair('account:registration', 'account', true, 'registration');
+  });
+  expect(mocks.savePairing).toHaveBeenCalledWith('test-session', expect.any(Function));
+  expect(mocks.initialize).toHaveBeenCalledWith(
+    'verified-host',
+    ['verified-host'],
+    undefined,
+    'connect-host:registration',
+  );
+  expect(mocks.save.mock.invocationCallOrder.at(-1)).toBeLessThan(
+    mocks.initialize.mock.invocationCallOrder.at(-1)!,
+  );
+});
+
 it('refuses an alternate registration of an already saved Host before opening a channel', async () => {
   pairingOptions = { stayOnPage: true, preventDuplicates: true };
   view = document.createElement('div');
@@ -261,7 +342,9 @@ it('refuses an alternate registration of an already saved Host before opening a 
   mocks.getState.mockReturnValue({
     hosts: [{ hostId: 'already-saved', encryption: { hostKey: '11'.repeat(32) } }],
   });
-  const actual = await vi.importActual<typeof import('../src/host/pairing')>('../src/host/pairing');
+  const actual = await vi.importActual<typeof import('@botharness/host-client/pairing')>(
+    '@botharness/host-client/pairing',
+  );
   mocks.pairHost.mockImplementation(actual.pairHost);
   await act(async () => {
     expect(

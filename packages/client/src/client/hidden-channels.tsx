@@ -1,6 +1,10 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useMemo, type ReactElement } from 'react';
-
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
+import { dimension } from './ds/dimensions.stylex.js';
+import { hooked } from './ds/hooked.js';
+import { ink, layer, size, space, style, type } from './ds/tobs.stylex.js';
 
 import { PanelDialog } from './ds/panel-dialog.js';
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
@@ -9,6 +13,41 @@ import { useDelayedSearch } from './delayed-search.js';
 import { HashIcon } from './hash-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary } from './store.js';
+
+const styles = stylex.create({
+  search: { boxSizing: 'border-box', width: '100%' },
+  list: {
+    display: 'grid',
+    gap: space.x2,
+    maxHeight: `min(${dimension.hiddenChannelListMaxHeight}, 55vh)`,
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+  },
+  row: {
+    boxSizing: 'border-box',
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    minHeight: style.rowList,
+    paddingBlock: space.x1,
+    paddingInline: space.x2,
+    borderRadius: style.radiusSmall,
+    backgroundColor: layer.well,
+  },
+  icon: {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    width: size.control,
+    height: size.control,
+    color: ink.secondary,
+  },
+  copy: { display: 'grid', flexGrow: 1, minWidth: 0 },
+  truncate: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  name: { fontSize: type.bodySize, lineHeight: type.bodyLine },
+  meta: { color: ink.secondary, fontSize: type.captionSize, lineHeight: type.captionLine },
+  empty: { padding: space.x5, textAlign: 'center', color: ink.secondary },
+});
 
 export interface HiddenChannelItem {
   channel: ChannelSummary;
@@ -100,19 +139,19 @@ export function HiddenChannelsModal({
     >
       <Input
         autoFocus
-        className="bh-hidden-search"
+        className={hooked('bh-hidden-search', styles.search).className}
         aria-label={t('hidden.search.placeholder')}
         placeholder={t('hidden.search.placeholder')}
         value={query}
         onChange={(event) => updateQuery(event.currentTarget.value)}
       />
-      <div className="bh-hidden-list" role="list" ref={cancelOnUnmount}>
+      <div {...hooked('bh-hidden-list', styles.list)} role="list" ref={cancelOnUnmount}>
         {visible.map(({ channel, bot, activity }) => {
           const readOnly = isBotDmChannel(channel) || bot?.deleted === true;
           return (
-            <div key={channel.id} className="bh-hidden-row" role="listitem">
+            <div key={channel.id} {...hooked('bh-hidden-row', styles.row)} role="listitem">
               {bot === undefined ? (
-                <span className="bh-hidden-channel-icon" aria-hidden="true">
+                <span {...stylex.props(styles.icon)} aria-hidden="true">
                   <HashIcon size={18} />
                 </span>
               ) : (
@@ -127,9 +166,11 @@ export function HiddenChannelsModal({
                   size={28}
                 />
               )}
-              <span className="bh-hidden-copy">
-                <span className="bh-hidden-name">{bot?.displayName ?? channel.name}</span>
-                <span className="bh-hidden-meta">
+              <span {...stylex.props(styles.copy)}>
+                <span {...hooked('bh-hidden-name', styles.name, styles.truncate)}>
+                  {bot?.displayName ?? channel.name}
+                </span>
+                <span {...stylex.props(styles.meta, styles.truncate)}>
                   {t(
                     isBotDmChannel(channel)
                       ? 'botDm.label'
@@ -155,7 +196,7 @@ export function HiddenChannelsModal({
           );
         })}
         {visible.length === 0 ? (
-          <div className="bh-hidden-empty" role="status">
+          <div {...hooked('bh-hidden-empty', styles.empty)} role="status">
             {items.length === 0 ? t('hidden.empty') : t('hidden.noMatches')}
           </div>
         ) : null}

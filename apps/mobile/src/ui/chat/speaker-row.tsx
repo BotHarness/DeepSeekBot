@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { View, type LayoutChangeEvent, type ViewStyle, type ViewInstance } from 'react-native';
 import Animated, {
   makeMutable,
@@ -12,26 +12,37 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
-import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
 import { popScale, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
-import { AVATAR_CORNER } from './bubble-shape';
+import { AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { usePopIn } from './pop-in';
-import { groupSpan, speakerLift, type SpeakerRowLayout } from './speaker-span';
+import { SpeakerAnchor } from './speaker-anchor';
+import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
+import { useMemberAvatar } from '../../host/human-profile';
+import { nativeChatRecycler } from '../primitives/chat-recycler';
+import {
+  groupSpan,
+  SPEAKER_VIEWPORT,
+  speakerContentTop,
+  speakerLift,
+  type SpeakerRowLayout,
+} from './speaker-span';
 
 export type Speaker = {
   name: string;
   bot: RosterBot | undefined;
+  human?: { humanId: string; avatarVersion?: string };
   group: string;
   first: boolean;
   last: boolean;
 };
 
-export const SPEAKER_AVATAR = 32;
+export { SPEAKER_AVATAR } from './bubble-shape';
 
 export type SpeakerRegistry = ReturnType<typeof createSpeakerRegistry>;
 
@@ -39,6 +50,7 @@ export function createSpeakerRegistry() {
   const layouts = new Map<string, SpeakerRowLayout>();
   const groups = new Map<string, string[]>();
   const spans = new Map<string, SharedValue<number>>();
+  const listeners = new Map<string, Set<() => void>>();
   const span = (group: string): SharedValue<number> => {
     const known = spans.get(group);
     if (known !== undefined) return known;
@@ -49,10 +61,25 @@ export function createSpeakerRegistry() {
   const refresh = (group: string): void => {
     const next = groupSpan(groups.get(group) ?? [], layouts);
     const value = span(group);
-    if (value.value !== next) value.value = next;
+    if (value.value === next) return;
+    value.value = next;
+    for (const listener of listeners.get(group) ?? []) listener();
   };
   return {
     span,
+    spanOf(group: string): number {
+      return spans.get(group)?.value ?? 0;
+    },
+    subscribe(group: string, listener: () => void): () => void {
+      const known = listeners.get(group);
+      if (known === undefined) listeners.set(group, new Set([listener]));
+      else known.add(listener);
+      return () => {
+        const current = listeners.get(group);
+        current?.delete(listener);
+        if (current?.size === 0) listeners.delete(group);
+      };
+    },
     setGroups(rows: ReadonlyArray<{ key: string; group: string }>): void {
       groups.clear();
       const live = new Set<string>();
@@ -79,6 +106,9 @@ export type SpeakerStage = {
   scroll: SharedValue<number>;
   viewport: AnimatedRef<ViewInstance>;
   viewportLayout: SharedValue<number>;
+  frame: AnimatedRef<ViewInstance>;
+  content: AnimatedRef<ViewInstance>;
+  inverted: boolean;
   floor: number;
 };
 
@@ -105,6 +135,7 @@ export function SpeakerRow({
   const row = useAnimatedRef<ViewInstance>();
   const surface = useAnimatedRef<ViewInstance>();
   const laidOut = useSharedValue(0);
+  const [bottom, setBottom] = useState(0);
   const report = (patch: SpeakerRowLayout) => {
     laidOut.value += 1;
     stage?.registry.layout(rowKey, speaker.group, patch);
@@ -116,10 +147,11 @@ export function SpeakerRow({
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
         <Animated.View ref={row} style={{ width: SPEAKER_AVATAR, alignSelf: 'stretch' }}>
-          {speaker.last ? (
+          {speaker.last && !nativeChatRecycler ? (
             <StickyAvatar
               speaker={speaker}
               stage={stage}
+              bottom={bottom}
               row={row}
               surface={surface}
               laidOut={laidOut}
@@ -133,9 +165,11 @@ export function SpeakerRow({
           <Animated.View
             ref={surface}
             collapsable={false}
-            onLayout={(event: LayoutChangeEvent) =>
-              report({ bubbleTop: inset + event.nativeEvent.layout.y })
-            }
+            onLayout={(event: LayoutChangeEvent) => {
+              const { y, height } = event.nativeEvent.layout;
+              if (speaker.last && SpeakerAnchor !== undefined) setBottom(y + height);
+              report({ bubbleTop: inset + y });
+            }}
           >
             {bubble}
           </Animated.View>
@@ -146,7 +180,75 @@ export function SpeakerRow({
   );
 }
 
-function StickyAvatar({
+function StickyAvatar(props: {
+  speaker: Speaker;
+  stage: SpeakerStage | undefined;
+  bottom: number;
+  row: AnimatedRef<ViewInstance>;
+  surface: AnimatedRef<ViewInstance>;
+  laidOut: SharedValue<number>;
+  inset: number;
+  entering: boolean;
+}) {
+  if (SpeakerAnchor !== undefined && props.stage !== undefined)
+    return <NativeStickyAvatar {...props} stage={props.stage} />;
+  return <AnimatedStickyAvatar {...props} />;
+}
+
+function NativeStickyAvatar({
+  speaker,
+  stage,
+  bottom,
+  inset,
+  entering,
+}: {
+  speaker: Speaker;
+  stage: SpeakerStage;
+  bottom: number;
+  inset: number;
+  entering: boolean;
+}) {
+  const reduced = useReducedMotion();
+  const follows = entering && !speaker.first && !reduced;
+  const follow = useSharedValue(follows ? 1 : 0);
+  const glide = useMounted<ViewInstance>(() => {
+    if (follow.get() > 0) follow.set(withSpring(0, spring.spatial.fast));
+  }, []);
+  const pop = usePopIn(entering && speaker.first, { from: popScale.badge });
+  const { registry } = stage;
+  const group = speaker.group;
+  const span = useSyncExternalStore(
+    (listener) => registry.subscribe(group, listener),
+    () => registry.spanOf(group),
+  );
+  const rest = bottom - SPEAKER_AVATAR;
+  const distance = bottom + inset;
+  const trail = useAnimatedStyle(() => ({
+    transform: [{ translateY: -follow.get() * distance }],
+  }));
+  if (SpeakerAnchor === undefined) return null;
+  return (
+    <SpeakerAnchor
+      rest={rest}
+      span={span + inset}
+      floor={stage.floor}
+      viewport={SPEAKER_VIEWPORT}
+      style={{ position: 'absolute', top: 0, left: 0, opacity: bottom > 0 ? 1 : 0 }}
+    >
+      <Animated.View style={trail}>
+        <Animated.View style={[{ transformOrigin: 'center bottom' }, pop.style]}>
+          <View ref={pop.ref}>
+            <View ref={glide}>
+              <SpeakerAvatar speaker={speaker} />
+            </View>
+          </View>
+        </Animated.View>
+      </Animated.View>
+    </SpeakerAnchor>
+  );
+}
+
+function AnimatedStickyAvatar({
   speaker,
   stage,
   row,
@@ -173,20 +275,49 @@ function StickyAvatar({
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
   const viewportLayout = stage?.viewportLayout;
+  const frame = stage?.frame;
+  const content = stage?.content;
+  const inverted = stage?.inverted === true;
   const floor = stage?.floor ?? 0;
   const span = stage?.registry.span(speaker.group);
   const place = useAnimatedStyle(() => {
-    if (scroll === undefined || viewport === undefined || span === undefined)
+    if (
+      scroll === undefined ||
+      viewport === undefined ||
+      frame === undefined ||
+      content === undefined ||
+      span === undefined
+    )
       return { opacity: 1, transform: [{ translateY: 0 }] };
+    const offset = scroll.value;
     const settled =
-      Number.isFinite(scroll.value) && laidOut.value > 0 && (viewportLayout?.value ?? 1) > 0;
+      Number.isFinite(offset) && laidOut.value > 0 && (viewportLayout?.value ?? 1) > 0;
     const rowFrame = measure(row);
     const bubbleFrame = measure(surface);
+    const contentFrame = measure(content);
+    const listFrame = measure(frame);
     const viewFrame = measure(viewport);
-    if (rowFrame === null || bubbleFrame === null || viewFrame === null || !settled)
+    if (
+      rowFrame === null ||
+      bubbleFrame === null ||
+      contentFrame === null ||
+      listFrame === null ||
+      viewFrame === null ||
+      !settled
+    )
       return { opacity: 0, transform: [{ translateY: 0 }] };
-    const bubbleBottom = bubbleFrame.pageY + bubbleFrame.height;
-    const rest = bubbleBottom - rowFrame.pageY - SPEAKER_AVATAR;
+    const bubbleBottom =
+      speakerContentTop({
+        top: listFrame.pageY,
+        height: listFrame.height,
+        content: contentFrame.height,
+        offset,
+        inverted,
+      }) +
+      bubbleFrame.pageY +
+      bubbleFrame.height -
+      contentFrame.pageY;
+    const rest = bubbleFrame.pageY + bubbleFrame.height - rowFrame.pageY - SPEAKER_AVATAR;
     const lift = speakerLift({
       bubbleBottom,
       floor: viewFrame.pageY + viewFrame.height - floor,
@@ -209,27 +340,23 @@ function StickyAvatar({
   );
 }
 
-function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
-  const theme = useDesignTheme();
+export function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   if (speaker.bot !== undefined)
     return (
       <BotAvatar bot={speaker.bot} size={SPEAKER_AVATAR} ring={false} corner={AVATAR_CORNER} />
     );
+  return <HumanSpeakerAvatar speaker={speaker} />;
+}
+
+function HumanSpeakerAvatar({ speaker }: { speaker: Speaker }) {
+  const avatar = useMemberAvatar(speaker.human?.humanId, speaker.human?.avatarVersion);
   return (
-    <View
-      style={{
-        width: SPEAKER_AVATAR,
-        height: SPEAKER_AVATAR,
-        borderRadius: AVATAR_CORNER,
-        backgroundColor: theme.color.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text strong tone="muted">
-        {Array.from(speaker.name)[0] ?? ''}
-      </Text>
-    </View>
+    <GroupMark
+      avatar={avatar}
+      initial={humanInitial(speaker.name) ?? ''}
+      size={SPEAKER_AVATAR}
+      corner={AVATAR_CORNER}
+    />
   );
 }
 

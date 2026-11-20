@@ -4,8 +4,8 @@ import {
   MAX_SVG_BYTES,
   type ImageMime,
 } from '../../../../packages/core/src/media/image-format';
-import type { HostClient, RemoteSource } from './client';
-import type { MemoryImage, MemoryMarkdown } from './wire';
+import type { HostClient, RemoteSource } from '@botharness/host-client/client';
+import type { MemoryImage, MemoryMarkdown } from '@botharness/host-protocol/wire';
 
 export const MEMORY_IMAGE_LIMIT = 25 * 1024 * 1024;
 export type PreviewImage = {
@@ -131,7 +131,8 @@ export async function loadPreviewImage(
   try {
     format = inspectImage(bytes);
   } catch (error) {
-    if (error instanceof ImageFormatError) throw new Error(`memory-image-${error.status}`);
+    if (error instanceof ImageFormatError)
+      throw new Error(`memory-image-${error.status}`, { cause: error });
     throw error;
   }
   const file = io.store(bytes, format.extension);

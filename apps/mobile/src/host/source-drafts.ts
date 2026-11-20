@@ -6,8 +6,21 @@ export interface DraftPersistence {
   readonly loaded: boolean;
   readonly failed: boolean;
 }
-export function createSourceDrafts(storage: DraftStorage) {
+const SENT_ECHO_MS = 1500;
+export function createSourceDrafts(
+  storage: DraftStorage,
+  { now = Date.now }: { now?: () => number } = {},
+) {
   let values: Record<string, string> = {};
+  const sent = new Map<string, { text: string; at: number }>();
+  const unsent = (key: string, value: string) => {
+    const taken = sent.get(key);
+    if (taken === undefined) return value;
+    if (value !== '' && value.startsWith(taken.text) && now() - taken.at <= SENT_ECHO_MS)
+      return value.slice(taken.text.length);
+    sent.delete(key);
+    return value;
+  };
   let persistence: DraftPersistence = { loaded: false, failed: false };
   let loading: Promise<void> | undefined;
   let revision = 0;
@@ -73,9 +86,18 @@ export function createSourceDrafts(storage: DraftStorage) {
     },
     set(key: string, value: string) {
       changed.add(key);
-      values = { ...values, [key]: value };
+      values = { ...values, [key]: unsent(key, value) };
       persist();
       publish();
+    },
+    take(key: string, text = values[key] ?? '') {
+      changed.add(key);
+      values = { ...values, [key]: '' };
+      if (text === '') sent.delete(key);
+      else sent.set(key, { text, at: now() });
+      persist();
+      publish();
+      return text;
     },
     removeWhere(match: (key: string) => boolean) {
       if (!persistence.loaded) deferredRemovals.push(match);

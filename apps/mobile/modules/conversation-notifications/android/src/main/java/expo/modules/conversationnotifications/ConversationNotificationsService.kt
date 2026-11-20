@@ -11,6 +11,10 @@ import expo.modules.notifications.service.delegates.ExpoHandlingDelegate
 import expo.modules.notifications.service.delegates.ExpoPresentationDelegate
 import expo.modules.notifications.service.interfaces.HandlingDelegate
 import expo.modules.notifications.service.interfaces.PresentationDelegate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import android.util.Log
 
 class ConversationNotificationsService : NotificationsService() {
   override fun getPresentationDelegate(context: Context): PresentationDelegate =
@@ -21,6 +25,21 @@ class ConversationNotificationsService : NotificationsService() {
 }
 
 class ConversationPresentationDelegate(context: Context) : ExpoPresentationDelegate(context) {
+  override fun presentNotification(notification: Notification, behavior: NotificationBehaviorRecord?) {
+    if (!ApprovalAlerts.handles(notification)) {
+      super.presentNotification(notification, behavior)
+      return
+    }
+    if (behavior?.shouldPresentAlert == false) return
+    CoroutineScope(Dispatchers.IO).launch {
+      runCatching { ApprovalAlerts.get(context).present(notification, behavior, local = false) }
+        .onFailure { Log.e("BotHarnessAlerts", "phase=present-failed reason=${it.javaClass.simpleName}") }
+    }
+  }
+
+  suspend fun createApprovalNotification(notification: Notification, behavior: NotificationBehaviorRecord?) =
+    createNotification(notification, behavior)
+
   override suspend fun createNotification(
     notification: Notification,
     notificationBehavior: NotificationBehaviorRecord?

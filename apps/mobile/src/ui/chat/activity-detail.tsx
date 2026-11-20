@@ -12,9 +12,9 @@ import {
   type ModelUsage,
   type UsageBucket,
 } from '../../host/bot-activity';
-import type { RosterBot } from '../../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { compactTokenCount, dayLabel, weekdayLabel } from '../../host/usage-days';
-import type { ProfileActivity } from '../../host/wire';
+import type { ProfileActivity } from '@botharness/host-protocol/wire';
 import { botColor } from '../bot-color';
 import { chart, heatTones, seriesTones } from '../design/chart';
 import { AccentProvider, useDesignTheme } from '../design/theme';
@@ -25,7 +25,7 @@ import { DayHeat } from '../primitives/day-heat';
 import { Segmented } from '../primitives/segmented';
 import { Text } from '../primitives/text';
 import { ChevronLeftIcon, ChevronRightIcon } from '../shell/icons';
-import { useStrings, t } from '../strings';
+import { dateLocale, useStrings, t } from '../strings';
 import { tokenTotalText } from './activity-glance';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -105,13 +105,15 @@ function LegendRow({ color, label, value }: { color: string; label: string; valu
 }
 
 function barLabel(detail: ActivityDetail, day: string): string | undefined {
-  return detail.buckets.length <= 7 ? weekdayLabel(day) : undefined;
+  return detail.buckets.length <= 7 ? weekdayLabel(day, dateLocale()) : undefined;
 }
 
 function bucketLabel(detail: ActivityDetail, bucket: UsageBucket): string {
   if (bucket.first === bucket.last)
-    return detail.buckets.length <= 7 ? weekdayLabel(bucket.first) : dayLabel(bucket.first);
-  return `${dayLabel(bucket.first)} – ${dayLabel(bucket.last)}`;
+    return detail.buckets.length <= 7
+      ? weekdayLabel(bucket.first, dateLocale())
+      : dayLabel(bucket.first, dateLocale());
+  return `${dayLabel(bucket.first, dateLocale())} – ${dayLabel(bucket.last, dateLocale())}`;
 }
 
 function nullableCount(value: number | null): string {
@@ -355,7 +357,10 @@ function Detail({
   const t = useStrings();
   const theme = useDesignTheme();
   const detail = activityDetail(activity);
-  const range = t.activityRange(dayLabel(detail.first), dayLabel(detail.last));
+  const range = t.activityRange(
+    dayLabel(detail.first, dateLocale()),
+    dayLabel(detail.last, dateLocale()),
+  );
   const weeks = activity.weeks as ActivityWindow;
   const newer = newerWindow(activity);
   const reachedStart = activity.createdDay !== undefined && detail.first <= activity.createdDay;

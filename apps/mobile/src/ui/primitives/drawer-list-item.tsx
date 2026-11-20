@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 export type DrawerListItemProps = {
   label: string;
   detail?: string;
+  detailDot?: string;
+  singleLine?: boolean;
   accessibilityLabel?: string;
   testID?: string;
   selected?: boolean;

@@ -5,6 +5,7 @@ import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
 import type { TobCliWriteProposal } from './cli-broker.js';
 import { TobError } from './service.js';
+import { toolApprovalRequired } from '../workspaces/tool-effects.js';
 
 export async function approveTobCliOperation(options: {
   execution: ToolExecution;
@@ -18,23 +19,30 @@ export async function approveTobCliOperation(options: {
   const { execution, operation, signal, channelApproval, approval, authorize } = options;
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
-  const requireExplicitApproval = [
-    'release-install',
-    'release-restart',
-    'bot-delete-confirm',
-    'bot-delete-retry',
-  ].includes(command);
+  const generic = 'via' in operation && operation.via === 'cli';
+  const requireExplicitApproval =
+    generic ||
+    ['release-install', 'release-restart', 'bot-delete-confirm', 'bot-delete-retry'].includes(
+      command,
+    );
   const scope =
+    !generic &&
     'target' in operation &&
     (command.startsWith('model-plan-') ||
       command === 'model-preset-apply' ||
       command.startsWith('bot-') ||
+      command === 'voice-set' ||
+      command === 'voice-asr-set' ||
       ['update', 'pause', 'resume'].includes(command))
       ? `bot:${operation.target}`
       : 'global';
   authorize();
   if (!actor || signal.aborted) throw new TobError('agent-context-expired');
-  if (!requireExplicitApproval && options.fullAccess())
+  if (
+    !requireExplicitApproval &&
+    !toolApprovalRequired('deepseekbot ' + command, operation, false) &&
+    options.fullAccess()
+  )
     return () => {
       authorize();
       if (signal.aborted || !options.fullAccess()) throw new TobError('approval-authority-changed');
@@ -62,8 +70,9 @@ export async function approveTobCliOperation(options: {
       agent: actor,
       toolName: call.name,
       callId: call.callId,
-      reason:
-        'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
+      reason: generic
+        ? 'Tob wants to run this exact deepseekbot command on this Host as you. Review patch.argv (and the stdin size and hash, if any); approve only if it is what you asked for.'
+        : 'Review the actual CLI target, previousValue, patch and expectedRevision. Restart interrupts running work and deletion may erase Memory; approve only the requested operation.',
       signal,
     });
     if (outcome !== 'allowed-once')

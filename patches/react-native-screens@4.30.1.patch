@@ -1,0 +1,20 @@
+diff --git a/ios/RNSScreen.mm b/ios/RNSScreen.mm
+index 049fd22427b2bde17fd7ca59b8de65d0ee07b4b5..823761854d72d07112d4461b812f6f9b96dfc631 100644
+--- a/ios/RNSScreen.mm
++++ b/ios/RNSScreen.mm
+@@ -507,11 +507,14 @@ RNS_IGNORE_SUPER_CALL_END
+     return;
+   }
+ 
++  if (_sheetAllowedDetents.count == 0 || _sheetAllowedDetents[0].intValue != SHEET_FIT_TO_CONTENTS) {
++    return;
++  }
++
+ #if !TARGET_OS_TV && !TARGET_OS_VISION && RNS_IPHONE_OS_VERSION_AVAILABLE(16_0)
+   if (@available(iOS 16.0, *)) {
+     UISheetPresentationController *sheetController = _controller.sheetPresentationController;
+     if (sheetController == nil) {
+-      RCTLogError(@"[RNScreens] sheetPresentationController is null when attempting to set allowed detents");
+       return;
+     }
+ 

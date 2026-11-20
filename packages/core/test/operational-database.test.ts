@@ -21,8 +21,10 @@ import {
 import {
   defineSchemaPlan,
   FOUNDATION_SCHEMA_GENERATION,
+  FOUNDATION_SCHEMA_PLAN,
   LEGACY_FORWARD_MIGRATION_PLAN,
   type SchemaPlan,
+  type SchemaMigration,
 } from '../src/database/schema.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -30,7 +32,7 @@ import { createTempRoot, FIXED_NOW } from './helpers.js';
 function planWithRecords(): SchemaPlan {
   return defineSchemaPlan([
     {
-      generation: 2,
+      id: 'test-step-1',
       module: 'test-records',
       description: 'create a representative owning-module table',
       migrate(database) {
@@ -275,7 +277,9 @@ describe('operational database owner', () => {
       BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 58),
     );
     const prior = mountOperationalDatabase({ dshHome, schemaPlan: priorPlan });
-    expect(prior.generation).toBe(58);
+    expect(prior.generation).toBe(
+      BOT_HARNESS_SCHEMA_PLAN.generationOf('discord-platform-defaults'),
+    );
     attachOperationalModule(prior, 'pairing-migration-seed').transaction((database) => {
       database
         .prepare(
@@ -505,7 +509,7 @@ describe('operational database owner', () => {
     const records = attachOperationalModule(owner, 'test-records');
 
     expect(owner.mode).toBe('ready');
-    expect(owner.generation).toBe(2);
+    expect(owner.generation).toBe(planWithRecords().targetGeneration);
     expect(
       records.read((database) =>
         database
@@ -568,7 +572,7 @@ describe('operational database owner', () => {
 
     const original = mountOperationalDatabase({ dshHome });
     expect(original.mode).toBe('ready');
-    expect(original.generation).toBe(1);
+    expect(original.generation).toBe(FOUNDATION_SCHEMA_GENERATION);
     original.close();
   });
 
@@ -586,7 +590,7 @@ describe('operational database owner', () => {
 
     const resumed = mountOperationalDatabase({ dshHome, schemaPlan: planWithRecords() });
     expect(resumed.mode).toBe('ready');
-    expect(resumed.generation).toBe(2);
+    expect(resumed.generation).toBe(planWithRecords().targetGeneration);
     resumed.close();
   });
 
@@ -609,14 +613,14 @@ describe('operational database owner', () => {
 
     const original = mountOperationalDatabase({ dshHome });
     expect(original.mode).toBe('ready');
-    expect(original.generation).toBe(1);
+    expect(original.generation).toBe(FOUNDATION_SCHEMA_GENERATION);
     original.close();
   });
 
-  function parentChildPlan(extra: SchemaPlan['migrations'] = []): SchemaPlan {
+  function parentChildPlan(extra: readonly SchemaMigration[] = []): SchemaPlan {
     return defineSchemaPlan([
       {
-        generation: 2,
+        id: 'test-step-2',
         module: 'test-records',
         description: 'create a parent and a referencing child table',
         migrate(database) {
@@ -670,7 +674,7 @@ describe('operational database owner', () => {
 
     const keeps = parentChildPlan([
       {
-        generation: 3,
+        id: 'test-step-3',
         module: 'test-records',
         description: 'rebuild the child table',
         rebuildsReferencedTables: true,
@@ -690,14 +694,14 @@ describe('operational database owner', () => {
     ]);
     const migrated = mountOperationalDatabase({ dshHome, schemaPlan: keeps });
     expect(migrated.mode).toBe('ready');
-    expect(migrated.generation).toBe(3);
+    expect(migrated.generation).toBe(keeps.targetGeneration);
     expect(migrated.foreignKeyOrphans).toBe('test_children -> test_parents x2');
     migrated.close();
 
     const orphaning = defineSchemaPlan([
       ...keeps.migrations,
       {
-        generation: 4,
+        id: 'test-step-4',
         module: 'test-records',
         description: 'orphan one more child',
         rebuildsReferencedTables: true,
@@ -716,7 +720,7 @@ describe('operational database owner', () => {
     );
     failed.close();
     const resumed = mountOperationalDatabase({ dshHome, schemaPlan: keeps });
-    expect(resumed.generation).toBe(3);
+    expect(resumed.generation).toBe(keeps.targetGeneration);
     resumed.close();
   });
 
@@ -724,7 +728,7 @@ describe('operational database owner', () => {
     const dshHome = createTempRoot('botharness-db-damaged-index-');
     const plan = defineSchemaPlan([
       {
-        generation: 2,
+        id: 'test-step-5',
         module: 'test-records',
         description: 'create an indexed table',
         migrate(database) {
@@ -786,7 +790,7 @@ describe('operational database owner', () => {
     mountOperationalDatabase({ dshHome }).close();
     const failedPlan = defineSchemaPlan([
       {
-        generation: 2,
+        id: 'test-step-6',
         module: 'broken-owner',
         description: 'exercise rollback',
         migrate() {
@@ -802,7 +806,7 @@ describe('operational database owner', () => {
 
     const original = mountOperationalDatabase({ dshHome });
     expect(original.mode).toBe('ready');
-    expect(original.generation).toBe(1);
+    expect(original.generation).toBe(FOUNDATION_SCHEMA_GENERATION);
     original.close();
   });
 
@@ -811,10 +815,10 @@ describe('operational database owner', () => {
     mountOperationalDatabase({ dshHome: migrationHome }).close();
     const asyncPlan = defineSchemaPlan([
       {
-        generation: 2,
+        id: 'test-step-7',
         module: 'async-owner',
         description: 'invalid asynchronous migration',
-        async migrate() {},
+        migrate: (async () => {}) as () => void,
       },
     ]);
     const migration = mountOperationalDatabase({ dshHome: migrationHome, schemaPlan: asyncPlan });
@@ -885,7 +889,11 @@ describe('operational database owner', () => {
   it('validates a complete ordered plan again at the mount seam', () => {
     const dshHome = createTempRoot('botharness-db-forged-plan-');
     mountOperationalDatabase({ dshHome }).close();
-    const incompletePlan: SchemaPlan = { targetGeneration: 2, migrations: [] };
+    const incompletePlan: SchemaPlan = {
+      ...FOUNDATION_SCHEMA_PLAN,
+      targetGeneration: 2,
+      migrations: [],
+    };
 
     const owner = mountOperationalDatabase({ dshHome, schemaPlan: incompletePlan });
 
@@ -1098,17 +1106,17 @@ describe('operational database owner', () => {
     expect(() =>
       defineSchemaPlan([
         {
-          generation: 3,
-          module: 'skips-generation-two',
+          id: 'Invalid ID',
+          module: 'invalid-id',
           description: 'invalid',
           migrate() {},
         },
       ]),
-    ).toThrow('expected 2, received 3');
+    ).toThrow('unique kebab-case');
     expect(() =>
       defineSchemaPlan([
         {
-          generation: 2,
+          id: 'test-step-9',
           module: '',
           description: 'invalid',
           migrate() {},

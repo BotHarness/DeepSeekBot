@@ -286,7 +286,7 @@ try {
     const pending = await host(scene.slug);
     assert.deepEqual(pending.attention, { approvalCount: 0, workspaceGrantCount: 1 });
     await shot('grant-pending-light');
-    await page.click('.bh-human-inbox-entry');
+    await page.click('.bh-activity-list-entry');
     await page.waitForSelector(
       `.bh-overview-bot[data-bot-id="${scene.slug}"] [data-workspace-grant-count="1"]`,
     );

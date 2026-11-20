@@ -1,0 +1,182 @@
+diff --git a/React/Fabric/RCTScheduler.mm b/React/Fabric/RCTScheduler.mm
+index 9519f18428e43bbf3588166dc5a5263c72df30b9..d732d0bfae0e6ab1a2c78fdd00c4b4e252ab9a81 100644
+--- a/React/Fabric/RCTScheduler.mm
++++ b/React/Fabric/RCTScheduler.mm
+@@ -21,25 +21,30 @@
+ 
+ using namespace facebook::react;
+ 
+-class SchedulerDelegateProxy : public SchedulerDelegate {
++class SchedulerDelegateProxy : public SchedulerDelegate, public std::enable_shared_from_this<SchedulerDelegateProxy> {
+  public:
+-  SchedulerDelegateProxy(void *scheduler) : scheduler_(scheduler) {}
++  SchedulerDelegateProxy(void *scheduler) : scheduler_((__bridge RCTScheduler *)scheduler) {}
++
++  std::shared_ptr<SchedulerDelegate> retainForDeferredCallback() override
++  {
++    return shared_from_this();
++  }
+ 
+   void schedulerDidFinishTransaction(const std::shared_ptr<const MountingCoordinator> &mountingCoordinator) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerDidFinishTransaction:mountingCoordinator];
+   }
+ 
+   void schedulerShouldRenderTransactions(const std::shared_ptr<const MountingCoordinator> &mountingCoordinator) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerShouldRenderTransactions:mountingCoordinator];
+   }
+ 
+   void schedulerShouldMergeReactRevision(SurfaceId surfaceId) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerShouldMergeReactRevision:surfaceId];
+   }
+ 
+@@ -54,14 +59,14 @@ class SchedulerDelegateProxy : public SchedulerDelegate {
+       const std::string &commandName,
+       const folly::dynamic &args) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerDidDispatchCommand:shadowView commandName:commandName args:args];
+   }
+ 
+   void schedulerDidSetIsJSResponder(const ShadowView &shadowView, bool isJSResponder, bool blockNativeResponder)
+       override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerDidSetIsJSResponder:isJSResponder
+                                 blockNativeResponder:blockNativeResponder
+                                        forShadowView:shadowView];
+@@ -69,13 +74,13 @@ class SchedulerDelegateProxy : public SchedulerDelegate {
+ 
+   void schedulerDidSendAccessibilityEvent(const ShadowView &shadowView, const std::string &eventType) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerDidSendAccessibilityEvent:shadowView eventType:eventType];
+   }
+ 
+   void schedulerShouldSynchronouslyUpdateViewOnUIThread(facebook::react::Tag tag, const folly::dynamic &props) override
+   {
+-    RCTScheduler *scheduler = (__bridge RCTScheduler *)scheduler_;
++    RCTScheduler *scheduler = scheduler_;
+     [scheduler.delegate schedulerDidSynchronouslyUpdateViewOnUIThread:tag props:props];
+   }
+ 
+@@ -104,7 +109,7 @@ class SchedulerDelegateProxy : public SchedulerDelegate {
+   }
+ 
+  private:
+-  void *scheduler_;
++  __weak RCTScheduler *scheduler_;
+ };
+ 
+ class LayoutAnimationDelegateProxy : public LayoutAnimationStatusDelegate, public RunLoopObserver::Delegate {
+@@ -187,7 +192,7 @@ class RCTAnimationChoreographer : public AnimationChoreographer {
+ @implementation RCTScheduler {
+   std::unique_ptr<Scheduler> _scheduler;
+   std::shared_ptr<LayoutAnimationDriver> _animationDriver;
+-  std::unique_ptr<SchedulerDelegateProxy> _delegateProxy;
++  std::shared_ptr<SchedulerDelegateProxy> _delegateProxy;
+   std::shared_ptr<LayoutAnimationDelegateProxy> _layoutAnimationDelegateProxy;
+   std::unique_ptr<const PlatformRunLoopObserver> _uiRunLoopObserver;
+ }
+@@ -195,7 +200,7 @@ class RCTAnimationChoreographer : public AnimationChoreographer {
+ - (instancetype)initWithToolbox:(SchedulerToolbox)toolbox
+ {
+   if (self = [super init]) {
+-    _delegateProxy = std::make_unique<SchedulerDelegateProxy>((__bridge void *)self);
++    _delegateProxy = std::make_shared<SchedulerDelegateProxy>((__bridge void *)self);
+ 
+     if (ReactNativeFeatureFlags::enableLayoutAnimationsOnIOS()) {
+       _layoutAnimationDelegateProxy = std::make_shared<LayoutAnimationDelegateProxy>((__bridge void *)self);
+diff --git a/ReactCommon/react/renderer/scheduler/Scheduler.cpp b/ReactCommon/react/renderer/scheduler/Scheduler.cpp
+index e74e8025c267022145beca65dbb525b8fc1c7836..7bd9736d97daa17362ca32a41ef14b9a34f8d7fa 100644
+--- a/ReactCommon/react/renderer/scheduler/Scheduler.cpp
++++ b/ReactCommon/react/renderer/scheduler/Scheduler.cpp
+@@ -178,6 +178,8 @@ Scheduler::Scheduler(
+ }
+ 
+ Scheduler::~Scheduler() {
++  delegateInvalidated_->store(true, std::memory_order_release);
++
+   LOG(WARNING) << "Scheduler::~Scheduler() was called (address: " << this
+                << ").";
+ 
+@@ -270,7 +272,12 @@ Scheduler::findComponentDescriptorByHandle_DO_NOT_USE_THIS_IS_BROKEN(
+ #pragma mark - Delegate
+ 
+ void Scheduler::setDelegate(SchedulerDelegate* delegate) {
++  if (delegate_ == delegate) {
++    return;
++  }
++  delegateInvalidated_->store(true, std::memory_order_release);
+   delegate_ = delegate;
++  delegateInvalidated_ = std::make_shared<std::atomic<bool>>(false);
+ }
+ 
+ SchedulerDelegate* Scheduler::getDelegate() const {
+@@ -304,7 +311,12 @@ void Scheduler::uiManagerDidFinishTransaction(
+       runtimeScheduler_->scheduleRenderingUpdate(
+           surfaceId,
+           [delegate = delegate_,
++           delegateOwner = delegate_->retainForDeferredCallback(),
++           delegateInvalidated = delegateInvalidated_,
+            mountingCoordinator = std::move(mountingCoordinator)]() {
++            if (delegateInvalidated->load(std::memory_order_acquire)) {
++              return;
++            }
+             delegate->schedulerShouldRenderTransactions(mountingCoordinator);
+           });
+     } else {
+@@ -330,9 +342,14 @@ void Scheduler::uiManagerDidDispatchCommand(
+     runtimeScheduler_->scheduleRenderingUpdate(
+         shadowNode->getSurfaceId(),
+         [delegate = delegate_,
++         delegateOwner = delegate_->retainForDeferredCallback(),
++         delegateInvalidated = delegateInvalidated_,
+          shadowView = std::move(shadowView),
+          commandName,
+          args]() {
++          if (delegateInvalidated->load(std::memory_order_acquire)) {
++            return;
++          }
+           delegate->schedulerDidDispatchCommand(shadowView, commandName, args);
+         });
+   }
+diff --git a/ReactCommon/react/renderer/scheduler/Scheduler.h b/ReactCommon/react/renderer/scheduler/Scheduler.h
+index 1f5a59d1e1e296629f3d525430d4dcd90c5d4f25..2c087c743579acb9a1851fde031b04d1ff91ab0d 100644
+--- a/ReactCommon/react/renderer/scheduler/Scheduler.h
++++ b/ReactCommon/react/renderer/scheduler/Scheduler.h
+@@ -126,6 +126,8 @@ class Scheduler final : public UIManagerDelegate {
+   friend class SurfaceHandler;
+ 
+   SchedulerDelegate *delegate_;
++  std::shared_ptr<std::atomic<bool>> delegateInvalidated_{
++      std::make_shared<std::atomic<bool>>(false)};
+   SharedComponentDescriptorRegistry componentDescriptorRegistry_;
+   RuntimeExecutor runtimeExecutor_;
+   std::shared_ptr<UIManager> uiManager_;
+diff --git a/ReactCommon/react/renderer/scheduler/SchedulerDelegate.h b/ReactCommon/react/renderer/scheduler/SchedulerDelegate.h
+index 10f45018d94afa20bd8d8015d894ec1b253a4274..069645302ee8b660185bddfe93f6af5192d5bd45 100644
+--- a/ReactCommon/react/renderer/scheduler/SchedulerDelegate.h
++++ b/ReactCommon/react/renderer/scheduler/SchedulerDelegate.h
+@@ -74,6 +74,10 @@ class SchedulerDelegate {
+   virtual void schedulerDidClearPendingSnapshots() = 0;
+ 
+   virtual ~SchedulerDelegate() noexcept = default;
++
++  virtual std::shared_ptr<SchedulerDelegate> retainForDeferredCallback() {
++    return {};
++  }
+ };
+ 
+ } // namespace facebook::react

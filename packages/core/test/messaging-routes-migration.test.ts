@@ -3,6 +3,36 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import { createTempRoot } from './helpers.js';
+
+it('upgrades pre-evidence Profiles without backfilling Admissions and refuses older Bridge-only readers', () => {
+  const home = createTempRoot('bh3261-upgrade-');
+  const oldPlan = defineSchemaPlan(
+    BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation < 113),
+  );
+  const prior = mountOperationalDatabase({ dshHome: home, schemaPlan: oldPlan });
+  const seed = attachOperationalModule(prior, 'test');
+  seed.transaction((db) => {
+    db.prepare(`INSERT INTO source_events(source_event_id, source_kind, bot_slug, body, created_at, payload_json)
+      VALUES ('old', 'bridge-message', 'ada', 'Retained original', '2026-10-03', '{"external":{"grantRevision":7}}')`).run();
+    db.prepare(`INSERT INTO inbox_admissions(source_event_id, bot_slug, reason, wake_mode, wake_count, wake_interval_ms)
+      VALUES ('old', 'ada', 'group-ordinary', 'digest', 3, 60000)`).run();
+  });
+  const before = seed.read((db) => db.prepare('SELECT * FROM inbox_admissions').all());
+  prior.close();
+  const current = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  expect(current.mode).toBe('ready');
+  const port = attachOperationalModule(current, 'test');
+  expect(port.read((db) => db.prepare('SELECT * FROM inbox_admissions').all())).toEqual(before);
+  expect(port.read((db) => db.prepare('SELECT * FROM messaging_source_paths').all())).toEqual([]);
+  expect(port.read((db) => db.prepare('SELECT body FROM source_events').get())).toEqual({
+    body: 'Retained original',
+  });
+  current.close();
+  const older = mountOperationalDatabase({ dshHome: home, schemaPlan: oldPlan });
+  expect(older.mode).toBe('recovery');
+  expect(older.recovery?.code).toBe('upgrade-required');
+  older.close();
+});
 it('preserves canonical content and admission snapshots while allowing distinct placements after generation 52', () => {
   const home = createTempRoot('bh635-upgrade-');
   const priorPlan = defineSchemaPlan(
@@ -40,18 +70,40 @@ it('preserves canonical content and admission snapshots while allowing distinct 
     before,
   );
   port.transaction((db) =>
-    db.prepare("INSERT INTO channel_placements VALUES ('two',1,'source','source')").run(),
+    db
+      .prepare(
+        "INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES ('two',1,'source','source')",
+      )
+      .run(),
   );
   expect(port.read((db) => db.prepare('SELECT * FROM source_events').all())).toHaveLength(1);
   expect(
     port.read((db) => db.prepare('SELECT * FROM channel_placements ORDER BY channel_id').all()),
   ).toEqual([
-    { channel_id: 'one', revision: 9, source_event_id: 'source', message_id: 'source' },
-    { channel_id: 'two', revision: 1, source_event_id: 'source', message_id: 'source' },
+    {
+      channel_id: 'one',
+      revision: 9,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
+    {
+      channel_id: 'two',
+      revision: 1,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
   ]);
   expect(() =>
     port.transaction((db) =>
-      db.prepare("INSERT INTO channel_placements VALUES ('two',2,'source','source')").run(),
+      db
+        .prepare(
+          "INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES ('two',2,'source','source')",
+        )
+        .run(),
     ),
   ).toThrow();
   expect(port.read((db) => db.prepare('PRAGMA foreign_key_check').all())).toEqual([]);

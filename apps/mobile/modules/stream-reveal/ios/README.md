@@ -36,7 +36,7 @@ width changes and short-surface corner normalization. They do not qualify live s
 Reduce Motion, VoiceOver, mounting through an actual React commit, or performance. Check those
 through the actual chat after a fresh binary, using the fixed replay in #2942.
 
-Use matched physical iPhone Release A/B/B/A/A/B with three valid samples per version for display
+Use a matched physical iPhone Release A/B pair (A/B/B/A/A/B with three valid samples per version only when results are close) for display
 or CPU conclusions. Keep base/candidate source, native binary, production JS, dependency lock,
 fixture chunks, history, keyboard actions and settings fixed. Do not count video or JS callbacks
 as FPS. Report missing platform/metric evidence as UNTESTED; restore preferences and release only

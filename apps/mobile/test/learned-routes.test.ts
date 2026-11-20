@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { learnedRoutes } from '../src/host/learned-routes';
-import type { SavedHost } from '../src/host/hosts';
+import { learnedRoutes } from '@botharness/host-client/learned-routes';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 const host: Pick<SavedHost, 'hostId' | 'routes' | 'encryption'> = {
   hostId: 'one',

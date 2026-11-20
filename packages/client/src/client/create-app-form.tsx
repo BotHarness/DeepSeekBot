@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Combobox } from './combobox.js';
 import { Field, TextField } from './ds/field.js';
 import { FormDialog, type DialogLabels } from './ds/form-dialog.js';

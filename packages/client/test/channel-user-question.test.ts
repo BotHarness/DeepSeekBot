@@ -1,48 +1,24 @@
 // @vitest-environment jsdom
+import { resourceEvents } from './resource-events-fixture.js';
+import { type Root } from 'react-dom/client';
+import { type ChannelMessage } from '../src/client/store.js';
 import { MessageHostContext, type MessageHost } from '../src/client/message-host.js';
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    icon,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: string;
-    size?: string;
-    icon?: ReactNode;
-    children: ReactNode;
-  }) => createElement('button', props, icon, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-  Modal: () => null,
-  Switch: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconInfoOutlineRegular: () => null,
-  IconCheckOutlineRegular: () => null,
-  Tooltip: ({ children, label }: { children: ReactNode; label: string }) =>
-    createElement('span', { 'data-help-text': label }, children),
-  IconFolderOpenOutlineRegular: () => null,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { ChannelMessageBody, MessageDeveloperMode } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelMessage } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const channel = {
   id: 'dm-ada',
@@ -173,8 +149,9 @@ describe('private input card', () => {
     },
   );
 
-  it('offers replacement and revocation without restoring inputs and ignores a stale configured poll after revocation', async () => {
+  it('offers replacement and revocation without restoring inputs and ignores a stale configured read after revocation', async () => {
     vi.useFakeTimers();
+    const live = resourceEvents();
     try {
       let stale!: (value: { status: 'configured'; references: Record<string, string> }) => void;
       const actions = {
@@ -198,7 +175,8 @@ describe('private input card', () => {
       expect(container.querySelector('input')).toBeNull();
       expect(button('替换')?.textContent).toBe('替换');
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
+        live.emit('private-inputs');
+        await vi.advanceTimersByTimeAsync(25);
       });
       await act(async () => button('撤销')?.click());
       await act(async () => stale({ status: 'configured', references: {} }));
@@ -206,6 +184,7 @@ describe('private input card', () => {
       expect(container.textContent).toContain('本地访问已撤销');
       expect(container.textContent).toContain('已停止 1');
     } finally {
+      live.dispose();
       vi.useRealTimers();
     }
   });
@@ -264,7 +243,10 @@ describe('private input card', () => {
     const help = container.querySelector<HTMLButtonElement>('button[aria-label="私密信息的说明"]');
     expect(help).not.toBeNull();
     expect(help?.getAttribute('type')).toBe('button');
-    const details = help?.closest('[data-help-text]')?.getAttribute('data-help-text');
+    await act(async () => help?.focus());
+    const details = document.getElementById(
+      help?.getAttribute('aria-describedby') ?? '',
+    )?.textContent;
     expect(details).toContain('仅 Host 保存原值');
     expect(details).toContain('旧值不会被取回');
     expect(details).toContain('有效期至');
@@ -323,6 +305,24 @@ describe('private input card', () => {
     expect(container.textContent).not.toContain('synthetic secret');
   });
 
+  it('shows the reason code when the Host did not receive a submission', async () => {
+    const actions = {
+      privateInputStatus: vi.fn().mockResolvedValue('pending'),
+      privateInputSubmit: vi.fn().mockRejectedValue(
+        new BridgeCallError('private-input-not-accepted', 'Private input was not accepted', {
+          reason: 'store-unavailable',
+        }),
+      ),
+    } as unknown as BridgeActions;
+    await act(async () => render(actions, undefined, card));
+    for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
+    await act(async () => button('私密提交')?.click());
+    expect(container.textContent).toContain('原因代码 store-unavailable');
+    expect(container.textContent).toContain('Host 的凭据存储不可用');
+    expect(container.textContent).not.toContain('未能完成请求');
+    expect(container.textContent).not.toContain('synthetic secret');
+  });
+
   it('converges a duplicate-tab refusal to configured without retaining an error', async () => {
     const actions = {
       privateInputStatus: vi.fn().mockResolvedValueOnce('pending').mockResolvedValue('configured'),
@@ -337,8 +337,39 @@ describe('private input card', () => {
     expect(container.textContent).not.toContain('synthetic secret');
   });
 
-  it('keeps a committed terminal status when an older pending poll arrives later', async () => {
+  it('refreshes a pending private input after a failed read and reconnect', async () => {
     vi.useFakeTimers();
+    const live = resourceEvents();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce('pending')
+      .mockRejectedValueOnce(new Error('read timed out'))
+      .mockResolvedValue('configured');
+    const actions = { privateInputStatus: read } as unknown as BridgeActions;
+    try {
+      await act(async () => render(actions, undefined, card));
+      expect(container.querySelector('input')).not.toBeNull();
+      await act(async () => {
+        live.emit('private-inputs');
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(container.querySelector('input')).not.toBeNull();
+      await act(async () => {
+        live.reconnect();
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(container.querySelector('input')).toBeNull();
+      expect(container.textContent).toContain('已提交');
+      expect(read).toHaveBeenCalledTimes(3);
+    } finally {
+      live.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a committed terminal status when an older pending read arrives later', async () => {
+    vi.useFakeTimers();
+    const live = resourceEvents();
     try {
       let stale!: (status: 'pending') => void;
       const actions = {
@@ -356,7 +387,8 @@ describe('private input card', () => {
       } as unknown as BridgeActions;
       await act(async () => render(actions, undefined, card));
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
+        live.emit('private-inputs');
+        await vi.advanceTimersByTimeAsync(25);
       });
       for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
       await act(async () => button('私密提交')?.click());
@@ -366,12 +398,14 @@ describe('private input card', () => {
       expect(container.textContent).toContain('已提交');
       expect(container.textContent).not.toContain('synthetic secret');
     } finally {
+      live.dispose();
       vi.useRealTimers();
     }
   });
 
-  it('ignores an old pending poll rejection after configured settlement', async () => {
+  it('ignores an old pending read rejection after configured settlement', async () => {
     vi.useFakeTimers();
+    const live = resourceEvents();
     try {
       let reject!: (error: Error) => void;
       const actions = {
@@ -389,7 +423,8 @@ describe('private input card', () => {
       } as unknown as BridgeActions;
       await act(async () => render(actions, undefined, card));
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2500);
+        live.emit('private-inputs');
+        await vi.advanceTimersByTimeAsync(25);
       });
       for (const input of container.querySelectorAll('input')) input.value = 'synthetic secret';
       await act(async () => button('私密提交')?.click());
@@ -398,6 +433,7 @@ describe('private input card', () => {
       expect(container.textContent).not.toContain('未能完成请求');
       expect(container.querySelector('input')).toBeNull();
     } finally {
+      live.dispose();
       vi.useRealTimers();
     }
   });
@@ -459,6 +495,7 @@ describe('private input card', () => {
 describe('native question card interaction', () => {
   it('keeps a late answer submitted until the native Session admits it', async () => {
     vi.useFakeTimers();
+    const live = resourceEvents();
     try {
       const actions = {
         userQuestionStatus: vi
@@ -480,11 +517,13 @@ describe('native question card interaction', () => {
       expect(container.textContent).not.toContain('已回答');
       expect(button('main')).toBeUndefined();
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(800);
+        live.emit({ resource: 'user-question', channelId: 'dm-ada', messageId: card.id });
+        await vi.advanceTimersByTimeAsync(25);
       });
       expect(container.textContent).toContain('已回答');
       expect(actions.answerUserQuestion).toHaveBeenCalledTimes(1);
     } finally {
+      live.dispose();
       vi.useRealTimers();
     }
   });
@@ -499,7 +538,7 @@ describe('native question card interaction', () => {
     expect(container.querySelector('.bh-request-category')?.textContent).toBe('提问');
     expect(container.querySelector('.bh-request-pill')?.textContent).toBe('需要你回答');
     expect(container.textContent).not.toContain('需要你的回答');
-    expect(container.querySelector('.bh-question-lettered')).not.toBeNull();
+    expect(container.querySelector('ul[aria-label]')).not.toBeNull();
     expect(container.querySelector('details')).toBeNull();
     expect(
       container.querySelector<HTMLInputElement>('input[aria-label="其他回答"]')?.placeholder,
@@ -547,7 +586,9 @@ describe('native question card interaction', () => {
     const choices = Array.from(
       container.querySelectorAll<HTMLInputElement>('input[type=checkbox]'),
     );
-    const labels = Array.from(container.querySelectorAll<HTMLLabelElement>('label.bh-card-main'));
+    const labels = Array.from(
+      container.querySelectorAll<HTMLLabelElement>('label:has(input[type=checkbox])'),
+    );
     expect(choices).toHaveLength(3);
     expect(container.querySelector('button input')).toBeNull();
     await act(async () => labels[0]?.click());

@@ -194,13 +194,10 @@ export function mountActivityLive(
       if (!active || source !== next || !(event instanceof MessageEvent)) return;
       const snapshot = parseActivitySnapshot(event.data as string);
       if (snapshot === undefined) return;
-      const gap =
-        latest?.generation === snapshot.generation && snapshot.revision > latest.revision + 1;
       healthy = true;
       clearTimer();
       apply(snapshot);
       mark('live');
-      if (gap) refresh();
     });
     next.addEventListener('error', () => {
       if (!active || source !== next) return;

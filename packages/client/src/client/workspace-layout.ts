@@ -46,6 +46,14 @@ export function workspaceColumns(api: DockviewApi): { id: string; left: number }
     });
 }
 
+export function workspaceMoveColumns(api: DockviewApi, open: boolean): string[] {
+  return open
+    ? workspaceColumns(api)
+        .slice(1)
+        .map((column) => column.id)
+    : [];
+}
+
 export function reorderWorkspaceRail(
   layout: SerializedDockview,
   before: string,

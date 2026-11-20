@@ -1,13 +1,31 @@
-import { requiresHumanDecision } from './approval-templates.js';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import type { ApprovalTemplateLibrary } from './approval-templates.js';
+import { toolApprovalRequired } from './tool-effects.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import { sameDirectory } from '../fs/same-directory.js';
+import type { EngineWorkspaceMode } from '../engines/engine-session.js';
 import type { BotHarnessCore } from '../plugin.js';
-import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
+import type { AssignmentPermissionSnapshot, WorkspaceGrant } from './grants.js';
+import {
+  NATIVE_FILE_TOOL_NAMES,
+  nativeFileToolDenial,
+  nativeFileSpaceDenial,
+} from './grant-native-tools.js';
 
-type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
+type AccessCore = {
+  assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'>;
+  registry?: Pick<BotHarnessCore['registry'], 'get'>;
+  team?: Pick<BotHarnessCore['team'], 'ownerContext'>;
+};
+export function isMemberBot(core: AccessCore, botSlug: string): boolean {
+  const owner = core.registry?.get(botSlug)?.ownerHumanId;
+  return (
+    owner !== undefined && owner !== (core.team?.ownerContext() ?? OWNER_HUMAN_CONTEXT).humanId
+  );
+}
 
 type Owner = NonNullable<ReturnType<BotHarnessCore['ownership']['resolve']>>;
 
@@ -44,8 +62,9 @@ export function alignOrchestratorSubagentPermission(
     setSandboxMode(session, mode);
     changed = true;
   }
-  if (approval.overrideOf(session) !== 'never') {
-    setApprovalPolicy(session, 'never');
+  const expectedApproval = isMemberBot(core, owner.botSlug) ? 'ask' : 'never';
+  if (approval.overrideOf(session) !== expectedApproval) {
+    setApprovalPolicy(session, expectedApproval);
     changed = true;
   }
   return changed;
@@ -94,8 +113,9 @@ export function alignAssignmentPermission(
     return undefined;
   const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
   if (permission === undefined || session.header.cwd !== permission.primaryCwd) return undefined;
+  let grant: WorkspaceGrant;
   try {
-    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+    grant = core.grants.requireActive(owner.botSlug, permission.grantId);
     if (
       grant.workspaceId !== permission.workspaceId ||
       grant.workspacePath !== permission.primaryCwd
@@ -104,24 +124,57 @@ export function alignAssignmentPermission(
   } catch {
     return undefined;
   }
+  const mode = assignmentSandboxMode(permission, grant);
   if (
-    policy.resolve({ session }).mode === permission.mode &&
+    policy.resolve({ session }).mode === mode &&
     approval.overrideOf(session) === permission.approval
   )
     return false;
-  setSandboxMode(session, permission.mode);
+  setSandboxMode(session, mode);
   setApprovalPolicy(session, permission.approval);
   return true;
+}
+
+export function assignmentSandboxMode(
+  permission: Pick<AssignmentPermissionSnapshot, 'mode'>,
+  grant: Pick<WorkspaceGrant, 'orchestratorWrite'>,
+): AssignmentPermissionSnapshot['mode'] | 'read-only' {
+  return permission.mode === 'workspace-write' && grant.orchestratorWrite !== true
+    ? 'read-only'
+    : permission.mode;
 }
 
 export function orchestratorPermission(
   core: AccessCore,
   botSlug: string,
 ): { mode: 'workspace-write' | 'danger-full-access'; approval: 'ask' | 'never' } {
+  if (isMemberBot(core, botSlug)) return { mode: 'workspace-write', approval: 'ask' };
   const preset = core.assignmentAccess?.get(botSlug);
   return preset?.mode === 'danger-full-access' && preset.scope === 'chat'
     ? { mode: 'danger-full-access', approval: 'ask' }
     : { mode: 'workspace-write', approval: 'ask' };
+}
+
+export function engineWorkspaceMode(
+  core: { grants: Pick<BotHarnessCore['grants'], 'list' | 'requireActive'> } & AccessCore,
+  botSlug: string,
+  permission?: AssignmentPermissionSnapshot,
+): EngineWorkspaceMode {
+  if (permission === undefined) {
+    const { mode } = orchestratorPermission(core, botSlug);
+    return mode === 'workspace-write' &&
+      core.grants
+        .list(botSlug)
+        .some((grant) => !grant.revokedAt && grant.orchestratorWrite !== true)
+      ? 'read-only'
+      : mode;
+  }
+  const grant = core.grants.requireActive(botSlug, permission.grantId);
+  if (grant.workspaceId !== permission.workspaceId || grant.workspacePath !== permission.primaryCwd)
+    throw new Error('Assignment Workspace Grant no longer matches its permission snapshot');
+  if (permission.mode === 'danger-full-access' && isMemberBot(core, botSlug))
+    throw new Error('permission-required: Full access requires a Host-owned Bot');
+  return assignmentSandboxMode(permission, grant);
 }
 
 export function sessionHasFullAccess(
@@ -129,7 +182,7 @@ export function sessionHasFullAccess(
   sessionId: string,
 ): boolean {
   const owner = rootOwner(core, sessionId);
-  if (owner === undefined) return false;
+  if (owner === undefined || isMemberBot(core, owner.botSlug)) return false;
   if (owner.rootRole === 'assignment')
     return (
       core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
@@ -189,9 +242,15 @@ export function grantExecutionDenial(
   }
   const mode = policy.resolve({ session }).mode;
   const approvalPolicy = approval.overrideOf(session);
+  const memberBot = isMemberBot(core, owner.botSlug);
+  if (memberBot && (mode === 'danger-full-access' || approvalPolicy !== 'ask'))
+    return 'permission-required';
   if (owner.rootRole === 'orchestrator') {
     if (delegatedSubagent) {
-      if (mode !== orchestratorPermission(core, owner.botSlug).mode || approvalPolicy !== 'never')
+      if (
+        mode !== orchestratorPermission(core, owner.botSlug).mode ||
+        approvalPolicy !== (memberBot ? 'ask' : 'never')
+      )
         return "Orchestrator Subagent permission differs from this PersonaBot's access setting";
     } else {
       const expected = orchestratorPermission(core, owner.botSlug);
@@ -210,22 +269,23 @@ export function grantExecutionDenial(
   if (permission === undefined || session.header.cwd !== permission.primaryCwd) {
     return 'Assignment Session permission snapshot is missing or mismatched';
   }
-  if (
-    mode !== permission.mode ||
-    approvalPolicy !== (delegatedSubagent ? 'never' : permission.approval)
-  ) {
-    return 'Assignment Session permission mode differs from its snapshot';
-  }
+  let grant: WorkspaceGrant;
   try {
-    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
-    if (
-      grant.workspaceId !== permission.workspaceId ||
-      grant.workspacePath !== permission.primaryCwd
-    ) {
-      return 'Assignment Workspace Grant no longer matches its permission snapshot';
-    }
+    grant = core.grants.requireActive(owner.botSlug, permission.grantId);
   } catch {
     return 'Assignment Workspace Grant is missing, revoked, or unavailable';
+  }
+  if (
+    grant.workspaceId !== permission.workspaceId ||
+    grant.workspacePath !== permission.primaryCwd
+  ) {
+    return 'Assignment Workspace Grant no longer matches its permission snapshot';
+  }
+  if (
+    mode !== assignmentSandboxMode(permission, grant) ||
+    approvalPolicy !== (delegatedSubagent && !memberBot ? 'never' : permission.approval)
+  ) {
+    return 'Assignment Session permission mode differs from its snapshot';
   }
   return undefined;
 }
@@ -277,6 +337,14 @@ export function admitBotSession(
 ): string | undefined {
   const roleDenial = role === undefined ? undefined : borrowedAgentDenial(core, session, role);
   if (roleDenial !== undefined) return roleDenial;
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner &&
+    isMemberBot(core, owner.botSlug) &&
+    (policy?.resolve({ session }).mode === 'danger-full-access' ||
+      approval?.overrideOf(session) === 'never')
+  )
+    return 'permission-required';
   if (alignOrchestratorPermission(core, session, policy, approval)) repaired?.('orchestrator');
   if (alignAssignmentPermission(core, session, policy, approval)) repaired?.('assignment');
   if (alignOrchestratorSubagentPermission(core, session, policy, approval))
@@ -295,6 +363,8 @@ export function borrowedAgentDenial(
 }
 
 const BOT_TOOL_NAMES = new Set([
+  'deepseekbot_cli',
+  'speaker_policy',
   'create_assignment',
   'list_assignment_models',
   'list_bot_subagent_models',
@@ -311,6 +381,7 @@ const BOT_TOOL_NAMES = new Set([
   'inspect_assignment',
   'wait_for_assignment',
   'send_assignment_request',
+  'link_message_sessions',
   'stop_assignment',
   'channel_list',
   'channel_read',
@@ -334,6 +405,7 @@ const BOT_TOOL_NAMES = new Set([
   'inbox_ignore',
   'inbox_history',
   'channel_read_image',
+  'call_frame',
   'channel_attachment_save',
   'channel_attachment_import',
   'list_bot_contacts',
@@ -353,9 +425,14 @@ const BOT_TOOL_NAMES = new Set([
   'bot_schedule_create',
   'bot_schedule_update',
   'bot_schedule_delete',
+  'takeover_request',
+  'takeover_cancel',
+  'takeover_list',
   'group_leave',
   'bot_create',
   'bot_send_message',
+  'genui_preview',
+  'genui_diagram',
   'channel_action',
 
   'ask_user_question',
@@ -371,28 +448,21 @@ export function requiresHumanToolApproval(
   args?: unknown,
   templateInUse?: (template: string) => boolean,
 ): boolean {
-  if (name === 'channel_attachment_open')
-    return (
-      typeof args !== 'object' ||
-      args === null ||
-      (args as Record<string, unknown>).access !== 'read'
-    );
-  if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
-  return isDshGovernedTool(name) && requiresHumanDecision(policyInput(args), templateInUse);
+  return toolApprovalRequired(name, args, isDshGovernedTool(name), templateInUse);
 }
 
 export function approvalTemplateInUse(
   registry: Pick<BotHarnessCore['registry'], 'list'>,
+  library: Pick<ApprovalTemplateLibrary, 'global'>,
 ): (template: string) => boolean {
-  return (template) => registry.list().some((record) => record.approvalTemplate === template);
-}
-
-function policyInput(args: unknown): string {
-  try {
-    return JSON.stringify(args) ?? '';
-  } catch {
-    return '';
-  }
+  return (template) => {
+    const global = library.global();
+    return (
+      global?.kind === 'invalid' ||
+      (global?.kind === 'selected' && global.name === template) ||
+      registry.list().some((record) => record.approvalTemplate === template)
+    );
+  };
 }
 
 export function isDshGovernedTool(name: string): boolean {
@@ -412,9 +482,20 @@ export function grantToolExecutionDenial(
   name: string,
   args: unknown,
   allowedOnce = false,
+  templateInUse?: (template: string) => boolean,
 ): string | undefined {
   const denial = grantExecutionDenial(core, session, policy, approval);
   if (denial !== undefined) return denial;
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner &&
+    isMemberBot(core, owner.botSlug) &&
+    args !== null &&
+    typeof args === 'object' &&
+    'sandbox_permissions' in args &&
+    args.sandbox_permissions === 'require_escalated'
+  )
+    return 'permission-required';
   if (core.ownership.resolve(session.id) === undefined) return undefined;
   if (
     name === 'ask_user_question' &&
@@ -432,9 +513,12 @@ export function grantToolExecutionDenial(
   if (BOT_TOOL_NAMES.has(name)) return undefined;
 
   if (core.hostTools.has(name)) return undefined;
-  if (sessionHasFullAccess(core, session.id)) return undefined;
+  if (sessionHasFullAccess(core, session.id))
+    return NATIVE_FILE_TOOL_NAMES.has(name)
+      ? nativeFileSpaceDenial(core, session, name, args)
+      : undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
-  if (requiresHumanToolApproval(name, args, approvalTemplateInUse(core.registry)) && !allowedOnce)
+  if (requiresHumanToolApproval(name, args, templateInUse) && !allowedOnce)
     return name + ' requires Human approval';
   return undefined;
 }

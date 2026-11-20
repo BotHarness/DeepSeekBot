@@ -14,7 +14,7 @@ import {
   loadQuestion,
   type ApprovalChoice,
   type RequestRef,
-} from '../../src/host/requests';
+} from '@botharness/host-client/requests';
 import { ApprovalView } from '../../src/ui/approval-view';
 import { ATTENTION_KINDS, AttentionItemView } from '../../src/ui/attention-item';
 import { GrantRequestCard } from '../../src/ui/chat/grant-request-card';
@@ -31,6 +31,7 @@ type Params = {
   summary?: string;
   channelId?: string;
   messageId?: string;
+  clearOnOpen?: string;
 };
 
 export default function InboxItemScreen() {
@@ -158,6 +159,7 @@ export default function InboxItemScreen() {
           else setOpenNotice(snapshot.roster ? t.noChannel : t.channelOpeningNotReady);
         }}
         fallback={fallback}
+        clearOnOpen={params.clearOnOpen === '1'}
       />
     );
   else body = fallback;

@@ -2,6 +2,20 @@
 
 A Human stops a PersonaBot's running Orchestrator turn. The Host cancels the turn, the Bot goes idle, and the conversation records `Human stopped <Bot>`.
 
+## Sources
+
+- `packages/client/src/client/{header-session-stop,session-stop-model,turn-stop}.{ts,tsx}`
+- `packages/core/src/channels/turn-stop.ts`
+- `apps/mobile/src/host/session-stop.ts`
+- `apps/mobile/src/ui/chat/session-stops.ts`
+
+## Terms
+
+- Bot Stop
+- Session Stop
+- Stopped Session
+- Orchestrator Session
+
 ## Sub-features
 
 - `web` turns the composer's Send button into `Stop <Bot>` while a Bot in the DM or Group Channel is thinking or working and the composer is empty. In a Group Channel it reads `Stop <n> Bots` and stops each of them.

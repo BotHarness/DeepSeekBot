@@ -31,6 +31,26 @@ function setup(): { home: string; owner: OperationalDatabaseOwner; ownership: Se
 const AT = '2026-09-21T00:00:00.000Z';
 
 describe('Session ownership', () => {
+  it('resolves direct execution ownership without selecting it as a persistent Bot root', () => {
+    const { owner, ownership } = setup();
+    try {
+      const direct = ownership.claim({
+        sessionId: 'direct-call-1',
+        botSlug: 'ada',
+        rootRole: 'orchestrator',
+        at: AT,
+      });
+      expect(ownership.resolve(direct.sessionId)).toEqual(direct);
+      expect(ownership.rootsFor('ada')).toEqual([]);
+      ownership.claim({ sessionId: 'chat-1', botSlug: 'ada', rootRole: 'orchestrator', at: AT });
+      expect(ownership.rootsFor('ada', 'orchestrator').map((root) => root.sessionId)).toEqual([
+        'chat-1',
+      ]);
+    } finally {
+      owner.close();
+    }
+  });
+
   it('claims and resolves a root Session with its explicit run configuration', () => {
     const { owner, ownership } = setup();
 
@@ -194,6 +214,17 @@ describe('Session ownership', () => {
     });
     expect(created).toMatchObject({ sessionId: 'recovered', provenance: 'repair' });
     owner.close();
+  });
+
+  it('records the mode a root Session was composed from', () => {
+    const { ownership } = setup();
+    ownership.claim({ sessionId: 'session-1', botSlug: 'ada', rootRole: 'assignment', at: AT });
+    expect(ownership.resolve('session-1')?.agentPreset).toBeUndefined();
+    ownership.recordAgentPreset('session-1', 'minimal');
+    ownership.recordAgentPreset('nobody', 'minimal');
+    expect(ownership.rootsFor('ada')).toEqual([
+      expect.objectContaining({ sessionId: 'session-1', agentPreset: 'minimal' }),
+    ]);
   });
 
   it('freezes one persona snapshot per Session and clears it only on re-owning', () => {

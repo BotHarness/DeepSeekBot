@@ -348,6 +348,6 @@ Feishu/Lark DM → dsh-im listener → BotHarness durable ingress
 - [shared Bot workspace/target/access store](https://github.com/xmanrui/dsh-im/blob/42776b5beb4b304afbca0c8703d647cb59614df0/src/channels/shared/bot-workspace-store.mjs)
 - [dsh-im issue #65: Host proactive send Service](https://github.com/xmanrui/dsh-im/issues/65)
 - [dsh-im issue #231: embeddable Client management panel](https://github.com/xmanrui/dsh-im/issues/231)
-- [ADR-0001: adopt dsh-im as base plugin](../adr/0001-adopt-dsh-im-as-base-plugin.md)
-- [ADR-0011: standalone plugin, not a dsh-im fork](../adr/0011-standalone-plugin-not-a-dsh-im-fork.md)
+- [ADR-0001: adopt dsh-im as base plugin](../decisions/im-providers.md#adr-0001)
+- [ADR-0011: standalone plugin, not a dsh-im fork](../decisions/im-providers.md#adr-0011)
 - [Letta Channels bridge research](./2026-09-21-letta-channels-external-im-bridge.md)

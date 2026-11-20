@@ -96,3 +96,21 @@ it('states what the computer needs and opens the setup guide', async () => {
   expect(openURL).toHaveBeenCalledWith(t.pairGuide.url);
   expect(view.querySelector('[role="alert"]')).toBeNull();
 });
+
+it('titles a scanned local-network code as the Wi-Fi path, not Tailscale', async () => {
+  const p = Buffer.from(
+    JSON.stringify({
+      v: 1,
+      host: { id: 'host', name: 'Mac' },
+      offer: 'offer',
+      routes: ['http://192.168.1.200:65488', 'http://127.0.0.1:39164'],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }),
+  ).toString('base64url');
+  params.current = { p };
+  await render();
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: '/pair/tailscale',
+    params: { p, mode: 'lan' },
+  });
+});

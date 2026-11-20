@@ -260,6 +260,9 @@ try {
         const handle = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
         if (handle && (await handle.isVisible())) await handle.click();
       }
+      const welcome = await page.$('::-p-aria([name="Welcome to Tobs"][role="dialog"])');
+      const skip = await welcome?.$('::-p-aria([name="Skip"][role="button"])');
+      if (skip && (await skip.isVisible())) await skip.click();
       await new Promise((done) => setTimeout(done, 250));
     }
   };

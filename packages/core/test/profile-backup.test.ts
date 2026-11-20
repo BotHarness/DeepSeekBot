@@ -1,3 +1,5 @@
+import { defineSchemaPlan } from '../src/database/schema.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
@@ -36,6 +38,7 @@ import { selectAssignmentRoute, type ModelRoute } from '../src/models/presets.js
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import type { MessagingProvider } from '../src/messaging/provider.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from '../src/portability/http.js';
+import { requestListener } from './async-listener.js';
 
 const roots: string[] = [];
 const cores: BotHarnessCore[] = [];
@@ -77,32 +80,34 @@ function source(core: BotHarnessCore): ProfileBackupSource {
 it('runs online preview, download and inspection through the CLI and the same Profile Backup owner', async () => {
   const core = mount();
   const handler = createProfileBackupHttp(source(core), root(), core.profileRecovery, catalog);
-  const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    if (url.pathname === '/') {
-      if (url.searchParams.get('token') !== 'synthetic-private-token') {
+  const server = createServer(
+    requestListener(async (request, response) => {
+      const url = new URL(request.url ?? '/', 'http://localhost');
+      if (url.pathname === '/') {
+        if (url.searchParams.get('token') !== 'synthetic-private-token') {
+          response.writeHead(401).end();
+          return;
+        }
+        response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
+        response.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      if (request.headers.cookie !== 'authority=synthetic') {
         response.writeHead(401).end();
         return;
       }
-      response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
-      response.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    if (request.headers.cookie !== 'authority=synthetic') {
-      response.writeHead(401).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const reply = await handler(
-      new Request(url, {
-        method: request.method ?? 'GET',
-        ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
-      }),
-    );
-    response.writeHead(reply.status, Object.fromEntries(reply.headers));
-    response.end(Buffer.from(await reply.arrayBuffer()));
-  });
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const reply = await handler(
+        new Request(url, {
+          method: request.method ?? 'GET',
+          ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
+        }),
+      );
+      response.writeHead(reply.status, Object.fromEntries(reply.headers));
+      response.end(Buffer.from(await reply.arrayBuffer()));
+    }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const address = server.address();
@@ -268,12 +273,9 @@ it('delegates an older operational Schema Generation to the existing staged migr
   const core = mount();
   const older = mountOperationalDatabase({
     dshHome: root(),
-    schemaPlan: {
-      targetGeneration: 105,
-      migrations: BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
-        (migration) => migration.generation <= 105,
-      ),
-    },
+    schemaPlan: defineSchemaPlan(
+      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 105),
+    ),
   });
   try {
     expect(older.mode).toBe('ready');
@@ -373,14 +375,17 @@ async function scene() {
   const erased = core.deletions.preview('deleted-erased');
   expect(erased.eraseAvailable).toBe(true);
   await core.deletions.confirm(erased.slug, erased.token, true);
-  const channel = core.channels.createGroup({ name: 'Synthetic history', members: [] });
+  const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Synthetic history',
+    members: [],
+  });
   const file = await core.attachments.upload({
     name: 'editable.txt',
     data: (async function* () {
       yield Buffer.from('original');
     })(),
   });
-  await core.channels.appendMessage(channel.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'kept',
     at: '2026-10-08T00:00:00Z',
     body: 'Sensitive synthetic history',
@@ -388,7 +393,7 @@ async function scene() {
     attachments: [file],
   });
   writeFileSync(core.attachments.fileTarget(file.fileId!).path, 'current editable bytes');
-  await core.channels.appendMessage(channel.id, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
     id: 'purged',
     at: '2026-10-08T00:00:01Z',
     body: 'Synthetic erased body',
@@ -396,10 +401,17 @@ async function scene() {
   });
   core.channels.deleteGroup(channel.id);
   const selected = core.contentPurge
-    .sources(channel.id)
+    .sources(OWNER_HUMAN_CONTEXT, channel.id)
     .sources.find((item) => item.messageId === 'purged')!;
-  const preview = core.contentPurge.preview(channel.id, [selected.sourceEventId]);
-  core.contentPurge.confirm(channel.id, [selected.sourceEventId], preview.token);
+  const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channel.id, [
+    selected.sourceEventId,
+  ]);
+  core.contentPurge.confirm(
+    OWNER_HUMAN_CONTEXT,
+    channel.id,
+    [selected.sourceEventId],
+    preview.token,
+  );
   return { core, home, custom, file, channel };
 }
 

@@ -16,11 +16,12 @@ import {
   revokeWorkspaceGrant,
   setApprovalTemplate,
   setAssignmentAccess,
-} from '../src/host/bot-settings';
-import { createHostClient } from '../src/host/client';
-import { modelLabel, workspaceLabel } from '../src/ui/chat/composer-labels';
+  type BotModel,
+} from '@botharness/host-client/bot-settings';
+import { createHostClient } from '@botharness/host-client/client';
+import { modelLabel, restingNotice, workspaceLabel } from '../src/ui/chat/composer-labels';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';
@@ -93,6 +94,43 @@ describe('Bot model from the composer', () => {
     ]);
     expect(currentModel(model).name).toBe('DeepSeek V4 Pro');
     expect(modelLabel({ status: 'ready', value: model })).toBe('DeepSeek V4 Pro');
+  });
+
+  it('explains a tap on a resting model or group, and stays quiet otherwise (#4421)', () => {
+    const until = '2026-11-22T23:23:00.000Z';
+    const notice = restingNotice('DeepSeek V4.1 Flash', { restingUntil: until });
+    expect(notice).toContain('DeepSeek V4.1 Flash');
+    expect(notice).toContain(
+      new Date(until).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    expect(restingNotice('Daily', {})).toBeUndefined();
+    expect(restingNotice('GPT-5', { restingUntil: until, credential: 'missing' })).toBeUndefined();
+  });
+
+  it('names the Routing Group the Bot runs on beside the model in front (#4421)', () => {
+    const model: BotModel = {
+      revision: 3,
+      plan: {
+        revision: 3,
+        sourcePresetId: '',
+        sourcePresetName: '',
+        orchestrator: pro,
+        orchestratorGroupId: 'daily',
+      },
+      models: [
+        { ...flash, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Flash', efforts: [] },
+        { ...pro, providerName: 'DeepSeek', modelName: 'DeepSeek V4 Pro', efforts: [] },
+      ],
+      groups: [{ id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] }],
+      presets: [],
+    };
+    expect(currentModel(model)).toMatchObject({ name: 'DeepSeek V4 Pro', group: 'Daily' });
+    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily · DeepSeek V4 Pro');
   });
 
   it('falls back to the global default model when the Bot has no plan, and survives missing presets', async () => {
@@ -288,12 +326,13 @@ describe('Bot workspace from the composer', () => {
       if (args['path'] === 'D:\\missing') throw new Error('gone');
       return {
         path: args['path'] ?? 'C:\\Users\\ada',
-        crumbs: [{ name: 'C:\\', path: 'C:\\' }],
-        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code' }],
+        home: 'C:\\Users\\ada',
+        crumbs: [{ name: 'C:\\', path: 'C:\\', hidden: false }],
+        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code', hidden: false }],
         truncated: false,
         roots: [
-          { name: 'ada', path: 'C:\\Users\\ada' },
-          { name: 'D:\\', path: 'D:\\' },
+          { name: 'ada', path: 'C:\\Users\\ada', hidden: false },
+          { name: 'D:\\', path: 'D:\\', hidden: false },
         ],
       };
     });
@@ -418,6 +457,39 @@ describe('Bot workspace from the composer', () => {
       'assignmentAccessGet returned no access setting.',
     );
   });
+
+  it.each([null, 'cautious', 'missing-template'])(
+    'preserves global default %s for inherited approval selection',
+    async (globalDefault) => {
+      const fake = new FakeHost();
+      fake.methods.set('approvalTemplates', () => ({
+        templates: [],
+        selected: '@global',
+        globalDefault,
+      }));
+      fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+      const host = client(fake);
+      expect(await loadApprovalTemplates(host, slug)).toMatchObject({
+        selected: '@global',
+        globalDefault,
+      });
+      await setApprovalTemplate(host, slug, '@global');
+      expect(calls(fake)).toContainEqual(['botApprovalTemplateSet', { slug, template: '@global' }]);
+    },
+  );
+
+  it.each([42, {}, undefined])(
+    'refuses an unreadable inherited global default instead of treating it as Off',
+    async (globalDefault) => {
+      const fake = new FakeHost();
+      fake.methods.set('approvalTemplates', () => ({
+        templates: [],
+        selected: '@global',
+        globalDefault,
+      }));
+      await expect(loadApprovalTemplates(client(fake), slug)).rejects.toBeInstanceOf(Error);
+    },
+  );
 
   it('reads and sets the auto approval template', async () => {
     const fake = new FakeHost();

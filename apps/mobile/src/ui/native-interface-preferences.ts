@@ -1,9 +1,17 @@
 import { File, Paths } from 'expo-file-system';
 import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
-import { AppState, Appearance } from 'react-native';
+import { AppState, Appearance, Platform } from 'react-native';
 
 import { interfacePreferences } from './interface-preferences';
+import { alertBanners } from '../host/alert-banners';
+
+const syncAlertPresentation = () => {
+  const preferences = interfacePreferences.getSnapshot();
+  alertBanners.setEnabled(preferences.loaded && preferences.inAppAlerts);
+};
+syncAlertPresentation();
+interfacePreferences.subscribe(syncAlertPresentation);
 
 const refreshLocales = () =>
   interfacePreferences.setSystemLocales(getLocales().map((locale) => locale.languageTag));
@@ -23,7 +31,10 @@ void interfacePreferences.restore({
 
 function subscribeNative(notify: () => void) {
   let appearance = interfacePreferences.getSnapshot().appearance;
-  const apply = () => Appearance.setColorScheme(appearance === 'system' ? 'auto' : appearance);
+  const apply = () => {
+    if (Platform.OS !== 'web')
+      Appearance.setColorScheme(appearance === 'system' ? 'auto' : appearance);
+  };
   apply();
   const off = interfacePreferences.subscribe(() => {
     const next = interfacePreferences.getSnapshot().appearance;

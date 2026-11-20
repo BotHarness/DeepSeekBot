@@ -10,7 +10,6 @@ const activity = vi.hoisted(() => ({
   start: vi.fn<() => Promise<void>>(),
   stop: vi.fn<() => Promise<void>>(),
   actions: [] as readonly DialogAction[],
-  result: undefined as unknown,
 }));
 vi.mock('../src/host/native-live-activity', () => ({
   requestActivitySession: activity,
@@ -35,12 +34,7 @@ function Action({ messageId }: { messageId: string }) {
     messageId,
   });
   return (
-    <button
-      disabled={action.disabled}
-      onClick={() => {
-        activity.result = action.onPress();
-      }}
-    >
+    <button disabled={action.disabled} onClick={() => action.onPress()}>
       {action.label}
     </button>
   );
@@ -49,7 +43,6 @@ beforeEach(() => {
   interfacePreferences.setLanguage('en');
   activity.state.tracking = false;
   activity.actions = [];
-  activity.result = undefined;
   activity.start.mockReset().mockResolvedValue(undefined);
   activity.stop.mockReset().mockResolvedValue(undefined);
   view = document.createElement('div');
@@ -62,7 +55,7 @@ afterEach(() => {
 });
 
 it.each(['start', 'stop', 'switch'] as const)(
-  'returns the %s promise and shows pending feedback immediately',
+  'shows %s pending feedback immediately and clears it when the work settles',
   async (operation) => {
     activity.state.tracking = operation !== 'start';
     let release!: () => void;
@@ -75,23 +68,20 @@ it.each(['start', 'stop', 'switch'] as const)(
       root!.render(<Action messageId={operation === 'stop' ? 'old' : 'new'} />),
     );
     const button = view.querySelector('button')!;
-    let result: unknown;
     await act(async () => {
       button.click();
-      result = activity.result;
       if (operation !== 'stop') {
         const label = operation === 'start' ? t.lockScreen.track : t.lockScreen.switch;
-        result = activity.actions.find((action) => action.text === label)?.onPress?.();
+        activity.actions.find((action) => action.text === label)?.onPress?.();
       }
     });
-    expect(result).toBeInstanceOf(Promise);
     expect(button.disabled).toBe(true);
     expect(button.textContent).toBe(
       operation === 'start' ? 'Starting…' : operation === 'stop' ? 'Stopping…' : 'Switching…',
     );
     await act(async () => {
       release();
-      await result;
+      await gate;
     });
     expect(button.disabled).toBe(false);
     if (operation === 'switch') expect(activity.stop).toHaveBeenCalledTimes(1);

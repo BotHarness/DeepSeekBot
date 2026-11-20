@@ -1,5 +1,16 @@
 # Phone Chats row actions and Host sections
 
+## Sources
+
+- `apps/mobile/src/ui/primitives/swipe-row{,-model}.{ts,tsx}`
+- `apps/mobile/src/ui/chat/conversation-section-sheet.tsx`
+
+## Terms
+
+- Chats
+- Channel section
+- Pinned section (置顶分区)
+
 ## Sub-features
 
 - `swipe`: Host DM/Channel rows reveal Pin/Unpin, Add to section and Mute/Unmute; full swipe does not execute. Vertical scrolling and iOS left-edge drawer ownership remain intact.

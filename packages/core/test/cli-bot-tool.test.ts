@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -20,22 +21,26 @@ type Call = { method: string; args: unknown };
 
 async function host(answer: (call: Call) => unknown) {
   const calls: Call[] = [];
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url!, 'http://localhost');
-    if (req.method === 'GET' && url.searchParams.has('token')) {
-      res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const parsed = JSON.parse(Buffer.concat(chunks).toString());
-    const call = { method: parsed.method.replace('botharness/', ''), args: parsed.payload.args };
-    calls.push(call);
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ type: 'server-response', rpcId: parsed.rpcId, result: answer(call) }));
-  });
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url!, 'http://localhost');
+      if (req.method === 'GET' && url.searchParams.has('token')) {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const parsed = JSON.parse(Buffer.concat(chunks).toString());
+      const call = { method: parsed.method.replace('botharness/', ''), args: parsed.payload.args };
+      calls.push(call);
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({ type: 'server-response', rpcId: parsed.rpcId, result: answer(call) }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -57,6 +62,56 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('passes explicit Source Event causation separately from Bot tool arguments', async () => {
+    const live = await host(() => ({ ok: true, value: { result: 'accepted' } }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'bot_send_message', '--cause-event', 'source-owned', '--args-stdin'],
+      live.url,
+      JSON.stringify({ bot_id: 'remote:host:ios', body: 'Check iOS' }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: {
+          slug: 'ada',
+          tool: 'bot_send_message',
+          sourceEventId: 'source-owned',
+          args: { bot_id: 'remote:host:ios', body: 'Check iOS' },
+        },
+      },
+    ]);
+  });
+  it('passes an optional unarchive_assignment message so one call revives and continues', async () => {
+    const value = {
+      slug: 'ada',
+      tool: 'unarchive_assignment',
+      sessionId: 'direct',
+      result: {
+        outcome: 'unarchived',
+        sessionId: 'assignment-1',
+        activity: 'stopped',
+        delivery: 'refused',
+        code: 'request-not-delivered',
+        message: 'Assignment Session assignment-1 is active, but the request was not delivered',
+      },
+    };
+    const live = await host(() => ({ ok: true, value }));
+    const args = { session_id: 'assignment-1', message: 'Continue the report', mode: 'next-turn' };
+    const result = await invoke(
+      ['bot-tool', 'ada', 'unarchive_assignment', '--cause-event', 'source-owned', '--args-stdin'],
+      live.url,
+      JSON.stringify(args),
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual(value);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: { slug: 'ada', tool: 'unarchive_assignment', sourceEventId: 'source-owned', args },
+      },
+    ]);
+  });
   it('names the Assignment parent of a Subagent tool with --session', async () => {
     const live = await host(() => ({
       ok: true,
@@ -78,6 +133,23 @@ describe('Harness Bot tool runner commands', () => {
           sessionId: 'assign-1',
         },
       },
+    ]);
+  });
+
+  it('routes offline diagram authoring through the existing direct Tool owner', async () => {
+    const args = { source: 'flowchart LR\n A[输入] --> B[结果]', width: 640 };
+    const live = await host(() => ({
+      ok: true,
+      value: { tool: 'genui_diagram', result: { compiler: 'pele@1.13.0', svg: '<svg/>' } },
+    }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'genui_diagram', '--args-stdin'],
+      live.url,
+      JSON.stringify(args),
+    );
+    expect(result.json.result.compiler).toBe('pele@1.13.0');
+    expect(live.calls).toEqual([
+      { method: 'botToolRun', args: { slug: 'ada', tool: 'genui_diagram', args } },
     ]);
   });
 
@@ -206,4 +278,32 @@ describe('Harness Bot tool runner commands', () => {
     }
     expect(live.calls).toEqual([]);
   });
+});
+
+it('starts a model-free typed Tob CLI request without accepting actor or source authority', async () => {
+  const live = await host(() => ({ ok: true, value: { id: 'lease-1', state: 'running' } }));
+  const result = await invoke(
+    ['tob-cli', 'start', '--args-stdin'],
+    live.url,
+    JSON.stringify({ argv: ['approval-templates'], stdin: '' }),
+  );
+  expect(result.code).toBe(0);
+  expect(result.json).toMatchObject({ id: 'lease-1', state: 'running' });
+  expect(live.calls).toEqual([
+    {
+      method: 'tobCli',
+      args: { action: 'start', command: { argv: ['approval-templates'], stdin: '' } },
+    },
+  ]);
+});
+
+it('refuses authority-selection flags on a typed Tob request before connecting', async () => {
+  const live = await host(() => ({ ok: true, value: { state: 'running' } }));
+  const result = await invoke(
+    ['tob-cli', 'start', '--cause-event', 'historical-source', '--args-stdin'],
+    live.url,
+    JSON.stringify({ argv: ['approval-templates'] }),
+  );
+  expect(result.json).toMatchObject({ error: { code: 'agent-scope-denied' } });
+  expect(live.calls).toHaveLength(0);
 });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -76,11 +77,14 @@ describe('Memory commit Self-Records', () => {
     });
     try {
       core.registry.create({ slug: 'mira', displayName: 'Mira' });
-      const group = core.channels.createGroup({ name: 'Crew', members: ['mira'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['mira'],
+      });
       groupId = group.id;
-      core.channels.getOrCreateDm('mira', 'Mira');
-      const unreadBefore = core.humanAttention.status().unreadCount;
-      await core.channels.appendMessage(group.id, {
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'mira', 'Mira');
+      const unreadBefore = core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'ask',
         at: AT,
         author: { kind: 'human' },
@@ -126,7 +130,7 @@ describe('Memory commit Self-Records', () => {
         },
       ]);
       expect(turns).toBe(1);
-      expect(core.humanAttention.status().unreadCount).toBe(unreadBefore);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(unreadBefore);
       expect(core.channels.latestMessage(group.id)?.id).toBe('ask');
     } finally {
       await core.runtime.close();
@@ -145,17 +149,21 @@ describe('Memory commit Self-Records', () => {
     });
     try {
       core.registry.create({ slug: 'mira', displayName: 'Mira' });
-      const dm = core.channels.getOrCreateDm('mira', 'Mira')!;
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'mira', 'Mira')!;
       const root = core.registry.memoryDirFor('mira')!;
       commit(root, 'old.md', 'before\n', 'Existing history');
       const ask = async (id: string): Promise<void> => {
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: AT,
           author: { kind: 'human' },
           body: id,
         });
-        core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body: id });
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+          channelId: dm.id,
+          messageId: id,
+          body: id,
+        });
         await core.runtime.whenIdle();
       };
       await ask('one');

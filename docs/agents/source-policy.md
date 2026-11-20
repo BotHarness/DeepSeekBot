@@ -11,6 +11,8 @@ The necessary exceptions are deliberately narrow:
 - The exact `/* @vite-ignore */` in the Pagefind dynamic import. Removing it would change Vite's handling of that runtime URL.
 - The exact ISC notices at the start of `packages/client/src/client/hash-icon.tsx` and `packages/client/src/client/inbox-icon.tsx`, each restricted by path, position and content hash; the license requires the notice to accompany the vendored glyph.
 
+In `packages/client/src`, the same checker also rejects whole subscriptions to the desktop Client store (kind `store-subscription`); see [UI state subscriptions](ui-state.md).
+
 Run `node scripts/check-source-policy.mjs` for a focused check. A violation fails with its path, line, column, kind, and token. The checker parses syntax rather than matching text, so a URL, regex, template text, or JSX text containing comment-like characters remains valid. Review the exception list before proposing a new exception.
 
 Docs-site contracts formerly held in code comments are in [Docs site maintenance contracts](docs-site-maintenance.md).

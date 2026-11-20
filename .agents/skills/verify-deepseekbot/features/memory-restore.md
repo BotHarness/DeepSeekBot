@@ -1,5 +1,17 @@
 # Disposable Memory history and safe restore
 
+## Sources
+
+- `packages/core/src/memory/recovery.ts`
+- `packages/client/src/client/memory-recovery.tsx`
+- `scripts/memory-restore-report.mjs`
+
+## Terms
+
+- Memory Repository
+- Memory Recovery Checkpoint
+- Memory Commit
+
 ## Sub-features
 
 - Behavior ID: `desktop.memory.read-restore`; desktop Web + live CLI, English/dark, 1440 × 1100.
@@ -70,6 +82,21 @@ Publish a redacted immutable packet using the [sharing guide](../../../../docs/a
 with `--memory-evidence-prefix ./verified`. Human QA can launch another named instance,
 run the same setup, open its private URL and compare the four views and CLI results.
 Agent visual review is recorded separately from Human QA.
+
+## Member Memory and own-Bot carrier regression (#4200)
+
+This separate journey qualifies the packaged Host and local `--as` CLI. It does not qualify rendered member UI or replace the Owner Web journey above.
+
+```bash
+node scripts/verify-app.mjs launch --name m4200-logic
+node scripts/verify-app.mjs doctor --name m4200-logic
+node scripts/e2e-team-bot-memory.mjs --name m4200-logic
+node scripts/verify-app.mjs stop --name m4200-logic
+```
+
+Use a fresh task-owned instance with no Owner password. The runner gives two members a role with `bots.createPrivate`, changes their initial passwords using stdin, creates the first member's private Bot, saves two Memory versions, checks history and named versions, restores the first commit, rejects a stale restore and the second member's reads/writes, then turns Team mode off and on. CLI reads and the account-space file must agree after the toggle. It writes a private JSON report with command results and durations under the named instance; initial password files are removed in `finally`. Keep the failed attempt before retrying. The caller owns Host shutdown and process/port verification. This disposable fixture may be removed by `stop`; it does not use the Owner journey's retained-profile contract.
+
+No M7 public-Bot or M15 model-policy acceptance is implied. Run the real-model security suite separately when its implementation is present.
 
 ## Gotchas
 

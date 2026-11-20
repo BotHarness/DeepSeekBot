@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type ExternalSource } from '../../core/src/messaging/inbound.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { ExternalSource } from '../../core/src/messaging/inbound.js';
-import { ExternalSourceContent } from '../src/client/external-source-content.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
+import { ExternalSourceContent } from '../src/client/external-source-content.js';
+import { en, zhTranslate } from '../src/client/locale.js';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 const enTranslate: BotHarnessTranslate = (key, params) => {
   const english: Readonly<Record<string, string>> = en;

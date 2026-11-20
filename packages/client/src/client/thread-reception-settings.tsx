@@ -1,7 +1,9 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { useState, type ReactElement } from 'react';
 import { Combobox } from './combobox.js';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type {
   ThreadReceptionInput,
   ThreadReceptionView,
@@ -44,7 +46,7 @@ export function ThreadReceptionSettings({
     setSelected(row);
     setMode(row.mode);
     setWake(row.wake?.wake ?? 'inherit');
-    setCount(row.wake?.count ?? 5);
+    setCount(row.wake?.count ?? 10);
     setSeconds(row.wake?.intervalSeconds ?? 30);
   };
   return (

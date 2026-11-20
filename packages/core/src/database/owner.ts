@@ -16,11 +16,19 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { atomicWriteFile } from '../fs/atomic-write.js';
-import { FOUNDATION_SCHEMA_GENERATION, FOUNDATION_SCHEMA_PLAN, type SchemaPlan } from './schema.js';
+import {
+  FOUNDATION_SCHEMA_GENERATION,
+  FOUNDATION_SCHEMA_ID,
+  FOUNDATION_SCHEMA_PLAN,
+  LEGACY_SCHEMA_GENERATION_LIMIT,
+  defineSchemaPlan,
+  type SchemaPlan,
+} from './schema.js';
 
 export const OPERATIONAL_DATABASE_FILENAME = 'botharness.db';
 
 const SCHEMA_TABLE = '_botharness_schema';
+const MIGRATIONS_TABLE = 'schema_migrations';
 const INTEGRITY_FINDINGS_SHOWN = 5;
 
 export type OperationalDatabaseMode = 'ready' | 'recovery' | 'closed';
@@ -56,6 +64,34 @@ export interface OperationalDatabaseFaultContext {
 export interface OperationalDatabaseErrorDetails {
   code: OperationalDatabaseErrorCode;
   message: string;
+  causes?: OperationalDatabaseCause[];
+}
+
+export interface OperationalDatabaseCause {
+  name: string;
+  message: string;
+  code?: string;
+  errcode?: number;
+  syscall?: string;
+}
+
+export interface OperationalDatabaseStartup {
+  instanceId: string;
+  pid: number;
+  stage:
+    | 'lease-open'
+    | 'lease-lock'
+    | 'lease-metadata'
+    | 'source-validation'
+    | 'migration'
+    | 'staged-validation'
+    | 'activation'
+    | 'active-validation'
+    | 'ready';
+  durationMs: number;
+  targetGeneration: number;
+  migrationGeneration?: number;
+  observedWriter?: ProfileWriterLeaseMetadata;
 }
 
 export class OperationalDatabaseError extends Error {
@@ -86,6 +122,7 @@ export interface OperationalDatabaseMetrics {
 
 export interface OperationalDatabaseDiagnostics {
   mode: OperationalDatabaseMode;
+  startup: OperationalDatabaseStartup;
   databasePath: string;
   generation?: number;
   recovery?: OperationalDatabaseErrorDetails;
@@ -121,6 +158,7 @@ export interface OperationalDatabaseOwnerOptions {
   instanceId?: string;
   faultInjector?: (context: OperationalDatabaseFaultContext) => void;
   onObserverError?: (error: unknown) => void;
+  onDiagnostic?: (snapshot: OperationalDatabaseDiagnostics) => void;
 }
 
 export interface OperationalDatabaseModulePort {
@@ -139,6 +177,9 @@ interface MutableMetrics {
 }
 
 interface InternalOwner {
+  startup: OperationalDatabaseStartup;
+  startedAt: number;
+  onDiagnostic?: (snapshot: OperationalDatabaseDiagnostics) => void;
   backupBarrier?: boolean;
   closeEffects: Set<() => void>;
   owner: OwnerImplementation;
@@ -192,6 +233,7 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     const leaseHolder = readLeaseMetadata(internal.leaseMetadataPath);
     return {
       mode: this.mode,
+      startup: { ...internal.startup },
       databasePath: this.databasePath,
       ...(this.generation === undefined ? {} : { generation: this.generation }),
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
@@ -211,12 +253,12 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     this.mode = 'closed';
     this.#listeners.clear();
     const internal = requireInternal(this);
-    let failure: unknown;
+    let failure: Error | undefined;
     const attempt = (operation: () => void): void => {
       try {
         operation();
       } catch (error) {
-        failure ??= error;
+        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
       }
     };
 
@@ -234,6 +276,7 @@ class OwnerImplementation implements OperationalDatabaseOwner {
     if (metadata?.instanceId === internal.leaseMetadata.instanceId) {
       attempt(() => rmSync(internal.leaseMetadataPath, { force: true }));
     }
+    notifyDiagnostic(internal);
     if (failure !== undefined) throw failure;
   }
 }
@@ -253,6 +296,15 @@ export function mountOperationalDatabase(
     acquiredAt: now().toISOString(),
   };
   const internal: InternalOwner = {
+    startup: {
+      instanceId: leaseMetadata.instanceId,
+      pid: process.pid,
+      stage: 'lease-open',
+      durationMs: 0,
+      targetGeneration: (options.schemaPlan ?? FOUNDATION_SCHEMA_PLAN).targetGeneration,
+    },
+    startedAt: performance.now(),
+    ...(options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic }),
     closeEffects: new Set(),
     owner,
     database: undefined,
@@ -270,14 +322,23 @@ export function mountOperationalDatabase(
     },
   };
   owners.set(owner, internal);
+  notifyDiagnostic(internal);
 
   try {
-    internal.lease = acquireWriterLease(rootDir, leaseMetadata, internal.leaseMetadataPath);
+    internal.lease = acquireWriterLease(
+      rootDir,
+      leaseMetadata,
+      internal.leaseMetadataPath,
+      internal,
+    );
   } catch (error) {
+    const observedWriter = readLeaseMetadata(internal.leaseMetadataPath);
+    if (observedWriter !== undefined) internal.startup.observedWriter = observedWriter;
     enterRecovery(
       owner,
-      toOperationalError('lease-unavailable', 'Profile writer lease is held', error),
+      toOperationalError('lease-unavailable', 'Could not acquire Profile writer lease', error),
     );
+    notifyDiagnostic(internal);
     return owner;
   }
 
@@ -288,10 +349,13 @@ export function mountOperationalDatabase(
     owner.generation = mounted.generation;
     owner.foreignKeyOrphans = summarizeOrphans(mounted.orphans);
     owner.mode = 'ready';
+    internal.startup.stage = 'ready';
     owner.recovery = undefined;
   } catch (error) {
     enterRecovery(owner, normalizeMountError(error));
   }
+
+  notifyDiagnostic(internal);
 
   return owner;
 }
@@ -473,10 +537,13 @@ function acquireWriterLease(
   rootDir: string,
   metadata: ProfileWriterLeaseMetadata,
   metadataPath: string,
+  internal: InternalOwner,
 ): DatabaseSync {
   const lease = new DatabaseSync(join(rootDir, 'botharness.writer-lock.db'), { timeout: 0 });
   try {
+    internal.startup.stage = 'lease-lock';
     lease.exec('PRAGMA busy_timeout = 0; BEGIN IMMEDIATE');
+    internal.startup.stage = 'lease-metadata';
     atomicWriteFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
     return lease;
   } catch (error) {
@@ -490,10 +557,12 @@ function prepareDatabase(
   plan: SchemaPlan,
   internal: InternalOwner,
 ): { database: DatabaseSync; generation: number; orphans: Map<string, number> } {
+  internal.startup.stage = 'source-validation';
   validateSchemaPlan(plan);
 
   let sourceGeneration = 0;
   let sourceOrphans = new Map<string, number>();
+  let needsLedger = false;
   if (existsSync(databasePath)) {
     let source: DatabaseSync | undefined;
     try {
@@ -501,13 +570,8 @@ function prepareDatabase(
       assertPageIntegrity(source);
       sourceOrphans = foreignKeyOrphans(source);
       sourceGeneration = readSchemaGeneration(source);
-      if (sourceGeneration > plan.targetGeneration) {
-        throw new OperationalDatabaseError(
-          'upgrade-required',
-          `Database generation ${sourceGeneration} is newer than supported generation ${plan.targetGeneration}`,
-        );
-      }
-      if (sourceGeneration < plan.targetGeneration) {
+      needsLedger = !verifyMigrationLedger(source, sourceGeneration, plan);
+      if (sourceGeneration < plan.targetGeneration || needsLedger) {
         const checkpoint = source.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
           | { busy?: number | bigint }
           | undefined;
@@ -526,16 +590,23 @@ function prepareDatabase(
     }
   }
 
-  if (sourceGeneration < plan.targetGeneration) {
+  if (sourceGeneration < plan.targetGeneration || needsLedger) {
     migrateInStaging(databasePath, sourceGeneration, sourceOrphans, plan, internal);
   }
 
   try {
+    internal.startup.stage = 'active-validation';
     const database = openDatabase(databasePath);
     configureActiveDatabase(database);
     assertPageIntegrity(database);
     const orphans = foreignKeyOrphans(database);
     const generation = readSchemaGeneration(database);
+    try {
+      verifyMigrationLedger(database, generation, plan, false);
+    } catch (error) {
+      closeDatabase(database);
+      throw error;
+    }
     if (generation !== plan.targetGeneration) {
       closeDatabase(database);
       throw new OperationalDatabaseError(
@@ -557,6 +628,7 @@ function migrateInStaging(
   plan: SchemaPlan,
   internal: InternalOwner,
 ): void {
+  internal.startup.stage = 'migration';
   const stagingPath = `${databasePath}.${internal.leaseMetadata.instanceId}.migrating`;
   cleanupDatabaseFiles(stagingPath);
   try {
@@ -576,8 +648,23 @@ function migrateInStaging(
         staging.exec('PRAGMA foreign_keys = OFF');
       staging.exec('PRAGMA journal_mode = DELETE; BEGIN IMMEDIATE');
       if (sourceGeneration === 0) bootstrapFoundation(staging);
+      if (!hasMigrationLedger(staging)) {
+        staging.exec(`CREATE TABLE ${MIGRATIONS_TABLE} (
+          generation INTEGER PRIMARY KEY,
+          id TEXT NOT NULL UNIQUE
+        ) STRICT`);
+        const insert = staging.prepare(
+          `INSERT INTO ${MIGRATIONS_TABLE} (generation, id) VALUES (?, ?)`,
+        );
+        insert.run(FOUNDATION_SCHEMA_GENERATION, FOUNDATION_SCHEMA_ID);
+        for (const migration of plan.migrations) {
+          if (migration.generation > sourceGeneration) break;
+          insert.run(migration.generation, migration.id);
+        }
+      }
       for (const migration of plan.migrations) {
         if (migration.generation <= sourceGeneration) continue;
+        internal.startup.migrationGeneration = migration.generation;
         const result = migration.migrate(staging);
         if (isThenable(result)) {
           void Promise.resolve(result).catch((error: unknown) => internal.onObserverError?.(error));
@@ -585,6 +672,9 @@ function migrateInStaging(
             `Schema migration ${migration.generation} returned a thenable; migrations must be synchronous`,
           );
         }
+        staging
+          .prepare(`INSERT INTO ${MIGRATIONS_TABLE} (generation, id) VALUES (?, ?)`)
+          .run(migration.generation, migration.id);
         writeSchemaGeneration(staging, migration.generation);
       }
       staging.exec('COMMIT');
@@ -599,6 +689,7 @@ function migrateInStaging(
       closeDatabase(staging);
     }
 
+    internal.startup.stage = 'staged-validation';
     injectFault(internal, 'before-integrity-validation', stagingPath);
     let validation: DatabaseSync | undefined;
     try {
@@ -606,6 +697,7 @@ function migrateInStaging(
       assertPageIntegrity(validation);
       assertNoNewOrphans(foreignKeyOrphans(validation), sourceOrphans);
       const generation = readSchemaGeneration(validation);
+      verifyMigrationLedger(validation, generation, plan, false);
       if (generation !== plan.targetGeneration) {
         throw new Error(
           `Staged database generation ${generation} does not match target ${plan.targetGeneration}`,
@@ -617,6 +709,7 @@ function migrateInStaging(
       closeDatabase(validation);
     }
 
+    internal.startup.stage = 'activation';
     fsyncFile(stagingPath);
     injectFault(internal, 'before-activation', stagingPath);
     cleanupSidecars(databasePath);
@@ -652,6 +745,56 @@ function readSchemaGeneration(database: DatabaseSync): number {
     throw new OperationalDatabaseError('integrity-failed', 'Schema generation metadata is invalid');
   }
   return generation;
+}
+
+function hasMigrationLedger(database: DatabaseSync): boolean {
+  return (
+    database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(MIGRATIONS_TABLE) !== undefined
+  );
+}
+
+function verifyMigrationLedger(
+  database: DatabaseSync,
+  generation: number,
+  plan: SchemaPlan,
+  allowLegacy = true,
+): boolean {
+  const mismatch = (at: number, actual: string, expected: string): never => {
+    throw new OperationalDatabaseError(
+      'upgrade-required',
+      `Schema migration mismatch at generation ${at}: database id "${actual}", plan id "${expected}"; use a compatible Host or restore a compatible Profile`,
+    );
+  };
+  if (!hasMigrationLedger(database)) {
+    if (generation > plan.targetGeneration) {
+      mismatch(plan.targetGeneration + 1, '<unknown: legacy database>', '<unsupported>');
+    }
+    if (allowLegacy && generation <= LEGACY_SCHEMA_GENERATION_LIMIT) return false;
+    mismatch(1, '<missing ledger>', FOUNDATION_SCHEMA_ID);
+  }
+  const rows = database
+    .prepare(`SELECT generation, id FROM ${MIGRATIONS_TABLE} ORDER BY generation`)
+    .all();
+  const expectedIds = [FOUNDATION_SCHEMA_ID, ...plan.migrations.map((migration) => migration.id)];
+  for (let index = 0; index < Math.max(generation, rows.length); index += 1) {
+    const at = index + 1;
+    const row = rows[index];
+    if (index >= generation && row !== undefined) {
+      const recordedGeneration = Number(row.generation);
+      mismatch(
+        recordedGeneration,
+        String(row.id),
+        recordedGeneration > plan.targetGeneration ? '<unsupported>' : '<not applied>',
+      );
+    }
+    const expected = expectedIds[index] ?? '<unsupported>';
+    if (row?.generation !== at || row.id !== expected || at > plan.targetGeneration) {
+      mismatch(at, row?.generation === at ? String(row.id) : '<missing>', expected);
+    }
+  }
+  return true;
 }
 
 function writeSchemaGeneration(database: DatabaseSync, generation: number): void {
@@ -747,7 +890,48 @@ function requireInternal(owner: OperationalDatabaseOwner): InternalOwner {
 
 function enterRecovery(owner: OwnerImplementation, error: OperationalDatabaseError): void {
   owner.mode = 'recovery';
-  owner.recovery = { code: error.code, message: error.message };
+  const causes = errorCauses(error.cause);
+  owner.recovery = {
+    code: error.code,
+    message: error.message,
+    ...(causes.length === 0 ? {} : { causes }),
+  };
+}
+
+function errorCauses(cause: unknown): OperationalDatabaseCause[] {
+  const causes: OperationalDatabaseCause[] = [];
+  const seen = new Set<unknown>();
+  while (cause instanceof Error && causes.length < 4 && !seen.has(cause)) {
+    seen.add(cause);
+    const entry: OperationalDatabaseCause = {
+      name: typeof cause.name === 'string' ? cause.name.slice(0, 80) : 'Error',
+      message: typeof cause.message === 'string' ? cause.message.slice(0, 600) : 'Unknown error',
+    };
+    if ('code' in cause && typeof cause.code === 'string') entry.code = cause.code.slice(0, 80);
+    if ('errcode' in cause && typeof cause.errcode === 'number' && Number.isFinite(cause.errcode))
+      entry.errcode = cause.errcode;
+    if ('syscall' in cause && typeof cause.syscall === 'string')
+      entry.syscall = cause.syscall.slice(0, 80);
+    causes.push(entry);
+    cause = cause.cause;
+  }
+  return causes;
+}
+
+function notifyDiagnostic(internal: InternalOwner): void {
+  internal.startup.durationMs = Math.round(performance.now() - internal.startedAt);
+  const observerFailed = (error: unknown): void => {
+    try {
+      void Promise.resolve(internal.onObserverError?.(error)).catch(() => {});
+    } catch {}
+  };
+  try {
+    void Promise.resolve(internal.onDiagnostic?.(internal.owner.diagnostics())).catch(
+      observerFailed,
+    );
+  } catch (error) {
+    observerFailed(error);
+  }
 }
 
 function enterRecoveryAndClose(internal: InternalOwner, error: OperationalDatabaseError): void {
@@ -774,18 +958,12 @@ function validateSchemaPlan(plan: SchemaPlan): void {
       `Schema plan for generation ${plan.targetGeneration} is incomplete`,
     );
   }
+  const canonical = defineSchemaPlan(plan.migrations);
   for (let index = 0; index < plan.migrations.length; index += 1) {
-    const migration = plan.migrations[index];
-    const expected = FOUNDATION_SCHEMA_GENERATION + index + 1;
-    if (
-      migration === undefined ||
-      migration.generation !== expected ||
-      migration.module.trim().length === 0 ||
-      typeof migration.migrate !== 'function'
-    ) {
+    if (plan.migrations[index]?.generation !== canonical.migrations[index]?.generation) {
       throw new OperationalDatabaseError(
         'migration-failed',
-        `Schema plan must contain ordered generation ${expected}`,
+        `Schema plan must contain ordered generation ${FOUNDATION_SCHEMA_GENERATION + index + 1}`,
       );
     }
   }

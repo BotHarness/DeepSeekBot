@@ -1,5 +1,14 @@
 # DeepSeekBot appearance recovery (T7)
 
+## Sources
+
+- `packages/client/src/client/appearance-recovery*.{ts,tsx}`
+
+## Terms
+
+- Settings
+- Panel
+
 ## Sub-features
 
 - Clear only the current mode's entire functional Panel override map, preserving globals, other mode, media and layout.

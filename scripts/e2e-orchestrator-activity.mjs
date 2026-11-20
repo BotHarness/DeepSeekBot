@@ -195,7 +195,7 @@ async function screenshot(name, expand = true) {
       if (value.workdir) value.workdir = '[machine-local QA directory redacted]';
       pre.textContent = JSON.stringify(value, null, 2);
     }
-    for (const note of document.querySelectorAll('.bh-tool-approval-card .bh-note'))
+    for (const note of document.querySelectorAll('.bh-tool-approval-card .bh-tool-approval-cwd'))
       if (/C:\\Users\\|C:\/Users\//.test(note.textContent))
         note.textContent = '[machine-local QA directory redacted]';
     const timeline = document.querySelector('.bh-chat-body');

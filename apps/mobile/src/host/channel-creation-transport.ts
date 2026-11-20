@@ -4,9 +4,10 @@ import {
   MethodRefused,
   type HostClient,
   type RemoteSource,
-} from './client';
-import type { SavedHost } from './hosts';
-import type { HostCarrier } from './carrier';
+} from '@botharness/host-client/client';
+import { listBots } from '@botharness/host-client/bots';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
 
 export function channelCreationTransport(
@@ -38,7 +39,7 @@ export function channelCreationTransport(
         return result;
       } catch (error) {
         const refusal = deviceRefusal(error);
-        if (refusal) throw new Error(refusal);
+        if (refusal) throw new Error(refusal, { cause: error });
         if (error instanceof MethodRefused) {
           if (
             creation &&
@@ -46,9 +47,9 @@ export function channelCreationTransport(
             ['unknown-bot', 'archived-bot', 'protected-bot', 'invalid-input'].includes(error.code)
           )
             throw new ChannelCreationNotAccepted(error.code);
-          throw new Error(error.code);
+          throw new Error(error.code, { cause: error });
         }
-        if (!paired()) throw new Error('target-unpaired');
+        if (!paired()) throw new Error('target-unpaired', { cause: error });
         uncertain = true;
       } finally {
         client.stop();
@@ -71,7 +72,11 @@ export function channelCreationTransport(
               entry.credential === host.credential,
           );
         if (!paired()) throw new Error('target-unpaired');
-        const imageClient = createHostClient({ ...host, routes: [route], carrier });
+        const imageClient = createHostClient({
+          ...host,
+          routes: [route],
+          carrier,
+        });
         try {
           const read = imageClient.resource(path).read;
           if (!read) throw new Error('resource-unavailable');
@@ -91,47 +96,23 @@ export function channelCreationTransport(
       if (!host) throw new Error('target-unpaired');
       const deviceId = host.deviceId;
       return request(hostId, deviceId, async (client) => {
-        const result = await client.call<unknown>('list');
-        if (
-          typeof result !== 'object' ||
-          result === null ||
-          !('bots' in result) ||
-          !Array.isArray(result.bots)
-        )
-          throw new MethodRefused('invalid-response', 'Invalid Bot list');
-        return result.bots.flatMap((bot: unknown) => {
-          if (
-            typeof bot !== 'object' ||
-            bot === null ||
-            !('slug' in bot) ||
-            typeof bot.slug !== 'string' ||
-            !('displayName' in bot) ||
-            typeof bot.displayName !== 'string'
-          )
-            throw new MethodRefused('invalid-response', 'Invalid Bot');
-          if (
-            ('paused' in bot && bot.paused === true) ||
-            ('deleted' in bot && bot.deleted === true) ||
-            ('tob' in bot && bot.tob !== undefined)
-          )
-            return [];
-          return [
-            {
-              slug: bot.slug,
-              displayName: bot.displayName,
-              ...('appearance' in bot ? { appearance: bot.appearance } : {}),
-              ...('avatarSeed' in bot && bot.avatarSeed === 2
-                ? { avatarSeed: bot.avatarSeed }
-                : {}),
-              ...('avatar' in bot &&
-              typeof bot.avatar === 'string' &&
-              bot.avatar.startsWith('/') &&
-              !bot.avatar.startsWith('//')
-                ? { avatarSource: avatarSource(client, host, bot.avatar) }
-                : {}),
-            },
-          ];
-        });
+        return (await listBots(client)).flatMap((bot) =>
+          bot.paused === true || bot.deleted === true || bot.tob !== undefined
+            ? []
+            : [
+                {
+                  slug: bot.slug,
+                  displayName: bot.displayName,
+                  ...('appearance' in bot ? { appearance: bot.appearance } : {}),
+                  ...(bot.avatarSeed === 2 ? { avatarSeed: bot.avatarSeed } : {}),
+                  ...(typeof bot.avatar === 'string' &&
+                  bot.avatar.startsWith('/') &&
+                  !bot.avatar.startsWith('//')
+                    ? { avatarSource: avatarSource(client, host, bot.avatar) }
+                    : {}),
+                },
+              ],
+        );
       });
     },
     create(operation) {

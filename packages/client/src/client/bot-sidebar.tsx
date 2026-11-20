@@ -1,24 +1,56 @@
-import { UnreadCount } from './unread-count.js';
+import * as stylex from '@stylexjs/stylex';
+import { GroupHeading } from './ds/group-heading.js';
+import { IconButton } from './ds/icon-button.js';
+import { hooked } from './ds/hooked.js';
+import { rosterStyles } from './ds/roster-styles.js';
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { NavItem } from './ds/nav-item.js';
+import { MessageBotDialog } from './message-bot-dialog.js';
+import { BotCreateSourceModal } from './bot-create-source.js';
+import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
+import { isHumanDmChannel } from './channel-kind.js';
+import { humanIdOf, selfHumanId } from './self-human.js';
+import { useTeamMode } from './team-state.js';
+import { memberPage } from './member-page.js';
+import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { useSearchOpenMark } from './search-open-mark.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
-import {
-  AddRemoteHostDialog,
-  HostMark,
-  HostTabs,
-  RemoteHostRows,
-  useRemoteHosts,
-} from './host-tabs.js';
+import { HostMark, RemoteHostRows, useRemoteHosts } from './host-tabs.js';
+import { EnvironmentFilter, EnvironmentOffline } from './environment-panel.js';
+import { mixedEnvironmentChannels } from './environment-channels.js';
+import { EnvironmentCreation } from './environment-creation.js';
+import { EnvironmentSections } from './environment-sections.js';
+import { useThisHost } from './this-host.js';
+import { useHostName } from './host-looks.js';
 import { plainMarkdown } from '../../../core/src/channels/message-preview.js';
+
+function LocalEnvironmentName(): ReactElement {
+  const host = useThisHost();
+  const name = useHostName(host.id, host.name ?? '');
+  return <span className="bh-muted-mark">{name}</span>;
+}
+function LocalCreationTarget({ t }: { t: BotHarnessTranslate }): ReactElement {
+  return (
+    <span>
+      {t('environment.create.target')} · <LocalEnvironmentName />
+    </span>
+  );
+}
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { ChannelHistory } from './channel-history.js';
 import { attachmentReferenceLabels } from './attachment-refs.js';
 import {
+  memo,
+  useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
@@ -26,31 +58,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-import {
-  Button,
-  IconAgentPresetOutlineRegular,
-  IconCheckOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconCloseFillRegular,
-  IconEditOutlineRegular,
-  IconEllipsisOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconGlobeOutlineRegular,
-  IconNewChatOutlineRegular,
-  IconPinFillRegular,
-  IconPinOutlineRegular,
-  IconPlusOutlineRegular,
-  IconSearchOutlineRegular,
-  IconSettingsOutlineRegular,
-  IconShareOutlineRegular,
-  IconTrashOutlineRegular,
-  HoverCard,
-  MenuItemButton,
-  Tag,
-  Toast,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { HoverCard } from './ds/hover-card.js';
+import { Toast } from './ds/toast.js';
+import { MenuItemButton, type MenuEntry } from './ds/menu.js';
 import { InstantTooltipScope, Tooltip } from './ds/tooltip.js';
 
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
@@ -59,7 +69,7 @@ import {
   isBotModeSortMode,
   PINNED_SORT_SCOPE_ID,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import type { BridgeActions } from './actions.js';
 import type { WindowCompanions } from './window-companions.js';
 import {
@@ -87,6 +97,7 @@ import {
   webShortcutBlocked,
 } from './channel-shortcuts.js';
 import { QuickSwitcher, type QuickSwitcherSettings } from './quick-switcher.js';
+import type { QuickSwitcherSource } from './quick-switcher-launcher.js';
 import { searchTextMatches } from './search-match.js';
 import { ShortcutBindings } from './shortcut-bindings.js';
 import { quickSwitcherEntries, type QuickSwitcherEntry } from './quick-switcher-rank.js';
@@ -112,12 +123,19 @@ import {
 } from './channel-drag.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { turnStopText } from './turn-stop.js';
+import { voiceCallRecordText } from './voice-call-record.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
-import { CreatePersonaBotModal } from './persona-bot-create.js';
 import { BotAvatarModal } from './profile-header.js';
 import { BotZipShareDialog, ImportBotZipModal } from './bot-zip.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import {
+  liveRowCallbacks,
+  sameSidebarRowProps,
+  type RowCallbacks,
+  type RowLatest,
+} from './sidebar-row-memo.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
 import { NicknameDialog } from './human-channel-name.js';
 import {
@@ -171,7 +189,6 @@ import {
 import {
   ChannelRenameModal,
   channelMoveMenuItems,
-  CreateChannelModal,
   CreateSectionModal,
   globalSortMenuItems,
   pinnedSortMenuItems,
@@ -193,26 +210,23 @@ import { rememberModelPlan } from './model-plan-store.js';
 import { applyBotModelRoute, botModelMenuGroups, type BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import { onCreationRequest } from './create-request.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientFields, useClientStore } from './use-client-store.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+import { reportFailure } from './diagnostic-log.js';
 
-const rosterInputs = sameFields([
+const SIDEBAR_FIELDS = [
   'activitySync',
   'bots',
   'channels',
   'config',
   'error',
   'git',
-  'humanInbox',
   'query',
   'roster',
   'selection',
   'status',
-]);
-
-export function useClientState(): ClientState {
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-}
+] as const;
+const selectChannelUnread = (state: ClientState) => state.activityList.channelUnread;
 
 export interface BotPanelEntryProps {
   size: number;
@@ -242,32 +256,31 @@ export function BotPanelIcon({
   const [row, setRow] = useState<HTMLElement | null>(null);
   const wide = size === 16;
   const state = {
-    humanInbox: useClientStore(
+    activityList: useClientStore(
       (value) => ({
-        unreadCount: value.humanInbox.unreadCount,
-        hasAction: value.humanInbox.hasAction,
+        unreadCount: value.activityList.unreadCount,
+        hasAction: value.activityList.hasAction,
       }),
       shallowEqual,
     ),
     selection: useClientStore((value) => value.selection),
   };
-  const entryHidden = !active && (!wide || state.humanInbox.unreadCount === 0);
+  const entryHidden = !active && (!wide || state.activityList.unreadCount === 0);
   const panelList = row?.parentElement;
   const entryLabel = [
     t('activityCenter.title'),
-    ...(state.humanInbox.unreadCount > 0
+    ...(state.activityList.unreadCount > 0
       ? [
-          t('humanInbox.unreadCount', {
-            count: String(state.humanInbox.unreadCount),
+          t('activityList.unreadCount', {
+            count: unreadCountLabel(state.activityList.unreadCount),
           }),
         ]
       : []),
-    ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
+    ...(state.activityList.hasAction ? [t('activityList.action')] : []),
   ].join(' · ');
   const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void refreshStatus());
   }, [refreshStatus]);
 
   const glyphMount = useMountedResource<HTMLSpanElement>(
@@ -277,9 +290,10 @@ export function BotPanelIcon({
       button?.style.setProperty('--bh-bot-texture', `url("${botBackdropUri(icon)}")`);
       if (button === null) return;
       button.setAttribute('data-bh-tour', 'bot-mode');
+      button.toggleAttribute('data-bh-wide-glyph', wide);
       const priorGridRow = button.style.gridRow;
       const siblings = Array.from(button.parentElement?.children ?? []).filter(
-        (node) => !node.classList.contains('bh-human-inbox-entry'),
+        (node) => !node.classList.contains('bh-activity-list-entry'),
       );
       button.style.gridRow = String(siblings.indexOf(button) + 1);
       const onKeyDown = (event: KeyboardEvent): void => {
@@ -310,12 +324,13 @@ export function BotPanelIcon({
         button.addEventListener('click', onClick, true);
       }
       return () => {
+        button.removeAttribute('data-bh-wide-glyph');
         button.style.gridRow = priorGridRow;
         button.removeEventListener('keydown', onKeyDown);
         button.removeEventListener('click', onClick, true);
       };
     },
-    [size, icon, active, onExit],
+    [size, wide, icon, active, onExit],
   );
 
   const openInbox = (event: SyntheticEvent): void => {
@@ -324,10 +339,10 @@ export function BotPanelIcon({
     openActivityCenter();
   };
   const inboxProps = {
-    className: 'bh-root bh-human-inbox-entry bh-panel-activity',
+    className: 'bh-root bh-activity-list-entry bh-panel-activity',
     'data-bh-tour': 'inbox',
     'data-wide': wide ? 'true' : 'false',
-    'data-unread': state.humanInbox.unreadCount > 0 ? 'true' : 'false',
+    'data-unread': state.activityList.unreadCount > 0 ? 'true' : 'false',
     'data-active': active ? 'true' : 'false',
     tabIndex: entryHidden ? -1 : 0,
     'aria-hidden': entryHidden ? true : undefined,
@@ -355,8 +370,8 @@ export function BotPanelIcon({
               }}
             >
               <InboxIcon size={18} />
-              {active && (state.humanInbox.unreadCount > 0 || state.humanInbox.hasAction) ? (
-                <span className="bh-human-inbox-notification-dot" aria-hidden="true" />
+              {active && (state.activityList.unreadCount > 0 || state.activityList.hasAction) ? (
+                <span className="bh-activity-list-notification-dot" aria-hidden="true" />
               ) : null}
             </button>,
             panelList,
@@ -380,9 +395,9 @@ export function BotPanelIcon({
                 }}
               >
                 <InboxIcon size={16} />
-                {state.humanInbox.unreadCount > 0 ? (
-                  <span className="bh-human-inbox-count">
-                    {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
+                {state.activityList.unreadCount > 0 ? (
+                  <span className="bh-activity-list-count">
+                    {unreadCountLabel(state.activityList.unreadCount)}
                   </span>
                 ) : null}
               </span>
@@ -405,7 +420,7 @@ export function BotPanelIcon({
                     openSettings();
                   }}
                 >
-                  <IconSettingsOutlineRegular size={14} />
+                  <Icon name="settings" size={14} />
                 </span>
               ) : null}
             </span>,
@@ -546,17 +561,17 @@ function channelPreview(
   const message = channel.latestMessage;
   if (message?.contentPurged) return t('purge.purged');
   if (message === undefined) return t('rail.noMessages');
-  if (message.turnStop !== undefined)
-    return t('turn.stopped', {
-      human: message.turnStop.humanName,
-      name: message.turnStop.botName,
-    });
+  if (message.turnStop !== undefined) return turnStopText(message.turnStop, t);
+  if (message.voiceCallRecord !== undefined) return voiceCallRecordText(message.voiceCallRecord, t);
   if (message.memberDeparture !== undefined)
     return t(
       message.memberDeparture.departureType === 'removed' ? 'member.removed' : 'member.left',
       { name: message.memberDeparture.displayName },
     );
   const body =
+    (message.approval?.masked === true
+      ? t(`approval.masked.${message.approval.kind}`)
+      : undefined) ??
     toolApprovalText(message, t) ??
     (plainMarkdown(attachmentReferenceLabels(message.body, message.attachments ?? []))
       .replace(/\s+/gu, ' ')
@@ -565,14 +580,41 @@ function channelPreview(
       t('roster.latestActivity'));
   const author =
     message.author.kind === 'human'
-      ? t('rail.you')
+      ? message.author.deleted === true
+        ? t('team.deletedMember')
+        : humanIdOf(message.author) === selfHumanId()
+          ? t('rail.you')
+          : (message.author.displayName ?? t('team.otherMember'))
       : message.author.kind === 'bot'
-        ? (bots.get(message.author.slug)?.displayName ?? message.author.slug)
+        ? (bots.get(message.author.slug)?.displayName ??
+          message.author.displayName ??
+          t('team.someBot'))
         : message.author.kind === 'bridged'
           ? message.author.source
           : undefined;
   return author === undefined ? body : `${author}：${body}`;
 }
+
+interface LatestRowProps {
+  latest: RowLatest<ChannelMenuRequest>;
+  latestKey: string;
+}
+
+const MemoBotRow = memo(function MemoBotRow({
+  latest,
+  latestKey,
+  ...props
+}: Parameters<typeof BotRow>[0] & LatestRowProps): ReactElement {
+  return <BotRow {...liveRowCallbacks(props, latest, latestKey)} />;
+}, sameSidebarRowProps);
+
+const MemoChannelRow = memo(function MemoChannelRow({
+  latest,
+  latestKey,
+  ...props
+}: Parameters<typeof ChannelRow>[0] & LatestRowProps): ReactElement {
+  return <ChannelRow {...liveRowCallbacks(props, latest, latestKey)} />;
+}, sameSidebarRowProps);
 
 function BotRow({
   bot,
@@ -604,7 +646,7 @@ function BotRow({
   onActivate: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   shortcut?: string | undefined;
   showShortcutHints: boolean;
-  drag: ChannelDragProps;
+  drag?: ChannelDragProps | undefined;
   onMenu: (request: ChannelMenuRequest) => void;
   onPinDragStart: (channelId: string) => void;
   onPinDragEnd: () => void;
@@ -622,41 +664,46 @@ function BotRow({
     now,
   });
   const markerClass =
-    drag.marker === 'before' ? ' bh-drop-before' : drag.marker === 'after' ? ' bh-drop-after' : '';
-  const sourceClass = drag.source ? ' bh-drag-source' : '';
+    drag?.marker === 'before'
+      ? ' bh-drop-before'
+      : drag?.marker === 'after'
+        ? ' bh-drop-after'
+        : '';
+  const sourceClass = drag?.source ? ' bh-drag-source' : '';
   return (
     <Tooltip
       label={`${bot.displayName} · ${personaBotPresentationSummary(activity, bot.activity, bot.attention, t)}`}
       side="right"
       delayMs={350}
     >
-      <button
-        type="button"
-        data-channel-id={channel.id}
-        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
+      <NavItem
+        multiline
+        current={selected}
+        data={{ 'data-channel-id': channel.id }}
+        className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
         aria-pressed={multiSelected}
         aria-keyshortcuts={shortcut}
         title={shortcut === undefined ? undefined : t('shortcut.web.open', { key: shortcut })}
-        onClick={onActivate}
-        draggable
+        onSelect={onActivate}
+        draggable={drag !== undefined}
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('text/plain', channel.id);
-          drag.start();
+          drag?.start();
           onPinDragStart(channel.id);
         }}
         onDragEnd={() => {
-          drag.end();
+          drag?.end();
           onPinDragEnd();
         }}
         onDragOver={(event) => {
-          if (!drag.active) return;
+          if (!drag?.active) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = 'move';
           drag.hover(rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()));
         }}
         onDrop={(event) => {
-          if (!drag.active) return;
+          if (!drag?.active) return;
           event.preventDefault();
           event.stopPropagation();
           drag.drop(rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()));
@@ -673,42 +720,48 @@ function BotRow({
           const rect = event.currentTarget.getBoundingClientRect();
           onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
         }}
-      >
-        <span className="bh-row-avatar">
-          <PersonaBotAvatar
-            t={t}
-            personaBotId={bot.slug}
-            name={bot.displayName}
-            src={bot.avatar}
-            appearance={bot.appearance}
-            avatarSeed={bot.avatarSeed}
-            state={activity}
-            activity={bot?.activity}
-            attention={bot?.attention}
-            size={34}
-            indicator={false}
-            still
-          />
-          <UnreadCount count={unread} muted={muted} corner t={t} />
-        </span>
-        <span className="bh-body">
-          <span className="bh-top">
-            <span className="bh-name">{bot.displayName}</span>
-            {source ? <HostMark /> : null}
-            {muted ? <MutedMark t={t} /> : null}
-            <ChannelMessageTime channel={channel} now={now} t={t} />
+        iconDecorative={false}
+        icon={
+          <span className="bh-row-avatar">
+            <PersonaBotAvatar
+              t={t}
+              personaBotId={bot.slug}
+              name={bot.displayName}
+              src={bot.avatar}
+              appearance={bot.appearance}
+              avatarSeed={bot.avatarSeed}
+              state={activity}
+              activity={bot?.activity}
+              attention={bot?.attention}
+              size={20}
+              indicator={false}
+              still
+            />
           </span>
-          <span className="bh-bottom">
-            <span className="bh-msg">{preview}</span>
-            <ChannelRowStatusGlyph status={status} t={t} />
+        }
+        label={
+          <span className="bh-body">
+            <span className="bh-top">
+              <span className="bh-name">{bot.displayName}</span>
+              {muted ? <MutedMark t={t} /> : null}
+              <ChannelMessageTime channel={channel} now={now} t={t} />
+            </span>
+            <span className="bh-bottom">
+              <span className="bh-msg">{preview}</span>
+              {source ? <HostMark /> : null}
+              <UnreadCount count={unread} muted={muted} t={t} />
+              <ChannelRowStatusGlyph status={status} t={t} />
+            </span>
           </span>
-        </span>
-        {showShortcutHints && shortcut !== undefined ? (
-          <kbd className="bh-shortcut-badge" aria-hidden="true">
-            {shortcut.slice(4)}
-          </kbd>
-        ) : null}
-      </button>
+        }
+        trailing={
+          showShortcutHints && shortcut !== undefined ? (
+            <kbd className="bh-shortcut-badge" aria-hidden="true">
+              {shortcut.slice(4)}
+            </kbd>
+          ) : null
+        }
+      />
     </Tooltip>
   );
 }
@@ -753,14 +806,15 @@ function ChannelRow({
     marker === 'before' ? ' bh-drop-before' : marker === 'after' ? ' bh-drop-after' : '';
   const sourceClass = drag?.source === true ? ' bh-drag-source' : '';
   return (
-    <button
-      type="button"
-      data-channel-id={channel.id}
-      className={`bh-channel-row${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${selected ? ' bh-selected' : ''}${multiSelected ? ' bh-multi-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
+    <NavItem
+      multiline
+      current={selected}
+      data={{ 'data-channel-id': channel.id }}
+      className={`bh-channel-row${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
       aria-pressed={multiSelected}
       aria-keyshortcuts={shortcut}
       title={shortcut === undefined ? undefined : t('shortcut.web.open', { key: shortcut })}
-      onClick={onActivate}
+      onSelect={onActivate}
       draggable={drag !== undefined}
       onDragStart={
         drag === undefined
@@ -811,36 +865,47 @@ function ChannelRow({
         const rect = event.currentTarget.getBoundingClientRect();
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
-    >
-      <span className="bh-row-avatar">
-        <GroupChannelIcon
-          channel={channel}
-          bots={bots}
-          className="bh-channel-slot"
-          groupClassName="bh-group-channel-slot"
-          size={34}
-          hashSize={18}
-          t={t}
-        />
-        <UnreadCount count={unread} muted={muted} corner t={t} />
-      </span>
-      <span className="bh-body">
-        <span className="bh-top">
-          <span className="bh-name">{channel.name}</span>
-          {source ? <HostMark /> : null}
-          {muted ? <MutedMark t={t} /> : null}
-          <ChannelMessageTime channel={channel} now={now} t={t} />
+      icon={
+        <span className="bh-row-avatar">
+          {isHumanDmChannel(channel) ? (
+            <span className="bh-channel-slot" aria-hidden="true">
+              <ChannelSidebarIcon name="user" size={16} />
+            </span>
+          ) : (
+            <GroupChannelIcon
+              channel={channel}
+              bots={bots}
+              className="bh-channel-slot"
+              groupClassName="bh-group-channel-slot"
+              size={20}
+              hashSize={16}
+              t={t}
+            />
+          )}
         </span>
-        <span className="bh-bottom">
-          <span className="bh-msg">{preview}</span>
+      }
+      label={
+        <span className="bh-body">
+          <span className="bh-top">
+            <span className="bh-name">{channel.name}</span>
+            {muted ? <MutedMark t={t} /> : null}
+            <ChannelMessageTime channel={channel} now={now} t={t} />
+          </span>
+          <span className="bh-bottom">
+            <span className="bh-msg">{preview}</span>
+            {source ? <HostMark /> : null}
+            <UnreadCount count={unread} muted={muted} t={t} />
+          </span>
         </span>
-      </span>
-      {showShortcutHints && shortcut !== undefined ? (
-        <kbd className="bh-shortcut-badge" aria-hidden="true">
-          {shortcut.slice(4)}
-        </kbd>
-      ) : null}
-    </button>
+      }
+      trailing={
+        showShortcutHints && shortcut !== undefined ? (
+          <kbd className="bh-shortcut-badge" aria-hidden="true">
+            {shortcut.slice(4)}
+          </kbd>
+        ) : null
+      }
+    />
   );
 }
 
@@ -882,8 +947,9 @@ function RailChannel({
       copyLabel={t('rail.copy')}
       copiedLabel={t('rail.copied')}
       anchor={
-        <button
+        <Button
           type="button"
+          xstyle={[rosterStyles.railRow, selected && rosterStyles.selected]}
           className={`bh-rail-channel${selected ? ' bh-selected' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}`}
           data-channel-id={channel.id}
           aria-label={
@@ -896,15 +962,17 @@ function RailChannel({
           onClick={open}
         >
           {bot === undefined ? (
-            <GroupChannelIcon
-              channel={channel}
-              bots={bots}
-              className="bh-rail-channel-icon"
-              groupClassName="bh-group-channel-icon"
-              size={32}
-              hashSize={18}
-              t={t}
-            />
+            <span {...stylex.props(rosterStyles.railIcon)}>
+              <GroupChannelIcon
+                channel={channel}
+                bots={bots}
+                className="bh-rail-channel-icon"
+                groupClassName="bh-group-channel-icon"
+                size={32}
+                hashSize={18}
+                t={t}
+              />
+            </span>
           ) : (
             <PersonaBotAvatar
               t={t}
@@ -925,7 +993,7 @@ function RailChannel({
               {shortcut.slice(4)}
             </kbd>
           ) : null}
-        </button>
+        </Button>
       }
       content={
         <div className="bh-rail-preview">
@@ -981,6 +1049,7 @@ function RailChannel({
 }
 
 type CreateRequest =
+  | { kind: 'bot-source'; sectionId?: string }
   | { kind: 'bot'; source: 'empty' | 'git' | 'zip'; sectionId?: string }
   | {
       kind: 'section';
@@ -989,7 +1058,9 @@ type CreateRequest =
       pinned?: boolean;
     }
   | { kind: 'channel'; sectionId?: string }
-  | { kind: 'marketplace' };
+  | { kind: 'marketplace' }
+  | { kind: 'message-person' }
+  | { kind: 'message-bot' };
 
 type FlatBlockView =
   | { kind: 'section'; section: RosterSection; channels: ChannelSummary[] }
@@ -1012,12 +1083,13 @@ export function BotSidebar({
   dockPanels,
   t,
 }: SidebarProps): ReactElement {
-  const state = useClientStore(keepClientState, rosterInputs);
+  const state = useClientFields(SIDEBAR_FIELDS);
   const hostTabs = useChannelDockActive();
-  const [addingRemote, setAddingRemote] = useState(false);
+  const teamMode = useTeamMode(actions.teamCall);
+  const member = memberPage() || teamMode?.viewer.kind === 'member';
   const remoteHostsState = useRemoteHosts();
   const remoteOpen = hostTabs && remoteHostsState.open !== undefined;
-  const channelUnread = state.humanInbox.channelUnread;
+  const channelUnread = useClientStore(selectChannelUnread);
   const mutedChannelSet = new Set(state.roster.muted);
   const prefs = useBotModePrefs((value) => value);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1026,10 +1098,11 @@ export function BotSidebar({
   const [hiddenManagerOpen, setHiddenManagerOpen] = useState(false);
   const [channelHistoryOpen, setChannelHistoryOpen] = useState(false);
   const listNow = useMinuteNow();
-  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [quickSwitcherSource, setQuickSwitcherSource] = useState<QuickSwitcherSource>();
   const [sectionMenuId, setSectionMenuId] = useState<string | undefined>(undefined);
   const [sectionCreateMenuId, setSectionCreateMenuId] = useState<string | undefined>(undefined);
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchOpenMark = useSearchOpenMark(searchOpen);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
   const [avatarTarget, setAvatarTarget] = useState<{ slug: string; channelId: string } | undefined>(
@@ -1084,7 +1157,7 @@ export function BotSidebar({
     void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuModelSlug)]).then(
       ([catalog, planState]) => {
         if (!active) return;
-        rememberModelPlan(menuModelSlug, planState.plan);
+        rememberModelPlan(menuModelSlug, planState.plan, actions);
         setMenuModelOptions({ slug: menuModelSlug, catalog, state: planState });
       },
       (failure: unknown) => {
@@ -1148,6 +1221,10 @@ export function BotSidebar({
   const [unpinZoneArmed, setUnpinZoneArmed] = useState(false);
   const [unpinZoneHovered, setUnpinZoneHovered] = useState(false);
   const [createRequest, setCreateRequest] = useState<CreateRequest | undefined>(undefined);
+  const [remoteSectionsHost, setRemoteSectionsHost] = useState<{
+    id: string;
+    name: string;
+  }>();
   const createFromWelcome = useMountedResource<HTMLSpanElement>(
     () =>
       onCreationRequest((intent) =>
@@ -1178,7 +1255,12 @@ export function BotSidebar({
   );
 
   const query = state.query.trim().toLowerCase();
-  const botBySlug = new Map(state.bots.map((bot) => [bot.slug, bot]));
+  const botBySlug = useMemo(() => new Map(state.bots.map((bot) => [bot.slug, bot])), [state.bots]);
+  const rowLatest = useRef(new Map<string, RowCallbacks<ChannelMenuRequest>>());
+  const rowCallbacks = new Map<string, RowCallbacks<ChannelMenuRequest>>();
+  const publishRowCallbacks = useMountedResource<HTMLSpanElement>(() => {
+    rowLatest.current = rowCallbacks;
+  }, [rowCallbacks]);
   const rosterHiddenIds = [...state.roster.hidden, ...deletedBotDmIds(state.channels, state.bots)];
   const hiddenChannelSet = new Set(rosterHiddenIds);
   const allPinnedChannelIds = resolvePinnedChannelIds(state.channels, state.roster.pins);
@@ -1194,12 +1276,12 @@ export function BotSidebar({
   const hasPinnableChannels = state.channels.some(
     (channel) =>
       !hiddenChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const pinnedChannels = pinnedChannelIds.flatMap((channelId) => {
     const channel = state.channels.find((candidate) => candidate.id === channelId);
     if (channel === undefined) return [];
-    if (channel.type === 'group') {
+    if (channel.type === 'group' || isHumanDmChannel(channel)) {
       return matchesQuery(query, channel.name) ? [channel] : [];
     }
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
@@ -1208,11 +1290,12 @@ export function BotSidebar({
   const arrangedChannels = state.channels.filter(
     (channel) =>
       !allPinnedChannelSet.has(channel.id) &&
-      (channel.type === 'group' || channel.botSlug !== undefined),
+      (channel.type === 'group' || channel.botSlug !== undefined || isHumanDmChannel(channel)),
   );
   const rosterChannels = arrangedChannels.filter((channel) => !hiddenChannelSet.has(channel.id));
   const channels = rosterChannels.filter((channel) => {
-    if (channel.type === 'group') return matchesQuery(query, channel.name);
+    if (channel.type === 'group' || isHumanDmChannel(channel))
+      return matchesQuery(query, channel.name);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     return bot !== undefined && matchesQuery(query, bot.displayName, ...bot.roles);
   });
@@ -1281,14 +1364,20 @@ export function BotSidebar({
     if (query.length > 0) return blocks.filter((block) => block.channels.length > 0);
     return blocks;
   })();
-  const visibleChannelIds = [
-    ...pinnedChannels.map((channel) => channel.id),
-    ...flatBlocks.flatMap((block) =>
-      block.kind === 'section' && state.config.collapsed[block.section.id] === true
-        ? []
-        : block.channels.map((channel) => channel.id),
-    ),
-  ];
+  const showSource = hostTabs && !member && remoteHostsState.tab === ALL_HOSTS;
+  const environmentChannels = showSource
+    ? mixedEnvironmentChannels([...pinnedChannels, ...channels], remoteHostsState.hosts, query)
+    : [];
+  const visibleChannelIds = showSource
+    ? environmentChannels.flatMap((entry) => (entry.kind === 'local' ? [entry.channel.id] : []))
+    : [
+        ...pinnedChannels.map((channel) => channel.id),
+        ...flatBlocks.flatMap((block) =>
+          block.kind === 'section' && state.config.collapsed[block.section.id] === true
+            ? []
+            : block.channels.map((channel) => channel.id),
+        ),
+      ];
   const visibleIdsKey = visibleChannelIds.join('|');
   const [previousVisibleIdsKey, setPreviousVisibleIdsKey] = useState(visibleIdsKey);
   if (previousVisibleIdsKey !== visibleIdsKey) {
@@ -1340,6 +1429,7 @@ export function BotSidebar({
   const navigationIdsRef = useRef<readonly string[]>([]);
   navigationIdsRef.current = [...railPinnedChannels, ...railChannels].map((channel) => channel.id);
   const dragActiveRef = useRef(false);
+  const launcher = quickSwitcherSettings?.launcher;
   const rosterMount = useMountedResource<HTMLDivElement>(() => {
     const acceptDrag = (event: DragEvent): void => {
       if (!dragActiveRef.current) return;
@@ -1418,7 +1508,7 @@ export function BotSidebar({
                 (channel) => channel.type === 'dm' && channel.botSlug === selection.slug,
               )?.id
             : undefined;
-      const unread = snapshot.humanInbox.channelUnread;
+      const unread = snapshot.activityList.channelUnread;
       const id = steppedConversationId(
         navigationIdsRef.current,
         currentId,
@@ -1448,9 +1538,16 @@ export function BotSidebar({
       if (webQuickSwitcherBlocked(event.target, document)) return;
       event.preventDefault();
       setShowShortcutHints(false);
-      setQuickSwitcherOpen(true);
-      actions.telemetryEvent('search:switcher_open');
+      setQuickSwitcherSource('shortcut');
+      actions.telemetryEvent('search:switcher_open', { source: 'shortcut' });
     };
+    const stopLauncher = launcher?.subscribe((source) => {
+      if (webQuickSwitcherBlocked(null, document)) return false;
+      setShowShortcutHints(false);
+      setQuickSwitcherSource(source);
+      actions.telemetryEvent('search:switcher_open', { source });
+      return true;
+    });
     document.addEventListener('keydown', onChannelShortcut);
     document.addEventListener('keydown', onConversationStep);
     document.addEventListener('keydown', onQuickSwitcher);
@@ -1465,11 +1562,12 @@ export function BotSidebar({
       document.removeEventListener('keydown', onChannelShortcut);
       document.removeEventListener('keydown', onConversationStep);
       document.removeEventListener('keydown', onQuickSwitcher);
+      stopLauncher?.();
       document.removeEventListener('dragover', acceptDrag);
       document.removeEventListener('drop', acceptDrop);
       if (pinZoneArmTimer.current !== undefined) window.clearTimeout(pinZoneArmTimer.current);
     };
-  }, [actions, shortcutBindings]);
+  }, [actions, shortcutBindings, launcher]);
   const shortcutFor = (channelId: string): string | undefined =>
     webChannelShortcutLabel(shortcutIds.indexOf(channelId));
   const hiddenItems: HiddenChannelItem[] = hiddenChannelSequence(
@@ -1502,12 +1600,25 @@ export function BotSidebar({
 
   const selectMenu = (id: string): void => {
     setMenuOpen(false);
+    if (id === 'bot') setCreateRequest({ kind: 'bot-source' });
     const source = botCreateSource(id);
     if (source !== undefined) setCreateRequest({ kind: 'bot', source });
     if (id === 'channel') setCreateRequest({ kind: 'channel' });
-    if (id === 'section') setCreateRequest({ kind: 'section' });
+    if (id === 'section') {
+      const remote = remoteHostsState.hosts.find(
+        (entry) => entry.host.hostId === remoteHostsState.tab,
+      );
+      if (member) setCreateRequest({ kind: 'section' });
+      else if (hostTabs && remote)
+        setRemoteSectionsHost({
+          id: remote.host.hostId,
+          name: remote.host.hostName,
+        });
+      else if (!hostTabs || remoteHostsState.tab === 'local') setCreateRequest({ kind: 'section' });
+    }
     if (id === 'marketplace') setCreateRequest({ kind: 'marketplace' });
-    if (id === 'remote') setAddingRemote(true);
+    if (id === 'message-person') setCreateRequest({ kind: 'message-person' });
+    if (id === 'message-bot') setCreateRequest({ kind: 'message-bot' });
   };
 
   const selectSortMenu = (id: string): void => {
@@ -1522,7 +1633,7 @@ export function BotSidebar({
     }
     if (id === 'mark-all-read') {
       void actions.markAllRead().catch((error: unknown) => {
-        console.warn('botharness: mark all read failed', error);
+        reportFailure('mark-all-read-failed', 'mark all read failed', error);
       });
       return;
     }
@@ -1854,7 +1965,7 @@ export function BotSidebar({
     { channel }: Pick<QuickSwitcherEntry, 'channel'>,
     then?: () => Promise<void>,
   ): void => {
-    setQuickSwitcherOpen(false);
+    setQuickSwitcherSource(undefined);
     openLocalConversation();
     setChannelSelection((current) =>
       selectChannels(
@@ -1950,17 +2061,34 @@ export function BotSidebar({
     useSectionDrag(commitSectionDrag);
   dragActiveRef.current = channelDragActive || sectionDragActive;
 
-  const showSource =
-    hostTabs && remoteHostsState.tab === ALL_HOSTS && remoteHostsState.hosts.length > 0;
+  const allScope = !member && hostTabs && remoteHostsState.tab === ALL_HOSTS;
   const renderChannelRow = (channel: ChannelSummary, scopeId: ScopeId): ReactElement => {
-    const drag = channelDragProps(scopeId, channel.id);
+    const drag = allScope ? undefined : channelDragProps(scopeId, channel.id);
     const bot = channel.botSlug === undefined ? undefined : botBySlug.get(channel.botSlug);
     const preview = channelPreview(channel, botBySlug, t);
+    const latestKey = `${scopeId ?? ''}:${channel.id}`;
+    const pinDragStart = (channelId: string): void => {
+      if (!allScope) startPinDrag(channelId, 'roster');
+    };
+    const callbacks: RowCallbacks<ChannelMenuRequest> = {
+      onActivate: (event) => activateChannel(channel, event),
+      onMenu: (request) =>
+        openChannelMenu({
+          ...request,
+          pinnedView: allPinnedChannelSet.has(channel.id),
+        }),
+      onPinDragStart: pinDragStart,
+      onPinDragEnd: endPinDrag,
+      drag,
+    };
+    rowCallbacks.set(latestKey, callbacks);
     if (channel.type === 'dm' && bot !== undefined) {
       return (
-        <BotRow
+        <MemoBotRow
           t={t}
           key={channel.id}
+          latest={rowLatest}
+          latestKey={latestKey}
           bot={bot}
           channel={channel}
           preview={preview}
@@ -1969,22 +2097,24 @@ export function BotSidebar({
           activity={personaBotActivity(state, bot)}
           selected={selectedBot === bot.slug || selectedChannel === channel.id}
           multiSelected={selectedChannelSet.has(channel.id)}
-          onActivate={(event) => activateChannel(channel, event)}
+          onActivate={callbacks.onActivate}
           shortcut={shortcutFor(channel.id)}
           showShortcutHints={showShortcutHints}
           drag={drag}
-          onMenu={openChannelMenu}
-          onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
+          onMenu={callbacks.onMenu}
+          onPinDragStart={pinDragStart}
           onPinDragEnd={endPinDrag}
           source={showSource}
         />
       );
     }
     return (
-      <ChannelRow
+      <MemoChannelRow
         t={t}
         source={showSource}
         key={channel.id}
+        latest={rowLatest}
+        latestKey={latestKey}
         channel={channel}
         bots={botBySlug}
         preview={preview}
@@ -1992,12 +2122,12 @@ export function BotSidebar({
         muted={mutedChannelSet.has(channel.id)}
         selected={selectedChannel === channel.id}
         multiSelected={selectedChannelSet.has(channel.id)}
-        onActivate={(event) => activateChannel(channel, event)}
+        onActivate={callbacks.onActivate}
         shortcut={shortcutFor(channel.id)}
         showShortcutHints={showShortcutHints}
         drag={drag}
-        onMenu={openChannelMenu}
-        onPinDragStart={(channelId) => startPinDrag(channelId, 'roster')}
+        onMenu={callbacks.onMenu}
+        onPinDragStart={pinDragStart}
         onPinDragEnd={endPinDrag}
       />
     );
@@ -2032,14 +2162,17 @@ export function BotSidebar({
         aria-label={t('rail.label')}
         data-bh-tour="roster"
       >
-        <div className="bh-rail-group">
+        <div {...hooked('bh-rail-group', rosterStyles.railGroup)}>
           {railPinnedChannels.map((channel) => renderRailChannel(channel))}
         </div>
-        {railPinnedChannels.length > 0 && railChannels.length > 0 ? (
-          <span className="bh-rail-divider" aria-hidden="true" />
-        ) : null}
-
-        <div className="bh-rail-group">
+        <div
+          {...hooked(
+            'bh-rail-group',
+            rosterStyles.railGroup,
+            railPinnedChannels.length > 0 && railChannels.length > 0 && rosterStyles.railUnpinned,
+          )}
+          data-rail-unpinned=""
+        >
           {railChannels.map((channel) => renderRailChannel(channel))}
         </div>
       </div>
@@ -2047,7 +2180,9 @@ export function BotSidebar({
   }
 
   const createSectionId =
-    createRequest?.kind === 'channel' || createRequest?.kind === 'bot'
+    createRequest?.kind === 'channel' ||
+    createRequest?.kind === 'bot' ||
+    createRequest?.kind === 'bot-source'
       ? createRequest.sectionId
       : undefined;
   const createSection =
@@ -2079,13 +2214,17 @@ export function BotSidebar({
   };
 
   const header = (
-    <div className="bh-header">
+    <div key="roster-header" className="bh-header">
       {!headerTarget && (
         <span className={`bh-header-label${searchOpen ? ' bh-header-label-hidden' : ''}`}>
           {t('roster.messages')}
         </span>
       )}
-      <div className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}>
+      {hostTabs && !searchOpen ? <EnvironmentFilter t={t} /> : null}
+      <div
+        ref={searchOpenMark}
+        className={`bh-search-slot${searchOpen ? ' bh-search-slot-open' : ''}`}
+      >
         <div
           ref={searchMount}
           className={`bh-search${searchOpen ? ' bh-search-open' : ''}`}
@@ -2113,7 +2252,7 @@ export function BotSidebar({
                 setSearchOpen(true);
               }}
             >
-              <IconSearchOutlineRegular size={searchOpen ? 11 : 14} />
+              <Icon name="search" size={searchOpen ? 11 : 14} />
             </button>
           </Tooltip>
           <input
@@ -2141,7 +2280,7 @@ export function BotSidebar({
                 setSearchOpen(false);
               }}
             >
-              <IconCloseFillRegular />
+              <Icon name="circle-x" />
             </button>
           ) : null}
         </div>
@@ -2162,7 +2301,7 @@ export function BotSidebar({
                   setSortMenuOpen((value) => !value);
                 }}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             </Tooltip>
           }
@@ -2190,11 +2329,34 @@ export function BotSidebar({
                   setMenuOpen((value) => !value);
                 }}
               >
-                <IconPlusOutlineRegular size={16} />
+                <Icon name="plus" size={16} />
               </button>
             </Tooltip>
           }
-          items={menuItems(t, gitReady(state.git), hostTabs)}
+          items={menuItems(
+            t,
+            hostTabs && remoteHostsState.tab !== 'local' ? true : gitReady(state.git),
+            !hostTabs || remoteHostsState.tab === 'local',
+            teamMode?.enabled === true &&
+              !(
+                hostTabs &&
+                remoteHostsState.hosts.some((remote) => remote.host.hostId === remoteHostsState.tab)
+              ),
+            member,
+            teamMode?.enabled === true || (hostTabs && !member),
+          ).filter(
+            (item) =>
+              (!member || MEMBER_MENU_ITEMS.has(item.id)) &&
+              menuItemAllowed(item.id, teamMode?.enabled === true ? teamMode.viewer : undefined) &&
+              (item.id !== 'section' ||
+                member ||
+                !hostTabs ||
+                remoteHostsState.tab !== ALL_HOSTS) &&
+              (item.id !== 'message-person' ||
+                (hostTabs && remoteHostsState.tab !== 'local' && !member) ||
+                teamMode?.viewer.owner === true ||
+                teamMode?.viewer.permissions.includes('dm.humans') === true),
+          )}
           onSelect={selectMenu}
           onClose={() => {
             setMenuOpen(false);
@@ -2202,26 +2364,83 @@ export function BotSidebar({
         />
       </div>
       {headerEnd}
-      {addingRemote ? (
-        <AddRemoteHostDialog
-          onClose={() => {
-            setAddingRemote(false);
-          }}
-          t={t}
-        />
-      ) : null}
     </div>
   );
   const remoteTab = hostTabs
     ? remoteHostsState.hosts.find((remote) => remote.host.hostId === remoteHostsState.tab)
     : undefined;
+  const creationDialogs = (
+    <>
+      {createRequest?.kind === 'bot-source' ? (
+        <BotCreateSourceModal
+          t={t}
+          member={member}
+          localImports={!hostTabs || remoteHostsState.tab === 'local'}
+          onClose={() => setCreateRequest(undefined)}
+          onSelect={(source) =>
+            setCreateRequest({
+              kind: 'bot',
+              source,
+              ...(createRequest.sectionId ? { sectionId: createRequest.sectionId } : {}),
+            })
+          }
+        />
+      ) : null}
+      <span ref={createFromWelcome} hidden aria-hidden="true" />
+      {createRequest?.kind === 'channel' ||
+      createRequest?.kind === 'message-person' ||
+      (createRequest?.kind === 'bot' && createRequest.source !== 'zip') ? (
+        <EnvironmentCreation
+          request={
+            createRequest.kind === 'message-person'
+              ? { kind: 'human-dm' }
+              : createRequest.kind === 'channel'
+                ? createRequest
+                : {
+                    kind: 'bot',
+                    source: createRequest.source === 'git' ? 'git' : 'empty',
+                    ...(createRequest.sectionId === undefined
+                      ? {}
+                      : { sectionId: createRequest.sectionId }),
+                  }
+          }
+          onBack={
+            createRequest.kind === 'bot'
+              ? () =>
+                  setCreateRequest({
+                    kind: 'bot-source',
+                    ...(createRequest.sectionId ? { sectionId: createRequest.sectionId } : {}),
+                  })
+              : undefined
+          }
+          actions={actions}
+          t={t}
+          scope={hostTabs ? remoteHostsState.tab : 'local'}
+          sectionName={createSection?.name}
+          onClose={() => setCreateRequest(undefined)}
+        />
+      ) : null}
+      {remoteSectionsHost ? (
+        <EnvironmentSections
+          host={remoteSectionsHost}
+          t={t}
+          onClose={() => setRemoteSectionsHost(undefined)}
+        />
+      ) : null}
+    </>
+  );
   if (remoteTab !== undefined)
     return (
       <div className="bh-root bh-region" data-bh-tour="roster">
+        {creationDialogs}
         {headerTarget
-          ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+          ? createPortal(
+              <InstantTooltipScope>{header}</InstantTooltipScope>,
+              headerTarget,
+              'roster-header',
+            )
           : header}
-        <HostTabs t={t} />
+        <EnvironmentOffline hostId={remoteTab.host.hostId} t={t} />
         <div className="bh-roster-list">
           <RemoteHostRows
             remote={remoteTab}
@@ -2233,6 +2452,11 @@ export function BotSidebar({
         </div>
       </div>
     );
+  const memberFirstRun =
+    state.status === 'ready' &&
+    teamMode?.enabled === true &&
+    teamMode.viewer.kind === 'member' &&
+    state.channels.length === 0;
   return (
     <div
       ref={rosterMount}
@@ -2261,7 +2485,8 @@ export function BotSidebar({
         channelGapDropProps(resolved.sectionId).drop(resolved.half);
       }}
     >
-      <span ref={createFromWelcome} hidden aria-hidden="true" />
+      {creationDialogs}
+      <span ref={publishRowCallbacks} hidden aria-hidden="true" />
       {state.activitySync === 'stale' ? (
         <div className="bh-activity-stale" role="status" data-activity-stale>
           {t('roster.activityStale')}
@@ -2278,9 +2503,12 @@ export function BotSidebar({
         t={t}
       />
       {headerTarget
-        ? createPortal(<InstantTooltipScope>{header}</InstantTooltipScope>, headerTarget)
+        ? createPortal(
+            <InstantTooltipScope>{header}</InstantTooltipScope>,
+            headerTarget,
+            'roster-header',
+          )
         : header}
-      {hostTabs ? <HostTabs t={t} /> : null}
       {state.status === 'loading' && state.bots.length === 0 ? (
         <LoadingSkeleton kind="roster" label={t('roster.loading')} />
       ) : null}
@@ -2288,7 +2516,32 @@ export function BotSidebar({
         <div className="bh-error">{t('roster.error', { error: state.error })}</div>
       ) : null}
       {state.roster.readOnly ? <div className="bh-note">{t('roster.readOnly')}</div> : null}
-      {state.status === 'ready' && state.bots.length === 0 ? (
+      {memberFirstRun && teamMode !== undefined ? (
+        <PanelEmptyState icon="hash">
+          {t('team.firstRun.empty')}
+          <span className="bh-empty-actions">
+            {menuItemAllowed('message-person', teamMode.viewer) ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCreateRequest({ kind: 'message-person' })}
+              >
+                {t('team.dm.menu')}
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateRequest({ kind: 'message-bot' })}
+            >
+              {t('team.bots.menu')}
+            </Button>
+          </span>
+        </PanelEmptyState>
+      ) : null}
+      {state.status === 'ready' &&
+      state.bots.length === 0 &&
+      !(teamMode?.enabled === true && teamMode.viewer.kind === 'member') ? (
         <PanelEmptyState
           icon="hash"
           action={
@@ -2305,7 +2558,9 @@ export function BotSidebar({
           {t('roster.empty')}
         </PanelEmptyState>
       ) : null}
-      {visibleCount === 0 && (state.bots.length > 0 || state.channels.length > 0) ? (
+      {!memberFirstRun &&
+      visibleCount === 0 &&
+      (state.bots.length > 0 || state.channels.length > 0) ? (
         <PanelEmptyState icon="hash">
           {query.length === 0 && hiddenItems.length > 0 ? t('hidden.all') : t('roster.noMatch')}
         </PanelEmptyState>
@@ -2321,7 +2576,7 @@ export function BotSidebar({
           )}
         </div>
       ) : null}
-      {hasPinnableChannels ? (
+      {hasPinnableChannels && !allScope ? (
         <div
           className={`bh-pin-zone${hasPinnedChannels ? ' bh-pin-zone-filled' : ' bh-pin-zone-empty'}${!hasPinnedChannels && !pinZoneArmed ? ' bh-pin-zone-hidden' : ''}${pinZoneHovered ? ' bh-pin-zone-active' : ''}`}
           role="region"
@@ -2357,8 +2612,8 @@ export function BotSidebar({
           {!hasPinnedChannels ? (
             <span className="bh-pin-zone-hint">{t('pin.drop')}</span>
           ) : (
-            <div className="bh-pinned-grid">
-              <div className="bh-pinned-header">
+            <div {...hooked('bh-pinned-grid', rosterStyles.pinnedGrid)}>
+              <div {...stylex.props(rosterStyles.pinnedHeading)}>
                 <span>{t('pin.title')}</span>
                 <Menu
                   open={pinSortMenuOpen}
@@ -2366,14 +2621,15 @@ export function BotSidebar({
                   dense
                   align="end"
                   anchor={
-                    <button
+                    <IconButton
+                      size="inline"
                       type="button"
-                      className="bh-row-action"
                       aria-label={t('pin.sort')}
+                      aria-expanded={pinSortMenuOpen}
                       onClick={() => setPinSortMenuOpen((value) => !value)}
                     >
-                      <IconEllipsisOutlineRegular />
-                    </button>
+                      <Icon name="ellipsis" />
+                    </IconButton>
                   }
                   items={pinnedSortMenuItems(t)}
                   selectedId={sectionSortMode(prefs, PINNED_SORT_SCOPE_ID)}
@@ -2401,8 +2657,13 @@ export function BotSidebar({
                     side="right"
                     delayMs={350}
                   >
-                    <button
+                    <Button
                       type="button"
+                      xstyle={[
+                        rosterStyles.pinnedTile,
+                        (selected || selectedChannelSet.has(channel.id)) && rosterStyles.selected,
+                        dragSource && rosterStyles.dragging,
+                      ]}
                       data-channel-id={channel.id}
                       className={`bh-pinned${selected ? ' bh-selected' : ''}${selectedChannelSet.has(channel.id) ? ' bh-multi-selected' : ''}${showShortcutHints && shortcutFor(channel.id) !== undefined ? ' bh-shortcut-active' : ''}${dragSource ? ' bh-drag-source' : ''}${pinMarker === null ? '' : ` bh-pin-drop-${pinMarker}`}`}
                       aria-pressed={selectedChannelSet.has(channel.id)}
@@ -2484,16 +2745,29 @@ export function BotSidebar({
                         });
                       }}
                     >
-                      {bot === undefined ? (
-                        <GroupChannelIcon
-                          channel={channel}
-                          bots={botBySlug}
-                          className="bh-pinned-channel-icon"
-                          groupClassName="bh-group-pinned-channel-icon"
-                          size={54}
-                          hashSize={24}
-                          t={t}
+                      {pinMarker === null ? null : (
+                        <span
+                          aria-hidden="true"
+                          {...stylex.props(
+                            rosterStyles.insertion,
+                            pinMarker === 'before'
+                              ? rosterStyles.insertionBefore
+                              : rosterStyles.insertionAfter,
+                          )}
                         />
+                      )}
+                      {bot === undefined ? (
+                        <span {...stylex.props(rosterStyles.pinnedIcon)}>
+                          <GroupChannelIcon
+                            channel={channel}
+                            bots={botBySlug}
+                            className="bh-pinned-channel-icon"
+                            groupClassName="bh-group-pinned-channel-icon"
+                            size={54}
+                            hashSize={24}
+                            t={t}
+                          />
+                        </span>
                       ) : (
                         <PersonaBotAvatar
                           t={t}
@@ -2509,7 +2783,7 @@ export function BotSidebar({
                           indicator={false}
                         />
                       )}
-                      <span className="bh-name">
+                      <span {...hooked('bh-name', rosterStyles.pinnedLabel)}>
                         {bot?.displayName ?? channel.name}
                         {bot === undefined ? null : (
                           <ChannelRowStatusGlyph
@@ -2537,7 +2811,7 @@ export function BotSidebar({
                           {shortcutFor(channel.id)?.slice(4)}
                         </kbd>
                       ) : null}
-                    </button>
+                    </Button>
                   </Tooltip>
                 );
               })}
@@ -2579,320 +2853,337 @@ export function BotSidebar({
         </span>
       </div>
       <div className="bh-roster-list">
-        {flatBlocks.map((block) => {
-          if (block.kind === 'loose') {
-            const key = `loose:${block.channels.map((channel) => channel.id).join(',')}`;
-            return (
-              <div key={key} className="bh-section bh-loose">
+        {showSource
+          ? environmentChannels.map((entry) => (
+              <div key={entry.key} data-environment-channel={entry.key}>
+                {entry.kind === 'local' ? (
+                  renderChannelRow(entry.channel, sectionOfChannel(entry.channel.id))
+                ) : (
+                  <RemoteHostRows
+                    remote={entry.remote}
+                    query={query}
+                    showSource
+                    onOpen={onOpenConversation}
+                    rowsOverride={[entry.row]}
+                    t={t}
+                  />
+                )}
+              </div>
+            ))
+          : flatBlocks.map((block) => {
+              if (block.kind === 'loose') {
+                const key = `loose:${block.channels.map((channel) => channel.id).join(',')}`;
+                return (
+                  <div key={key} className="bh-section bh-loose">
+                    <div
+                      className="bh-list-area"
+                      onDragOver={(event) => {
+                        if (!channelDragActive) return;
+                        const target = event.target as HTMLElement | null;
+                        if (target !== null && target.closest('[data-channel-id]') !== null) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'move';
+                        const rows = [
+                          ...event.currentTarget.querySelectorAll('[data-channel-id]'),
+                        ].map((element, index) => {
+                          const rect = element.getBoundingClientRect();
+                          return {
+                            id: block.channels[index]?.id ?? '',
+                            top: rect.top,
+                            height: rect.height,
+                          };
+                        });
+                        const resolution = resolveBlockDropTarget(
+                          rows.filter((row) => row.id !== ''),
+                          Number.NEGATIVE_INFINITY,
+                          event.clientY,
+                        );
+                        if (resolution.kind === 'row') {
+                          channelDragProps(undefined, resolution.channelId).hover(resolution.half);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        if (!channelDragActive) return;
+                        const target = event.target as HTMLElement | null;
+                        if (target !== null && target.closest('[data-channel-id]') !== null) return;
+                        event.preventDefault();
+                        const rows = [
+                          ...event.currentTarget.querySelectorAll('[data-channel-id]'),
+                        ].map((element, index) => {
+                          const rect = element.getBoundingClientRect();
+                          return {
+                            id: block.channels[index]?.id ?? '',
+                            top: rect.top,
+                            height: rect.height,
+                          };
+                        });
+                        const resolution = resolveBlockDropTarget(
+                          rows.filter((row) => row.id !== ''),
+                          Number.NEGATIVE_INFINITY,
+                          event.clientY,
+                        );
+                        if (resolution.kind === 'row') {
+                          event.stopPropagation();
+                          channelDragProps(undefined, resolution.channelId).drop(resolution.half);
+                        }
+                      }}
+                    >
+                      {block.channels.map((channel) => renderChannelRow(channel, undefined))}
+                    </div>
+                  </div>
+                );
+              }
+              const { section, channels: sectionChannels } = block;
+              const needCount = sectionChannels.filter((channel) => {
+                const bot =
+                  channel.type === 'dm' && channel.botSlug !== undefined
+                    ? botBySlug.get(channel.botSlug)
+                    : undefined;
+                if (bot === undefined) return false;
+                const status = channelRowStatus({
+                  activity: personaBotActivity(state, bot),
+                  attention: bot.attention,
+                  paused: bot.paused,
+                  unread: 0,
+                  botSlug: bot.slug,
+                  latest: undefined,
+                  now: listNow,
+                });
+                return status === 'needs-you' || status === 'blocked';
+              }).length;
+              const sectionIndex = state.roster.sections.findIndex(
+                (item) => item.id === section.id,
+              );
+              const collapsed = state.config.collapsed[section.id] === true;
+              const menuOpenForSection = sectionMenuId === section.id;
+              const createMenuOpenForSection = sectionCreateMenuId === section.id;
+              const sectionDrag = sectionDragProps(section.id);
+              const channelGap = channelGapDropProps(section.id);
+              const channelScope = channelScopeDropProps(section.id);
+              const before = sectionDrag.marker === 'before' || channelGap.marker === 'before';
+              const after = sectionDrag.marker === 'after' || channelGap.marker === 'after';
+              const blockMarkerClass = `${before ? ' bh-drop-before' : ''}${after ? ' bh-drop-after' : ''}${channelScope.hovered ? ' bh-drop-scope' : ''}`;
+              const resolveBlockTarget = (element: HTMLElement, clientY: number) => {
+                const rows = [...element.querySelectorAll('[data-channel-id]')].map(
+                  (row, index) => {
+                    const rect = row.getBoundingClientRect();
+                    return {
+                      id: sectionChannels[index]?.id ?? '',
+                      top: rect.top,
+                      height: rect.height,
+                    };
+                  },
+                );
+                const headBottom =
+                  element.querySelector('.bh-section-head')?.getBoundingClientRect().bottom ??
+                  clientY;
+                return resolveBlockDropTarget(
+                  rows.filter((row) => row.id !== ''),
+                  headBottom,
+                  clientY,
+                );
+              };
+              const openSectionContextMenu = (x: number, y: number): void => {
+                setMenuOpen(false);
+                setSortMenuOpen(false);
+                setSectionMenuId(undefined);
+                setSectionCreateMenuId(undefined);
+                setChannelMenu(undefined);
+                setSectionContextMenu({ sectionId: section.id, x, y });
+              };
+              return (
                 <div
-                  className="bh-list-area"
+                  key={section.id}
+                  data-section-id={section.id}
+                  className={`bh-section${blockMarkerClass}`}
+                  onContextMenu={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (target !== null && target.closest('[data-channel-id]') !== null) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openSectionContextMenu(event.clientX, event.clientY);
+                  }}
                   onDragOver={(event) => {
+                    if (sectionDrag.active) {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      sectionDrag.hover(
+                        rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()),
+                      );
+                      return;
+                    }
                     if (!channelDragActive) return;
                     const target = event.target as HTMLElement | null;
                     if (target !== null && target.closest('[data-channel-id]') !== null) return;
                     event.preventDefault();
                     event.dataTransfer.dropEffect = 'move';
-                    const rows = [...event.currentTarget.querySelectorAll('[data-channel-id]')].map(
-                      (element, index) => {
-                        const rect = element.getBoundingClientRect();
-                        return {
-                          id: block.channels[index]?.id ?? '',
-                          top: rect.top,
-                          height: rect.height,
-                        };
-                      },
-                    );
-                    const resolution = resolveBlockDropTarget(
-                      rows.filter((row) => row.id !== ''),
-                      Number.NEGATIVE_INFINITY,
-                      event.clientY,
-                    );
-                    if (resolution.kind === 'row') {
-                      channelDragProps(undefined, resolution.channelId).hover(resolution.half);
-                    }
+                    const resolution = resolveBlockTarget(event.currentTarget, event.clientY);
+                    if (resolution.kind === 'scope') channelScope.hover();
+                    else channelDragProps(section.id, resolution.channelId).hover(resolution.half);
                   }}
                   onDrop={(event) => {
+                    if (sectionDrag.active) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      sectionDrag.drop(
+                        rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()),
+                      );
+                      return;
+                    }
                     if (!channelDragActive) return;
                     const target = event.target as HTMLElement | null;
                     if (target !== null && target.closest('[data-channel-id]') !== null) return;
                     event.preventDefault();
-                    const rows = [...event.currentTarget.querySelectorAll('[data-channel-id]')].map(
-                      (element, index) => {
-                        const rect = element.getBoundingClientRect();
-                        return {
-                          id: block.channels[index]?.id ?? '',
-                          top: rect.top,
-                          height: rect.height,
-                        };
-                      },
-                    );
-                    const resolution = resolveBlockDropTarget(
-                      rows.filter((row) => row.id !== ''),
-                      Number.NEGATIVE_INFINITY,
-                      event.clientY,
-                    );
-                    if (resolution.kind === 'row') {
-                      event.stopPropagation();
-                      channelDragProps(undefined, resolution.channelId).drop(resolution.half);
-                    }
+                    event.stopPropagation();
+                    const resolution = resolveBlockTarget(event.currentTarget, event.clientY);
+                    if (resolution.kind === 'scope') channelScope.drop();
+                    else channelDragProps(section.id, resolution.channelId).drop(resolution.half);
                   }}
                 >
-                  {block.channels.map((channel) => renderChannelRow(channel, undefined))}
-                </div>
-              </div>
-            );
-          }
-          const { section, channels: sectionChannels } = block;
-          const needCount = sectionChannels.filter((channel) => {
-            const bot =
-              channel.type === 'dm' && channel.botSlug !== undefined
-                ? botBySlug.get(channel.botSlug)
-                : undefined;
-            if (bot === undefined) return false;
-            const status = channelRowStatus({
-              activity: personaBotActivity(state, bot),
-              attention: bot.attention,
-              paused: bot.paused,
-              unread: 0,
-              botSlug: bot.slug,
-              latest: undefined,
-              now: listNow,
-            });
-            return status === 'needs-you' || status === 'blocked';
-          }).length;
-          const sectionIndex = state.roster.sections.findIndex((item) => item.id === section.id);
-          const collapsed = state.config.collapsed[section.id] === true;
-          const menuOpenForSection = sectionMenuId === section.id;
-          const createMenuOpenForSection = sectionCreateMenuId === section.id;
-          const sectionDrag = sectionDragProps(section.id);
-          const channelGap = channelGapDropProps(section.id);
-          const channelScope = channelScopeDropProps(section.id);
-          const before = sectionDrag.marker === 'before' || channelGap.marker === 'before';
-          const after = sectionDrag.marker === 'after' || channelGap.marker === 'after';
-          const blockMarkerClass = `${before ? ' bh-drop-before' : ''}${after ? ' bh-drop-after' : ''}${channelScope.hovered ? ' bh-drop-scope' : ''}`;
-          const resolveBlockTarget = (element: HTMLElement, clientY: number) => {
-            const rows = [...element.querySelectorAll('[data-channel-id]')].map((row, index) => {
-              const rect = row.getBoundingClientRect();
-              return {
-                id: sectionChannels[index]?.id ?? '',
-                top: rect.top,
-                height: rect.height,
-              };
-            });
-            const headBottom =
-              element.querySelector('.bh-section-head')?.getBoundingClientRect().bottom ?? clientY;
-            return resolveBlockDropTarget(
-              rows.filter((row) => row.id !== ''),
-              headBottom,
-              clientY,
-            );
-          };
-          const openSectionContextMenu = (x: number, y: number): void => {
-            setMenuOpen(false);
-            setSortMenuOpen(false);
-            setSectionMenuId(undefined);
-            setSectionCreateMenuId(undefined);
-            setChannelMenu(undefined);
-            setSectionContextMenu({ sectionId: section.id, x, y });
-          };
-          return (
-            <div
-              key={section.id}
-              data-section-id={section.id}
-              className={`bh-section${blockMarkerClass}`}
-              onContextMenu={(event) => {
-                const target = event.target as HTMLElement | null;
-                if (target !== null && target.closest('[data-channel-id]') !== null) return;
-                event.preventDefault();
-                event.stopPropagation();
-                openSectionContextMenu(event.clientX, event.clientY);
-              }}
-              onDragOver={(event) => {
-                if (sectionDrag.active) {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                  sectionDrag.hover(
-                    rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()),
-                  );
-                  return;
-                }
-                if (!channelDragActive) return;
-                const target = event.target as HTMLElement | null;
-                if (target !== null && target.closest('[data-channel-id]') !== null) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
-                const resolution = resolveBlockTarget(event.currentTarget, event.clientY);
-                if (resolution.kind === 'scope') channelScope.hover();
-                else channelDragProps(section.id, resolution.channelId).hover(resolution.half);
-              }}
-              onDrop={(event) => {
-                if (sectionDrag.active) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  sectionDrag.drop(
-                    rowDropHalf(event.clientY, event.currentTarget.getBoundingClientRect()),
-                  );
-                  return;
-                }
-                if (!channelDragActive) return;
-                const target = event.target as HTMLElement | null;
-                if (target !== null && target.closest('[data-channel-id]') !== null) return;
-                event.preventDefault();
-                event.stopPropagation();
-                const resolution = resolveBlockTarget(event.currentTarget, event.clientY);
-                if (resolution.kind === 'scope') channelScope.drop();
-                else channelDragProps(section.id, resolution.channelId).drop(resolution.half);
-              }}
-            >
-              <div className="bh-list-area">
-                <div
-                  className={`bh-section-head${menuOpenForSection || createMenuOpenForSection || sectionContextMenu?.sectionId === section.id ? ' bh-menu-open' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={!collapsed}
-                  draggable
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData('text/plain', section.id);
-                    sectionDrag.start();
-                  }}
-                  onDragEnd={sectionDrag.end}
-                  onClick={() => toggleSection(section.id)}
-                  onKeyDown={(event) => {
-                    const keyboardMenu =
-                      event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10');
-                    if (keyboardMenu) {
-                      event.preventDefault();
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      openSectionContextMenu(rect.left + 8, rect.bottom);
-                      return;
-                    }
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      toggleSection(section.id);
-                    }
-                  }}
-                >
-                  <span className="bh-section-name">{section.name}</span>
-                  <IconChevronDownOutlineRegular
-                    size={14}
-                    className={
-                      collapsed ? 'bh-section-chevron bh-chevron-collapsed' : 'bh-section-chevron'
-                    }
-                  />
-                  <span className="bh-section-count">{sectionChannels.length}</span>
-                  {needCount > 0 ? (
-                    <span className="bh-section-needs">
-                      {t(needCount === 1 ? 'roster.needsYouCountOne' : 'roster.needsYouCount', {
-                        count: needCount,
-                      })}
-                    </span>
-                  ) : null}
-                  <span className="bh-row-actions">
-                    <Menu
-                      open={menuOpenForSection}
-                      portal
-                      dense
-                      align="end"
-                      closeOnPointerLeave
-                      anchor={
-                        <button
-                          type="button"
-                          className="bh-row-action"
-                          aria-label={t('roster.section.sort', {
-                            name: section.name,
+                  <div className="bh-list-area">
+                    <div {...stylex.props(rosterStyles.section)}>
+                      <GroupHeading
+                        xstyle={rosterStyles.sectionToggle}
+                        label={<span className="bh-section-name">{section.name}</span>}
+                        count={sectionChannels.length}
+                        expanded={!collapsed}
+                        quiet
+                        animateChevron={false}
+                        onToggle={() => toggleSection(section.id)}
+                        button={{
+                          className: 'bh-section-head',
+                          draggable: true,
+                          onDragStart: (event) => {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', section.id);
+                            sectionDrag.start();
+                          },
+                          onDragEnd: sectionDrag.end,
+                          onKeyDown: (event) => {
+                            const keyboardMenu =
+                              event.key === 'ContextMenu' ||
+                              (event.shiftKey && event.key === 'F10');
+                            if (!keyboardMenu) return;
+                            event.preventDefault();
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            openSectionContextMenu(rect.left + 8, rect.bottom);
+                          },
+                        }}
+                      />
+                      {needCount > 0 ? (
+                        <span {...hooked('bh-section-needs', rosterStyles.sectionAttention)}>
+                          {t(needCount === 1 ? 'roster.needsYouCountOne' : 'roster.needsYouCount', {
+                            count: needCount,
                           })}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSectionMenuId((value) =>
-                              value === section.id ? undefined : section.id,
-                            );
+                        </span>
+                      ) : null}
+                      <span {...hooked('bh-row-actions', rosterStyles.sectionControls)}>
+                        <Menu
+                          open={menuOpenForSection}
+                          portal
+                          dense
+                          align="end"
+                          closeOnPointerLeave
+                          anchor={
+                            <IconButton
+                              type="button"
+                              size="inline"
+                              className="bh-row-action"
+                              aria-label={t('roster.section.sort', {
+                                name: section.name,
+                              })}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSectionMenuId((value) =>
+                                  value === section.id ? undefined : section.id,
+                                );
+                                setSectionCreateMenuId(undefined);
+                              }}
+                            >
+                              <Icon name="ellipsis" />
+                            </IconButton>
+                          }
+                          items={sectionMenuItems(t, {
+                            canMoveUp: sectionIndex > 0,
+                            canMoveDown: sectionIndex < state.roster.sections.length - 1,
+                          })}
+                          selectedId={sectionSortMode(prefs, section.id)}
+                          onSelect={(id) => selectSectionMenu(section, id)}
+                          onClose={() => {
+                            setSectionMenuId(undefined);
+                          }}
+                        />
+                        <Menu
+                          open={createMenuOpenForSection}
+                          portal
+                          dense
+                          align="end"
+                          closeOnPointerLeave
+                          anchor={
+                            <IconButton
+                              type="button"
+                              size="inline"
+                              className="bh-row-action"
+                              aria-label={t('roster.section.create', {
+                                name: section.name,
+                              })}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSectionMenuId(undefined);
+                                setSectionCreateMenuId((value) =>
+                                  value === section.id ? undefined : section.id,
+                                );
+                              }}
+                            >
+                              <Icon name="plus" />
+                            </IconButton>
+                          }
+                          items={sectionCreateMenuItems(t, gitReady(state.git), member)}
+                          onSelect={(id) => {
+                            setSectionCreateMenuId(undefined);
+                            if (id === 'bot')
+                              setCreateRequest({
+                                kind: 'bot-source',
+                                sectionId: section.id,
+                              });
+                            const source = botCreateSource(id);
+                            if (source !== undefined) {
+                              setCreateRequest({
+                                kind: 'bot',
+                                source,
+                                sectionId: section.id,
+                              });
+                            }
+                            if (id === 'channel') {
+                              setCreateRequest({
+                                kind: 'channel',
+                                sectionId: section.id,
+                              });
+                            }
+                          }}
+                          onClose={() => {
                             setSectionCreateMenuId(undefined);
                           }}
-                        >
-                          <IconEllipsisOutlineRegular />
-                        </button>
-                      }
-                      items={sectionMenuItems(t, {
-                        canMoveUp: sectionIndex > 0,
-                        canMoveDown: sectionIndex < state.roster.sections.length - 1,
-                      })}
-                      selectedId={sectionSortMode(prefs, section.id)}
-                      onSelect={(id) => selectSectionMenu(section, id)}
-                      onClose={() => {
-                        setSectionMenuId(undefined);
-                      }}
-                    />
-                    <Menu
-                      open={createMenuOpenForSection}
-                      portal
-                      dense
-                      align="end"
-                      closeOnPointerLeave
-                      anchor={
-                        <button
-                          type="button"
-                          className="bh-row-action"
-                          aria-label={t('roster.section.create', {
-                            name: section.name,
-                          })}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSectionMenuId(undefined);
-                            setSectionCreateMenuId((value) =>
-                              value === section.id ? undefined : section.id,
-                            );
-                          }}
-                        >
-                          <IconPlusOutlineRegular />
-                        </button>
-                      }
-                      items={sectionCreateMenuItems(t, gitReady(state.git))}
-                      onSelect={(id) => {
-                        setSectionCreateMenuId(undefined);
-                        const source = botCreateSource(id);
-                        if (source !== undefined) {
-                          setCreateRequest({
-                            kind: 'bot',
-                            source,
-                            sectionId: section.id,
-                          });
-                        }
-                        if (id === 'channel') {
-                          setCreateRequest({
-                            kind: 'channel',
-                            sectionId: section.id,
-                          });
-                        }
-                      }}
-                      onClose={() => {
-                        setSectionCreateMenuId(undefined);
-                      }}
-                    />
-                  </span>
+                        />
+                      </span>
+                    </div>
+                    {collapsed
+                      ? null
+                      : sectionChannels.map((channel) => renderChannelRow(channel, section.id))}
+                  </div>
                 </div>
-                {collapsed
-                  ? null
-                  : sectionChannels.map((channel) => renderChannelRow(channel, section.id))}
-              </div>
-            </div>
-          );
-        })}
-        {hostTabs && remoteHostsState.tab === ALL_HOSTS
-          ? remoteHostsState.hosts.map((remote) => (
-              <RemoteHostRows
-                key={remote.host.hostId}
-                remote={remote}
-                query={query}
-                showSource
-                onOpen={onOpenConversation}
-                t={t}
-              />
-            ))
-          : null}
+              );
+            })}
       </div>
       {createRequest?.kind === 'bot' && createRequest.source === 'zip' ? (
         <ImportBotZipModal
+          onBack={() =>
+            setCreateRequest({
+              kind: 'bot-source',
+              ...(createRequest.sectionId ? { sectionId: createRequest.sectionId } : {}),
+            })
+          }
+          target={<LocalCreationTarget t={t} />}
           t={t}
           actions={actions}
           {...(createSectionId === undefined ? {} : { sectionId: createSectionId })}
@@ -2905,23 +3196,9 @@ export function BotSidebar({
           }}
         />
       ) : null}
-      {createRequest?.kind === 'bot' && createRequest.source !== 'zip' ? (
-        <CreatePersonaBotModal
-          t={t}
-          actions={actions}
-          source={createRequest.source}
-          {...(createSectionId === undefined ? {} : { sectionId: createSectionId })}
-          {...(createSection === undefined ? {} : { sectionName: createSection.name })}
-          onCancel={() => {
-            setCreateRequest(undefined);
-          }}
-          onCreated={() => {
-            setCreateRequest(undefined);
-          }}
-        />
-      ) : null}
       {createRequest?.kind === 'marketplace' ? (
         <MarketplaceModal
+          target={<LocalCreationTarget t={t} />}
           t={t}
           actions={actions}
           onClose={() => {
@@ -2938,31 +3215,41 @@ export function BotSidebar({
           onCancel={() => {
             setCreateRequest(undefined);
           }}
-          onCreate={(name) => {
+          onCreate={async (name) => {
             const request = createRequest;
-            void actions.createSection(name).then((section) => {
-              if (section !== undefined && request.moveChannelIds !== undefined) {
-                void commitBulkMove(request.moveChannelIds, section.id);
-              } else if (section !== undefined && request.moveChannelId !== undefined) {
-                commitChannelMenuMove(request.moveChannelId, section.id, request.pinned === true);
+            const section = await actions.createSection(name);
+            if (section === undefined) return false;
+            setCreateRequest(undefined);
+            try {
+              if (request.moveChannelIds !== undefined) {
+                await commitBulkMove(request.moveChannelIds, section.id);
+              } else if (request.moveChannelId !== undefined) {
+                if (request.pinned === true) {
+                  if (
+                    await actions.movePinnedChannel(request.moveChannelId, section.id, [
+                      request.moveChannelId,
+                    ])
+                  )
+                    setSectionSortMode(section.id, 'manual');
+                  else setBatchError('failed');
+                } else await commitBulkMove([request.moveChannelId], section.id);
               }
-              setCreateRequest(undefined);
-            });
+            } catch {
+              setBatchError('failed');
+            }
+            return true;
           }}
         />
       ) : null}
-      {createRequest?.kind === 'channel' ? (
-        <CreateChannelModal
+      {createRequest?.kind === 'message-bot' && actions.teamCall !== undefined ? (
+        <MessageBotDialog
+          call={actions.teamCall}
           t={t}
-          key={createSectionId ?? 'root'}
-          sectionName={createSection?.name}
-          onCancel={() => {
+          onClose={() => setCreateRequest(undefined)}
+          onOpen={(bot) => {
             setCreateRequest(undefined);
-          }}
-          onCreate={async (name) => {
-            const channel = await actions.createGroup(name, createSectionId);
-            if (channel === undefined) return;
-            setCreateRequest(undefined);
+            openLocalConversation();
+            void actions.refreshRoster().then(() => actions.openBot(bot.slug));
           }}
         />
       ) : null}
@@ -2974,9 +3261,10 @@ export function BotSidebar({
           onCancel={() => {
             setRenameTarget(undefined);
           }}
-          onRename={(name) => {
-            void actions.renameSection(renameTarget.id, name);
+          onRename={async (name) => {
+            if (!(await actions.renameSection(renameTarget.id, name))) return false;
             setRenameTarget(undefined);
+            return true;
           }}
         />
       ) : null}
@@ -3002,16 +3290,18 @@ export function BotSidebar({
           onCancel={() => {
             setDeleteTarget(undefined);
           }}
-          onDelete={() => {
+          onDelete={async () => {
+            if (!(await actions.removeSection(deleteTarget.id))) return false;
             setSectionSortMode(deleteTarget.id, undefined);
-            void actions.removeSection(deleteTarget.id);
             if (createSectionId === deleteTarget.id) setCreateRequest(undefined);
             setDeleteTarget(undefined);
+            return true;
           }}
         />
       ) : null}
-      {quickSwitcherOpen ? (
+      {quickSwitcherSource !== undefined ? (
         <QuickSwitcher
+          source={quickSwitcherSource}
           entries={quickSwitcherEntries(state.channels, state.bots, rosterHiddenIds)}
           settings={
             quickSwitcherSettings === undefined
@@ -3019,8 +3309,10 @@ export function BotSidebar({
               : {
                   search: quickSwitcherSettings.search,
                   open: (result) => {
-                    setQuickSwitcherOpen(false);
-                    actions.telemetryEvent('search:result_open', { kind: 'setting' });
+                    setQuickSwitcherSource(undefined);
+                    actions.telemetryEvent('search:result_open', {
+                      kind: 'setting',
+                    });
                     quickSwitcherSettings.open(result);
                   },
                 }
@@ -3028,7 +3320,10 @@ export function BotSidebar({
           messages={
             actions.searchMessages === undefined
               ? undefined
-              : { search: actions.searchMessages, open: openQuickSwitcherMessage }
+              : {
+                  search: actions.searchMessages,
+                  open: openQuickSwitcherMessage,
+                }
           }
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}
@@ -3038,7 +3333,7 @@ export function BotSidebar({
             actions.telemetryEvent('search:result_open', { kind: 'channel' });
             openQuickSwitcherEntry(entry);
           }}
-          onClose={() => setQuickSwitcherOpen(false)}
+          onClose={() => setQuickSwitcherSource(undefined)}
         />
       ) : null}
       {channelHistoryOpen ? (
@@ -3077,6 +3372,7 @@ export function BotSidebar({
       <span ref={menuModelMount} aria-hidden="true" style={{ display: 'contents' }} />
       {channelMenu !== undefined && (channelMenu.channelIds?.length ?? 0) > 1 ? (
         <BulkChannelMenu
+          sectionManagement={!allScope}
           menu={channelMenu}
           sections={state.roster.sections}
           itemsLabel={selectedItems}
@@ -3096,6 +3392,7 @@ export function BotSidebar({
         />
       ) : channelMenu !== undefined ? (
         <ChannelMoveMenu
+          sectionManagement={!allScope}
           menu={channelMenu}
           sections={state.roster.sections}
           currentSectionId={sectionOfChannel(channelMenu.channelId)}
@@ -3107,7 +3404,7 @@ export function BotSidebar({
                   label: t('roster.markRead'),
                   run: () => {
                     void actions.markChannelRead(channelMenu.channelId).catch((error: unknown) => {
-                      console.warn('botharness: mark read failed', error);
+                      reportFailure('mark-read-failed', 'mark read failed', error);
                     });
                     setChannelMenu(undefined);
                   },
@@ -3412,6 +3709,7 @@ export function SectionContextMenu({
 }
 
 export function BulkChannelMenu({
+  sectionManagement = true,
   menu,
   sections,
   allPinned = false,
@@ -3423,6 +3721,7 @@ export function BulkChannelMenu({
   onPick,
   onClose,
 }: {
+  sectionManagement?: boolean;
   menu: ChannelMenuRequest;
   sections: readonly RosterSection[];
   allPinned?: boolean;
@@ -3449,13 +3748,13 @@ export function BulkChannelMenu({
     {
       id: allPinned ? 'unpin' : 'pin',
       label: t(allPinned ? 'bulk.unpin' : 'bulk.pin', { items: itemsLabel }),
-      icon: allPinned ? <IconPinFillRegular size={16} /> : <IconPinOutlineRegular size={16} />,
+      icon: allPinned ? <Icon name="pin" filled size={16} /> : <Icon name="pin" size={16} />,
     },
     { type: 'separator', id: 'bulk-pin-separator' },
     {
       id: 'move',
       label: t('bulk.move', { items: itemsLabel }),
-      icon: <IconFolderOpenOutlineRegular size={16} />,
+      icon: <Icon name="folder-open" size={16} />,
       submenu: [
         { id: NEW_SECTION_MOVE_TARGET, label: t('move.newSection') },
         ...sections.map((section) => ({ id: section.id, label: section.name })),
@@ -3476,7 +3775,7 @@ export function BulkChannelMenu({
         dense
         autoFocus
         anchor={<span ref={proxy} aria-hidden="true" />}
-        items={items}
+        items={sectionManagement ? items : items.filter((item) => item.id !== 'move')}
         onSelect={(id) => {
           if (id === 'pin' || id === 'unpin') onPin(id === 'pin');
           else if (id === 'hide') onHide();
@@ -3504,7 +3803,7 @@ function BotModelMenu({
   setOpen(open: boolean): void;
   apply(route: ModelRouteView): void;
 }): ReactElement {
-  const anchor = useRef<HTMLSpanElement>(null);
+  const anchor = useRef<HTMLElement | null>(null);
   const [active, setActive] = useState<string>();
   return (
     <span onPointerDown={(event) => event.stopPropagation()}>
@@ -3517,17 +3816,19 @@ function BotModelMenu({
         closeOnPointerLeave
         className="bh-model-menu-anchor"
         listClassName="bh-model-menu-list"
-        getAnchorRect={() => anchor.current?.closest('button')?.getBoundingClientRect() ?? null}
+        anchorRef={anchor}
         anchor={
           <span
-            ref={anchor}
-            className="bh-move-checked"
+            ref={(node) => {
+              anchor.current = node?.closest('button') ?? null;
+            }}
+            {...stylex.props(rosterStyles.menuLabel)}
             onMouseEnter={() => {
               if (!disabled) setOpen(true);
             }}
           >
-            <span className="bh-move-checked-text">{label}</span>
-            <IconChevronRightOutlineRegular size={16} />
+            <span {...stylex.props(rosterStyles.truncate)}>{label}</span>
+            <Icon name="chevron-right" size={16} />
           </span>
         }
         onClose={() => {
@@ -3557,11 +3858,11 @@ function BotModelMenu({
                 onFocus={() => setActive(group.key)}
                 onClick={() => setActive(group.key)}
               >
-                <span className="bh-move-checked">
-                  <span className="bh-move-checked-text">{group.label}</span>
-                  {group.current ? <IconCheckOutlineRegular size={16} /> : null}
+                <span {...stylex.props(rosterStyles.menuLabel)}>
+                  <span {...stylex.props(rosterStyles.truncate)}>{group.label}</span>
+                  {group.current ? <Icon name="check" size={16} /> : null}
                 </span>
-                <IconChevronRightOutlineRegular size={16} />
+                <Icon name="chevron-right" size={16} />
               </button>
             }
             onClose={() => setActive(undefined)}
@@ -3572,9 +3873,9 @@ function BotModelMenu({
                 disabled={disabled}
                 onSelect={() => apply(effort.route)}
               >
-                <span className="bh-move-checked">
-                  <span className="bh-move-checked-text">{effort.label}</span>
-                  {effort.current ? <IconCheckOutlineRegular size={16} /> : null}
+                <span {...stylex.props(rosterStyles.menuLabel)}>
+                  <span {...stylex.props(rosterStyles.truncate)}>{effort.label}</span>
+                  {effort.current ? <Icon name="check" size={16} /> : null}
                 </span>
               </MenuItemButton>
             ))}
@@ -3586,6 +3887,7 @@ function BotModelMenu({
 }
 
 export function ChannelMoveMenu({
+  sectionManagement = true,
   readAction,
   muteAction,
   companionAction,
@@ -3610,6 +3912,7 @@ export function ChannelMoveMenu({
   onPick,
   onClose,
 }: {
+  sectionManagement?: boolean;
   readAction?: { label: string; run(): void } | undefined;
   muteAction?: { label: string; muted: boolean; run(): void } | undefined;
   companionAction?: { label: string; run(): void } | undefined;
@@ -3701,7 +4004,7 @@ export function ChannelMoveMenu({
           {
             id: 'share',
             label: shareAction.label,
-            icon: <IconShareOutlineRegular size={16} />,
+            icon: <Icon name="share" size={16} />,
           },
         ]),
     ...(marketAction === undefined
@@ -3716,7 +4019,7 @@ export function ChannelMoveMenu({
     {
       id: pinned ? 'unpin' : 'pin',
       label: t(pinned ? 'pin.remove' : 'pin.add'),
-      icon: pinned ? <IconPinFillRegular size={16} /> : <IconPinOutlineRegular size={16} />,
+      icon: pinned ? <Icon name="pin" filled size={16} /> : <Icon name="pin" size={16} />,
     },
     ...(readAction === undefined
       ? []
@@ -3724,7 +4027,7 @@ export function ChannelMoveMenu({
           {
             id: 'mark-read',
             label: readAction.label,
-            icon: <IconCheckOutlineRegular size={16} />,
+            icon: <Icon name="check" size={16} />,
           },
         ]),
     ...(muteAction === undefined
@@ -3750,18 +4053,19 @@ export function ChannelMoveMenu({
                 setOpen={setModelOpen}
               />
             ),
-            icon: <IconAgentPresetOutlineRegular size={16} />,
+            icon: <Icon name="bot" size={16} />,
             disabled: modelAction.disabled || modelAction.groups.length === 0,
           },
         ]),
-    ...channelMoveMenuItems(t, sections, currentSectionId).map((entry) =>
-      'type' in entry ? entry : { ...entry, icon: <IconFolderOpenOutlineRegular size={16} /> },
+    ...(sectionManagement ? channelMoveMenuItems(t, sections, currentSectionId) : []).map(
+      (entry) =>
+        'type' in entry ? entry : { ...entry, icon: <Icon name="folder-open" size={16} /> },
     ),
     { type: 'separator', id: 'channel-action-separator' },
     {
       id: 'rename',
       label: t('channel.rename'),
-      icon: <IconEditOutlineRegular size={16} />,
+      icon: <Icon name="pencil" size={16} />,
     },
     ...(nicknameAction === undefined ? [] : [channelNicknameItem(t)]),
     ...(dmActions === undefined
@@ -3779,7 +4083,7 @@ export function ChannelMoveMenu({
           {
             id: 'delete',
             label: deleteAction.label,
-            icon: <IconTrashOutlineRegular size={16} />,
+            icon: <Icon name="trash" size={16} />,
             danger: true,
           },
         ]),
@@ -3872,54 +4176,73 @@ export function ChannelMoveMenu({
 }
 
 function botCreateSource(id: string): 'empty' | 'git' | 'zip' | undefined {
-  if (id === 'bot' || id === 'bot:empty') return 'empty';
+  if (id === 'bot:empty') return 'empty';
   if (id === 'bot:git') return 'git';
   if (id === 'bot:zip') return 'zip';
   return undefined;
 }
 
-function menuItems(t: BotHarnessTranslate, gitAvailable: boolean, remotes: boolean): MenuEntry[] {
+function menuItems(
+  t: BotHarnessTranslate,
+  gitAvailable: boolean,
+  localImports = true,
+  team = false,
+  member = false,
+  people = team,
+): MenuEntry[] {
   const disabled = !gitAvailable;
   return [
     {
       id: 'bot',
       label: t('roster.menu.createBot'),
-      icon: <IconAgentPresetOutlineRegular size={16} />,
-      submenu: [
-        { id: 'bot:empty', label: t('roster.menu.createBot.empty'), disabled },
-        { id: 'bot:git', label: t('roster.menu.createBot.git'), disabled },
-        { id: 'bot:zip', label: t('roster.menu.createBot.zip'), disabled },
-      ],
+      icon: <Icon name="bot" size={16} />,
+      disabled,
     },
     {
       id: 'channel',
       label: t('roster.menu.createChannel'),
-      icon: <IconNewChatOutlineRegular size={16} />,
+      icon: <Icon name="message-square-plus" size={16} />,
     },
-    {
-      id: 'section',
-      label: t('roster.menu.createSection'),
-      icon: <IconFolderOpenOutlineRegular size={16} />,
-    },
-    {
-      id: 'marketplace',
-      label: t('roster.menu.marketplace'),
-      icon: <IconGlobeOutlineRegular size={16} />,
-    },
-    ...(remotes
+    ...(people
       ? [
           {
-            id: 'remote',
-            label: t('remoteHosts.add'),
-            icon: <ChannelSidebarIcon name="monitor" size={16} />,
+            id: 'message-person',
+            label: t('team.dm.menu'),
+            icon: <ChannelSidebarIcon name="user" size={16} />,
           },
         ]
       : []),
+    ...(team
+      ? [
+          {
+            id: 'message-bot',
+            label: t('team.bots.menu'),
+            icon: <ChannelSidebarIcon name="bot" size={16} />,
+          },
+        ]
+      : []),
+    {
+      id: 'section',
+      label: t('roster.menu.createSection'),
+      icon: <Icon name="folder-open" size={16} />,
+    },
+    {
+      id: 'marketplace',
+      label: localImports
+        ? t('roster.menu.marketplace')
+        : `${t('roster.menu.marketplace')} · ${t('environment.create.localOnly')}`,
+      disabled: !localImports,
+      icon: <Icon name="globe" size={16} />,
+    },
   ];
 }
 
-function sectionCreateMenuItems(t: BotHarnessTranslate, gitAvailable: boolean): MenuEntry[] {
-  return menuItems(t, gitAvailable, false).filter(
+function sectionCreateMenuItems(
+  t: BotHarnessTranslate,
+  gitAvailable: boolean,
+  member: boolean,
+): MenuEntry[] {
+  return menuItems(t, gitAvailable, true, false, member).filter(
     (item) => item.id === 'bot' || item.id === 'channel',
   );
 }

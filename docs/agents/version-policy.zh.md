@@ -1,6 +1,6 @@
 # DeepSeekBot 产品版本规范
 
-[English](version-policy.md) · [决策](../adr/0216-dsb-product-versions-identify-immutable-package-sets.md)
+[English](version-policy.md) · [决策](../decisions/release.md#adr-0216)
 · [实施跟踪总任务](https://github.com/BotHarness/DeepSeekBot/issues/1979)
 
 **这是已确认的规范，不是全部校验已经实现。** 当前交付状态以任务为准。

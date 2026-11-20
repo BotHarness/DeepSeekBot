@@ -1,41 +1,17 @@
 // @vitest-environment jsdom
+import { type BotHarnessKey } from '../src/client/locale.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
-
-const switches = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { createElement: h } = await import('react');
   return {
-    Switch: (props: {
-      checked: boolean;
-      disabled?: boolean;
-      label: string;
-      onChange: (value: boolean) => void;
-    }) => {
-      switches.push(props);
-      return h('input', {
-        type: 'checkbox',
-        role: 'switch',
-        'aria-label': props.label,
-        checked: props.checked,
-        disabled: props.disabled,
-        onChange: () => {
-          props.onChange(!props.checked);
-        },
-      });
-    },
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
   };
 });
 
 import type { BridgeCall } from '../src/client/bridge.js';
-import {
-  en,
-  zhTranslate,
-  type BotHarnessKey,
-  type BotHarnessTranslate,
-} from '../src/client/locale.js';
+import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 
 const enTranslate = ((key: BotHarnessKey) => en[key]) as unknown as BotHarnessTranslate;
 import { TelemetrySettings } from '../src/client/telemetry-settings.js';
@@ -65,7 +41,7 @@ async function render(call: BridgeCall, t: BotHarnessTranslate = zhTranslate) {
   await act(async () => {
     await Promise.resolve();
   });
-  const toggle = () => host.querySelector<HTMLInputElement>('[role="switch"]')!;
+  const toggle = () => host.querySelector<HTMLButtonElement>('[role="switch"]')!;
   return {
     host,
     toggle,
@@ -77,7 +53,8 @@ async function render(call: BridgeCall, t: BotHarnessTranslate = zhTranslate) {
 }
 
 describe('TelemetrySettings', () => {
-  it('shows the Host state and turns usage statistics off and on through the bridge', async () => {
+  it.each([400, 1280])('writes the usage statistics choice at %i px', async (width) => {
+    vi.stubGlobal('innerWidth', width);
     let state = { enabled: true, preference: true };
     const call = vi.fn<BridgeCall>(async (endpoint, payload) => {
       if (endpoint === 'telemetrySet') {
@@ -90,20 +67,20 @@ describe('TelemetrySettings', () => {
     expect(view.host.textContent).toContain('匿名使用统计');
     const link = view.host.querySelector('a');
     expect(link?.getAttribute('href')).toBe('https://tobs.app/privacy/');
-    expect(view.toggle().checked).toBe(true);
+    expect(view.toggle().getAttribute('aria-checked')).toBe('true');
     expect(view.toggle().disabled).toBe(false);
 
     await act(async () => {
       view.toggle().click();
     });
     expect(call.mock.calls[1]?.slice(0, 2)).toEqual(['telemetrySet', { enabled: false }]);
-    expect(view.toggle().checked).toBe(false);
+    expect(view.toggle().getAttribute('aria-checked')).toBe('false');
 
     await act(async () => {
       view.toggle().click();
     });
     expect(call.mock.calls[2]?.slice(0, 2)).toEqual(['telemetrySet', { enabled: true }]);
-    expect(view.toggle().checked).toBe(true);
+    expect(view.toggle().getAttribute('aria-checked')).toBe('true');
     view.unmount();
   });
 
@@ -117,7 +94,7 @@ describe('TelemetrySettings', () => {
       value: { enabled: false, preference: true, lockedBy },
     }));
     const view = await render(call, enTranslate);
-    expect(view.toggle().checked).toBe(false);
+    expect(view.toggle().getAttribute('aria-checked')).toBe('false');
     expect(view.toggle().disabled).toBe(true);
     expect(view.host.querySelector(`[data-telemetry-lock="${lockedBy}"]`)?.textContent).toContain(
       note,
@@ -136,8 +113,10 @@ describe('TelemetrySettings', () => {
     await act(async () => {
       view.toggle().click();
     });
-    expect(view.toggle().checked).toBe(true);
+    expect(view.toggle().getAttribute('aria-checked')).toBe('true');
     expect(view.host.querySelector('[role="alert"]')?.textContent).toBe('保存失败，请重试。');
     view.unmount();
   });
 });
+
+afterEach(() => vi.unstubAllGlobals());

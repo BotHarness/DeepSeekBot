@@ -68,9 +68,11 @@ class LanChannelModule : Module() {
             else if (channels[id] === channel) emit(id, "message", text)
           }
           override fun onMessage(socket: WebSocket, bytes: okio.ByteString) { finish(id, "channel-frame-invalid") }
-          override fun onClosing(socket: WebSocket, code: Int, reason: String) { finish(id, "channel-disconnected") }
-          override fun onFailure(socket: WebSocket, error: Throwable, response: Response?) { finish(id, "lan-unreachable") }
-          override fun onClosed(socket: WebSocket, code: Int, reason: String) { finish(id, "channel-disconnected") }
+          override fun onClosing(socket: WebSocket, code: Int, reason: String) { finish(id, closeReason(reason)) }
+          override fun onFailure(socket: WebSocket, error: Throwable, response: Response?) {
+            finish(id, failureReason(error))
+          }
+          override fun onClosed(socket: WebSocket, code: Int, reason: String) { finish(id, closeReason(reason)) }
         }
       )
       if (channels[id] !== channel) channel.socket?.cancel()
@@ -100,6 +102,10 @@ class LanChannelModule : Module() {
   }
 }
 
+internal fun closeReason(reason: String): String =
+  if (reason.length in 1..64 && reason.all { it in 'a'..'z' || it in '0'..'9' || it == '-' }) reason
+  else "channel-disconnected"
+
 internal fun validFrame(text: String): Boolean =
   text.length in 3..FRAME_LIMIT && text.length % 2 == 1 &&
     (text[0] == 'h' || text[0] == 'd') && text.drop(1).all { it in '0'..'9' || it in 'a'..'f' }
@@ -112,4 +118,9 @@ internal fun privateAddress(address: String): ByteArray {
     (numbers[0] == 10 || (numbers[0] == 172 && numbers[1] in 16..31) ||
       (numbers[0] == 192 && numbers[1] == 168))) { "lan-route-invalid" }
   return numbers.map { it.toByte() }.toByteArray()
+}
+
+internal fun failureReason(error: Throwable): String {
+  val name = error.javaClass.simpleName.lowercase().filter { it in 'a'..'z' }.take(40)
+  return if (name.isEmpty()) "lan-unreachable" else "lan-unreachable:$name"
 }

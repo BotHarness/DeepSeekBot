@@ -1,6 +1,8 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import {
   memo,
   useCallback,
+  useContext,
   useMemo,
   useRef,
   useState,
@@ -9,12 +11,15 @@ import {
   type ReactNode,
 } from 'react';
 import { useReplyHaptic } from './reply-haptic';
+import { MediaLongPress } from './media-long-press';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   AppState,
   Platform,
   Pressable,
   View,
   useWindowDimensions,
+  type AccessibilityActionEvent,
   type AccessibilityRole,
   type DimensionValue,
   type LayoutChangeEvent,
@@ -36,8 +41,8 @@ import {
   type ConversationMessage,
   type ConversationReaction,
   type MessageAttachment,
-} from '../../host/conversation';
-import type { RosterBot } from '../../host/client';
+} from '@botharness/host-client/conversation';
+import type { RosterBot } from '@botharness/host-client/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { spring } from '../design/motion';
 import { doubleTap, lift, motion, space } from '../design/tokens';
@@ -49,6 +54,7 @@ import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
 import {
   BADGE_OVERLAP,
+  BUBBLE_PADDING,
   singleLine,
   BUBBLE_MAX,
   bubbleCorners,
@@ -57,7 +63,9 @@ import {
   type BubbleGroup,
 } from './bubble-shape';
 import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
-import { MessageAttachments } from './message-attachments';
+import { MessageAlbum, MessageFiles, QuoteThumbnail, albumWidth } from './message-attachments';
+import { GenuiDocumentCard } from './genui-document-card';
+import { VoiceBar } from './voice-bar';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
 import { ReplyQuote } from './reply-quote';
@@ -65,6 +73,8 @@ import { ReplySwipe } from './reply-swipe';
 import { PopIn, usePopIn } from './pop-in';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
+import { SendFlightsContext } from './send-fly';
+import { SendFlyBackdrop, SendFlyFrame } from './send-fly-frame';
 
 export type { Speaker } from './speaker-row';
 
@@ -139,8 +149,42 @@ export function BubbleBody({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const backdrop = useContext(SendFlyBackdrop);
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
+  const { width: screen } = useWindowDimensions();
+  const images = message.attachments.filter((attachment) => attachment.kind === 'image');
+  const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
+  const album = images.length > 0;
+  const hasBody = message.body.trim() !== '';
+  const captioned =
+    hasBody ||
+    streaming ||
+    files.length > 0 ||
+    message.card !== undefined ||
+    message.voice !== undefined;
+  const width = album ? albumWidth(screen) : undefined;
+  const details = (
+    <>
+      {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
+      {!hasBody && !streaming && message.attachments.length > 0 ? null : (
+        <MessageBody message={message} streaming={streaming} />
+      )}
+      {message.genuiDocument === undefined ? null : (
+        <GenuiDocumentCard
+          document={message.genuiDocument}
+          channelId={message.source?.channelId}
+          messageId={message.id}
+        />
+      )}
+      {files.length > 0 ? <MessageFiles files={files} human={human} onShare={onShare} /> : null}
+      {message.card ? (
+        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
+          {t.card}
+        </Text>
+      ) : null}
+    </>
+  );
   return (
     <StreamSurface
       active={streaming}
@@ -148,11 +192,30 @@ export function BubbleBody({
       style={{
         ...bubbleShape(human, group),
         ...fill,
-        overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
-        backgroundColor: human ? theme.color.accent : theme.color.surface,
-        gap: space.x2,
+        ...(album ? { width, padding: 0, paddingHorizontal: 0, paddingVertical: 0 } : null),
+        overflow: album || fill?.maxHeight !== undefined ? 'hidden' : 'visible',
+        backgroundColor:
+          backdrop !== undefined ? 'transparent' : human ? theme.color.accent : theme.color.surface,
+        gap: album ? 0 : space.x2,
       }}
     >
+      {backdrop === undefined ? null : (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              ...bubbleCorners(human, group),
+              backgroundColor: human ? theme.color.accent : theme.color.surface,
+            },
+            backdrop,
+          ]}
+        />
+      )}
       {deliveryAccessibility && human && message.delivery === 'pending' ? (
         <View
           accessible
@@ -161,22 +224,43 @@ export function BubbleBody({
           style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
         />
       ) : null}
-      {quote}
-      <MessageBody message={message} streaming={streaming} />
-      {message.attachments.length > 0 ? (
-        <MessageAttachments
-          attachments={message.attachments}
+      {quote === undefined ? null : album ? (
+        <View
+          style={{
+            paddingHorizontal: space.x3,
+            paddingTop: space.x3,
+            paddingBottom: space.x3,
+          }}
+        >
+          {quote}
+        </View>
+      ) : (
+        quote
+      )}
+      {album ? (
+        <MessageAlbum
+          images={images}
           human={human}
+          width={width!}
           onOpenImage={onOpenImage}
-          onShare={onShare}
           onImageReady={onImageReady}
         />
       ) : null}
-      {message.card ? (
-        <Text variant="meta" tone={human ? ink : 'muted'} style={{ fontStyle: 'italic' }}>
-          {t.card}
-        </Text>
-      ) : null}
+      {album ? (
+        captioned ? (
+          <View
+            style={{
+              paddingHorizontal: BUBBLE_PADDING.horizontal,
+              paddingVertical: BUBBLE_PADDING.vertical,
+              gap: space.x2,
+            }}
+          >
+            {details}
+          </View>
+        ) : null
+      ) : (
+        details
+      )}
     </StreamSurface>
   );
 }
@@ -194,8 +278,16 @@ function PressableBubble({
   onPress,
   onLongPress,
   onDoubleTap,
+  onHold,
+  onInteractionStart,
+  tapOpens = false,
+  onOpenReply,
   children,
 }: {
+  onHold?: (() => void) | undefined;
+  onInteractionStart?: () => void;
+  tapOpens?: boolean;
+  onOpenReply?: (() => void) | undefined;
   human: boolean;
   group: BubbleGroup;
   lifted: boolean;
@@ -220,16 +312,46 @@ function PressableBubble({
   const held = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const shrinks = Platform.OS === 'ios' && !reduced && onLongPress !== undefined;
   const measure = (then?: (rect: Rect) => void) =>
-    ref.current?.measureInWindow((x, y, width, height) => {
-      anchor.current = { x, y, width, height };
-      then?.(anchor.current);
-    });
+    measureMessageView(
+      ref.current,
+      (x, y, width, height) => {
+        anchor.current = { x, y, width, height };
+        then?.(anchor.current);
+      },
+      () => undefined,
+    );
   const open = () => {
     if (onLongPress === undefined) return;
     if (anchor.current !== undefined) onLongPress(anchor.current);
     else measure(onLongPress);
   };
-  return (
+  const hold =
+    onHold !== undefined
+      ? () => {
+          haptic('menu');
+          onHold();
+        }
+      : onLongPress === undefined
+        ? undefined
+        : () => {
+            haptic('menu');
+            if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
+            open();
+          };
+  const tap = tapOpens && onLongPress !== undefined ? open : undefined;
+  const nativeHolding = (Platform.OS === 'android' || Platform.OS === 'ios') && hold !== undefined;
+  const currentHold = useRef(hold);
+  currentHold.current = hold;
+  const nativeHold = useMemo(
+    () =>
+      Gesture.LongPress()
+        .enabled(nativeHolding)
+        .minDuration(motion.lift)
+        .runOnJS(true)
+        .onStart(() => currentHold.current?.()),
+    [nativeHolding],
+  );
+  const bubble = (
     <Animated.View
       ref={ref}
       collapsable={false}
@@ -245,6 +367,7 @@ function PressableBubble({
       ]}
     >
       <Pressable
+        {...(onInteractionStart === undefined ? {} : { onTouchStart: onInteractionStart })}
         {...(ungrouped ? { accessible: false } : {})}
         {...(pending
           ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
@@ -252,36 +375,43 @@ function PressableBubble({
         {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
         {...(accessibilityLabel === undefined ? {} : { accessibilityLabel })}
         {...(accessibilityHint === undefined ? {} : { accessibilityHint })}
-        {...(onLongPress === undefined
+        {...(onLongPress === undefined && onOpenReply === undefined
           ? {}
           : {
               accessibilityActions: [
-                { name: 'longpress', label: accessibilityActionLabel ?? t.messageActions },
+                ...(onLongPress === undefined
+                  ? []
+                  : [{ name: 'longpress', label: accessibilityActionLabel ?? t.messageActions }]),
+                ...(onOpenReply === undefined
+                  ? []
+                  : [{ name: 'reply-original', label: t.reply.jumpHint }]),
               ],
-              onAccessibilityAction: () => {
+              onAccessibilityAction: (event: AccessibilityActionEvent) => {
+                if (event.nativeEvent.actionName === 'reply-original') {
+                  onOpenReply?.();
+                  return;
+                }
                 anchor.current = undefined;
                 open();
               },
-              onLongPress: () => {
-                haptic('menu');
-                if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
-                open();
-              },
             })}
+        {...(hold === undefined || nativeHolding ? {} : { onLongPress: hold })}
         {...(onPress !== undefined
           ? { onPress }
-          : onDoubleTap === undefined
-            ? {}
-            : {
-                onPress: () => {
-                  const now = Date.now();
-                  if (secondTap(tapped.current, now)) {
-                    tapped.current = undefined;
-                    haptic('react');
-                    onDoubleTap();
-                  } else tapped.current = now;
-                },
-              })}
+          : tap !== undefined
+            ? { onPress: tap }
+            : onDoubleTap === undefined
+              ? {}
+              : {
+                  onPress: () => {
+                    const now = Date.now();
+                    if (secondTap(tapped.current, now)) {
+                      tapped.current = undefined;
+                      haptic('react');
+                      onDoubleTap();
+                    } else tapped.current = now;
+                  },
+                })}
         delayLongPress={motion.lift}
         android_ripple={{
           color: pressTint(human ? theme.color.onAccent : theme.color.fg),
@@ -300,10 +430,13 @@ function PressableBubble({
           if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
         }}
       >
-        {children}
+        <MediaLongPress.Provider value={nativeHolding ? undefined : hold}>
+          {children}
+        </MediaLongPress.Provider>
       </Pressable>
     </Animated.View>
   );
+  return nativeHolding ? <GestureDetector gesture={nativeHold}>{bubble}</GestureDetector> : bubble;
 }
 
 const entered = new Set<string>();
@@ -330,9 +463,12 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenImage = () => {},
   onShare = async () => {},
   onLongPress = (pressed) => openMessageMenu(pressed.body),
+  onSelect,
   onReact,
   onReply,
+  onOpenReply,
   onOpenDelivery,
+  onInteractionStart,
   readers = NO_READERS,
   bots = NO_BOTS,
   botName = (id) => id,
@@ -350,9 +486,12 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenImage?: (attachment: MessageAttachment) => void;
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
+  onSelect?: ((message: ConversationMessage) => void) | undefined;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
   onReply?: ((message: ConversationMessage) => void) | undefined;
+  onOpenReply?: ((messageId: string) => void) | undefined;
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
+  onInteractionStart?: () => void;
   readers?: readonly string[] | undefined;
   bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
@@ -375,6 +514,8 @@ export const MessageBubble = memo(function MessageBubble({
     return fresh;
   });
   const pop = usePopIn(enter);
+  const flights = useContext(SendFlightsContext);
+  const [flight] = useState(() => (human ? flights?.flight(message.id) : undefined));
   const [readingStill, setReadingStill] = useState(readers.length > 0);
   if (readingStill && readers.length === 0) setReadingStill(false);
   const [reactionsStill] = useState(
@@ -402,6 +543,8 @@ export const MessageBubble = memo(function MessageBubble({
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const group = { first, last, avatar: speaker?.last === true, compact };
+  const tapMenu = Platform.OS === 'android' && onSelect !== undefined;
+  const replyTo = message.replyTo;
   const bubble = (
     <BubbleBody
       message={message}
@@ -418,8 +561,19 @@ export const MessageBubble = memo(function MessageBubble({
       fill={{ maxWidth: '100%' }}
       streaming={streaming}
       quote={
-        message.replyTo === undefined ? undefined : (
-          <ReplyQuote preview={message.replyPreview} botName={botName} onAccent={human} />
+        replyTo === undefined ? undefined : (
+          <ReplyQuote
+            preview={message.replyPreview}
+            thumbnail={
+              message.replyPreview?.media?.kind === 'image' &&
+              message.replyThumbnail !== undefined ? (
+                <QuoteThumbnail thumbnail={message.replyThumbnail} />
+              ) : undefined
+            }
+            botName={botName}
+            onAccent={human}
+            onOpen={onOpenReply === undefined ? undefined : () => onOpenReply(replyTo)}
+          />
         )
       }
     />
@@ -430,6 +584,9 @@ export const MessageBubble = memo(function MessageBubble({
         human={human}
         group={group}
         lifted={lifted}
+        {...(Platform.OS === 'ios' && message.genuiDocument !== undefined && onInteractionStart
+          ? { onInteractionStart }
+          : {})}
         pending={human && message.delivery === 'pending'}
         ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
@@ -438,10 +595,14 @@ export const MessageBubble = memo(function MessageBubble({
               accessibilityHint: t.messageActionsHint,
               accessibilityActionLabel: t.messageActions,
               onLongPress: (anchor: Rect) => onLongPress(message, anchor, group),
+              ...(tapMenu ? { tapOpens: true, onHold: () => onSelect?.(message) } : {}),
             }
           : {})}
         {...(failed ? { onPress: () => onRetry?.(message.id) } : {})}
-        {...(!streaming && onReact !== undefined && reactable(message)
+        {...(replyTo === undefined || onOpenReply === undefined || !message.replyPreview
+          ? {}
+          : { onOpenReply: () => onOpenReply(replyTo) })}
+        {...(!tapMenu && !streaming && onReact !== undefined && reactable(message)
           ? {
               onDoubleTap: () =>
                 onReact(
@@ -460,19 +621,20 @@ export const MessageBubble = memo(function MessageBubble({
       bubble
     );
   const badged = chipsMounted || shownReading.length > 0;
-  const framed = (
-    <Animated.View
-      ref={pop.ref}
-      style={[
-        {
-          alignSelf: human ? 'flex-end' : 'flex-start',
-          maxWidth: BUBBLE_MAX,
-          transformOrigin: human ? 'right bottom' : 'left bottom',
-        },
-        pop.style,
-      ]}
-    >
-      {content}
+  const frame = {
+    alignSelf: human ? 'flex-end' : 'flex-start',
+    maxWidth: BUBBLE_MAX,
+    ...(message.genuiDocument === undefined ? {} : { width: BUBBLE_MAX }),
+    transformOrigin: human ? 'right bottom' : 'left bottom',
+  } as const;
+  const framedContent = (
+    <>
+      <ReplySwipe
+        enabled={onReply !== undefined && !streaming && replyable(message)}
+        onReply={() => onReply?.(message)}
+      >
+        {content}
+      </ReplySwipe>
       {badged ? (
         <View
           pointerEvents="box-none"
@@ -505,15 +667,25 @@ export const MessageBubble = memo(function MessageBubble({
               enabled={!readingStill}
               show={reading.length > 0}
               onHidden={() => setShownReading(NO_READERS)}
-              style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}
+              {...(human ? { style: { marginRight: 'auto' } } : {})}
             >
               <ReadingBadge messageId={message.id} readers={shownReading} bots={bots} />
             </PopIn>
           )}
         </View>
       ) : null}
-    </Animated.View>
+    </>
   );
+  const framed =
+    flight !== undefined && flights !== undefined ? (
+      <SendFlyFrame messageId={message.id} flight={flight} flights={flights} style={frame}>
+        {framedContent}
+      </SendFlyFrame>
+    ) : (
+      <Animated.View ref={pop.ref} style={[frame, pop.style]}>
+        {framedContent}
+      </Animated.View>
+    );
   const surface = human ? (
     <View
       style={{
@@ -559,7 +731,14 @@ export const MessageBubble = memo(function MessageBubble({
   ) : (
     framed
   );
-  const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
+  const row = {
+    ...bubbleRow(first),
+    ...(reactions.length > 0
+      ? { paddingBottom: BADGE_OVERLAP + space.x2 }
+      : last
+        ? { paddingBottom: space.x2 }
+        : {}),
+  };
   const placed =
     speaker !== undefined ? (
       <SpeakerRow
@@ -573,12 +752,7 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       <View style={row}>{surface}</View>
     );
-  if (onReply === undefined) return placed;
-  return (
-    <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
-      {placed}
-    </ReplySwipe>
-  );
+  return placed;
 });
 
 export const DraftBubble = memo(function DraftBubble({

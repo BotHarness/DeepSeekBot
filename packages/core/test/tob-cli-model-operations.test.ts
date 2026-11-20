@@ -3,6 +3,7 @@ import { createPersonaBotRegistry } from '../src/bots/registry.js';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createModelPresetStore } from '../src/models/presets.js';
+import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import {
   createTobModelOperations,
   type TobNativeSettings,
@@ -52,16 +53,18 @@ function fixture() {
   };
   const catalog = { list: vi.fn(async () => []), validate: vi.fn(async (_route: unknown) => {}) };
   const runtimeChanged = vi.fn();
+  const routingGroups = createRoutingGroupStore({ database });
   const prepare = createTobModelOperations({
     registry,
     presets,
     catalog,
     settings: () => native,
+    routingGroups,
     runtimeChanged,
   });
   const run = async (command: string, args: object = {}, guard = () => {}) =>
     (await prepare(command, args))!.run(guard);
-  return { registry, presets, rows, native, catalog, prepare, run, runtimeChanged };
+  return { registry, presets, rows, native, catalog, prepare, run, runtimeChanged, routingGroups };
 }
 const fullPlan = {
   orchestrator: alternate,
@@ -124,6 +127,16 @@ describe('Tob scoped model and runtime operations', () => {
     await f.run('home-model-set', { route, expectedRevision: 1 });
     expect(f.rows[1]!.value).toEqual(route);
     expect(f.native.replace).toHaveBeenCalledTimes(2);
+  });
+  it('stops following the default Routing Group when the Host default model is set', async () => {
+    const f = fixture();
+    const group = f.routingGroups.create({
+      name: 'Daily',
+      members: [{ kind: 'model', ...route }],
+    });
+    f.routingGroups.setDefaultGroup(group.id, 0);
+    await f.run('home-model-set', { route: alternate, expectedRevision: 0 });
+    expect(f.routingGroups.defaultGroup()).toEqual({ revision: 2 });
   });
   it('rejects stale native settings before review and after review without overwriting', async () => {
     const f = fixture();
@@ -289,4 +302,21 @@ describe('Tob scoped model and runtime operations', () => {
       f.prepare('home-model-set', { route: { ...route, apiKey: 'secret' }, expectedRevision: 0 }),
     ).rejects.toMatchObject({ code: 'invalid-input' });
   });
+});
+
+it('keeps Owner Tob model reads and mutations scoped to its own Bots', async () => {
+  const f = fixture();
+  f.registry.create({
+    slug: 'foreign',
+    displayName: 'Foreign',
+    ownerHumanId: 'other-human',
+    model: 'private-model',
+  });
+  await expect(f.run('model-plan', { slug: 'foreign' })).rejects.toMatchObject({
+    code: 'permission-required',
+  });
+  await expect(
+    f.prepare('model-plan-inherit', { slug: 'foreign', expectedRevision: 0 }),
+  ).rejects.toMatchObject({ code: 'permission-required' });
+  expect(JSON.stringify(await f.run('list'))).not.toContain('foreign');
 });

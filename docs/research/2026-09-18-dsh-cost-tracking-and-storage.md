@@ -138,7 +138,7 @@ cacheHit% = cacheRead / billedInput
 - 查询：每 PersonaBot 的 今日/本月/全部 合计、按天时间序列、**按模型拆分**、缓存命中率、最近调用明细（下钻）、子代理/workspace 维度。
 - 写入：来自 Host 事件流（每次 assistant 结算），中等频率、点状；应与 Host 主路径解耦，不能阻塞 turn。
 - 约束：DSH 插件 bundle 的依赖重量与跨平台；ADR-0005「SQLite 只是可选索引，绝不是系统记录」；DSH 会话日志已经持有最细粒度事实（usage + model + 时间 + 归属）。
-- ADR-0005 原文（`docs/adr/0005-sqlite-is-an-optional-index.md`）：SQLite 仅用于基础插件未覆盖处（bot registry、chat→session 绑定、去重、出站队列），且引入时必须遵守版本化迁移 / 完整性检查 / `VACUUM INTO` 备份纪律。
+- 当时的 ADR-0005（[现行持久化决策](../decisions/persistence.md#adr-0005)）：SQLite 仅用于基础插件未覆盖处（bot registry、chat→session 绑定、去重、出站队列），且引入时必须遵守版本化迁移 / 完整性检查 / `VACUUM INTO` 备份纪律。
 
 ### 4.2 对照表
 
@@ -177,5 +177,5 @@ cacheHit% = cacheRead / billedInput
 
 - 上游文档（pinned SHA `ddefc45…`）：`docs/subsystems/token-meter.md`、`token-meter.zh.md`、`docs/subsystems/llm-streaming.md`、`docs/subsystems/session.md`、`docs/subsystems/persistence.md`、`docs/subsystems/session-projection.md`、`docs/subsystems/session-query.md`、`docs/subsystems/storage.md`、`docs/architecture.md`、`docs/event-producer-consumer.md`、`docs/api-gateway.md`
 - 上游源码：`packages/llm/token-meter/src/projection.ts`、`packages/llm/llm/src/types.ts`、`packages/client/ui-chat/src/client/chat/StatsPills.tsx`、`packages/storage/storage-sqlite/README.md`、`packages/session/session-stats/README.md`、`packages/llm/llm-retry/README.md`
-- 本仓库：`docs/adr/0005-sqlite-is-an-optional-index.md`、`docs/botharness.md` §4/§5、`packages/core/src/state/bot-state.ts`、`docs/client-bridge.md`、`docs/research/2026-09-17-rakazo-architecture.md`（UsageRecord 先例）
+- 本仓库：[ADR-0005](../decisions/persistence.md#adr-0005)、`docs/botharness.md` §4/§5、`packages/core/src/state/bot-state.ts`、`docs/client-bridge.md`、`docs/research/2026-09-17-rakazo-architecture.md`（UsageRecord 先例）
 - 社区插件：`@skkjkk/dsh-usage-dashboard`、`@angelyeye/dsh-cost-tracker`、`Angelyeye/dsh-cost-cloud`、`Clowrain/dsh-token-usage-plugin`、`FuQiZuo/DSH-Token-Meter`、`bowenliang123/dsh-context`、`MeteorNOX/DeepSeek-Balance-Whale-Widget`（npm/GitHub README 快照）

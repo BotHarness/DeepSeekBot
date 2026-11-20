@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, mkdtempSync, openSync, readSync, rmSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, readSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { uploadFileKind } from '../../../market/src/upload-files.js';
 import { listBotFiles } from '../bots/bot-zip.js';
 import type { BotImportInput } from '../bots/creation.js';
+import { removeTree } from '../fs/remove-tree.js';
 import { cloneMemoryRepository } from '../memory/clone.js';
 import { ApprovalReviewError } from '../workspaces/approval-reviewer.js';
 import type { MarketplaceEntry } from './client.js';
@@ -234,6 +235,7 @@ export async function stageGitRepository(input: {
   gitUrl: string;
   commit: string;
   clone?: typeof cloneMemoryRepository;
+  remove?: (path: string) => void;
 }): Promise<{ ok: true; gitUrl: string; files: StagedFile[] } | { ok: false; code: string }> {
   const root = mkdtempSync(join(tmpdir(), 'tobs-install-review-'));
   const destination = join(root, 'repo');
@@ -261,7 +263,9 @@ export async function stageGitRepository(input: {
   } catch {
     return { ok: false, code: 'git-clone-failed' };
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    try {
+      (input.remove ?? removeTree)(root);
+    } catch {}
   }
 }
 

@@ -1,13 +1,20 @@
 import { existsSync, writeFileSync } from 'node:fs';
 
+import { RESOURCE_CHANGED_EVENT, parseResourceChange } from '../channels/resource-events.js';
+import { watchRoster } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
-import { noiseFingerprint } from '../devices/noise/xk.js';
+import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 
 export const DEVICES_COMMANDS = [
+  {
+    command: 'bot-lan',
+    description:
+      'list nearby Hosts; admit <host-id> <public-key> or revoke <host-id> with --confirm',
+  },
   { command: 'device-requests', description: 'list pending exact-key device approval requests' },
   {
     command: 'device-lan',
-    description: 'enable --confirm or disable encrypted phone access on the local network',
+    description: 'enable --confirm or disable encrypted LAN access and nearby Host discovery',
   },
   {
     command: 'device-approve-key',
@@ -17,6 +24,11 @@ export const DEVICES_COMMANDS = [
   {
     command: 'devices',
     description: 'list paired devices with this Host identity and its phone routes',
+  },
+  {
+    command: 'devices-watch',
+    description:
+      'watch device changes the Host announces for --watch-seconds (1–60); prints the count and the device list before and after',
   },
   {
     command: 'device-offer',
@@ -45,14 +57,60 @@ export function isDevicesCommand(command: string): boolean {
 export async function runDevicesCommand(
   command: string,
   rest: string[],
-  values: { confirm?: boolean; out?: string },
+  values: { confirm?: boolean; out?: string; 'route-id'?: string; 'watch-seconds'?: string },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
+    stream?: (path: string) => Promise<Response>;
   }>,
   write: (path: string, text: string) => void = (path, text) =>
     writeFileSync(path, `${text}\n`, { flag: 'wx', mode: 0o600 }),
   exists: (path: string) => boolean = existsSync,
 ): Promise<unknown> {
+  if (
+    values['route-id'] !== undefined &&
+    (command !== 'device-offer' || !['quick', 'custom'].includes(values['route-id']))
+  )
+    throw new CliLiveError('usage', '--route-id quick|custom requires device-offer.');
+  if (command === 'bot-lan') {
+    const [action, hostId, publicKey] = rest;
+    const valid =
+      action === 'list'
+        ? rest.length === 1
+        : action === 'revoke'
+          ? rest.length === 2
+          : action === 'admit' && rest.length === 3 && /^[a-f0-9]{64}$/u.test(publicKey ?? '');
+    if (
+      !valid ||
+      values.out !== undefined ||
+      (action !== 'list' && !/^[a-zA-Z0-9_-]{1,128}$/u.test(hostId ?? ''))
+    )
+      throw new CliLiveError(
+        'usage',
+        'bot-lan takes list, admit <host-id> <public-key> --confirm, or revoke <host-id> --confirm.',
+      );
+    if (action !== 'list' && values.confirm !== true)
+      throw new CliLiveError(
+        'confirm-required',
+        'Compare the Host identity before changing LAN Bot access. Pass --confirm.',
+      );
+    const host = await connect();
+    const response = await host.http(
+      `${DEVICES}/lan-bots`,
+      action === 'list'
+        ? undefined
+        : {
+            action,
+            hostId,
+            ...(action === 'admit' ? { publicKey } : {}),
+            confirm: true,
+          },
+    );
+    try {
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(response.bytes));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {}
+    throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
+  }
   const takes =
     command === 'device-approve-key'
       ? 2
@@ -76,7 +134,7 @@ export async function runDevicesCommand(
     if (rest[0] === 'enable' && values.confirm !== true)
       throw new CliLiveError(
         'confirm-required',
-        'LAN access opens an encrypted phone entry on this network. Pass --confirm.',
+        'LAN access opens an encrypted device entry and advertises this Host nearby. Pass --confirm.',
       );
   }
   if (command === 'device-offer') {
@@ -106,6 +164,9 @@ export async function runDevicesCommand(
       'key-confirmation-required',
       'Compare the device fingerprint, then pass <receipt> <public-key> --confirm.',
     );
+  const seconds = Number(values['watch-seconds'] ?? 10);
+  if (command === 'devices-watch' && (!Number.isInteger(seconds) || seconds < 1 || seconds > 60))
+    throw new CliLiveError('usage', '--watch-seconds must be 1–60.');
   const host = await connect();
   const decode = (bytes: Uint8Array): Record<string, unknown> => {
     try {
@@ -115,6 +176,25 @@ export async function runDevicesCommand(
     } catch {}
     throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
   };
+  if (command === 'devices-watch') {
+    if (!host.stream)
+      throw new CliLiveError(
+        'host-query-unsupported',
+        'This connection cannot watch live device changes.',
+      );
+    return watchRoster(
+      host.stream,
+      async () => {
+        const snapshot = decode((await host.http(DEVICES)).bytes);
+        return { devices: snapshot['devices'], pendingKeys: snapshot['pendingKeys'] ?? [] };
+      },
+      seconds,
+      (frame) =>
+        frame.event === RESOURCE_CHANGED_EVENT &&
+        parseResourceChange(frame.data)?.resource === 'devices',
+      'device',
+    );
+  }
   if (command === 'devices' || command === 'device-requests') {
     const snapshot = decode(
       (await host.http(command === 'device-requests' ? `${DEVICES}/requests` : DEVICES)).bytes,
@@ -139,7 +219,16 @@ export async function runDevicesCommand(
       devices: snapshot['devices'],
       ...(pendingKeys === undefined ? {} : { pendingKeys }),
       routes: snapshot['routes'],
+      ...(snapshot['privateRelay'] === undefined ? {} : { privateRelay: snapshot['privateRelay'] }),
+      ...(snapshot['direct'] === undefined ? {} : { direct: snapshot['direct'] }),
+      ...(snapshot['privateRoutes'] === undefined
+        ? {}
+        : { privateRoutes: snapshot['privateRoutes'] }),
+      ...(snapshot['privateTunnel'] === undefined
+        ? {}
+        : { privateTunnel: snapshot['privateTunnel'] }),
       ...(snapshot['lan'] === undefined ? {} : { lan: snapshot['lan'] }),
+      ...(snapshot['lanBots'] === undefined ? {} : { lanBots: snapshot['lanBots'] }),
     };
   }
   if (command === 'device-lan')
@@ -161,7 +250,10 @@ export async function runDevicesCommand(
     return decode((await host.http(`${DEVICES}/offer-status`, { receipt: rest[0] })).bytes);
   if (command === 'device-revoke')
     return decode((await host.http(`${DEVICES}/revoke`, { deviceId: rest[0] })).bytes);
-  const view = decode((await host.http(`${DEVICES}/offer`, {})).bytes);
+  const view = decode(
+    (await host.http(`${DEVICES}/offer`, values['route-id'] ? { routeId: values['route-id'] } : {}))
+      .bytes,
+  );
   if (typeof view['link'] !== 'string' || typeof view['receipt'] !== 'string')
     throw new CliLiveError(
       'host-protocol-error',

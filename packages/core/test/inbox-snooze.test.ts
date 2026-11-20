@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 import { inboxFixture as fixture } from './inbox-fixture.js';
 import { createCore } from '../src/plugin.js';
@@ -33,13 +34,16 @@ describe('Orchestrator inbox snooze', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Deferred notice', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Deferred notice',
+        members: ['ada'],
+      });
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'mentions',
         count: 5,
         intervalSeconds: 30,
       });
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'request',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -49,7 +53,7 @@ describe('Orchestrator inbox snooze', () => {
       core.runtime.admitGroupMessage(group.id, 'request');
       await core.runtime.whenIdle();
       expect(runs).toHaveLength(1);
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'condition',
         at: new Date().toISOString(),
         author: { kind: 'human' },

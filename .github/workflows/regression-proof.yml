@@ -1,0 +1,48 @@
+name: regression proof
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regression-proof-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: fix PR test fails without the fix
+    if: github.event.action != 'edited' || github.event.changes.title || github.event.changes.body || github.event.changes.base
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: kind
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: node -e "process.stdout.write('fix=' + /^fix(?:\([^)]*\))?!?:/i.test(process.env.TITLE.trim()) + '\n')" >> "$GITHUB_OUTPUT"
+      - if: steps.kind.outputs.fix == 'true'
+        run: git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+      - if: steps.kind.outputs.fix == 'true'
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - if: steps.kind.outputs.fix == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - if: steps.kind.outputs.fix == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.kind.outputs.fix == 'true'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.md"
+          node scripts/check-regression-proof.mjs --base "$BASE" --title "$TITLE" --body-file "$RUNNER_TEMP/body.md"

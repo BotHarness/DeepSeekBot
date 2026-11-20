@@ -1,6 +1,6 @@
 # IM Provider 接入与资格验证
 
-本指南说明 BotHarness 已实现的接入边界，以及新增平台所需的验证证据。产品含义以[产品术语](../../../CONTEXT.zh.md)、[Messaging 架构](../../architecture/botharness-architecture.md)和规范 [#629](https://github.com/BotHarness/BotHarness/issues/629) / [#693](https://github.com/BotHarness/BotHarness/issues/693) 为准。代码契约在 `packages/core/src/messaging/provider.ts`、`dsh-im.ts`；公开 RPC Reference 从代码生成。
+本指南说明 BotHarness 已实现的接入边界，以及新增平台所需的验证证据。产品含义以[产品术语](../../../GLOSSARY.zh.md)、[Messaging 架构](../../architecture/botharness-architecture.md)和规范 [#629](https://github.com/BotHarness/BotHarness/issues/629) / [#693](https://github.com/BotHarness/BotHarness/issues/693) 为准。代码契约在 `packages/core/src/messaging/provider.ts`、`dsh-im.ts`；公开 RPC Reference 从代码生成。
 
 面向用户的配置步骤见已验证的 [Lark／飞书接入指南](../../lark-connection.zh.md)。
 
@@ -12,7 +12,7 @@
 
 官方 QQ 应用候选复用既有 exclusive Consumer、canonical Source Event／Inbox 和 checked 回复路径。五项仅回复能力使应用能够独立于主动发送能力绑定。认证 `/users/@me` 提供原生身份；真实群应用可能省略示例中的 bot 标志，但明确矛盾的值仍拒绝。群／成员标识保持应用范围。
 
-首片只收入文字 `GROUP_AT_MESSAGE_CREATE`。准确来源证明有界且仅存在于进程内，受五分钟窗口和五次回复尝试限制，不宣称持久历史游标或群来源重读。先准备官方 SDK token，再检查来源、lease、账号、取消和 consumer 授权门禁，随后无异步间隔地发送。明确原生拒绝与 unknown 分开保存，不主动发送兜底、不自动重试。回执 ID 表示原生接收。见 [ADR-0151](../../adr/0151-qq-group-replies-use-authenticated-apps-and-process-local-source-proof.md) 与 [QQ 配置指南](../../qq-connection.zh.md)。真实群／模型资格在 #1152 单独记录，与 fixture 回归区分。
+首片只收入文字 `GROUP_AT_MESSAGE_CREATE`。准确来源证明有界且仅存在于进程内，受五分钟窗口和五次回复尝试限制，不宣称持久历史游标或群来源重读。先准备官方 SDK token，再检查来源、lease、账号、取消和 consumer 授权门禁，随后无异步间隔地发送。明确原生拒绝与 unknown 分开保存，不主动发送兜底、不自动重试。回执 ID 表示原生接收。见 [ADR-0151](../../decisions/im-providers.md#adr-0151) 与 [QQ 配置指南](../../qq-connection.zh.md)。真实群／模型资格在 #1152 单独记录，与 fixture 回归区分。
 
 ### 共享所有权
 
@@ -138,7 +138,7 @@ Slack 公开频道 QA App 的 Bot scopes 为 `app_mentions:read`、`chat:write`�
 
 Human 后续明确要求代理直接完成 E2E 验收，取消本人操作与人工 QA 等待条件。代理通过既有 Profile 界面解绑并重新绑定同一已认证账号、授权同一目标、开启仅 @ 收件。随后在真实 Discord 输入框发送的新频道与已有 thread 提及，各产生一次 canonical Admission、一次模型 `bot_send_message` Intent 和一条独立原生读回的本 Bot 原位置回复。这是代理操作界面的验收，不声称 Human 亲自完成了设置。后续真实 Gateway 恢复在 `RESUMED` 前重发同一原生消息 ID，仍只有一次 Admission、一次模型 Intent 和一条原生回复。重连期间的一条真实提及没有补收；移除全部临时观察器并恢复原 Profile 后，新模型回复通过。原生 HTTP 401／404 与已注册 Service 的错误指纹拒绝也已检查，受控输入与完整模型／绑定路径明确区分。后续经授权删除一条真实来源，发现旧 Host 的适配器把确定的 `source-not-found` 误转为结果未知。本次修复保留 `source-not-found` 与 `reply-permission-denied` 的失败状态，旧未知请求保持原样。重启修复后的 Host 后，真实模型在发送权限不足时明确失败；精确恢复全部原权限后，一条新消息收到本 Bot 的原位置回复。修复后的原生 preflight 对实际已删除来源在发送前拒绝。Human 另行确认删除新准备的一条来源后，修复后的真实模型读取保留的原始历史并只回复一次：单个 Intent 明确失败为 `source-not-found`，无回执、无原生回复。随后一条新原生来源收到本 Bot 的原频道唯一回复。随后，两个经原生 API 检查的真实 App／Bot 身份对均连接成功；交叉账号指纹的 Host 绑定命令在 canonical 写入前以 `rebind-required` 拒绝。这验证身份对边界，不声称 Token 互换或分别修改 App／user 字段。Human 创建第二个 QA 服务器并安装原 QA Bot 后，原生检查确认成员身份和回复权限，但该服务器没有 BotHarness Grant：真实提及使已消费 Gateway 计数增加一次，全部 canonical 记录保持一致，原生回复为零。原频道的新模型回复随后通过；最终为 41 条 Admission／36 条 Intent，原授权和历史结果保持一致。Human 最新保存的 Boundary Token 有效；刷新同一账号原先存储的旧凭证后，两个 QA 连接恢复，授权未变。验证页分别记录此前 Host revision 与重新构建的修复后运行版本。
 
-见[当前验证范围及历史首片检查点](../verification/discord-855-mention-reply.md)和 [#876 的成对 UI 证据](../../evidence/issue-855-messaging-refresh/README.md)。[ADR-0128](../../adr/0128-discord-checked-replies-preserve-native-child-channel-routing.md) 记录父会话／原生子频道映射。已验证的产品 Provider 和 Discord 其他能力表行保持不变。
+见[当前验证范围及历史首片检查点](../verification/discord-855-mention-reply.md)和 [#876 的成对 UI 证据](../../evidence/issue-855-messaging-refresh/README.md)。[ADR-0128](../../decisions/im-providers.md#adr-0128) 记录父会话／原生子频道映射。已验证的产品 Provider 和 Discord 其他能力表行保持不变。
 
 早期只读检查使用 [Provider `abaee436`](https://github.com/DoodleBears/dsh-im/tree/abaee436e707c7d9cc7e5cefaa7bd5227321ff55)，其通用 token controller 没有 checked 身份／consumer／回复能力，可能新建独立 thread；该历史输入不是已合并的 checked Provider。当前仅 @ QA 配置使用 `GUILDS`、`GUILD_MESSAGES`，不请求特权 Message Content intent。[Gateway 文档](https://docs.discord.com/developers/events/gateway#message-content-intent) 将提及 App 的消息列为内容限制例外；普通文字与历史读取继续独立验证。[Thread](https://docs.discord.com/developers/topics/threads) 是原生子频道，`parent_id` 不是父消息 ID，发言需要 `SEND_MESSAGES_IN_THREADS`。保留 Snowflake 字符串，核对 guild、父子关系、权限、原消息及回复回执；不能失败后转发父频道或开启 standalone Session。
 
@@ -206,7 +206,7 @@ Bot 显式调用 `bot_send_message`，使用自己的明确授权 grant_id。既
 
 通过公开 Service 契约传递最终应用回调，在原生发送前检查 Provider Registration、账号指纹、启用 Binding／当前 Grant 和取消状态，并与账号切换串行化。只缓存真实扫码者上下文，绑定指纹及原生顺序，不进入公开状态。本地 30 天只限制存储，不承诺服务器有效期；缺失／本地过期在发送前拒绝，原生拒绝明确失败并提示新扫码者消息恢复，网络结果不明保持 unknown，不自动重试。
 
-实际返回的原生 `message_id` 以无损十进制 `serverMessageId` 保存，与标为 `client-acknowledgement` 的生成 ID 分开；二者都不是送达／已读证明。源码和压缩包资格验证须覆盖无新微信触发的唯一报告、Human 独立收件、canonical 后续消息、本地 DM 未变及拒绝／恢复。参见 [ADR-0139](../../adr/0139-wechat-external-reports-use-private-owner-context.md) 和[配图指南](../../wechat-connection.zh.md#12-发送纯外部主动文字报告)。
+实际返回的原生 `message_id` 以无损十进制 `serverMessageId` 保存，与标为 `client-acknowledgement` 的生成 ID 分开；二者都不是送达／已读证明。源码和压缩包资格验证须覆盖无新微信触发的唯一报告、Human 独立收件、canonical 后续消息、本地 DM 未变及拒绝／恢复。参见 [ADR-0139](../../decisions/im-providers.md#adr-0139) 和[配图指南](../../wechat-connection.zh.md#12-发送纯外部主动文字报告)。
 
 ## 微信原生输入状态生命周期候选（#911）
 
@@ -214,8 +214,8 @@ Bot 显式调用 `bot_send_message`，使用自己的明确授权 grant_id。既
 
 实际相关 Orchestrator／Assignment 处理（含已接受 steer）由 Runtime 取得进程内 handle。同一私聊的共享 handle 保持一个原生生命周期，最后一个处理者结束才清理；排队 follow-up 的接受不等于执行。初次发送和每次续期检查自己的当前 Binding／Grant／Registration 与来源 lease；关闭、撤销、替换会使活跃工作失效。授权丢失后仍用原始票据，在独立有界取消期限内清理。五秒续期间隔、十分钟上限限制活跃状态；原生请求失败不阻止消息处理。
 
-只持久化身份偏好；接口接受的活跃状态不是 durable 消息、送达／已读回执或客户端显示证明。请求中、已接受、不可用及清理未确认的诊断应消除私有字段，并区分证据含义。用 Human 操作的微信观察及约定的视觉证据核验真实显示和完成／停止／失败后清理，包括打包产品。Windows 候选 `.911.7` 的验证中，Human 要求以截图代替录像；通过官方限定 Sandbox ACL 修复后，真实原生 Orchestrator 与 Assignment 等待命令均成功。Human 已确认私聊、Assignment 及后续消息处理时显示输入、关闭偏好后不显示、最终回复收到、停止／失败后清理、Binding 关闭、Grant 撤销／恢复、Provider disposal，以及 Host 中断／重启与后续恢复。自动覆盖不能替代原生观察。视觉采集及 Windows 测试限制参见 [ADR-0145](../../adr/0145-wechat-typing-follows-owned-processing-leases.md)、[候选指南](../../wechat-connection.zh.md#13-bot-工作时请求微信原生输入状态)及 [Windows 记录](../../qa/wechat-911-windows-handoff.md)。`.911.8` 的 Windows 原生补验与 Human QA 已在 [#911](https://github.com/BotHarness/BotHarness/issues/911) 完成。全局默认与继承由独立 [#912](https://github.com/BotHarness/BotHarness/issues/912) 跟踪；部署仍单独授权。
+只持久化身份偏好；接口接受的活跃状态不是 durable 消息、送达／已读回执或客户端显示证明。请求中、已接受、不可用及清理未确认的诊断应消除私有字段，并区分证据含义。用 Human 操作的微信观察及约定的视觉证据核验真实显示和完成／停止／失败后清理，包括打包产品。Windows 候选 `.911.7` 的验证中，Human 要求以截图代替录像；通过官方限定 Sandbox ACL 修复后，真实原生 Orchestrator 与 Assignment 等待命令均成功。Human 已确认私聊、Assignment 及后续消息处理时显示输入、关闭偏好后不显示、最终回复收到、停止／失败后清理、Binding 关闭、Grant 撤销／恢复、Provider disposal，以及 Host 中断／重启与后续恢复。自动覆盖不能替代原生观察。视觉采集及 Windows 测试限制参见 [ADR-0145](../../decisions/im-providers.md#adr-0145)、[候选指南](../../wechat-connection.zh.md#13-bot-工作时请求微信原生输入状态)及 [Windows 记录](../../qa/wechat-911-windows-handoff.md)。`.911.8` 的 Windows 原生补验与 Human QA 已在 [#911](https://github.com/BotHarness/BotHarness/issues/911) 完成。全局默认与继承由独立 [#912](https://github.com/BotHarness/BotHarness/issues/912) 跟踪；部署仍单独授权。
 
 ## 微信默认值与继承（#912）
 
-Messaging 拥有微信不可变默认版本与独立的身份／输入状态继承标记。Generation 69 保留原覆盖，新绑定继承。扫码账号私聊编辑器不显示并拒绝未支持的群 @／Thread 策略；频道连接器保留独立路由。恢复收件沿用新消息时间边界，输入状态变化只取消继承的运行中租约。无需升级 Provider 或新增消息权威。参见 [ADR-0119](../../adr/0119-external-platform-defaults-retain-explicit-inheritance.md) 与[候选审阅路径](../../wechat-connection.zh.md#14-继承默认值或保留-bot-自定义)。真实微信新消息验收仍待完成。
+Messaging 拥有微信不可变默认版本与独立的身份／输入状态继承标记。Generation 69 保留原覆盖，新绑定继承。扫码账号私聊编辑器不显示并拒绝未支持的群 @／Thread 策略；频道连接器保留独立路由。恢复收件沿用新消息时间边界，输入状态变化只取消继承的运行中租约。无需升级 Provider 或新增消息权威。参见 [ADR-0119](../../decisions/inbox.md#adr-0119) 与[候选审阅路径](../../wechat-connection.zh.md#14-继承默认值或保留-bot-自定义)。真实微信新消息验收仍待完成。

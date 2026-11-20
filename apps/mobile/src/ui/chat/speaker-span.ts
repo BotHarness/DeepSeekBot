@@ -25,3 +25,22 @@ export function speakerLift({
   'worklet';
   return Math.min(Math.max(0, bubbleBottom - floor), Math.max(0, rest + span));
 }
+
+export function speakerContentTop({
+  top,
+  height,
+  content,
+  offset,
+  inverted,
+}: {
+  top: number;
+  height: number;
+  content: number;
+  offset: number;
+  inverted: boolean;
+}): number {
+  'worklet';
+  return inverted ? top + height - content + offset : top - offset;
+}
+
+export const SPEAKER_VIEWPORT = 'chat-speaker-viewport';

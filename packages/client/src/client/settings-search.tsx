@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SearchField } from './ds/field.js';
 import { en, zh, type BotHarnessKey, type BotHarnessTranslate } from './locale.js';
 import type { BotSettingsSectionRow } from './bot-settings.js';
 import { searchTextMatches, searchTextScore } from './search-match.js';
@@ -13,49 +13,99 @@ const SHORTCUT_INDEX: readonly BotHarnessKey[] = SHORTCUT_HELP_GROUPS.flatMap((g
 export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> = {
   account: [
     'accountProfile.title',
+    'profile.section.chat',
+    'humanAvatar.title',
+    'humanName.title',
+    'accountProfile.tobsTitle',
     'accountProfile.photo',
     'accountProfile.name',
+    'accountProfile.id',
     'accountProfile.email',
+    'market.mine.title',
   ],
-  general: ['onboarding.settings.title'],
+  general: [
+    'general.section.language',
+    'general.section.motion',
+    'general.section.onboarding',
+    'settings.language',
+    'motion.row.title',
+    'zoom.current',
+    'zoom.default',
+    'zoom.setup.enable',
+    'zoom.setup.disable',
+    'onboarding.settings.title',
+  ],
   appearance: [
+    'environment.settings.device',
+    'remoteHosts.this',
     'recovery.title',
+    'recovery.clear',
+    'recovery.reset',
     'settings.theme',
     'settings.theme.system',
     'settings.theme.light',
     'settings.theme.dark',
+    'appearance.style',
+    'appearance.palette',
     'appearance.lightPreset',
     'appearance.lightPrimary',
     'appearance.darkPreset',
     'appearance.darkPrimary',
+    'appearance.primary',
     'wallpaper.title',
+    'wallpaper.interval',
+    'wallpaper.shuffle',
     'appearance.header',
     'appearance.materialColor',
     'appearance.materialOpacity',
     'appearance.materialBlur',
     'appearance.body',
-    'motion.row.title',
+    'appearance.panels',
     'icon.row.title',
-    'settings.language',
     'workspace.appearance',
     'workspace.layoutMode',
     'workspace.gap',
     'dock.reset',
   ],
+  'model-providers': ['modelProviders.apiKey', 'modelProviders.subscriptions'],
   models: [
+    'models.section.default',
+    'models.section.context',
+    'models.section.run',
+    'models.section.mode',
+    'botMode.default.title',
+    'botMode.templates.title',
     'onboarding.defaultTitle',
     'idleCompaction.row.title',
+    'compactionThreshold.row.title',
+    'compactionThreshold.ratio',
+    'compactionThreshold.headroom',
+    'compactionThreshold.reset.title',
     'assignmentLimit.title',
-    'botSessions.row.title',
-    'approvalReviewSessions.row.title',
+    'routingGroups.title',
+    'routingGroups.new',
   ],
   messaging: [
-    'humanName.title',
+    'messaging.section.input',
     'sendKey.row.title',
+    'messaging.section.display',
     'messageFold.row.title',
+    'message.avatar.dm.row.title',
+    'message.avatar.own.row.title',
     'message.delivery.row.title',
+    'message.stream.row.title',
+    'sessions.settings.section',
+    'sessions.settings.level.title',
+    'sessions.settings.collapse.title',
+    'sessions.settings.replies.title',
+    'messaging.section.bots',
     'groupAutoAccept.row.title',
+    'botHopLimit.title',
+  ],
+  'im-apps': [
+    'imApps.allApps',
     'defaults.title',
+    'identity.platform',
     'bridge.condition',
     'im.ordinaryWake',
     'defaults.threshold',
@@ -64,10 +114,26 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'identity.newConversations',
   ],
   notifications: ['desktopNotify.row.title'],
-  shortcuts: ['workspace.shortcutSearch', ...SHORTCUT_INDEX],
-  'im-apps': ['imApps.allApps'],
-  advanced: ['developer.row.title', 'git.settings.title'],
+  shortcuts: ['shortcuts.title', 'workspace.shortcutSearch', ...SHORTCUT_INDEX],
+  prompts: ['prompts.global', 'prompts.new'],
+  voice: [
+    'voice.default.title',
+    'voice.providers.new',
+    'voice.asr.new',
+    'voice.mic.section',
+    'voice.mic.device',
+    'voice.mic.title',
+    'voice.mic.threshold',
+  ],
+  advanced: [
+    'advanced.section.developer',
+    'developer.row.title',
+    'botSessions.row.title',
+    'approvalReviewSessions.row.title',
+    'git.settings.title',
+  ],
   'auto-approval': [
+    'autoApproval.globalDefault',
     'autoApproval.reviewerModel.title',
     'autoApproval.library.title',
     'autoApproval.library.new',
@@ -75,8 +141,64 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'autoApproval.template.getWorkDone',
   ],
   companions: ['companion.speechSound', 'companion.retention'],
-  devices: ['devices.pair.title', 'devices.list.title'],
-  about: ['release.row.title', 'build.row.title'],
+  team: [
+    'team.mode.title',
+    'team.ownerPassword.title',
+    'team.access.title',
+    'team.access.address',
+    'team.insecureHttp.title',
+    'team.members.title',
+    'team.account.title',
+    'team.account.password',
+    'team.account.signOut',
+    'team.devices.mine',
+    'team.roles.title',
+    'team.spaces.title',
+    'team.spaces.yours',
+    'team.spaces.shared',
+    'team.usage.title',
+    'team.usage.period',
+    'team.audit.title',
+    'team.audit.integrity',
+    'team.private.title',
+    'team.private.open',
+  ],
+  devices: [
+    'relationships.title',
+    'relationships.prepareReturn',
+    'devices.pair.title',
+    'devices.list.title',
+    'devices.connect.title',
+    'devices.connect.computers',
+    'devices.connection.title',
+    'devices.connection.pairStep',
+    'devices.botLan.title',
+    'devices.connect.account',
+    'devices.connect.tunnel',
+    'devices.connect.computersStatus',
+    'connect.health.title',
+    'devices.connect.thisComputer',
+    'connections.manage.existing',
+    'connections.manage.switches',
+    'connections.title',
+    'connections.methods',
+    'connections.lan',
+    'privateTunnel.title',
+    'connections.hosts.account',
+    'connections.hosts.other',
+    'connections.hosts.preference',
+    'connections.pending',
+    'devices.lan.title',
+    'devices.tailscale.title',
+    'privateTunnel.ingressLan',
+  ],
+  about: [
+    'about.section.version',
+    'release.row.title',
+    'build.row.title',
+    'about.section.plugins',
+    'plugins.row.title',
+  ],
   'data-privacy': [
     'backup.title',
     'telemetry.row.title',
@@ -85,16 +207,137 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
   ],
 };
 
+export const CLIENT_SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> = {
+  appearance: [
+    'environment.settings.device',
+    'recovery.title',
+    'recovery.clear',
+    'recovery.reset',
+    'settings.theme',
+    'settings.theme.system',
+    'settings.theme.light',
+    'settings.theme.dark',
+    'appearance.style',
+    'appearance.palette',
+    'appearance.lightPreset',
+    'appearance.lightPrimary',
+    'appearance.darkPreset',
+    'appearance.darkPrimary',
+    'appearance.primary',
+    'wallpaper.title',
+    'wallpaper.interval',
+    'wallpaper.shuffle',
+    'appearance.header',
+    'appearance.materialColor',
+    'appearance.materialOpacity',
+    'appearance.materialBlur',
+    'appearance.body',
+    'appearance.panels',
+    'workspace.appearance',
+    'workspace.layoutMode',
+    'workspace.gap',
+    'dock.reset',
+  ],
+  notifications: ['desktopNotify.row.title'],
+  shortcuts: ['shortcuts.title', 'workspace.shortcutSearch', ...SHORTCUT_INDEX],
+  companions: ['companion.speechSound', 'companion.retention'],
+};
+
+export const SETTINGS_INFO: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'idleCompaction.row.title': 'idleCompaction.row.info',
+  'botHopLimit.title': 'botHopLimit.description',
+  'git.settings.title': 'git.settings.description',
+  'compactionThreshold.ratio': 'compactionThreshold.row.description',
+  'assignmentLimit.title': 'assignmentLimit.description',
+  'botSessions.row.title': 'botSessions.row.info',
+  'approvalReviewSessions.row.title': 'approvalReviewSessions.row.info',
+};
+
+export const SETTINGS_DESCRIPTIONS: Partial<Record<BotHarnessKey, BotHarnessKey>> = {
+  'profile.section.chat': 'profile.section.chatHint',
+  'accountProfile.tobsTitle': 'accountProfile.description',
+  'routingGroups.new': 'routingGroups.empty',
+  'relationships.prepareReturn': 'relationships.prepareReturnHint',
+  'market.mine.title': 'market.mine.settingsHint',
+  'connections.methods': 'connections.hosts.local',
+  'devices.lan.title': 'devices.lan.notice',
+  'connections.hosts.preference': 'connections.hosts.preferenceScope',
+  'team.mode.title': 'team.mode.description',
+  'team.spaces.yours': 'team.spaces.yoursHint',
+  'team.private.open': 'team.private.listBody',
+  'team.insecureHttp.title': 'team.insecureHttp.description',
+  'zoom.current': 'zoom.current.description',
+  'zoom.default': 'zoom.default.description',
+  'zoom.setup.enable': 'zoom.setup.enable.description',
+  'zoom.setup.disable': 'zoom.setup.disable.description',
+  'wallpaper.title': 'wallpaper.local',
+  'recovery.title': 'recovery.scope',
+  'recovery.clear': 'recovery.scope',
+  'appearance.header': 'appearance.materialMode',
+  'sessions.settings.level.title': 'sessions.settings.level.description',
+  'appearance.body': 'appearance.materialMode',
+  'autoApproval.library.title': 'autoApproval.library.description',
+  'autoApproval.globalDefault': 'autoApproval.unavailable',
+  'defaults.title': 'defaults.lead',
+  'devices.connect.account': 'devices.connect.description',
+  'appearance.panels': 'appearance.materialMode',
+  'voice.mic.section': 'voice.mic.sectionHint',
+  'devices.botLan.title': 'devices.botLan.scope',
+  'privateTunnel.ingressLan': 'privateTunnel.ingressLanDescription',
+  'onboarding.settings.title': 'onboarding.settings.description',
+  'icon.row.title': 'icon.row.description',
+  'onboarding.defaultTitle': 'onboarding.defaultDescription',
+  'idleCompaction.row.title': 'idleCompaction.row.description',
+  'compactionThreshold.ratio': 'compactionThreshold.ratio.hint',
+  'compactionThreshold.headroom': 'compactionThreshold.headroom.hint',
+  'assignmentLimit.title': 'assignmentLimit.summary',
+  'botSessions.row.title': 'botSessions.row.description',
+  'approvalReviewSessions.row.title': 'approvalReviewSessions.row.description',
+  'autoApproval.reviewerModel.title': 'autoApproval.reviewerModel.description',
+  'botMode.default.title': 'botMode.default.description',
+  'botMode.templates.title': 'botMode.templates.description',
+  'prompts.global': 'prompts.globalHint',
+  'voice.mic.title': 'voice.mic.description',
+  'voice.mic.threshold': 'voice.mic.thresholdHint',
+  'sendKey.row.title': 'sendKey.row.description',
+  'messageFold.row.title': 'messageFold.row.description',
+  'message.avatar.dm.row.title': 'message.avatar.dm.row.description',
+  'message.avatar.own.row.title': 'message.avatar.own.row.description',
+  'message.delivery.row.title': 'message.delivery.row.description',
+  'message.stream.row.title': 'message.stream.row.description',
+  'groupAutoAccept.row.title': 'groupAutoAccept.row.description',
+  'botHopLimit.title': 'botHopLimit.summary',
+  'bridge.condition': 'defaults.collectionHint',
+  'defaults.threshold': 'defaults.thresholdHint',
+  'defaults.identityRow': 'defaults.enableIdentity',
+  'identity.typing.label': 'defaults.enableTyping',
+  'identity.newConversations': 'defaults.newConversationsHint',
+  'imApps.allApps': 'imApps.description',
+  'companion.speechSound': 'companion.speechSoundHint',
+  'companion.retention': 'companion.capacityHint',
+  'devices.pair.title': 'devices.pair.description',
+  'backup.title': 'backup.description',
+  'storage.row.title': 'storage.row.description',
+  'dataReset.row.title': 'dataReset.row.description',
+  'developer.row.title': 'developer.row.description',
+  'git.settings.title': 'git.settings.summary',
+};
+
 const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
+  account: 'botSettings.section.account',
   general: 'botSettings.section.general',
   appearance: 'botSettings.section.appearance',
   notifications: 'botSettings.section.notifications',
   shortcuts: 'shortcuts.title',
+  'model-providers': 'botSettings.section.modelProviders',
   models: 'botSettings.section.models',
   messaging: 'botSettings.section.messaging',
+  prompts: 'botSettings.section.prompts',
+  voice: 'botSettings.section.voice',
   'auto-approval': 'botSettings.section.autoApproval',
   'im-apps': 'botSettings.section.imApps',
   companions: 'botSettings.section.companions',
+  team: 'botSettings.section.team',
   devices: 'botSettings.section.devices',
   'data-privacy': 'botSettings.section.dataPrivacy',
   advanced: 'botSettings.section.advanced',
@@ -102,37 +345,139 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
 };
 
 const SECTION_ALIASES: Readonly<Record<string, string>> = {
+  account: '账号 账户 登录 account login profile',
+  team: '团队 成员 多人 密码 team members people password sign-in',
+  general: '常规 基本 general',
   appearance: '外观 皮肤 主题 theme skin look',
   shortcuts: '快捷键 键位 热键 hotkey keybinding',
   models: '模型 model',
+  prompts: '提示词 预设 prompt preset',
+  voice: '语音 麦克风 voice microphone speech',
   notifications: '提醒 alert',
   'im-apps': '飞书 Lark Feishu Slack Discord',
-  devices: '手机 phone mobile',
+  devices: '设备 手机 配对 devices phone mobile pair',
+  about: '版本 关于 插件 version about plugin plugins',
   'data-privacy': '备份 隐私 存储 空间 清理 backup privacy storage cleanup',
 };
 
-export const PLUGIN_INDEX: Readonly<Record<string, readonly { zh: string; en: string }[]>> = {
+export interface PluginSettingsEntry {
+  readonly zh: string;
+  readonly en: string;
+  readonly description?: { readonly zh: string; readonly en: string };
+}
+
+export const PLUGIN_INDEX: Readonly<Record<string, readonly PluginSettingsEntry[]>> = {
   browser: [
     { zh: '操作目标', en: 'Browser Target' },
     { zh: '本机驱动', en: 'Local driver' },
     { zh: '容器驱动', en: 'Container driver' },
   ],
   computer: [
-    { zh: '操作目标', en: 'Computer Target' },
-    { zh: '自动允许 Computer 操作', en: 'Auto-allow Computer actions' },
+    {
+      zh: '操作目标',
+      en: 'Computer Target',
+      description: {
+        zh: '本 Profile 的所有 Bot 共用一个目标；切换后需要重新授权操作。',
+        en: 'All Bots in this Profile share one target. Switching requires new action authorization.',
+      },
+    },
+    {
+      zh: '自动允许 Computer 操作',
+      en: 'Auto-allow Computer actions',
+      description: {
+        zh: '打开后，PersonaBot 在 Computer 上的操作不再逐会话询问；默认关闭。',
+        en: 'When on, PersonaBot actions on the Computer run without a per-session approval; off by default.',
+      },
+    },
+    { zh: 'Computer 导出目录', en: 'Computer export directory' },
+    {
+      zh: '空闲停止',
+      en: 'Idle stop',
+      description: {
+        zh: '无观看者时 Computer 自动停止的等待时间',
+        en: 'How long the Computer waits without viewers before stopping',
+      },
+    },
+    {
+      zh: '导出',
+      en: 'Export',
+      description: {
+        zh: '把 Computer 的持久存储打包成一个归档',
+        en: "Pack the Computer's persistent store into one archive",
+      },
+    },
+    {
+      zh: '导入',
+      en: 'Import',
+      description: { zh: '从归档恢复 Computer', en: 'Restore the Computer from an archive' },
+    },
   ],
 };
 
 const SEARCH_ALIASES: Partial<Record<BotHarnessKey, string>> = {
-  'sendKey.row.title': 'Enter Shift+Enter Ctrl+Enter 回车 发送',
+  'onboarding.settings.title':
+    '引导 新手引导 新手 教程 重新开始 重看 继续 开始 导览 onboarding tutorial tour walkthrough guide restart replay',
+  'zoom.current': '缩放 放大 缩小 字体 字号 zoom scale font size',
+  'zoom.default': '缩放 放大 缩小 字体 字号 zoom scale font size',
+  'zoom.setup.enable': '缩放 放大 缩小 zoom scale',
+  'zoom.setup.disable': '缩放 卸载 zoom uninstall',
+  'appearance.style': '风格 样式 默认 苹果 谷歌 style default apple material google macos ios',
+  'appearance.palette': '颜色 主题色 color palette',
+  'appearance.panels': '面板 透明 毛玻璃 panel transparency glass',
+  'voice.providers.new': '朗读 语音合成 TTS text-to-speech',
+  'voice.asr.new': '语音识别 转写 听写 ASR STT speech-to-text dictation',
+  'devices.connect.title': '账号 云 远程 登录 account remote cloud',
+  'devices.connect.computers': '电脑 主机 computers hosts',
+  'devices.connection.pairStep': '手机 配对 扫码 phone pair QR',
+  'devices.botLan.title': '局域网 协作 私信 LAN collaborate peer',
+  'privateTunnel.ingressLan': '代理 反向代理 隧道 局域网 proxy tunnel ingress LAN',
+  'accountProfile.name': '名字 昵称 name nickname',
+  'accountProfile.photo': '头像 avatar picture',
+  'market.mine.title': '上传 市场 发布 删除 upload marketplace publish delete',
+  'appearance.primary': '颜色 强调色 color accent',
+  'wallpaper.interval': '壁纸 轮播 wallpaper rotate slideshow',
+  'wallpaper.shuffle': '壁纸 随机 wallpaper random',
+  'sendKey.row.title': 'Enter Shift+Enter Ctrl+Enter 回车 发送 换行 newline',
+  'message.stream.row.title': '流式 打字 stream streaming typing',
+  'message.avatar.dm.row.title': '头像 DM 私聊 avatar direct',
+  'message.avatar.own.row.title': '头像 自己 我的 avatar my own',
+  'message.delivery.row.title': '已读 回执 read receipt receipts',
+  'botHopLimit.title': '跳数 接力 循环 hop loop relay',
   'settings.language': '中文 English language 语言',
   'motion.row.title': 'animation motion 动画 动效',
   'icon.row.title': 'avatar 图标 头像',
-  'idleCompaction.row.title': 'compaction context 上下文',
-  'telemetry.row.title': 'telemetry analytics 遥测',
+  'onboarding.defaultTitle': '模型 默认模型 model default model',
+  'idleCompaction.row.title': 'compaction context 上下文 压缩',
+  'compactionThreshold.ratio': 'compaction context 上下文 压缩 阈值 threshold',
+  'compactionThreshold.row.title': 'compaction context 上下文 压缩 阈值 threshold',
+  'assignmentLimit.title': '并发 任务 concurrency tasks parallel',
+  'autoApproval.reviewerModel.title': '审批 复核 approval reviewer',
+  'botMode.default.title': '模式 预设 Tobs PTC mode preset agent',
+  'botMode.templates.title': '模式 模板 可选模式 mode template allowed modes',
+  'prompts.global': '提示词 系统提示 预设 prompt system prompt preset',
+  'prompts.new': '提示词 预设 prompt preset',
+  'voice.default.title': '语音 识别 转写 朗读 voice speech transcription TTS STT',
+  'voice.mic.device': '麦克风 话筒 microphone mic input',
+  'voice.mic.title': '麦克风 话筒 测试 microphone mic test',
+  'voice.mic.threshold': '麦克风 灵敏度 阈值 microphone sensitivity threshold',
+  'devices.pair.title': '手机 配对 扫码 二维码 phone mobile pair QR',
+  'devices.lan.title': '局域网 内网 LAN WiFi',
+  'devices.tailscale.title': 'Tailscale VPN 远程 remote',
+  'imApps.allApps': '飞书 Lark Feishu Slack Discord 微信 WeChat QQ',
+  'telemetry.row.title': 'telemetry analytics 遥测 统计',
+  'storage.row.title': '存储 空间 清理 磁盘 storage disk cleanup',
+  'backup.title': '备份 恢复 导出 导入 backup restore export import',
   'dataReset.row.title': 'reset uninstall reinstall wipe 重置 卸载 重装 清空',
+  'developer.row.title': '开发者 调试 developer debug',
+  'plugins.row.title': '插件 更新 plugin plugins update',
+  'release.row.title': '版本 更新 升级 version update upgrade',
   'companion.speechSound': 'sound audio 声音',
 };
+
+function describes(text: string, term: string): boolean {
+  const score = searchTextScore(text, term);
+  return score !== undefined && score <= 3;
+}
 
 export interface SettingsSearchResult {
   section: string;
@@ -145,13 +490,12 @@ export function searchSettings(
   rows: readonly BotSettingsSectionRow[],
   query: string,
   t: BotHarnessTranslate,
+  clientOnly = false,
 ): SettingsSearchResult[] {
   const terms = query.trim().split(/\s+/u).filter(Boolean);
   if (!terms.length) return [];
   const matches = (texts: readonly string[]) =>
     terms.every((term) => texts.some((text) => searchTextMatches(text, term)));
-  const touches = (texts: readonly string[]) =>
-    terms.some((term) => texts.some((text) => searchTextMatches(text, term)));
   const rank = (texts: readonly string[]) =>
     Math.min(9, ...texts.map((text) => searchTextScore(text, query) ?? 9));
   const scored = rows.flatMap((row) => {
@@ -172,20 +516,31 @@ export function searchSettings(
             section: row.id,
             title: row.label,
             page: row.label,
-            score: Math.min(rank(names), rank(aliases) + 0.5),
+            score: Math.min(rank(names), rank(aliases) + 0.75),
           },
         ]
       : [];
-    for (const key of SETTINGS_INDEX[row.id] ?? []) {
+    for (const key of (clientOnly ? CLIENT_SETTINGS_INDEX : SETTINGS_INDEX)[row.id] ?? []) {
       if (
-        row.layoutAvailable === false &&
+        (clientOnly ? row.clientLayoutAvailable === false : row.layoutAvailable === false) &&
         ['workspace.appearance', 'workspace.layoutMode', 'workspace.gap', 'dock.reset'].includes(
           key,
         )
       )
         continue;
-      const own = [t(key), en[key], zh[key], ...(SEARCH_ALIASES[key] ?? '').split(' ')];
-      if (!touches(own) || !matches([...page, ...own])) continue;
+      const titles = [t(key), en[key], zh[key]];
+      const synonyms = (SEARCH_ALIASES[key] ?? '').split(' ').filter(Boolean);
+      const descriptionKey = SETTINGS_DESCRIPTIONS[key];
+      const infoKey = SETTINGS_INFO[key];
+      const descriptions = [descriptionKey, infoKey].flatMap((note) =>
+        note === undefined ? [] : [en[note], zh[note]],
+      );
+      const own = (term: string) =>
+        [...titles, ...synonyms].some((text) => searchTextMatches(text, term)) ||
+        descriptions.some((text) => describes(text, term));
+      if (!terms.some(own)) continue;
+      if (!terms.every((term) => own(term) || page.some((text) => searchTextMatches(text, term))))
+        continue;
       const title = t(key);
       if (results.some((result) => result.title === title)) continue;
       const targetKey = key.startsWith('settings.theme.') ? 'settings.theme' : key;
@@ -194,15 +549,31 @@ export function searchSettings(
         title,
         target: t(targetKey),
         page: row.label,
-        score: rank(own),
+        score: Math.min(
+          rank(titles),
+          rank(synonyms) + 0.5,
+          descriptions.some((text) => describes(text, query.trim())) ? 6 : 9,
+        ),
       });
     }
     for (const item of PLUGIN_INDEX[row.id] ?? []) {
       const own = [item.zh, item.en];
-      if (!touches(own) || !matches([...page, ...own])) continue;
+      const notes = item.description ? [item.description.zh, item.description.en] : [];
+      const hit = (term: string) =>
+        own.some((text) => searchTextMatches(text, term)) ||
+        notes.some((text) => describes(text, term));
+      if (!terms.some(hit)) continue;
+      if (!terms.every((term) => hit(term) || page.some((text) => searchTextMatches(text, term))))
+        continue;
       const title = t('settings.nav') === zh['settings.nav'] ? item.zh : item.en;
       if (results.some((result) => result.title === title)) continue;
-      results.push({ section: row.id, title, target: title, page: row.label, score: rank(own) });
+      results.push({
+        section: row.id,
+        title,
+        target: title,
+        page: row.label,
+        score: Math.min(rank(own), notes.some((text) => describes(text, query.trim())) ? 6 : 9),
+      });
     }
     return results;
   });
@@ -221,14 +592,5 @@ export function SettingsSearch({
   onChange(value: string): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  return (
-    <Input
-      className="bh-settings-search-input"
-      type="search"
-      aria-label={t('settings.search')}
-      placeholder={t('settings.search')}
-      value={query}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
+  return <SearchField label={t('settings.search')} value={query} onChange={onChange} />;
 }

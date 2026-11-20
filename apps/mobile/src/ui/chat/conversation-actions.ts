@@ -1,5 +1,6 @@
-import type { HostClient } from '../../host/client';
-import type { Inbox } from '../../host/inbox';
+import { markChannelRead } from '@botharness/host-client/channel-messages';
+import type { HostClient } from '@botharness/host-client/client';
+import type { Inbox } from '@botharness/host-client/inbox';
 import { t } from '../strings';
 import type { Conversation } from './conversations';
 
@@ -43,7 +44,7 @@ export async function runConversationAction(
   if (key === 'read') {
     const messageId = latestMessageId(conversation);
     if (messageId === undefined) return;
-    await client.call('channelMarkRead', { channelId, messageId });
+    await markChannelRead(client, channelId, messageId);
     await inbox?.refresh();
     return;
   }

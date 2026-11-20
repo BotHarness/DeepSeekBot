@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -6,11 +7,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import type { ApprovalReview } from '../src/workspaces/approval-reviewer.js';
-import {
-  AUTO_APPROVAL_CONSECUTIVE_REJECTIONS,
-  AUTO_APPROVAL_SESSION_REJECTIONS,
-  ChannelToolApproval,
-} from '../src/workspaces/tool-approval.js';
+import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import { createTempRoot } from './helpers.js';
 
 const closers: Array<() => Promise<void>> = [];
@@ -18,7 +15,7 @@ afterEach(async () => {
   for (const close of closers.splice(0)) await close();
 });
 
-function fixture() {
+function fixture(fullAccess?: () => boolean) {
   const runs: OrchestratorAgentRun[] = [];
   const agents: BotAgentAdapter = {
     async runOrchestrator(run) {
@@ -43,26 +40,28 @@ function fixture() {
   });
   const verdicts: Array<ApprovalReview['outcome']> = [];
   const review = vi.fn(async (): Promise<ApprovalReview> => {
-    const outcome = verdicts.shift() ?? 'reject';
+    const outcome = verdicts.shift() ?? 'ask-human';
     return { outcome, reason: outcome === 'allow' ? 'Fine.' : 'Not under this template.' };
   });
+  const template = vi.fn(() => ({ name: 'cautious', text: '# Cautious' }));
   broker = new ChannelToolApproval(
     core.channels,
     core.ownership,
-    undefined,
+    core.toolRules,
     () => 'qa-scope',
     undefined,
     undefined,
     undefined,
     {
-      template: () => ({ name: 'cautious', text: '# Cautious' }),
+      template,
       review,
       log: () => undefined,
     },
+    fullAccess,
   );
-  const methods = createBridgeMethods({ ...core, toolApproval: broker });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core, toolApproval: broker });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
+  const channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
   const sessionId = 'qa-ada';
   core.ownership.claim({
     sessionId,
@@ -93,6 +92,7 @@ function fixture() {
     broker,
     methods,
     review,
+    template,
     verdicts,
     channelId,
     sessionId,
@@ -103,127 +103,104 @@ function fixture() {
   };
 }
 
-describe('allow this once anyway from the Human Inbox', () => {
-  it('lets the identical retry run without review while other calls stay reviewed', async () => {
-    const f = fixture();
-    expect(
-      await f.callWith({ command: 'git push', sandbox_permissions: 'danger-full-access' }),
-    ).toBe('rejected');
-    const page = f.methods.humanAttention({ category: 'action', kind: 'auto-rejection' });
-    if (!page.ok) throw new Error('inbox failed');
-    expect(page.value.items).toHaveLength(1);
-    const item = page.value.items[0]!;
-    expect(item).toMatchObject({
-      kind: 'auto-rejection',
-      botSlug: 'ada',
-      channelId: f.channelId,
-      autoRejection: {
-        sessionId: f.sessionId,
-        toolName: 'bash',
-        template: 'cautious',
-        reason: 'Not under this template.',
-      },
-    });
-    expect(item.autoRejection?.input).toContain('git push');
-    expect(f.methods.humanAttentionStatus({})).toMatchObject({
-      ok: true,
-      value: { hasAction: true },
-    });
-
-    const override = await f.methods.toolAutoRejectionOverride({ itemId: item.id });
-    expect(override.ok).toBe(true);
-    const overrideMessage = f.messages().find((message) => message.toolAutoApprovalOverride);
-    expect(overrideMessage).toMatchObject({
-      author: { kind: 'human' },
-      replyTo: item.messageId,
-      toolAutoApprovalOverride: { botSlug: 'ada', sessionId: f.sessionId, toolName: 'bash' },
-    });
-    await f.core.runtime.whenIdle();
-    expect(f.runs.at(-1)?.message).toContain('Human allowed an auto-rejected call once');
-    expect(f.runs.at(-1)?.message).toContain('"command": "git push"');
-    const after = f.methods.humanAttention({ category: 'action', kind: 'auto-rejection' });
-    expect(after.ok && after.value.items).toEqual([]);
-    expect((await f.methods.toolAutoRejectionOverride({ itemId: item.id })).ok).toBe(false);
-
-    const reviewed = f.review.mock.calls.length;
-    expect(await f.call('git push')).toBe('rejected');
-    expect(f.review.mock.calls.length).toBe(reviewed + 1);
-    const retry = { sandbox_permissions: 'danger-full-access', command: 'git push' };
-    expect(await f.callWith(retry)).toBe('allowed-once');
-    expect(f.review.mock.calls.length).toBe(reviewed + 1);
-    expect(await f.callWith(retry)).toBe('rejected');
-    expect(f.review.mock.calls.length).toBe(reviewed + 2);
+describe('two-outcome Reviewer Human control', () => {
+  it('keeps a native global-policy edit behind Human approval despite Full Access and a broad tool rule', async () => {
+    let fullAccess = false;
+    const f = fixture(() => fullAccess);
+    const ordinary = f.call('ordinary operation');
+    await vi.waitFor(() =>
+      expect(f.messages().filter((message) => message.toolApprovalRequest)).toHaveLength(1),
+    );
+    const first = f.messages().find((message) => message.toolApprovalRequest)!;
+    expect(await f.broker.decide(OWNER_HUMAN_CONTEXT, 'ada', first.id, 'allowed-always-tool')).toBe(
+      true,
+    );
+    expect(await ordinary).toBe('allowed-once');
+    f.review.mockClear();
+    f.verdicts.push('allow');
+    fullAccess = true;
+    const policy = f.call(
+      String.raw`Set-Content -LiteralPath 'C:\dsh\botharness\approval-templates\.selection.json' -Value '{"template":"get-work-done"}'`,
+    );
+    await vi.waitFor(() =>
+      expect(f.messages().filter((message) => message.toolApprovalRequest)).toHaveLength(2),
+    );
+    expect(f.review).not.toHaveBeenCalled();
+    const card = f
+      .messages()
+      .find((message) => message.toolApprovalRequest?.input.includes('.selection.json'))!;
+    expect(await f.broker.decide(OWNER_HUMAN_CONTEXT, 'ada', card.id, 'rejected')).toBe(true);
+    expect(await policy).toBe('rejected');
   });
-});
 
-describe('auto approval circuit breaker', () => {
-  it('pauses after three rejections in a row and resumes on the next Human approval', async () => {
+  it('uses a Human-saved deterministic tool rule before template lookup or Reviewer calls', async () => {
     const f = fixture();
-    for (let index = 0; index < AUTO_APPROVAL_CONSECUTIVE_REJECTIONS; index += 1)
-      expect(await f.call('rm -rf build-' + String(index))).toBe('rejected');
-    expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(true);
-    const paused = f.messages().filter((message) => message.toolAutoApprovalPause);
-    expect(paused).toHaveLength(1);
-    expect(paused[0]).toMatchObject({
-      author: { kind: 'system' },
-      toolAutoApprovalPause: { state: 'paused', reason: 'consecutive', template: 'cautious' },
+    expect(f.methods.approvalTemplates({ slug: 'ada' })).toMatchObject({
+      value: { selected: '@global', source: 'global', effective: null },
     });
-
-    const reviewed = f.review.mock.calls.length;
-    const answer = f.call('pnpm test');
+    const first = f.call('first operation');
     await vi.waitFor(() =>
       expect(f.messages().some((message) => message.toolApprovalRequest)).toBe(true),
     );
-    expect(f.review.mock.calls.length).toBe(reviewed);
     const card = f.messages().find((message) => message.toolApprovalRequest)!;
-    const decided = await f.methods.toolApprovalDecide({
-      channelId: f.channelId,
-      messageId: card.id,
-      outcome: 'allowed-once',
+    expect(await f.broker.decide(OWNER_HUMAN_CONTEXT, 'ada', card.id, 'allowed-always-tool')).toBe(
+      true,
+    );
+    expect(await first).toBe('allowed-once');
+    f.review.mockClear();
+    f.template.mockClear();
+    expect(await f.call('different input')).toBe('allowed-once');
+    expect(f.review).not.toHaveBeenCalled();
+    expect(f.messages().filter((message) => message.toolApprovalRequest)).toHaveLength(1);
+    expect(f.template).not.toHaveBeenCalled();
+    const listed = f.methods.toolApprovalRules({ slug: 'ada' });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) throw new Error('Expected canonical rules');
+    const rule = listed.value.rules[0]!;
+    expect(rule).toMatchObject({
+      botSlug: 'ada',
+      role: 'orchestrator',
+      scopeKey: 'qa-scope',
+      kind: 'tool',
     });
-    expect(decided.ok).toBe(true);
-    expect(await answer).toBe('allowed-once');
-    expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(false);
-    expect(
-      f
-        .messages()
-        .filter((message) => message.toolAutoApprovalPause)
-        .map((message) => message.toolAutoApprovalPause?.state),
-    ).toEqual(['resumed', 'paused']);
-
+    expect(f.methods.toolApprovalRuleRevoke({ slug: 'ada', id: rule.id }).ok).toBe(true);
     f.verdicts.push('allow');
-    expect(await f.call('pnpm lint')).toBe('allowed-once');
-    expect(f.review.mock.calls.length).toBe(reviewed + 1);
+    expect(await f.call('different input')).toBe('allowed-once');
+    expect(f.review).toHaveBeenCalledTimes(1);
+    expect(f.core.toolRules.list('ada')).toHaveLength(1);
+    expect(f.core.toolRules.list('ada')[0]?.revokedAt).toBeDefined();
   });
-
-  it('pauses after twenty rejections in one Session even when allows come between', async () => {
+  it('keeps reviewing later calls after repeated Human rejections without pausing', async () => {
     const f = fixture();
-    for (let rejections = 1; rejections <= AUTO_APPROVAL_SESSION_REJECTIONS; rejections += 1) {
+    for (let index = 0; index < 4; index++) {
+      const answer = f.call('uncovered-' + index);
+      await vi.waitFor(() =>
+        expect(f.messages().filter((message) => message.toolApprovalRequest)).toHaveLength(
+          index + 1,
+        ),
+      );
+      const card = f
+        .messages()
+        .find((message) => message.toolApprovalRequest?.input.includes('uncovered-' + index))!;
+      expect(
+        (
+          await f.methods.toolApprovalDecide({
+            channelId: f.channelId,
+            messageId: card.id,
+            outcome: 'rejected',
+          })
+        ).ok,
+      ).toBe(true);
+      expect(await answer).toBe('rejected');
       expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(false);
-      expect(await f.call('reject-' + String(rejections))).toBe('rejected');
-      if (rejections % 2 === 0 && rejections < AUTO_APPROVAL_SESSION_REJECTIONS) {
-        f.verdicts.push('allow');
-        expect(await f.call('allow-' + String(rejections))).toBe('allowed-once');
-      }
     }
-    expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(true);
+    expect(f.review).toHaveBeenCalledTimes(4);
+    expect(f.messages().some((message) => message.toolAutoApprovalPause)).toBe(false);
     expect(
-      f.messages().find((message) => message.toolAutoApprovalPause)?.toolAutoApprovalPause,
-    ).toMatchObject({ state: 'paused', reason: 'session' });
-  });
-
-  it('resumes when the Human allows an auto-rejected call from the Inbox', async () => {
-    const f = fixture();
-    for (let index = 0; index < AUTO_APPROVAL_CONSECUTIVE_REJECTIONS; index += 1)
-      await f.call('x-' + String(index));
-    expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(true);
-    const page = f.methods.humanAttention({ category: 'action', kind: 'auto-rejection' });
-    if (!page.ok) throw new Error('inbox failed');
-    expect(page.value.items).toHaveLength(AUTO_APPROVAL_CONSECUTIVE_REJECTIONS);
-    const override = await f.methods.toolAutoRejectionOverride({
-      itemId: page.value.items[0]!.id,
-    });
-    expect(override.ok).toBe(true);
-    expect(f.broker.autoApprovalPaused(f.sessionId)).toBe(false);
+      f.messages().filter((message) => message.toolAutoApproval?.outcome === 'ask-human'),
+    ).toHaveLength(4);
+    f.verdicts.push('allow');
+    expect(await f.call('covered')).toBe('allowed-once');
+    expect(f.review).toHaveBeenCalledTimes(5);
   });
 });

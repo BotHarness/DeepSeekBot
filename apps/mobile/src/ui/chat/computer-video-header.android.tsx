@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import type { LocalVideoClientState } from '../../../../../packages/computer/src/local-video-client';
 import { useHostLook } from '../../host/native-host-look';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { SystemSymbol } from '../primitives/system-symbol';

@@ -3,6 +3,7 @@ import { PersonaBotAvatar } from './avatar.js';
 import { HashIcon } from './hash-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary } from './store.js';
+import { useHostImage } from './host-image.js';
 
 const MAX_STACKED_FACES = 4;
 const FACE_SCALE = [0.64, 0.6, 0.43] as const;
@@ -44,12 +45,13 @@ export function GroupChannelIcon({
   t: BotHarnessTranslate;
   preview?: boolean;
 }): ReactElement {
+  const avatar = useHostImage(channel.avatar);
   const faces = channel.avatar ? [] : groupAvatarStackBots(channel.members, bots);
   const tile = channel.avatar !== undefined || faces.length > 0;
   return (
     <span className={tile ? `${className} ${groupClassName}` : className} aria-hidden="true">
-      {channel.avatar ? (
-        <img className="bh-group-avatar-image" src={channel.avatar} alt="" />
+      {avatar ? (
+        <img className="bh-group-avatar-image" src={avatar} alt="" />
       ) : faces.length === 0 ? (
         <HashIcon size={hashSize} />
       ) : (

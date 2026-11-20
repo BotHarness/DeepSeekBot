@@ -4,35 +4,42 @@ export type BubbleGroup = { first: boolean; last: boolean; avatar?: boolean; com
 
 export const AVATAR_CORNER = radius.sm;
 
+export const SPEAKER_AVATAR = 32;
+
 export const BUBBLE_MAX = '88%';
 
 const PAD_V = space.x3 + space.x1;
+
+export const BUBBLE_PADDING = { horizontal: space.x5, vertical: PAD_V } as const;
 
 export const BADGE_HEIGHT = space.x6 + space.x2;
 
 export const BADGE_OVERLAP = BADGE_HEIGHT / 2 + space.x2;
 
-export function bubbleCorners(
-  human: boolean,
-  { first, last, avatar = false, compact = false }: BubbleGroup,
-) {
-  const open = compact ? radius.round : radius.lg;
+export function bubbleCorners(human: boolean, { first, last, compact = false }: BubbleGroup) {
+  const pill = compact && first && last;
+  const open = pill ? radius.round : radius.lg;
+  const tail = pill ? radius.round : AVATAR_CORNER;
   return {
     borderRadius: open,
     ...(human
       ? {
           borderTopRightRadius: first ? open : radius.sm,
-          borderBottomRightRadius: last ? open : radius.sm,
+          borderBottomRightRadius: last ? tail : radius.sm,
         }
       : {
           borderTopLeftRadius: first ? open : radius.sm,
-          borderBottomLeftRadius: last ? (avatar ? AVATAR_CORNER : open) : radius.sm,
+          borderBottomLeftRadius: last ? tail : radius.sm,
         }),
   } as const;
 }
 
+export function oneLine(height: number, line: number, fontScale: number) {
+  return height <= line * fontScale * 1.5;
+}
+
 export function singleLine(height: number, line: number, fontScale: number) {
-  return height <= 2 * PAD_V + line * fontScale * 1.5;
+  return oneLine(height - 2 * PAD_V, line, fontScale);
 }
 
 export function bubbleShape(human: boolean, group: BubbleGroup) {
@@ -40,8 +47,8 @@ export function bubbleShape(human: boolean, group: BubbleGroup) {
     maxWidth: BUBBLE_MAX,
     alignSelf: human ? 'flex-end' : 'flex-start',
     ...bubbleCorners(human, group),
-    paddingHorizontal: space.x5,
-    paddingVertical: PAD_V,
+    paddingHorizontal: BUBBLE_PADDING.horizontal,
+    paddingVertical: BUBBLE_PADDING.vertical,
   } as const;
 }
 

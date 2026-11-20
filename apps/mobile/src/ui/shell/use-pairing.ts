@@ -1,19 +1,24 @@
+import {
+  connectionDiagnostic,
+  type ConnectionDiagnostic,
+} from '@botharness/host-client/connection-diagnostic';
 import Constants from 'expo-constants';
 import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
-import type { AccountOwner } from '../../host/account-owner';
+import type { AccountOwner } from '@botharness/host-client/account-owner';
+import { accountHostLookId } from '../../host/account-host-look';
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { connectAccount } from '../../host/native-connect-account';
 import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { pairHost, type PairingFailure } from '../../host/pairing';
+import { pairHost, pairingDeviceKey, type PairingFailure } from '@botharness/host-client/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
-import type { PairingMethod } from '../../telemetry/schema';
-import { hostLookName } from '../design/host-look';
+import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
+import { hostLookName } from '@botharness/host-client/ui/design/host-look';
 import { clearsPastedLink } from '../pairing-failure';
 import { openPairedHostSetup } from './workspace-navigation';
 
@@ -36,16 +41,21 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>();
+  const [paired, setPaired] = useState(false);
   const [computerName, setComputerName] = useState('');
   const [verification, setVerification] = useState<{
     fingerprint: string;
     confirm(matches: boolean): void;
   }>();
   const [error, setError] = useState<PairingFailure | undefined>();
+  const [errorDetail, setErrorDetail] = useState<string | undefined>();
+  const lastDetail = useRef<string | undefined>(undefined);
+  const lastFailure = useRef<ConnectionDiagnostic | undefined>(undefined);
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
   const handled = useRef<string | undefined>(undefined);
   const accountHostId = useRef<string | undefined>(undefined);
+  const deviceKeys = useRef(new Map<string, string>());
 
   const pair = async (
     text: string,
@@ -62,10 +72,24 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     pending.current = operation;
     Keyboard.dismiss();
     setComputerName('');
+    setPaired(false);
     setBusy(true);
     setError(undefined);
-    let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
+    setErrorDetail(undefined);
+    lastDetail.current = undefined;
+    lastFailure.current = undefined;
+    let accountPair:
+      | {
+          accountOwner: AccountOwner;
+          sessionKey: string;
+          routes: string[];
+          connectHost: string;
+        }
+      | undefined;
     const startingHosts = hostSession.getState().hosts;
+    const carrier = nativeCarrier();
+    const deviceKey = deviceKeys.current.get(text) ?? pairingDeviceKey(carrier);
+    deviceKeys.current.set(text, deviceKey);
     const result = await pairHost({
       existing: (id) => startingHosts.find((host) => host.hostId === id),
       text:
@@ -74,12 +98,13 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           : async () => {
               const offer = await connectAccount.offer(hostId, deviceName());
               if (!offer.ok) return offer;
-              accountPair = offer.value;
+              accountPair = { ...offer.value, connectHost: hostId };
               return { ok: true, payload: offer.value };
             },
       method,
       deviceName: deviceName(),
-      carrier: nativeCarrier(),
+      carrier,
+      deviceKey,
       confirmFingerprint: (fingerprint, hostName) =>
         new Promise<boolean>((resolve) => {
           if (operation.signal.aborted) {
@@ -108,7 +133,12 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         }
         const existing = hostSession.getState().hosts.find((saved) => saved.hostId === host.hostId);
         if (existing?.credential === host.credential) {
-          await hostSession.updateRoutes(host.hostId, host.credential, host.routes);
+          await hostSession.updateRoutes(
+            host.hostId,
+            host.credential,
+            host.routes,
+            host.encryption?.privateRelay,
+          );
           return;
         }
         if (
@@ -121,9 +151,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         )
           throw new Error('already-paired');
         if (accountPair) {
-          const { accountOwner, sessionKey } = accountPair;
+          const { accountOwner, sessionKey, connectHost } = accountPair;
           await connectAccount.savePairing(sessionKey, () =>
-            hostSession.pair({ ...host, accountOwner }),
+            hostSession.pair({ ...host, accountOwner, connectHost }),
           );
         } else await hostSession.pair(host);
         const name = hostLookName(connectionName);
@@ -131,6 +161,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           host.hostId,
           hostSession.getState().hosts.map((saved) => saved.hostId),
           name,
+          accountPair === undefined ? undefined : accountHostLookId(accountPair.connectHost),
         );
         if (!original) setupHost.current = host.hostId;
       },
@@ -138,25 +169,52 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       signal: operation.signal,
     });
     pending.current = undefined;
-    setBusy(false);
-    setFingerprint(undefined);
+    if (!result.ok || operation.signal.aborted || options.stayOnPage) {
+      setBusy(false);
+      setFingerprint(undefined);
+    }
     if (operation.signal.aborted) return 'cancelled';
+    if (result.ok) deviceKeys.current.delete(text);
     if (!result.ok) {
       if (clearsPastedLink(result.code, method)) handled.current = undefined;
       setError(result.code);
+      setErrorDetail(result.detail);
+      lastDetail.current = result.detail;
+      lastFailure.current =
+        result.diagnostic ??
+        connectionDiagnostic({
+          code: result.code,
+          detail: result.detail,
+          phase: 'pairing',
+        });
       return result.code;
     }
-    if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
+    if (!options.stayOnPage) {
+      setPaired(true);
+      leave();
+    }
     return undefined;
+  };
+  const leave = () => {
+    let opened = false;
+    try {
+      opened = finishSetup();
+    } catch {}
+    if (!opened) router.dismissTo('/');
   };
 
   return {
     finishSetup,
     busy,
+    paired,
+    leave,
     fingerprint,
     verification,
     computerName,
     error,
+    errorDetail,
+    lastFailureDetail: () => lastDetail.current,
+    lastFailure: () => lastFailure.current,
     method: lastMethod.current,
     connectionName,
     setConnectionName,

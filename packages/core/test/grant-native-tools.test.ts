@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { skillInvocationPrompt } from '../src/runtime/bot-runtime.js';
 import { nativeFileToolDenial, nativeExecutionRoot } from '../src/workspaces/grant-native-tools.js';
 
 const roots: string[] = [];
@@ -57,6 +58,8 @@ function fixture(linkedParent = false) {
   const core = {
     ownership: {
       resolve: (sessionId: string) => {
+        if (sessionId === 'bob-orch')
+          return { sessionId, botSlug: 'bob', rootRole: 'orchestrator' };
         if (sessionId === 'orch') return { sessionId, botSlug: 'ada', rootRole: 'orchestrator' };
         if (sessionId === 'old' || sessionId === 'new') {
           return { sessionId, botSlug: 'ada', rootRole: 'assignment' };
@@ -66,10 +69,13 @@ function fixture(linkedParent = false) {
     },
     registry: { memoryDirFor: () => memory, get: () => ({ slug: 'ada' }) },
     grants: {
-      list: () => [
-        { ...oldGrant, ...(oldActive ? {} : { revokedAt: '2026-01-03T00:00:00Z' }) },
-        ...(newActive ? [newGrant] : []),
-      ],
+      list: (botSlug: string) =>
+        botSlug === 'bob'
+          ? []
+          : [
+              { ...oldGrant, ...(oldActive ? {} : { revokedAt: '2026-01-03T00:00:00Z' }) },
+              ...(newActive ? [newGrant] : []),
+            ],
       requireActive,
     },
     runtime: {
@@ -96,6 +102,7 @@ function fixture(linkedParent = false) {
     project,
     outside,
     orchestrator,
+    nonGrantedOrchestrator: { id: 'bob-orch', header: { cwd: memory } } as never,
     oldAssignment,
     newAssignment,
     gate,
@@ -109,6 +116,25 @@ function fixture(linkedParent = false) {
 }
 
 describe('Grant policy for native DSH file tools', () => {
+  it('delivers Workspace Skill snapshot text without granting the recipient access to its path', () => {
+    const f = fixture();
+    const path = join(f.project, '.agents/skills/review/SKILL.md');
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, 'Project review instructions');
+    const snapshot = {
+      name: 'review',
+      owner: { kind: 'workspace', workspaceId: 'project', name: 'Project' } as const,
+      path,
+      content: readFileSync(path, 'utf8'),
+      start: 0,
+      end: 7,
+    };
+    expect(skillInvocationPrompt([snapshot])).toContain(snapshot.content);
+    expect(skillInvocationPrompt([snapshot])).toContain(`owner="workspace:project" path="${path}"`);
+    expect(f.gate(f.orchestrator, 'read', { file_path: path })).toBeUndefined();
+    expect(f.gate(f.nonGrantedOrchestrator, 'read', { file_path: path })).toMatch(/outside/);
+  });
+
   it('lets Orchestrator read Memory and active Grants but write only Memory', () => {
     const f = fixture();
     expect(f.gate(f.orchestrator, 'read', { file_path: 'memory.txt' })).toBeUndefined();
@@ -122,7 +148,7 @@ describe('Grant policy for native DSH file tools', () => {
       f.gate(f.orchestrator, 'write', { file_path: 'new.txt', content: 'remembered' }),
     ).toBeUndefined();
     expect(f.gate(f.orchestrator, 'edit', { file_path: join(f.project, 'project.txt') })).toMatch(
-      /outside/,
+      /read-only.*request_workspace_grant/,
     );
     expect(readFileSync(join(f.project, 'project.txt'), 'utf8')).toBe('project');
   });
@@ -138,7 +164,7 @@ describe('Grant policy for native DSH file tools', () => {
     ).toBeUndefined();
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
-    ).toMatch(/outside/);
+    ).toMatch(/read-only.*report.*Orchestrator can ask the Human/);
     f.allowWrite(true);
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
@@ -171,13 +197,45 @@ describe('Grant policy for native DSH file tools', () => {
   });
 });
 
+describe('Native write into missing parent directories (#3289)', () => {
+  it('authorizes nested writes inside the workspace and keeps escapes refused', () => {
+    const f = fixture();
+    for (const path of ['probe/missing/child/file.md', '探针/不存在的子目录/深层探针.md']) {
+      expect(f.gate(f.orchestrator, 'write', { file_path: path, content: 'x' })).toBeUndefined();
+      expect(f.gate(f.orchestrator, 'edit', { file_path: path })).toBeUndefined();
+      expect(nativeExecutionRoot(f.core, f.orchestrator, 'write', { file_path: path })).toBe(
+        f.memory,
+      );
+    }
+    expect(
+      f.gate(f.orchestrator, 'write', { file_path: join(f.memory, 'a', 'b', 'c.md') }),
+    ).toBeUndefined();
+    f.allowWrite(true);
+    expect(
+      f.gate(f.oldAssignment, 'write', { file_path: 'docs/new/notes.md', content: 'x' }),
+    ).toBeUndefined();
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'escape/missing/new.txt' })).toMatch(
+      /outside/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: '../outside/missing/new.txt' })).toMatch(
+      /outside/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'dangling/child/new.txt' })).toMatch(
+      /outside|resolved|directory/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'project.txt/child.txt' })).toMatch(
+      /resolved|directory/,
+    );
+  });
+});
+
 describe('Orchestrator execution root selection', () => {
   it('uses exactly one current writable root, preserving relative Memory paths and revocation', () => {
     const f = fixture();
     expect(nativeExecutionRoot(f.core, f.orchestrator, 'bash', { command: 'pwd' })).toBe(f.memory);
     expect(() =>
       nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+    ).toThrow(/read-only/);
     f.allowWrite(true);
     expect(
       f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') }),
@@ -207,11 +265,11 @@ describe('Orchestrator execution root selection', () => {
     ).toThrow(/outside/);
     f.allowWrite(false);
     expect(f.gate(f.orchestrator, 'write', { file_path: join(f.project, 'new.txt') })).toMatch(
-      /outside/,
+      /read-only/,
     );
     expect(() =>
       nativeExecutionRoot(f.core, f.orchestrator, 'bash', { workdir: f.project }),
-    ).toThrow(/outside/);
+    ).toThrow(/read-only/);
   });
 });
 

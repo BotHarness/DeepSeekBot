@@ -73,7 +73,7 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 `ChannelMessage.format?: 'markdown' | 'text'` 是可选的内容表示提示；旧记录无需迁移。Client 默认把 Human 消息按原样文本和换行呈现，把 Bot / bridged 消息交给 DSH 公开的 `MarkdownText`；显式 `format` 可覆盖默认值。原生渲染器不允许危险协议、相对链接或原始 HTML 生效，也不传入本地文件扩展词汇。
 
 #143 起，Client 读取历史首选 `channelTimeline`，旧 `channelMessages` 只保留兼容。当前 Host 从 SQLite Channel placement 读取并切片；Client 不解释游标，也不将整段历史无限累计到内存。游标与消息 revision 各司其职：前者定位历史页，后者是 SSE 重连水位。详见 ADR-0061。
-#145 的 `replyTo` 是可选的同 Channel 已提交消息 ID；Human 的 `channelSend` 与 Bot 的 `bot_send_message.source_event_id` 解析出的同会话回复引用 共用 ChannelStore 校验，目标不存在或属于其他 Channel 时返回稳定的 `invalid-input`，不写消息。持久化只保存 `replyTo`；时间线/历史读取用同次扫描的消息索引投影 `replyToPreview: { author, body } | null`，正文摘要最多 140 个 Unicode code points，不逐条额外查询。目标后来不可见时显示不可点击的「原消息不可用」。Client 的回复模式可取消或按 Esc 退出，成功发送后清除；点击引用通过既有 `around` 窗口定位并高亮目标。
+#145 的 `replyTo` 是可选的同 Channel 已提交消息 ID；Human 的 `channelSend` 与 Bot 的 `bot_send_message.source_event_id` 解析出的同会话回复引用 共用 ChannelStore 校验，目标不存在或属于其他 Channel 时返回稳定的 `invalid-input`，不写消息。持久化只保存 `replyTo`；时间线/历史读取用同次扫描的消息索引投影 `replyToPreview: { author, body, media? } | null`，正文摘要最多 140 个 Unicode code points，不逐条额外查询。可选的 `media` 说明被引用消息带的媒体（#3858）：`{ kind: 'voice', durationMs? }`（就绪的语音或桥接语音）、`{ kind: 'image', count, thumbnail? }`（`thumbnail` 是第一张可预览图片的附件引用，按被引用消息 `replyTo` 的附件读取；桥接图片没有）、`{ kind: 'file', name, count }`；纯文本消息没有 `media`。旧 Client 忽略它、继续显示正文；Client 遇到不认识的 `media` 时丢弃它而不是丢弃消息。目标后来不可见时显示不可点击的「原消息不可用」。Client 的回复模式可取消或按 Esc 退出，成功发送后清除；点击引用通过既有 `around` 窗口定位并高亮目标。
 
 `SessionSummary` 含 `id / title / cwd / updatedAt`；标题取会话日志里第一条 `user/message` 的文本（无则空串，客户端回退展示），`updatedAt` 取最后一条事件时间（无事件回退 `createdAt`）。`sessions` 只读 DSH Host 当前在册的会话（`ctx.sessions.list()`），按 cwd 是否位于 BOT 的任一 workspace 内过滤。这是已实现 M3 bridge 的临时兼容启发式，只用于描述当前 wire 行为；新领域逻辑不得把 cwd 当 ownership。#80 会以 durable explicit Session ownership 和 Orchestrator / Assignment role projection 替换它（ADR-0035/0045）。
 
@@ -104,6 +104,18 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 
 ## 6. 客户端包与 bundle 约束
 
+GenUI 独立预览使用 Host 的系统浏览器，与 Web 驱动的 Puppeteer 浏览器分开。
+core Plugin 的可选 `genuiPreviewBrowserPath` 可指定绝对可执行文件；空值保留系统发现，
+显式无效路径直接拒绝，不回退。隔离开发启动器的 `--genui-preview-browser` 参数通过
+本次 Profile 的 Patch 传入同一配置，不改系统 PATH。启动失败的有界脱敏 Browser
+诊断进入已有 `genui-preview` 开发者日志。verify 工作流的可选
+`genui_browser_diagnostic` 输入仅用于同 runner 双浏览器对照，两臂均需通过原预算；
+普通 PR 不增加第二臂。该诊断能力不代表已修复 #4030 的原始启动原因。
+
+普通 CI 明确选择锁文件所安装的 Puppeteer 浏览器作为预览可执行文件，避免随 runner
+镜像独立更新的系统 Chrome 改变测量环境。工作流只为这个具体路径加载临时 AppArmor
+用户命名空间规则，停止自有 Host 后卸载；不关闭 Chrome 隔离，不改变原有启动与性能预算。
+
 - **独立包** `@botharness/ui`（DSH 默认是「同一包两半侧」，本仓库按 ADR-0023 显式偏离）：package.json 声明 `dsh.client = { platform: 'web', inject: [] }` 与 `exports['./client']`，并作为独立 Loader entry 挂载。
 - **产物格式**：lazy-CJS closure factory，入口 `lib/client.js`，自注册 `window.__ModuleLoader__.load({ id: '@botharness/ui', factory: (require) => { … } })`，带 sourcemap。
 - **外置基线**：只外置 shell 注入的模块表（`react`、`react/jsx-runtime`、`react-dom`、`react-dom/client`、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-client-store`、`@deepseek-ai/dsh-client-ui-slots`、`@deepseek-ai/dsh-client-ui-primitives`、`@deepseek-ai/dsh-client-ui-dockkit`），以及在 `dsh.client.external` 中声明的 `@deepseek-ai/dsh-api-gateway/client`（官方流辅助类，ADR-0181）；其余依赖（含 blobatar）全部内联。
@@ -113,6 +125,12 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 ## 7. 本地开发环路
 
 日常 UI 迭代可使用隔离 Web Profile，或在原生 Windows checkout 的官方 Desktop 上使用本地链接 Client；官方 Desktop 的安装、文件夹选择和重启行为仍需原生验收。每个工作树使用独立的 DSH_HOME 与端口，启动器使用工作树已安装的 CLI，或通过 `--dsh-version` 选择独立运行时；不要求它与 SDK 固定版本一致。
+
+启动器为新建的独立 CLI runtime 和 Profile 安装依赖时，逐次传入 pnpm 的 `--package-import-method=copy`，成功后记录本地 copy-import 标记；不会修改全局配置。已有未标记依赖只在请求的 runtime 版本和 Profile manifest 均未变化时原样复用，跳过安装，仍执行原有 CLI、模型和 Bundle 校验。复用还核对 pnpm 已安装 lockfile importer 中的依赖 specifier；该记录缺失或与请求不一致时安全拒绝，不修改 Home。同一工作树重新构建链接 Bundle 后仍可正常重启；切换到另一工作树、改变 Bundle 依赖或升级旧 runtime 时，会以 `isolated-imports-required` 拒绝准备，要求新建 `--home`，保留旧数据和依赖。此选项不会把现有 hardlink 自动变成副本，故不会原地迁移或清除旧依赖；备份和后续迁移按原有 Profile 流程单独处理。
+
+若机器重启或安装中断留下 `installing` 标记，默认启动仍拒绝隐式修复。确认该 Home 没有其他进程使用后，沿用原命令的 `--home`、`--worktree`、`--port`，显式加上 `--recover-copy-install`。启动器仍先取得 Home 生命周期锁并检查现有进程，只恢复已识别的 copy 安装；它验证绝对路径及非符号链接目录，将旧 `node_modules` 与准备记录保留在同一安装目录下的 `.botharness-copy-recovery-*` 中，再创建独立副本。数据库、凭据和 Profile 数据不搬移。失败时保留未完成状态；成功摘要列出保留路径。不要手工把标记改成 `complete`，也不要未经共享文件审计删除保留目录（[#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)）。
+
+Windows 的两个隔离 runtime 曾共享原生 Client 文件 inode。私有副本实验确认：增加 hardlink 可只改变 ctime 和原生 HMR revision，文件内容与 mtime 均不变。独立副本避免未来准备操作通过该共享 inode 干扰另一实例；此前 `session-maybe` 白屏的实际触发者仍未证实，本改动不代表修复该事件。未创建独立 CLI 的路径继续只读使用工作树 CLI；主动更新链接 Client 仍属于正常开发热替换。见 [#4135](https://github.com/BotHarness/BotHarness/issues/4135)。
 
 ```bash
 corepack pnpm install --frozen-lockfile
@@ -144,7 +162,7 @@ resolver cannot substitute workspace-linked Core/Client for the tarballs.
 node scripts/dev-instance.mjs --home /tmp/bh-im-qa --port 31968 --im-provider --json
 ```
 
-仅对已停止的隔离 Profile 执行；重启同一 Profile 时仍传入 `--im-provider`，以重复校验。当前 Provider 来源记录为 Git 完整提交 `7505ce6fcda26c02810781fde9d4da81dab28a68`，开发资格记录为 DSH `0.2.1-rc.2`，这些来源记录不限制实际启动的 DSH 版本；校验 Bundle、入口及运行时代码 digest 后才启动 Host；不依赖另一份 provider 本地源码。安装摘要明确标注 `upstreamReleased: false`。此完整 fork 保留附件、回显与独立回复身份契约；群／话题上下文读取绑定当前独占 Consumer 生命周期，释放或替换后拒绝返回正在读取的结果；上游 PR 是否合并不阻挡此固定提交使用（[#789](https://github.com/BotHarness/BotHarness/issues/789)）。默认启动不安装它，原 npm `4.32.0` 仍不满足账号校验和条件发送契约。此入口不会发布包，也不是生产启用许可（[ADR-0104](adr/0104-isolated-im-profiles-pin-a-qualified-temporary-provider-fork.md)）。
+仅对已停止的隔离 Profile 执行；重启同一 Profile 时仍传入 `--im-provider`，以重复校验。当前 Provider 来源记录为 Git 完整提交 `bb0c7956896f5f5845950a0707837cd7938a11b3`，开发资格记录为 DSH `0.2.1-rc.2`，这些来源记录不限制实际启动的 DSH 版本；校验 Bundle、入口及运行时代码 digest 后才启动 Host；不依赖另一份 provider 本地源码。安装摘要明确标注 `upstreamReleased: false`。此完整 fork 保留附件、回显与独立回复身份契约；群／话题上下文读取绑定当前独占 Consumer 生命周期，释放或替换后拒绝返回正在读取的结果；上游 PR 是否合并不阻挡此固定提交使用（[#789](https://github.com/BotHarness/BotHarness/issues/789)）。默认启动不安装它，原 npm `4.32.0` 仍不满足账号校验和条件发送契约。此入口不会发布包，也不是生产启用许可（[ADR-0104](decisions/im-providers.md#adr-0104)）。
 
 在 dsh-im 原设置中配置测试应用，并保存、测试仅含测试者与 Bot 的目标群；凭据交由 DSH credentials service，不复制到 BotHarness。打开 PersonaBot Profile → IM connection，选择已认证账号与已测试目标，显式授权后发送一条唯一测试文本。预期 Recent sends 显示 Platform accepted，并在目标群核对同一文本；这不代表送达或已读。停止本次启动摘要中的确切 PID，再以相同参数启动：绑定与发送历史应保留，不自动重发。
 
@@ -160,7 +178,7 @@ node scripts/dev-instance.mjs --home /tmp/bh-im-qa --port 31968 --im-provider --
 
 官方 0.1.7 RC2 的开发构建提供「重新加载页面」和「重启应用及 Host」（0.2.0 RC1 的 Desktop 行为待原生 Windows 复验）；安装版可能没有前一项。两者都不构建源码；Host 修改须先构建，再重启应用及 Host。[官方 Desktop 开发说明](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.1.7-rc.2/apps/desktop/README.md#develop)。
 
-0.1.7 RC2 实测：Client Modules 将结尾 `/client` 当作导出子路径剥离，因此包名 `@botharness/client` 在插件页会显示 `prefetch("@botharness/client") — not a graph entry`；当前包名为 `@botharness/ui`（[ADR-0066](adr/0066-rc2-client-bundle-identity.md)）。在本机链接此包并运行 `pnpm dev:client` 时，Desktop 可收到 `rebuilt` 事件并在当前 DM 自动显示新文案，同时恢复所选 Bot/Channel。不要对运行过 Client HMR 的安装版 Desktop 做整页刷新：实测新文档的 boot 注入仍指向旧 Bundle revision（旧 URL 404，当前 graph URL 200），会报 `@botharness/ui: import failed`。这一故障发生在插件代码导入之前，不能由插件内的重试修复。若发生，先停止 watcher，显式 `pnpm build`，然后重启应用及 Host；保留已安装插件和 Profile，不点「禁用第三方插件」。崩溃报告位于 Windows `%APPDATA%\@deepseek-ai\dsh-desktop\logs\crash-*-web-boot.log`。以上 Desktop 结论均为 0.1.7 RC2 实测，0.2.0 RC1 未复验。
+0.1.7 RC2 实测：Client Modules 将结尾 `/client` 当作导出子路径剥离，因此包名 `@botharness/client` 在插件页会显示 `prefetch("@botharness/client") — not a graph entry`；当前包名为 `@botharness/ui`（[ADR-0066](decisions/release.md#adr-0066)）。在本机链接此包并运行 `pnpm dev:client` 时，Desktop 可收到 `rebuilt` 事件并在当前 DM 自动显示新文案，同时恢复所选 Bot/Channel。不要对运行过 Client HMR 的安装版 Desktop 做整页刷新：实测新文档的 boot 注入仍指向旧 Bundle revision（旧 URL 404，当前 graph URL 200），会报 `@botharness/ui: import failed`。这一故障发生在插件代码导入之前，不能由插件内的重试修复。若发生，先停止 watcher，显式 `pnpm build`，然后重启应用及 Host；保留已安装插件和 Profile，不点「禁用第三方插件」。崩溃报告位于 Windows `%APPDATA%\@deepseek-ai\dsh-desktop\logs\crash-*-web-boot.log`。以上 Desktop 结论均为 0.1.7 RC2 实测，0.2.0 RC1 未复验。
 
 Windows 与 WSL 的 `~/.config/botharness/dev.env` 分属不同的用户目录。若密钥已保存在 WSL、但从 Windows 启动隔离实例，可在 Windows 终端一次性运行 `node scripts/dev-secret.mjs adopt-env --from <WSL-dev.env-path>`（传入该文件的 UNC 路径）；它只读取 DeepSeek 项并在 Windows 用户目录中创建本机文件，不覆盖已有文件，也不打印密钥。随后用 `node scripts/dev-secret.mjs check` 核实来源，再重启隔离 DSH Host 并实测模型回复。反向迁移也可使用同一命令和相应的源路径。
 
@@ -190,7 +208,7 @@ Reply to that exact Lark report in its topic, @mentioning the bound Bot. Its eli
 
 ### 外部附近上下文
 
-Bot 使用 `bridge_context` 的 `nearby` 时，默认读取来源前后各五分钟内的可见 Human 文字消息；一侧不足时，补齐最近的前 10／后 5 条（锚点自身不计入）。可使用 `before_count`／`after_count` 调整每侧 0–20 条。窗口密集时不会因为达到条数而截断：继续传回同一来源、范围和条数配置下的 `nextCursor`，直到没有续页；每页仍受返回文字预算限制。每个 Cursor 有效 30 分钟，重启或授权变化可使其失效。Lark 的 Chat 列表可能不包含话题回复，读取话题内容仍使用 `thread`；锚点本身保留在原 Inbox 来源中。只读取现有消息，不等待未来内容；权限、略过消息或历史已尽可使结果不足保底数量。读取的历史不会自动进入 Inbox（[ADR-0125](adr/0125-nearby-context-combines-time-coverage-and-count-minima.md)）。
+Bot 使用 `bridge_context` 的 `nearby` 时，默认读取来源前后各五分钟内的可见 Human 文字消息；一侧不足时，补齐最近的前 10／后 5 条（锚点自身不计入）。可使用 `before_count`／`after_count` 调整每侧 0–20 条。窗口密集时不会因为达到条数而截断：继续传回同一来源、范围和条数配置下的 `nextCursor`，直到没有续页；每页仍受返回文字预算限制。每个 Cursor 有效 30 分钟，重启或授权变化可使其失效。Lark 的 Chat 列表可能不包含话题回复，读取话题内容仍使用 `thread`；锚点本身保留在原 Inbox 来源中。只读取现有消息，不等待未来内容；权限、略过消息或历史已尽可使结果不足保底数量。读取的历史不会自动进入 Inbox（[ADR-0125](decisions/messaging.md#adr-0125)）。
 
 ### Window Companion 的未来消息消费（#1138–#1140）
 
@@ -214,4 +232,4 @@ Host 同步注册消费者后写基线，不扫描旧消息；Client 首次连�
 
 The Companion Feed observes committed `bot-registry` notifications directly, independently of Bot mode, through one disposable subscription. Selected archives remain labelled and still; canonical pause/reactivation changes reset the bounded message references and source checkpoints. A process-local lifecycle token survives stream recovery and makes a coalesced archive/reactivation transition observable without creating durable identity state. Confirmed deletion sends removed IDs through the acknowledged shared snapshot; the collection releases only those children, preferences and cards, while stale revisions cannot restore them. Uploaded images keep their media and whole-object interaction; unsupported rig/schema versions retain the saved recipe and versioned snapshot with an explicit animation limitation. The image owner refuses an obsolete version URL instead of serving a different Avatar. Keyboard focus expands reading like hover, Context Menu/Shift+F10 opens native options, Escape returns focus, and card dismissal selects a surviving control. Effective reduced-motion changes settle immediately, offscreen/hidden stages stop sampling, and all observers, frames and morph/fade animations are cancelled on disposal; obsolete animation completions cannot enqueue fresh motion. Actual multi-Bot frame/memory/asset measurements and Human-agreed budgets remain required before performance acceptance.
 
-Current formal Tool Approval and user-question requests come from their existing live owners through disposable Feed observations. Each selected active Bot snapshot includes its committed pending requests, independently of Activity/DM/group display switches and decorative retention. These requests remain in a persistent, scrollable section until the owner settles or expires them; historical Channel messages cannot recreate a live request. Shared Chat cards let the Human decide or answer directly from a companion, using an explicit live Bot/DM/Session target and fresh owner status before the existing decision/answer RPC. Ordinary Chat retains its selected-conversation guard. Offline controls are disabled; current-state reconciliation preserves mounted question drafts, while unpinning only removes the presentation and never answers or cancels the request. Canonical acceptance resolves only the original waiting native call ([ADR-0150](adr/0150-window-companion-requests-use-their-live-owners.md)).
+Current formal Tool Approval and user-question requests come from their existing live owners through disposable Feed observations. Each selected active Bot snapshot includes its committed pending requests, independently of Activity/DM/group display switches and decorative retention. These requests remain in a persistent, scrollable section until the owner settles or expires them; historical Channel messages cannot recreate a live request. Shared Chat cards let the Human decide or answer directly from a companion, using an explicit live Bot/DM/Session target and fresh owner status before the existing decision/answer RPC. Ordinary Chat retains its selected-conversation guard. Offline controls are disabled; current-state reconciliation preserves mounted question drafts, while unpinning only removes the presentation and never answers or cancels the request. Canonical acceptance resolves only the original waiting native call ([ADR-0150](decisions/desktop-ui.md#adr-0150)).

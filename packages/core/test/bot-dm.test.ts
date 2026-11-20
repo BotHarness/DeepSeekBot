@@ -1,6 +1,7 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
-import { botDmChannelId, MAX_BOT_HOPS } from '../src/channels/channel.js';
+import { botDmChannelId, DEFAULT_BOT_HOP_LIMIT } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import type {
@@ -31,7 +32,9 @@ describe('Bot-to-Bot DM tracer', () => {
       agents: adapter(async (run) => {
         runs.push(run.bot.slug + ':' + run.inboundChannelId);
         if (run.bot.slug === 'ada' && run.inboundChannelId === 'dm-ada') {
-          const contact = run.channels.contacts().contacts.find((item) => item.botId === 'bea');
+          const contact = (await run.channels.contacts()).contacts.find(
+            (item) => item.botId === 'bea',
+          );
           expect(contact?.displayName).toBe('Bea');
           const first = await run.channels.sendToBot({
             botSlug: 'bea',
@@ -58,14 +61,14 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const humanDm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(humanDm.id, {
+      const humanDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, humanDm.id, {
         id: 'human-start',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: '请和 Bea 协作',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-start',
         body: '请和 Bea 协作',
@@ -137,23 +140,23 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const humanDm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      const humanDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
       const originalAppend = core.channels.appendMessageOnce.bind(core.channels);
       let failOnce = true;
-      core.channels.appendMessageOnce = (channelId, message) => {
+      core.channels.appendMessageOnce = (human, channelId, message) => {
         if (channelId === botDmChannelId('ada', 'bea') && failOnce) {
           failOnce = false;
           return Promise.reject(new Error('precommit append failure'));
         }
-        return originalAppend(channelId, message);
+        return originalAppend(OWNER_HUMAN_CONTEXT, channelId, message);
       };
-      await core.channels.appendMessage(humanDm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, humanDm.id, {
         id: 'human-retry',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Send to Bea',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-retry',
         body: 'Send to Bea',
@@ -172,7 +175,7 @@ describe('Bot-to-Bot DM tracer', () => {
         core.channels.readMessages(humanDm.id).filter((item) => item.sessionFailure),
       ).toHaveLength(1);
 
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-retry',
         body: 'Send to Bea',
@@ -210,14 +213,14 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const humanDm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(humanDm.id, {
+      const humanDm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, humanDm.id, {
         id: 'human-failure',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Ask Bea',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: humanDm.id,
         messageId: 'human-failure',
         body: 'Ask Bea',
@@ -256,14 +259,14 @@ describe('Bot-to-Bot DM tracer', () => {
       for (const slug of ['ada', 'bea', 'cee']) {
         core.registry.create({ slug, displayName: slug });
       }
-      const dm = core.channels.getOrCreateDm('ada', 'ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-two-colleagues',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Contact two colleagues',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-two-colleagues',
         body: 'Contact two colleagues',
@@ -298,15 +301,15 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      core.channels.getOrCreateDm('ada', 'Ada');
-      core.channels.getOrCreateDm('bea', 'Bea');
-      const dm = core.channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea')!;
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bea', 'Bea');
+      const dm = core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Ada · Bea')!;
       for (const [id, sender, hop] of [
         ['first', 'ada', 1],
         ['reply', 'bea', 2],
         ['repeat', 'ada', 3],
       ] as const) {
-        await core.channels.appendMessage(dm.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id,
           at: new Date(Date.UTC(2026, 8, 25, 0, 0, hop)).toISOString(),
           author: { kind: 'bot', slug: sender },
@@ -343,10 +346,10 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
       before.registry.create({ slug: 'bea', displayName: 'Bea' });
-      before.channels.getOrCreateDm('ada', 'Ada');
-      const dm = before.channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea')!;
+      before.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+      const dm = before.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Ada · Bea')!;
       botDmId = dm.id;
-      await before.channels.appendMessage(dm.id, {
+      await before.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'bot-before-restart',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -398,9 +401,9 @@ describe('Bot-to-Bot DM tracer', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      core.channels.getOrCreateDm('ada', 'Ada');
-      const dm = core.channels.getOrCreateBotDm('ada', 'bea', 'Ada · Bea')!;
-      await core.channels.appendMessage(dm.id, {
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+      const dm = core.channels.getOrCreateBotDm(OWNER_HUMAN_CONTEXT, 'ada', 'bea', 'Ada · Bea')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'bot-over-hop',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
@@ -408,7 +411,7 @@ describe('Bot-to-Bot DM tracer', () => {
         botCausation: {
           rootSourceEventId: 'root-over-hop',
           parentSourceEventId: 'parent-over-hop',
-          hop: MAX_BOT_HOPS + 1,
+          hop: DEFAULT_BOT_HOP_LIMIT + 1,
         },
       });
       expect(core.channels.message(dm.id, 'bot-over-hop')?.deliveries).toBeUndefined();
@@ -438,14 +441,14 @@ describe('Bot-to-Bot DM tracer', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
       core.registry.setPaused('bea', true);
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'human-archived',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'human' },
         body: '请联系 Bea',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-archived',
         body: '请联系 Bea',

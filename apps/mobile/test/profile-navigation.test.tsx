@@ -4,15 +4,19 @@ import { act, use, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
-import type { ConversationSnapshot } from '../src/host/conversation';
-import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
+import type { ConversationSnapshot } from '@botharness/host-client/conversation';
+import {
+  createHostClient,
+  type HostClient,
+  type HostSnapshot,
+} from '@botharness/host-client/client';
 import {
   channelRouteId,
   channelStackRouter,
   navigateChannel,
 } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { ChannelFilesScreen } from '../src/ui/chat/channel-files-screen';
 import { ChannelFilesTab } from '../src/ui/chat/channel-files-tab';
 import { HostScope } from '../src/host/host-scope';

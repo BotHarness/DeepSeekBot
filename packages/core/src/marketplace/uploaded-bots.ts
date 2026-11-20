@@ -34,6 +34,7 @@ export interface UploadPlan {
 
 export interface MarketplaceAccount {
   signedIn: boolean;
+  issue?: string;
   email?: string;
   author: MarketplaceAuthorAccount | null;
 }
@@ -95,7 +96,7 @@ export function createMarketplaceUploads(deps: {
   client: MarketplaceClient;
   account: () =>
     | {
-        status(): { state: string; email?: string };
+        status(): { state: string; email?: string; issue?: string };
         accessToken(options?: { fresh?: boolean }): Promise<string | undefined>;
       }
     | undefined;
@@ -138,7 +139,16 @@ export function createMarketplaceUploads(deps: {
       const account = deps.account();
       const status = account?.status();
       if (status?.state !== 'signed-in')
-        return { ok: true, value: { signedIn: false, author: null } };
+        return {
+          ok: true,
+          value: {
+            signedIn: false,
+            author: null,
+            ...(status?.state === 'error' && status.issue !== undefined
+              ? { issue: status.issue }
+              : {}),
+          },
+        };
       const author = await signed((token) => client.author(token));
       if (!author.ok) {
         return author.code === 'sign-in-required'

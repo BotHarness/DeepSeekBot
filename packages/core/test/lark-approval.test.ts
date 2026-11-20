@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
@@ -34,7 +35,7 @@ async function fixture(
   const core = createCore({ dshHome: createTempRoot('bh-lark-approval-') });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  if (ensureDm) core.channels.getOrCreateDm('ada', 'Ada');
+  if (ensureDm) core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let fail: 'none' | 'known' | 'unknown' = 'none';
   const cards = vi.fn<NonNullable<DshImOutboundService['approvalCardChecked']>>(
@@ -342,7 +343,7 @@ it('exact Lark rules require a private second confirmation, are idempotent, and 
   const mismatch = f.repeat('different-input', 'pwd --different');
   await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
   const request = f.owner.requests('ada')[0]!;
-  await f.owner.decide('ada', request.messageId, 'rejected');
+  await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', request.messageId, 'rejected');
   expect(await mismatch.answer).toBe('rejected');
   const role = (await f.core.externalMessaging.snapshot('ada')).roles![0]!;
   f.core.externalMessaging.senderAccess('ada', {
@@ -429,12 +430,22 @@ it('all-opaque needs its own displayed confirmation and cannot replace an exact 
   expect(f.owner.status('ada', nativeGrant.delivery.id)).toBe('pending');
   await vi.waitFor(() => expect(f.cards.mock.calls.at(-1)![2].status).toBe('web-required'));
   expect(await f.action(nativeGrant.delivery.id)).toMatchObject({ status: 'refused' });
-  await f.owner.decide('ada', nativeGrant.delivery.requestMessageId!, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    nativeGrant.delivery.requestMessageId!,
+    'rejected',
+  );
   expect(await nativeGrant.answer).toBe('rejected');
   Object.assign(first.execution.agent!.session.header, { cwd: '/tmp/different-scope' });
   const changedScope = f.repeat('changed-scope', 'different command', 'pwsh');
   await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
-  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    f.owner.requests('ada')[0]!.messageId,
+    'rejected',
+  );
   expect(await changedScope.answer).toBe('rejected');
   f.core.externalMessaging.pairing.review('ada', {
     kind: 'revoke',
@@ -504,12 +515,12 @@ it.each(['exact', 'all-opaque'] as const)(
       release = resolve;
     });
     let writing = false;
-    vi.spyOn(f.core.channels, 'appendMessage').mockImplementation(async (id, message) => {
+    vi.spyOn(f.core.channels, 'appendMessage').mockImplementation(async (human, id, message) => {
       if (message.toolApprovalDecision) {
         writing = true;
         await blocked;
       }
-      return append(id, message);
+      return append(human, id, message);
     });
     await f.ruleAction(
       first.delivery.id,
@@ -563,14 +574,15 @@ it.each(['cancel', 'scope', 'input', 'untrack'] as const)(
       release = resolve;
     });
     let writing = false;
-    vi.spyOn(f.core.channels, 'appendMessage').mockImplementation(async (id, message) => {
+    vi.spyOn(f.core.channels, 'appendMessage').mockImplementation(async (human, id, message) => {
       if (message.toolApprovalDecision) {
         writing = true;
         await delayed;
       }
-      return append(id, message);
+      return append(human, id, message);
     });
     const confirmed = f.owner.decide(
+      OWNER_HUMAN_CONTEXT,
       'ada',
       first.delivery.requestMessageId!,
       'allowed-always-exact',
@@ -640,7 +652,12 @@ it('creator pairing revocation updates only its own receipt and re-pairing canno
   expect(f.core.toolRules.list('ada')[0]?.revokedAt).toBeDefined();
   const repeated = f.repeat('after-repair');
   await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
-  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    f.owner.requests('ada')[0]!.messageId,
+    'rejected',
+  );
   expect(await repeated.answer).toBe('rejected');
 });
 
@@ -690,7 +707,10 @@ it('Web revocation updates the saved-rule receipt from the same canonical rule',
   const f = await savedExact();
   const rule = f.core.toolRules.list('ada')[0]!;
   expect(
-    createBridgeMethods({ ...f.core }).toolApprovalRuleRevoke({ slug: 'ada', id: rule.id }),
+    createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core }).toolApprovalRuleRevoke({
+      slug: 'ada',
+      id: rule.id,
+    }),
   ).toMatchObject({
     ok: true,
   });
@@ -756,7 +776,7 @@ it('delayed exact confirmation cannot save a rule after current save-rules Deny'
     status: 'refused',
   });
   expect(f.core.toolRules.list('ada')).toEqual([]);
-  await f.owner.decide('ada', first.delivery.requestMessageId!, 'rejected');
+  await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', first.delivery.requestMessageId!, 'rejected');
   expect(await first.answer).toBe('rejected');
 });
 
@@ -819,7 +839,9 @@ it('current group grants execute Allow once/Reject and a new group Deny refuses 
   });
   expect(await f.action(delayed.delivery.id)).toMatchObject({ status: 'refused' });
   expect(f.owner.status('ada', delayed.delivery.id)).toBe('pending');
-  expect(await f.owner.decide('ada', delayed.delivery.id, 'allowed-once')).toBe(true);
+  expect(
+    await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', delayed.delivery.id, 'allowed-once'),
+  ).toBe(true);
   expect(await delayed.answer).toBe('allowed-once');
 });
 
@@ -914,12 +936,14 @@ it('reject does not grant execution and Web/IM races have one winner', async () 
   );
   await f.action(pending.delivery.id, { action: 'rejected' });
   expect(await pending.answer).toBe('rejected');
-  expect(await f.owner.decide('ada', pending.delivery.id, 'allowed-once')).toBe(false);
+  expect(
+    await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', pending.delivery.id, 'allowed-once'),
+  ).toBe(false);
   const next = await f.start('call-2');
   await vi.waitFor(() =>
     expect(f.core.externalMessaging.approvals.snapshot('ada').deliveries[0]?.delivery).toBe('sent'),
   );
-  expect(await f.owner.decide('ada', next.delivery.id, 'rejected')).toBe(true);
+  expect(await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', next.delivery.id, 'rejected')).toBe(true);
   expect(await next.answer).toBe('rejected');
   expect(await f.action(next.delivery.id)).toMatchObject({ status: 'refused' });
 });
@@ -1077,14 +1101,21 @@ it('native Session-wide authorizations notify but remain Web-only', async () => 
     'web-required',
   );
   expect(await f.action(pending.delivery.id)).toMatchObject({ status: 'refused' });
-  expect(await f.owner.decide('ada', pending.delivery.id, 'allowed-once')).toBe(true);
+  expect(
+    await f.owner.decide(OWNER_HUMAN_CONTEXT, 'ada', pending.delivery.id, 'allowed-once'),
+  ).toBe(true);
   expect(await pending.answer).toBe('allowed-once');
 });
 
 it('a Lark Approver can always allow a secret_cli kind, and revoking the pairing stops the rule', async () => {
   const f = await fixture(true, true, true);
   const agent = (await f.start()).execution.agent!;
-  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    f.owner.requests('ada')[0]!.messageId,
+    'rejected',
+  );
   const secretCli = (callId: string, args: string[], account = 'github-work') => {
     const execution = {
       agent,
@@ -1155,7 +1186,12 @@ it('a Lark Approver can always allow a secret_cli kind, and revoking the pairing
   expect(second.guard()).toBe(true);
   const otherAccount = secretCli('secret-3', ['repo', 'list'], 'github-personal');
   await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
-  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    f.owner.requests('ada')[0]!.messageId,
+    'rejected',
+  );
   expect(await otherAccount.answer).toBe('rejected');
   f.core.externalMessaging.pairing.review('ada', {
     kind: 'revoke',
@@ -1166,6 +1202,11 @@ it('a Lark Approver can always allow a secret_cli kind, and revoking the pairing
   expect(second.guard()).toBe(false);
   const afterRevoke = secretCli('secret-4', ['issue', 'list']);
   await vi.waitFor(() => expect(f.owner.requests('ada')).toHaveLength(1));
-  await f.owner.decide('ada', f.owner.requests('ada')[0]!.messageId, 'rejected');
+  await f.owner.decide(
+    OWNER_HUMAN_CONTEXT,
+    'ada',
+    f.owner.requests('ada')[0]!.messageId,
+    'rejected',
+  );
   expect(await afterRevoke.answer).toBe('rejected');
 });

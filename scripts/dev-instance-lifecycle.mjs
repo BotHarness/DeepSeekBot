@@ -112,6 +112,7 @@ export function acquireHome(home) {
       )
         throw new Error(
           'Development Home launch is already in progress; preserve its lock until its owner has exited',
+          { cause: error },
         );
       rmSync(gate, { recursive: true });
       mkdirSync(gate);
@@ -189,7 +190,7 @@ export function acquireHome(home) {
             )
               reject(new Error('Preparation left running descendants'));
           } catch (error) {
-            reject(error);
+            reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
           }
         });
         child.once('close', (status) =>
@@ -217,6 +218,11 @@ export function acquireHome(home) {
           await completion;
           if (descendants(child.pid, child.ownedProcessGroup, child.ownershipToken).length)
             throw new Error('Preparation left running descendants');
+          const completed = resources.findIndex(
+            (resource) => resource.ownershipToken === ownershipToken,
+          );
+          if (completed >= 0) resources.splice(completed, 1);
+          save();
           return stdout;
         });
       } finally {
@@ -334,6 +340,7 @@ export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
     if (!released)
       throw new Error(
         `${error.message}; Host ${child.pid} cleanup incomplete; preserve its Home and log`,
+        { cause: error },
       );
     child.cleanupIncomplete = false;
     throw error;

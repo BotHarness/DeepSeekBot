@@ -6,10 +6,15 @@ import { parse as parseAstro } from '@astrojs/compiler';
 import { parse as parseJavaScript } from '@babel/parser';
 import postcss from 'postcss';
 import { findReactEffects } from './react-effect-policy.mjs';
+import {
+  appliesToStoreSubscriptions,
+  findStoreSubscriptions,
+} from './store-subscription-policy.mjs';
 
 const codeExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
 const sourceExtensions = new Set([...codeExtensions, '.astro', '.css']);
 const generatedPrefixes = [
+  'packages/client/vendor/dsh-ui-theme-022-rc2/',
   'packages/computer/lib/',
   'packages/browser/lib/',
   'apps/docs/dist/',
@@ -24,6 +29,8 @@ const licenseHeaderHashes = new Map([
   ['packages/client/src/client/inbox-icon.tsx', '8412a9519ce369b7'],
   ['packages/client/src/client/at-sign-icon.tsx', '872b937bc972ab3c'],
   ['packages/client/src/client/exit-icon.tsx', '3fdff4d1d1c27b3e'],
+  ['packages/client/src/client/bug-icon.tsx', '30ae9e83121b3a2a'],
+  ['packages/client/src/client/quote-icon.tsx', '4c7e7129d7394642'],
 ]);
 const firstPartyPrefixes = ['packages/', 'scripts/', 'apps/docs/', 'apps/mobile/', 'design/'];
 
@@ -108,6 +115,17 @@ function scanScript(path, fragment, source, baseOffset) {
       ),
     );
   }
+  if (appliesToStoreSubscriptions(path))
+    for (const node of findStoreSubscriptions(parsed, path))
+      found.push(
+        issue(
+          path,
+          source,
+          'store-subscription',
+          baseOffset + node.start,
+          fragment.slice(node.start, node.end),
+        ),
+      );
   if (fragment.startsWith('#!')) {
     found.push(
       issue(path, source, 'comment', baseOffset, fragment.split('\n', 1)[0].replace(/\r$/, '')),
@@ -208,15 +226,16 @@ export async function scanSource(path, source) {
   return [...unique.values()].sort((a, b) => a.line - b.line || a.column - b.column);
 }
 
-export async function scanRepository(root) {
-  const paths = execFileSync(
-    'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    { cwd: root },
-  )
-    .toString('utf8')
-    .split('\0')
-    .filter(isPolicySource);
+export async function scanRepository(root, only) {
+  const paths = (
+    only ??
+    execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+      cwd: root,
+      maxBuffer: 64 * 1024 * 1024,
+    })
+      .toString('utf8')
+      .split('\0')
+  ).filter(isPolicySource);
   const found = [];
   for (const path of paths)
     found.push(...(await scanSource(path, readFileSync(join(root, path), 'utf8'))));

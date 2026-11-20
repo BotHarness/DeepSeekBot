@@ -9,6 +9,7 @@ const MARKDOWN_SIGNALS: readonly RegExp[] = [
   /^ {0,3}> \S/mu,
   /^ {0,3}(?:[-*+]|\d{1,9}[.)]) \S/mu,
   /\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)/u,
+  /\]\(session:[A-Za-z0-9_.:-]+\)/u,
   /^ {0,3}\|? *:?-{3,}:? *(?:\| *:?-{3,}:? *)+\|? *$/mu,
 ];
 
@@ -41,6 +42,7 @@ export function preserveHumanLineBreaks(text: string): string {
 export function rendersHumanMarkdown(message: ChannelMessage): boolean {
   if (message.author.kind !== 'human' || message.format !== undefined) return false;
   if ((message.channelRefs?.length ?? 0) > 0) return false;
+  if ((message.skillInvocations?.length ?? 0) > 0) return false;
   if (/\]\(attachment:/u.test(message.body)) return false;
   const mentions = [...(message.mentions ?? []), ...(message.humanMentions ?? [])].sort(
     (left, right) => left.start - right.start,

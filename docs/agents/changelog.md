@@ -1,5 +1,7 @@
 # Release Ledger
 
+For an upstream DSH RC, start with [DSH upgrade qualification](dsh-upgrade.md). An unchanged Tobs product that passes on a new Host needs updated compatibility evidence, not an automatic product release. Product adaptations return to this ledger and the existing publication workflow.
+
 `CHANGELOG.md` is the English canonical Release Ledger for DeepSeekBot.
 `CHANGELOG.zh.md` is its maintained Chinese counterpart. Together they answer one question:
 what observable difference will a user or DSH plugin developer find in a DeepSeekBot release?
@@ -119,7 +121,7 @@ Do not turn the ledger into a commit log:
 For a published design that has not changed runtime behavior, use documentation language:
 
 ```markdown
-- Documented the provider-bound Trigger design; runtime behavior is unchanged ([ADR-0040](docs/adr/0040-personabot-export-wraps-soul-and-optional-operational-facets.md), [#123](https://github.com/BotHarness/BotHarness/issues/123)).
+- Documented the database upgrade process ([Persistence decisions](docs/decisions/persistence.md#adr-0341), [#4225](https://github.com/BotHarness/BotHarness/issues/4225)).
 ```
 
 Use `Breaking Changes` to state the affected reader, old behavior, new behavior, and required

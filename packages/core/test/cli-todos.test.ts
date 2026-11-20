@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 const dirs: string[] = [];
@@ -23,47 +24,49 @@ type Answer = { status?: number; json?: unknown; bytes?: Buffer };
 
 async function host(route: (call: Call) => Answer) {
   const calls: Call[] = [];
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url!, 'http://localhost');
-    if (req.method === 'GET' && url.searchParams.has('token') && url.pathname === '/') {
-      res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const text = Buffer.concat(chunks).toString();
-    let parsed: unknown = text === '' ? undefined : text;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      void 0;
-    }
-    const rpc = (parsed as { type?: string } | undefined)?.type === 'client-request';
-    const envelope = parsed as { method: string; rpcId: string; payload: { args: unknown } };
-    const call: Call = {
-      method: req.method!,
-      path: rpc ? envelope.method.replace('botharness/', '') : url.pathname + url.search,
-      body: rpc ? envelope.payload.args : parsed,
-    };
-    calls.push(call);
-    const answer = route(call);
-    if (rpc) {
-      res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({ type: 'server-response', rpcId: envelope.rpcId, result: answer.json }),
-      );
-      return;
-    }
-    if (answer.bytes !== undefined) {
-      res.writeHead(answer.status ?? 200, { 'content-type': 'application/x-tar' });
-      res.end(answer.bytes);
-      return;
-    }
-    res.writeHead(answer.status ?? 200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(answer.json ?? { ok: true }));
-  });
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url!, 'http://localhost');
+      if (req.method === 'GET' && url.searchParams.has('token') && url.pathname === '/') {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const text = Buffer.concat(chunks).toString();
+      let parsed: unknown = text === '' ? undefined : text;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        void 0;
+      }
+      const rpc = (parsed as { type?: string } | undefined)?.type === 'client-request';
+      const envelope = parsed as { method: string; rpcId: string; payload: { args: unknown } };
+      const call: Call = {
+        method: req.method!,
+        path: rpc ? envelope.method.replace('botharness/', '') : url.pathname + url.search,
+        body: rpc ? envelope.payload.args : parsed,
+      };
+      calls.push(call);
+      const answer = route(call);
+      if (rpc) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ type: 'server-response', rpcId: envelope.rpcId, result: answer.json }),
+        );
+        return;
+      }
+      if (answer.bytes !== undefined) {
+        res.writeHead(answer.status ?? 200, { 'content-type': 'application/x-tar' });
+        res.end(answer.bytes);
+        return;
+      }
+      res.writeHead(answer.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(answer.json ?? { ok: true }));
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();

@@ -1,3 +1,5 @@
+export { SHARE_DRAFT_OPTIONS } from './cli-option-spec.js';
+import { SHARE_DRAFT_OPTIONS } from './cli-option-spec.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const SHARE_DRAFT_COMMANDS = [
@@ -26,12 +28,6 @@ export const SHARE_DRAFT_COMMANDS = [
     description: "copy a ready Share Draft into Tob's workspace for a GitHub push, without history",
   },
 ] as const;
-
-export const SHARE_DRAFT_OPTIONS = {
-  keep: { type: 'boolean' },
-  drop: { type: 'boolean' },
-  'rewrite-stdin': { type: 'boolean' },
-} as const;
 
 export const TOB_SHARE_DRAFT_COMMAND_USAGE: Readonly<Record<string, string>> = {
   'share-draft-show': 'deepseekbot share-draft-show <bot-slug>',

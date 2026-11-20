@@ -2,12 +2,15 @@ import { expandGitHubRef } from './bot-create-cli.js';
 import { parseMemoryGitUrl } from '../memory/clone.js';
 import { parseAgentBots } from './cli-agent-bots.js';
 import { validBotCreationKey, type BotCreationReceipt } from './creation.js';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { PersonaBotDetail } from '../bridge/methods.js';
 import {
+  isAssignmentGroupOption,
   isAssignmentModelOption,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
+  type ModelPresetEngineInput,
   type ModelRoute,
 } from '../models/presets.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
@@ -19,6 +22,7 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { assignmentModelsMode, presetEngineFlags, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 import type { PersonaBotDeletionPreview } from './deletion.js';
 
@@ -149,38 +153,76 @@ export async function runOnlineManagement(
   const limit = values.limit === undefined ? 50 : Number(values.limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) usage('--limit must be 1–100.');
   let presetInput:
-    | {
+    | ({
         name: string;
-        orchestrator: ModelRoute;
+        orchestrator?: ModelRoute;
         assignmentDefault: ModelRoute;
         assignmentModels?: AssignmentModelOption[];
-      }
+        openAssignmentModels?: boolean;
+        orchestratorGroupId?: string | null;
+        orchestratorGroupEffort?: string;
+        assignmentGroups?: string[];
+        assignmentDefaultGroupId?: string | null;
+        assignmentGroupOptions?: AssignmentGroupOption[];
+      } & ModelPresetEngineInput)
     | undefined;
   if (command === 'model-preset-create') {
     const name = values.name?.trim();
     if (!name) usage('--name is required for a Model Preset.');
+    const groups = presetGroupFlags(values);
+    if (groups.orchestratorGroupId && values['orchestrator-provider'] !== undefined)
+      usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
+    if (
+      groups.assignmentDefaultGroupId &&
+      !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
+    )
+      usage('--assignment-default-group must be one of --assignment-groups.');
+    const groupEffort = values['orchestrator-effort']?.trim();
     presetInput = {
       name,
-      orchestrator: route(values, 'orchestrator'),
+      ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
+      ...(groups.orchestratorGroupId && groupEffort
+        ? { orchestratorGroupEffort: groupEffort }
+        : {}),
       assignmentDefault: route(values, 'assignment'),
+      ...assignmentModelsMode(values['assignment-models']),
+      ...groups,
+      ...presetEngineFlags(values),
     };
     if (values['plan-stdin']) {
       let input: unknown;
       try {
         input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
       } catch {
-        usage('Plan stdin must contain assignmentModels.');
+        usage('Plan stdin must contain assignmentModels or assignmentGroupOptions.');
       }
+      const plan = input as Record<string, unknown> | null;
+      const models = plan?.['assignmentModels'];
+      const options = plan?.['assignmentGroupOptions'];
       if (
-        typeof input !== 'object' ||
-        input === null ||
-        !('assignmentModels' in input) ||
-        !Array.isArray(input.assignmentModels) ||
-        !input.assignmentModels.every(isAssignmentModelOption) ||
-        Object.keys(input).some((key) => key !== 'assignmentModels')
+        typeof plan !== 'object' ||
+        plan === null ||
+        Array.isArray(plan) ||
+        (models === undefined && options === undefined) ||
+        (models !== undefined &&
+          (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
+        (options !== undefined &&
+          (!Array.isArray(options) ||
+            !options.every(
+              (option) =>
+                isAssignmentGroupOption(option) &&
+                (groups.assignmentGroups ?? []).includes(option.group),
+            ))) ||
+        Object.keys(plan).some(
+          (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+        )
       )
-        usage('Plan stdin must contain only valid assignmentModels.');
-      presetInput.assignmentModels = input.assignmentModels;
+        usage(
+          'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
+        );
+      if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
+      if (options !== undefined)
+        presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
     }
   }
   if (command === 'model-preset-apply' && !values.preset?.trim()) usage('--preset is required.');
@@ -226,7 +268,7 @@ export async function runOnlineManagement(
           command,
           rest,
           Object.fromEntries(
-            Object.entries(values).filter(([key]) => !['host', 'token-file'].includes(key)),
+            Object.entries(values).filter(([key]) => !['host', 'token-file', 'as'].includes(key)),
           ),
           io,
         )
@@ -248,12 +290,12 @@ export async function runOnlineManagement(
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
   if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
-  if (command === 'list') return rpc('list', {});
+  if (command === 'list') return rpc('list', values.administration ? { administration: true } : {});
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
   if (command === 'model-presets') return rpc('modelPresets', {});
-  if (command === 'model-preset-create') return rpc('modelPresetCreate', presetInput!);
+  if (command === 'model-preset-create') return rpc('modelPresetCreate', { ...presetInput! });
   if (command === 'model-preset-apply') {
     const revisions: Record<string, number> = {};
     for (const [flag, field] of [
@@ -414,8 +456,7 @@ export async function runOnlineManagement(
     });
     if (typeof detail.bot?.memoryDir !== 'string')
       throw new CliLiveError('host-protocol-error', 'The Host returned no Bot Memory path.');
-    const channelId = dmChannelId(bot.id);
-    await rpc('channelDm', { slug: bot.id, displayName: bot.name });
+    const channelId = await resolveBotDm(rpc, bot.id, bot.name);
     steps.push({ name: 'dm', status: 'ok' });
     const output: BotCreateResult = {
       bot,
@@ -438,7 +479,7 @@ export async function runOnlineManagement(
         bot = error.creation.bot;
         steps.push(...error.creation.steps);
       }
-      throw new CliLiveError(error.code, error.message, undefined, undefined, {
+      const failure = new CliLiveError(error.code, error.message, undefined, undefined, {
         ...(bot === undefined ? {} : { bot }),
         ...(operationKey === undefined
           ? {}
@@ -456,6 +497,8 @@ export async function runOnlineManagement(
         steps,
         outcome: bot !== undefined ? 'created' : submitted ? 'unknown' : 'not-created',
       });
+      if (error.details !== undefined) failure.details = error.details;
+      throw failure;
     }
     throw error;
   }

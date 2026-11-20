@@ -1,10 +1,12 @@
+import { Button } from './ds/button.js';
+import { selectConversationSending, useClientStore } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
+import { hostAcknowledgements } from './host-acknowledgements.js';
 import { onboardingFor, type OnboardingController } from './onboarding.js';
 import {
   CHECKLIST_ITEMS,
@@ -15,7 +17,6 @@ import {
   type ChecklistItem,
   type ChecklistTier,
 } from './onboarding-checklist.js';
-import { store } from './store.js';
 
 const LAUNCHER_SELECTOR = '[data-bh-onboarding-launcher]';
 
@@ -52,7 +53,10 @@ export function OnboardingLauncher({
   if (state.receipt === undefined || state.receipt.journey) return null;
   const total = CHECKLIST_ITEMS.length;
   const done = checklistDone(state.evidence);
-  const label = t('onboarding.launcher.progress', { done: String(done), total: String(total) });
+  const label = t('onboarding.launcher.progress', {
+    done: String(done),
+    total: String(total),
+  });
   return (
     <span
       className="bh-onboarding-launcher"
@@ -154,7 +158,7 @@ export function OnboardingChecklist({
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const sending = useClientStore(selectConversationSending);
   const [position, setPosition] = useState<Position>({ placement: 'sheet' });
   const [page, setPage] = useState<number | undefined>(undefined);
   const mount = useMountedResource<HTMLDivElement>(
@@ -193,7 +197,7 @@ export function OnboardingChecklist({
   const completed = state.receipt.completed;
   const total = CHECKLIST_ITEMS.length;
   const done = checklistDone(evidence);
-  const busy = state.busy || client.conversation.sending;
+  const busy = state.busy || sending;
   const itemState = (item: ChecklistItem): 'done' | 'locked' | 'todo' =>
     evidence?.[item] === true
       ? 'done'
@@ -404,14 +408,25 @@ export function OnboardingChecklist({
 }
 
 const ENTERED_KEY = 'botharness/onboarding/bot-mode-entered';
+const ENTERED_ACK = 'bot-mode-entered';
 
 export function markBotModeEntered(): void {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    acks.record(ENTERED_ACK, '1', ENTERED_KEY);
+    return;
+  }
   try {
     localStorage.setItem(ENTERED_KEY, '1');
   } catch {}
 }
 
 function botModeEntered(): boolean {
+  const acks = hostAcknowledgements();
+  if (acks !== undefined) {
+    if (acks.value(ENTERED_ACK, ENTERED_KEY) !== undefined) return true;
+    return !acks.settled;
+  }
   try {
     return localStorage.getItem(ENTERED_KEY) !== null;
   } catch {
@@ -419,7 +434,12 @@ function botModeEntered(): boolean {
   }
 }
 
+const noAcknowledgements = (): (() => void) => () => {};
+const noRevision = (): number => 0;
+
 export function OnboardingEnterHint({ t }: { t: BotHarnessTranslate }): ReactElement | null {
+  const acks = hostAcknowledgements();
+  useSyncExternalStore(acks?.subscribe ?? noAcknowledgements, acks?.getRevision ?? noRevision);
   if (botModeEntered()) return null;
   return (
     <span className="bh-onboarding-enter" title={t('onboarding.enter.hint')}>

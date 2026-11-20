@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -193,7 +194,13 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
         init?.signal?.addEventListener('abort', () => aborted.push(url));
         if (url.startsWith('https://mirror.test/')) {
           return new Promise<Response>((_resolve, reject) =>
-            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+            init?.signal?.addEventListener('abort', () =>
+              reject(
+                init.signal?.reason instanceof Error
+                  ? init.signal.reason
+                  : new Error('aborted', { cause: init.signal?.reason }),
+              ),
+            ),
           );
         }
         return new Response(new Uint8Array(dist.bytes));
@@ -305,9 +312,9 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
   it('starts the install through the gitInstall bridge method', async () => {
     const { options } = setup();
     const git = createGitService(options);
-    const methods = createBridgeMethods({ git } as unknown as Parameters<
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { git } as unknown as Parameters<
       typeof createBridgeMethods
-    >[0]);
+    >[1]);
     expect(methods.gitInstall()).toMatchObject({
       ok: true,
       value: { install: { phase: 'downloading' } },

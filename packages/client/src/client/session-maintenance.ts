@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import {
   sessionMaintenanceFor,
   type SessionMaintenanceNotice,
-} from '../shared/session-maintenance.js';
+} from '@botharness/host-client/shared/session-maintenance';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 const unavailableOwner = {};

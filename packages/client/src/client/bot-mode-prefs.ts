@@ -5,6 +5,9 @@ import {
   BOT_MODE_ASSIGNMENT_LIMIT_FIELD,
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
   isAssignmentConcurrencyLimit,
+  isBotHopLimit,
+  BOT_MODE_HOP_LIMIT_FIELD,
+  DEFAULT_BOT_HOP_LIMIT,
   BOT_MODE_DEVELOPER_FIELD,
   BOT_MODE_GROUP_AUTO_ACCEPT_FIELD,
   DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
@@ -12,9 +15,25 @@ import {
   BOT_MODE_SEND_KEY_FIELD,
   BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
   BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD,
+  BOT_MODE_SHOW_DM_AVATAR_FIELD,
+  BOT_MODE_SHOW_OWN_AVATAR_FIELD,
   BOT_MODE_STREAM_REPLIES_FIELD,
+  BOT_MODE_SESSION_COLLAPSE_FIELD,
+  BOT_MODE_SESSION_DETAIL_LEVEL_FIELD,
+  BOT_MODE_SESSION_FOLDED_REPLIES_FIELD,
+  DEFAULT_SESSION_COLLAPSE,
+  DEFAULT_SESSION_DETAIL_LEVEL,
+  DEFAULT_SESSION_FOLDED_REPLIES,
+  isSessionCollapseMode,
+  isSessionDetailLevel,
+  isSessionFoldedReplies,
+  type SessionCollapseMode,
+  type SessionDetailLevel,
+  type SessionFoldedReplies,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
+  BOT_MODE_SETTINGS_PINS_FIELD,
+  DEFAULT_SETTINGS_PINS,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
   BOT_MODE_SHOW_BOT_SESSIONS_FIELD,
   DEFAULT_BOT_MODE_ICON,
@@ -32,7 +51,7 @@ import {
   type BotModeMotionPreference,
   type BotModeSendKey,
   type BotModeSortMode,
-} from '../bot-mode-settings.js';
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   resolveEffectiveMotion,
   type EffectiveMotion,
@@ -44,6 +63,7 @@ import {
   type ConfigStorage,
   type LegacySortPreference,
 } from './roster-config.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export type BotModePathOp =
   | { op: 'set'; path: string[]; value: string }
@@ -66,6 +86,7 @@ export interface BotModeScope {
 
 export interface BotModePrefsSnapshot {
   assignmentConcurrencyLimit: number;
+  botHopLimit: number;
   autoAcceptGroupInvites: boolean;
   developerMode: boolean;
   showBotSessions: boolean;
@@ -75,10 +96,16 @@ export interface BotModePrefsSnapshot {
   sendKey: BotModeSendKey;
   autoCollapseMessages: boolean;
   showDeliveryReceipts: boolean;
+  showDmAvatar: boolean;
+  showOwnAvatar: boolean;
   streamReplies: boolean;
+  sessionDetailLevel: SessionDetailLevel;
+  sessionCollapse: SessionCollapseMode;
+  sessionFoldedReplies: SessionFoldedReplies;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
+  settingsPins?: readonly string[];
   mode: 'host' | 'memory';
   status: 'loading' | 'ready' | 'unavailable';
 }
@@ -94,6 +121,7 @@ export function sectionSortMode(
 
 export interface BotModePrefsFace {
   setAssignmentConcurrencyLimit: (limit: number) => Promise<boolean>;
+  setBotHopLimit: (limit: number) => Promise<boolean>;
   hooks: {
     botModePrefs: SnapshotStore<BotModePrefsSnapshot>;
   };
@@ -102,18 +130,28 @@ export interface BotModePrefsFace {
   setSendKey: (sendKey: BotModeSendKey) => void;
   setAutoCollapseMessages: (enabled: boolean) => void;
   setShowDeliveryReceipts: (enabled: boolean) => void;
+  setShowDmAvatar: (enabled: boolean) => void;
+  setShowOwnAvatar: (enabled: boolean) => void;
   setStreamReplies: (enabled: boolean) => void;
+  setSessionDetailLevel: (level: SessionDetailLevel) => void;
+  setSessionCollapse: (mode: SessionCollapseMode) => void;
+  setSessionFoldedReplies: (mode: SessionFoldedReplies) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
   setShowApprovalReviewSessions: (enabled: boolean) => void;
   setAutoAcceptGroupInvites: (enabled: boolean) => void;
   setSortMode: (mode: BotModeSortMode) => void;
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
+  setSettingsPins: (pins: readonly string[]) => void;
 }
 
 export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
   return {
     setAssignmentConcurrencyLimit: (limit) => prefs.setAssignmentConcurrencyLimit(limit),
+    setBotHopLimit: (limit) => prefs.setBotHopLimit(limit),
+    setSettingsPins: (pins) => {
+      prefs.setSettingsPins(pins);
+    },
     hooks: { botModePrefs: prefs.source },
     setAutoAcceptGroupInvites: (enabled) => prefs.setAutoAcceptGroupInvites(enabled),
     setMotionPreference: (preference) => {
@@ -127,7 +165,12 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     },
     setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
     setShowDeliveryReceipts: (enabled) => prefs.setShowDeliveryReceipts(enabled),
+    setShowDmAvatar: (enabled) => prefs.setShowDmAvatar(enabled),
+    setShowOwnAvatar: (enabled) => prefs.setShowOwnAvatar(enabled),
     setStreamReplies: (enabled) => prefs.setStreamReplies(enabled),
+    setSessionDetailLevel: (level) => prefs.setSessionDetailLevel(level),
+    setSessionCollapse: (mode) => prefs.setSessionCollapse(mode),
+    setSessionFoldedReplies: (mode) => prefs.setSessionFoldedReplies(mode),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
     },
@@ -191,13 +234,19 @@ export class BotModePrefs {
     this.storage = storage;
     this.source = createSnapshotStore<BotModePrefsSnapshot>({
       assignmentConcurrencyLimit: DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+      botHopLimit: DEFAULT_BOT_HOP_LIMIT,
       autoAcceptGroupInvites: DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
       motionPreference: DEFAULT_BOT_MODE_MOTION,
       botIcon: DEFAULT_BOT_MODE_ICON,
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
+      sessionDetailLevel: DEFAULT_SESSION_DETAIL_LEVEL,
+      sessionCollapse: DEFAULT_SESSION_COLLAPSE,
+      sessionFoldedReplies: DEFAULT_SESSION_FOLDED_REPLIES,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
       showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
@@ -296,6 +345,24 @@ export class BotModePrefs {
       this.persist(this.host.set(BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD, enabled));
   }
 
+  setShowDmAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showDmAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showDmAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_DM_AVATAR_FIELD, enabled));
+  }
+
+  setShowOwnAvatar(enabled: boolean): void {
+    if (this.source.getSnapshot().showOwnAvatar === enabled) return;
+    this.source.update((draft) => {
+      draft.showOwnAvatar = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_OWN_AVATAR_FIELD, enabled));
+  }
+
   setStreamReplies(enabled: boolean): void {
     if (this.source.getSnapshot().streamReplies === enabled) return;
     this.source.update((draft) => {
@@ -305,6 +372,32 @@ export class BotModePrefs {
       this.persist(this.host.set(BOT_MODE_STREAM_REPLIES_FIELD, enabled));
   }
 
+  setSessionDetailLevel(level: SessionDetailLevel): void {
+    if (this.source.getSnapshot().sessionDetailLevel === level) return;
+    this.source.update((draft) => {
+      draft.sessionDetailLevel = level;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SESSION_DETAIL_LEVEL_FIELD, level));
+  }
+
+  setSessionCollapse(mode: SessionCollapseMode): void {
+    if (this.source.getSnapshot().sessionCollapse === mode) return;
+    this.source.update((draft) => {
+      draft.sessionCollapse = mode;
+    });
+    if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SESSION_COLLAPSE_FIELD, mode));
+  }
+
+  setSessionFoldedReplies(mode: SessionFoldedReplies): void {
+    if (this.source.getSnapshot().sessionFoldedReplies === mode) return;
+    this.source.update((draft) => {
+      draft.sessionFoldedReplies = mode;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SESSION_FOLDED_REPLIES_FIELD, mode));
+  }
+
   async setAssignmentConcurrencyLimit(limit: number): Promise<boolean> {
     if (!isAssignmentConcurrencyLimit(limit)) return false;
     const host = this.host;
@@ -312,6 +405,17 @@ export class BotModePrefs {
     if (host === undefined || scope?.status !== 'ready' || scope.mode !== 'host' || !scope.writable)
       return false;
     const accepted = await host.set(BOT_MODE_ASSIGNMENT_LIMIT_FIELD, limit);
+    this.sync();
+    return accepted !== false;
+  }
+
+  async setBotHopLimit(limit: number): Promise<boolean> {
+    if (!isBotHopLimit(limit)) return false;
+    const host = this.host;
+    const scope = host?.getSnapshot();
+    if (host === undefined || scope?.status !== 'ready' || scope.mode !== 'host' || !scope.writable)
+      return false;
+    const accepted = await host.set(BOT_MODE_HOP_LIMIT_FIELD, limit);
     this.sync();
     return accepted !== false;
   }
@@ -331,7 +435,11 @@ export class BotModePrefs {
       })
       .catch((error: unknown) => {
         this.sync();
-        console.warn('botharness: failed to persist Group invitation policy', error);
+        reportFailure(
+          'failed-to-persist-group-invitation-policy',
+          'failed to persist Group invitation policy',
+          error,
+        );
       });
   }
 
@@ -383,6 +491,16 @@ export class BotModePrefs {
     this.persist(this.host.mutate([op]));
   }
 
+  setSettingsPins(pins: readonly string[]): void {
+    const next = [...new Set(pins)];
+    const current = this.source.getSnapshot().settingsPins ?? DEFAULT_SETTINGS_PINS;
+    if (next.length === current.length && next.every((id, index) => current[index] === id)) return;
+    this.source.update((draft) => {
+      draft.settingsPins = next;
+    });
+    if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SETTINGS_PINS_FIELD, next));
+  }
+
   async remapSectionSortModes(mapping: ReadonlyMap<string, string>): Promise<boolean> {
     const host = this.host;
     const snapshot = this.source.getSnapshot();
@@ -416,7 +534,11 @@ export class BotModePrefs {
       this.source.update((draft) => {
         draft.sortModes = snapshot.sortModes;
       });
-      console.warn('botharness: failed to remap the BOT-mode sort modes', error);
+      reportFailure(
+        'failed-to-remap-the-bot-mode-sort-modes',
+        'failed to remap the BOT-mode sort modes',
+        error,
+      );
       return false;
     }
   }
@@ -437,6 +559,9 @@ export class BotModePrefs {
         draft.effectiveMotion = resolveEffectiveMotion(motionPreference, this.systemReduced);
         draft.sortMode = section.sortMode;
         draft.sortModes = { ...section.sortModes };
+        const pins = settingsPins(section.settingsPins);
+        if (pins !== undefined && !samePins(draft.settingsPins ?? DEFAULT_SETTINGS_PINS, pins))
+          draft.settingsPins = pins;
         draft.botIcon = isBotModeIcon(section.botIcon) ? section.botIcon : DEFAULT_BOT_MODE_ICON;
         draft.sendKey = isBotModeSendKey(section.sendKey)
           ? section.sendKey
@@ -446,10 +571,24 @@ export class BotModePrefs {
         )
           ? section.assignmentConcurrencyLimit
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
+        draft.botHopLimit = isBotHopLimit(section.botHopLimit)
+          ? section.botHopLimit
+          : DEFAULT_BOT_HOP_LIMIT;
         draft.developerMode = section.developerMode === true;
         draft.autoCollapseMessages = section.autoCollapseMessages === true;
         draft.showDeliveryReceipts = section.showDeliveryReceipts === true;
+        draft.showDmAvatar = section.showDmAvatar === true;
+        draft.showOwnAvatar = section.showOwnAvatar === true;
         draft.streamReplies = section.streamReplies === true;
+        draft.sessionDetailLevel = isSessionDetailLevel(section.sessionDetailLevel)
+          ? section.sessionDetailLevel
+          : DEFAULT_SESSION_DETAIL_LEVEL;
+        draft.sessionCollapse = isSessionCollapseMode(section.sessionCollapse)
+          ? section.sessionCollapse
+          : DEFAULT_SESSION_COLLAPSE;
+        draft.sessionFoldedReplies = isSessionFoldedReplies(section.sessionFoldedReplies)
+          ? section.sessionFoldedReplies
+          : DEFAULT_SESSION_FOLDED_REPLIES;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;
@@ -495,9 +634,23 @@ export class BotModePrefs {
         if (saved === false) this.sync();
       },
       (error: unknown) => {
-        console.warn('botharness: failed to persist the BOT-mode preference', error);
+        reportFailure(
+          'failed-to-persist-the-bot-mode-preference',
+          'failed to persist the BOT-mode preference',
+          error,
+        );
         this.sync();
       },
     );
   }
+}
+
+function settingsPins(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string')
+    : undefined;
+}
+
+function samePins(current: readonly string[], next: readonly string[]): boolean {
+  return next.length === current.length && next.every((id, index) => current[index] === id);
 }

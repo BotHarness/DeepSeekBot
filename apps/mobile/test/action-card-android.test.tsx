@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.hoisted(async () => {
+await vi.hoisted(async () => {
   const { createRequire, Module } = await import('node:module');
   const { readdirSync } = await import('node:fs');
   const { dirname } = await import('node:path');
@@ -18,6 +18,7 @@ vi.hoisted(async () => {
 });
 
 vi.mock('react-native', async () => await import('./react-native-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('@expo/ui/jetpack-compose', async () => (await import('./compose-card-shim')).compose);
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
@@ -29,13 +30,16 @@ vi.mock(
   () => import('../src/ui/primitives/loading-indicator.android'),
 );
 vi.mock('../src/ui/chat/action-card', () => import('../src/ui/chat/action-card.android'));
+vi.mock('../src/ui/chat/approval-diff', () => import('../src/ui/chat/approval-diff.android'));
 vi.mock('../src/ui/design/theme', async () => {
   const { theme } = await import('./compose-card-shim');
   return { useDesignTheme: () => theme };
 });
 
-import type { QuestionItem } from '../src/host/wire';
-import { emptyDraft } from '../src/host/requests';
+import type { QuestionItem } from '@botharness/host-protocol/wire';
+import type { ApprovalRequest } from '@botharness/host-client/requests';
+import type { ApprovalCardPort } from '../src/ui/chat/approval-card';
+import { emptyDraft } from '@botharness/host-client/requests';
 import {
   ActionCard,
   CardButtons,
@@ -48,6 +52,8 @@ import { FileDiff } from '../src/ui/chat/approval-diff.android';
 import { QuestionFields } from '../src/ui/chat/question-fields.android';
 import { Button } from '../src/ui/primitives/button.android';
 import { t } from '../src/ui/strings';
+
+const { ApprovalCard } = await import('../src/ui/chat/approval-card');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -88,7 +94,15 @@ describe('ActionCard on Android', () => {
     expect(all(view, 'RNHostView')).toHaveLength(0);
     const card = all(view, 'Card')[0]!;
     expect(card.getAttribute('data-border')).toBeNull();
-    expect(card.getAttribute('data-colors')).toBeNull();
+    expect(JSON.parse(card.getAttribute('data-colors')!)).toEqual({
+      containerColor: 'surface',
+      contentColor: 'fg',
+    });
+    expect(
+      all(card, 'Text')
+        .find((text) => text.textContent === 'Needs you')
+        ?.getAttribute('data-color'),
+    ).toBe('warning');
     expect(modifiers(card)).toContainEqual({ testID: 'action-card' });
     expect(texts(card)).toEqual(
       expect.arrayContaining(['Terminal', 'Needs you', 'Run this command', 'git status']),
@@ -125,6 +139,25 @@ describe('ActionCard on Android', () => {
       width: 2,
       color: 'accent',
     });
+  });
+
+  it('stacks three or more decisions full width, looking through fragments', async () => {
+    const view = await mount(
+      <ActionCard category="Run failed" title="Details">
+        <CardButtons>
+          <Button label="Continue" tone="primary" onPress={() => {}} />
+          <>
+            <Button label="Compact" onPress={() => {}} />
+            <Button label="New session" onPress={() => {}} />
+          </>
+          {null}
+          <Button label="Report" onPress={() => {}} />
+        </CardButtons>
+      </ActionCard>,
+    );
+    expect(all(view, 'FlowRow')).toHaveLength(1);
+    for (const button of all(view, 'FilledTonalButton'))
+      expect(modifiers(button)).toContainEqual({ fillMaxWidth: true });
   });
 
   it('opens Details in place and shows each argument', async () => {
@@ -289,3 +322,70 @@ it('draws an approval diff in Compose and shows the rest on demand', async () =>
   await act(async () => (more as HTMLElement).click());
   expect(all(diff, 'Text')).toHaveLength(45);
 });
+
+it.each(['allowed-once', 'allowed-always-tool', 'rejected'] as const)(
+  'keeps %s approval results in the Compose tree with a locked visible choice',
+  async (outcome) => {
+    const request: ApprovalRequest = {
+      channelId: 'dm-qa',
+      messageId: 'qa-request',
+      botSlug: 'qa',
+      toolName: 'bot_send_message',
+      role: 'orchestrator',
+      cwd: '/qa/workspace',
+      input: JSON.stringify({ body: 'QA approval body' }),
+      allowAlways: true,
+      status: 'pending',
+    };
+    const port: ApprovalCardPort = { load: async () => request, decide: async () => 'accepted' };
+    const decide = vi.spyOn(port, 'decide');
+    const view = await mount(<ApprovalCard port={port} subject="bot_send_message" />);
+    const detail = all(view, 'TextButton').find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'action-card-details'),
+    );
+    if (!(detail instanceof HTMLElement)) throw new Error('Details missing');
+    await act(async () => detail.click());
+    const chosenID =
+      outcome === 'allowed-once'
+        ? 'approval-allow-once'
+        : outcome === 'allowed-always-tool'
+          ? 'approval-always-allow'
+          : 'approval-deny';
+    const controls = [...all(view, 'FilledButton'), ...all(view, 'TextButton')].filter((node) =>
+      modifiers(node).some(
+        (modifier) =>
+          typeof modifier.testID === 'string' && modifier.testID.startsWith('approval-'),
+      ),
+    );
+    const always = controls.find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-always-allow'),
+    );
+    const deny = controls.find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-deny'),
+    );
+    expect(always?.getAttribute('data-compose')).toBe('TextButton');
+    expect(JSON.parse(always?.getAttribute('data-colors') ?? '{}')).toEqual({
+      contentColor: 'accentText',
+    });
+    expect(deny?.getAttribute('data-compose')).toBe('TextButton');
+    expect(JSON.parse(deny?.getAttribute('data-colors') ?? '{}')).toEqual({
+      contentColor: 'danger',
+    });
+    const chosen = controls.find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === chosenID),
+    );
+    if (!(chosen instanceof HTMLElement)) throw new Error('Decision missing');
+    await act(async () => chosen.click());
+    expect(decide).toHaveBeenCalledExactlyOnceWith(outcome);
+    expect(texts(view)).toContain('/qa/workspace');
+    const result = all(view, 'Text').find((node) =>
+      modifiers(node).some((modifier) => modifier.testID === 'approval-result'),
+    );
+    expect(result).toBeDefined();
+    expect(result?.parentElement?.getAttribute('data-compose')).toBe('Column');
+    expect(chosen.textContent).toContain(t.selectedChoice);
+    for (const control of controls) expect(control.getAttribute('data-enabled')).toBe('false');
+    await act(async () => chosen.click());
+    expect(decide).toHaveBeenCalledOnce();
+  },
+);

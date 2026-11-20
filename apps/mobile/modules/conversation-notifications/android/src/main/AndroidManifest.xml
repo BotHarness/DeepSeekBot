@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
   <application>
+    <service android:name=".ConnectionService" android:exported="false"
+      android:foregroundServiceType="remoteMessaging" android:stopWithTask="true" />
     <!-- Outranks expo-notifications' own receiver (priority -1), which NotificationsService.doWork resolves by priority. -->
     <receiver
       android:name=".ConversationNotificationsService"

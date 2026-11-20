@@ -1,8 +1,9 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
-import { pagePoint } from '../../../../apps/mobile/src/host/browser-viewer.js';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import { pagePoint } from '@botharness/host-client/browser-viewer';
+import type { HostClient } from '@botharness/host-client/client';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -18,7 +19,10 @@ const styles = stylex.create({
     minHeight: 0,
     overflow: 'hidden',
     backgroundColor: color.well,
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
   frame: {
     position: 'absolute',
@@ -173,7 +177,10 @@ export function RemoteHostViewerPanel({
             )[event.key];
             if (key === undefined) return;
             event.preventDefault();
-            void viewer.send({ kind: 'key', key: kind === 'browser' ? event.key : key });
+            void viewer.send({
+              kind: 'key',
+              key: kind === 'browser' ? event.key : key,
+            });
           }}
         >
           <img
@@ -236,7 +243,10 @@ export function RemoteHostViewerPanel({
           type="button"
           disabled={!driving}
           onClick={() =>
-            void viewer.send({ kind: 'key', key: kind === 'browser' ? 'Enter' : 'return' })
+            void viewer.send({
+              kind: 'key',
+              key: kind === 'browser' ? 'Enter' : 'return',
+            })
           }
         >
           {t('remoteViewer.enter')}
@@ -245,7 +255,12 @@ export function RemoteHostViewerPanel({
           size="sm"
           type="button"
           disabled={!driving}
-          onClick={() => void viewer.send({ kind: 'key', key: kind === 'browser' ? 'Tab' : 'tab' })}
+          onClick={() =>
+            void viewer.send({
+              kind: 'key',
+              key: kind === 'browser' ? 'Tab' : 'tab',
+            })
+          }
         >
           {t('remoteViewer.tab')}
         </Button>

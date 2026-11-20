@@ -65,18 +65,18 @@ const inbox = async () => {
       ?.click(),
   );
   try {
-    await page.waitForSelector('.bh-human-inbox-entry', { timeout: 8000 });
+    await page.waitForSelector('.bh-activity-list-entry', { timeout: 8000 });
   } catch {
     await page.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((node) => node.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await page.waitForSelector('.bh-human-inbox-entry');
+    await page.waitForSelector('.bh-activity-list-entry');
   }
-  await page.evaluate(() => document.querySelector('.bh-human-inbox-entry')?.click());
-  await page.waitForSelector('.bh-human-inbox-tabs');
-  await clickText('.bh-human-inbox-tabs button', '提及与回复');
+  await page.evaluate(() => document.querySelector('.bh-activity-list-entry')?.click());
+  await page.waitForSelector('.bh-activity-list-tabs');
+  await clickText('.bh-activity-list-tabs button', '提及与回复');
   await delay(900);
 };
 const waitMessage = async (channelId, marker) => {
@@ -184,15 +184,15 @@ try {
       console.log('RESTART VERIFIED: stable Human target and canonical read state');
     } else {
       await inbox();
-      await page.select('.bh-human-inbox-filters select', scene.bot.slug);
+      await page.select('.bh-activity-list-filters select', scene.bot.slug);
       await page.waitForFunction(
-        () => document.querySelectorAll('.bh-human-inbox-row').length === 1,
+        () => document.querySelectorAll('.bh-activity-list-row').length === 1,
       );
-      await clickText('.bh-human-inbox-row button', '回复');
-      await page.waitForSelector('.bh-human-inbox-reply-source [data-human-id="local-human"]');
-      await clickText('.bh-human-inbox-reply button', '查看附近消息');
+      await clickText('.bh-activity-list-row button', '回复');
+      await page.waitForSelector('.bh-activity-list-reply-source [data-human-id="local-human"]');
+      await clickText('.bh-activity-list-reply button', '查看附近消息');
       const replyBody = 'Confirmed: Friday release window. Thank you; no further reply needed.';
-      await page.type('.bh-human-inbox-reply textarea', replyBody);
+      await page.type('.bh-activity-list-reply textarea', replyBody);
       await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
       await capture('after-context-light');
       await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', 'true'));
@@ -208,9 +208,9 @@ try {
         false,
       );
       if (mode !== 'capture') {
-        await clickText('.bh-human-inbox-reply button', '发送回复');
+        await clickText('.bh-activity-list-reply button', '发送回复');
         await page.waitForFunction(() =>
-          document.querySelector('.bh-human-inbox-reply')?.textContent?.includes('回复已发送'),
+          document.querySelector('.bh-activity-list-reply')?.textContent?.includes('回复已发送'),
         );
         await capture('after-sent');
         const replies = (
@@ -218,7 +218,7 @@ try {
         ).messages.filter((message) => message.body === replyBody);
         assert.equal(replies.length, 1);
         assert.equal(replies[0].replyTo, scene.mention.id);
-        await clickText('.bh-human-inbox-reply button', '查看来源');
+        await clickText('.bh-activity-list-reply button', '查看来源');
         await page.waitForFunction(
           (id) => !!document.querySelector('[data-message-id="' + id + '"]'),
           {},

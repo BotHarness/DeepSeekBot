@@ -7,7 +7,7 @@ import { hostLooks } from '../../host/native-host-look';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { botCreationTargets } from '../../host/bot-creation-targets';
-import { shownHostName } from '../design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useMounted } from '../mounted';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { EnvironmentPicker } from '../primitives/environment-picker';

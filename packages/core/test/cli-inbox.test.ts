@@ -1,6 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { brokerCliEffects, cliEffects } from '../src/bots/cli-effects.js';
+import { decideToolApproval } from '../src/workspaces/tool-effects.js';
+import { classifyTobHostCli } from '../src/tob/cli-host-commands.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -22,40 +26,42 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -96,6 +102,37 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     const result = await invoke(['inbox', '--search', 'budget'], live.url);
     expect(result.code).not.toBe(0);
     expect(result.text).toContain('host-query-unsupported');
+  });
+
+  it('sends raw text straight into the Orchestrator Session with session-send', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
+    const result = await invoke(
+      ['session-send', ' ada ', 'bot-1', '    keep\n  this indent  '],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(result.json).toEqual({ sourceEventId: 'evt-1' });
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '    keep\n  this indent  ' },
+      },
+    ]);
+  });
+
+  it('sends text that starts with a dash after --', async () => {
+    const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-2' } }));
+    const result = await invoke(
+      ['session-send', 'ada', 'bot-1', '--', '-1 is the answer'],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: 'ada', sessionId: 'bot-1', text: '-1 is the answer' },
+      },
+    ]);
   });
 
   it('searches and orders personal Activity through the same Host query', async () => {
@@ -244,6 +281,49 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { accepted: true, dismissed: 3, more: false },
+    }));
+    const all = await invoke(['inbox-dismiss-all', '--confirm'], live.url);
+    expect(all.code).toBe(0);
+    expect(all.json).toEqual({ accepted: true, dismissed: 3, more: false });
+    await invoke(
+      [
+        'inbox-dismiss-all',
+        '--confirm',
+        '--kind',
+        'bot-message-needs-repair',
+        '--category',
+        'action',
+        '--bot',
+        'ada',
+        '--channel',
+        'dm-ada',
+      ],
+      live.url,
+    );
+    for (const argv of [
+      ['inbox-dismiss-all'],
+      ['inbox-dismiss-all', '--confirm', 'extra'],
+      ['inbox-dismiss-all', '--confirm', '--category', 'handled'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'humanAttentionDismissAll', args: {} },
+      {
+        method: 'humanAttentionDismissAll',
+        args: {
+          kind: 'bot-message-needs-repair',
+          category: 'action',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+        },
+      },
+    ]);
+  });
+
   it('refuses malformed Inbox queries before reaching the Host', async () => {
     const live = await host(echo);
     for (const argv of [
@@ -318,6 +398,8 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
     await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
     await invoke(['session-subagents', 'ada', '--session', 'orch-1'], live.url);
+    await invoke(['session-progress', 'ada', '--session', 'orch-1, asg-1'], live.url);
+    await invoke(['session-transcript', 'ada', '--session', 'asg-1'], live.url);
     for (const argv of [
       ['assignments'],
       ['assignments', 'ada', '--activity', 'busy'],
@@ -326,6 +408,9 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       ['assignment-timeline', 'ada'],
       ['session-subagents', 'ada'],
       ['session-subagents', '--session', 'orch-1'],
+      ['session-progress', 'ada'],
+      ['session-progress', 'ada', '--session', ','],
+      ['session-transcript', 'ada'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
@@ -344,6 +429,8 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
       { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
       { method: 'sessionSubagents', args: { slug: 'ada', sessionId: 'orch-1' } },
+      { method: 'sessionProgress', args: { slug: 'ada', sessionIds: ['orch-1', 'asg-1'] } },
+      { method: 'sessionTranscript', args: { slug: 'ada', sessionId: 'asg-1' } },
     ]);
   });
 
@@ -364,6 +451,63 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'sessionOwner', args: { sessionId: 'sess-1' } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: true } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: false } },
+    ]);
+  });
+
+  it('stops one Assignment Session and prints the Host result', async () => {
+    const result = {
+      stopped: [],
+      alreadyIdle: [{ botSlug: 'ada', sessionId: 'sess-1', role: 'assignment' }],
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const stopped = await invoke(['session-stop', 'ada', 'sess-1'], live.url);
+    expect(stopped.code).toBe(0);
+    expect(stopped.json).toEqual(result);
+    expect((await invoke(['session-stop', 'ada', '--activity', 'activity-1'], live.url)).code).toBe(
+      0,
+    );
+    for (const argv of [
+      ['session-stop', 'ada'],
+      ['session-stop', 'ada', 'sess-1', 'extra'],
+      ['session-stop', 'ada', 'sess-1', '--activity', 'activity-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'sessionStop', args: { botSlug: 'ada', sessionId: 'sess-1' } },
+      { method: 'sessionStop', args: { botSlug: 'ada', activityId: 'activity-1' } },
+    ]);
+  });
+
+  it('stops the Orchestrator Session from a Channel and every Session of a Bot', async () => {
+    const result = {
+      stopped: [{ botSlug: 'ada', sessionId: 'orch-1', role: 'orchestrator' }],
+      alreadyIdle: [],
+      messageId: 'turn-stopped-1',
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const session = await invoke(
+      ['session-stop', 'ada', 'orch-1', '--channel', 'dm-ada'],
+      live.url,
+    );
+    expect(session.code).toBe(0);
+    expect(session.json).toEqual(result);
+    const bot = await invoke(['bot-stop', 'ada', '--channel', 'dm-ada'], live.url);
+    expect(bot.code).toBe(0);
+    expect(bot.json).toEqual(result);
+    expect((await invoke(['bot-stop', 'ada'], live.url)).code).toBe(0);
+    for (const argv of [
+      ['bot-stop'],
+      ['bot-stop', 'ada', 'extra'],
+      ['bot-stop', 'ada', '--channel', ' '],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionStop',
+        args: { botSlug: 'ada', sessionId: 'orch-1', channelId: 'dm-ada' },
+      },
+      { method: 'botStop', args: { botSlug: 'ada', channelId: 'dm-ada' } },
+      { method: 'botStop', args: { botSlug: 'ada' } },
     ]);
   });
 
@@ -507,4 +651,54 @@ it('CLI requests Host notification discovery and refuses unsupported Hosts', asy
   await expect(runInboxCommand('inbox', [], { notifications: true }, connect)).rejects.toThrow(
     'Update the Host',
   );
+});
+
+describe('legacy Inbox CLI effect compatibility', () => {
+  it.each([
+    ['inbox', 'activity', 'none', 'local'],
+    ['inbox-watch', 'activity-watch', 'none', 'local'],
+    ['inbox-status', 'activity-status', 'none', 'local'],
+    ['inbox-dismiss', 'activity-dismiss', 'reversible', 'local'],
+    ['inbox-restore', 'activity-restore', 'reversible', 'local'],
+    ['inbox-dismiss-all', 'activity-dismiss-all', 'reversible', 'local'],
+    ['inbox-allow-once', 'activity-allow-once', 'irreversible', 'external'],
+    ['inbox-ignore', 'activity-ignore', 'reversible', 'local'],
+    ['inbox-snooze', 'activity-snooze', 'reversible', 'local'],
+  ] as const)(
+    'keeps %s and %s on the same direct and broker policy',
+    (legacy, current, changes, reach) => {
+      const effects = { changes, reach, personalData: true };
+      expect(classifyTobHostCli([legacy])).toEqual({ command: legacy, write: changes !== 'none' });
+      expect(classifyTobHostCli([current])).toEqual({
+        command: current,
+        write: changes !== 'none',
+      });
+      expect(cliEffects([legacy])).toEqual(effects);
+      expect(cliEffects([current])).toEqual(effects);
+      expect(brokerCliEffects('deepseekbot ' + legacy, { patch: { argv: [legacy] } })).toEqual(
+        effects,
+      );
+      expect(brokerCliEffects('deepseekbot ' + current, { patch: { argv: [current] } })).toEqual(
+        effects,
+      );
+    },
+  );
+
+  it('lets Full Access admit legacy allow-once like other existing effects', () => {
+    const effects = cliEffects(['inbox-allow-once', 'autoreject:src-1']);
+    expect(effects).toEqual({ changes: 'irreversible', reach: 'external', personalData: true });
+    expect(
+      decideToolApproval(effects, {
+        stage: 'request',
+        fullAccess: true,
+        eachUse: false,
+        explicitApproval: false,
+        legacyProtected: false,
+        device: false,
+        standingRule: 'none',
+        reviewer: false,
+        rememberable: true,
+      }).path,
+    ).toBe('full-access');
+  });
 });

@@ -1,3 +1,8 @@
+import { hasCliDeclaration } from './cli-effects.js';
+import { botMetadata, type BotMetadataResult } from '../team/bot-administration.js';
+import { privateBotRegistry, ownsBot } from '../team/bot-access.js';
+import { TeamRoles } from '../team/roles.js';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -10,8 +15,8 @@ import {
   unlinkSync,
 } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { parseArgs } from 'node:util';
-import { ZIP_UPLOAD_COMMANDS, ZIP_UPLOAD_OPTIONS, runZipUploadCli } from './cli-zip-upload.js';
+import { parseBotCliArgs } from './cli-options.js';
+import { ZIP_UPLOAD_COMMANDS, runZipUploadCli } from './cli-zip-upload.js';
 import { isMap, isScalar, parseDocument } from 'yaml';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
 
@@ -52,6 +57,7 @@ import { createMemoryService, type MemoryService } from '../memory/service.js';
 import { createSessionOwnership } from '../sessions/ownership.js';
 import {
   createModelPresetStore,
+  hasPresetEngines,
   type ModelPreset,
   type ModelRoute,
   type PersonaBotModelPlan,
@@ -76,9 +82,12 @@ import { personaBotAvatarFromBytes, type PersonaBotRecord } from './persona-bot.
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
-import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
+import { canonicalCliCommandName } from './cli-command-names.js';
+import { CliLiveError, LIVE_COMMANDS, runLiveCli } from './cli-live.js';
+import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
-import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
+import { runVoiceLocalKit, VOICE_LOCAL_KIT_HELP } from './cli-voice.js';
+import { runSshCli, SSH_COMMANDS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
@@ -91,6 +100,14 @@ import {
   ONLINE_MANAGEMENT_COMMANDS,
   runOnlineManagement,
 } from './cli-management.js';
+
+const LOCAL_MEMORY_COMMANDS: ReadonlySet<string> = new Set([
+  'memory-snapshot',
+  'memory-file',
+  'memory-history',
+  'memory-diff',
+  'memory-save',
+]);
 
 export interface BotCreateCliIo {
   env: NodeJS.ProcessEnv;
@@ -147,9 +164,19 @@ Usage:
   tobs model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
                                   [--orchestrator-effort <e>] --assignment-provider <p>
                                   --assignment-model <m> [--assignment-effort <e>] [--home <dsh-home>]
-                                  [--plan-stdin (online Host only)]
+                                  [--assignment-models open|listed] [--plan-stdin (online Host only)]
+                                  [--orchestrator-group <id> instead of the Orchestrator route]
+                                  [--assignment-groups <id,id> [--assignment-default-group <id>]]
+                                  [--orchestrator-engine codex|claude] [--assignment-engine codex|claude]
+                                  [--<role>-engine-model <id>] [--<role>-engine-effort <level>]
   tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
   tobs model-plan <id> [--home <dsh-home>]
+  tobs engine list|status --host <url>
+  tobs engine tools <id> [--query memory] --host <url>
+  tobs engine tool <id> memory_read --args-stdin --host <url>
+  tobs engine login codex|claude --host <url>
+  tobs engine models codex|claude --host <url>
+  tobs engine use <id> codex|claude|none --role orchestrator|assignment [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]
@@ -164,7 +191,7 @@ Usage:
   tobs channels [--home <dsh-home>]
   tobs channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
   tobs channel-media-target <channel> --source-event <id> --attachment <id>
-  tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path>
+  tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path> [--representation playback]
   tobs grants <id> [--home <dsh-home>]
   tobs grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
   tobs grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
@@ -202,6 +229,8 @@ Usage:
   tobs plugin-check [--force]
   tobs plugin-install <package> <version> --confirm
   tobs plugin-restart --confirm
+  tobs update-status
+  tobs update-cancel
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
   tobs marketplace-sections [--lang zh|en]
@@ -258,7 +287,8 @@ Usage:
   tobs im-app-remove <platform> --app <app-id>
   tobs im-bind <id> --app <app-id>
   tobs im-unbind <id> --app <app-id>
-  tobs im-status <id>
+  tobs im-reconnect <id> --app <app-id>
+  tobs im-status <id> [--read-mode saved|status]
   tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
   tobs channel-ingests <channel>
   tobs browser-open <id>
@@ -281,12 +311,17 @@ Usage:
   tobs memory-repair <id> --expected-head <commit>
   tobs memory-move <id> (--memory-location <absolute-dir> | --default-location)
   tobs model-catalog
-  tobs model-plan-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-plan-set <id> --plan-stdin [--assignment-models open|listed] [--expected-revision <n>]
   tobs model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
   tobs model-plan-inherit <id> [--expected-revision <n>]
-  tobs model-plan-assignments-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-plan-assignments-set <id> --plan-stdin [--assignment-models open|listed] [--expected-revision <n>]
   tobs model-preset-update <preset-id> [--name <n>] [--orchestrator-provider/-model/-effort ...]
-                                  [--assignment-provider/-model/-effort ...] [--plan-stdin] [--expected-revision <n>]
+                                  [--assignment-provider/-model/-effort ...] [--assignment-models open|listed]
+                                  [--plan-stdin] [--expected-revision <n>]
+                                  [--orchestrator-group <id>|''] [--assignment-groups <id,id>|'']
+                                  [--assignment-default-group <id>|'']
+                                  [--<role>-engine codex|claude|none] [--<role>-engine-model <id>]
+                                  [--<role>-engine-effort <level>]
   tobs overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
   tobs overview-memory [--after <bot-cursor>]
   tobs activity-overview
@@ -316,6 +351,8 @@ Usage:
   tobs inbox-status
   tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
   tobs inbox-restore <item-id> [--source-key <source-event-id>]
+  tobs inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies]
+                    [--bot <id>] [--channel <id>]
   tobs inbox-allow-once <autoreject:item-id>
   tobs inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
   tobs inbox-ignore <source-event-id>
@@ -325,6 +362,9 @@ Usage:
   tobs session-ids
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs session-send <id> <orchestrator-session-id> [--] <text>
+  tobs session-stop <id> <session-id> [--channel <channel-id>]
+  tobs bot-stop <id> [--channel <channel-id>]
   tobs tool-approval-rules <id>
   tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]
   tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm
@@ -344,6 +384,9 @@ Usage:
   tobs bot-standing-limits-set <id> --soul <n> --core-memory <n>
   tobs developer-mode-set (--enabled | --disabled)
   tobs roster | human-identity | part-library
+  tobs human-avatar-set (--file <image> | --clear)
+  tobs human-avatars <human-id>...
+  tobs human-profile-setup-finish
   tobs roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
   tobs roster-pins-set|roster-hidden-set [<channel>...]
   tobs roster-section-create <name>
@@ -411,6 +454,12 @@ Models:
   write through the Host when selected, otherwise directly offline. Routes are shape-checked plus
   provider-existence-checked offline; catalog liveness and readiness
   inspection stay Host-side, and model-plan reports readiness deferred.
+  --assignment-models open lets Assignments and Subagents use any model the Bot
+  owner may use whose provider has an API key; listed (the default) keeps them to
+  the Assignment model list. The Assignment default is still required.
+  --plan-stdin may give assignmentGroupOptions for Assignment Routing Groups:
+  [{group, allowedEfforts?, defaultEffort?, note?}]. A group may offer only the
+  effort levels every member supports.
 
 Memory:
   memory-snapshot/file/history/diff read the bot memory store; memory-save
@@ -434,6 +483,13 @@ Home:
   --home points at the target DSH_HOME (a fresh directory works with zero
   clicks); without it, DSH_HOME from the environment is used.
 `;
+
+const LOCAL_LOG_COMMANDS = new Set([
+  'doctor',
+  'diagnostic-logs',
+  'diagnostic-logs-export',
+  'bug-report',
+]);
 
 const STATIC_CATALOG_PROVIDER_IDS: ReadonlySet<string> = new Set([
   'amazon-bedrock',
@@ -514,69 +570,7 @@ const SECRET_ARGV = new Set([
   'verification-code',
 ]);
 
-const CREATE_OPTIONS = {
-  name: { type: 'string' },
-  persona: { type: 'string' },
-  'persona-stdin': { type: 'boolean' },
-  'core-memory-stdin': { type: 'boolean' },
-  description: { type: 'string' },
-  role: { type: 'string', multiple: true },
-  preset: { type: 'string' },
-  'preset-revision': { type: 'string' },
-  'operation-key': { type: 'string' },
-  ...ZIP_UPLOAD_OPTIONS,
-  'expected-profile': { type: 'string' },
-  'erase-memory': { type: 'boolean' },
-  'from-zip': { type: 'string' },
-  'from-dir': { type: 'string' },
-  'from-git': { type: 'string' },
-  'expected-commit': { type: 'string' },
-  'memory-location': { type: 'string' },
-  home: { type: 'string' },
-  'orchestrator-provider': { type: 'string' },
-  'orchestrator-model': { type: 'string' },
-  'orchestrator-effort': { type: 'string' },
-  'assignment-provider': { type: 'string' },
-  'assignment-model': { type: 'string' },
-  'assignment-effort': { type: 'string' },
-  nickname: { type: 'string' },
-  clear: { type: 'boolean' },
-  path: { type: 'string' },
-  body: { type: 'string' },
-  'body-stdin': { type: 'boolean' },
-  'expected-head': { type: 'string' },
-  'edit-id': { type: 'string' },
-  limit: { type: 'string' },
-  sha: { type: 'string' },
-  before: { type: 'string' },
-  cursor: { type: 'string' },
-  state: { type: 'string' },
-  'confirmation-stdin': { type: 'boolean' },
-  grant: { type: 'string' },
-  enabled: { type: 'boolean' },
-  disabled: { type: 'boolean' },
-  locked: { type: 'boolean' },
-  unlocked: { type: 'boolean' },
-  title: { type: 'string' },
-  prompt: { type: 'string' },
-  sid: { type: 'string' },
-  every: { type: 'string' },
-  daily: { type: 'string' },
-  weekly: { type: 'string' },
-  weekdays: { type: 'string' },
-  'once-date': { type: 'string' },
-  'once-time': { type: 'string' },
-  cron: { type: 'string' },
-  timezone: { type: 'string' },
-  ...LIVE_OPTIONS,
-  ...SSH_OPTIONS,
-  compact: { type: 'boolean' },
-  help: { type: 'boolean', short: 'h' },
-} as const;
-
-export type CreateValues = ReturnType<
-  typeof parseArgs<{ options: typeof CREATE_OPTIONS; allowPositionals: true }>
->['values'];
+export type CreateValues = ReturnType<typeof parseBotCliArgs>['values'];
 
 class CliFailure extends Error {
   readonly code: string;
@@ -727,7 +721,10 @@ function resolveHome(values: CreateValues, io: BotCreateCliIo): string {
   return trimmed(values.home) ?? trimmed(io.env['DSH_HOME']) ?? resolveDshHome(io.env);
 }
 
-function openRegistry(dshHome: string): {
+function openRegistry(
+  dshHome: string,
+  administration = false,
+): {
   owner: OperationalDatabaseOwner;
   registry: PersonaBotRegistry;
 } {
@@ -769,7 +766,8 @@ function openRegistry(dshHome: string): {
       } catch {}
     },
   });
-  return { owner, registry };
+  const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
+  return { owner, registry: administration ? registry : privateBotRegistry(registry, human) };
 }
 
 function failureOf(reason: string, detail?: string): CliFailure {
@@ -1209,6 +1207,12 @@ async function finishCreate(
     const minted = { id: slug, name: record.displayName };
     assertKnownProvider(preset.orchestrator.provider, { steps, bot: minted });
     assertKnownProvider(preset.assignmentDefault.provider, { steps, bot: minted });
+    if (hasPresetEngines(preset))
+      throw new CliFailure(
+        'engine-unavailable',
+        'Apply this Subscription Engine preset through the online Host.',
+        1,
+      );
     const applied = registry.applyModelPreset(slug, preset);
     if (!applied.ok) {
       throw new CliFailure('unknown-preset', `Unknown model preset: ${presetId}`, 1, steps, {
@@ -1243,7 +1247,7 @@ function runList(
   io: BotCreateCliIo,
 ): { bots: Array<{ id: string; name: string; createdAt: string }> } {
   const dshHome = resolveHome(values, io);
-  const { owner, registry } = openRegistry(dshHome);
+  const { owner, registry } = openRegistry(dshHome, true);
   try {
     return {
       bots: registry.list().map((record) => ({
@@ -1257,16 +1261,22 @@ function runList(
   }
 }
 
-function runShow(id: string, values: CreateValues, io: BotCreateCliIo): BotCreateResult {
+function runShow(
+  id: string,
+  values: CreateValues,
+  io: BotCreateCliIo,
+): BotCreateResult | BotMetadataResult {
   const slug = id.trim();
   if (slug.length === 0) throw usageError('show needs a bot id.');
   const dshHome = resolveHome(values, io);
-  const { owner, registry } = openRegistry(dshHome);
+  const { owner, registry } = openRegistry(dshHome, true);
   try {
     const record = registry.get(slug);
     if (record === undefined) {
       throw new CliFailure('unknown-bot', `Unknown bot: ${slug}`, 1);
     }
+    const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
+    if (!ownsBot(human, record)) return { metadataOnly: true, bot: botMetadata(human, record) };
     const channelId = dmChannelId(slug);
     return {
       bot: { id: slug, name: record.displayName },
@@ -1310,19 +1320,35 @@ function parseRoute(values: CreateValues, prefix: 'orchestrator' | 'assignment')
 }
 
 function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { preset: ModelPreset } {
+  if (Object.keys(values).some((key) => /^(orchestrator|assignment)-engine(?:-|$)/u.test(key)))
+    throw usageError('Model Preset Subscription Engines require an online Host target.');
   if (values['plan-stdin'])
     throw usageError('Model Preset plan stdin requires an online Host target.');
+  if (
+    values['orchestrator-group'] !== undefined ||
+    values['assignment-groups'] !== undefined ||
+    values['assignment-default-group'] !== undefined
+  )
+    throw usageError('Model Preset Routing Groups require an online Host target.');
   const name = trimmed(values.name);
   if (name === undefined) throw usageError('--name is required for a model preset.');
   const orchestrator = parseRoute(values, 'orchestrator');
   const assignmentDefault = parseRoute(values, 'assignment');
   assertKnownProvider(orchestrator.provider);
   assertKnownProvider(assignmentDefault.provider);
+  const mode = values['assignment-models'];
+  if (mode !== undefined && mode !== 'open' && mode !== 'listed')
+    throw usageError('--assignment-models must be open or listed.');
   const dshHome = resolveHome(values, io);
   const { owner } = openRegistry(dshHome);
   try {
     try {
-      const preset = modelStore(dshHome, owner).create({ name, orchestrator, assignmentDefault });
+      const preset = modelStore(dshHome, owner).create({
+        name,
+        orchestrator,
+        assignmentDefault,
+        ...(mode === undefined ? {} : { openAssignmentModels: mode === 'open' }),
+      });
       io.stderr(`tobs: created model preset ${preset.id} ("${preset.name}")`);
       return { preset };
     } catch (error) {
@@ -1360,6 +1386,12 @@ function runModelPresetApply(
     }
     assertKnownProvider(preset.orchestrator.provider);
     assertKnownProvider(preset.assignmentDefault.provider);
+    if (hasPresetEngines(preset))
+      throw new CliFailure(
+        'engine-unavailable',
+        'Apply this Subscription Engine preset through the online Host.',
+        1,
+      );
     const applied = registry.applyModelPreset(slug, preset);
     if (!applied.ok) {
       throw new CliFailure('unknown-preset', `Unknown model preset: ${presetId}`, 1);
@@ -1555,7 +1587,7 @@ async function runMemorySave(
       join(resolveHome(values, io), 'botharness', 'bots', opened.record.slug, 'memory');
     const head = expectedHead ?? currentHead(dataDir);
     const commit = callMemory(() =>
-      opened.memory.saveHuman({
+      opened.memory.saveHuman(OWNER_HUMAN_CONTEXT, {
         botSlug: opened.record.slug,
         path,
         body: text,
@@ -1707,7 +1739,7 @@ function runHumanNameSet(
   try {
     const channels = openChannels(dshHome, owner, registry);
     try {
-      const identity = channels.setHumanDefaultName(clear ? null : name!);
+      const identity = channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, clear ? null : name!);
       io.stderr(`tobs: set the Human display name`);
       return { human: { humanId: identity.humanId, displayName: identity.displayName } };
     } catch (error) {
@@ -1743,7 +1775,7 @@ function runChannelHumanNameSet(
       throw new CliFailure('unknown-channel', `Unknown channel: ${channelId}`, 1);
     }
     try {
-      channels.setHumanNickname(channelId, clear ? null : nickname!);
+      channels.setHumanNickname(OWNER_HUMAN_CONTEXT, channelId, clear ? null : nickname!);
     } catch (error) {
       throw new CliFailure(
         'invalid-input',
@@ -1752,7 +1784,10 @@ function runChannelHumanNameSet(
       );
     }
     io.stderr(`tobs: set the Human nickname in ${channelId}`);
-    return { channel: { id: channelId }, nickname: channels.humanNickname(channelId) ?? null };
+    return {
+      channel: { id: channelId },
+      nickname: channels.humanNickname(OWNER_HUMAN_CONTEXT, channelId) ?? null,
+    };
   } finally {
     owner.close();
   }
@@ -2510,6 +2545,11 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  { command: 'bots', description: 'bots list|create|show|delete' },
+  {
+    command: 'engine',
+    description: 'engine list|status|approvals|tools|tool|login|models|use: Subscription Engines',
+  },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
@@ -2535,7 +2575,11 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'update', description: 'update bot name description roles' },
   { command: 'human-name-set', description: 'set the Human display name' },
   { command: 'channel-human-name-set', description: 'set the per-channel Human nickname' },
-  { command: 'channels', description: 'list channels' },
+  {
+    command: 'channels',
+    description:
+      'list channels | add-member <id> <username> | member-candidates <id> [--query <text>]',
+  },
   { command: 'channel-messages', description: 'read channel messages' },
   { command: 'grants', description: 'list bot workspace grants' },
   { command: 'grant-revoke', description: 'revoke a workspace grant' },
@@ -2606,24 +2650,87 @@ export async function runBotCreateCli(
   };
   try {
     rejectSecretArgv(argv);
-    const { values, positionals } = parseArgs({
-      args: [...argv],
-      options: CREATE_OPTIONS,
-      allowPositionals: true,
-      strict: true,
-    });
-    const [command, ...rest] = positionals;
+    const { values, positionals } = parseBotCliArgs(argv);
+    let [command, ...rest] = positionals;
+    if (command === 'bots') {
+      const [action, ...targets] = rest;
+      const aliases: Record<string, string> = {
+        list: 'list',
+        show: 'show',
+        create: 'create',
+        delete: 'bot-delete-confirm',
+      };
+      if (
+        action &&
+        ['visibility', 'visibility-set', 'switches', 'reachable', 'proactive-opt-out'].includes(
+          action,
+        )
+      ) {
+        command = 'bot-access';
+      } else {
+        if (!action || !aliases[action]) throw usageError('invalid-input');
+        command = aliases[action];
+        rest = targets;
+      }
+    } else if (command === 'engine') {
+      const [action, ...targets] = rest;
+      if (
+        action !== undefined &&
+        ['list', 'status', 'approvals', 'tools', 'tool', 'login', 'models', 'use'].includes(action)
+      ) {
+        command = `engine-${action}`;
+        rest = targets;
+      } else if (values.help !== true)
+        throw usageError(
+          'engine needs list, status, approvals, tools, tool, login, models or use.',
+        );
+    } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
+    if (values.administration && command !== 'list') throw usageError('invalid-input');
     compactOutput = values.compact === true;
-    if (hasAgentCliContext(io.env)) {
-      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
+    if (command === 'voice-local-kit') {
+      out.stdout(
+        JSON.stringify(
+          values.help === true ? VOICE_LOCAL_KIT_HELP : runVoiceLocalKit(rest, values),
+          null,
+          2,
+        ),
+      );
       return 0;
     }
+    if (hasAgentCliContext(io.env)) {
+      out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io, argv), null, 2));
+      return 0;
+    }
+    if (command !== undefined) command = canonicalCliCommandName(command);
     if (values.help === true || command === undefined || command === 'help') {
       out.stdout(BOT_CREATE_HELP.trimEnd());
       return 0;
     }
+    if (!hasCliDeclaration(command)) throw usageError('Unknown command.');
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
+    const teamChannels = command === 'channels' && (online || rest.length > 0);
+    if (
+      values.as !== undefined &&
+      (!online ||
+        (!teamChannels &&
+          command !== 'channel-messages' &&
+          !ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command) &&
+          !ZIP_UPLOAD_COMMANDS.some((entry) => entry === command) &&
+          !LIFECYCLE_COMMANDS.some((entry) => entry.command === command) &&
+          !DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) &&
+          !LOCAL_MEMORY_COMMANDS.has(command) &&
+          !PROFILE_ONLINE_COMMANDS.some((entry) => entry === command) &&
+          !LIVE_COMMANDS.some((entry) => entry.command === command)))
+    )
+      throw usageError('as-online-required');
+    if (teamChannels || (values.as !== undefined && command === 'channel-messages')) {
+      if (!online) throw usageError('host-required');
+      if (values.home !== undefined)
+        throw usageError('Do not combine --home and an online Host target.');
+      out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
+      return 0;
+    }
     if (ZIP_UPLOAD_COMMANDS.some((entry) => entry === command)) {
       if (!online) throw usageError('Zip transfer commands require --host.');
       out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
@@ -2700,23 +2807,20 @@ export async function runBotCreateCli(
       return 0;
     }
     if (
-      (LIVE_COMMANDS.some((entry) => entry.command === command) &&
+      ((LIVE_COMMANDS.some((entry) => entry.command === command) ||
+        isActivityCommandName(command)) &&
         (!['pause', 'resume'].includes(command) || online)) ||
       (([
         'channel-messages',
         'grants',
-        'memory-snapshot',
-        'memory-file',
-        'memory-history',
-        'memory-diff',
-        'memory-save',
+        ...LOCAL_MEMORY_COMMANDS,
         ...PROFILE_ONLINE_COMMANDS,
       ].includes(command) ||
         isScheduleCommand(command)) &&
         (values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined)) ||
       (online && INBOX_HOST_COMMANDS.some((entry) => entry === command))
     ) {
-      if (values.home !== undefined)
+      if (values.home !== undefined && !LOCAL_LOG_COMMANDS.has(command))
         throw usageError('Do not combine --home and an online Host target.');
       out.stdout(JSON.stringify(await runLiveCli(command, rest, values, io), null, 2));
       return 0;
@@ -2912,6 +3016,7 @@ export async function runBotCreateCli(
             error: {
               code: error.code,
               message: error.message,
+              ...(error.details === undefined ? {} : { details: error.details }),
               ...(error.operation === undefined ? {} : { operation: error.operation }),
             },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),

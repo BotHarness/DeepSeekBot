@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { joinClass } from './class-name.js';
 import { border, color, radius, size as sizes } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -13,7 +14,7 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
-    borderRadius: radius.sm,
+    borderRadius: radius.control,
     backgroundColor: {
       default: 'transparent',
       ':hover': color.hover,
@@ -38,7 +39,7 @@ const styles = stylex.create({
       ':is([aria-expanded=true])': color.fg,
     },
   },
-  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.sm },
+  inline: { width: sizes.inlineIcon, height: sizes.inlineIcon, borderRadius: radius.control },
   icon: { width: sizes.icon, height: sizes.icon },
   row: { width: sizes.row, height: sizes.row },
 });
@@ -53,20 +54,28 @@ export interface IconButtonProps extends Omit<
   readonly 'aria-label': string;
   readonly size?: IconButtonSize;
   readonly tone?: IconButtonTone;
+  readonly className?: string;
   readonly xstyle?: stylex.StyleXStyles;
   readonly [data: `data-${string}`]: string | boolean | undefined;
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { size = 'icon', tone = 'muted', xstyle, type = 'button', children, ...rest },
+  { size = 'icon', tone = 'muted', className, xstyle, type = 'button', children, ...rest },
   ref,
 ) {
+  const appearance = stylex.props(
+    styles.base,
+    tone === 'subtle' && styles.subtle,
+    styles[size],
+    xstyle,
+  );
   return (
     <button
       ref={ref}
       type={type}
       {...rest}
-      {...stylex.props(styles.base, tone === 'subtle' && styles.subtle, styles[size], xstyle)}
+      {...appearance}
+      className={joinClass(appearance.className, className)}
     >
       {children}
     </button>

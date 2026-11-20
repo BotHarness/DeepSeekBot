@@ -1,5 +1,15 @@
 # Functional Panel appearance (T3–T4)
 
+## Sources
+
+- `packages/client/src/client/appearance-panel*.{ts,tsx}`
+
+## Terms
+
+- Panel
+- Panel header
+- Panel content
+
 ## Sub-features
 
 - Top-level Panel Header context menu opens a named Appearance modal; no extra visible menu button.

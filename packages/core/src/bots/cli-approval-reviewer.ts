@@ -1,10 +1,7 @@
+export { APPROVAL_REVIEWER_OPTIONS } from './cli-option-spec.js';
 import { CliLiveError } from './cli-live-error.js';
 
 type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown>;
-
-export const APPROVAL_REVIEWER_OPTIONS = {
-  effort: { type: 'string' },
-} as const;
 
 export const APPROVAL_REVIEWER_COMMANDS = [
   {

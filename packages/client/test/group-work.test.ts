@@ -1,23 +1,22 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Tag: ({ children }: { children: unknown }) => createElement('span', null, children as never),
-  Menu: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: unknown }) => children,
-  Modal: () => null,
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { GroupWorkEntry } from '../src/client/group-work-entry.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const AT = '2026-10-08T00:00:00Z';
 
@@ -75,6 +74,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  store.applyActivity({ generation: 'reset', revision: 0, bots: [] });
   store.setRoster([], []);
   document.body.replaceChildren();
   vi.unstubAllGlobals();
@@ -111,7 +111,8 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
     assignment('s-run', 'ada', 'Run the build', 'working', 'progress'),
     assignment('s-idle', 'bob', 'Draft notes', 'idle'),
     assignment('s-done', 'ada', 'Ship docs', 'idle', 'completed'),
-    assignment('s-stop', 'bob', 'Old task', 'stopped'),
+    assignment('s-stop', 'bob', 'Stopped task', 'stopped'),
+    { ...assignment('s-old', 'ada', 'Old task', 'idle', 'completed'), archivedAt: AT },
   ];
   await render();
   expect(actions.channelAssignments).toHaveBeenCalledWith(GROUP.id);
@@ -124,7 +125,13 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
   ]);
   const titles = () =>
     [...host.querySelectorAll('.bh-card-title')].map((title) => title.textContent);
-  expect(titles()).toEqual(['Pick a branch', 'Run the build', 'Draft notes', 'Ship docs']);
+  expect(titles()).toEqual([
+    'Pick a branch',
+    'Run the build',
+    'Draft notes',
+    'Ship docs',
+    'Stopped task',
+  ]);
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Pick a branch report');
   expect(host.querySelector('.bh-card-row')?.textContent).toContain('Bob');
 
@@ -137,6 +144,7 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
     'Run the build',
     'Draft notes',
     'Ship docs',
+    'Stopped task',
     'Old task',
   ]);
 
@@ -195,4 +203,118 @@ it('says where Group work will appear before there is any', async () => {
   await render();
   expect(host.querySelector('[role="status"]')?.textContent).toBe(zhTranslate('groupWork.empty'));
   expect(host.querySelector('section')).toBeNull();
+});
+
+const orchestratorActivity = (revision: number, running: readonly string[], turn = 1) =>
+  store.applyActivity({
+    generation: 'group-work-host',
+    revision,
+    bots: ['ada', 'bob'].map((slug) =>
+      running.includes(slug)
+        ? {
+            slug,
+            state: 'working' as const,
+            sessions: [
+              {
+                id: `activity-${slug === 'ada' ? 'aaaaaaaa' : 'bbbbbbbb'}-1111-4111-8111-${String(turn).padStart(12, '0')}`,
+                role: 'orchestrator' as const,
+                revision,
+                at: 1,
+                state: 'working' as const,
+              },
+            ],
+          }
+        : { slug, state: 'idle' as const },
+    ),
+  });
+
+it('lists running member Orchestrators under Working now and stops one into this Group', async () => {
+  assignments = [assignment('s-run', 'ada', 'Run the build', 'working', 'progress')];
+  const readSessions = vi.fn(async (slug: string) => [
+    { sessionId: `${slug}-old`, role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+    {
+      sessionId: `${slug}-orch`,
+      role: 'orchestrator',
+      createdAt: '2026-10-02T00:00:00Z',
+      currentOrchestrator: true,
+    },
+    { sessionId: 's-run', role: 'assignment', createdAt: AT },
+  ]);
+  let settle: () => void = () => undefined;
+  const stopSession = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settle = resolve;
+      }),
+  );
+  Object.assign(actions, { readSessions, stopSession });
+  await render();
+  expect(host.querySelector('section[data-group="working-now"]')).toBeNull();
+
+  await act(async () => orchestratorActivity(1, ['ada', 'bob']));
+  const workingNow = () => host.querySelector('section[data-group="working-now"]');
+  const names = () =>
+    [...(workingNow()?.querySelectorAll('.bh-card-title') ?? [])].map((t) => t.textContent);
+  expect(names()).toEqual(['Ada', 'Bob']);
+  expect(workingNow()?.textContent).toContain(zhTranslate('groupWork.workingNow'));
+  expect(
+    [...host.querySelectorAll('section[data-group]')].map((s) => s.getAttribute('data-group')),
+  ).toEqual(['working-now', 'working']);
+
+  await act(async () => orchestratorActivity(2, ['bob']));
+  expect(names()).toEqual(['Bob']);
+
+  const stop = workingNow()!.querySelector<HTMLButtonElement>('[data-session-stop]')!;
+  expect(stop.getAttribute('aria-label')).toBe(zhTranslate('sessions.stopNamed', { title: 'Bob' }));
+  await act(async () => stop.click());
+  expect(stopSession).toHaveBeenCalledWith('bob', 'bob-orch', GROUP.id);
+  expect(stop.disabled).toBe(true);
+  expect(workingNow()?.textContent).toContain(zhTranslate('sessions.status.stopping'));
+
+  await act(async () => settle());
+  expect(workingNow()?.textContent).toContain(zhTranslate('sessions.status.stopping'));
+  await act(async () => orchestratorActivity(3, []));
+  expect(workingNow()).toBeNull();
+
+  await act(async () => orchestratorActivity(4, ['bob'], 2));
+  expect(workingNow()?.querySelector<HTMLButtonElement>('[data-session-stop]')?.disabled).toBe(
+    false,
+  );
+  await act(async () => workingNow()!.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+  expect(actions.openSession).toHaveBeenCalledWith('bob-orch');
+});
+
+it('ignores Orchestrators of Bots outside the Group', async () => {
+  store.setRoster(
+    [
+      { slug: 'ada', displayName: 'Ada', roles: [], aggregateState: 'idle', createdAt: AT },
+      { slug: 'bob', displayName: 'Bob', roles: [], aggregateState: 'idle', createdAt: AT },
+      { slug: 'cy', displayName: 'Cy', roles: [], aggregateState: 'idle', createdAt: AT },
+    ] as never,
+    [GROUP],
+  );
+  Object.assign(actions, { readSessions: vi.fn(async () => []) });
+  await render();
+  await act(async () =>
+    store.applyActivity({
+      generation: 'outsider-host',
+      revision: 1,
+      bots: [
+        {
+          slug: 'cy',
+          state: 'working',
+          sessions: [
+            {
+              id: 'activity-cccccccc-1111-4111-8111-111111111111',
+              role: 'orchestrator',
+              revision: 1,
+              at: 1,
+              state: 'working',
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  expect(host.querySelector('section[data-group="working-now"]')).toBeNull();
 });

@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -21,7 +22,7 @@ describe('per-PersonaBot source policy defaults', () => {
       const initial = database.diagnostics().metrics.transactionsCommitted;
       expect(store.readGroupOrdinary('fresh-bot')).toMatchObject({
         wake: 'digest',
-        digestCount: 5,
+        digestCount: 10,
         digestIntervalSeconds: 30,
         overrideActive: false,
       });
@@ -95,6 +96,33 @@ describe('per-PersonaBot source policy defaults', () => {
       });
     } finally {
       upgraded.close();
+    }
+  });
+
+  it('reads a stored built-in Group digest row at the current default count', () => {
+    const database = mountOperationalDatabase({
+      dshHome: createTempRoot('botharness-source-group-default-'),
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    try {
+      const module = attachOperationalModule(database, 'source-default');
+      module.transaction((db) => {
+        db.prepare(`
+          INSERT INTO bot_source_policy_revisions
+            (bot_slug, source_class, revision, actor_kind, actor_bot_slug, changed_at,
+             admission_mode, wake_mode, digest_count, digest_interval_seconds, override_active)
+          VALUES ('ada', 'group-ordinary', 1, 'built-in', NULL, '2026-01-01T00:00:00.000Z',
+                  'admit', 'digest', 5, 30, 0)
+        `).run();
+      });
+      const store = createBotSourcePolicyStore(module);
+      const ordinary = () =>
+        store.list('ada').find((rule) => rule.sourceClass === 'group-ordinary');
+      expect(ordinary()).toMatchObject({ wake: 'digest', digestCount: 10, revision: 1 });
+      store.setGroupOrdinary('ada', 'digest', 7, 30, { kind: 'human' });
+      expect(ordinary()).toMatchObject({ wake: 'digest', digestCount: 7 });
+    } finally {
+      database.close();
     }
   });
 
@@ -179,7 +207,7 @@ describe('per-PersonaBot source policy defaults', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada');
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       expect(dm).toBeDefined();
       if (dm === undefined) throw new Error('Human DM unavailable');
       const policy = core.sourcePolicy.list('ada');
@@ -193,21 +221,23 @@ describe('per-PersonaBot source policy defaults', () => {
         });
       }
       expect(policy.find((rule) => rule.sourceClass === 'group-ordinary')).toMatchObject({
-        digestCount: 5,
+        digestCount: 10,
         digestIntervalSeconds: 30,
       });
       expect(core.sourcePolicy.list('bea')).toHaveLength(policy.length);
-      expect(createBridgeMethods({ ...core }).botSourcePolicies({ slug: 'ada' })).toMatchObject({
+      expect(
+        createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }).botSourcePolicies({ slug: 'ada' }),
+      ).toMatchObject({
         ok: true,
         value: { policies: policy },
       });
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'source-policy-human-dm',
         at: new Date().toISOString(),
         author: { kind: 'human' },
         body: 'Hello Ada',
       });
-      const admitted = core.runtime.admitDmMessage({
+      const admitted = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'source-policy-human-dm',
         body: 'Hello Ada',
@@ -291,7 +321,7 @@ describe('per-PersonaBot source policy defaults', () => {
       expect(
         core.sourcePolicy.list('bea').find((rule) => rule.sourceClass === 'assignment-report'),
       ).toMatchObject({ wake: 'conditional', revision: 1 });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(methods.botSourcePolicySet({ slug: 'ada', wake: 'conditional' })).toMatchObject({
         ok: true,
         value: { policy: { revision: 3, lastActor: { kind: 'human' } } },
@@ -373,7 +403,7 @@ describe('per-PersonaBot source policy defaults', () => {
       expect(
         core.sourcePolicy.list('bea').find((rule) => rule.sourceClass === 'group-ordinary'),
       ).toMatchObject({ wake: 'digest', revision: 1 });
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         methods.botSourcePolicySet({
           slug: 'ada',
@@ -437,7 +467,7 @@ describe('per-PersonaBot source policy defaults', () => {
         value: {
           policy: {
             wake: 'digest',
-            digestCount: 5,
+            digestCount: 10,
             digestIntervalSeconds: 30,
             revision: 4,
             overrideActive: false,

@@ -1,0 +1,984 @@
+import assert from 'node:assert/strict';
+import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
+import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath } from 'node:url';
+import { syntheticGenuiDocument } from '../packages/core/test/fixtures/genui-document.ts';
+import { syntheticGenuiDiagrams } from '../packages/core/test/fixtures/genui-diagrams.ts';
+import { rpc } from './verify-app.mjs';
+import { findGenuiModelFollowup, genuiMessageSelector } from './genui-model-qualification.mjs';
+import { stopGenuiQaBot } from './genui-qa-cleanup.mjs';
+import { installGenuiFaultTransport } from './genui-fault-transport.mjs';
+import {
+  clickGenuiDocumentAction,
+  fillGenuiDocumentFilter,
+  waitForGenuiMirrorControl,
+} from './genui-document-action.mjs';
+import {
+  openTimelineConversation,
+  revealEarlierTimelineMessage,
+  timelineConversationVisible as conversationVisible,
+} from './perf-timeline-navigation.mjs';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const { values } = parseArgs({
+  options: {
+    out: { type: 'string' },
+    headless: { type: 'boolean', default: false },
+    pele: { type: 'boolean', default: false },
+    'with-model': { type: 'boolean', default: false },
+    faults: { type: 'boolean', default: false },
+  },
+});
+assert.ok(
+  process.env.BH_E2E_INSTANCE,
+  'Set BH_E2E_INSTANCE to this task’s isolated instance.json.',
+);
+const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
+const runId = new Date().toISOString().replace(/[:.]/g, '-');
+const out = resolve(root, values.out ?? `.humanlayer/tasks/genui-3685/html-e2e/${runId}`);
+mkdirSync(out, { recursive: true });
+const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const git = (...args) => execFileSync('git', args, { cwd: root });
+const manifest = {
+  runId,
+  scope:
+    'Synthetic isolated HTML Web DM; not native, desktop shell, real-model or Human acceptance',
+  sourceSha: git('rev-parse', 'HEAD').toString().trim(),
+  sourceFiles: Object.fromEntries(
+    [
+      ...new Set(
+        `${git('diff', '--name-only', 'HEAD')}\n${git('ls-files', '--others', '--exclude-standard')}`
+          .trim()
+          .split('\n'),
+      ),
+    ]
+      .filter((path) => path && /\.(?:ts|tsx|mjs)$/u.test(path))
+      .map((path) => [path, hash(readFileSync(join(root, path)))]),
+  ),
+  diffSha256: hash(git('diff', 'HEAD')),
+  hostSha256: hash(readFileSync(join(root, 'packages/core/dist/index.mjs'))),
+  clientSha256: hash(readFileSync(join(root, 'packages/client/lib/client.js'))),
+  renderer: JSON.parse(readFileSync(join(root, 'packages/core/dist/genui-runtime.json'), 'utf8'))
+    .renderer,
+  clientRuntimeSha256: hash(readFileSync(join(root, 'packages/client/lib/client.genui.js'))),
+  document: {
+    ...structuredClone(syntheticGenuiDocument),
+    snapshotId: `html-${runId}`,
+    title: `Project explorer ${runId}`,
+  },
+  headed: !values.headless,
+  modelRequested: values['with-model'],
+  captures: [],
+  checks: [],
+  errors: [],
+};
+const save = () => writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2));
+const call = (method, args = {}) => rpc(instance, `botharness/${method}`, args);
+const store = join(root, 'node_modules/.pnpm');
+const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
+assert.ok(entry, 'Install workspace dependencies first.');
+const puppeteer = createRequire(join(store, entry, 'node_modules/'))('puppeteer');
+let panel = `section[aria-label=${JSON.stringify(manifest.document.title)}]`;
+let browser, page, bot, channelId, messageId;
+save();
+
+async function visibleButton(target, label) {
+  for (const button of await target.$$('button')) {
+    const name = (
+      await button.evaluate((node) => node.getAttribute('aria-label') ?? node.textContent)
+    ).trim();
+    if (name === label && (await button.boundingBox())) return button;
+  }
+  throw new Error(`Visible button unavailable: ${label}`);
+}
+async function dismiss(target) {
+  for (let round = 0; round < 8; round++) {
+    const overlay = await target.$('.driver-popover-close-btn');
+    if (overlay && (await overlay.boundingBox())) {
+      await overlay.click();
+      continue;
+    }
+    let changed = false;
+    for (const label of [
+      'Continue',
+      '继续',
+      'Skip tutorial',
+      '跳过教程',
+      'Configure later',
+      '稍后配置',
+      'Skip',
+      '跳过',
+      'Don’t show again',
+    ]) {
+      try {
+        const button = await visibleButton(target, label);
+        if (await button.evaluate((node) => Boolean(node.closest('.bh-chat-body')))) continue;
+        await button.click();
+        changed = true;
+        break;
+      } catch {}
+    }
+    if (!changed) break;
+  }
+}
+async function open(target) {
+  if (process.env.BH_GENUI_DIAGNOSTIC === '1')
+    await target.evaluateOnNewDocument(() => {
+      window.__genuiExecutionTrace = [];
+      const record = (value) => {
+        window.__genuiExecutionTrace.push(value);
+        if (window.__genuiExecutionTrace.length > 80) window.__genuiExecutionTrace.shift();
+      };
+      const NativeWorker = window.Worker;
+      window.Worker = class extends NativeWorker {
+        constructor(...args) {
+          super(...args);
+          this.addEventListener('message', (event) => {
+            const reply = event.data.reply;
+            record({
+              direction: 'reply',
+              type: reply?.type,
+              portId: event.data.portId,
+              state: reply?.state,
+              commandSequence: reply?.commandSequence,
+            });
+          });
+        }
+        postMessage(value, ...args) {
+          const command = value.command;
+          record({
+            direction: 'send',
+            portId: value.portId,
+            type: command?.type,
+            event: command?.event,
+            targetId: command?.targetId,
+            value: command?.value,
+          });
+          if (command?.type === 'boot')
+            for (const frame of document.querySelectorAll('iframe[data-policy-version]')) {
+              for (const type of ['input', 'change', 'click'])
+                frame.contentDocument?.body.addEventListener(type, (event) =>
+                  record({
+                    direction: 'native',
+                    type,
+                    target: event.target.id,
+                    value: event.target.value,
+                    targetId: event.target.getAttribute('data-genui-node'),
+                    realm: event.target instanceof frame.contentWindow.Element,
+                    connected: event.target.isConnected,
+                    sameDocument: event.target.ownerDocument === frame.contentDocument,
+                  }),
+                );
+            }
+          return super.postMessage(value, ...args);
+        }
+      };
+    });
+  if (values.faults) await target.evaluateOnNewDocument(installGenuiFaultTransport);
+  await target.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'language', { configurable: true, get: () => 'en-US' });
+    Object.defineProperty(navigator, 'languages', {
+      configurable: true,
+      get: () => ['en-US', 'en'],
+    });
+  });
+  target.on('pageerror', (error) => {
+    manifest.errors.push(String(error));
+    save();
+  });
+  await target.goto(instance.url, { waitUntil: 'domcontentloaded' });
+  await target.goto(instance.url, { waitUntil: 'networkidle2' });
+  await target.waitForFunction(
+    () =>
+      document.body.innerText.includes('Bot mode') ||
+      document.querySelector('.bh-root.bh-main, [data-workspace-dock]'),
+  );
+  await dismiss(target);
+  await openTimelineConversation(target, channelId, () => dismiss(target));
+  await target.waitForSelector('.bh-chat-body');
+  await target.waitForFunction(() => !document.querySelector('.bh-skeleton-messages'));
+}
+async function frame(target = page) {
+  await target.waitForSelector(`${panel} iframe`);
+  const element = await target.$(`${panel} iframe`);
+  assert.equal(
+    await element.evaluate((node) => node.getAttribute('sandbox')),
+    'allow-same-origin allow-scripts',
+  );
+  await target.waitForFunction(
+    (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
+    {},
+    panel,
+  );
+  const inner = await element.contentFrame();
+  assert.ok(inner, 'Script-disabled document mirror must exist.');
+  await inner.waitForSelector('#scene');
+  await target.waitForFunction(
+    (selector) => document.querySelector(selector)?.textContent.includes('Private view saved'),
+    {},
+    panel,
+  );
+  return inner;
+}
+async function capture(name, target = page, selector = panel) {
+  await dismiss(target);
+  await target.bringToFront();
+  assert.ok(
+    await conversationVisible(target),
+    'A hidden mounted conversation is not visible UI evidence.',
+  );
+  const section = await target.$(selector);
+  assert.ok(section || name === '00-before-publication', 'Published document must be mounted.');
+  if (section) await section.evaluate((node) => node.scrollIntoView({ block: 'start' }));
+  if (section)
+    assert.ok(
+      await section.isIntersectingViewport(),
+      'The captured GenUI section must intersect the viewport.',
+    );
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  if (section)
+    assert.ok(
+      await section.isIntersectingViewport(),
+      'Document must remain visible after layout settles.',
+    );
+  const messageId = section
+    ? await section.evaluate((node) => node.closest('[data-message-id]')?.dataset.messageId)
+    : undefined;
+  await captureObservation(name, target, 'verified-conversation', { selector, messageId });
+}
+async function captureObservation(name, target, kind, evidence = {}) {
+  const path = join(out, `${name}.png`);
+  await target.screenshot({ path });
+  writeFileSync(
+    join(out, `${name}.aria.json`),
+    JSON.stringify(await target.accessibility.snapshot({ interestingOnly: true }), null, 2),
+  );
+  manifest.captures.push({
+    name,
+    kind,
+    ...evidence,
+    file: `${name}.png`,
+    sha256: hash(readFileSync(path)),
+    viewport: target.viewport(),
+    time: new Date().toISOString(),
+    dark: await target.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')),
+  });
+  save();
+}
+async function saved(predicate) {
+  const deadline = Date.now() + 10_000;
+  let latest;
+  while (Date.now() < deadline) {
+    const view = await call('channelGenuiView', { channelId, messageId });
+    latest = view;
+    if (predicate(view.state.values)) return view;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(
+    `Private state did not reach the expected canonical value: ${JSON.stringify(latest)}`,
+  );
+}
+async function button(label, target = page) {
+  await clickGenuiDocumentAction(target, panel, label);
+}
+async function filter(text, target = page) {
+  const inner = await frame(target);
+  await fillGenuiDocumentFilter(inner, text);
+}
+
+async function revealPublished(selector) {
+  const latest = 'button[aria-label="Return to latest messages"]';
+  await page.waitForFunction(
+    (selector, latest) => document.querySelector(selector) || document.querySelector(latest),
+    {},
+    selector,
+    latest,
+  );
+  const button = await page.$(latest);
+  if (button && (await button.boundingBox())) await button.click();
+  await page.waitForSelector(selector);
+}
+
+async function restoreConversation() {
+  if (!(await conversationVisible(page)))
+    await openTimelineConversation(page, channelId, () => dismiss(page));
+  assert.ok(
+    await conversationVisible(page),
+    'Changing responsive layout must reopen the actual conversation.',
+  );
+}
+
+async function qualifyFaults() {
+  await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
+  await revealEarlierTimelineMessage(page, panel);
+  let inner = await frame();
+  await inner.select('#scene', 'table');
+  await saved((state) => state.scene === 'table');
+  const setFilter = async (value) => fillGenuiDocumentFilter(inner, value);
+  const waitText = (text) =>
+    page.waitForFunction(
+      (selector, text) => document.querySelector(selector)?.textContent.includes(text),
+      {},
+      panel,
+      text,
+    );
+  await setFilter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
+  const stale = await page.evaluate(() =>
+    window.__genuiFaultQa.messages.findLast(
+      (message) => message.envelope.reply.state.values.filter === 'Alpha',
+    ),
+  );
+  assert.ok(stale, 'Observe an actual accepted state envelope before replay.');
+  await setFilter('Beta');
+  const before = await saved((state) => state.filter === 'Beta');
+  await inner.evaluate((stale) => {
+    parent.postMessage(stale, '*');
+    parent.postMessage({ ...stale, sequence: 999999, type: 'unknown' }, '*');
+    parent.postMessage({ ...stale, sequence: 999999, padding: 'x'.repeat(20000) }, '*');
+    parent.postMessage({ ...stale, instanceId: 'wrong-mount', sequence: 999999 }, '*');
+  }, stale);
+  await page.evaluate((stale) => window.postMessage(stale, '*'), stale);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  assert.deepEqual(await call('channelGenuiView', { channelId, messageId }), before);
+  await page.evaluate((stale) => {
+    const worker = window.__genuiFaultQa.workers[stale.workerIndex];
+    worker.dispatchEvent(new MessageEvent('message', { data: stale.envelope }));
+  }, stale);
+  await waitText('The document could not run');
+  assert.deepEqual(await call('channelGenuiView', { channelId, messageId }), before);
+  await capture('fault-replayed-worker-snapshot-refused');
+  await button('Reload document');
+  inner = await frame();
+  await page.evaluate((stale) => {
+    const worker = window.__genuiFaultQa.workers[stale.workerIndex];
+    worker.dispatchEvent(new MessageEvent('message', { data: stale.envelope }));
+  }, stale);
+  await setFilter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
+  await setFilter('Beta');
+  await saved((state) => state.filter === 'Beta');
+  await capture('fault-remount-stale-worker-lease-ignored');
+  manifest.checks.push(
+    'Window-message probes have no presentation authority; an actual same-mount Worker snapshot replay refuses the surface without rolling back canonical state. The old lease cannot affect a remount, which accepts fresh local traffic. Protocol shape/size rejection has separate automated coverage.',
+  );
+
+  await page.evaluate(() => {
+    window.__genuiFaultQa.fault = {
+      method: 'botharness/channelGenuiViewSave',
+      mode: 'before-request',
+    };
+  });
+  await setFilter('Retained draft');
+  await waitText('Private view could not save. Your draft is retained.');
+  const saveFault = await page.evaluate(() => window.__genuiFaultQa.fault);
+  assert.equal(
+    saveFault.used,
+    true,
+    'The actual Client must traverse the injected transport boundary.',
+  );
+  assert.equal(
+    (await call('channelGenuiView', { channelId, messageId })).state.values.filter,
+    'Beta',
+  );
+  assert.equal(await inner.$eval('#filter', (node) => node.value), 'Retained draft');
+  await capture('fault-failed-save-retained-draft');
+  await button('Save my view');
+  await saved((state) => state.filter === 'Retained draft');
+  await waitText('Private view saved');
+  await capture('fault-save-retry-recovered');
+  manifest.checks.push(
+    'Explicit pre-request transport failure retains the live draft and original canonical state; trusted retry saves through the actual Host owner.',
+  );
+
+  await call('resume', { slug: bot.bot.slug });
+  await page.evaluate(() => {
+    window.__genuiFaultQa.fault = {
+      method: 'botharness/channelSend',
+      mode: 'after-commit',
+    };
+  });
+  const messagesBefore = (await call('channelMessages', { channelId, limit: 100 })).messages;
+  await button('Continue');
+  await waitText('Send not confirmed. Retry reuses the same message.');
+  const uncertain = await page.evaluate(() => ({
+    fault: window.__genuiFaultQa.fault,
+    calls: window.__genuiFaultQa.calls.filter((call) => call.method === 'botharness/channelSend'),
+  }));
+  manifest.faultTransport = uncertain;
+  save();
+  assert.equal(uncertain.fault.committed, true, 'Drop only an actual successful Host response.');
+  const uncertainId = uncertain.calls.at(-1)?.messageId;
+  assert.ok(uncertainId, 'The Client supplies its stable Human message ID.');
+  assert.ok(!messagesBefore.some((message) => message.id === uncertainId));
+  await capture('fault-uncertain-response');
+  await button('Continue');
+  await waitText('Sent. Waiting for the Bot to reply');
+  const retries = await page.evaluate(() =>
+    window.__genuiFaultQa.calls
+      .filter((call) => call.method === 'botharness/channelSend')
+      .slice(-2),
+  );
+  assert.deepEqual(
+    retries.map((call) => call.messageId),
+    [uncertainId, uncertainId],
+  );
+  const messagesAfter = (await call('channelMessages', { channelId, limit: 100 })).messages;
+  assert.equal(messagesAfter.filter((message) => message.id === uncertainId).length, 1);
+  manifest.faultSubmission = {
+    messageId: uncertainId,
+    attempts: retries.length,
+    canonicalCount: 1,
+  };
+  await capture('fault-uncertain-retry-deduplicated');
+  manifest.checks.push(
+    'Actual Host commit followed by explicitly injected response loss shows unconfirmed UI; retry reuses the same UUID and one canonical Human message.',
+  );
+  await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
+
+  const database = new DatabaseSync(join(instance.home, 'botharness/botharness.db'), {
+    readOnly: true,
+  });
+  try {
+    const event = database
+      .prepare(
+        'SELECT e.source_event_id AS sourceEventId, e.created_at AS createdAt FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND e.message_id = ?',
+      )
+      .get(channelId, messageId);
+    assert.ok(event?.sourceEventId);
+    const scope = {
+      channelIds: [channelId],
+      before: new Date(Date.parse(event.createdAt) + 1).toISOString(),
+    };
+    const preview = await call('storageMessagesCleanupPreview', scope);
+    assert.equal(
+      preview.messages,
+      1,
+      'The cleanup must target only the original synthetic document.',
+    );
+    assert.ok(preview.chats.every((chat) => chat.channelId === channelId));
+    const purged = await call('storageMessagesCleanupConfirm', { ...scope, token: preview.token });
+    assert.equal(purged.messages, 1);
+    manifest.faultPurge = purged;
+    await assert.rejects(call('channelGenuiView', { channelId, messageId }), /genui-unavailable/);
+    assert.equal(
+      database
+        .prepare(
+          'SELECT COUNT(*) AS count FROM genui_private_views WHERE channel_id = ? AND message_id = ?',
+        )
+        .get(channelId, messageId).count,
+      0,
+    );
+    await page.waitForFunction(
+      (selector) => !document.querySelector(`${selector} iframe`),
+      {},
+      panel,
+    );
+    await assert.rejects(
+      call('channelGenuiViewSave', {
+        channelId,
+        messageId,
+        snapshotId: manifest.document.snapshotId,
+        expectedVersion: 0,
+        state: before.state,
+      }),
+      /genui-unavailable/,
+    );
+    await captureObservation('fault-purged-content', page, 'verified-purge-conversation', {
+      messageId,
+    });
+    manifest.checks.push(
+      'Actual scoped Content Purge while open removes the frame and canonical private view; stale save/read are refused by the Host.',
+    );
+  } finally {
+    database.close();
+  }
+}
+
+try {
+  bot = await call('create', {
+    displayName: `HTML QA ${runId}`,
+    persona: values['with-model']
+      ? 'Synthetic HTML GenUI QA. No real business data. When a Human continues from a document, preview and explicitly publish a SHORT new version:2 HTML document in this same DM. Use a new snapshotId and the exact original message ID as predecessorMessageId. Show the submitted selection in a small accessible table inside a section; use the default stylesheet, no doctype, document wrapper, custom CSS or diagrams. Use genui_preview before bot_send_message. Publish the EXACT same serialized genui_json that you successfully previewed, including every HTML character and all metadata. Any correction, even a CSS typo or timestamp, requires previewing the corrected complete document again. Do not publish unrelated replies.'
+      : 'Synthetic HTML GenUI QA. No real business data.',
+    operationKey: randomUUID(),
+  });
+  channelId = bot.channelId ?? `dm-${bot.bot.slug}`;
+  manifest.bot = { slug: bot.bot.slug, channelId };
+  if (values.pele) {
+    manifest.diagrams = [];
+    const sections = [];
+    for (const fixture of syntheticGenuiDiagrams) {
+      let compiled;
+      const timings = [];
+      for (let pass = 0; pass < 5; pass++) {
+        const start = performance.now();
+        const output = execFileSync(
+          process.execPath,
+          [
+            join(root, 'packages/deepseekbot/dist/deepseekbot.mjs'),
+            'bot-tool',
+            bot.bot.slug,
+            'genui_diagram',
+            '--args-stdin',
+          ],
+          {
+            cwd: root,
+            env: {
+              ...process.env,
+              DEEPSEEKBOT_HOST: new URL(instance.url).origin,
+              DEEPSEEKBOT_HOST_TOKEN: new URL(instance.url).searchParams.get('token'),
+            },
+            input: JSON.stringify({ source: fixture.source, width: 728 }),
+            encoding: 'utf8',
+            timeout: 15_000,
+          },
+        );
+        timings.push(Math.round(performance.now() - start));
+        const reply = JSON.parse(output);
+        assert.ok(reply.result, 'Direct Tool must return an explicit result.');
+        const result = typeof reply.result === 'string' ? JSON.parse(reply.result) : reply.result;
+        assert.equal(result.compiler, 'pele@1.13.0');
+        assert.equal(hash(result.svg), result.svgSha256);
+        if (compiled) assert.equal(result.svgSha256, compiled.svgSha256);
+        compiled = result;
+      }
+      manifest.diagrams.push({ ...fixture, ...compiled, directCliMs: timings });
+      sections.push(
+        `<section data-scene="${fixture.id}" class="wide genui-surface"><h2>${fixture.title}</h2><figure>${compiled.svg}<figcaption>${fixture.caption}</figcaption></figure></section>`,
+      );
+      manifest.document.stateContract.fields.scene.options.push(fixture.id);
+    }
+    assert.ok(manifest.document.html.includes('<div class="genui-grid">'));
+    manifest.document.html = manifest.document.html.replace(
+      '<div class="genui-grid">',
+      `<div class="genui-grid">${sections.join('')}`,
+    );
+    manifest.document.html = manifest.document.html.replace(
+      '</select>\n  </div>',
+      `${syntheticGenuiDiagrams.map((fixture) => `<option value="${fixture.id}">${fixture.title}</option>`).join('')}</select>\n  </div>`,
+    );
+    save();
+  }
+  const preview = await call('botToolRun', {
+    slug: bot.bot.slug,
+    tool: 'genui_preview',
+    args: { genui_json: JSON.stringify(manifest.document), width: 900, theme: 'dark' },
+  });
+  manifest.preview = preview.result;
+  save();
+  browser = await puppeteer.launch({
+    headless: values.headless,
+    args: ['--no-sandbox', '--lang=en-US'],
+    defaultViewport: { width: 1440, height: 1100 },
+  });
+  manifest.browser = { version: await browser.version(), pid: browser.process().pid };
+  page = await browser.newPage();
+  await open(page);
+  await capture('00-before-publication');
+  const sent = await call('botToolRun', {
+    slug: bot.bot.slug,
+    tool: 'bot_send_message',
+    args: {
+      channel_id: channelId,
+      body: 'Synthetic project comparison: explore charts, diagrams and table. Local controls do not perform business actions.',
+      genui_json: JSON.stringify(manifest.document),
+    },
+  });
+  assert.equal(sent.result.status, 'committed');
+  messageId = sent.result.messageId;
+  panel = genuiMessageSelector(messageId);
+  manifest.messageId = messageId;
+  let inner = await frame();
+  await capture('01-composed');
+  for (const scene of [
+    ...(values.pele ? syntheticGenuiDiagrams.map((fixture) => fixture.id) : []),
+    'metrics',
+    'comparison',
+    'table',
+    'bar',
+    'line',
+    'donut',
+    'flow',
+    'relations',
+    'timeline',
+  ]) {
+    await inner.select('#scene', scene);
+    await saved((state) => state.scene === scene);
+    await capture(`scene-${scene}`);
+  }
+  await inner.select('#scene', 'table');
+  const before = await call('channelMessages', { channelId, limit: 100 });
+  await filter('Beta');
+  await saved((state) => state.filter === 'Beta');
+  assert.equal(await inner.$$eval('#rows tr', (rows) => rows.length), 1);
+  await capture('02-filter');
+  await filter('not-a-project');
+  await waitForGenuiMirrorControl(page, panel, '#empty', 'hidden', false);
+  await capture('03-no-matches');
+  await filter('');
+  await inner.select('#sort', 'ascending');
+  await saved((state) => state.sort === 'ascending');
+  assert.match(await inner.$eval('#rows tr', (node) => node.textContent), /Beta/);
+  await capture('04-sort');
+  await inner.click('input[aria-label="Select Alpha"]');
+  await inner.click('#details');
+  await saved((state) => state.selected === 'alpha' && state.details);
+  await capture('05-selection-details');
+  const after = await call('channelMessages', { channelId, limit: 100 });
+  assert.deepEqual(
+    after.messages.map((message) => message.id),
+    before.messages.map((message) => message.id),
+  );
+  manifest.checks.push('Local exploration only saves private state; no Channel messages.');
+  const context = await browser.createBrowserContext();
+  const second = await context.newPage();
+  await open(second);
+  const secondFrame = await frame(second);
+  await waitForGenuiMirrorControl(
+    second,
+    panel,
+    'input[aria-label="Select Alpha"]',
+    'checked',
+    true,
+  );
+  assert.equal(await secondFrame.$eval('#filter', (node) => node.value), '');
+  assert.equal(
+    await secondFrame.$eval('input[aria-label="Select Alpha"]', (node) => node.checked),
+    true,
+  );
+  await capture('06-authorized-client-recovery', second);
+  await filter('Alpha');
+  await saved((state) => state.filter === 'Alpha');
+  await filter('Beta', second);
+  await second.waitForFunction(
+    (selector) =>
+      document.querySelector(selector)?.textContent.includes('Private view changed elsewhere'),
+    {},
+    panel,
+  );
+  await capture('07-cas-conflict', second);
+  await button('Keep my draft', second);
+  await second.waitForFunction(
+    (selector) => document.querySelector(selector)?.textContent.includes('Save my view'),
+    {},
+    panel,
+  );
+  await button('Save my view', second);
+  await saved((state) => state.filter === 'Beta');
+  await capture('08-explicit-conflict-save', second);
+  await context.close();
+  await page.reload({ waitUntil: 'networkidle2' });
+  inner = await frame();
+  await waitForGenuiMirrorControl(page, panel, '#filter', 'value', 'Beta');
+  assert.equal(await inner.$eval('#filter', (node) => node.value), 'Beta');
+  await capture('09-reopen');
+  await button('Reset view');
+  await saved((state) => state.filter === '' && state.selected === 'none');
+  await capture('10-reset');
+  await inner.select('#scene', 'table');
+  await saved((state) => state.scene === 'table');
+  await inner.click('input[aria-label="Select Alpha"]');
+  await saved((state) => state.selected === 'alpha');
+  await button('Continue');
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelector(selector)?.textContent.includes('Sent. Waiting for the Bot'),
+    {},
+    panel,
+  );
+  const submitted = (await call('channelMessages', { channelId, limit: 100 })).messages.find(
+    (message) => message.genuiReply?.messageId === messageId,
+  );
+  assert.equal(submitted.author.kind, 'human');
+  assert.equal(submitted.genuiReply.state.values.selected, 'alpha');
+  assert.ok(!submitted.body.includes('Untrusted GenUI document context'));
+  assert.ok(submitted.genuiReplyContext.includes('Untrusted GenUI document context'));
+  assert.ok(!submitted.genuiReplyContext.includes(manifest.document.html));
+  await page.waitForFunction(
+    (message) => {
+      const node = document.querySelector(`[data-message-id="${message.id}"] .bh-bubble-body`);
+      return node?.textContent.trim() === message.body.trim();
+    },
+    {},
+    { id: submitted.id, body: submitted.body },
+  );
+  manifest.checks.push(
+    'New Human continuation shows only the readable body; bounded model context remains canonical metadata, without HTML.',
+  );
+  manifest.submission = submitted;
+  await capture('11-visible-human-continuation');
+  if (values['with-model']) {
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      const messages = await call('channelMessages', { channelId, limit: 100 });
+      const trace = await call('botToolTrace', { slug: bot.bot.slug, turns: 4 });
+      const evidenceDb = new DatabaseSync(join(instance.home, 'botharness/botharness.db'), {
+        readOnly: true,
+      });
+      try {
+        manifest.canonicalModelEvidence = {
+          sourceEvents: evidenceDb
+            .prepare(
+              'SELECT e.source_event_id AS sourceEventId, e.message_id AS messageId, p.channel_id AS channelId FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? ORDER BY p.revision DESC LIMIT 100',
+            )
+            .all(channelId),
+          admissions: evidenceDb
+            .prepare(
+              'SELECT a.bot_slug AS botSlug, a.attempt_state AS attemptState, a.source_event_id AS sourceEventId FROM inbox_admissions a JOIN source_events e USING(source_event_id) WHERE e.message_id = ? AND a.bot_slug = ?',
+            )
+            .all(submitted.id, bot.bot.slug),
+        };
+      } finally {
+        evidenceDb.close();
+      }
+      manifest.modelTrace = trace;
+      manifest.modelFollowup = findGenuiModelFollowup(messages.messages, trace, {
+        channelId,
+        slug: bot.bot.slug,
+        after: submitted.at,
+        humanMessageId: submitted.id,
+        predecessorMessageId: messageId,
+        ...manifest.canonicalModelEvidence,
+      });
+      save();
+      if (manifest.modelFollowup) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    assert.ok(
+      manifest.modelFollowup,
+      'A real model must preview and explicitly publish a canonical linked HTML follow-up within 180 seconds. Direct Tools and text-only replies do not qualify.',
+    );
+    const modelPanel = genuiMessageSelector(manifest.modelFollowup.message.id);
+    await revealPublished(modelPanel);
+    await page.waitForSelector(`${modelPanel} iframe`);
+    await page.waitForFunction(
+      (selector) => {
+        const content = document.querySelector(selector)?.textContent;
+        return (
+          content &&
+          !content.includes('Loading document') &&
+          !content.includes('The document could not run') &&
+          (content.includes('This document does not save a private view') ||
+            content.includes('Private view saved'))
+        );
+      },
+      {},
+      modelPanel,
+    );
+    const modelFrame = await (await page.$(`${modelPanel} iframe`)).contentFrame();
+    assert.ok(modelFrame, 'The model-authored script-disabled mirror must actually mount.');
+    await modelFrame.waitForSelector('table');
+    assert.ok(
+      (await modelFrame.$eval('table', (node) => node.textContent.toLowerCase())).includes(
+        submitted.genuiReply.state.values.selected.toLowerCase(),
+      ),
+      'The actual rendered table must show the Human-submitted selection.',
+    );
+    await capture('11-real-model-linked-followup', page, modelPanel);
+    manifest.checks.push(
+      'Real orchestrator preview and committed publication call IDs match the canonical linked HTML message and its Source Event.',
+    );
+  }
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+  await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''));
+  await capture('12-dark');
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+  await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
+  await capture('13-light');
+  await page.setViewport({ width: 800, height: 1100 });
+  await restoreConversation();
+  await capture('14-narrow-web-not-native');
+  if (values.pele) {
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }]);
+      await page.evaluate(
+        (dark) => document.body.toggleAttribute('data-ds-dark-theme', dark),
+        theme === 'dark',
+      );
+      for (const width of [1440, 800]) {
+        await page.setViewport({ width, height: 1100 });
+        await restoreConversation();
+        for (const fixture of syntheticGenuiDiagrams) {
+          inner = await frame();
+          await inner.select('#scene', fixture.id);
+          await saved((state) => state.scene === fixture.id);
+          const evidence = await inner.$eval(`[data-scene="${fixture.id}"]`, (node) => ({
+            svgCount: node.querySelectorAll('svg.pele').length,
+            border: getComputedStyle(node).borderTopWidth,
+            series: getComputedStyle(node.querySelector('svg'))
+              .getPropertyValue('--pele-series-1')
+              .trim(),
+            text: node.textContent,
+            axes: [...node.querySelectorAll('.pele-axis')].map(
+              (axis) => getComputedStyle(axis).stroke,
+            ),
+          }));
+          assert.equal(evidence.svgCount, 1);
+          assert.equal(evidence.border, '0px');
+          assert.ok(evidence.series);
+          if (fixture.id === 'pele-xychart') {
+            assert.ok(evidence.axes.length > 0);
+            assert.ok(
+              evidence.axes.every(
+                (stroke) => !['none', 'transparent', 'rgba(0, 0, 0, 0)'].includes(stroke),
+              ),
+            );
+          }
+          manifest.checks.push({ kind: 'pele-scene', scene: fixture.id, theme, width, evidence });
+          await capture(`${fixture.id}-${theme}-${width}`);
+        }
+      }
+    }
+    await page.evaluate(() => document.body.removeAttribute('data-ds-dark-theme'));
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+  }
+  await page.setViewport({ width: 1440, height: 1100 });
+  await restoreConversation();
+  const refreshed = {
+    ...manifest.document,
+    snapshotId: `refresh-${runId}`,
+    title: `Refreshed ${runId}`,
+    predecessorMessageId: messageId,
+  };
+  await button('Refresh document');
+  const refreshedSend = await call('botToolRun', {
+    slug: bot.bot.slug,
+    tool: 'bot_send_message',
+    args: {
+      channel_id: channelId,
+      body: 'Synthetic linked refreshed snapshot; original retained.',
+      genui_json: JSON.stringify(refreshed),
+    },
+  });
+  assert.equal(refreshedSend.result.status, 'committed');
+  const messages = await call('channelMessages', { channelId, limit: 100 });
+  assert.ok(messages.messages.some((message) => message.id === messageId));
+  manifest.refresh = {
+    messageId: refreshedSend.result.messageId,
+    snapshotId: refreshed.snapshotId,
+    predecessorMessageId: messageId,
+  };
+  const refreshedPanel = genuiMessageSelector(refreshedSend.result.messageId);
+  await revealPublished(refreshedPanel);
+  await page.waitForSelector(`${refreshedPanel} iframe`);
+  await page.waitForFunction(
+    (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
+    {},
+    refreshedPanel,
+  );
+  assert.equal(
+    await page.$eval(refreshedPanel, (node) =>
+      node.textContent.includes('The document could not run'),
+    ),
+    false,
+    'The linked refresh must actually render, not merely keep its summary.',
+  );
+  assert.ok(
+    await page.$(`${refreshedPanel} iframe`),
+    'The linked refresh must retain a live document mirror.',
+  );
+  await capture('15-linked-refresh', page, refreshedPanel);
+  for (const [name, html] of [
+    [
+      'stateless',
+      '<h2>Static visual explanation</h2><p>No registered private state. Reopening starts over.</p><svg viewBox="0 0 200 60" role="img" aria-label="Read, compare, decide"><text x="10" y="30" fill="var(--foreground)">Read → compare → decide</text></svg>',
+    ],
+    [
+      'script-failure',
+      '<h2>Invalid document</h2><script>throw new Error("Synthetic fixture failure")</script>',
+    ],
+    ['height-failure', '<div style="height:25001px">Synthetic over-limit document</div>'],
+    ...(values.faults
+      ? [
+          ['execution-failure', '<p>Bounded guest fault</p><script>for(;;){}</script>'],
+          [
+            'memory-failure',
+            '<p>Bounded guest allocation fault</p><script>globalThis.retained=[];for(let index=0;index<96;index++)retained.push(String.fromCharCode(65+index%26).repeat(1048576-16)+index)</script>',
+          ],
+        ]
+      : []),
+  ]) {
+    const document = {
+      version: 2,
+      snapshotId: `${name}-${runId}`,
+      observedAt: manifest.document.observedAt,
+      title: `${name} ${runId}`,
+      html,
+    };
+    const published = await call('botToolRun', {
+      slug: bot.bot.slug,
+      tool: 'bot_send_message',
+      args: {
+        channel_id: channelId,
+        body: `Synthetic ${name}: this ordinary summary must remain readable.`,
+        genui_json: JSON.stringify(document),
+      },
+    });
+    assert.equal(published.result.status, 'committed');
+    const selector = genuiMessageSelector(published.result.messageId);
+    await revealPublished(selector);
+    await page.waitForFunction(
+      (selector) => !document.querySelector(selector)?.textContent.includes('Loading document'),
+      {},
+      selector,
+    );
+    if (name !== 'stateless')
+      await page.waitForFunction(
+        (selector) =>
+          document.querySelector(selector)?.textContent.includes('The document could not run'),
+        {},
+        selector,
+      );
+    else {
+      const frameElement = await page.$(`${selector} iframe`);
+      assert.ok(frameElement, 'A supported stateless document must actually render.');
+      const rendered = await frameElement.contentFrame();
+      assert.equal(
+        await rendered.$eval('h2', (node) => node.textContent),
+        'Static visual explanation',
+      );
+    }
+    await capture(`16-${name}`, page, selector);
+  }
+  manifest.checks.push(
+    'Explicit ordinary Human continuation and appended linked refresh retain canonical messages.',
+  );
+  if (values.faults) await qualifyFaults();
+  manifest.expectedErrors = manifest.errors.filter((error) =>
+    error.includes('Synthetic fixture failure'),
+  );
+  assert.deepEqual(
+    manifest.errors.filter((error) => !error.includes('Synthetic fixture failure')),
+    [],
+  );
+  manifest.status = 'passed';
+} catch (error) {
+  manifest.status = 'failed';
+  manifest.failure = error.stack ?? String(error);
+  if (page && process.env.BH_GENUI_DIAGNOSTIC === '1')
+    manifest.executionDiagnostic = await page
+      .evaluate(() => window.__genuiExecutionTrace)
+      .catch(() => undefined);
+  if (page) await captureObservation('failure', page, 'failure-observation').catch(() => undefined);
+  process.exitCode = 1;
+} finally {
+  if (bot) {
+    try {
+      manifest.botCleanup = await stopGenuiQaBot(call, { slug: bot.bot.slug, channelId });
+    } catch (error) {
+      manifest.cleanupFailure = error.stack ?? String(error);
+      manifest.status = 'failed';
+      process.exitCode = 1;
+    }
+  }
+  await browser?.close();
+  manifest.browserClosed = true;
+  save();
+  console.log(JSON.stringify({ status: manifest.status, captures: manifest.captures.length, out }));
+}

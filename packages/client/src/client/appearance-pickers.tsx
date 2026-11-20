@@ -8,9 +8,13 @@ import {
   type AppearanceModeConfig,
   type AppearancePreference,
   type AppearancePreset,
+  type AppearanceStyle,
+  APPEARANCE_STYLES,
 } from './appearance.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { ColorInput } from './ds/input.js';
+import { Icon } from './ds/icon.js';
+import { PreviewChoices, SwatchChoices } from './ds/preview-choice.js';
+import { accent, edge, ink, layer, line, radius, space, state, style } from './ds/tobs.stylex.js';
 import type { LayoutMode } from './layout-mode.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
@@ -27,7 +31,7 @@ const SCHEMES: readonly { id: AppearancePreference; label: BotHarnessKey }[] = [
   { id: 'dark', label: 'settings.theme.dark' },
 ];
 
-const ink = {
+const preview = {
   lightBase: 'oklch(0.975 0.004 250)',
   lightSide: 'oklch(0.93 0.012 250)',
   lightLine: 'oklch(0.87 0.012 250)',
@@ -39,47 +43,12 @@ const ink = {
 } as const;
 
 const styles = stylex.create({
-  grid: {
-    display: 'grid',
-    gap: space.x3,
-    gridTemplateColumns: 'repeat(3, minmax(0, 148px))',
-  },
-  card: {
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x2,
-    minWidth: 0,
-    padding: space.x2,
-    borderWidth: 0,
-    borderRadius: radius.md,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
-    color: color.muted,
-    fontFamily: 'inherit',
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    textAlign: 'center',
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    outlineOffset: '2px',
-    transitionProperty: 'background-color',
-    transitionDuration: '120ms',
-  },
-  checked: {
-    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
-    color: color.fg,
-    fontWeight: text.strong,
-  },
-  preview: {
-    position: 'relative',
-    display: 'block',
-    aspectRatio: '16 / 10',
-    overflow: 'hidden',
-    borderRadius: radius.sm,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-  },
+  fill: (value: string) => ({ backgroundColor: value }),
+  composerEdge: (value: string) => ({ boxShadow: `inset 0 0 0 ${edge.hairline} ${value}` }),
+  paneGrow: (grow: number) => ({ flexGrow: grow }),
+  bubble: { width: '34%', alignSelf: 'flex-end' },
+  wideLine: { width: '70%' },
+  shortLine: { width: '50%' },
   layer: {
     position: 'absolute',
     inset: 0,
@@ -112,84 +81,69 @@ const styles = stylex.create({
     height: '12px',
     paddingInline: space.x1,
     borderRadius: radius.xs,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
   },
-  dot: { width: '7px', height: '7px', borderRadius: radius.round, cornerShape: 'round' },
-  presets: {
+  dot: { width: '7px', height: '7px', borderRadius: radius.full, cornerShape: 'round' },
+  sample: {
+    position: 'absolute',
+    inset: 0,
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: space.x2,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 0,
+    paddingInline: space.x5,
+    backgroundColor: layer.canvas,
   },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.x2,
-    paddingBlock: space.x2,
-    paddingInlineStart: space.x2,
-    paddingInlineEnd: space.x4,
-    borderRadius: radius.lg,
-    textAlign: 'start',
+  sampleGrouped: { backgroundColor: layer.raised },
+  sampleGroup: { display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+  sampleCard: { gap: edge.hairline, borderRadius: radius.xs, backgroundColor: line.divider },
+  sampleRow: { height: '9px', marginBlock: space.x1, borderRadius: radius.xs },
+  sampleRowCard: {
+    height: '11px',
+    marginBlock: 0,
+    borderRadius: 0,
+    backgroundColor: layer.elevated,
   },
-  morph: {
-    display: 'block',
-    flexShrink: 0,
-    width: '20px',
-    height: '20px',
-    borderRadius: radius.round,
-    cornerShape: 'round',
-    boxShadow: `inset 0 0 0 1px ${color.divider}`,
+  sampleRowQuiet: { backgroundColor: layer.raised },
+  sampleNeutral: { backgroundColor: state.selected },
+  sampleAccent: { backgroundColor: accent.solid },
+  sampleTiles: { gap: space.x1, borderRadius: radius.md, backgroundColor: 'transparent' },
+  sampleTile: {
+    height: '11px',
+    marginBlock: 0,
+    borderRadius: radius.xs,
+    backgroundColor: layer.raised,
   },
-  name: {},
+  sampleTonal: { backgroundColor: accent.container },
+
   layoutFrame: {
     position: 'absolute',
     inset: 0,
     display: 'flex',
     gap: space.x1,
     padding: space.x2,
-    backgroundColor: color.base,
+    backgroundColor: layer.canvas,
   },
-  layoutColumn: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  layoutColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+    flexGrow: 1,
+  },
   layoutRail: {
     width: '9%',
     flexShrink: 0,
     borderRadius: radius.xs,
-    backgroundColor: color.divider,
+    backgroundColor: line.divider,
   },
   layoutPane: {
     flexGrow: 1,
     minWidth: 0,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.xs,
-    backgroundColor: color.surface,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
   },
-  layoutActive: { borderColor: color.accent },
-  swatchRow: { display: 'inline-flex', alignItems: 'center', gap: space.x2, color: color.muted },
-  swatch: {
-    position: 'relative',
-    display: 'inline-flex',
-    width: '24px',
-    height: '24px',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.border,
-    borderRadius: radius.round,
-    cornerShape: 'round',
-    boxShadow: { default: 'none', ':focus-within': `0 0 0 2px ${color.accent}` },
-    cursor: 'pointer',
-  },
-  input: {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    margin: 0,
-    padding: 0,
-    opacity: 0,
-    cursor: 'pointer',
-  },
+  layoutActive: { backgroundColor: accent.container },
+  swatchRow: { display: 'inline-flex', alignItems: 'center', gap: space.x2, color: ink.secondary },
 });
 
 const morph = (light: string, dark: string): CSSProperties => ({
@@ -198,34 +152,35 @@ const morph = (light: string, dark: string): CSSProperties => ({
 
 function MiniWindow({ mode, primary }: { mode: AppearanceMode; primary: string }): ReactElement {
   const light = mode === 'light';
-  const base = light ? ink.lightBase : ink.darkBase;
-  const line = light ? ink.lightLine : ink.darkLine;
+  const base = light ? preview.lightBase : preview.darkBase;
+  const bar = light ? preview.lightLine : preview.darkLine;
   return (
-    <span {...stylex.props(styles.layer)} style={{ backgroundColor: base }}>
+    <span {...stylex.props(styles.layer, styles.fill(base))}>
       <span
-        {...stylex.props(styles.side)}
-        style={{ backgroundColor: light ? ink.lightSide : ink.darkSide }}
+        {...stylex.props(styles.side, styles.fill(light ? preview.lightSide : preview.darkSide))}
       >
         {[0, 1, 2].map((key) => (
-          <span key={key} {...stylex.props(styles.bar)} style={{ backgroundColor: line }} />
+          <span key={key} {...stylex.props(styles.bar, styles.fill(bar))} />
         ))}
       </span>
       <span {...stylex.props(styles.main)}>
         <span
-          {...stylex.props(styles.bar)}
-          style={{
-            width: '34%',
-            alignSelf: 'flex-end',
-            backgroundColor: `color-mix(in srgb, ${primary} 35%, transparent)`,
-          }}
+          {...stylex.props(
+            styles.bar,
+            styles.bubble,
+            styles.fill(`color-mix(in srgb, ${primary} 35%, transparent)`),
+          )}
         />
-        <span {...stylex.props(styles.bar)} style={{ width: '70%', backgroundColor: line }} />
-        <span {...stylex.props(styles.bar)} style={{ width: '50%', backgroundColor: line }} />
+        <span {...stylex.props(styles.bar, styles.wideLine, styles.fill(bar))} />
+        <span {...stylex.props(styles.bar, styles.shortLine, styles.fill(bar))} />
         <span
-          {...stylex.props(styles.composer)}
-          style={{ borderColor: line, backgroundColor: light ? ink.lightCard : ink.darkCard }}
+          {...stylex.props(
+            styles.composer,
+            styles.composerEdge(bar),
+            styles.fill(light ? preview.lightCard : preview.darkCard),
+          )}
         >
-          <span {...stylex.props(styles.dot)} style={{ backgroundColor: primary }} />
+          <span {...stylex.props(styles.dot, styles.fill(primary))} />
         </span>
       </span>
     </span>
@@ -247,33 +202,27 @@ export function ColorSchemePicker({
   t: BotHarnessTranslate;
 }): ReactElement {
   return (
-    <div role="radiogroup" aria-label={t('settings.theme')} {...stylex.props(styles.grid)}>
-      {SCHEMES.map((scheme) => {
-        const checked = value === scheme.id;
-        return (
-          <button
-            key={scheme.id}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            onClick={() => onChange(scheme.id)}
-            {...stylex.props(styles.card, checked && styles.checked)}
-          >
-            <span {...stylex.props(styles.preview)} aria-hidden="true">
-              {scheme.id !== 'dark' ? (
-                <MiniWindow mode="light" primary={primaryOf(config, 'light')} />
-              ) : null}
-              {scheme.id !== 'light' ? (
-                <span {...stylex.props(styles.layer, scheme.id === 'system' && styles.darkHalf)}>
-                  <MiniWindow mode="dark" primary={primaryOf(config, 'dark')} />
-                </span>
-              ) : null}
-            </span>
-            {t(scheme.label)}
-          </button>
-        );
-      })}
-    </div>
+    <PreviewChoices
+      label={t('settings.theme')}
+      value={value}
+      onChange={onChange}
+      options={SCHEMES.map((scheme) => ({
+        id: scheme.id,
+        label: t(scheme.label),
+        preview: (
+          <>
+            {scheme.id !== 'dark' ? (
+              <MiniWindow mode="light" primary={primaryOf(config, 'light')} />
+            ) : null}
+            {scheme.id !== 'light' ? (
+              <span {...stylex.props(styles.layer, scheme.id === 'system' && styles.darkHalf)}>
+                <MiniWindow mode="dark" primary={primaryOf(config, 'dark')} />
+              </span>
+            ) : null}
+          </>
+        ),
+      }))}
+    />
   );
 }
 
@@ -286,30 +235,70 @@ export function ThemePresetPicker({
   onSelect: (preset: AppearancePreset) => void;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const light = config.modes.light.preset;
   return (
-    <div role="radiogroup" aria-label={t('appearance.palette')} {...stylex.props(styles.presets)}>
-      {APPEARANCE_PRESETS.map((preset) => {
-        const checked =
-          config.modes.light.preset === preset.id && config.modes.dark.preset === preset.id;
-        return (
-          <button
-            key={preset.id}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            onClick={() => onSelect(preset.id)}
-            {...stylex.props(styles.card, styles.chip, checked && styles.checked)}
-          >
-            <span
-              aria-hidden="true"
-              {...stylex.props(styles.morph)}
-              style={morph(APPEARANCE_PRIMARY[preset.id].light, APPEARANCE_PRIMARY[preset.id].dark)}
-            />
-            <span {...stylex.props(styles.name)}>{t(preset.label)}</span>
-          </button>
-        );
-      })}
-    </div>
+    <SwatchChoices
+      label={t('appearance.palette')}
+      value={light === config.modes.dark.preset ? light : undefined}
+      onChange={onSelect}
+      options={APPEARANCE_PRESETS.map((preset) => ({
+        id: preset.id,
+        label: t(preset.label),
+        swatch: morph(APPEARANCE_PRIMARY[preset.id].light, APPEARANCE_PRIMARY[preset.id].dark),
+      }))}
+    />
+  );
+}
+
+const STYLE_LABELS: Record<AppearanceStyle, BotHarnessKey> = {
+  a: 'appearance.style.a',
+  b: 'appearance.style.b',
+  c: 'appearance.style.c',
+};
+
+function StyleSample({ id }: { id: AppearanceStyle }): ReactElement {
+  const native = id === 'b';
+  const tonal = id === 'c';
+  return (
+    <span {...stylex.props(styles.sample, native && styles.sampleGrouped)}>
+      <span {...stylex.props(styles.sampleGroup, tonal ? styles.sampleTiles : styles.sampleCard)}>
+        {[0, 1, 2].map((row) => (
+          <span
+            key={row}
+            {...stylex.props(
+              styles.sampleRow,
+              tonal ? styles.sampleTile : styles.sampleRowCard,
+              id === 'a' && styles.sampleRowQuiet,
+              row === 0 &&
+                (tonal ? styles.sampleTonal : native ? styles.sampleAccent : styles.sampleNeutral),
+            )}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+export function StylePicker({
+  value,
+  onChange,
+  t,
+}: {
+  value: AppearanceStyle;
+  onChange: (value: AppearanceStyle) => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <PreviewChoices
+      label={t('appearance.style')}
+      value={value}
+      onChange={onChange}
+      options={APPEARANCE_STYLES.map((id) => ({
+        id,
+        label: t(STYLE_LABELS[id]),
+        preview: <StyleSample id={id} />,
+      }))}
+    />
   );
 }
 
@@ -335,16 +324,12 @@ export function PrimaryColorPicker({
   const primary = config.primary ?? APPEARANCE_PRIMARY[config.preset][mode];
   return (
     <span {...stylex.props(styles.swatchRow)}>
-      <ChannelSidebarIcon name={mode === 'light' ? 'sun' : 'moon'} size={14} />
-      <span {...stylex.props(styles.swatch)} style={{ backgroundColor: primary }}>
-        <input
-          type="color"
-          aria-label={t(mode === 'light' ? 'appearance.lightPrimary' : 'appearance.darkPrimary')}
-          value={primary}
-          onChange={(event) => onChange(event.currentTarget.value)}
-          {...stylex.props(styles.input)}
-        />
-      </span>
+      <Icon name={mode === 'light' ? 'sun' : 'moon'} />
+      <ColorInput
+        label={t(mode === 'light' ? 'appearance.lightPrimary' : 'appearance.darkPrimary')}
+        value={primary}
+        onChange={onChange}
+      />
     </span>
   );
 }
@@ -357,8 +342,7 @@ const LAYOUT_MODES: readonly { id: LayoutMode; label: BotHarnessKey }[] = [
 function LayoutPreview({ mode }: { mode: LayoutMode }): ReactElement {
   const pane = (grow: number, active = false) => (
     <span
-      {...stylex.props(styles.layoutPane, active && styles.layoutActive)}
-      style={{ flexGrow: grow }}
+      {...stylex.props(styles.layoutPane, active && styles.layoutActive, styles.paneGrow(grow))}
     />
   );
   return (
@@ -371,12 +355,12 @@ function LayoutPreview({ mode }: { mode: LayoutMode }): ReactElement {
         </>
       ) : (
         <>
-          <span {...stylex.props(styles.layoutColumn)} style={{ flexGrow: 1 }}>
+          <span {...stylex.props(styles.layoutColumn)}>
             {pane(1)}
             {pane(1.4)}
           </span>
           {pane(1.6, true)}
-          <span {...stylex.props(styles.layoutColumn)} style={{ flexGrow: 1 }}>
+          <span {...stylex.props(styles.layoutColumn)}>
             {pane(1.2)}
             {pane(1)}
           </span>
@@ -396,26 +380,16 @@ export function LayoutModePicker({
   t: BotHarnessTranslate;
 }): ReactElement {
   return (
-    <div role="radiogroup" aria-label={t('workspace.layoutMode')} {...stylex.props(styles.grid)}>
-      {LAYOUT_MODES.map((mode) => {
-        const checked = value === mode.id;
-        return (
-          <button
-            key={mode.id}
-            type="button"
-            role="radio"
-            aria-checked={checked}
-            data-layout-mode={mode.id}
-            onClick={() => onChange(mode.id)}
-            {...stylex.props(styles.card, checked && styles.checked)}
-          >
-            <span {...stylex.props(styles.preview)} aria-hidden="true">
-              <LayoutPreview mode={mode.id} />
-            </span>
-            {t(mode.label)}
-          </button>
-        );
-      })}
-    </div>
+    <PreviewChoices
+      label={t('workspace.layoutMode')}
+      value={value}
+      onChange={onChange}
+      options={LAYOUT_MODES.map((mode) => ({
+        id: mode.id,
+        label: t(mode.label),
+        preview: <LayoutPreview mode={mode.id} />,
+        data: { 'data-layout-mode': mode.id },
+      }))}
+    />
   );
 }

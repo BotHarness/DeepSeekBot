@@ -1,4 +1,8 @@
-import type { BotScheduleFiring, BotScheduleSummary, ScheduleTrigger } from '../../host/wire';
+import type {
+  BotScheduleFiring,
+  BotScheduleSummary,
+  ScheduleTrigger,
+} from '@botharness/host-protocol/wire';
 import { t } from '../strings';
 
 export function triggerText(trigger: ScheduleTrigger): string {

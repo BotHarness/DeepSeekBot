@@ -2,7 +2,7 @@
 import { act, createElement, type CSSProperties, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { CreationSnapshot } from '../src/host/bot-creation';
+import type { CreationSnapshot } from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => ({
   path: '/',
@@ -12,6 +12,7 @@ const fixture = vi.hoisted(() => ({
   offState: vi.fn(),
   offHost: vi.fn(),
   resume: vi.fn(async () => {}),
+  creationListeners: new Set<() => void>(),
   open: vi.fn(async (_stillHere: () => boolean) => false),
   push: vi.fn(),
   state: {
@@ -63,7 +64,10 @@ vi.mock('../src/host/native-bot-creation', () => ({
     ready: Promise.resolve(),
     getSnapshot: () => fixture.state,
     resume: fixture.resume,
-    subscribe: () => () => {},
+    subscribe: (listener: () => void) => {
+      fixture.creationListeners.add(listener);
+      return () => fixture.creationListeners.delete(listener);
+    },
     dismissNotice: () => {},
   },
 }));
@@ -95,7 +99,8 @@ beforeEach(() => {
   fixture.path = '/';
   fixture.keyboard = false;
   fixture.appState = 'active';
-  fixture.state = { ...fixture.state, receipt: undefined };
+  fixture.state = { ...fixture.state, receipt: undefined, error: undefined, busy: false };
+  fixture.creationListeners.clear();
   container = document.createElement('div');
   root = createRoot(container);
 });
@@ -135,3 +140,50 @@ it.each(['git-clone-failed', 'git-clone-timeout', 'git-not-found'])(
     expect(creationError(code)).not.toContain(code);
   },
 );
+
+it('keeps no recovery timer once creation finished and retries only while it is unfinished', async () => {
+  vi.useFakeTimers();
+  const created = {
+    operationKey: 'operation-123',
+    botSlug: 'bot-new',
+    status: 'created' as const,
+    channelId: 'dm-new',
+  };
+  const notify = () => {
+    for (const listener of [...fixture.creationListeners]) listener();
+  };
+  try {
+    fixture.state = { ...fixture.state, receipt: created };
+    await act(async () => root.render(<BotCreationNotice />));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fixture.resume).not.toHaveBeenCalled();
+    fixture.state = { ...fixture.state, receipt: undefined, error: 'unreachable' };
+    await act(async () => {
+      notify();
+      await vi.advanceTimersByTimeAsync(9_000);
+    });
+    expect(fixture.resume).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(fixture.resume).toHaveBeenCalledOnce();
+    fixture.state = { ...fixture.state, error: undefined };
+    await act(async () => {
+      notify();
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(fixture.resume).toHaveBeenCalledTimes(2);
+    fixture.state = { ...fixture.state, receipt: created };
+    await act(async () => {
+      notify();
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fixture.resume).toHaveBeenCalledTimes(2);
+    await act(() => root.render(null));
+    expect(fixture.creationListeners.size).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});

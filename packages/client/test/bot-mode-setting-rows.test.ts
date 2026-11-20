@@ -1,40 +1,21 @@
 // @vitest-environment jsdom
-import { act, createElement, Fragment, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import { act, createElement, Fragment } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const captured = vi.hoisted(() => ({
-  menus: [] as Array<Record<string, unknown>>,
-  switches: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
-  const stub = () => null;
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
-    IconChevronDownOutlineRegular: stub,
-    Input: stub,
-    Button: stub,
-    Switch: (props: Record<string, unknown>) => {
-      captured.switches.push(props);
-      return null;
-    },
-    Menu: (props: Record<string, unknown>) => {
-      captured.menus.push(props);
-      return props['anchor'];
-    },
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
   };
 });
 
-import {
-  BotModePrefs,
-  botModePrefsFace,
-  type BotModePrefsSnapshot,
-} from '../src/client/bot-mode-prefs.js';
+import { BotModePrefs, botModePrefsFace } from '../src/client/bot-mode-prefs.js';
 import {
   AssignmentConcurrencyRow,
   AutoCollapseMessagesSetting,
-  BotIconCard,
   BotIconSetting,
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
@@ -42,14 +23,18 @@ import {
   SendKeySetting,
   SortSetting,
 } from '../src/client/bot-mode-setting-rows.js';
+import { buttonNamed, menuItem } from './primitive-mocks.js';
 import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
-import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
+import { DesktopNotificationPrefs } from '../src/client/desktop-notifications.js';
+import { DesktopNotificationSetting } from '../src/client/notification-settings.js';
+import { zhTranslate } from '../src/client/locale.js';
 
 const t = zhTranslate;
 
-it('offers an off-by-default folding switch that updates the shared message preference', () => {
+it.each([400, 1280])('updates the shared chat folding preference at %i px', (width) => {
+  vi.stubGlobal('innerWidth', width);
   const prefs = new BotModePrefs();
-  const markup = renderToStaticMarkup(
+  const markup = renderAndOpenMenus(
     createElement(AutoCollapseMessagesSetting, {
       ...botModePrefsFace(prefs),
       t,
@@ -57,15 +42,14 @@ it('offers an off-by-default folding switch that updates the shared message pref
     }),
   );
   expect(markup).toContain('自动折叠长消息');
-  const toggle = captured.switches.at(-1);
-  expect(toggle?.['checked']).toBe(false);
-  const change = toggle?.['onChange'];
-  if (typeof change !== 'function') throw new Error('folding switch has no change handler');
-  change(true);
+  const toggle = buttonNamed('自动折叠长消息');
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
+  act(() => toggle.click());
   expect(prefs.source.getSnapshot().autoCollapseMessages).toBe(true);
 });
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
 afterEach(() => {
+  vi.unstubAllGlobals();
   for (const { root, container } of mounted.splice(0)) {
     act(() => root.unmount());
     container.remove();
@@ -78,10 +62,6 @@ function renderAndOpenMenus(node: ReactNode): string {
   mounted.push({ root, container });
   act(() => root.render(node));
   const markup = container.innerHTML;
-  for (const button of container.querySelectorAll<HTMLButtonElement>('[aria-haspopup="menu"]')) {
-    act(() => button.click());
-    act(() => button.click());
-  }
   return markup;
 }
 
@@ -92,9 +72,15 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     sendKey: 'enter' as const,
     autoCollapseMessages: false,
     showDeliveryReceipts: false,
+    showDmAvatar: false,
+    showOwnAvatar: false,
     streamReplies: false,
+    sessionDetailLevel: 'standard',
+    sessionCollapse: 'completion',
+    sessionFoldedReplies: 'all',
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
+    botHopLimit: 128,
     developerMode: false,
     showBotSessions: false,
     showApprovalReviewSessions: false,
@@ -141,34 +127,17 @@ function renderSection(
   );
 }
 
-function lastMenu(): Record<string, unknown> {
-  const found = captured.menus.at(-1);
-  if (found === undefined) throw new Error('menu not rendered');
-  return found;
-}
-
-function menuWithItem(id: string): Record<string, unknown> {
-  const found = captured.menus.find((menu) =>
-    ((menu['items'] as readonly Record<string, unknown>[] | undefined) ?? []).some(
-      (item) => item['id'] === id,
-    ),
-  );
-  if (found === undefined) throw new Error(`menu with ${id} not rendered`);
-  return found;
-}
-
-function motionMenu(): Record<string, unknown> {
-  return menuWithItem('system');
-}
-
-function iconMenu(): Record<string, unknown> {
-  return menuWithItem('mascot');
+function openMenu(label: string): HTMLElement {
+  const trigger = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (trigger === null) throw new Error(`No menu trigger ${label}`);
+  act(() => trigger.click());
+  const menu = document.querySelector<HTMLElement>('[role="menu"]');
+  if (menu === null) throw new Error(`No menu ${label}`);
+  return menu;
 }
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  captured.menus.length = 0;
-  captured.switches.length = 0;
 });
 
 describe('Bot mode setting rows', () => {
@@ -176,11 +145,9 @@ describe('Bot mode setting rows', () => {
     const setDeveloperMode = vi.fn();
     const markup = renderSection(snapshot(), undefined, undefined, undefined, setDeveloperMode);
     expect(markup).toContain('开发者模式');
-    expect(captured.switches[0]).toMatchObject({
-      checked: false,
-      label: '开发者模式',
-    });
-    (captured.switches[0]?.['onChange'] as (enabled: boolean) => void)(true);
+    const toggle = buttonNamed('开发者模式');
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    act(() => toggle.click());
     expect(setDeveloperMode).toHaveBeenCalledWith(true);
   });
 
@@ -191,13 +158,16 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('设置 Bot 模式列表的默认排序方式');
     expect(markup).toContain('手动排序');
     expect(markup).toContain('aria-haspopup="menu"');
-    expect(lastMenu()['selectedId']).toBe('manual');
-    expect(
-      (lastMenu()['items'] as readonly Record<string, unknown>[]).map((item) => item['id']),
-    ).toEqual(['updated', 'manual']);
+    const menu = openMenu(t('sort.menu.label'));
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe(t('sort.manual'));
+    expect([...menu.querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
+      t('sort.updated'),
+      t('sort.manual'),
+    ]);
   });
 
-  it('renders and writes the three-state motion preference with its effective preview', () => {
+  it.each([400, 1280])('updates the motion preference and preview at %i px', (width) => {
+    vi.stubGlobal('innerWidth', width);
     const setMotionPreference = vi.fn();
     const markup = renderSection(
       snapshot({ motionPreference: 'system', effectiveMotion: 'reduce' }),
@@ -208,30 +178,30 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('界面动效');
     expect(markup).toContain('跟随系统');
     expect(markup).toContain('当前已减少动效');
-    expect(motionMenu()['selectedId']).toBe('system');
-    expect(
-      (motionMenu()['items'] as readonly Record<string, unknown>[]).map((item) => item['id']),
-    ).toEqual(['system', 'reduce', 'full']);
-
-    const onSelect = motionMenu()['onSelect'] as (id: string) => void;
-    act(() => onSelect('full'));
+    const tabs = [
+      ...document.querySelectorAll<HTMLButtonElement>('[aria-label="动效偏好"] [role="tab"]'),
+    ];
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      'bh-motion-preference-system',
+      'bh-motion-preference-reduce',
+      'bh-motion-preference-full',
+    ]);
+    expect(tabs[0]?.getAttribute('aria-selected')).toBe('true');
+    act(() => tabs[2]?.click());
     expect(setMotionPreference).toHaveBeenCalledWith('full');
-
-    setMotionPreference.mockClear();
-    act(() => onSelect('unrelated'));
-    expect(setMotionPreference).not.toHaveBeenCalled();
   });
 
   it('writes through the shared policy when an option is picked', () => {
     const setSortMode = vi.fn();
     renderSection(snapshot(), setSortMode);
 
-    const onSelect = lastMenu()['onSelect'] as (id: string) => void;
-    act(() => onSelect('manual'));
+    openMenu(t('sort.menu.label'));
+    act(() => menuItem(t('sort.manual')).click());
     expect(setSortMode).toHaveBeenCalledWith('manual');
 
     setSortMode.mockClear();
-    act(() => onSelect('unrelated'));
+    openMenu(t('sort.menu.label'));
+    act(() => menuItem(t('sort.updated')).click());
     expect(setSortMode).not.toHaveBeenCalled();
   });
 
@@ -241,19 +211,8 @@ describe('Bot mode setting rows', () => {
     expect(markup).toContain('仅当前会话生效，不会保存');
     expect(markup).not.toContain('设置 Bot 模式列表的默认排序方式');
   });
-  it('selects a mark when its card is activated', () => {
-    const setBotIcon = vi.fn();
-    const card = BotIconCard({
-      option: 'simple',
-      label: 'Tobs 简约',
-      selected: false,
-      onSelect: setBotIcon,
-    });
-    (card.props as { onClick: () => void }).onClick();
-    expect(setBotIcon).toHaveBeenCalledWith('simple');
-  });
-
-  it('renders one card per Bot mark and writes the picked one', () => {
+  it.each([400, 1280])('writes the selected Bot icon at %i px', (width) => {
+    vi.stubGlobal('innerWidth', width);
     const setBotIcon = vi.fn();
     const markup = renderSection(snapshot({ botIcon: 'blob' }), undefined, undefined, setBotIcon);
     expect(markup).toContain('Bot 图标');
@@ -262,6 +221,12 @@ describe('Bot mode setting rows', () => {
     const cards = [...markup.matchAll(/<button[^>]*role="radio"[^>]*>/g)].map((m) => m[0]);
     expect(cards).toHaveLength(4);
     expect(cards.filter((card) => card.includes('aria-checked="true"'))).toHaveLength(1);
+    const choice = [...document.querySelectorAll<HTMLButtonElement>('button[role="radio"]')].find(
+      (button) => button.textContent === t('icon.simple'),
+    );
+    expect(choice).toBeDefined();
+    act(() => choice?.click());
+    expect(setBotIcon).toHaveBeenCalledWith('simple');
   });
 });
 
@@ -269,9 +234,10 @@ it('shows default Group auto-accept and writes its native switch', () => {
   const set = vi.fn();
   const markup = renderSection(snapshot(), undefined, undefined, undefined, undefined, set);
   expect(markup).toContain('自动接受入群邀请');
-  const control = captured.switches.find((item) => item['label'] === '自动接受入群邀请')!;
-  expect(control).toMatchObject({ checked: true, disabled: false });
-  (control['onChange'] as (enabled: boolean) => void)(false);
+  const control = buttonNamed('自动接受入群邀请');
+  expect(control.getAttribute('aria-checked')).toBe('true');
+  expect(control.disabled).toBe(false);
+  act(() => control.click());
   expect(set).toHaveBeenCalledWith(false);
 });
 
@@ -286,14 +252,11 @@ describe('send key setting', () => {
         setSendKey: setSendKey as never,
       } as never),
     );
-    const items = (
-      menuWithItem('mod-enter')['items'] as readonly {
-        id: string;
-        label: unknown;
-      }[]
-    ).map((item) => ({
-      id: item.id,
-      markup: renderToStaticMarkup(createElement(Fragment, null, item.label as never)),
+    const menu = openMenu(t('sendKey.row.title'));
+    const items = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((item) => ({
+      id: item.querySelector<HTMLElement>('[data-send-key]')?.dataset.sendKey,
+      markup: item.innerHTML,
+      element: item,
     }));
     return { markup, items, setSendKey };
   }
@@ -313,8 +276,7 @@ describe('send key setting', () => {
     const { items, setSendKey } = renderSendKey(false, 'enter');
     expect(items[2]?.markup).toMatch(/>Ctrl<\/kbd>.*>↵<\/kbd>.*发送/u);
     expect(items[2]?.markup).not.toContain('⌘');
-    const onSelect = menuWithItem('mod-enter')['onSelect'] as (id: string) => void;
-    act(() => onSelect('mod-enter'));
+    act(() => items[2]!.element.click());
     expect(setSendKey).toHaveBeenCalledWith('mod-enter');
   });
 
@@ -329,4 +291,23 @@ describe('send key setting', () => {
       '↵',
     ]);
   });
+});
+
+it.each([400, 1280])('sets desktop notification permission at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
+  const requestPermission = vi
+    .fn<() => Promise<NotificationPermission>>()
+    .mockResolvedValue('granted');
+  const desktopNotifications = new DesktopNotificationPrefs(undefined, {
+    permission: () => 'default',
+    requestPermission,
+    show: () => ({ onclick: null, close: () => {} }),
+  });
+  renderAndOpenMenus(createElement(DesktopNotificationSetting, { desktopNotifications, t }));
+  const toggle = buttonNamed(t('desktopNotify.row.title'));
+  await act(async () => toggle.click());
+  expect(requestPermission).toHaveBeenCalledOnce();
+  expect(toggle.getAttribute('aria-checked')).toBe('true');
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
 });

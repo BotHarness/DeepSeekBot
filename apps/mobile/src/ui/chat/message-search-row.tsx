@@ -1,16 +1,12 @@
 import { View } from 'react-native';
 
 import type { MessageSearchHit } from '../../host/message-search';
-import type { HostLook } from '../design/host-look';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import { chatList, space } from '../design/tokens';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import {
-  ConversationBotAvatar,
-  ConversationGroupAvatar,
-  ConversationRowFrame,
-} from './conversation-row';
+import { ConversationAvatar, ConversationRowFrame } from './conversation-row';
 import { shortTime, titleOf, type Conversation } from './conversations';
 
 export function MessageSearchHeading({ loading }: { loading: boolean }) {
@@ -76,13 +72,7 @@ export function MessageSearchRow({
       preview={preview}
       time={time}
       onPress={onPress}
-      avatar={
-        conversation.kind === 'bot' ? (
-          <ConversationBotAvatar bot={conversation.bot} />
-        ) : (
-          <ConversationGroupAvatar avatar={conversation.channel.avatar} />
-        )
-      }
+      avatar={<ConversationAvatar row={conversation} />}
     />
   );
 }

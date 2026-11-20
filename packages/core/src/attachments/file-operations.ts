@@ -37,6 +37,7 @@ export async function saveAttachmentFile(
   const validate = () => {
     input.signal?.throwIfAborted();
     const grant = deps.grants.requireActive(deps.botSlug, input.grantId);
+    deps.grants.validatePath?.(deps.botSlug, target);
     if (
       grant.orchestratorWrite !== true ||
       grant.writeRevision !== initial.writeRevision ||

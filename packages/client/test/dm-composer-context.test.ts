@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { resourceEvents } from './resource-events-fixture.js';
+import { type BotSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { createStore, type BotSummary } from '../src/client/store.js';
+import { createStore } from '../src/client/store.js';
 import type { WorkspaceGrantView } from '../src/client/bridge.js';
 import { useDmComposerContext } from '../src/client/dm-composer-context.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -101,7 +103,8 @@ it('refreshes mounted inherited footers after a successful global model save wit
 
 vi.mock('../src/client/profile-cards-builtins.js', () => ({ PROFILE_ACTIVITY_WEEKS: 26 }));
 vi.mock('../src/client/model-preset-profile.js', () => ({
-  ModelPresetProfile: ({ slug }: { slug: string }) => createElement('div', null, `model:${slug}`),
+  ModelPresetProfile: ({ slug, onClose }: { slug: string; onClose?: () => void }) =>
+    createElement('div', { role: onClose ? 'dialog' : undefined }, `model:${slug}`),
 }));
 vi.mock('../src/client/workspace-grants-entry.js', () => ({
   WorkspaceGrantsEntry: ({ botSlug }: { botSlug: string }) =>
@@ -111,16 +114,20 @@ vi.mock('../src/client/model-picker.js', () => ({
   ModelPicker: ({ title, hint }: { title: string; hint: string }) =>
     createElement('div', null, title, hint),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, onClick }: { children: ReactNode; onClick(): void }) =>
-    createElement('button', { onClick }, children),
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  Modal: ({ children, title }: { children: ReactNode; title: string }) =>
-    createElement('div', { role: 'dialog', 'aria-label': title }, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
+  useDismissOnOutsidePointer: () => undefined,
 }));
+
+async function openModelSettings(chip: HTMLButtonElement): Promise<void> {
+  await act(async () => chip.click());
+  expect(document.body.querySelector('[data-filter-picker]')).not.toBeNull();
+  await act(async () =>
+    document.body.querySelector<HTMLButtonElement>('[data-picker-footer]')!.click(),
+  );
+  expect(document.body.querySelector('[data-filter-picker]')).toBeNull();
+}
 
 const ada: BotSummary = {
   slug: 'composer-ada',
@@ -131,6 +138,72 @@ const ada: BotSummary = {
   createdAt: '',
 };
 const grace = { ...ada, slug: 'composer-grace', displayName: 'Grace' };
+
+it('refreshes context in place for the selected Bot and keeps the last snapshot on timeout', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.useFakeTimers();
+  const live = resourceEvents();
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const sample = {
+    sessionId: 'session',
+    usedTokens: 2000,
+    contextWindow: 10000,
+    capacitySource: 'model',
+    thresholdTokens: 8000,
+  };
+  const botContext = vi
+    .fn()
+    .mockResolvedValueOnce(sample)
+    .mockRejectedValueOnce(new Error('read timed out'))
+    .mockResolvedValue({ ...sample, usedTokens: 4000 });
+  const actions = {
+    botContext,
+    modelPlanState: async () => ({}),
+    modelCatalog: async () => ({ models: [] }),
+    modelPresets: async () => [],
+    listWorkspaceGrants: async () => [],
+  } as unknown as BridgeActions;
+  function Harness() {
+    return useDmComposerContext({
+      bot: ada,
+      channelId: 'dm-' + ada.slug,
+      actions,
+      companion: undefined,
+      activity: undefined,
+      loading: false,
+      t: zhTranslate,
+      onUsage() {},
+    })?.content;
+  }
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const label = () => host.querySelector('[data-composer-chip="usage"]')?.textContent;
+    expect(label()).toContain('20%');
+    await act(async () => {
+      live.emit({ resource: 'bot-context', slug: grace.slug });
+      await vi.advanceTimersByTimeAsync(9_000);
+    });
+    expect(botContext).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      live.emit({ resource: 'bot-context', slug: ada.slug });
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(botContext).toHaveBeenCalledTimes(2);
+    expect(label()).toContain('20%');
+    await act(async () => {
+      live.reconnect();
+      await vi.advanceTimersByTimeAsync(25);
+    });
+    expect(label()).toContain('40%');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    live.dispose();
+    vi.useRealTimers();
+  }
+});
 
 it('keeps model, workspace and usage actions available across mobile and desktop layouts', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -191,15 +264,15 @@ it('keeps model, workspace and usage actions available across mobile and desktop
     await act(async () =>
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
     );
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
+    await openModelSettings(
+      host.querySelector<HTMLButtonElement>('[data-composer-context] button')!,
     );
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain('model:footer-mobile');
     await resize(false);
     expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
-    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.textContent).toBe('0');
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
       '0 个工作区',
     );
     expect(host.querySelector('[data-composer-chip="usage"]')).not.toBeNull();
@@ -248,37 +321,45 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     await act(async () => root.render(createElement(Harness)));
     const model = () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context-leading] button')!;
-    expect(model().textContent).toBe(modelName);
+    expect(model().getAttribute('title')).toBe(modelName);
+    expect(model().textContent).toBe('V41 Flash');
+    expect(model().querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
     await act(async () =>
-      rememberModelPlan(bot.slug, {
-        revision: 2,
-        sourcePresetId: 'custom',
-        sourcePresetName: 'Custom',
-        orchestrator: alternate,
-        assignmentDefault: alternate,
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        bot.slug,
+        {
+          revision: 2,
+          sourcePresetId: 'custom',
+          sourcePresetName: 'Custom',
+          orchestrator: alternate,
+          assignmentDefault: alternate,
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
-    expect(model().textContent).toBe(alternateName);
+    expect(model().getAttribute('title')).toBe(alternateName);
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
     expect(model().getAttribute('aria-label')).not.toContain('DeepSeek Provider');
-    await act(async () => model().click());
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    await openModelSettings(model());
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     await act(async () =>
-      rememberModelPlan(bot.slug, {
-        revision: 3,
-        sourcePresetId: 'custom',
-        sourcePresetName: 'Custom',
-        orchestrator: route,
-        assignmentDefault: route,
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        bot.slug,
+        {
+          revision: 3,
+          sourcePresetId: 'custom',
+          sourcePresetName: 'Custom',
+          orchestrator: route,
+          assignmentDefault: route,
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
-    expect(model().textContent).toBe(modelName);
+    expect(model().getAttribute('title')).toBe(modelName);
   } finally {
     await act(async () => root.unmount());
     host.remove();
@@ -381,22 +462,24 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
     await render();
     expect(listWorkspaceGrants).toHaveBeenCalledTimes(1);
     await act(async () =>
-      rememberModelPlan(ada.slug, {
-        revision: 1,
-        sourcePresetId: '',
-        sourcePresetName: '',
-        orchestrator: { provider: 'qa', model: 'qa-selected' },
-        assignmentDefault: { provider: 'qa', model: 'qa-selected' },
-        assignmentModels: [],
-        appliedAt: '',
-      }),
+      rememberModelPlan(
+        ada.slug,
+        {
+          revision: 1,
+          sourcePresetId: '',
+          sourcePresetName: '',
+          orchestrator: { provider: 'qa', model: 'qa-selected' },
+          assignmentDefault: { provider: 'qa', model: 'qa-selected' },
+          assignmentModels: [],
+          appliedAt: '',
+        },
+        actions,
+      ),
     );
     expect(host.textContent).toContain('qa-selected');
     expect(modelPlanState).toHaveBeenCalledTimes(2);
     await click('[data-action="model"]');
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     bot = grace;
     await render();
     expect(host.querySelector('[role="dialog"]')).toBeNull();
@@ -414,7 +497,7 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
           resolve = done;
         }),
     );
-    await act(async () => publishWorkspaceGrantChange(grace.slug));
+    await act(async () => publishWorkspaceGrantChange(grace.slug, actions));
     bot = ada;
     await render();
     await act(async () =>
@@ -519,10 +602,15 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
   try {
     await render();
     expect(host.querySelectorAll('[data-composer-context-leading] button')).toHaveLength(2);
-    expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.textContent).toBe('0');
+    expect(host.querySelector('[data-composer-chip="workspace"]')!.getAttribute('title')).toBe(
       '0 个工作区',
     );
-    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('28K / 1M');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('3%');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.getAttribute('title')).toMatch(
+      /^28K \/ 1M\. /,
+    );
+    expect(host.querySelector('[data-composer-chip="usage"] [data-context-ring]')).not.toBeNull();
     expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();
@@ -602,6 +690,209 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     await render();
     await act(async () => resolve({ slug: ada.slug, weeks: 26, since: '', rows: [] }));
     expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
+it('runs the DM Bot on a Routing Group chosen from the header model menu (#4421)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const flash = { provider: 'deepseek', model: 'flash' };
+  const pro = { provider: 'deepseek', model: 'pro' };
+  const bot = { ...ada, slug: 'composer-group' };
+  const plan = (revision: number, orchestrator: typeof flash, groupId?: string) => ({
+    revision,
+    orchestrator,
+    ...(groupId === undefined ? {} : { orchestratorGroupId: groupId }),
+    assignmentDefault: orchestrator,
+    sourcePresetId: 'custom',
+    sourcePresetName: 'Custom',
+    assignmentModels: [],
+    appliedAt: '',
+  });
+  const customize = vi.fn();
+  let current = plan(2, pro);
+  const actions = createActions(async (method, payload) => {
+    if (method === 'modelPlan') return { ok: true, value: { plan: current } };
+    if (method === 'modelPlanCustomize') {
+      customize(payload);
+      current = plan(3, flash, 'daily');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelCatalog')
+      return {
+        ok: true,
+        value: {
+          models: [flash, pro].map((entry) => ({
+            ...entry,
+            modelName: entry.model === 'flash' ? 'Flash' : 'Pro',
+            providerName: 'DeepSeek',
+            efforts: [],
+          })),
+          groups: [{ id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] }],
+        },
+      };
+    if (method === 'grants') return { ok: true, value: { grants: [] } };
+    if (method === 'telemetryEvent') return { ok: true, value: {} };
+    throw new Error(`Unexpected method ${method}`);
+  }, createStore());
+  function Harness() {
+    return createElement(
+      'div',
+      null,
+      useDmComposerContext({
+        bot,
+        channelId: `dm-${bot.slug}`,
+        actions,
+        companion: undefined,
+        activity: undefined,
+        loading: false,
+        t: zhTranslate,
+        onUsage() {},
+      })?.content,
+    );
+  }
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const chip = host.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!;
+    await act(async () => chip.click());
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>("[data-picker-option='group:daily']")!.click(),
+    );
+    expect(customize).toHaveBeenCalledWith({
+      slug: bot.slug,
+      orchestratorGroupId: 'daily',
+      expectedRevision: 2,
+    });
+    expect(chip.title).toBe('Daily · Flash');
+    await act(async () => chip.click());
+    expect(
+      document.body
+        .querySelector("[data-picker-option='group:daily']")
+        ?.getAttribute('aria-selected'),
+    ).toBe('true');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
+it('applies a Preset from the header model menu and clears its check after a model change (#4503)', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const flash = { provider: 'deepseek', model: 'flash' };
+  const pro = { provider: 'deepseek', model: 'pro' };
+  const bot = { ...ada, slug: 'composer-preset' };
+  const plan = (revision: number, orchestrator: typeof flash, sourcePresetId: string) => ({
+    revision,
+    orchestrator,
+    assignmentDefault: flash,
+    sourcePresetId,
+    sourcePresetName: sourcePresetId === '' ? '' : 'Fast',
+    assignmentModels: [],
+    appliedAt: '',
+  });
+  const applied = vi.fn();
+  let current = plan(2, pro, '');
+  const actions = createActions(async (method, payload) => {
+    if (method === 'modelPlan') return { ok: true, value: { plan: current } };
+    if (method === 'modelPresetApply') {
+      applied(payload);
+      current = plan(3, flash, 'fast');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelPlanCustomize') {
+      current = plan(4, pro, '');
+      return { ok: true, value: { plan: current } };
+    }
+    if (method === 'modelPresets')
+      return {
+        ok: true,
+        value: {
+          presets: [
+            {
+              id: 'fast',
+              name: 'Fast',
+              revision: 1,
+              orchestrator: flash,
+              assignmentDefault: flash,
+              createdAt: '',
+            },
+          ],
+        },
+      };
+    if (method === 'modelCatalog')
+      return {
+        ok: true,
+        value: {
+          models: [flash, pro].map((entry) => ({
+            ...entry,
+            modelName: entry.model === 'flash' ? 'Flash' : 'Pro',
+            providerName: 'DeepSeek',
+            efforts: [],
+          })),
+        },
+      };
+    if (method === 'grants') return { ok: true, value: { grants: [] } };
+    if (method === 'telemetryEvent') return { ok: true, value: {} };
+    throw new Error(`Unexpected method ${method}`);
+  }, createStore());
+  function Harness() {
+    return createElement(
+      'div',
+      null,
+      useDmComposerContext({
+        bot,
+        channelId: `dm-${bot.slug}`,
+        actions,
+        companion: undefined,
+        activity: undefined,
+        loading: false,
+        t: zhTranslate,
+        onUsage() {},
+      })?.content,
+    );
+  }
+  const option = (key: string) =>
+    document.body.querySelector<HTMLButtonElement>(`[data-picker-option='${key}']`);
+  const presets = async () =>
+    act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[data-picker-filter="presets"]')!.click(),
+    );
+  try {
+    await act(async () => root.render(createElement(Harness)));
+    const chip = host.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!;
+    await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('false');
+    await act(async () => option('preset:fast')!.click());
+    expect(applied).toHaveBeenCalledWith({ slug: bot.slug, presetId: 'fast' });
+    expect(chip.title).toBe('Flash');
+    if (option('preset:fast') === null) await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('true');
+    await act(async () => option('preset:fast')!.click());
+    expect(applied).toHaveBeenCalledTimes(2);
+    if (document.body.querySelector('[data-picker-filter]') === null)
+      await act(async () => chip.click());
+    await act(async () =>
+      document.body.querySelector<HTMLButtonElement>('[data-picker-filter="all"]')!.click(),
+    );
+    await act(async () => option(JSON.stringify(['deepseek', 'pro']))!.click());
+    expect(chip.title).toBe('Pro');
+    if (
+      option('preset:fast') === null &&
+      document.body.querySelector('[data-picker-filter]') === null
+    )
+      await act(async () => chip.click());
+    await presets();
+    expect(option('preset:fast')?.getAttribute('aria-selected')).toBe('false');
   } finally {
     await act(async () => root.unmount());
     host.remove();

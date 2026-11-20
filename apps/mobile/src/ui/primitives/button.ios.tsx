@@ -1,8 +1,16 @@
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { Host } from '@expo/ui';
-import { Button as NativeButton, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
+  Button as NativeButton,
+  HStack,
+  Image,
+  ProgressView,
+  Text,
+  VStack,
+} from '@expo/ui/swift-ui';
+import {
+  accessibilityAddTraits,
   accessibilityHidden,
   accessibilityLabel,
   accessibilityValue,
@@ -11,12 +19,14 @@ import {
   controlSize,
   disabled as controlDisabled,
   font,
+  foregroundStyle,
   frame,
   multilineTextAlignment,
   shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { controlCase } from '../platform-copy';
+import { cardDecisionInk } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
@@ -30,6 +40,7 @@ export const ACTION_SF_SYMBOL = {
   check: 'checkmark',
   'shield-check': 'checkmark.shield',
   x: 'xmark',
+  trash: 'trash',
   archive: 'archivebox',
   plus: 'plus',
   'message-square': 'bubble.left',
@@ -45,7 +56,7 @@ function nativeStyle(
   props: Pick<ComponentProps<typeof SharedButton>, 'tone' | 'variant'>,
   glass: boolean,
 ) {
-  if (props.variant === 'text') return 'borderless';
+  if (props.variant !== 'filled') return 'borderless';
   if (props.tone === 'primary') return glass ? 'glassProminent' : 'borderedProminent';
   return glass ? 'glass' : 'bordered';
 }
@@ -56,6 +67,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID,
@@ -66,10 +78,12 @@ export function Button({
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
+  const cardInk = variant === 'card-text' ? cardDecisionInk(theme, tone) : undefined;
+  const Stack = theme.largeText ? VStack : HStack;
   return (
     <Host
       matchContents={{ vertical: true }}
-      ignoreSafeArea="keyboard"
+      ignoreSafeArea="all"
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
@@ -82,17 +96,21 @@ export function Button({
         modifiers={[
           buttonStyle(style),
           controlSize('large'),
-          tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
+          tint(cardInk ?? (tone === 'danger' ? theme.color.danger : theme.color.accent)),
           controlDisabled(disabled || busy),
           accessibilityLabel(label),
+          ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
           ...(busy ? [accessibilityValue(t.loading)] : []),
         ]}
       >
-        <HStack
-          spacing={space.x3}
+        <Stack
+          spacing={theme.largeText ? space.x2 : space.x3}
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: bezel ? theme.touch - space.x5 : theme.touch }),
             ...(bezel ? [] : [contentShape(shapes.rectangle())]),
+            ...(cardInk !== undefined && ((!disabled && !busy) || selected)
+              ? [foregroundStyle(cardInk)]
+              : []),
           ]}
         >
           {busy ? (
@@ -109,9 +127,9 @@ export function Button({
               multilineTextAlignment('center'),
             ]}
           >
-            {controlCase(label)}
+            {controlCase(selected ? label + ' · ' + t.selectedChoice : label)}
           </Text>
-        </HStack>
+        </Stack>
       </NativeButton>
     </Host>
   );

@@ -1,18 +1,26 @@
-import { useRef, useState } from 'react';
+import { Checkbox } from './ds/checkbox.js';
+import { useMemo, useRef, useState } from 'react';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
-import { sameModel, type ModelRoute } from '../../../../apps/mobile/src/host/bot-settings.js';
+
+import {
+  sameModel,
+  HostAnswerInvalid,
+  type ModelRoute,
+  type ModelSettingsClient,
+} from '@botharness/host-client/bot-settings';
 import {
   modelRoutes,
   modelScopeKey,
   modelSettingsResource,
   saveModelPreset,
+  setModelGroup,
   setModelRoute,
+  toggleAssignmentGroup,
   toggleAssignmentModel,
   type ModelScope,
   type ModelSettingsState,
-} from '../../../../apps/mobile/src/host/model-settings.js';
+} from '@botharness/host-client/model-settings';
 import { Combobox } from './combobox.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
@@ -21,6 +29,7 @@ import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -30,40 +39,124 @@ const styles = stylex.create({
 });
 
 type HostModelScope = Exclude<ModelScope, { kind: 'bot' }>;
+type PresetCreation =
+  | { kind: 'idle' }
+  | { kind: 'pending' }
+  | { kind: 'unknown' }
+  | { kind: 'receipt'; id: string };
 
-export function RemoteHostModels({ client, t }: { client: HostClient; t: BotHarnessTranslate }) {
+function settingsFailure(cause: unknown): 'unsupported' | 'locked' | 'failed' {
+  if (unsupported(cause)) return 'unsupported';
+  if (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'code' in cause &&
+    cause.code === 'invalid-input' &&
+    'message' in cause &&
+    typeof cause.message === 'string' &&
+    cause.message.includes(
+      '"agent-default-model" is overridden by a home patch or command-line overlay',
+    )
+  )
+    return 'locked';
+  return 'failed';
+}
+
+function unsupported(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error.code === 'gateway/method-not-found' ||
+      error.code === 'not-supported' ||
+      error.code === 'method-not-found')
+  );
+}
+
+export function RemoteHostModels({
+  hostId,
+  client,
+  available = true,
+  t,
+}: {
+  hostId: string;
+  client: ModelSettingsClient;
+  available?: boolean;
+  t: BotHarnessTranslate;
+}) {
+  const [owner, setOwner] = useState({ client, generation: 0 });
+  if (owner.client !== client) {
+    setOwner({ client, generation: owner.generation + 1 });
+    return null;
+  }
+  return (
+    <ModelSettingsSession
+      key={owner.generation}
+      hostId={hostId}
+      client={client}
+      available={available}
+      t={t}
+    />
+  );
+}
+
+function ModelSettingsSession({
+  hostId,
+  client,
+  available,
+  t,
+}: {
+  hostId: string;
+  client: ModelSettingsClient;
+  available: boolean;
+  t: BotHarnessTranslate;
+}) {
   const [scope, setScope] = useState<HostModelScope>({ kind: 'global' });
   return (
-    <Models key={modelScopeKey(scope)} client={client} scope={scope} onScope={setScope} t={t} />
+    <Models
+      key={modelScopeKey(scope)}
+      hostId={hostId}
+      client={client}
+      available={available}
+      scope={scope}
+      onScope={setScope}
+      t={t}
+    />
   );
 }
 
 function Models({
+  hostId,
   client,
   scope,
+  available,
   onScope,
   t,
 }: {
-  client: HostClient;
+  hostId: string;
+  client: ModelSettingsClient;
   scope: HostModelScope;
+  available: boolean;
   onScope: (scope: HostModelScope) => void;
   t: BotHarnessTranslate;
 }) {
-  const [resource] = useState(() => modelSettingsResource(client, scope));
+  const resource = useMemo(() => modelSettingsResource(client, scope), [client, scope]);
   const [value, setValue] = useState<ModelSettingsState>();
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<ReturnType<typeof settingsFailure>>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
+  const [creation, setCreation] = useState<PresetCreation>({ kind: 'idle' });
+  const creationOwner = useRef<PresetCreation>(creation);
   const generation = useRef(0);
   const pending = useRef(false);
   const refresh = async () => {
     const request = ++generation.current;
-    setError(false);
+    setError(undefined);
     try {
       const next = await resource.refresh();
       if (generation.current === request) setValue(next);
-    } catch {
-      if (generation.current === request) setError(true);
+    } catch (cause) {
+      if (generation.current === request) setError(settingsFailure(cause));
     }
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -72,25 +165,86 @@ function Models({
       generation.current += 1;
     };
   }, [resource]);
-  const run = async (work: () => Promise<void>, onSaved?: () => void) => {
-    if (pending.current) return;
+  const run = async (work: () => Promise<void>, onSaved?: (value: ModelSettingsState) => void) => {
+    if (pending.current || !available) return false;
     pending.current = true;
     setBusy(true);
-    setError(false);
+    setError(undefined);
     const request = ++generation.current;
     try {
       await resource.write(work);
       const next = await resource.refresh();
       if (generation.current === request) {
         setValue(next);
-        onSaved?.();
+        onSaved?.(next);
       }
-    } catch {
-      if (generation.current === request) setError(true);
+      return generation.current === request;
+    } catch (cause) {
+      const observed = await resource.refresh().catch(() => undefined);
+      if (generation.current === request) {
+        if (observed !== undefined) setValue(observed);
+        setError(settingsFailure(cause));
+      }
+      return false;
     } finally {
       pending.current = false;
       if (generation.current === request) setBusy(false);
     }
+  };
+  const savePresetDraft = async () => {
+    if (name === undefined || value === undefined || pending.current || !available) return false;
+    if (scope.kind === 'global' && creationOwner.current.kind === 'unknown') return false;
+    const request = generation.current + 1;
+    const record = (outcome: PresetCreation) => {
+      creationOwner.current = outcome;
+      if (generation.current === request) setCreation(outcome);
+    };
+    return run(
+      async () => {
+        if (scope.kind === 'preset') {
+          await saveModelPreset(client, value, name, true);
+        } else if (creationOwner.current.kind === 'idle') {
+          record({ kind: 'pending' });
+          try {
+            const id = await saveModelPreset(client, value, name, false);
+            record({ kind: 'receipt', id });
+          } catch (cause) {
+            if (
+              (cause instanceof HostAnswerInvalid && cause.message !== 'MODEL_PRESET_NOT_SAVED') ||
+              (typeof cause === 'object' &&
+                cause !== null &&
+                'code' in cause &&
+                typeof cause.code === 'string' &&
+                [
+                  'invalid-input',
+                  'stale-setting',
+                  'model-unavailable',
+                  'gateway/method-not-found',
+                  'not-supported',
+                  'forbidden',
+                ].includes(cause.code))
+            )
+              record({ kind: 'idle' });
+            else record({ kind: 'unknown' });
+            throw cause;
+          }
+        }
+      },
+      (observed) => {
+        const receipt = creationOwner.current;
+        if (
+          scope.kind === 'global' &&
+          (receipt.kind !== 'receipt' ||
+            !observed.presets.some((preset) => preset.id === receipt.id))
+        )
+          throw Error('Created preset owner readback is not yet confirmed');
+        record({ kind: 'idle' });
+        if (draft.current.name === name) {
+          setName(undefined);
+          draft.current.name = undefined;
+        }
+      },
+    );
   };
   const saveName = () => {
     if (
@@ -100,14 +254,57 @@ function Models({
       name.trim() === value.preset.name
     )
       return;
-    void run(
-      async () => {
-        await saveModelPreset(client, value, name, true);
-      },
-      () => setName(undefined),
-    );
+    void savePresetDraft();
   };
+  const draft = useRef({ name, value, scope, available, savePresetDraft });
+  draft.current = { name, value, scope, available, savePresetDraft };
+  const draftMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      hostSettingsDrafts.register(hostId, {
+        dirty: () =>
+          draft.current.name !== undefined &&
+          (draft.current.scope.kind === 'global'
+            ? draft.current.name !== ''
+            : draft.current.name.trim() !== draft.current.value?.preset?.name),
+        async save() {
+          const { name, value, savePresetDraft } = draft.current;
+          if (
+            name === undefined ||
+            value === undefined ||
+            pending.current ||
+            !draft.current.available
+          )
+            return false;
+          return savePresetDraft();
+        },
+        discard: () => {
+          draft.current.name = undefined;
+          setName(undefined);
+        },
+      }),
+    [hostId, client, resource],
+  );
   const routes = value === undefined ? undefined : modelRoutes(value);
+  const catalog = (value?.models ?? []).map((entry) => ({
+    ...entry,
+    efforts: entry.efforts ?? [],
+  }));
+  const catalogGroups = (value?.groups ?? []).map((group) => ({
+    ...group,
+    revision: group.revision ?? 0,
+  }));
+  const pickerGroup = (field: 'orchestrator' | 'assignment') =>
+    field === 'assignment'
+      ? routes?.groups.assignmentDefaultGroupId
+      : scope.kind === 'global'
+        ? value?.defaultGroupId
+        : routes?.groups.orchestratorGroupId;
+  const pickerGroupEffort = (field: 'orchestrator' | 'assignment') =>
+    (field === 'assignment'
+      ? routes?.groups.assignmentGroupOptions?.find(
+          (option) => option.group === routes.groups.assignmentDefaultGroupId,
+        )?.defaultEffort
+      : routes?.groups.orchestratorGroupEffort) ?? '';
   const picker = (field: 'orchestrator' | 'assignment', route: ModelRoute | undefined) =>
     value === undefined ? null : (
       <ModelPicker
@@ -125,20 +322,31 @@ function Models({
               ? 'modelPreset.orchestratorHint'
               : 'modelPreset.assignmentHint',
         )}
-        choice={{
-          key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
-          effort: route?.reasoningEffort ?? '',
-        }}
-        catalog={value.models.map((entry) => ({ ...entry, efforts: entry.efforts ?? [] }))}
+        choice={
+          pickerGroup(field) === undefined
+            ? {
+                key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
+                effort: route?.reasoningEffort ?? '',
+              }
+            : { key: groupMenuKey(pickerGroup(field)!), effort: pickerGroupEffort(field) }
+        }
+        catalog={catalog}
+        groups={catalogGroups}
+        groupEffort
         options={value.models.map((entry) => ({
           value: JSON.stringify([entry.provider, entry.model]),
           label: entry.modelName,
           hint: `${entry.providerName}${entry.credential === undefined ? '' : ` · ${t('onboarding.needsKey')}`}`,
           disabled: entry.credential !== undefined,
         }))}
-        disabled={busy}
+        disabled={busy || !available || creation.kind !== 'idle'}
         t={t}
         onChange={({ key, effort }) => {
+          const group = groupMenuId(key);
+          if (group !== undefined) {
+            void run(() => setModelGroup(client, scope, value, group, field, effort));
+            return;
+          }
           const entry = value.models.find(
             (item) => JSON.stringify([item.provider, item.model]) === key,
           );
@@ -155,7 +363,21 @@ function Models({
     );
   return (
     <div ref={mount} {...stylex.props(styles.stack)} data-remote-models="">
-      {error ? <Note tone="danger">{t('remoteHosts.settings.error')}</Note> : null}
+      <span ref={draftMount} hidden />
+      {creation.kind === 'unknown' ? (
+        <Note tone="danger">{t('environment.settings.createUnknown')}</Note>
+      ) : null}
+      {error && creation.kind !== 'unknown' ? (
+        <Note tone="danger">
+          {t(
+            error === 'unsupported'
+              ? 'environment.settings.unsupported'
+              : error === 'locked'
+                ? 'environment.settings.defaultLocked'
+                : 'remoteHosts.settings.error',
+          )}
+        </Note>
+      ) : null}
       <PillButton disabled={busy} onClick={() => void refresh()}>
         {t('onboarding.refreshModels')}
       </PillButton>
@@ -176,7 +398,11 @@ function Models({
                 ]}
                 label={t('remoteHosts.settings.models')}
                 disabled={busy}
-                onChange={(id) => onScope(id === '' ? { kind: 'global' } : { kind: 'preset', id })}
+                onChange={(id) => {
+                  void hostSettingsDrafts.prepare(hostId).then((ready) => {
+                    if (ready) onScope(id === '' ? { kind: 'global' } : { kind: 'preset', id });
+                  });
+                }}
               />
             }
           />
@@ -187,23 +413,37 @@ function Models({
               <div {...stylex.props(styles.choices)}>
                 <Combobox
                   value=""
-                  options={value.models
-                    .filter(
-                      (entry) =>
-                        entry.credential === undefined &&
-                        !routes?.assignmentModels.some((option) => sameModel(option, entry)),
-                    )
-                    .map((entry) => ({
-                      value: JSON.stringify([entry.provider, entry.model]),
-                      label: entry.modelName,
-                      hint: entry.providerName,
-                    }))}
+                  options={[
+                    ...catalogGroups
+                      .filter((group) => !routes?.groups.assignmentGroups?.includes(group.id))
+                      .map((group) => ({
+                        value: groupMenuKey(group.id),
+                        label: group.name,
+                        hint: t('modelPreset.groupCount', { count: group.routes.length }),
+                      })),
+                    ...value.models
+                      .filter(
+                        (entry) =>
+                          entry.credential === undefined &&
+                          !routes?.assignmentModels.some((option) => sameModel(option, entry)),
+                      )
+                      .map((entry) => ({
+                        value: JSON.stringify([entry.provider, entry.model]),
+                        label: entry.modelName,
+                        hint: entry.providerName,
+                      })),
+                  ]}
                   label={t('modelPreset.allowedTitle')}
                   toggleLabel={t('modelPreset.showModels')}
                   placeholder={t('modelPreset.chooseModel')}
                   emptyLabel={t('modelPreset.noMatch')}
-                  disabled={busy || routes?.assignmentDefault === undefined}
+                  disabled={busy || !available || routes?.assignmentDefault === undefined}
                   onSelect={(key) => {
+                    const group = groupMenuId(key);
+                    if (group !== undefined) {
+                      void run(() => toggleAssignmentGroup(client, scope, value, group));
+                      return;
+                    }
                     const entry = value.models.find(
                       (item) => JSON.stringify([item.provider, item.model]) === key,
                     );
@@ -211,12 +451,35 @@ function Models({
                       void run(() => toggleAssignmentModel(client, scope, value, entry));
                   }}
                 />
+                {routes?.groups.assignmentGroups?.map((id) => {
+                  const group = catalogGroups.find((entry) => entry.id === id);
+                  const frontHint = groupFrontHint(group, catalog, t);
+                  const note = routes.groups.assignmentGroupOptions?.find(
+                    (option) => option.group === id,
+                  )?.note;
+                  return (
+                    <Checkbox
+                      key={`group:${id}`}
+                      checked
+                      label={[
+                        group?.name ?? id,
+                        t('modelPreset.groupCount', { count: group?.routes.length ?? 0 }),
+                        ...(frontHint === undefined ? [] : [frontHint]),
+                        ...(note === undefined ? [] : [note]),
+                      ].join(' · ')}
+                      disabled={busy || !available || routes.groups.assignmentDefaultGroupId === id}
+                      onChange={() =>
+                        void run(() => toggleAssignmentGroup(client, scope, value, id))
+                      }
+                    />
+                  );
+                })}
                 {routes?.assignmentModels.map((option) => (
                   <Checkbox
                     key={JSON.stringify([option.provider, option.model])}
                     checked
                     label={`${option.model} · ${option.provider}`}
-                    disabled={busy || sameModel(option, routes.assignmentDefault)}
+                    disabled={busy || !available || sameModel(option, routes.assignmentDefault)}
                     onChange={() => {
                       const entry = value.models.find((item) => sameModel(item, option));
                       if (entry !== undefined)
@@ -230,9 +493,8 @@ function Models({
           <TextField
             label={t('modelPreset.name')}
             value={name ?? value.preset?.name ?? ''}
-            disabled={busy}
+            disabled={busy || creation.kind !== 'idle'}
             onChange={setName}
-            onBlur={saveName}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                 event.preventDefault();
@@ -240,23 +502,34 @@ function Models({
               }
             }}
           />
+          {scope.kind === 'preset' ? (
+            <PillButton
+              disabled={
+                busy || !available || name === undefined || name.trim() === value.preset?.name
+              }
+              onClick={saveName}
+            >
+              {t('relationships.save')}
+            </PillButton>
+          ) : null}
           {scope.kind === 'global' ? (
             <PillButton
               disabled={
                 busy ||
+                creation.kind === 'unknown' ||
+                !available ||
                 (name ?? value.preset?.name ?? '').trim() === '' ||
                 routes?.orchestrator === undefined
               }
-              onClick={() =>
-                void run(
-                  async () => {
-                    await saveModelPreset(client, value, name ?? '', false);
-                  },
-                  () => setName(undefined),
-                )
-              }
+              onClick={() => {
+                void savePresetDraft();
+              }}
             >
-              {t('modelPreset.saveAs')}
+              {t(
+                creation.kind === 'receipt'
+                  ? 'environment.settings.checkCreatedPreset'
+                  : 'modelPreset.saveAs',
+              )}
             </PillButton>
           ) : null}
         </>

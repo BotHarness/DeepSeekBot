@@ -93,6 +93,10 @@ export function sniffAttachmentMime(b: Uint8Array): string {
     ['isom', 'iso2', 'mp41', 'mp42', 'avc1'].includes(ascii(8, 12))
   )
     return 'video/mp4';
+  if (b.length >= 3 && ascii(0, 3) === 'ID3') return 'audio/mpeg';
+  if (b.length >= 4 && b[0] === 255 && (b[1]! & 0xe6) === 0xe2 && (b[2]! & 0xf0) !== 0xf0)
+    return 'audio/mpeg';
+  if (b.length >= 4 && ascii(0, 4) === 'OggS') return 'audio/ogg';
   if (b.length >= 5 && ascii(0, 5) === '%PDF-') return 'application/pdf';
   if (b.length === 0) return 'application/octet-stream';
   try {

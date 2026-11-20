@@ -5,12 +5,14 @@ import {
   Screen,
   ScreenStack,
   ScreenStackHeaderConfig,
+  ScreenStackHeaderCenterView,
   ScreenStackHeaderLeftView,
   type HeaderBarButtonItem,
 } from 'react-native-screens';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { glassPress } from '../design/tokens';
+import { ChatHeaderRow } from '../chat/chat-header-row';
 import { HeaderBackButton } from '../chat/header-chrome';
 import { glassHeader, headerIslands } from '../chat/header-kind';
 import { useStrings } from '../strings';
@@ -49,9 +51,31 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
   );
 }
 
-export function NativePageHeader({ title, onBack, backID, action }: NativePageHeaderProps) {
+export function NativePageHeader({ title, onBack, backID, action, call }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
+  if (glassHeader)
+    return (
+      <ScreenStackHeaderConfig
+        title=""
+        translucent
+        backgroundColor="transparent"
+        hideShadow
+        hideBackButton
+        color={theme.color.fg}
+      >
+        <ScreenStackHeaderCenterView>
+          <ChatHeaderRow
+            title={title}
+            back={{ label: t.back, testID: backID, onPress: onBack }}
+            actions={[
+              ...(call === undefined ? [] : [{ icon: 'call' as const, ...call }]),
+              ...(action === undefined ? [] : [{ icon: 'more' as const, ...action }]),
+            ]}
+          />
+        </ScreenStackHeaderCenterView>
+      </ScreenStackHeaderConfig>
+    );
   const items: HeaderBarButtonItem[] = headerIslands
     ? []
     : [
@@ -67,6 +91,30 @@ export function NativePageHeader({ title, onBack, backID, action }: NativePageHe
         },
       ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
+  const grouped = call !== undefined && action !== undefined;
+  const right: HeaderBarButtonItem[] = [];
+  if (action !== undefined)
+    right.push({
+      type: 'button',
+      index: right.length,
+      title: '',
+      icon: { type: 'sfSymbol', name: 'ellipsis' },
+      identifier: action.testID,
+      accessibilityLabel: action.label,
+      onPress: action.onPress,
+      sharesBackground: grouped,
+    });
+  if (call !== undefined)
+    right.push({
+      type: 'button',
+      index: right.length,
+      title: '',
+      icon: { type: 'sfSymbol', name: 'phone' },
+      identifier: call.testID,
+      accessibilityLabel: call.label,
+      onPress: call.onPress,
+      sharesBackground: grouped,
+    });
   return (
     <ScreenStackHeaderConfig
       title=""
@@ -76,23 +124,7 @@ export function NativePageHeader({ title, onBack, backID, action }: NativePageHe
       hideBackButton
       color={theme.color.fg}
       headerLeftBarButtonItems={items}
-      headerRightBarButtonItems={
-        action === undefined
-          ? []
-          : [
-              { type: 'spacing', spacing: glassPress.gap },
-              {
-                type: 'button',
-                index: 0,
-                title: '',
-                icon: { type: 'sfSymbol', name: 'ellipsis' },
-                identifier: action.testID,
-                accessibilityLabel: action.label,
-                onPress: action.onPress,
-                sharesBackground: false,
-              },
-            ]
-      }
+      headerRightBarButtonItems={right}
     >
       {headerIslands ? (
         <ScreenStackHeaderLeftView>

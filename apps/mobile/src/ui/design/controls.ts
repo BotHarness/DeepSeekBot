@@ -1,5 +1,5 @@
 import type { DesignTheme } from './resolve-theme';
-import { readable as readableColor } from '../../../../../packages/client/src/client/bot-name-color';
+import { readable as readableColor } from '@botharness/host-client/shared/bot-name-color';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
 export const BUTTON_TONES = ['primary', 'secondary', 'tonal', 'danger'] as const;
@@ -81,6 +81,10 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
     pressed: over(theme.color.dangerSoft, behind.danger, 2),
     label: readable(theme.color.danger, behind.danger),
   };
+}
+
+export function cardDecisionInk(theme: DesignTheme, tone: ButtonTone): string {
+  return tone === 'danger' ? theme.color.danger : theme.color.accentText;
 }
 
 export type SwitchColors = {

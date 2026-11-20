@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
@@ -35,7 +36,7 @@ describe('Human DM send receipt', () => {
   it('keeps failed attempts nonterminal and follows a safe retry through explicit resolution', async () => {
     const f = await inboxFixture();
     try {
-      await f.core.channels.appendMessage(f.dm.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -71,7 +72,7 @@ describe('Human DM send receipt', () => {
   it('does not close a request needing side-effect reconciliation', async () => {
     const f = await inboxFixture();
     try {
-      await f.core.channels.appendMessage(f.dm.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -109,15 +110,15 @@ describe('Human DM send receipt', () => {
       at: '2026-10-10T00:00:00Z',
     });
     const store = createSqliteChannelStore({ rootDir: home, database, databaseOwnerReady: true });
-    store.getOrCreateDm('ada', 'Ada');
+    store.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
     const human = (id: string) => ({
       id,
       at: '2026-10-10T00:00:00Z',
       author: { kind: 'human' as const },
       body: id,
     });
-    await store.appendMessage('dm-ada', human('first'));
-    await store.appendMessage('dm-ada', human('second'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', human('first'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', human('second'));
     const first = store.humanSendStatus?.('dm-ada', 'first');
     const second = store.humanSendStatus?.('dm-ada', 'second');
     if (!first || !second) throw new Error('Missing admitted Human request');
@@ -128,20 +129,21 @@ describe('Human DM send receipt', () => {
       author: { kind: 'bot' as const, slug: 'ada' },
       body: id,
     });
-    await store.appendMessage('dm-ada', bot('unattributed'));
-    await store.appendMessage('dm-ada', bot('other-request'), {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', bot('unattributed'));
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', bot('other-request'), {
       sessionId: 'owned',
       sourceEventId: second.sourceEventId,
     });
-    await store.appendMessage('dm-ada', bot('unowned'), {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', bot('unowned'), {
       sessionId: 'unknown',
       sourceEventId: first.sourceEventId,
     });
-    await store.appendMessage('dm-ada', bot('matched'), {
+    await store.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', bot('matched'), {
       sessionId: 'owned',
       sourceEventId: first.sourceEventId,
     });
     await store.appendMessage(
+      OWNER_HUMAN_CONTEXT,
       'dm-ada',
       {
         ...bot('question-card'),

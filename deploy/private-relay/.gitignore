@@ -1,0 +1,4 @@
+bootstrap.secret
+.env
+hosts/
+host-*.secret

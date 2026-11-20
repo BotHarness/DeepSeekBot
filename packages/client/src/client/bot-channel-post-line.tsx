@@ -17,6 +17,8 @@ function elsewherePlace(
   const channel = channels.find((candidate) => candidate.id === channelId);
   if (channel === undefined) return { kind: 'unavailable' };
   if (channel.type === 'group') return { kind: 'group', name: `#${channel.name}` };
+  if (channel.remoteBot !== undefined)
+    return { kind: 'botDm', peers: channel.remoteBot.displayName };
   const peers = channel.members
     .filter((slug) => slug !== actorSlug)
     .map((slug) => bots.find((bot) => bot.slug === slug)?.displayName ?? slug);

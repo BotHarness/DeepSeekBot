@@ -18,6 +18,7 @@ internal static class LocalVideoLauncher
     private const uint WaitTimeout = 258;
     private const int MaxLine = 128 * 1024;
     private static readonly object OutputLock = new object();
+    private static readonly object ControlLock = new object();
     private static readonly ManualResetEvent Stop = new ManualResetEvent(false);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -126,7 +127,7 @@ internal static class LocalVideoLauncher
     private static bool WriteBounded(string json)
     {
         bool written = false;
-        var thread = Background(delegate { try { Write(json); written = true; } catch { Stop.Set(); } });
+        var thread = Background(delegate { try { lock (ControlLock) { Console.Error.WriteLine(json); Console.Error.Flush(); } written = true; } catch { Stop.Set(); } });
         return thread.Join(150) && written;
     }
     private static bool DrainJob(IntPtr job)

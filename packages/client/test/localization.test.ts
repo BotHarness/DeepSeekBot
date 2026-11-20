@@ -1,36 +1,20 @@
-import { createElement, type PropsWithChildren } from 'react';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: stub,
-    Menu: stub,
+
     MarkdownText: stub,
-    Modal: stub,
-    SegmentedControl: stub,
+
     StateDot: stub,
-    Tag,
-    Tooltip: Tag,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -143,12 +127,12 @@ describe('localization coverage', () => {
         t: tEn,
       }),
     );
-    expect(header).toContain('Invite member');
+    expect(header).toContain('Invite a Bot');
     expect(header).toContain('Invitations and join requests, 2 pending');
     const management = renderEntry('group-management');
     expect(management).toContain('Group avatar');
     expect(management).toContain('Group name');
-    expect(management).not.toContain('Invite member');
+    expect(management).not.toContain('Invite a Bot');
     expect(management).not.toContain('Join requests');
     expect(management).not.toContain('Remove from Group');
     expect(management).not.toContain('Disband Group');

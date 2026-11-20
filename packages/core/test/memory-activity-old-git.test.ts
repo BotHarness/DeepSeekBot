@@ -42,6 +42,6 @@ it('filters Memory activity by date itself when Git predates --since-as-filter',
   const iso = (items: Array<{ at: string }>): string[] =>
     items.map(({ at }) => new Date(at).toISOString()).sort();
 
-  expect(iso(git.activitySince(since))).toEqual(expected);
+  expect(iso(await git.activitySince(since))).toEqual(expected);
   expect(iso((await git.activitySnapshot(since)).commits)).toEqual(expected);
 });

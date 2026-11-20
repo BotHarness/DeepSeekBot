@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement, createRef } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, ...props }: import('react').ButtonHTMLAttributes<HTMLButtonElement>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
@@ -20,23 +19,24 @@ import {
 import type { ProfileSessionUsage } from '../src/client/bridge.js';
 import { DmComposerUsagePopover } from '../src/client/dm-composer-usage.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const LIGHT = REFERENCE_SURFACES.light.background;
 const DARK = REFERENCE_SURFACES.dark.background;
 let root: Root;
 let host: HTMLDivElement;
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
 });
 afterEach(async () => {
-  document.body.removeAttribute('data-ds-dark-theme');
   await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  appearance.dispose();
 });
 
 const usage = {
@@ -103,15 +103,20 @@ it('shows the Bot name and session share meters in the saved Bot Primary Color',
   expect(meters()).toHaveLength(2);
   expect(meters().map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['75', '25']);
   expect(meters().map((meter) => meter.querySelector('span')!.style.width)).toEqual(['75%', '25%']);
+  expect(
+    [...document.querySelectorAll('.bh-composer-usage-session strong')].map(
+      (row) => row.textContent,
+    ),
+  ).toEqual(['300 · 75%', '100 · 25%', '不可用']);
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', LIGHT));
 
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
   expect(name().dataset['botNameColor']).toBe(botNameColor('#e2b04a', DARK));
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', DARK));
-  document.body.removeAttribute('data-ds-dark-theme');
+  appearance.owner.update({ preference: 'light' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
 
   await show(bot({ mode: 'custom', color: '#1d1b22' }));
@@ -136,6 +141,54 @@ it('shows current context details separately from cumulative usage', async () =>
   expect(section.textContent).toContain('800,000');
   expect(section.textContent).toContain('模型声明');
   expect(document.body.textContent).toContain('累计用量');
+});
+
+it('breaks the current context down by where it came from, largest first', async () => {
+  await show(bot(), {
+    sessionId: 's1',
+    usedTokens: 10000,
+    contextWindow: 1000000,
+    thresholdTokens: 800000,
+    capacitySource: 'model',
+    sources: [
+      { source: 'system', tokens: 3000 },
+      { source: 'human', tokens: 500 },
+      { source: 'inbox-assignment', tokens: 40 },
+      {
+        source: 'tool-use',
+        tokens: 6460,
+        tools: [
+          { name: 'channel_read', tokens: 6000 },
+          { name: 'bot_send_message', tokens: 460 },
+        ],
+      },
+    ],
+  });
+  const list = document.querySelector('[data-context-sources]')!;
+  const rows = [...list.querySelectorAll<HTMLElement>('[data-context-source]')];
+  expect(rows.map((row) => row.dataset.contextSource)).toEqual([
+    'tool-use',
+    'system',
+    'human',
+    'inbox-assignment',
+  ]);
+  expect(rows[0]!.textContent).toBe('工具调用6.5K · 65%');
+  expect(rows[3]!.textContent).toBe('任务汇报40 · <1%');
+  expect(list.querySelector('[data-context-tool="channel_read"]')?.textContent).toBe(
+    'channel_read6K',
+  );
+  expect(list.querySelectorAll('[aria-hidden="true"] > [data-source]')).toHaveLength(4);
+});
+
+it('leaves the breakdown out when the Host has no live session to measure', async () => {
+  await show(bot(), {
+    sessionId: null,
+    usedTokens: null,
+    contextWindow: 1000000,
+    thresholdTokens: 800000,
+    capacitySource: 'model',
+  });
+  expect(document.querySelector('[data-context-sources]')).toBeNull();
 });
 
 it('labels fallback capacity and never presents unloaded usage as zero', async () => {

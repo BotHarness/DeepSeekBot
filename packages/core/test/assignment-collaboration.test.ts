@@ -1,3 +1,5 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import type { AssignmentReportContent } from '../src/runtime/assignment-report.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { AssignmentInboxAcceptanceUncertainError } from '../src/runtime/assignment-delivery.js';
 import { join, dirname } from 'node:path';
@@ -29,6 +31,7 @@ import {
 import { FIXED_NOW, createTempRoot, trackTestOwner } from './helpers.js';
 import type { WorkspaceGrantStore } from '../src/workspaces/grants.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
+import { createSessionOwnership } from '../src/sessions/ownership.js';
 
 class ManualAgents implements BotAgentAdapter {
   readonly started: Array<{ sessionId: string; description: string; run: AssignmentAgentRun }> = [];
@@ -39,12 +42,16 @@ class ManualAgents implements BotAgentAdapter {
   failNextStop = false;
   failInbox: 'before-side-effect' | 'after-side-effect' | undefined;
   factoryUnavailableCount = 0;
+  onMessage: ((run: OrchestratorAgentRun) => Promise<void>) | undefined;
   readonly #finish = new Map<string, () => void>();
 
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.access = run.assignments;
     this.allInboxTurns.push(run.inbox);
-    if (run.message.trim().length > 0) return;
+    if (run.message.trim().length > 0) {
+      await this.onMessage?.(run);
+      return;
+    }
     if (this.factoryUnavailableCount > 0) {
       this.factoryUnavailableCount -= 1;
       throw new Error('no agent factory registered (load an agent-loop plugin)');
@@ -63,7 +70,11 @@ class ManualAgents implements BotAgentAdapter {
 
   runAssignment(run: AssignmentAgentRun): Promise<void> {
     this.started.push({ sessionId: run.sessionId, description: run.text, run });
-    return new Promise<void>((resolve) => this.#finish.set(run.sessionId, resolve));
+    run.setExecutionReady?.(true);
+    run.acceptNativeInput?.();
+    return new Promise<void>((resolve) => this.#finish.set(run.sessionId, resolve)).finally(() =>
+      run.setExecutionReady?.(false),
+    );
   }
 
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
@@ -137,6 +148,7 @@ async function setup(
       sessionId: string,
       acceptedSummary: string,
       offset: number,
+      content?: AssignmentReportContent,
     ) => Promise<{
       text: string;
       offset: number;
@@ -151,6 +163,7 @@ async function setup(
   } = {},
 ): Promise<{
   runtime: BotRuntime;
+  registry: ReturnType<typeof createTestRegistry>;
   grants: WorkspaceGrantStore;
   agents: ManualAgents;
   owner: ReturnType<typeof mountOperationalDatabase>;
@@ -168,7 +181,7 @@ async function setup(
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada');
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   if (dm === undefined) throw new Error('DM missing');
   const agents = new ManualAgents();
   const grants = createTestWorkspaceGrants(owner, home);
@@ -192,6 +205,7 @@ async function setup(
   });
   return {
     runtime,
+    registry,
     grants,
     agents,
     owner,
@@ -204,14 +218,360 @@ async function setup(
     },
     dmChannelId: dm.id,
     admit: async (body: string, messageId: string) => {
-      const admission = runtime.admitDmMessage({ channelId: dm.id, messageId, body });
+      const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId,
+        body,
+      });
       if (!admission.admitted) throw new Error(`admission rejected: ${admission.reason}`);
       await admission.settled;
     },
   };
 }
 
+async function idleNativeAssignment(options: { assignmentConcurrencyLimit?: number } = {}) {
+  const fixture = await setup(options);
+  await fixture.admit('Start', 'native-assignment');
+  const created = fixture.agents.access!.create({
+    title: 'Assignment',
+    grantId: TEST_GRANT_ID,
+    description: 'Background child',
+  });
+  if (created.outcome !== 'created') throw new Error('Assignment missing');
+  const sessionId = created.assignment.sessionId;
+  fixture.agents.finish(sessionId);
+  await fixture.runtime.whenIdle();
+  const ownership = createSessionOwnership(attachOperationalModule(fixture.owner, 'wake-test'));
+  ownership.claim({
+    sessionId: 'native-child',
+    botSlug: 'ada',
+    rootRole: 'assignment',
+    parentSessionId: sessionId,
+    provenance: 'subagent',
+    at: FIXED_NOW().toISOString(),
+  });
+  return { ...fixture, sessionId, ownership };
+}
+
 describe('Assignment collaboration', () => {
+  it.each([
+    'no-sender',
+    'unknown-sender',
+    'foreign-sender',
+    'not-subagent',
+    'aborted',
+    'requested',
+    'stopped',
+    'archived',
+    'error',
+    'grant-revoked',
+    'grant-mismatch',
+    'bot-paused',
+    'source-purged',
+    'channel-ended',
+  ])('refuses idle native Assignment admission at the %s boundary', async (boundary) => {
+    const fixture = await idleNativeAssignment();
+    const { runtime, agents, owner, registry, grants, sessionId, ownership, close } = fixture;
+    const controller = new AbortController();
+    let senders = ['native-child'];
+    try {
+      if (boundary === 'no-sender') senders = [];
+      if (boundary === 'unknown-sender') senders = ['unknown'];
+      if (boundary === 'foreign-sender' || boundary === 'not-subagent') {
+        ownership.claim({
+          sessionId: 'untrusted',
+          botSlug: boundary === 'foreign-sender' ? 'other' : 'ada',
+          rootRole: 'assignment',
+          parentSessionId: sessionId,
+          provenance: boundary === 'not-subagent' ? 'fork' : 'subagent',
+          at: FIXED_NOW().toISOString(),
+        });
+        senders = ['untrusted'];
+      }
+      if (boundary === 'aborted') controller.abort();
+      if (boundary === 'grant-revoked') grants.revoke('ada', TEST_GRANT_ID);
+      if (boundary === 'bot-paused') registry.setPaused('ada', true);
+      attachOperationalModule(owner, 'wake-boundary-test').transaction((database) => {
+        if (boundary === 'requested' || boundary === 'stopped')
+          database
+            .prepare('UPDATE assignments SET stop_state = ? WHERE session_id = ?')
+            .run(boundary, sessionId);
+        if (boundary === 'archived')
+          database
+            .prepare('UPDATE assignments SET archived_at = ? WHERE session_id = ?')
+            .run(FIXED_NOW().toISOString(), sessionId);
+        if (boundary === 'error')
+          database
+            .prepare("UPDATE assignments SET activity = 'error' WHERE session_id = ?")
+            .run(sessionId);
+        if (boundary === 'grant-mismatch')
+          database
+            .prepare("UPDATE assignments SET primary_cwd = '/wrong' WHERE session_id = ?")
+            .run(sessionId);
+        if (boundary === 'source-purged')
+          database
+            .prepare(
+              "INSERT INTO messaging_purge_facts SELECT source_event_id, channel_id, message_id, created_at, '{}' FROM source_events WHERE source_event_id = (SELECT source_event_id FROM assignments WHERE session_id = ?)",
+            )
+            .run(sessionId);
+        if (boundary === 'channel-ended')
+          database
+            .prepare(
+              "UPDATE inbox_admissions SET last_error = 'channel-ended' WHERE source_event_id = (SELECT source_event_id FROM assignments WHERE session_id = ?)",
+            )
+            .run(sessionId);
+      });
+      expect(
+        await runtime.prepareNativeOrchestratorStep!(sessionId, senders, controller.signal),
+      ).toBe(false);
+      expect(agents.started).toHaveLength(1);
+      expect(runtime.getAssignment('ada', sessionId)?.activity).not.toBe('working');
+    } finally {
+      await close();
+    }
+  });
+
+  it.each(['stop', 'grant', 'purge', 'archive'])(
+    'rechecks %s after native wake readiness before executing a report',
+    async (boundary) => {
+      const { runtime, agents, owner, grants, sessionId, close } = await idleNativeAssignment();
+      const signal = new AbortController().signal;
+      try {
+        expect(
+          await runtime.prepareNativeOrchestratorStep!(sessionId, ['native-child'], signal),
+        ).toBe(true);
+        if (boundary === 'stop') await agents.access!.stop(sessionId);
+        if (boundary === 'grant') grants.revoke('ada', TEST_GRANT_ID);
+        if (boundary === 'purge')
+          attachOperationalModule(owner, 'wake-purge-test').transaction((database) => {
+            database
+              .prepare(
+                "INSERT INTO messaging_purge_facts SELECT source_event_id, channel_id, message_id, created_at, '{}' FROM source_events WHERE source_event_id = (SELECT source_event_id FROM assignments WHERE session_id = ?)",
+              )
+              .run(sessionId);
+          });
+        if (boundary === 'archive')
+          attachOperationalModule(owner, 'wake-archive-test').transaction((database) => {
+            database
+              .prepare('UPDATE assignments SET archived_at = ? WHERE session_id = ?')
+              .run(FIXED_NOW().toISOString(), sessionId);
+          });
+        const report = vi.fn(async () => undefined);
+        await expect(
+          runtime.runAssignmentTool!(sessionId, 'report', Symbol(), signal, report),
+        ).rejects.toThrow('execution authority is unavailable');
+        expect(report).not.toHaveBeenCalled();
+        expect(
+          await runtime.prepareNativeOrchestratorStep!(sessionId, ['native-child'], signal),
+        ).toBe(false);
+        agents.finish(sessionId);
+      } finally {
+        await close();
+      }
+    },
+  );
+
+  it('keeps active native steps constant-work with no polling, subscriptions or duplicate runs', async () => {
+    const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment();
+    const subscribe = vi.spyOn(owner, 'subscribe');
+    const timer = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      expect(
+        await runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          new AbortController().signal,
+        ),
+      ).toBe(true);
+      const before = agents.started.length;
+      for (let index = 0; index < 100; index += 1)
+        expect(
+          await runtime.prepareNativeOrchestratorStep!(sessionId, [], new AbortController().signal),
+        ).toBe(true);
+      expect(agents.started).toHaveLength(before);
+      expect(subscribe).not.toHaveBeenCalled();
+      expect(timer).not.toHaveBeenCalled();
+      agents.finish(sessionId);
+    } finally {
+      timer.mockRestore();
+      await close();
+    }
+  });
+
+  it('queues one native wake behind capacity, without polling or creating a second child input', async () => {
+    const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment({
+      assignmentConcurrencyLimit: 1,
+    });
+    const subscribe = vi.spyOn(owner, 'subscribe');
+    const controller = new AbortController();
+    try {
+      const other = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Other',
+      });
+      if (other.outcome !== 'created') throw new Error('Other missing');
+      const first = runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        ['native-child'],
+        controller.signal,
+      );
+      const second = runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        ['native-child'],
+        controller.signal,
+      );
+      await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+      expect(agents.started).toHaveLength(2);
+      expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('idle');
+      agents.finish(other.assignment.sessionId);
+      expect(await first).toBe(true);
+      expect(await second).toBe(true);
+      expect(agents.started).toHaveLength(3);
+      expect(agents.started[2]!.run.text).toBe('');
+      agents.finish(sessionId);
+    } finally {
+      controller.abort();
+      await close();
+    }
+  });
+
+  it.each(['first', 'second'])(
+    'honors the %s native wake caller cancellation independently',
+    async (cancelledCaller) => {
+      const { runtime, agents, owner, sessionId, close } = await idleNativeAssignment({
+        assignmentConcurrencyLimit: 1,
+      });
+      const subscribe = vi.spyOn(owner, 'subscribe');
+      const firstController = new AbortController();
+      const secondController = new AbortController();
+      try {
+        const other = agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Other',
+        });
+        if (other.outcome !== 'created') throw new Error('Other missing');
+        const first = runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          firstController.signal,
+        );
+        const second = runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          secondController.signal,
+        );
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+        const cancelled = cancelledCaller === 'first' ? first : second;
+        const remaining = cancelledCaller === 'first' ? second : first;
+        let remainingResult: boolean | undefined;
+        void remaining.then((accepted) => {
+          remainingResult = accepted;
+        });
+        (cancelledCaller === 'first' ? firstController : secondController).abort();
+        await expect(cancelled).resolves.toBe(false);
+        await vi.waitFor(() =>
+          expect(subscribe).toHaveBeenCalledTimes(cancelledCaller === 'first' ? 2 : 1),
+        );
+        expect(remainingResult).toBeUndefined();
+        expect(agents.started).toHaveLength(2);
+        agents.finish(other.assignment.sessionId);
+        await expect(remaining).resolves.toBe(true);
+        expect(agents.started).toHaveLength(3);
+        agents.finish(sessionId);
+      } finally {
+        firstController.abort();
+        secondController.abort();
+        await close();
+      }
+    },
+  );
+
+  it.each(['abort', 'stop', 'revoke', 'close'])(
+    'cancels a capacity-queued native wake on %s',
+    async (boundary) => {
+      const { runtime, agents, owner, grants, sessionId, close } = await idleNativeAssignment({
+        assignmentConcurrencyLimit: 1,
+      });
+      const subscribe = vi.spyOn(owner, 'subscribe');
+      const controller = new AbortController();
+      try {
+        const other = agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Other',
+        });
+        if (other.outcome !== 'created') throw new Error('Other missing');
+        const pending = runtime.prepareNativeOrchestratorStep!(
+          sessionId,
+          ['native-child'],
+          controller.signal,
+        );
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+        if (boundary === 'abort') controller.abort();
+        if (boundary === 'stop') await agents.access!.stop(sessionId);
+        if (boundary === 'revoke') grants.revoke('ada', TEST_GRANT_ID);
+        if (boundary === 'close') {
+          agents.finishAll();
+          await runtime.close();
+        }
+        expect(await pending).toBe(false);
+        expect(agents.started).toHaveLength(2);
+      } finally {
+        controller.abort();
+        await close();
+      }
+    },
+  );
+
+  it('restores a real Assignment run before an idle native child wake can report', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    try {
+      await admit('Start', 'native-child-wake');
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Background child',
+      });
+      if (created.outcome !== 'created') throw new Error('Assignment missing');
+      const sessionId = created.assignment.sessionId;
+      const first = agents.started[0]!.run;
+      await first.report({ state: 'progress', summary: 'Parent yielding' }, { turn: 1 });
+      agents.finish(sessionId);
+      await runtime.whenIdle();
+      const signal = new AbortController().signal;
+      const tool = () =>
+        runtime.runAssignmentTool!(sessionId, 'report', Symbol(), signal, async () => undefined);
+      await expect(tool()).rejects.toThrow('execution authority is unavailable');
+      const ownership = createSessionOwnership(attachOperationalModule(owner, 'wake-test'));
+      ownership.claim({
+        sessionId: 'native-child',
+        botSlug: 'ada',
+        rootRole: 'assignment',
+        parentSessionId: sessionId,
+        provenance: 'subagent',
+        at: FIXED_NOW().toISOString(),
+      });
+      const accepted = runtime.prepareNativeOrchestratorStep!(sessionId, ['native-child'], signal);
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('working');
+      await expect(tool()).resolves.toBeUndefined();
+      const resumed = agents.started[1]!.run;
+      await resumed.report({ state: 'completed', summary: 'Child finished' }, { turn: 2 });
+      agents.finish(sessionId);
+      expect(await accepted).toBe(true);
+      await runtime.whenIdle();
+      expect(runtime.getAssignment('ada', sessionId)).toMatchObject({
+        activity: 'idle',
+        latestReport: { state: 'completed', summary: 'Child finished' },
+      });
+      await expect(tool()).rejects.toThrow('execution authority is unavailable');
+    } finally {
+      await close();
+    }
+  });
+
   it('admits real runtime work during a native approval wait and gates the original resumption', async () => {
     const { runtime, agents, admit, close } = await setup({ assignmentConcurrencyLimit: 1 });
     try {
@@ -366,6 +726,151 @@ describe('Assignment collaboration', () => {
     }
   });
 
+  it('does not wake for a paired completion notice once a wait took its Report', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Complete',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        await assignment.report({ state: 'completed', summary: 'Done' }, { turn: 1 });
+        const waited = await waiting;
+        expect(waited.inboxIds).toHaveLength(1);
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-start');
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(0);
+      expect(
+        sourceEvents(owner)
+          .filter((e) => e.source_kind.startsWith('assignment-'))
+          .every((e) => e.observed_at !== null),
+      ).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('wakes once when parallel Assignments from one request complete', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-start');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      await runtime.whenIdle();
+      expect(agents.inboxTurns).toHaveLength(1);
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
+  it('batches completions from different requests while another Assignment runs', async () => {
+    const { agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        run.assignments.create({ title: 'Job', grantId: TEST_GRANT_ID, description: 'Job' });
+      };
+      await admit('First job', 'digest-first');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(1));
+      await admit('Second job', 'digest-second');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const [first, second] = agents.started.map((entry) => entry.run);
+      await first!.report({ state: 'completed', summary: 'First result' }, { turn: 1 });
+      first!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(first!.sessionId);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(agents.inboxTurns).toHaveLength(0);
+      await second!.report({ state: 'completed', summary: 'Second result' }, { turn: 1 });
+      second!.completedTurn!({ turn: 1, endSeq: 10 });
+      agents.finish(second!.sessionId);
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('First result');
+      expect(agents.inboxTurns[0]).toContain('Second result');
+    } finally {
+      await close();
+    }
+  });
+
+  it('does not hold a blocked Report for a sibling Assignment', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    try {
+      agents.onMessage = async (run) => {
+        for (const title of ['First', 'Second'])
+          run.assignments.create({ title, grantId: TEST_GRANT_ID, description: title });
+      };
+      await admit('Research both in parallel', 'parallel-blocked');
+      await vi.waitFor(() => expect(agents.started).toHaveLength(2));
+      const first = agents.started[0]!.run;
+      await first.report({ state: 'blocked', summary: 'Need a key' }, { turn: 1 });
+      await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
+      expect(agents.inboxTurns[0]).toContain('Need a key');
+      agents.finishAll();
+    } finally {
+      await close();
+    }
+  });
+
+  it('leaves a Report committed after the wait returned in the Inbox', async () => {
+    const { runtime, agents, owner, admit, close } = await setup();
+    let claimed: string[] | undefined;
+    let late: Promise<unknown> | undefined;
+    try {
+      agents.onMessage = async (run) => {
+        const created = run.assignments.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Two steps',
+        });
+        if (created.outcome !== 'created') throw new Error('Assignment missing');
+        const assignment = agents.started.at(-1)!.run;
+        const waiting = run.assignments.wait!(
+          created.assignment.sessionId,
+          new AbortController().signal,
+        );
+        const first = assignment.report({ state: 'progress', summary: 'Step one' }, { turn: 1 });
+        queueMicrotask(() => {
+          late = assignment.report({ state: 'progress', summary: 'Step two' }, { turn: 1 });
+        });
+        await first;
+        claimed = (await waiting).inboxIds;
+        await late;
+        assignment.completedTurn!({ turn: 1, endSeq: 10 });
+        agents.finish(created.assignment.sessionId);
+      };
+      await admit('Do it and wait', 'wait-late');
+      await runtime.whenIdle();
+      const reports = sourceEvents(owner).filter((e) => e.source_kind === 'assignment-report');
+      expect(reports).toHaveLength(2);
+      expect(claimed).toEqual([reports[0]!.source_event_id]);
+    } finally {
+      await close();
+    }
+  });
+
   it('keeps Report meaning alongside a paired Host completion in one harvest', async () => {
     const { runtime, agents, owner, admit, close } = await setup();
     try {
@@ -458,7 +963,10 @@ describe('Assignment collaboration', () => {
           activity: 'error',
           latestReport: { state: 'progress', summary: 'Evidence before cancellation' },
         });
-        expect(runtime.getAssignment('ada', run.sessionId)?.continuityKey).toBeUndefined();
+        expect(runtime.getAssignment('ada', run.sessionId)?.continuityKey).toBe('cancel-direction');
+        expect(notice.summary).toContain(
+          'send_assignment_request with this Session id continues it',
+        );
         const payload = attachOperationalModule(owner, 'native-cancel-payload').read((db) =>
           db
             .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
@@ -497,7 +1005,7 @@ describe('Assignment collaboration', () => {
         expect(after).toEqual(before);
         expect(recoveredAgents.started).toHaveLength(0);
         expect(recoveredAgents.inboxTurns).toHaveLength(0);
-        const reviewed = recovered.admitDmMessage({
+        const reviewed = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'cancel-review',
           body: 'Review cancelled work',
@@ -508,6 +1016,19 @@ describe('Assignment collaboration', () => {
           notice.id,
         );
         expect(recoveredAgents.started).toHaveLength(0);
+        const continued = recoveredAgents.access!.request({
+          sessionId: run.sessionId,
+          mode: 'next-turn',
+          text: 'Continue the cancelled work',
+        });
+        expect(continued).toMatchObject({ delivery: 'followup' });
+        expect(recoveredAgents.resumed).toHaveLength(1);
+        expect(recoveredAgents.resumed[0]!.text).toContain('did not finish cleanly');
+        expect(recoveredAgents.resumed[0]!.text).toContain('Continue the cancelled work');
+        await Promise.resolve();
+        recoveredAgents.finish(run.sessionId);
+        await recovered.whenIdle();
+        expect(recovered.getAssignment('ada', run.sessionId)?.activity).toBe('idle');
       } finally {
         await recovered?.close();
         reopened?.close();
@@ -592,7 +1113,7 @@ describe('Assignment collaboration', () => {
       ).toEqual(before);
       expect(coldAgents.allInboxTurns).toHaveLength(0);
       expect(coldAgents.started).toHaveLength(0);
-      const admission = recovered.admitDmMessage({
+      const admission = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dmChannelId,
         messageId: 'failed-semantic-review',
         body: 'Review existing facts without new work',
@@ -676,8 +1197,8 @@ describe('Assignment collaboration', () => {
           .list({ botSlug: 'ada' })
           .items.find((i) => i.id === noticeId),
       ).toMatchObject({ state: 'pending' });
-      const dm = channels.getOrCreateDm('ada', 'Ada')!;
-      const admission = reopenedRuntime.admitDmMessage({
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const admission = reopenedRuntime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'late-review',
         body: 'Review completion',
@@ -798,7 +1319,7 @@ describe('Assignment collaboration', () => {
       assignmentConcurrencyLimit: 1,
     });
     try {
-      const admission = reopened.admitDmMessage({
+      const admission = reopened.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dmChannelId,
         messageId: 'human-cold-resume',
         body: 'Resume',
@@ -911,7 +1432,7 @@ describe('Assignment collaboration', () => {
         const query = createHumanAttentionQuery(
           attachOperationalModule(owner, 'answer-refusal-test'),
         );
-        expect(query.list({ category: 'action' }).items).toContainEqual(
+        expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toContainEqual(
           expect.objectContaining({ sourceEventId: before.openAsk!.sourceEventId }),
         );
         if (uncertain) {
@@ -1133,8 +1654,8 @@ describe('Assignment collaboration', () => {
         displayName: 'Bob',
       });
       const bobGrant = await grants.create('bob', 'test-workspace');
-      const dm = channels.getOrCreateDm('bob', 'Bob')!;
-      const incoming = runtime.admitDmMessage({
+      const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'bob', 'Bob')!;
+      const incoming = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'human-bob-capacity',
         body: 'Start Bob',
@@ -1370,6 +1891,26 @@ describe('Assignment collaboration', () => {
   it('spills an oversized report before admitting its bounded Inbox summary', async () => {
     const saved: Array<{ sessionId: string; content: string }> = [];
     const { runtime, agents, owner, admit, close } = await setup({
+      readAssignmentReportPage: (sessionId, summary, offset, content) =>
+        readAssignmentReportPage(
+          {
+            listEvents: async () => [],
+            filterEvents: async () => [{ seq: 1 }],
+            readEvent: async () => ({
+              target: {
+                type: 'tool/call',
+                data: {
+                  name: 'report_to_orchestrator',
+                  arguments: JSON.stringify({ summary: saved[0]!.content }),
+                },
+              },
+            }),
+          },
+          sessionId,
+          summary,
+          offset,
+          content,
+        ),
       saveReportSpill: async (input) => {
         saved.push(input);
         return {
@@ -1397,34 +1938,33 @@ describe('Assignment collaboration', () => {
       expect(summary).toContain('/private/spill/report.txt');
       expect(summary).toMatch(/sha256: [0-9a-f]{64}/u);
       expect(summary).not.toContain('FINAL-MARKER');
-      const page = await readAssignmentReportPage(
-        {
-          listEvents: async () => [],
-          filterEvents: async () => [{ seq: 1 }],
-          readEvent: async () => ({
-            target: {
-              type: 'tool/call',
-              data: {
-                name: 'report_to_orchestrator',
-                arguments: JSON.stringify({ summary: saved[0]!.content }),
-              },
-            },
-          }),
-        },
-        created.assignment.sessionId,
-        summary!,
-        1_000,
-      );
+      const first = await agents.access!.reportPage!({
+        sessionId: created.assignment.sessionId,
+        offset: 0,
+      });
+      const page = await agents.access!.reportPage!({
+        sessionId: created.assignment.sessionId,
+        offset: 1_000,
+        reportSourceEventId: first.reportSourceEventId,
+      });
       expect(page.text).toContain('FINAL-MARKER');
       expect(page.sourceEventBytes).toBeGreaterThan(Buffer.byteLength(content));
       expect(agents.inboxTurns[0]).toContain('/private/spill/report.txt');
       expect(agents.inboxTurns[0]).not.toContain('FINAL-MARKER');
       const source = attachOperationalModule(owner, 'spill-test').read((database) =>
         database
-          .prepare("SELECT body FROM source_events WHERE source_kind = 'assignment-report'")
+          .prepare(
+            "SELECT body, payload_json FROM source_events WHERE source_kind = 'assignment-report'",
+          )
           .get(),
-      ) as { body: string };
+      ) as { body: string; payload_json: string };
       expect(source.body).toBe(summary);
+      expect(JSON.parse(source.payload_json).assignmentReport.content).toMatchObject({
+        version: 1,
+        bytes: Buffer.byteLength(content),
+        sha256: expect.any(String),
+        spill: { locator: '/private/spill/report.txt', retrievalHint: 'Use read on this locator.' },
+      });
       await agents.access!.stop(created.assignment.sessionId);
       await expect(
         agents.started[0]!.run.report({ state: 'completed', summary: content }),
@@ -1466,7 +2006,70 @@ describe('Assignment collaboration', () => {
     }
   });
 
-  it('only pages the latest accepted report from an owned Assignment', async () => {
+  it('keeps a report read on A when B arrives between pages', async () => {
+    const bodies: string[] = [];
+    const { agents, admit, close } = await setup({
+      saveReportSpill: async ({ content }) => ({
+        locator: 'opaque-report',
+        bytes: Buffer.byteLength(content),
+        retrievalHint: 'Session Query',
+      }),
+      readAssignmentReportPage: (sessionId, summary, offset, content) =>
+        readAssignmentReportPage(
+          {
+            listEvents: async () => [],
+            filterEvents: async () => bodies.map((_, seq) => ({ seq })),
+            readEvent: async ({ seq }) => ({
+              target: {
+                type: 'tool/call',
+                data: {
+                  name: 'report_to_orchestrator',
+                  arguments: JSON.stringify({ summary: bodies[seq] }),
+                },
+              },
+            }),
+          },
+          sessionId,
+          summary,
+          offset,
+          content,
+        ),
+    });
+    try {
+      await admit('Start', 'human-pinned-report');
+      const created = agents.access!.create({
+        title: 'Report',
+        description: 'Read consistently',
+        grantId: TEST_GRANT_ID,
+      });
+      if (created.outcome !== 'created') throw new Error('create failed');
+      const sessionId = created.assignment.sessionId;
+      const run = agents.started[0]!.run;
+      const a = 'A😀'.repeat(1500);
+      bodies.push(a);
+      await run.report({ state: 'progress', summary: a });
+      const first = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      bodies.push('B😀'.repeat(1500));
+      await run.report({ state: 'progress', summary: bodies[1]! });
+      const second = await agents.access!.reportPage!({
+        sessionId,
+        offset: first.nextOffset!,
+        reportSourceEventId: first.reportSourceEventId,
+      });
+      expect(first.text + second.text).toBe(a);
+      expect(second.reportSourceEventId).toBe(first.reportSourceEventId);
+      const latest = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      expect(latest.reportSourceEventId).not.toBe(first.reportSourceEventId);
+      expect(latest.text).toBe(Array.from(bodies[1]!).slice(0, 2000).join(''));
+      await expect(
+        agents.access!.reportPage!({ sessionId, offset: first.nextOffset! }),
+      ).rejects.toThrow('REPORT_ID_REQUIRED');
+    } finally {
+      await close();
+    }
+  });
+
+  it('only pages accepted reports from the specified owned Assignment', async () => {
     const readAssignmentReportPage = vi.fn(async () => ({
       text: 'first page',
       offset: 0,
@@ -1488,21 +2091,179 @@ describe('Assignment collaboration', () => {
       if (created.outcome !== 'created') throw new Error('create failed');
       const sessionId = created.assignment.sessionId;
       await agents.started[0]!.run.report({ state: 'completed', summary: 'first page' });
-      await expect(agents.access!.reportPage?.(sessionId, 'first page', 0)).resolves.toMatchObject({
-        text: 'first page',
+      const page = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      expect(page.text).toBe('first page');
+      const other = agents.access!.create({
+        title: 'Other',
+        description: 'Other report',
+        grantId: TEST_GRANT_ID,
       });
-      await expect(agents.access!.reportPage?.(sessionId, 'stale page', 0)).rejects.toThrow(
-        'Assignment report changed',
-      );
-      await expect(agents.access!.reportPage?.('foreign-session', 'first page', 0)).rejects.toThrow(
-        'Unknown Assignment Session',
-      );
+      if (other.outcome !== 'created') throw new Error('create failed');
+      await expect(
+        agents.access!.reportPage!({
+          sessionId: other.assignment.sessionId,
+          offset: 0,
+          reportSourceEventId: page.reportSourceEventId,
+        }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage!({ sessionId: other.assignment.sessionId, offset: 0 }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage!({
+          sessionId,
+          offset: -1,
+          reportSourceEventId: page.reportSourceEventId,
+        }),
+      ).rejects.toThrow('Invalid report offset');
+      await expect(
+        agents.access!.reportPage?.({ sessionId, offset: 0, reportSourceEventId: 'unknown' }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage?.({ sessionId: 'foreign-session', offset: 0 }),
+      ).rejects.toThrow('Unknown Assignment Session');
       expect(readAssignmentReportPage).toHaveBeenCalledTimes(1);
-      expect(readAssignmentReportPage).toHaveBeenCalledWith(sessionId, 'first page', 0);
+      expect(readAssignmentReportPage).toHaveBeenCalledWith(
+        sessionId,
+        'first page',
+        0,
+        expect.objectContaining({ version: 1, bytes: 10, sha256: expect.any(String) }),
+      );
     } finally {
       await close();
     }
   });
+
+  it('withholds a report purged during the native read and refuses subsequent reads', async () => {
+    let purge = () => {};
+    const readPage = vi.fn(async () => {
+      purge();
+      return {
+        text: 'private body',
+        offset: 0,
+        totalCharacters: 12,
+        matchedEvents: 1,
+        readCount: 1,
+        sourceEventBytes: 12,
+        returnedCharacters: 12,
+        estimatedTokens: 3,
+      };
+    });
+    const { agents, owner, admit, close } = await setup({ readAssignmentReportPage: readPage });
+    try {
+      await admit('Start', 'human-purge-read');
+      const created = agents.access!.create({
+        title: 'Report',
+        description: 'Purge race',
+        grantId: TEST_GRANT_ID,
+      });
+      if (created.outcome !== 'created') throw new Error('create failed');
+      await agents.started[0]!.run.report({ state: 'progress', summary: 'private body' });
+      const id = sourceEvents(owner).find(
+        (source) => source.source_kind === 'assignment-report',
+      )!.source_event_id;
+      purge = () =>
+        attachOperationalModule(owner, 'purge-read-test').transaction(
+          (db) => {
+            db.prepare(
+              "INSERT INTO messaging_purge_facts SELECT source_event_id, 'dm-ada', source_event_id, created_at, '{}' FROM source_events WHERE source_event_id = ?",
+            ).run(id);
+          },
+          ['source-event'],
+        );
+      const request = {
+        sessionId: created.assignment.sessionId,
+        offset: 0,
+        reportSourceEventId: id,
+      };
+      await expect(agents.access!.reportPage!(request)).rejects.toThrow('purged');
+      await expect(agents.access!.reportPage!(request)).rejects.toThrow('purged');
+      expect(readPage).toHaveBeenCalledTimes(1);
+    } finally {
+      await close();
+    }
+  });
+
+  it.each([null, '{}', '{"assignmentReport":{"state":"completed"}}'])(
+    'reads historic report payload %s through the owned Runtime path',
+    async (payload) => {
+      const raw = '  历史报告😀  ';
+      const readPage = vi.fn(
+        (sessionId: string, summary: string, offset: number, content?: AssignmentReportContent) =>
+          readAssignmentReportPage(
+            {
+              listEvents: async () => [],
+              filterEvents: async () => [{ seq: 1 }],
+              readEvent: async () => ({
+                target: {
+                  type: 'tool/call',
+                  data: {
+                    name: 'report_to_orchestrator',
+                    arguments: JSON.stringify({ summary: raw }),
+                  },
+                },
+              }),
+            },
+            sessionId,
+            summary,
+            offset,
+            content,
+          ),
+      );
+      const { agents, owner, admit, close } = await setup({ readAssignmentReportPage: readPage });
+      try {
+        await admit('Start', 'human-legacy-report');
+        const created = agents.access!.create({
+          grantId: TEST_GRANT_ID,
+          title: 'Legacy research',
+          description: 'Read a historical report',
+        });
+        if (created.outcome !== 'created') throw new Error('create failed');
+        await agents.started[0]!.run.report({ state: 'completed', summary: raw });
+        const database = attachOperationalModule(owner, 'legacy-report-fixture');
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "UPDATE source_events SET payload_json = ? WHERE source_kind = 'assignment-report'",
+              )
+              .run(payload),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
+        ).resolves.toMatchObject({ text: raw.trim() });
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "UPDATE source_events SET payload_json = ? WHERE source_kind = 'assignment-report'",
+              )
+              .run('{"assignmentReport":{"content":null}}'),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
+        ).rejects.toThrow();
+        expect(readPage).toHaveBeenCalledTimes(1);
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "INSERT INTO messaging_purge_facts SELECT source_event_id, 'dm-ada', source_event_id, created_at, '{}' FROM source_events WHERE source_kind = 'assignment-report'",
+              )
+              .run(),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
+        ).rejects.toThrow('purged');
+        expect(readPage).toHaveBeenCalledTimes(1);
+      } finally {
+        await close();
+      }
+    },
+  );
 
   it('projects a Bot Grant request until a committed Grant-linked reply and keeps legacy text pending', async () => {
     const home = createTempRoot('botharness-grant-attention-');
@@ -1515,20 +2276,20 @@ describe('Assignment collaboration', () => {
       rootDir: join(home, 'channels'),
       now: FIXED_NOW,
     });
-    const dmChannelId = channels.getOrCreateDm('ada', 'Ada')!.id;
+    const dmChannelId = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
     createTestWorkspaceGrants(owner, home);
     try {
       const query = createHumanAttentionQuery(
         attachOperationalModule(owner, 'human-grant-attention-test'),
       );
-      await channels.appendMessage(dmChannelId, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'grant-request-1',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Please give me access to the project.',
         grantRequest: true,
       });
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           kind: 'workspace-grant-request',
           botSlug: 'ada',
@@ -1537,24 +2298,26 @@ describe('Assignment collaboration', () => {
           summary: 'Please give me access to the project.',
         },
       ]);
-      expect(query.list({ category: 'action', botSlug: 'other' }).items).toEqual([]);
-      await channels.appendMessage(dmChannelId, {
+      expect(
+        query.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'other' }).items,
+      ).toEqual([]);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-unrelated',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: 'I will review this.',
         replyTo: 'grant-request-1',
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-uppercase-unvalidated',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: 'I AUTHORIZED WORKSPACE “Project”; please continue.',
         replyTo: 'grant-request-1',
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-approved',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
@@ -1563,24 +2326,24 @@ describe('Assignment collaboration', () => {
         grantRequestResolution: { requestMessageId: 'grant-request-1', grantId: TEST_GRANT_ID },
       });
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
 
-      await channels.appendMessage(dmChannelId, {
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'grant-request-legacy',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Please give me another folder.',
         grantRequest: true,
       });
-      expect(query.list({ category: 'action' }).items).toHaveLength(1);
-      await channels.appendMessage(dmChannelId, {
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toHaveLength(1);
+      await channels.appendMessage(OWNER_HUMAN_CONTEXT, dmChannelId, {
         id: 'human-approved-legacy',
         at: FIXED_NOW().toISOString(),
         author: { kind: 'human' },
         body: '已授权工作区「Project」，请继续处理之前的事项。',
         replyTo: 'grant-request-legacy',
       });
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         { messageId: 'grant-request-legacy' },
       ]);
     } finally {
@@ -1592,7 +2355,7 @@ describe('Assignment collaboration', () => {
     });
     try {
       const query = createHumanAttentionQuery(attachOperationalModule(reopened, 'grant-restart'));
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         { messageId: 'grant-request-legacy' },
       ]);
     } finally {
@@ -1640,7 +2403,7 @@ describe('Assignment collaboration', () => {
     });
     if (created.outcome !== 'created') throw new Error('create failed');
     const sessionId = created.assignment.sessionId;
-    agents.started[0]?.run.report({ state: 'completed', summary: 'A 方向完成' });
+    await agents.started[0]?.run.report({ state: 'completed', summary: 'A 方向完成' });
     agents.finish(sessionId);
     await runtime.whenIdle();
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('idle');
@@ -1687,9 +2450,6 @@ describe('Assignment collaboration', () => {
     const stopped = await access.stop(sessionId);
     expect(stopped.activity).toBe('stopped');
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
-    expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(
-      /stopped or stopping/,
-    );
     await expect(
       runningTurn.report({ state: 'completed', summary: '取消之后的迟到报告' }),
     ).rejects.toThrow('unavailable or stopping');
@@ -1714,6 +2474,60 @@ describe('Assignment collaboration', () => {
     });
     expect(reopened.getAssignment('ada', sessionId)?.activity).toBe('stopped');
     await reopened.close();
+  });
+
+  it('keeps a stopped Assignment stopped when its wake is refused at capacity', async () => {
+    const { runtime, agents, admit, close } = await setup({ assignmentConcurrencyLimit: 1 });
+    await admit('开始调研', 'stopped-capacity');
+    const access = agents.access;
+    if (access === undefined) throw new Error('Orchestrator never ran');
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '持续调研 A 方向',
+    });
+    if (created.outcome !== 'created') throw new Error('create failed');
+    const sessionId = created.assignment.sessionId;
+    await runtime.stopSession!('ada', sessionId);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    const busy = access.create({
+      title: 'Busy',
+      grantId: TEST_GRANT_ID,
+      description: '占住唯一的并发位',
+    });
+    expect(busy.outcome).toBe('created');
+    const refused = access.request({ sessionId, mode: 'next-turn', text: '继续' });
+    expect(refused.delivery).toBe('capacity');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    await close();
+  });
+
+  it('resumes a Human-stopped Assignment when the Orchestrator sends it a request', async () => {
+    const { runtime, agents, admit, close } = await setup();
+    await admit('开始调研', 'human-stop-3725');
+    const access = agents.access;
+    if (access === undefined) throw new Error('Orchestrator never ran');
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '持续调研 A 方向',
+    });
+    if (created.outcome !== 'created') throw new Error('create failed');
+    const sessionId = created.assignment.sessionId;
+    if (agents.started[0]?.run === undefined) throw new Error('Assignment never started');
+
+    const stopped = await runtime.stopSession!('ada', sessionId);
+    expect(stopped.outcome).toBe('settled');
+    if (stopped.outcome !== 'settled') throw new Error('stop refused');
+    expect(stopped.stopped).toHaveLength(1);
+    expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('stopped');
+
+    const resumed = access.request({ sessionId, mode: 'next-turn', text: '继续' });
+    expect(resumed.delivery).toBe('followup');
+    expect(runtime.getAssignment('ada', sessionId)?.activity).not.toBe('stopped');
+    await close();
   });
 
   it('delivers one Host-origin stop notice through the Bot Inbox', async () => {
@@ -2097,7 +2911,7 @@ describe('Assignment collaboration', () => {
           started();
           await held;
         });
-        const active = runtime.admitDmMessage({
+        const active = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'human-2',
           body: 'Review context',
@@ -2166,7 +2980,7 @@ describe('Assignment collaboration', () => {
       const attention = createHumanAttentionQuery(
         attachOperationalModule(owner, 'assignment-human-attention-test'),
       );
-      expect(attention.list({ category: 'action' }).items).toMatchObject([
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           id: 'assignment:' + sessionId,
           kind: 'assignment-waiting-human',
@@ -2175,11 +2989,13 @@ describe('Assignment collaboration', () => {
           summary: 'Should I choose A or B?',
         },
       ]);
-      expect(attention.list({ category: 'action', botSlug: 'bea' }).items).toEqual([]);
-      expect(attention.list({ category: 'action', channelId: 'dm-ada' }).items).toMatchObject([
-        { assignmentSessionId: sessionId },
-      ]);
-      expect(attention.list({ category: 'info' }).items).toEqual([]);
+      expect(
+        attention.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'bea' }).items,
+      ).toEqual([]);
+      expect(
+        attention.list(OWNER_HUMAN_CONTEXT, { category: 'action', channelId: 'dm-ada' }).items,
+      ).toMatchObject([{ assignmentSessionId: sessionId }]);
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
 
       const askId = runtime.getAssignment('ada', sessionId)?.openAsk?.sourceEventId;
       if (askId === undefined) throw new Error('Open ask missing');
@@ -2190,7 +3006,7 @@ describe('Assignment collaboration', () => {
         answerTo: askId,
       });
       await Promise.resolve();
-      expect(attention.list({ category: 'action' }).items).toEqual([]);
+      expect(attention.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       await close();
     }
@@ -2210,7 +3026,8 @@ describe('Assignment collaboration', () => {
       const run = agents.started[0]!.run;
       const query = createHumanAttentionQuery(attachOperationalModule(owner, 'escalation-test'));
       await run.report({ state: 'waiting-human', summary: 'Choose route', expectsReply: true });
-      const initialSource = query.list({ category: 'action' }).items[0]?.sourceEventId;
+      const initialSource = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items[0]
+        ?.sourceEventId;
       await run.report({
         state: 'blocked',
         summary: 'Release blocked; choose route',
@@ -2229,7 +3046,7 @@ describe('Assignment collaboration', () => {
       expect(runtime.getAssignment('ada', sessionId)?.openAsk?.sourceEventId).toBe(blockedSource);
       agents.finish(sessionId);
       await runtime.whenIdle();
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           kind: 'assignment-blocked',
           sourceEventId: blockedSource,
@@ -2256,7 +3073,7 @@ describe('Assignment collaboration', () => {
       ).toBe('followup');
       await Promise.resolve();
       expect(runtime.getAssignment('ada', sessionId)?.openAsk).toBeUndefined();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
       expect(
         sources.list({ botSlug: 'ada' }).items.filter((i) => i.sourceKind === 'assignment-report'),
       ).toEqual(originalReports);
@@ -2286,7 +3103,7 @@ describe('Assignment collaboration', () => {
       const query = createHumanAttentionQuery(
         attachOperationalModule(owner, 'assignment-blocked-human-attention-test'),
       );
-      const first = query.list({ category: 'action' }).items;
+      const first = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
       expect(first).toMatchObject([
         {
           id: 'assignment:' + sessionId,
@@ -2306,7 +3123,7 @@ describe('Assignment collaboration', () => {
       });
       agents.finish(sessionId);
       await runtime.whenIdle();
-      const revised = query.list({ category: 'action' }).items;
+      const revised = query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items;
       expect(revised).toHaveLength(1);
       expect(revised[0]).toMatchObject({
         id: 'assignment:' + sessionId,
@@ -2314,8 +3131,10 @@ describe('Assignment collaboration', () => {
         summary: 'Still blocked; need a grant',
       });
       expect(revised[0]?.sourceEventId).not.toBe(originalSource);
-      expect(query.list({ category: 'info' }).items).toEqual([]);
-      expect(query.list({ category: 'action', botSlug: 'bea' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action', botSlug: 'bea' }).items).toEqual(
+        [],
+      );
 
       const answerTo = revised[0]?.sourceEventId;
       if (answerTo === undefined) throw new Error('Open blocker missing source');
@@ -2326,10 +3145,10 @@ describe('Assignment collaboration', () => {
         answerTo,
       });
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
       agents.finish(sessionId);
       await runtime.whenIdle();
-      expect(query.list({ category: 'action' }).items).toMatchObject([
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toMatchObject([
         {
           id: 'assignment:' + sessionId,
           kind: 'assignment-blocked',
@@ -2346,7 +3165,7 @@ describe('Assignment collaboration', () => {
       agents.finish(sessionId);
       await runtime.whenIdle();
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       await close();
       owner.close();
@@ -2360,7 +3179,7 @@ describe('Assignment collaboration', () => {
         attachOperationalModule(reopened, 'assignment-blocked-restart-test'),
       );
       await Promise.resolve();
-      expect(query.list({ category: 'action' }).items).toEqual([]);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'action' }).items).toEqual([]);
     } finally {
       reopened.close();
     }
@@ -2476,7 +3295,9 @@ describe('Assignment collaboration', () => {
           sessionId,
           activity: 'error',
         });
-        expect(recovered.getAssignment('ada', sessionId)?.continuityKey).toBeUndefined();
+        expect(recovered.getAssignment('ada', sessionId)?.continuityKey).toBe(
+          'unfinished-direction',
+        );
         expect(recovered.getAssignment('ada', sessionId)?.executionWait).toBeUndefined();
         const after = createBotAttentionQuery(
           attachOperationalModule(reopened, 'active-crash-after'),
@@ -2540,30 +3361,26 @@ describe('Assignment collaboration', () => {
         ).toEqual(after);
         expect(secondAgents.inboxTurns).toHaveLength(0);
         expect(secondAgents.started).toHaveLength(0);
-        const admission = recovered.admitDmMessage({
+        const admission = recovered.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: dmChannelId,
           messageId: 'explicit-replacement',
           body: 'Start replacement work',
         });
         if (!admission.admitted) throw new Error('Human message refused');
         await admission.settled;
-        expect(() =>
-          secondAgents.access!.request({
-            sessionId,
-            mode: 'next-turn',
-            text: 'Resume crashed work',
-          }),
-        ).toThrow('failed; start a new Assignment');
-        const replacement = secondAgents.access!.create({
+        const continued = secondAgents.access!.create({
           title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          description: 'Replacement investigation',
+          description: 'Resume crashed work',
           key: 'unfinished-direction',
         });
+        expect(continued).toMatchObject({ outcome: 'reused', assignment: { sessionId } });
+        expect(secondAgents.resumed).toHaveLength(1);
+        expect(secondAgents.resumed[0]!.text).toContain('did not finish cleanly');
+        await Promise.resolve();
         secondAgents.finishAll();
-        expect(replacement.outcome).toBe('created');
-        if (replacement.outcome === 'created')
-          expect(replacement.assignment.sessionId).not.toBe(sessionId);
+        await recovered.whenIdle();
+        expect(recovered.getAssignment('ada', sessionId)?.activity).toBe('idle');
       } finally {
         coldAgents.finishAll();
         await recovered?.close();
@@ -2607,10 +3424,10 @@ describe('Assignment collaboration', () => {
       assignmentConcurrencyLimit: 1,
     });
     expect(resumed.getAssignment('ada', created.assignment.sessionId)?.activity).toBe('error');
-    expect(
-      resumed.getAssignment('ada', created.assignment.sessionId)?.continuityKey,
-    ).toBeUndefined();
-    const admission = resumed.admitDmMessage({
+    expect(resumed.getAssignment('ada', created.assignment.sessionId)?.continuityKey).toBe(
+      'restart-direction',
+    );
+    const admission = resumed.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dmChannelId,
       messageId: 'human-after-restart',
       body: '新事项',
@@ -2624,9 +3441,11 @@ describe('Assignment collaboration', () => {
       description: '新事项',
       key: 'restart-direction',
     });
-    expect(replacement.outcome).toBe('created');
-    if (replacement.outcome === 'created')
-      expect(replacement.assignment.sessionId).not.toBe(created.assignment.sessionId);
+    expect(replacement).toMatchObject({
+      outcome: 'reused',
+      assignment: { sessionId: created.assignment.sessionId },
+    });
+    await Promise.resolve();
     resumedAgents.finishAll();
     await resumed.whenIdle();
     await resumed.close();
@@ -2785,7 +3604,7 @@ describe('Assignment collaboration', () => {
       const port = attachOperationalModule(owner, 'human-report-decision-test');
       const query = createHumanAttentionQuery(port);
       const decisions = createHumanAttentionDecisions(port, FIXED_NOW);
-      const first = query.list({ category: 'info' }).items;
+      const first = query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items;
       expect(first).toMatchObject([
         {
           kind: 'assignment-report',
@@ -2796,9 +3615,9 @@ describe('Assignment collaboration', () => {
       ]);
       const firstReportId = first[0]?.sourceEventId;
       if (firstReportId === undefined) throw new Error('report source missing');
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(true);
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(true);
-      expect(query.list({ category: 'info' }).items).toEqual([]);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(true);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(true);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items).toEqual([]);
 
       const reused = agents.access!.create({
         title: 'Assignment',
@@ -2810,7 +3629,7 @@ describe('Assignment collaboration', () => {
       await agents.started.at(-1)!.run.report({ state: 'completed', summary: 'New result' });
       agents.finish(sessionId);
       await runtime.whenIdle();
-      const next = query.list({ category: 'info' }).items;
+      const next = query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items;
       expect(next).toMatchObject([
         {
           kind: 'assignment-report',
@@ -2820,8 +3639,10 @@ describe('Assignment collaboration', () => {
       ]);
       nextReportId = next[0]?.sourceEventId ?? '';
       expect(nextReportId).not.toBe(firstReportId);
-      expect(decisions.ignoreAssignmentReport(firstReportId)).toBe(false);
-      expect(query.list({ category: 'info', channelId: 'dm-ada' }).items).toEqual([]);
+      expect(decisions.ignoreAssignmentReport(OWNER_HUMAN_CONTEXT, firstReportId)).toBe(false);
+      expect(
+        query.list(OWNER_HUMAN_CONTEXT, { category: 'info', channelId: 'dm-ada' }).items,
+      ).toEqual([]);
     } finally {
       await close();
       owner.close();
@@ -2834,7 +3655,9 @@ describe('Assignment collaboration', () => {
       const query = createHumanAttentionQuery(
         attachOperationalModule(reopened, 'human-report-restart'),
       );
-      expect(query.list({ category: 'info' }).items[0]?.sourceEventId).toBe(nextReportId);
+      expect(query.list(OWNER_HUMAN_CONTEXT, { category: 'info' }).items[0]?.sourceEventId).toBe(
+        nextReportId,
+      );
     } finally {
       reopened.close();
     }
@@ -2910,8 +3733,8 @@ describe('Assignment collaboration', () => {
       expect(
         attention.list({ botSlug: 'ada' }).items.find((item) => item.id === repairSourceId),
       ).toEqual(repairSource);
-      const admission = reopenedRuntime.admitDmMessage({
-        channelId: reopenedChannels.getOrCreateDm('ada', 'Ada')!.id,
+      const admission = reopenedRuntime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: reopenedChannels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id,
         messageId: 'human-after-restart',
         body: 'Read the new information',
       });

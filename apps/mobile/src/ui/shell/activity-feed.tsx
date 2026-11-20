@@ -2,7 +2,7 @@ import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
-import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
+import { DEFAULT_HOST_LOOK, hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
@@ -15,18 +15,19 @@ import {
   useState,
   memo,
   type ReactElement,
+  type RefObject,
 } from 'react';
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
-import Animated, { FadeOut, LinearTransition, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
-import type { HostClient, RosterBot } from '../../host/client';
+import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import {
   INBOX_SECTIONS,
   observeInbox,
   type Inbox,
   type InboxSection,
   type InboxSnapshot,
-} from '../../host/inbox';
+} from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   approvalSummaryTool,
@@ -36,22 +37,27 @@ import {
   requestRef,
   type DecisionResult,
   type RequestRef,
-} from '../../host/requests';
+} from '@botharness/host-client/requests';
 import {
   activityKey,
   activityBotKey,
+  localSelection,
   observeActivitySources,
   type ActivityItem as HumanAttentionItem,
   type ActivitySource,
 } from '../../host/activity-sources';
 import {
+  attentionItemUnread,
+  clearAllAttention,
   clearAttentionItem,
+  markAllAttentionRead,
+  markAttentionItemRead,
   restoreAttentionItem,
   SNOOZE_CHOICES,
   snoozeAttentionItem,
   snoozeUntil,
   type SnoozeChoice,
-} from '../../host/attention-actions';
+} from '@botharness/host-client/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
 import { GroupMark } from '../chat/group-mark';
@@ -69,15 +75,19 @@ import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
 import { DeferredContent } from '../primitives/deferred-content';
 import { ListSkeleton } from '../primitives/list-skeleton';
-import { showActionMenu } from '../primitives/app-dialog';
+import { confirmDestructive, showActionMenu } from '../primitives/app-dialog';
 import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
 import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
-import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
-import type { ActivityOptions } from './activity-header-actions';
+import { ArchiveIcon, CheckIcon, ClockIcon, UndoIcon } from './icons';
+import type {
+  ActivityManage,
+  ActivityManageItem,
+  ActivityOptions,
+} from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
-import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
+import { FixedToolbar } from './fixed-toolbar';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
@@ -256,6 +266,7 @@ function ActivityAvatar({
 const Row = memo(function Row({
   item,
   settled,
+  mixed,
   bot,
   now,
   onOpen,
@@ -263,6 +274,7 @@ const Row = memo(function Row({
 }: {
   item: HumanAttentionItem;
   settled: boolean;
+  mixed: boolean;
   bot: RosterBot | undefined;
   now: number;
   onOpen(item: HumanAttentionItem): void;
@@ -319,6 +331,7 @@ const Row = memo(function Row({
                 item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
               }
               sourceLabel={item.activitySource?.label}
+              glyph={mixed && item.activitySource !== undefined}
             />
             {time === '' ? null : (
               <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
@@ -397,7 +410,7 @@ function Post({
     onSettled(item, result);
   };
   return (
-    <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
+    <SwipeRow actions={actions} contextMenu={false} testID={`inbox-swipe-${activityKey(item)}`}>
       <View
         testID={`inbox-post-${activityKey(item)}`}
         style={{
@@ -482,6 +495,22 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
+  const manageRef = useRef<((key: string) => void) | undefined>(undefined);
+  const [manageItems, setManageItems] = useState<readonly ActivityManageItem[]>([]);
+  const onManageItems = useCallback(
+    (next: readonly ActivityManageItem[]) =>
+      setManageItems((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next,
+      ),
+    [],
+  );
+  const manage = useMemo<ActivityManage | undefined>(
+    () =>
+      manageItems.length === 0
+        ? undefined
+        : { items: manageItems, run: (key) => manageRef.current?.(key) },
+    [manageItems],
+  );
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -504,7 +533,6 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const initialHeight = useChatHeaderHeight();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 0 : initialHeight);
-  const progress = useChromeProgress();
   const slugsWithSelection =
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
@@ -518,17 +546,13 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     onFilter: setFilter,
   };
   const top = headerHeight;
-  const travel = Math.max(0, top - insets.top);
-  const pageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -travel * progress.value }],
-  }));
   const content = (
     <KeyboardAvoidingView
       style={{ flex: 1, overflow: 'hidden', backgroundColor: theme.color.base }}
       enabled={searchFocused}
       behavior="padding"
     >
-      <Animated.View style={[{ flex: 1, marginTop: top, marginBottom: -travel }, pageStyle]}>
+      <View style={{ flex: 1, marginTop: top }}>
         <DeferredContent fallback={<ListSkeleton />}>
           {props.unavailable ? (
             <View style={{ padding: space.x6 }}>
@@ -538,6 +562,8 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             <ActivityPage
               {...props}
               onNotice={showNotice}
+              manageRef={manageRef}
+              onManageItems={onManageItems}
               section={filter.section}
               filterBot={filter.bot}
               filterChannel={filter.channel}
@@ -546,15 +572,12 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
               sort={sort}
               active={focused}
               searchFocused={searchFocused}
-              scrollActive={focused}
-              pinChrome={searchFocused || filtering || (Platform.OS === 'android' && search !== '')}
-              headerTravel={travel}
               dismissSearch={dismissSearch}
             />
           )}
         </DeferredContent>
-      </Animated.View>
-      <CollapsingToolbar travel={travel} height={top}>
+      </View>
+      <FixedToolbar height={top}>
         <ActivityToolbar
           ref={toolbar}
           unavailable={props.unavailable !== undefined}
@@ -570,9 +593,10 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           options={filterOptions}
           onSearch={setSearch}
           onFilter={() => setFiltering(true)}
+          manage={props.unavailable === undefined ? manage : undefined}
           onHeight={setHeaderHeight}
         />
-      </CollapsingToolbar>
+      </FixedToolbar>
       <View
         pointerEvents="none"
         style={{
@@ -645,11 +669,12 @@ const ActivityPage = memo(function ActivityPage({
   active,
   searchFocused,
   dismissSearch,
-  scrollActive,
-  pinChrome,
-  headerTravel,
   onNotice,
+  manageRef,
+  onManageItems,
 }: ActivityFeedProps & {
+  manageRef: RefObject<((key: string) => void) | undefined>;
+  onManageItems(items: readonly ActivityManageItem[]): void;
   section: ActivityFilter['section'];
   filterBot: ActivityFilter['bot'];
   filterChannel: ActivityFilter['channel'];
@@ -659,9 +684,6 @@ const ActivityPage = memo(function ActivityPage({
   active: boolean;
   searchFocused: boolean;
   dismissSearch(): void;
-  scrollActive: boolean;
-  pinChrome: boolean;
-  headerTravel: number;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -675,7 +697,6 @@ const ActivityPage = memo(function ActivityPage({
     }),
     [section, filterBot, filterChannel, filterUnread],
   );
-  const onScroll = useChromeScroll(scrollActive, pinChrome);
   const [refreshing, setRefreshing] = useState(false);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const [held, setHeld] = useState<readonly HumanAttentionItem[]>([]);
@@ -717,7 +738,7 @@ const ActivityPage = memo(function ActivityPage({
       activeSettlementScope.current = undefined;
     };
   }, [settlementScope, active]);
-  const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, scrollActive);
+  const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, active);
   const visible = scoped === undefined ? snapshot : scopedSnapshot;
   const currentInbox = () => (scoped === undefined ? inbox : scoped.getInbox());
   const retained =
@@ -869,6 +890,16 @@ const ActivityPage = memo(function ActivityPage({
           }),
         ),
     };
+    const read: SwipeAction = {
+      key: 'read',
+      label: t.activityMarkRead,
+      tone: 'accent',
+      icon: CheckIcon,
+      run: () =>
+        void markAttentionItemRead(client, item)
+          .catch(() => onNotice?.({ message: t.activityChangeFailed }))
+          .finally(() => void currentInbox()?.refresh()),
+    };
     if (section === 'action' && item.kind === 'bot-message-needs-repair') return [clear, later];
     if (section === 'action')
       return [
@@ -881,7 +912,7 @@ const ActivityPage = memo(function ActivityPage({
         },
         later,
       ];
-    return [clear];
+    return attentionItemUnread(item) ? [read, { ...clear, tone: 'neutral' }] : [clear];
   };
   const settled = (item: HumanAttentionItem, result: DecisionResult) => {
     if (activeSettlementScope.current !== settlementScope) return;
@@ -893,6 +924,126 @@ const ActivityPage = memo(function ActivityPage({
       ]);
     void currentInbox()?.refresh();
   };
+  const clearSections: ReadonlyArray<'action' | 'replies' | 'unread'> =
+    filter.section === 'all'
+      ? ['action', 'replies', 'unread']
+      : filter.section === 'action' || filter.section === 'replies' || filter.section === 'unread'
+        ? [filter.section]
+        : [];
+  const clearKinds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        (row.kind === 'row' || row.kind === 'post') &&
+        clearSections.some((section) => section === row.section)
+          ? [row.item.kind]
+          : [],
+      ),
+    ),
+  ];
+  const targets = () =>
+    sources === undefined
+      ? client === undefined
+        ? []
+        : [{ client, botSlug: filter.bot, channelId: filter.channel }]
+      : sources.flatMap((source) => {
+          const botSlug = localSelection(filter.bot, source);
+          const channelId = localSelection(filter.channel, source);
+          return botSlug === false || channelId === false
+            ? []
+            : [{ client: source.client, botSlug, channelId }];
+        });
+  const clearMany = async (kind: string | undefined) => {
+    let dismissed = 0;
+    let more = false;
+    try {
+      for (const target of targets()) {
+        if (target.client.getSnapshot().connection.status !== 'connected')
+          throw new Error('activity-source-unavailable');
+        for (const category of clearSections) {
+          const result = await clearAllAttention(target.client, {
+            kind,
+            category,
+            botSlug: target.botSlug,
+            channelId: target.channelId,
+          });
+          dismissed += result.dismissed;
+          more ||= result.more;
+        }
+      }
+      onNotice?.({
+        message: more ? t.activityClearedMore(dismissed) : t.activityClearedCount(dismissed),
+      });
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      setHeld([]);
+      await currentInbox()?.refresh();
+    }
+  };
+  const markAllRead = async () => {
+    let channels = 0;
+    try {
+      for (const target of targets()) {
+        if (target.client.getSnapshot().connection.status !== 'connected')
+          throw new Error('activity-source-unavailable');
+        channels += (
+          await markAllAttentionRead(target.client, {
+            botSlug: target.botSlug,
+            channelId: target.channelId,
+          })
+        ).channels;
+      }
+      onNotice?.({ message: t.activityMarkedAllRead(channels) });
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      setHeld([]);
+      await currentInbox()?.refresh();
+    }
+  };
+  const hasUnread = rows.some(
+    (row) =>
+      (row.kind === 'row' || row.kind === 'post') &&
+      (attentionItemUnread(row.item) || (row.item.unreadCount ?? 0) > 0),
+  );
+  const manageItems: ActivityManageItem[] =
+    visible.status !== 'ready'
+      ? []
+      : [
+          ...(hasUnread
+            ? [{ key: 'read-all', label: t.activityMarkAllRead, icon: 'read' as const }]
+            : []),
+          ...(clearKinds.length === 0
+            ? []
+            : [
+                {
+                  key: 'clear:',
+                  label: t.activityClearAllItems,
+                  icon: 'clear' as const,
+                  destructive: true,
+                },
+                ...clearKinds.map((kind) => ({
+                  key: 'clear:' + kind,
+                  label: t.activityClearKind(t.kind[kind] ?? t.otherKind),
+                  icon: 'clear' as const,
+                })),
+              ]),
+        ];
+  useLayoutEffect(() => {
+    manageRef.current = (key) => {
+      if (key === 'read-all') void markAllRead();
+      else if (key === 'clear:')
+        confirmDestructive(
+          t.activityClearAllTitle,
+          t.activityClearAllBody,
+          t.activityClearAllItems,
+          () => void clearMany(undefined),
+        );
+      else if (key.startsWith('clear:')) void clearMany(key.slice(6));
+    };
+  });
+  useLayoutEffect(() => onManageItems(manageItems));
+  useLayoutEffect(() => () => onManageItems([]), [onManageItems]);
   const refresh = () => {
     setRefreshing(true);
     setHeld([]);
@@ -911,14 +1062,13 @@ const ActivityPage = memo(function ActivityPage({
             contentInsetAdjustmentBehavior="never"
             contentContainerStyle={{
               flexGrow: 1,
-              paddingBottom: bottom + headerTravel + space.x6,
+              paddingBottom: bottom + space.x6,
             }}
             renderScrollComponent={(props) => (
               <KeyboardFormScroll {...props} enabled={!searchFocused} />
             )}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScroll={onScroll}
             scrollEventThrottle={1}
             style={{
               backgroundColor: theme.color.base,
@@ -990,6 +1140,7 @@ const ActivityPage = memo(function ActivityPage({
                   <Row
                     item={row.item}
                     settled={row.settled}
+                    mixed={hostId === 'all'}
                     bot={
                       row.item.activitySource?.roster?.bots.find(
                         (entry) => entry.slug === row.item.botSlug,

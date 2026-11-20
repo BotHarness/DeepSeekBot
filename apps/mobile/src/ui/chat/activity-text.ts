@@ -1,7 +1,8 @@
-import type { ChannelActivity } from '../../host/channel-activity';
-import type { RosterView } from '../../host/client';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ChannelActivity } from '@botharness/host-client/channel-activity';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { t } from '../strings';
+import { callRecordLines } from './call-record-text';
 
 export type ActivityTarget =
   | { pathname: '/channel/[id]'; params: { id: string; focus: string; focusWindow: 'latest' } }
@@ -63,6 +64,15 @@ export function activityText(
     return kind === 'memory' ? copy.memoryIn(place) : copy.posted(place, count);
   };
   switch (activity.kind) {
+    case 'approval-review': {
+      const review = activity.record;
+      return {
+        botSlug: review.botSlug,
+        name: botName(review.botSlug),
+        verb: copy.review[review.outcome](review.template),
+        detail: review.reason,
+      };
+    }
     case 'dm-action':
       return {
         ...sender,
@@ -134,7 +144,86 @@ export function activityText(
         name: activity.displayName,
         verb: activity.departureType === 'removed' ? copy.removed : copy.left,
       };
-    case 'turn-stop':
-      return { name: activity.humanName, verb: copy.stopped(activity.botName) };
+    case 'voice-call': {
+      const { title, detail } = callRecordLines(activity.record);
+      return { name: title, verb: '', detail };
+    }
+    case 'model-switch': {
+      const record = activity.record;
+      const until =
+        record.until === undefined
+          ? undefined
+          : new Date(record.until).toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+      return {
+        botSlug: record.botSlug,
+        name: botName(record.botSlug, record.botName),
+        verb: copy.switchedModel(
+          `${record.from.provider}/${record.from.model}`,
+          `${record.to.provider}/${record.to.model}`,
+        ),
+        detail:
+          record.reason === 'returned'
+            ? copy.switchReturned
+            : record.reason === 'credential'
+              ? until === undefined
+                ? copy.switchCredential
+                : copy.switchCredentialUntil(until)
+              : record.reason === 'rate-limit'
+                ? until === undefined
+                  ? copy.switchRateLimit
+                  : copy.switchRateLimitUntil(until)
+                : until === undefined
+                  ? copy.switchQuota
+                  : copy.switchQuotaUntil(until),
+      };
+    }
+    case 'turn-stop': {
+      const rest = activity.cause === 'quota' ? activity.rests?.[0] : undefined;
+      if (rest !== undefined)
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedQuota(
+            `${rest.provider}/${rest.model}`,
+            new Date(rest.until).toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          ),
+          detail: copy.stoppedQuotaRetry,
+        };
+      if (activity.cause === 'failures')
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedFailures(activity.failures ?? 0),
+          detail: copy.stoppedRetry,
+        };
+      const target = activity.target;
+      const session = target?.scope === 'session' ? target : undefined;
+      return {
+        name: activity.humanName,
+        verb:
+          target?.scope === 'bot'
+            ? copy.stoppedBot(activity.botName)
+            : session?.role === 'orchestrator'
+              ? copy.stoppedOrchestrator(activity.botName)
+              : session?.role === 'assignment'
+                ? copy.stoppedAssignment(activity.botName, session.title)
+                : copy.stopped(activity.botName),
+        ...(session?.role === 'orchestrator'
+          ? { detail: copy.stoppedOrchestratorHeld }
+          : activity.held === true
+            ? { detail: copy.stoppedHeld }
+            : {}),
+      };
+    }
   }
 }

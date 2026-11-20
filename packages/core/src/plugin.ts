@@ -1,11 +1,48 @@
+import { createRouteRests } from './models/route-rest.js';
+import { SessionLiveStreams } from './runtime/session-live.js';
+import { mountCardContextLive } from './channels/card-context-live.js';
+import { contextSources } from './runtime/context-sources.js';
+import { toolEffects } from './workspaces/tool-effects.js';
+import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
+import { installNativeSearchResultGuard, currentRoots } from './workspaces/grant-native-tools.js';
+import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space-lifecycle.js';
+import { WorkspaceSpaces } from './workspaces/spaces.js';
+import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
+import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
+import { TeamError } from './team/error.js';
+import { requireBotModel } from './team/models.js';
+import { createMemberTobOperations } from './tob/member-operations.js';
+import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
+import { privateBotCreations } from './bots/creation.js';
+import { humanContext } from './humans/context.js';
+import { TeamService } from './team/service.js';
+import { OWNER_HUMAN_CONTEXT } from './humans/context.js';
+import { BotNetworkDeliveryError } from './runtime/bot-network.js';
+import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
-import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import { createPresence, PRESENCE_PATH } from './push/presence.js';
+import {
+  compactUnknownContext,
+  contextCapacity,
+  createTargetCompaction,
+  type PricedSurface,
+} from './runtime/context-window.js';
+import { createBotRequestRetry } from './runtime/bot-request-retry.js';
+import { createContextOverflowRecovery } from './runtime/context-overflow-recovery.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
 import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
+import { VoiceProviders } from './voice/providers.js';
+import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
+import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
+import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
+import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from './desktop-window/reveal.js';
+import { VOICE_CALL_PATH } from './voice/call-contract.js';
+import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
 import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
@@ -28,6 +65,17 @@ import {
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
 import {
+  createTobDiagnosticOperations,
+  TOB_DIAGNOSTIC_CAPABILITIES,
+} from './tob/cli-diagnostic-operations.js';
+import {
+  createTobHostCliOperations,
+  authorizeTobHostCli,
+  authorizeTobBotTargets,
+  spawnHostCli,
+  TOB_HOST_CLI_CAPABILITY,
+} from './tob/cli-host-commands.js';
+import {
   createTobShareDraftOperations,
   TOB_SHARE_DRAFT_CAPABILITIES,
 } from './tob/cli-share-draft-operations.js';
@@ -47,9 +95,24 @@ import {
   createTobMaintenanceOperations,
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
-import { installTobCliShell } from './tob/cli-shell.js';
+import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
+import { ModelFreeTobCliInvocation } from './tob/cli-invocation.js';
+import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
+import {
+  LOCAL_VOICE_SKILL_CONTENT,
+  LOCAL_VOICE_SKILL_DESCRIPTION,
+  LOCAL_VOICE_SKILL_INVOCATION,
+  LOCAL_VOICE_SKILL_NAME,
+  LOCAL_VOICE_SKILL_PROVIDER,
+  LOCAL_VOICE_SKILL_SOURCE,
+  LOCAL_VOICE_SKILL_WHEN_TO_USE,
+} from './voice/skill.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
+import {
+  createClientAcknowledgements,
+  type ClientAcknowledgements,
+} from './onboarding/acknowledgements.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
 import { credentialStoreDenial } from './credentials/store-guard.js';
 import { secretCommandDenial } from './credentials/secret-command.js';
@@ -82,14 +145,27 @@ import { feedbackLinks } from './diagnostics/feedback-links.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { routingGroupEngineOptions } from './models/routing-group-engine-options.js';
+import { createEngineGateway } from './engines/engine-gateway.js';
+import { EngineHost } from './engines/engine-host.js';
+import {
+  createEngineMemoryTools,
+  ENGINE_MEMORY_TOOL_NAMES,
+} from './engines/engine-memory-tools.js';
+import type { EngineBotTool, EngineToolInfo, EngineToolSource } from './engines/engine-tools.js';
+import { createEngineToolGate, type EngineDeviceTools } from './engines/engine-tool-gate.js';
+import type { EngineSessionPersistence, EngineSessionStore } from './engines/engine-dsh-session.js';
+import { readEnginePersona, subscriptionEnginesAllowed } from './engines/engine-plugin.js';
+import { ENGINES_PATH, engineRouteFetch } from './engines/engine-route.js';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import { assembleContextFor } from '@deepseek-ai/dsh-agent';
-import type {} from '@deepseek-ai/dsh-session';
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type {} from '@deepseek-ai/dsh-agent-loop';
+import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -99,9 +175,11 @@ import Schema from '@deepseek-ai/schemastery';
 
 import { installOrchestratorFileTools } from './workspaces/orchestrator-file-tools.js';
 import { ProtectedExecution } from './credentials/protected-execution.js';
+import { privateInputLog } from './credentials/diagnostics.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
+import { startMediaBackfill } from './attachments/media-backfill.js';
 import { createStorageCleanup } from './storage/media-cleanup.js';
 import { memoryAttachmentReferences } from './memory/backup.js';
 import { createMemoryImageHttp, MEMORY_IMAGE_PATH } from './memory/image-http.js';
@@ -117,14 +195,21 @@ import {
   CHANNEL_ATTACHMENT_PATH,
   CHANNEL_ATTACHMENT_UPLOAD_PATH,
 } from './attachments/http.js';
-import { createBridgeMethods } from './bridge/methods.js';
+import { createBridgeMethodsForHumans, type BridgeMethodsDeps } from './bridge/methods.js';
 import { composerRecoveryIdentity } from './bridge/composer-recovery.js';
 import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
+import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createCoreStartup } from './diagnostics/core-startup.js';
+import type { DiagnosticEvents } from './diagnostics/diagnostic-log.js';
+import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
+import { recordDatabaseStartup } from './diagnostics/database-startup.js';
+import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
+import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
-import { humanInboxPushSource } from './push/source.js';
+import { activityListPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
@@ -144,6 +229,8 @@ import { loadedReleaseComponents, stampReleaseComponent } from './release/compon
 import { createGitService } from './memory/managed-git.js';
 import { createProcessRestarter, type ReleaseRestarter } from './release/restart.js';
 import { createPluginUpdateService } from './release/plugins.js';
+import { createUpdateRuns } from './release/update-runs.js';
+import { createUpdateLifecycle } from './diagnostics/update-lifecycle.js';
 import {
   createTelemetryService,
   installedDshVersion,
@@ -151,11 +238,14 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import { startTokenUsage } from './telemetry/token-usage.js';
+import { createBotTurnTelemetry } from './telemetry/bot-turn.js';
 import {
   createActiveDay,
   readHumanMessageCounts,
   startActiveDayWatch,
 } from './telemetry/active-day.js';
+import { createClientIssueReporter, type ClientIssueReporter } from './telemetry/client-issues.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
@@ -163,17 +253,46 @@ import {
   backfillBotBanners,
   backfillBotDescriptors,
   syncBotDescriptor,
+  syncBotDescriptorAsync,
 } from './bots/bot-descriptor-sync.js';
-import { createModelPresetStore, type ModelPresetStore } from './models/presets.js';
-import { createModelCatalog } from './models/catalog.js';
-import { createCredentialReadiness } from './models/credential-readiness.js';
-import { createProviderCredentialHealth } from './models/credential-health.js';
+import {
+  createFallbackOverrideStore,
+  type FallbackOverrideStore,
+} from './models/fallback-overrides.js';
+import { createRoutingGroupStore, type RoutingGroupStore } from './models/routing-groups.js';
+import {
+  assignmentGroupOptionOf,
+  createModelPresetStore,
+  type ModelPresetStore,
+} from './models/presets.js';
+import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
+import { createOpenAssignmentRoutes } from './models/open-assignments.js';
+import { groupMemberRoute } from './models/catalog.js';
 import { createModelRouteReadiness } from './models/readiness.js';
+import { createGroupFallback } from './models/group-fallback.js';
+import { createHostModelCatalog, createHostModelProviders } from './models/host-models.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
+import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
+import { createMediaVersions, type MediaVersions } from './attachments/media-versions.js';
+import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
+import { watchSkillCatalog } from './skills/refresh.js';
+import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
+import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
+import {
+  degradeHostCapability,
+  hostAgentPresets,
+  hostSessionPersistence,
+  hostSessionStore,
+  hostSkillRegistry,
+  installHostSkillInvalidation,
+  onHostSkillsChange,
+  hostSkillAgent,
+  onHostSkillAgentsChange,
+} from './runtime/native-agent-compat.js';
 import { DeveloperModeSkillGate } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
@@ -187,12 +306,14 @@ import {
   attachOperationalModule,
   failOperationalDatabase,
   mountOperationalDatabase,
+  onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from './database/owner.js';
 import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from './database/schema-plan.js';
 import { resolveDshHome } from './im/config-store.js';
 import { ensureMemoryRepository } from './memory/repository.js';
+import { initializeMemoryRepositoryAsync } from './memory/git.js';
 import { cloneMemoryRepository } from './memory/clone.js';
 import { migrateLegacySouls } from './memory/soul.js';
 import { createMemoryService, type MemoryService } from './memory/service.js';
@@ -220,6 +341,7 @@ import {
   borrowedAgentDenial,
   type BotSessionRepair,
   deviceToolAuthorization,
+  engineWorkspaceMode,
   grantExecutionDenial,
   sessionRefusalMessage,
   grantToolExecutionDenial,
@@ -232,13 +354,13 @@ import {
 import {
   ChannelToolApproval,
   registerChannelToolApproval,
+  requestRequiredToolApproval,
   type ToolAutoApproval,
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
   deletesMarketplaceBot,
   publishesBotMemory,
-  requiresHumanDecision,
   createApprovalTemplateLibrary,
 } from './workspaces/approval-templates.js';
 import {
@@ -260,8 +382,15 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
+import {
+  createBotModeSettings,
+  isBotModeId,
+  resolveBotMode,
+  type BotModeOption,
+} from './runtime/bot-mode-settings.js';
 import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
+import { installMemberConfinement, MemberConfinement } from './execution/member-confinement.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
   createAssignmentAccessStore,
@@ -289,6 +418,9 @@ import {
   type AssignmentReportPage,
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
+import { turnProgress } from './bots/tool-trace.js';
+import type { SessionFailureProgress } from './channels/channel.js';
+import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
   personaBotActivitySnapshot,
@@ -343,12 +475,29 @@ export const PERSONA_SECTION_ORDER = 10400;
 
 const COMPACTION_END_EVENT: string = 'compaction/end';
 
+interface PressureCompactionEngine {
+  config?: Record<string, unknown>;
+  compactIfNeeded?(
+    agent: Agent,
+    trigger: 'pressure' | 'context-overflow',
+    signal: AbortSignal,
+  ): Promise<unknown>;
+  compactRegion?(
+    start: SessionSeq,
+    end: SessionSeq,
+    agent: Agent,
+    signal: AbortSignal,
+  ): Promise<unknown>;
+}
+
 export interface CompactionRefreshSink {
   ownership: { resolve(sessionId: string): { botSlug: string } | undefined };
   memory: {
     refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
   };
-  prompts?: { refreshAfterCompaction(sessionId: string): { refreshed: boolean } };
+  prompts?: {
+    refreshAfterCompaction(sessionId: string): { refreshed: boolean };
+  };
   warn(message: string): void;
 }
 
@@ -380,12 +529,14 @@ export interface BotHarnessConfig {
   enabled: boolean;
   privateInputExecution?: boolean;
   privateInputWebUrl?: string;
+  genuiPreviewBrowserPath?: string;
 
   agentPreset?: string;
   subagent?: BotSubagentPresetConfig;
   activityDetailConsumers?: string[];
   marketplaceUrl?: string;
   telemetry?: boolean;
+  subscriptionEngines?: boolean;
 }
 
 export const DEFAULT_AGENT_PRESET = 'standard';
@@ -398,6 +549,9 @@ export const DEFAULT_CONFIG: BotHarnessConfig = {
 };
 
 export const Config: Schema<BotHarnessConfig> = Schema.object({
+  genuiPreviewBrowserPath: Schema.string().description(
+    'Absolute executable for isolated GenUI previews; omitted or empty discovers the system browser. Invalid explicit paths are refused.',
+  ),
   privateInputWebUrl: Schema.string().description(
     'Explicit credential-free Web origin for IM private input links; never use a login token URL.',
   ),
@@ -430,6 +584,11 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   marketplaceUrl: Schema.string()
     .default(DEFAULT_MARKETPLACE_URL)
     .description('Bot Marketplace 服务地址'),
+  subscriptionEngines: Schema.boolean()
+    .default(true)
+    .description(
+      'Allow PersonaBots to run on this computer’s own Subscription Engine login (Codex, Claude Code). Cloud and VPS Hosts set false.',
+    ),
   telemetry: Schema.boolean()
     .default(true)
     .description(
@@ -438,10 +597,14 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  team: TeamService;
+  spaces: WorkspaceSpaces;
+  currentRoots(session: Session, kind: 'read' | 'write'): string[];
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
+  acknowledgements: ClientAcknowledgements;
   tob: TobService;
   creations: BotCreationService;
   zipImports: BotZipImportService;
@@ -452,11 +615,17 @@ export interface BotHarnessCore {
   deletions: PersonaBotDeletions;
   contentPurge: ContentPurge;
   modelPresets: ModelPresetStore;
+  modelFavorites: ModelFavoriteStore;
+  routingGroups: RoutingGroupStore;
+  fallbackOverrides: FallbackOverrideStore;
 
   contributeBotAgentSetup(contribute: BotAgentSetup): () => void;
+  contributeEngineTools(source: EngineToolSource): () => void;
+  engineTools(info: EngineToolInfo): Promise<EngineBotTool[]>;
 
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
+  configureBotHopLimit(read: () => number): () => void;
 
   hostTools: Set<string>;
 
@@ -473,6 +642,7 @@ export interface BotHarnessCore {
   messagePerf: MessagePerfTracker;
   channels: ChannelStore;
   attachments: AttachmentStore;
+  mediaVersions: MediaVersions;
   live: ChannelLiveHub;
   companions: CompanionFeed;
   roster: RosterStore;
@@ -486,6 +656,10 @@ export interface BotHarnessCore {
   grants: WorkspaceGrantStore;
   externalMessaging: OutboundMessaging;
   cloudConnections?: CloudConnections;
+  voiceProviders: VoiceProviders;
+  voiceMessages: VoiceMessages;
+  voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
+  voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -540,25 +714,40 @@ type BotAgentSetup = (
 
 export function createCore(
   options: {
+    botNetwork?: import('./runtime/bot-network.js').BotNetworkPort;
     dshHome?: string;
     companionProfileDir?: string | undefined;
     warn?: (message: string) => void;
+    startupDiagnostic?: DiagnosticEvents;
+    databaseDiagnostic?: (
+      snapshot: import('./database/owner.js').OperationalDatabaseDiagnostics,
+    ) => void;
     agents?: BotAgentAdapter;
     saveReportSpill?: (input: {
       sessionId: string;
       content: string;
     }) => Promise<{ locator: string; bytes: number; retrievalHint: string }>;
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
+    readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
+    autoContinueDelaysMs?: readonly number[];
+    stopSettleTimeoutMs?: number;
+    closeSessionApprovals?: (sessionIds: readonly string[]) => void;
+    routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
+    sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
+    engineFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['engineFallback'];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
       offset: number,
+      content?: AssignmentReportContent,
     ) => Promise<AssignmentReportPage>;
     workspaces?: () => DshWorkspaceLookup | undefined;
     ensureTobWorkspace?: (path: string) => Promise<{ id: string }>;
     tobSettings?: () => TobSettingsProvider | undefined;
     sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
+    botHopLimit?: () => number;
     triageContinuation?: boolean;
     imCommands?: () => import('./messaging/im-commands.js').ImCommandServices | undefined;
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
@@ -567,14 +756,44 @@ export function createCore(
     activePrivateInputMessageIds?: () => readonly string[];
     erasePrivateAccounts?: (slug: string) => Promise<unknown>;
     capture?: TelemetryCapture;
+    credentials?: () =>
+      | Pick<
+          import('@deepseek-ai/dsh-credentials').CredentialProvider,
+          'readRecord' | 'modifyRecord' | 'deleteRecord'
+        >
+      | undefined;
+    voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
+    voiceFetch?: typeof fetch;
   } = {},
+): BotHarnessCore {
+  const startup = createCoreStartup(options.startupDiagnostic);
+  try {
+    const core = initializeCore(options, startup);
+    startup.ready();
+    return core;
+  } catch (error) {
+    try {
+      startup.failed(error);
+    } catch {}
+    throw error;
+  }
+}
+
+function initializeCore(
+  options: NonNullable<Parameters<typeof createCore>[0]>,
+  startup: ReturnType<typeof createCoreStartup>,
 ): BotHarnessCore {
   const dshHome = options.dshHome ?? resolveDshHome();
   const rootDir = join(dshHome, 'botharness', 'bots');
   const operationalDatabase = mountOperationalDatabase({
     dshHome,
+    instanceId: startup.mountId,
     schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    ...(options.databaseDiagnostic === undefined
+      ? {}
+      : { onDiagnostic: options.databaseDiagnostic }),
   });
+  startup.mounted(operationalDatabase.diagnostics());
   if (operationalDatabase.recovery !== undefined)
     options.warn?.(
       `operational-database initiator=host-startup phase=recovery code=${operationalDatabase.recovery.code} path=${JSON.stringify(operationalDatabase.databasePath)} reason=${JSON.stringify(operationalDatabase.recovery.message)}`,
@@ -584,16 +803,53 @@ export function createCore(
       `operational-database initiator=host-startup phase=foreign-key-orphans path=${JSON.stringify(operationalDatabase.databasePath)} orphans=${JSON.stringify(operationalDatabase.foreignKeyOrphans)}`,
     );
   let usage: UsageProjection | undefined;
+  startup.enter('avatar-part-library', 'initialize');
   const partLibrary = createPartLibrary({
     database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),
   });
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
+  let modelFavorites: ModelFavoriteStore;
+  let routingGroups: RoutingGroupStore;
+  let fallbackOverrides: FallbackOverrideStore;
   let roster: RosterStore;
   let live: ChannelLiveHub | undefined;
   try {
+    startup.enter('workspace-spaces', 'relocate-memory');
+    if (operationalDatabase.mode === 'ready')
+      recoverSpaceTransfers(attachOperationalModule(operationalDatabase, 'workspace-spaces'));
+    if (operationalDatabase.mode === 'ready')
+      relocateSpaceMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
+    if (operationalDatabase.mode === 'ready')
+      relocateTobWorkspaces(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
+    if (operationalDatabase.mode === 'ready')
+      reconcilePublicBotMemories(
+        attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+        realpathSync(dshHome),
+      );
+    startup.enter('bot-registry', 'initialize');
     registry = createPersonaBotRegistry({
       rootDir,
+      defaultMemoryPath: (slug, humanId) =>
+        defaultSpaceMemoryPath(
+          attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+          realpathSync(dshHome),
+          humanId,
+          slug,
+        ),
+      validateMemoryPath: (slug, humanId, path) => spaces.assertMemoryPath(humanId, slug, path),
+      creationTopics: ['workspace-grants'],
+      onCreated: (bot, connection) => {
+        const humanId = bot.ownerHumanId ?? team.ownerContext().humanId;
+        if (!team.isOwner(humanContext(humanId)))
+          grants.initializeAccount(bot.slug, 'spaces/' + humanId, connection);
+      },
       database: operationalDatabase,
       onImport: (event) =>
         options.warn?.(
@@ -605,7 +861,12 @@ export function createCore(
         for (const slot of Object.keys(PART_SLOTS) as PartSlot[]) {
           const part = wornAvatarPart(recipe, slot);
           if (part)
-            partLibrary.add({ part, name: '', origin: 'imported-bot', author: record.displayName });
+            partLibrary.add({
+              part,
+              name: '',
+              origin: 'imported-bot',
+              author: record.displayName,
+            });
         }
       },
       onDisplayNameChanged: () => {
@@ -637,12 +898,39 @@ export function createCore(
               message: `${repository.code}: ${repository.message}`,
             };
       },
+      async initializeMemoryAsync(memoryDir) {
+        try {
+          await initializeMemoryRepositoryAsync(memoryDir);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            ...(error instanceof Error && 'code' in error && error.code === 'ENOENT'
+              ? { code: 'git-not-found' as const }
+              : {}),
+            message: error instanceof Error ? error.message : 'memory-initialization-failed',
+          };
+        }
+      },
+      async syncDescriptorAsync(memoryDir, record) {
+        try {
+          await syncBotDescriptorAsync(memoryDir, record);
+        } catch (error) {
+          options.warn?.(
+            `bot-descriptor-sync-failed slug=${record.slug} reason=${error instanceof Error ? error.name : 'unknown'}`,
+          );
+        }
+      },
     });
+    startup.enter('roster', 'initialize');
     roster = createRosterStore({
       database: operationalDatabase,
       warn: options.warn,
       onCommitted: () => live?.publishRosterCommitted(),
     });
+    startup.enter('model-favorites', 'initialize');
+    modelFavorites = createModelFavoriteStore({ database: operationalDatabase });
+    startup.enter('model-presets', 'initialize');
     modelPresets = createModelPresetStore({
       rootDir: join(dshHome, 'botharness'),
       database: operationalDatabase,
@@ -651,19 +939,52 @@ export function createCore(
           `model-presets-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
     });
+    startup.enter('routing-groups', 'initialize');
+    fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
+    routingGroups = createRoutingGroupStore({
+      database: operationalDatabase,
+      references: (groupId) => {
+        const uses = (source: { orchestratorGroupId?: string; assignmentGroups?: string[] }) =>
+          source.orchestratorGroupId === groupId ||
+          (source.assignmentGroups ?? []).includes(groupId);
+        return [
+          ...registry
+            .list()
+            .filter((bot) => bot.modelPlan !== undefined && uses(bot.modelPlan))
+            .map((bot) => `Bot ${bot.displayName}`),
+          ...modelPresets
+            .list()
+            .filter(uses)
+            .map((preset) => `Model Preset ${preset.name}`),
+        ];
+      },
+    });
   } catch (error) {
     operationalDatabase.close();
     throw error;
   }
   if (operationalDatabase.mode === 'ready') {
+    startup.enter('bot-registry', 'backfill-banners');
     backfillBotBanners(registry, options.warn);
+    startup.enter('bot-registry', 'backfill-descriptors');
     backfillBotDescriptors(registry, options.warn);
+    startup.enter('bot-registry', 'migrate-souls');
     migrateLegacySouls(registry, options.warn);
   }
+  startup.enter('bot-state', 'initialize');
   const states = createBotStateTracker();
+  startup.enter('attachments', 'initialize');
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
   });
+  let changedFiles: ((fileId: string) => void) | undefined;
+  startup.enter('media-versions', 'initialize');
+  const mediaVersions = createMediaVersions(
+    attachments,
+    () => loadImageProcessor(options.warn),
+    (fileId) => changedFiles?.(fileId),
+  );
+  startup.enter('content-purge', 'initialize');
   const contentPurge = mountContentPurge({
     dshHome,
     database: operationalDatabase,
@@ -695,13 +1016,15 @@ export function createCore(
   let runtime: BotRuntime | undefined;
   let companions: CompanionFeed | undefined;
   let reconcileToolRuleCreators: ((botSlug: string) => void) | undefined;
+  startup.enter('bot-inbox', 'initialize');
   const sourcePolicy = createBotSourcePolicyStore(
     attachOperationalModule(operationalDatabase, 'bot-inbox'),
   );
+  startup.enter('messaging', 'outbound');
   const externalMessaging = createOutboundMessaging({
     channels: {
       get: (id) => channels.get(id),
-      getOrCreateDm: (slug) => channels.getOrCreateDm(slug),
+      getOrCreateDm: (human, slug) => channels.getOrCreateDm(human, slug),
     },
     ownsFailure: (slug, sessionId, role) => {
       const owner = ownership.resolve(sessionId);
@@ -730,8 +1053,15 @@ export function createCore(
   });
   const initialGroupInvitationPolicy = options.autoAcceptGroupInvitations ?? (() => true);
   const assignmentLimits: { read: () => number }[] = [];
+  const botHopLimits: { read: () => number }[] = [];
+  const botHopLimit = (): number => {
+    const value = (botHopLimits.at(-1)?.read ?? options.botHopLimit)?.();
+    return isBotHopLimit(value) ? value : DEFAULT_BOT_HOP_LIMIT;
+  };
   const groupInvitationPolicies: { policy: () => boolean }[] = [];
+  startup.enter('messaging', 'channels');
   const channels = createSqliteChannelStore({
+    botHopLimit,
     autoAcceptGroupInvitations: () =>
       (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
     database: attachOperationalModule(operationalDatabase, 'messaging'),
@@ -742,6 +1072,7 @@ export function createCore(
       return bot !== undefined && bot.paused !== true;
     },
     attachments,
+    mediaVersions,
     botDisplayName: (botSlug) => registry.getHistorical(botSlug)?.displayName,
     rootDir: join(dshHome, 'botharness', 'channels'),
     onCommitted: (commit) => {
@@ -788,69 +1119,127 @@ export function createCore(
       live?.publishHumanRead(channelId, humanId, revision),
     onReactionChanged: (channelId, messageId, reactions) =>
       live?.publishReaction(channelId, messageId, reactions),
+    onVoiceChanged: (channelId, messageId, message) =>
+      live?.publishVoice(channelId, messageId, message),
+    onAttachmentsChanged: (channelId, messageId, message) =>
+      live?.publishAttachments(channelId, messageId, message),
+    onSessionLinksChanged: (channelId, messageId, message) =>
+      live?.publishSessionLinks(channelId, messageId, message),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  changedFiles = (fileId) => channels.recordAttachmentChange?.(fileId);
+  startup.enter('bot-attention', 'initialize');
   const attention = createBotAttentionQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
+  startup.enter('inbox-history', 'initialize');
   const inboxHistory = createInboxHistoryQuery(
     attachOperationalModule(operationalDatabase, 'messaging'),
     channels,
   );
+  const team = new TeamService(attachOperationalModule(operationalDatabase, 'team'), channels, {
+    purge: contentPurge,
+    spaces: () => spaces,
+    replaceBotMemory: async (slug, action) => {
+      if (!runtime?.replaceOrchestrator) throw new TeamError('unavailable');
+      const result = await runtime.replaceOrchestrator(slug, action);
+      if (result.outcome === 'refused') throw new TeamError(result.code, undefined, { slug });
+      return result.value;
+    },
+    settleBotPreparations: (humanId) => registry.settled(humanId),
+    stopBots: async (slugs) => {
+      if (!slugs.length) return;
+      if (!runtime?.stopBot) throw new Error('member-bot-stop-unavailable');
+      for (const slug of slugs) await runtime.stopBot(slug);
+    },
+    ensureTob: (human) => tob.ensure(human),
+    log: (phase, facts) => options.startupDiagnostic?.record('team', phase, facts),
+  });
+  startup.enter('human-attention', 'initialize');
   const humanAttentionDatabase = attachOperationalModule(operationalDatabase, 'human-attention');
   const humanAttention = createHumanAttentionQuery(
     humanAttentionDatabase,
     options.activeQuestionMessageIds,
     options.activeToolApprovalMessageIds,
     options.activePrivateInputMessageIds,
-    () => {
+    (human) => {
       try {
-        return roster.snapshot().muted;
+        return roster.forHuman(human.humanId).snapshot().muted;
       } catch {
         return [];
       }
     },
+    () => new Date(),
+    (human, value) => team.approvals.project(human, value),
   );
+  startup.enter('human-attention', 'decisions');
   const humanAttentionDecisions = createHumanAttentionDecisions(humanAttentionDatabase);
   if (operationalDatabase.mode === 'ready') {
+    startup.enter('human-attention', 'restore');
     const refreshDurableAttention = () =>
       states.replaceDurableAttention(
-        humanAttention.durableAttention().filter((row) => registry.get(row.botSlug) !== undefined),
+        humanAttention
+          .durableAttention(OWNER_HUMAN_CONTEXT)
+          .filter((row) => registry.get(row.botSlug) !== undefined),
       );
     refreshDurableAttention();
+    const durableAttention = coalesce(refreshDurableAttention, {
+      delayMs: 100,
+      maxWaitMs: 500,
+    });
+    states.syncDurableAttentionWith(durableAttention.flush);
+    onOperationalDatabaseClose(operationalDatabase, () => {
+      states.syncDurableAttentionWith(() => {});
+      durableAttention.cancel();
+    });
     operationalDatabase.subscribe(({ topics }) => {
-      if (topics.includes('content-purge')) live?.publishContentPurged();
+      if (topics.some((topic) => ['content-purge', 'member-purged'].includes(topic)))
+        live?.publishContentPurged();
+      if (topics.includes('member-purged')) live?.publishHumanIdentityChanged();
       if (
         topics.some((topic) =>
-          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignments'].includes(topic),
+          [
+            'channels',
+            'bindings',
+            'grants',
+            'bot-schedules',
+            'content-purge',
+            'member-purged',
+            'assignment-report',
+            'bot-ownership',
+            'team',
+          ].includes(topic),
         )
       )
         live?.publishRosterCommitted();
       if (
         topics.some((topic) =>
-          [
-            'assignments',
-            'source-event',
-            'bot-inbox',
-            'channel',
-            'human-attention',
-            'usage',
-          ].includes(topic),
+          ['assignments', 'source-event', 'bot-inbox', 'channel', 'human-attention'].includes(
+            topic,
+          ),
         )
       )
-        refreshDurableAttention();
+        durableAttention.schedule();
     });
   }
+  const spaces = new WorkspaceSpaces(
+    attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+    dshHome,
+    team.roles,
+    undefined,
+    operationalDatabase.mode === 'ready',
+  );
+  startup.enter('channel-live', 'initialize');
   live = createChannelLiveHub(
     channels,
     {
-      snapshot: () =>
+      snapshot: (human) =>
         personaBotActivitySnapshot(
-          registry.list().map((bot) => bot.slug),
+          registry.list(human.humanId).map((bot) => bot.slug),
           states,
         ),
-      onChange: (changed) => states.onActivity(() => changed()),
+      onChange: (changed) => states.onActivity((event) => changed(event)),
     },
     () => contentPurge.redactions(),
     (changed) =>
@@ -862,13 +1251,26 @@ export function createCore(
           }),
         changed,
       ),
+    (human, resource) =>
+      resource === 'model-providers'
+        ? human.caller !== 'bot' &&
+          (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
+        : team.isOwner(human),
+    (human, slug) => ownsBot(human, registry.getHistorical(slug)),
+    (human, id) => team.channelAccess.canRead(human, id, true),
+    (human, id) => team.channelAccess.canKnow(human, id),
+    (human, value, channelId) => team.approvals.project(human, value, channelId),
   );
+  team.onAccessChanged(() => live?.refreshAccess());
+  startup.enter('messaging', 'reconcile-paused-invitations');
   if (operationalDatabase.mode === 'ready')
     for (const bot of registry.list())
       if (bot.paused === true) channels.cancelInvitationsForBot(bot.slug);
+  startup.enter('session-ownership', 'initialize');
   const ownership = createSessionOwnership(
     attachOperationalModule(operationalDatabase, 'session-ownership'),
   );
+  startup.enter('companion-feed', 'initialize');
   companions = createCompanionFeed({
     profileId: createHash('sha256')
       .update(options.companionProfileDir ?? dshHome)
@@ -902,27 +1304,37 @@ export function createCore(
       operationalDatabase.subscribe(({ topics }) => {
         if (topics.includes('bot-registry')) changed();
       }),
-    observeOutput: (id, messageId) => channels.observeOutput(id, messageId),
+    observeOutput: (id, messageId) => channels.observeOutput(OWNER_HUMAN_CONTEXT, id, messageId),
     checkpoint: () => channels.outputCheckpoint(),
   });
+  startup.enter('memory', 'initialize');
   const memory = createMemoryService({
     registry,
     ownership,
     database: operationalDatabase,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  team.privateAccess.bind({ registry, memory });
+  startup.enter('usage', 'initialize');
   usage =
     operationalDatabase.mode === 'ready'
       ? createUsageProjection({
           ownership,
           database: operationalDatabase,
+          ownerHumanId: () => team.ownerContext().humanId,
+          botOwner: (slug) =>
+            registry.getHistorical(slug)?.ownerHumanId ?? team.ownerContext().humanId,
           botCreatedAt: (slug) => registry.getHistorical(slug)?.createdAt,
         })
       : undefined;
+  startup.enter('workspace-grants', 'initialize');
   const grants = createWorkspaceGrantStore({
     database: attachOperationalModule(operationalDatabase, 'workspace-grants'),
-    workspaces: options.workspaces ?? (() => undefined),
+    workspaces: () => spaces.workspaceLookup(options.workspaces?.()),
+    validateTree: (slug, path) => spaces.assertTree(slug, path),
+    validatePath: (slug, path, grant) => spaces.assertPath(slug, path, grant),
   });
+  startup.enter('tool-rules', 'initialize');
   const toolRules = createToolApprovalRuleStore(
     attachOperationalModule(operationalDatabase, 'tool-approval-rules'),
     (botSlug, creator) => externalMessaging.toolRuleCreatorAuthorized(botSlug, creator),
@@ -931,30 +1343,38 @@ export function createCore(
     toolRules.reconcileExternal(slug);
     externalMessaging.approvals.refreshRules(slug);
   };
+  startup.enter('assignment-access', 'initialize');
   const assignmentAccess = createAssignmentAccessStore(
     attachOperationalModule(operationalDatabase, 'assignment-access'),
   );
+  startup.enter('tob', 'initialize');
   const tob = createTobService({
     database: attachOperationalModule(operationalDatabase, 'tob'),
     registry,
     channels,
     grants,
     workspaceRoot: join(dshHome, 'botharness', 'tob-workspaces'),
+    workspaceFor: (human) => spaces.ensureAccount(human.humanId),
     ...(options.ensureTobWorkspace ? { ensureWorkspace: options.ensureTobWorkspace } : {}),
     ...(options.tobSettings ? { settings: options.tobSettings } : {}),
   });
+  startup.enter('bot-creation', 'initialize');
   const creations = createBotCreation({
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
     ...(options.warn === undefined ? {} : { log: options.warn }),
   });
+  startup.enter('bot-import', 'initialize');
   const zipImports = createBotZipImport({
-    uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),
+    uploads: createBotZipUploads({
+      rootDir: join(dshHome, 'botharness', 'zip-uploads'),
+    }),
     imports: createBotImports(creations),
     registry,
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  startup.enter('channel-management', 'initialize');
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
     channels,
@@ -965,6 +1385,7 @@ export function createCore(
     onInvitation: (dmId, invitationId) => runtime?.admitGroupInvitation(dmId, invitationId),
     onJoinDecision: (dmId, requestId) => runtime?.admitGroupJoinDecision?.(dmId, requestId),
   });
+  startup.enter('profile-recovery', 'initialize');
   const profileRecovery = createProfileRecovery(operationalDatabase, registry, ownership);
   const orchestratorCwd = (bot: { slug: string }): string | undefined =>
     registry.memoryDirFor(bot.slug);
@@ -976,6 +1397,25 @@ export function createCore(
       botAgentSetups.delete(contribute);
     };
   };
+  const engineToolSources = new Set<EngineToolSource>();
+  const contributeEngineTools = (source: EngineToolSource): (() => void) => {
+    engineToolSources.add(source);
+    return () => {
+      engineToolSources.delete(source);
+    };
+  };
+  const engineTools = async (info: EngineToolInfo): Promise<EngineBotTool[]> =>
+    (
+      await Promise.all(
+        [...engineToolSources].map(async (source) => {
+          try {
+            return [...(await source(info))];
+          } catch {
+            return [];
+          }
+        }),
+      )
+    ).flat();
   const runBotAgentSetups = (
     agentCtx: import('@deepseek-ai/cordis').Context,
     agent: import('@deepseek-ai/dsh-agent').Agent,
@@ -984,6 +1424,7 @@ export function createCore(
     for (const contribute of [...botAgentSetups]) contribute(agentCtx, agent, info);
   };
 
+  startup.enter('bot-schedules', 'initialize');
   const schedules = createBotScheduleStore({
     database: attachOperationalModule(operationalDatabase, 'bot-schedules'),
     isBotActive: (slug) => {
@@ -993,13 +1434,59 @@ export function createCore(
     onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
+  startup.enter('prompt-settings', 'initialize');
   const prompts = createPromptSettings({
     library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
     registry,
     ownership,
   });
+  startup.enter('voice-providers', 'initialize');
+  const voiceProviders = new VoiceProviders({
+    database: attachOperationalModule(operationalDatabase, 'voice'),
+    credentials: options.credentials ?? (() => undefined),
+    ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
+  const voiceSpeech: {
+    speak?: Parameters<typeof createVoiceMessages>[0]['speak'];
+  } = {};
+  startup.enter('voice-messages', 'initialize');
+  const voiceMessages = createVoiceMessages({
+    providers: voiceProviders,
+    bot: (slug) => voiceProviders.effective(registry.get(slug)),
+    channels,
+    attachments: () => attachments,
+    speak: async (input) => voiceSpeech.speak?.(input),
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
+  const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
+  startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
+    ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
+    ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
+    ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
+    ...(options.engineFallback === undefined ? {} : { engineFallback: options.engineFallback }),
+    ...(team.bots.available ? { team } : {}),
+    voiceMessages,
+    callFrames: {
+      zoom: (input) =>
+        voiceZoom.zoom?.(input) ?? { released: true, messageId: input.messageId, cell: input.cell },
+    },
+    ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
+    ...(options.readTurnProgress === undefined
+      ? {}
+      : { readTurnProgress: options.readTurnProgress }),
+    ...(options.autoContinueDelaysMs === undefined
+      ? {}
+      : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
+    ...(options.stopSettleTimeoutMs === undefined
+      ? {}
+      : { stopSettleTimeoutMs: options.stopSettleTimeoutMs }),
+    ...(options.closeSessionApprovals === undefined
+      ? {}
+      : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1012,10 +1499,12 @@ export function createCore(
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
     messagePerf,
+    requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
       assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+    botHopLimit,
     ...(options.sessionArchive === undefined ? {} : { sessionArchive: options.sessionArchive }),
     beginAssignmentWait: (slug, sessionId) => states.beginAssignmentWait(slug, sessionId),
     database: operationalDatabase,
@@ -1042,8 +1531,11 @@ export function createCore(
       options.workspaces?.()?.archivedSessionIds?.includes(sessionId) === true,
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  startup.enter('bot-runtime', 'reconcile-memory');
   if (operationalDatabase.mode === 'ready') runtime.reconcileMemoryChangesOnStartup?.();
+  startup.enter('bot-deletion', 'initialize');
   const deletions = createPersonaBotDeletions({
+    accept: (slug, commit) => channels.removeBotFromGroups(slug, commit),
     ...(options.capture === undefined ? {} : { capture: options.capture }),
     protectedPaths: [dshHome],
     database: operationalDatabase,
@@ -1089,6 +1581,7 @@ export function createCore(
         ]),
     ],
     stop: async (slug) => {
+      channels.removeBotFromGroups(slug);
       channels.cancelInvitationsForBot(slug);
       for (const grant of grants.list(slug))
         if (grant.revokedAt === undefined) grants.revoke(slug, grant.id);
@@ -1097,22 +1590,54 @@ export function createCore(
       await externalMessaging.disableBot(slug);
       await options.erasePrivateAccounts?.(slug);
     },
-    changed: () => live?.publishRosterCommitted(),
+    changed: (slug) => {
+      spaces.botMemory.cleanupErased(slug);
+      live?.publishRosterCommitted();
+    },
     log: (event) => options.warn?.(JSON.stringify(event)),
   });
+  contentPurge.bindMemberBots(deletions);
+  if (operationalDatabase.mode === 'ready') {
+    startup.enter('messaging', 'reconcile-group-members');
+    const activeBots = new Set(registry.list().map((bot) => bot.slug));
+    const missingMembers = new Set(
+      channels
+        .list()
+        .flatMap((channel) =>
+          channel.type !== 'group'
+            ? []
+            : [
+                ...channel.members,
+                ...(channel.ownerBotSlug === undefined ? [] : [channel.ownerBotSlug]),
+              ].filter((slug) => !activeBots.has(slug)),
+        ),
+    );
+    for (const slug of missingMembers) channels.removeBotFromGroups(slug);
+  }
+  startup.enter('bot-onboarding', 'initialize');
   const onboarding = createBotOnboarding({
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
     tob,
     registry,
     channels,
   });
+  startup.enter('client-acknowledgements', 'initialize');
+  const acknowledgements = createClientAcknowledgements({
+    database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
+  });
+  startup.enter('bot-schedules', 'start');
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    voiceProviders,
+    voiceMessages,
+    voiceSpeech,
+    voiceZoom,
     prompts,
     deletions,
     profileRecovery,
     contentPurge,
     onboarding,
+    acknowledgements,
     tob,
     creations,
     zipImports,
@@ -1123,6 +1648,17 @@ export function createCore(
     externalMessaging,
     registry,
     modelPresets,
+    modelFavorites,
+    routingGroups,
+    fallbackOverrides,
+    configureBotHopLimit: (read) => {
+      const registration = { read };
+      botHopLimits.push(registration);
+      return () => {
+        const index = botHopLimits.indexOf(registration);
+        if (index !== -1) botHopLimits.splice(index, 1);
+      };
+    },
     configureAssignmentConcurrencyLimit: (read) => {
       const registration = { read };
       assignmentLimits.push(registration);
@@ -1140,6 +1676,8 @@ export function createCore(
       };
     },
     contributeBotAgentSetup,
+    contributeEngineTools,
+    engineTools,
     runBotAgentSetups,
     hostTools,
     states,
@@ -1158,7 +1696,12 @@ export function createCore(
     humanAttention,
     humanAttentionDecisions,
     attachments,
+    mediaVersions,
     live,
+    team,
+    spaces,
+    currentRoots: (session, kind) =>
+      currentRoots({ ownership, runtime, registry, grants }, session, kind),
     companions,
     roster,
     runtime,
@@ -1172,9 +1715,81 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     profile === undefined ? [] : [profile.installAnchor, join(profile.dir, 'package.json')];
   installedPackage.identity(releaseAnchors);
   const dshHome = resolveDshHome();
-  applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
+  applyPendingDataReset({
+    dshHome,
+    home: homedir(),
+    log: (message) => ctx.logger.info(message),
+  });
   mountClientDiagnostics(ctx, dshHome);
+  const botModeSettings = createBotModeSettings(join(dshHome, 'botharness'));
+  const productBotMode = config.agentPreset ?? DEFAULT_AGENT_PRESET;
+  let reconcileBotModeSkills: (() => void) | undefined;
+  let installedBotModeIds: ReadonlySet<string> | undefined;
+  const globalBotMode = (): string => {
+    const saved = botModeSettings.defaultMode();
+    return saved !== undefined &&
+      (installedBotModeIds === undefined || installedBotModeIds.has(saved))
+      ? saved
+      : productBotMode;
+  };
+  const botModeOf = (slug: string | undefined): string =>
+    slug === undefined
+      ? globalBotMode()
+      : resolveBotMode({
+          own: core.registry.get(slug)?.preset,
+          inherited: globalBotMode(),
+          allowed: botModeSettings.allowedModes(slug),
+          installed: installedBotModeIds,
+        });
+  const installedBotModes = async (): Promise<BotModeOption[]> => {
+    const presets = ctx.get('agentPresets') as { list(): Promise<BotModeOption[]> } | undefined;
+    if (presets === undefined) return [];
+    const listed = (await presets.list()).filter((preset) => isBotModeId(preset.id));
+    installedBotModeIds = new Set(
+      listed.filter((preset) => preset.broken === undefined).map((preset) => preset.id),
+    );
+    return listed.map((preset) => ({
+      id: preset.id,
+      ...(preset.name === undefined ? {} : { name: preset.name }),
+      ...(preset.description === undefined ? {} : { description: preset.description }),
+      ...(preset.order === undefined ? {} : { order: preset.order }),
+      ...(preset.broken === undefined ? {} : { broken: preset.broken }),
+    }));
+  };
+  const hostDiagnosticEnvironment = () => {
+    const dshVersion = installedDshVersion();
+    return {
+      version: runningRelease.version,
+      ...(dshVersion === undefined ? {} : { dshVersion }),
+      platform: process.platform,
+      arch: process.arch,
+      node: process.version,
+    };
+  };
+  let clientIssues: ClientIssueReporter | undefined;
+  const diagnosticEvents = mountDiagnosticLog(ctx, {
+    onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
+    dshHome,
+    homes: [
+      { path: dshHome, label: '$DSH_HOME' },
+      { path: homedir(), label: '~' },
+    ],
+    environment: hostDiagnosticEnvironment,
+  });
   const release = installedRelease(import.meta.url);
+  const updateLifecycle = createUpdateLifecycle({
+    dir: join(
+      dshHome,
+      'botharness',
+      'diagnostics',
+      createHash('sha256')
+        .update(profile?.dir ?? dshHome)
+        .digest('hex')
+        .slice(0, 24),
+    ),
+    events: diagnosticEvents,
+    runningVersion: runningRelease.version,
+  });
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');
   const telemetry = createTelemetryService({
@@ -1192,14 +1807,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
   telemetry.capture('app:host_start');
+  clientIssues = createClientIssueReporter({ telemetry });
   const activeDay = createActiveDay({ telemetry, dataDir: telemetryDir });
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
-      () => installExceptionCapture({ dataDir: telemetryDir, enabled: () => telemetry.enabled }),
+      () =>
+        installExceptionCapture({
+          dataDir: telemetryDir,
+          enabled: () => telemetry.enabled,
+        }),
       'botharness: telemetry exceptions',
     );
-  const git = createGitService({ dshHome, log: (message) => ctx.logger.info(message) });
+  const git = createGitService({
+    dshHome,
+    log: (message) => ctx.logger.info(message),
+  });
   const resolvedGit = git.resolve();
   ctx.logger.info(
     resolvedGit.available
@@ -1207,48 +1830,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `git phase=resolved unavailable=${resolvedGit.reason}`,
   );
   let publishDraft: (event: ChannelDraftEvent) => void = () => undefined;
+  let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
-  const providerCredentials = createProviderCredentialHealth();
-  const forgetCredentialFailures = (): void => providerCredentials.reset();
-  const events = ctx as unknown as {
-    on(event: string, listener: () => void): () => void;
-  };
-  for (const event of [
-    'credentials/reference-updated',
-    'credentials/record-updated',
-    'settings/document-updated',
-    'llm/adapters-updated',
-  ])
-    events.on(event, forgetCredentialFailures);
-  const modelCatalog = createModelCatalog(ctx.llm, {
-    credentials: providerCredentials,
-    credentialFailure: createCredentialReadiness({
-      providers: () => ctx.llm.listConfigurableProviders(),
-      settings: () =>
-        (
-          ctx.get('settings') as unknown as
-            | { describe(options: { redactSecrets: boolean }): { ns: string; value: unknown }[] }
-            | undefined
-        )?.describe({ redactSecrets: true }) ?? [],
-      describe: async (ref) => {
-        const credentials = ctx.get('credentials') as unknown as
-          | { describe(ref: string): Promise<{ configured: boolean }> }
-          | undefined;
-        if (!credentials) throw new Error('Native credentials service is unavailable');
-        return credentials.describe(ref);
-      },
-    }),
-    defaultRoute: () => {
-      const selection = defaultModel.currentSelection();
-      return {
-        provider: selection.provider,
-        model: selection.model,
-        ...(selection.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: selection.reasoningEffort }),
-      };
-    },
+  const { modelCatalog, providerCredentials } = createHostModelCatalog(ctx, {
+    defaultRoute: () => defaultModel.currentSelection(),
+    signalProviderChange: () => core.live.publishResourceChanged('model-providers'),
   });
   const modelReadiness = createModelRouteReadiness(
     {
@@ -1257,21 +1844,166 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.registry.migrateLegacyModel(slug, expectedModel, route),
     },
     modelCatalog,
+    (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   );
-  const privateExecution = new ProtectedExecution((phase, details = {}) =>
-    ctx.logger.info('private-input %j', { phase, ...details }),
+  const openAssignmentRoutes = createOpenAssignmentRoutes({
+    catalog: modelCatalog,
+    plan: (slug) => core.registry.get(slug)?.modelPlan,
+    requireAllowed: (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
+  });
+  const privateExecution = new ProtectedExecution(
+    privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
-  const turnRefusals = new Map<string, string>();
+  const turnRefusals = new Map<string, string | TeamError>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
+  const tobCliInvocation = new ModelFreeTobCliInvocation();
+  const sessionLive = new SessionLiveStreams();
+  const engineGateway = createEngineGateway();
+  const localEngines = subscriptionEnginesAllowed(config, process.env);
+  const engineHost = new EngineHost({
+    root: join(dshHome, 'botharness', 'engines'),
+    local: localEngines,
+    gateway: engineGateway,
+    routingGroupEffort: (slug) => {
+      const plan = core.registry.get(slug)?.modelPlan;
+      return plan === undefined
+        ? core.routingGroups.defaultGroup().effort
+        : plan.orchestratorGroupId === undefined
+          ? undefined
+          : plan.orchestratorGroupEffort;
+    },
+    changed: () => core.live.publishRosterCommitted(),
+    sessionIdsForBot: (slug) =>
+      core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),
+    sessions: () => hostSessionStore<EngineSessionStore>(ctx),
+    persistence: () => hostSessionPersistence<EngineSessionPersistence>(ctx),
+    approve: async (request) =>
+      (await toolApproval?.askEngine({
+        session: request.session,
+        callId: request.callId,
+        toolName: request.toolName,
+        input: request.input,
+        ...(request.reason === undefined ? {} : { reason: request.reason }),
+        ...(request.device === undefined ? {} : { device: request.device }),
+        signal: request.signal,
+      })) ?? 'unavailable',
+    observe: (slug, sessionId, state, role) => {
+      if (state !== 'idle')
+        core.states.setSessionState(slug, sessionId, 'thinking', undefined, role);
+      else if (core.states.snapshot(slug).sessions[sessionId] === 'thinking')
+        core.states.setSessionState(slug, sessionId, 'done', undefined, role);
+    },
+  });
+  ctx.effect(
+    () => async () => {
+      await engineHost.close();
+      await engineGateway.close();
+    },
+    'botharness: Subscription Engine Sessions',
+  );
+  const engineToolGate = createEngineToolGate({
+    owner: (sessionId) => core.ownership.resolve(sessionId)?.botSlug,
+    botExists: (slug) => core.registry.get(slug) !== undefined,
+    fullAccess: (sessionId) => sessionHasFullAccess(core, sessionId),
+    devices: () => [
+      {
+        kind: 'computer',
+        tools: ctx.get('botharnessComputerTools') as EngineDeviceTools | undefined,
+        reason: "This PersonaBot wants to act on the profile's shared Computer.",
+      },
+      {
+        kind: 'browser',
+        tools: ctx.get('botharnessBrowserTools') as EngineDeviceTools | undefined,
+        reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
+      },
+    ],
+    approvalRequired: (name, args) => requiresHumanToolApproval(name, args, templateInUse),
+  });
   const agentAdapter = createDshBotAgentAdapter({
+    engines: engineHost,
+    engineWorkspaceMode: (slug, permission) => engineWorkspaceMode(core, slug, permission),
+    engineTools: (info) => core.engineTools(info),
+    engineToolGate,
+    enginePersona: (bot) =>
+      readEnginePersona(core.registry.memoryDirFor(bot.slug), bot.standingLimits),
+    tobCliInvocation,
+    ...(config.genuiPreviewBrowserPath === undefined
+      ? {}
+      : { genuiPreviewBrowserPath: config.genuiPreviewBrowserPath }),
+    onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
+    genuiAttachmentContext: ctx,
     agents: ctx.agents,
+    releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
+    observeDirectToolCleanupFailure: ({ sessionId, durationMs }) =>
+      ctx.logger.warn(
+        `direct-tool-cleanup phase=dispose outcome=failed session=${sessionId} durationMs=${durationMs}`,
+      ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    assignmentGroups: {
+      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
+      describe: (groupId) => {
+        const group = core.routingGroups.get(groupId);
+        if (group === undefined) return undefined;
+        try {
+          return { name: group.name, routes: core.routingGroups.routes(groupId) };
+        } catch {
+          return undefined;
+        }
+      },
+      restingUntil: (route) => routeRests.restingUntil(route),
+      inherited: () => core.routingGroups.defaultGroup().groupId,
+      inheritedEffort: () => core.routingGroups.defaultGroup().effort,
+    },
+    openAssignmentRoutes,
+    orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
-      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
+      createBotSubagentModelTools(
+        ctx,
+        () => core.registry.get(slug)?.modelPlan,
+        config.subagent,
+        async (route) => {
+          requireBotModel(core.team, core.registry.get(slug), route);
+          await openAssignmentRoutes.require(slug, route);
+        },
+        () => openAssignmentRoutes.list(slug),
+        {
+          pick: async (groupId) => {
+            const plan = core.registry.get(slug)?.modelPlan;
+            if (!(plan?.assignmentGroups ?? []).includes(groupId))
+              throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
+            const picked = await groupFallback.pick(
+              slug,
+              groupId,
+              assignmentGroupOptionOf(plan, groupId)?.defaultEffort,
+            );
+            if (picked.kind === 'route') return picked.route;
+            throw new Error(
+              picked.kind === 'exhausted' && picked.rests.length > 0
+                ? `Every model in Routing Group ${groupId} is resting: ${picked.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
+                : `Routing Group ${groupId} has no usable model`,
+            );
+          },
+          list: () =>
+            (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
+              const group = core.routingGroups.get(groupId);
+              if (group === undefined) return [];
+              return [
+                {
+                  group: groupId,
+                  name: group.name,
+                  members: core.routingGroups.routes(groupId).map((route) => {
+                    const rest = routeRests.restingUntil(route);
+                    return rest === undefined ? route : { ...route, restingUntil: rest.until };
+                  }),
+                },
+              ];
+            }),
+        },
+      ),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -1294,7 +2026,37 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         'orchestrator',
       );
     },
-    defaultAgentPreset: config.agentPreset ?? DEFAULT_AGENT_PRESET,
+    defaultAgentPreset: globalBotMode,
+    botModeOf,
+    recordSessionMode: (sessionId, mode) => {
+      try {
+        core.ownership.recordAgentPreset(sessionId, mode);
+      } catch (error) {
+        ctx.logger.warn(`Could not record the mode of Session ${sessionId}: ${String(error)}`);
+      }
+    },
+    ensureBotModes: async () => {
+      await installedBotModes().catch(() => {
+        installedBotModeIds ??= new Set();
+      });
+    },
+    assignmentModes: async (slug) => {
+      const installed = await installedBotModes();
+      const allowed =
+        botModeSettings.readError() === undefined ? botModeSettings.allowedModes(slug) : [];
+      return {
+        default: botModeOf(slug),
+        restricted: allowed !== undefined,
+        allowed: installed
+          .filter((mode) => mode.broken === undefined)
+          .filter((mode) => allowed === undefined || allowed.includes(mode.id))
+          .map((mode) => ({
+            id: mode.id,
+            ...(mode.name === undefined ? {} : { name: mode.name }),
+            ...(mode.description === undefined ? {} : { description: mode.description }),
+          })),
+      };
+    },
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
     onAgentSetup: (agentCtx, agent, info) => core.runBotAgentSetups(agentCtx, agent, info),
@@ -1306,6 +2068,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         (name, args) => nativeExecutionRoot(core, agent.session, name, args),
         (shellCtx, shell) =>
           installTobCliShell(shellCtx, shell, {
+            nativeCli: {
+              available: () =>
+                core.tob.isTob(core.ownership.resolve(agent.session.id)?.botSlug ?? '') &&
+                agentAdapter.ownsModelFreeTobTurn(agent),
+              register: (definition) =>
+                tobCliInvocation.register(agent, definition, () => {
+                  if (!core.runtime.captureTobCliAuthority)
+                    throw new TobError('tob-authority-required');
+                  return core.runtime.captureTobCliAuthority(agent.session.id);
+                }),
+              require: (execution) => tobCliInvocation.require(execution),
+            },
             capture: (execution) => {
               const actor = execution.agent;
               if (
@@ -1314,6 +2088,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               )
                 return undefined;
 
+              const steward = core.registry.get(core.ownership.resolve(actor.session.id)!.botSlug);
+              if (!steward) return undefined;
+              const human = humanContext(botOwner(steward));
+              const memberTob = !core.team.isOwner(human);
+              const memberOperations = memberTob
+                ? createMemberTobOperations({
+                    human,
+                    bridge: invocationBridgeMethods(human),
+                    registry: privateBotRegistry(core.registry, human),
+                    creations: privateBotCreations(core.creations, human),
+                    isProtectedBot: (slug) => core.tob.isTob(slug),
+                  })
+                : undefined;
+              const requireOwner = () => {
+                if (!core.team.isOwner(human)) throw new TobError('permission-required');
+              };
               let source: (() => void) & { markSideEffect?: () => void };
               try {
                 source =
@@ -1329,6 +2119,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const authorize = () => {
                 if (execution.signal.aborted) throw new TobError('agent-context-expired');
                 source();
+                if (
+                  memberTob &&
+                  (!team.mode(human).enabled || team.member(human.humanId)?.status !== 'active')
+                )
+                  throw new TobError('permission-required');
                 const denial = grantExecutionDenial(
                   core,
                   actor.session,
@@ -1341,15 +2136,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               return {
                 signal: execution.signal,
                 authorize,
-                prepareOperation: async (command, args) => {
+                prepareOperation: async (command, args, signal) => {
+                  const checkTargets = () =>
+                    authorizeTobBotTargets(args, {
+                      registry: core.registry,
+                      channels: core.channels,
+                      human,
+                    });
+                  checkTargets();
+                  if (memberOperations) return memberOperations(command, args, signal);
                   const prepared =
                     (await tobModelOperations(command, args)) ??
                     (await tobMaintenanceOperations(command, args)) ??
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
-                    (await tobChannelOperations(command, args));
-                  if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
+                    (await tobDiagnosticOperations(command, args)) ??
+                    (await tobChannelOperations(command, args)) ??
+                    (await tobVoiceOperations(command, args)) ??
+                    (await tobHostCliOperations(command, args, signal));
+                  if (!prepared) return prepared;
+                  const scopedGuard = (guard: () => void) => () => {
+                    guard();
+                    checkTargets();
+                  };
+                  if (!['create', 'group-create'].includes(command))
+                    return {
+                      ...prepared,
+                      run: (guard, beforeEffect) => prepared.run(scopedGuard(guard), beforeEffect),
+                    };
                   return {
                     ...prepared,
                     run: async (guard, beforeEffect) => {
@@ -1360,25 +2175,39 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                         actor.session.id,
                         started,
                       );
-                      return prepared.run(guard, beforeEffect);
+                      return prepared.run(scopedGuard(guard), beforeEffect);
                     },
                   };
                 },
-                capabilities: [
-                  ...TOB_MODEL_CAPABILITIES,
-                  ...TOB_MAINTENANCE_CAPABILITIES,
-                  ...TOB_BOT_CREATE_CAPABILITIES,
-                  ...TOB_BOT_PROFILE_CAPABILITIES,
-                  ...TOB_SHARE_DRAFT_CAPABILITIES,
-                  ...TOB_CHANNEL_CAPABILITIES,
-                ],
+                capabilities: memberTob
+                  ? [
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ]
+                  : [
+                      ...TOB_MODEL_CAPABILITIES,
+                      ...TOB_MAINTENANCE_CAPABILITIES,
+                      ...TOB_BOT_CREATE_CAPABILITIES,
+                      ...TOB_BOT_PROFILE_CAPABILITIES,
+                      ...TOB_SHARE_DRAFT_CAPABILITIES,
+                      ...TOB_DIAGNOSTIC_CAPABILITIES,
+                      ...TOB_CHANNEL_CAPABILITIES,
+                      ...TOB_VOICE_CAPABILITIES,
+                      TOB_HOST_CLI_CAPABILITY,
+                    ],
                 beforeWrite: () => source.markSideEffect?.(),
-                readSetting: () => core.tob.readSetting(),
-                writeSetting: (value, revision, guard) =>
-                  core.tob.writeSetting(value, revision, () => {
+                readSetting: () => {
+                  requireOwner();
+                  return core.tob.readSetting();
+                },
+                writeSetting: (value, revision, guard) => {
+                  requireOwner();
+                  return core.tob.writeSetting(value, revision, () => {
                     guard();
                     source.markSideEffect?.();
-                  }),
+                  });
+                },
                 approve: async (operation, signal) => {
                   source();
                   return approveTobCliOperation({
@@ -1421,7 +2250,79 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let toolApproval: ChannelToolApproval | undefined;
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
+  let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
+  const routeRests = createRouteRests();
+  const groupFallback = createGroupFallback({
+    plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
+    inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
+    inheritedEffort: () => core.routingGroups.defaultGroup().effort,
+    routes: (groupId) => core.routingGroups.routes(groupId),
+    engines: {
+      targets: (groupId) => core.routingGroups.targets(groupId),
+      canRoute: (botSlug) => localEngines && engineHost.engineFor(botSlug) === undefined,
+      allowed: (botSlug) => {
+        const bot = core.registry.get(botSlug);
+        return (
+          bot !== undefined &&
+          core.team.roles.modelsAllowed(
+            humanContext(bot.ownerHumanId ?? core.team.ownerContext().humanId),
+          ).all
+        );
+      },
+      limit: (engine) => engineHost.limit(engine),
+    },
+    rests: routeRests,
+    requireAllowed: (botSlug, route) =>
+      requireBotModel(core.team, core.registry.get(botSlug), route),
+    validate: (route) => modelCatalog.validate(route),
+    withEffort: async (route, effort) => groupMemberRoute(route, effort, await modelCatalog.list()),
+    overrides: {
+      get: (sessionId) => core.fallbackOverrides.get(sessionId),
+      set: (sessionId, override) => core.fallbackOverrides.set(sessionId, override),
+      delete: (sessionId) => core.fallbackOverrides.delete(sessionId),
+    },
+  });
   const core = createCore({
+    routeRests,
+    groupFallback,
+    sessionRoute: (botSlug, sessionId) =>
+      groupFallback.route(sessionId) ??
+      agentAdapter.modelSelection(sessionId) ??
+      core.registry.get(botSlug)?.modelPlan?.orchestrator ??
+      modelCatalog.defaultRoute?.(),
+    engineFallback: (botSlug, limit) => {
+      if (!engineHost.fallsBack(botSlug)) return undefined;
+      const to =
+        core.registry.get(botSlug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (to === undefined) return undefined;
+      return {
+        kind: 'switch',
+        from: { provider: limit.engine, model: limit.account },
+        to: { ...to },
+        reason: 'quota',
+        until: limit.until,
+      };
+    },
+    startupDiagnostic: diagnosticEvents,
+    databaseDiagnostic: (snapshot) => {
+      recordDatabaseStartup(diagnosticEvents, snapshot);
+      updateLifecycle.startup(snapshot.startup.instanceId, snapshot.startup.stage);
+    },
+    credentials: () => ctx.get('credentials'),
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
+    botNetwork: {
+      contacts: () => botNetwork?.contacts() ?? [],
+      availability: (hostId, botSlug) =>
+        botNetwork?.availability?.(hostId, botSlug) ?? 'unavailable',
+      refresh: async () => {
+        await botNetwork?.refresh?.();
+      },
+      membership: (hostId) => botNetwork?.membership?.(hostId) ?? Promise.resolve('unavailable'),
+      send: (hostId, message) =>
+        botNetwork === undefined
+          ? Promise.reject(new BotNetworkDeliveryError('unable-to-deliver'))
+          : botNetwork.send(hostId, message),
+    },
     dshHome,
     triageContinuation: true,
     companionProfileDir: (ctx.get('profileContext') as { dir: string } | undefined)?.dir,
@@ -1429,6 +2330,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
+    closeSessionApprovals: (sessionIds) => toolApproval?.closeSessions(sessionIds),
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
     erasePrivateAccounts: async (slug) => {
       await privateInputs?.mcpServers?.erase(slug);
@@ -1442,16 +2344,28 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         | {
             saveText(input: {
               owner: { sessionId: string };
-              source: { kind: 'session-reference'; sessionId: string; label: string };
+              source: {
+                kind: 'session-reference';
+                sessionId: string;
+                label: string;
+              };
               suggestedName: string;
               content: string;
-            }): Promise<{ locator: string; bytes: number; retrievalHint: string }>;
+            }): Promise<{
+              locator: string;
+              bytes: number;
+              retrievalHint: string;
+            }>;
           }
         | undefined;
       if (spillStore === undefined) throw new Error('DSH Spill service is unavailable');
       return spillStore.saveText({
         owner: { sessionId },
-        source: { kind: 'session-reference', sessionId, label: 'Assignment report' },
+        source: {
+          kind: 'session-reference',
+          sessionId,
+          label: 'Assignment report',
+        },
         suggestedName: 'assignment-report.txt',
         content,
       });
@@ -1461,10 +2375,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
       return readBoundedAssignmentTail(query, sessionId);
     },
-    readAssignmentReportPage: async (sessionId, acceptedSummary, offset) => {
+    readTurnProgress: async (sessionId) => {
+      const query = ctx.get('sessionQuery') as unknown as
+        | {
+            readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+          }
+        | undefined;
+      if (query === undefined) return undefined;
+      return turnProgress((await query.readSession(sessionId)).events);
+    },
+    readAssignmentReportPage: async (sessionId, acceptedSummary, offset, content) => {
       const query = ctx.get('sessionQuery') as unknown as AssignmentSessionQuery | undefined;
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
-      return readAssignmentReportPage(query, sessionId, acceptedSummary, offset);
+      return readAssignmentReportPage(query, sessionId, acceptedSummary, offset, content);
     },
     ensureTobWorkspace: async (path) => {
       const owner = ctx.get('workspaceRegistry') as unknown as
@@ -1479,9 +2402,33 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
   });
-  publishDraft = (event) => core.live.publishDraft(event);
-  ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
-  ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
+  const modelProviders = createHostModelProviders(ctx, {
+    routeRests,
+    registry: core.registry,
+    routingGroups: core.routingGroups,
+    modelPresets: core.modelPresets,
+    defaultRoute: () => defaultModel.currentSelection(),
+  });
+  publishDraft = (event) => {
+    core.live.publishDraft(event);
+    try {
+      voiceDrafts(event);
+    } catch (error) {
+      diagnosticEvents.record('voice', 'call-draft-failed', {
+        error: String(error).slice(0, 200),
+      });
+    }
+  };
+  ctx.effect(
+    () => async () => {
+      await core.tob.close();
+      await core.registry.settled();
+      await core.contentPurge.memberSettled().catch(() => {});
+      core.contentPurge.close();
+      core.operationalDatabase.close();
+    },
+    'botharness: purge ledger and operational database',
+  );
   const storage = createStorageCleanup({
     dshHome,
     database: core.operationalDatabase,
@@ -1491,6 +2438,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.registry.listHistorical().flatMap((bot) => core.registry.memoryDirFor(bot.slug) ?? []),
     memoryReferences: () => memoryAttachmentReferences(core.registry, core.deletions),
     botName: (slug) => core.registry.get(slug)?.displayName,
+    cleared: (placements) => {
+      for (const { channelId, messageId } of placements) {
+        const message = core.channels.message(channelId, messageId);
+        if (message !== undefined) core.live.publishAttachments(channelId, messageId, message);
+      }
+    },
   });
   ctx.effect(
     () =>
@@ -1503,8 +2456,49 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
+  ctx.effect(
+    () =>
+      startMediaBackfill({
+        fileIds: () => core.channels.referencedAttachmentHashes(),
+        versions: core.mediaVersions,
+        log: (message) => ctx.logger.info(message),
+      }),
+    'botharness: media backfill',
+  );
   let connectAccount: ConnectAccount | undefined;
+  let voiceCalls: VoiceCalls | undefined;
+  const presence = createPresence();
+  ctx.effect(() => () => presence.dispose(), 'botharness: desktop presence');
+  const team = core.team;
+  ctx.effect(
+    () =>
+      core.operationalDatabase.subscribe(({ topics }) => {
+        if (topics.includes('paired-devices')) core.live.publishResourceChanged('devices');
+        if (topics.includes('host-relationships'))
+          core.live.publishResourceChanged('relationships');
+        if (topics.includes('outbox')) core.live.publishResourceChanged('reachable-posts');
+        if (topics.includes('bot-onboarding')) core.live.publishResourceChanged('onboarding');
+      }),
+    'botharness: live resource changes',
+  );
+  ctx.provide('botharnessResourcePublisher', (resource) =>
+    core.live.publishResourceChanged(resource),
+  );
   mountDevicePairing(ctx, {
+    team,
+    onDevicesChanged: () => core.live.publishResourceChanged('devices'),
+    onAccountChanged: () => core.live.publishResourceChanged('account'),
+    calls: () => voiceCalls,
+    botNetwork: {
+      registry: core.registry,
+      channels: core.channels,
+      admitBotDmMessage: (channelId, messageId) =>
+        core.runtime.admitBotDmMessage(channelId, messageId),
+      withdrawNetworkMembership: (hostId) => core.runtime.withdrawNetworkMembership(hostId),
+      available: (port) => {
+        botNetwork = port;
+      },
+    },
     telemetry,
     onAccount: (account) => {
       connectAccount = account;
@@ -1515,7 +2509,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     packageAnchors: releaseAnchors,
     credentials: () => ctx.get('credentials'),
     push: {
-      source: humanInboxPushSource(
+      source: activityListPushSource(
         core.humanAttention,
         (slug) => core.registry.get(slug)?.displayName,
         (channelId, messageId) => core.channels.message(channelId, messageId)?.toolApprovalRequest,
@@ -1527,11 +2521,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         const offActivity = core.states.onActivity((event) => {
           if (event.cause === 'attention-changed') changed();
         });
+        const offPresence = presence.subscribe(changed);
         return () => {
           offDatabase();
           offActivity();
+          offPresence();
         };
       },
+      held: (human) => presence.active(human),
     },
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
@@ -1548,6 +2545,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     );
     ctx.effect(
       () =>
+        startTokenUsage({
+          telemetry,
+          snapshot: () => core.usage?.telemetrySnapshot(),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry token usage',
+    );
+    ctx.effect(
+      () =>
         startActiveDayWatch({
           activeDay,
           counts: (since) => readHumanMessageCounts(usageDatabase, since),
@@ -1560,7 +2566,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => {
     const controller = new AbortController();
     if (core.operationalDatabase.mode === 'ready')
-      void core.channels.migrateAttachments?.(controller.signal).catch(() => {
+      void core.channels.migrateAttachments?.(controller.signal, diagnosticEvents).catch(() => {
         if (!controller.signal.aborted)
           ctx.logger.warn('attachment-migration phase=failed action=inspect-database-and-restart');
       });
@@ -1585,7 +2591,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     config.privateInputWebUrl,
     undefined,
     secretMcpStore,
+    diagnosticEvents,
   );
+  const memberConfinement = new MemberConfinement(core, dshHome);
+  installMemberConfinement(ctx, memberConfinement);
+  core.team.bindConfinement(() =>
+    process.platform === 'linux' ? memberConfinement.status() : undefined,
+  );
+  const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
+  mountTakeoverTools(ctx, core, takeovers);
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   const cloudConnections = new CloudConnections(
     attachOperationalModule(core.operationalDatabase, 'messaging'),
@@ -1607,6 +2621,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   core.cloudWork = cloudWork;
   ctx.effect(() => () => cloudWork.close(), 'botharness: cloud work');
   core.hostTools.add('cloud_work');
+  ctx.effect(
+    () =>
+      core.contributeEngineTools(({ botSlug }) =>
+        createEngineMemoryTools(() => core.registry.memoryDirFor(botSlug)),
+      ),
+    'botharness: engine Memory tools',
+  );
+  for (const name of ENGINE_MEMORY_TOOL_NAMES) core.hostTools.add(name);
+  ctx.effect(
+    () => () => {
+      for (const name of ENGINE_MEMORY_TOOL_NAMES) core.hostTools.delete(name);
+    },
+    'botharness: engine Memory tool names',
+  );
   ctx.effect(
     () => () => {
       core.hostTools.delete('cloud_work');
@@ -1670,10 +2698,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ctx.logger.warn(
       'botharness: restored the permission mode of an Orchestrator Session that was changed outside the PersonaBot access setting',
     );
-    const channel = core.channels.getOrCreateDm(owner.botSlug);
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, owner.botSlug);
     if (channel !== undefined)
       void core.channels
-        .appendMessage(channel.id, {
+        .appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
           id: randomUUID(),
           at: new Date().toISOString(),
           author: { kind: 'bot', slug: owner.botSlug },
@@ -1692,10 +2720,62 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     };
   };
   let compactionBaseConfig: Record<string, unknown> | undefined;
+  const targetCompactionEngines = new WeakSet<object>();
+  const installTargetCompaction = (engine: PressureCompactionEngine): void => {
+    if (targetCompactionEngines.has(engine)) return;
+    const original = engine.compactIfNeeded;
+    if (typeof original !== 'function' || typeof engine.compactRegion !== 'function') return;
+    targetCompactionEngines.add(engine);
+    const fallback = original.bind(engine);
+    const compactToTarget = createTargetCompaction({
+      measure: (session) =>
+        (
+          ctx.get('tokenMeter') as unknown as {
+            measure(session: unknown): PricedSurface;
+          }
+        ).measure(session),
+      prune: (session) =>
+        (
+          ctx.get('toolResultPruner') as unknown as
+            | { pruneSession(session: unknown): void }
+            | undefined
+        )?.pruneSession(session),
+      compactRegion: (start, end, agent, signal) =>
+        engine.compactRegion!(start, end, agent, signal),
+      log: (level, event) => ctx.logger[level](`context-compaction ${JSON.stringify(event)}`),
+    });
+    engine.compactIfNeeded = async (agent, trigger, signal) => {
+      if (trigger !== 'pressure' || core.ownership.resolve(agent.session.id) === undefined)
+        return fallback(agent, trigger, signal);
+      const route = agent.session.requestHeader()?.config;
+      if (route === undefined || ctx.get('tokenMeter') === undefined)
+        return fallback(agent, trigger, signal);
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model, signal);
+      const contextWindow = info.context?.contextWindow;
+      if (contextWindow === undefined) return fallback(agent, trigger, signal);
+      const modelPolicies = (compactionBaseConfig ?? engine.config)?.['modelPolicies'];
+      const threshold = compactionThresholdTokens(
+        {
+          ...(Array.isArray(modelPolicies)
+            ? {
+                modelPolicies: modelPolicies as NonNullable<
+                  CompactionThresholdPolicy['modelPolicies']
+                >,
+              }
+            : {}),
+          ...compactionPolicy(),
+        },
+        route,
+        contextWindow,
+        route.maxTokens ?? info.defaultMaxTokens ?? 0,
+      );
+      if (threshold <= 0) return fallback(agent, trigger, signal);
+      return compactToTarget(agent, threshold, signal);
+    };
+  };
   const applyCompactionPolicy = (): void => {
-    const engine = ctx.get('compaction') as unknown as
-      | { config?: Record<string, unknown> }
-      | undefined;
+    const engine = ctx.get('compaction') as unknown as PressureCompactionEngine | undefined;
+    if (engine !== undefined) installTargetCompaction(engine);
     const config = engine?.config;
     if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
     compactionBaseConfig ??= config;
@@ -1704,12 +2784,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     const headroomTokens = policy.headroomTokens ?? compactionBaseConfig['headroomTokens'];
     if (config['thresholdRatio'] === thresholdRatio && config['headroomTokens'] === headroomTokens)
       return;
-    engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
+    engine.config = Object.freeze({
+      ...compactionBaseConfig,
+      thresholdRatio,
+      headroomTokens,
+    });
   };
   installNativeSubagentWake(ctx, core.runtime);
+  applyCompactionPolicy();
   ctx.on(
     'agent/pre-step',
-    async ({ agent, signal }, next) => {
+    async ({ agent, signal, messages, modelSelection }, next) => {
       applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
@@ -1717,6 +2802,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await core.runtime.ensureAssignmentCapacity?.(agent.session.id, signal);
       } catch {
         return { kind: 'reject' };
+      }
+      const modelOwner = core.ownership.resolve(agent.session.id);
+      if (modelOwner) {
+        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
+        if (selection.provider && selection.model) {
+          try {
+            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
+              provider: selection.provider,
+              model: selection.model,
+            });
+          } catch (error) {
+            if (!(error instanceof TeamError)) throw error;
+            turnRefusals.set(agent.session.id, error);
+            return { kind: 'reject' };
+          }
+        }
       }
       const repairs = new Set<BotSessionRepair>();
       const denial = admitBotSession(
@@ -1738,6 +2839,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       turnRefusals.delete(agent.session.id);
+      if (agentAdapter.ownsModelFreeTobTurn(agent)) {
+        await agentAdapter.runModelFreeTobTurn(agent, messages, signal, modelSelection);
+        return { kind: 'reject' };
+      }
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
         await compactUnknownContext(
@@ -1753,6 +2858,32 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     { global: true },
   );
+  ctx.on(
+    'agent/request-error',
+    createBotRequestRetry({
+      isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+      onQuotaExhausted: (route, untilMs, reason, sessionId) => {
+        const owner = sessionId === undefined ? undefined : core.ownership.resolve(sessionId);
+        const plan = owner === undefined ? undefined : core.registry.get(owner.botSlug)?.modelPlan;
+        if (
+          reason === 'quota' ||
+          plan?.orchestratorGroupId !== undefined ||
+          (plan?.assignmentGroups?.length ?? 0) > 0
+        )
+          routeRests.rest(route, untilMs, reason);
+      },
+      log: (message) => ctx.logger.info(message),
+    }),
+    { global: true },
+  );
+  const contextOverflowRecovery = createContextOverflowRecovery({
+    isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+    log: (event) =>
+      ctx.logger[event['outcome'] === 'declined' ? 'warn' : 'info'](
+        `context-overflow-recovery ${JSON.stringify(event)}`,
+      ),
+  });
+  ctx.on('agent/request-error', contextOverflowRecovery, { global: true, prepend: true });
   const approvalTemplates = createApprovalTemplateLibrary(
     join(dshHome, 'botharness', 'approval-templates'),
   );
@@ -1814,7 +2945,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const compactBot = (slug: string) =>
     core.runtime.compactOrchestrator
       ? core.runtime.compactOrchestrator(slug, compactReservedSession)
-      : Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null });
+      : Promise.resolve({
+          outcome: 'not-loaded' as const,
+          tokensBefore: null,
+          tokensAfter: null,
+        });
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -1822,12 +2957,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     reviewLogs = undefined;
   }
   ctx.effect(() => () => reviewLogs?.close(), 'botharness: approval review logs');
-  const templateInUse = approvalTemplateInUse(core.registry);
+  const templateInUse = approvalTemplateInUse(core.registry, approvalTemplates);
   const autoApproval: ToolAutoApproval = {
     template: (slug) => {
-      const name = core.registry.get(slug)?.approvalTemplate;
-      const template = name === undefined ? undefined : approvalTemplates.get(name);
-      return template === undefined ? undefined : { name: template.name, text: template.text };
+      const selection = core.registry.get(slug)?.approvalTemplate;
+      if (selection === undefined) return undefined;
+      const global = selection === '@global' ? approvalTemplates.global() : undefined;
+      if (global?.kind === 'invalid') throw new Error('global-template-unreadable');
+      const name =
+        global === undefined ? selection : global.kind === 'selected' ? global.name : undefined;
+      if (name === undefined) return undefined;
+      const template = approvalTemplates.get(name);
+      if (template === undefined) throw new Error('selected-template-unavailable');
+      return { name: template.name, text: template.text };
     },
     templateInUse,
     excerptLimits: (slug) => {
@@ -1874,11 +3016,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (entry) => {
       const detail =
         `approval-review bot=${entry.botSlug} template=${entry.template} tool=${entry.toolName}` +
+        (entry.templateVersion === undefined ? '' : ` templateVersion=${entry.templateVersion}`) +
         (entry.model === undefined ? '' : ` model=${entry.model}`) +
         (entry.reviewSession === undefined ? '' : ` reviewSession=${entry.reviewSession}`) +
         ` outcome=${entry.outcome} latencyMs=${entry.latencyMs}` +
-        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`) +
-        (entry.detail === undefined ? '' : ` detail=${JSON.stringify(entry.detail)}`);
+        (entry.fallback === undefined ? '' : ` fallback=${entry.fallback}`);
       ctx.logger.info(detail);
       try {
         reviewLogs?.write({
@@ -1921,9 +3063,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     (sessionId, callId, signal) =>
       core.runtime.beginAssignmentApprovalWait?.(sessionId, callId, signal),
-    (sessionId) => core.runtime.askChannel?.(sessionId),
+    (query) => core.runtime.toolApprovalOrigin?.(query),
     autoApproval,
     (sessionId) => sessionHasFullAccess(core, sessionId),
+    core.team.approvals,
+    (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
   ctx.effect(
     () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
@@ -1943,8 +3087,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx,
       core.runtime,
       (ctx as unknown as { sessions: DshSessionStore }).sessions,
+      questionAnswerReceipts(
+        attachOperationalModule(core.operationalDatabase, 'messaging'),
+        (sessionId) => core.ownership.resolve(sessionId)?.botSlug,
+      ),
     ),
     (sessionId) => core.runtime.askChannel?.(sessionId),
+    core.team.approvals,
   );
   ctx.effect(() => () => userQuestions.close(), 'botharness: Channel user questions');
   ctx.inject(['sessionProjections', 'sessionQuery', 'userQuestions'], () => {
@@ -1957,6 +3106,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: companion question observation',
   );
   registerChannelUserQuestions(ctx, userQuestions);
+  ctx.effect(
+    () =>
+      core.team.approvals.bindStatus((kind, botSlug, channelId, messageId) =>
+        kind === 'tool-approval'
+          ? toolApproval.status(botSlug, messageId)
+          : kind === 'user-question'
+            ? userQuestions.status(botSlug, messageId, channelId, false)
+            : (privateInputs?.status(channelId, messageId) ?? 'expired'),
+      ),
+    'botharness: approval projection status',
+  );
+  if (core.operationalDatabase.mode === 'ready')
+    ctx.effect(
+      () => core.externalMessaging.questions.attach(userQuestions, core.channels),
+      'botharness: checked IM question answers',
+    );
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
@@ -1977,7 +3142,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return next();
       if (
         !isDshGovernedTool(execution.name) &&
-        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse)
+        !requiresHumanToolApproval(execution.name, execution.arguments, templateInUse) &&
+        execution.name !== 'deepseekbot_cli'
       )
         return next();
       const storeDenial = credentialStoreDenial(
@@ -2020,7 +3186,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const authorizationScope = computerTools.authorizationScope?.();
         if (!computerTools.approvalScope || !computerTools.authorizeCall)
-          return { kind: 'deny', reason: 'Computer approval Provider is unavailable' };
+          return {
+            kind: 'deny',
+            reason: 'Computer approval Provider is unavailable',
+          };
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackComputer = toolApproval.track(
           execution,
@@ -2033,15 +3202,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           },
         );
         if (computerApproval === undefined || untrackComputer === undefined) {
-          return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+          return {
+            kind: 'deny',
+            reason: 'The tool call cannot be presented for Human approval',
+          };
         }
         try {
-          const outcome = await computerApproval.request({
-            agent,
-            toolName: execution.name,
-            callId: execution.callId,
-            reason: "This PersonaBot wants to act on the profile's shared Computer.",
-            signal: execution.signal,
+          const outcome = await requestRequiredToolApproval({
+            approval: computerApproval,
+            channelApproval: toolApproval,
+            ownership: core.ownership,
+            forceChannel: false,
+            request: {
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              reason: "This PersonaBot wants to act on the profile's shared Computer.",
+              signal: execution.signal,
+            },
           });
           if (outcome !== 'allowed-once') {
             const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
@@ -2064,7 +3242,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             };
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
-            return { kind: 'deny', reason: 'Approval authority changed before execution' };
+            return {
+              kind: 'deny',
+              reason: 'Approval authority changed before execution',
+            };
           if (toolApproval.usesStandingRule(agent, execution.callId))
             deviceCallReleases.set(
               execution.token,
@@ -2094,7 +3275,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (browserTools?.ownsTool?.(execution.name) === true) {
         const browserSignal = browserTools.executionSignal?.(agent.session.id);
         if (browserTools.executionSignal !== undefined && browserSignal === undefined)
-          return { kind: 'deny', reason: 'Browser Access is off for this PersonaBot' };
+          return {
+            kind: 'deny',
+            reason: 'Browser Access is off for this PersonaBot',
+          };
         const browserAuthorization = deviceToolAuthorization(
           browserTools,
           agent.session.id,
@@ -2109,7 +3293,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
         if (!browserTools.approvalScope || !browserTools.authorizeCall)
-          return { kind: 'deny', reason: 'Browser approval Provider is unavailable' };
+          return {
+            kind: 'deny',
+            reason: 'Browser approval Provider is unavailable',
+          };
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
         const untrackBrowser = toolApproval.track(
           execution,
@@ -2122,15 +3309,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           },
         );
         if (browserApproval === undefined || untrackBrowser === undefined) {
-          return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+          return {
+            kind: 'deny',
+            reason: 'The tool call cannot be presented for Human approval',
+          };
         }
         try {
-          const outcome = await browserApproval.request({
-            agent,
-            toolName: execution.name,
-            callId: execution.callId,
-            reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
-            signal: AbortSignal.any([execution.signal, browserSignal ?? execution.signal]),
+          const outcome = await requestRequiredToolApproval({
+            approval: browserApproval,
+            channelApproval: toolApproval,
+            ownership: core.ownership,
+            forceChannel: false,
+            request: {
+              agent,
+              toolName: execution.name,
+              callId: execution.callId,
+              reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
+              signal: AbortSignal.any([execution.signal, browserSignal ?? execution.signal]),
+            },
           });
           if (outcome !== 'allowed-once') {
             const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
@@ -2153,7 +3349,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             };
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
-            return { kind: 'deny', reason: 'Approval authority changed before execution' };
+            return {
+              kind: 'deny',
+              reason: 'Approval authority changed before execution',
+            };
           if (toolApproval.usesStandingRule(agent, execution.callId))
             deviceCallReleases.set(
               execution.token,
@@ -2171,15 +3370,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const denial = permissionDenial(agent.session);
       if (denial !== undefined) return { kind: 'deny', reason: denial };
+      const cliAdmission = tobCliInvocation.delegate(execution);
+      if (cliAdmission === 'delegated') return next();
+      if (cliAdmission === 'refused')
+        return { kind: 'deny', reason: 'The owned CLI invocation authority is unavailable' };
       if (!requiresHumanToolApproval(execution.name, execution.arguments, templateInUse))
         return next();
       const eachUse = execution.name === 'secret_cli' || execution.name === 'secret_mcp_connect';
-      const fullAccess = sessionHasFullAccess(core, agent.session.id);
-      if (
-        fullAccess &&
-        !requiresHumanDecision(JSON.stringify(execution.arguments) ?? '', templateInUse)
-      )
-        return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
       const owner = core.ownership.resolve(agent.session.id);
       const untrack = toolApproval.track(
@@ -2192,37 +3389,45 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           : undefined,
       );
       if (approval === undefined || untrack === undefined) {
-        return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
+        return {
+          kind: 'deny',
+          reason: 'The tool call cannot be presented for Human approval',
+        };
       }
       try {
-        const outcome = eachUse
-          ? ((await toolApproval.ask({
-              agent,
-              toolName: execution.name,
+        const outcome = await requestRequiredToolApproval({
+          approval,
+          channelApproval: toolApproval,
+          ownership: core.ownership,
+          forceChannel:
+            eachUse ||
+            toolEffects(execution.name, execution.arguments)?.authority === 'management' ||
+            core.runtime.hasDirectToolInvocation?.({
+              sessionId: agent.session.id,
               callId: execution.callId,
-              signal: execution.signal,
-            })) ?? 'unavailable')
-          : await approval.request({
-              agent,
-              toolName: execution.name,
-              callId: execution.callId,
-              reason:
-                execution.name === 'channel_attachment_open'
-                  ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
-                  : execution.name === 'bot_create'
-                    ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                    : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
-                      ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                      : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
-                        ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
-                        : changesApprovalPolicy(
-                              JSON.stringify(execution.arguments) ?? '',
-                              templateInUse,
-                            )
-                          ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                          : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
-              signal: execution.signal,
-            });
+            }) === true,
+          request: {
+            agent,
+            toolName: execution.name,
+            callId: execution.callId,
+            reason:
+              execution.name === 'channel_attachment_open'
+                ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
+                : execution.name === 'bot_create'
+                  ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
+                  : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
+                    ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                    : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
+                      ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                      : changesApprovalPolicy(
+                            JSON.stringify(execution.arguments) ?? '',
+                            templateInUse,
+                          )
+                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+            signal: execution.signal,
+          },
+        });
         if (outcome !== 'allowed-once') {
           const reviewed = toolApproval.takeReviewRejection(agent.session.id, execution.callId);
           return {
@@ -2238,7 +3443,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         if (toolApproval.remembered(agent, execution.callId)) rememberedStarts.add(execution.token);
         const guard = toolApproval.executionGuard(agent, execution.callId);
         if (!guard || !guard(execution.name, execution.arguments))
-          return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          return {
+            kind: 'deny',
+            reason: 'Approval authority changed before execution',
+          };
         approvedCalls.set(execution.token, guard);
         return await next();
       } catch {
@@ -2260,7 +3468,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const decision = await next();
       if (reason === undefined || decision.kind !== 'accept' || decision.value !== undefined)
         return decision;
-      const note = { type: 'text' as const, text: reviewerRejectionText(reason) };
+      const note = {
+        type: 'text' as const,
+        text: reviewerRejectionText(reason),
+      };
       return {
         ...decision,
         content: result.isError ? [note] : [...(decision.content ?? result.content), note],
@@ -2269,7 +3480,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     { global: true },
   );
 
-  ctx.tools.guard(({ agent, name, arguments: args, token }) => {
+  installNativeSearchResultGuard(ctx, core, (session) => sessionHasFullAccess(core, session.id));
+  ctx.tools.guard((execution) => {
+    const invocationDenial = tobCliInvocation.guard(execution);
+    if (invocationDenial) return invocationDenial;
+    const { agent, name, arguments: args, token } = execution;
     const approvalGuard = approvedCalls.get(token);
     if (approvalGuard && !approvalGuard(name, args))
       return 'Approval authority or operation changed before execution';
@@ -2284,6 +3499,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           name,
           args,
           allowedOnce,
+          templateInUse,
         );
   });
   ctx.on(
@@ -2319,6 +3535,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               execution.name,
               execution.arguments,
               approvalGuard !== undefined,
+              templateInUse,
             );
             if (denial !== undefined) throw new Error(denial);
             return next();
@@ -2344,7 +3561,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   ctx.on(
     'agent/assistant-stream',
-    ({ agent, frame }) => agentAdapter.acceptAssistantStream(agent.session.id, frame),
+    ({ agent, frame }) => {
+      agentAdapter.acceptAssistantStream(agent.session.id, frame);
+      sessionLive.accept(agent.session.id, frame);
+    },
     { global: true },
   );
 
@@ -2378,7 +3598,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return () => developerModeTarget.gate?.set(false);
     }, 'botharness: developer mode settings');
   });
-  const releaseInstaller: { current: ReleaseInstaller | undefined } = { current: undefined };
+  const releaseInstaller: { current: ReleaseInstaller | undefined } = {
+    current: undefined,
+  };
   ctx.inject(['pluginManager'], (managerCtx) => {
     managerCtx.effect(() => {
       releaseInstaller.current = (
@@ -2389,11 +3611,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: release installer');
   });
-  const releaseRestarter: { current: ReleaseRestarter | undefined } = { current: undefined };
+  const updateRuns = createUpdateRuns({
+    canceller: () => releaseInstaller.current,
+    observe: (summary) => updateLifecycle.observe(summary),
+  });
+  {
+    const events = ctx as unknown as {
+      on(event: string, listener: (value: unknown) => void): () => void;
+    };
+    events.on('plugin-manager/install-log', (chunk) => updateRuns.log(chunk));
+    events.on('plugin-manager/install-state', (progress) => updateRuns.state(progress));
+  }
+  const releaseRestarter: { current: ReleaseRestarter | undefined } = {
+    current: undefined,
+  };
   ctx.inject(['appExit'], (exitCtx) => {
     exitCtx.effect(() => {
       releaseRestarter.current = createProcessRestarter({
         exit: (exitCtx as unknown as { appExit: (code: number) => void }).appExit,
+        onFailure: () => updateLifecycle.restartFailed(),
       });
       return () => {
         releaseRestarter.current = undefined;
@@ -2428,24 +3664,31 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     version: () => runningRelease.version,
     ...(profile === undefined
       ? {}
-      : { profileId: createHash('sha256').update(profile.dir).digest('hex').slice(0, 24) }),
+      : {
+          profileId: createHash('sha256').update(profile.dir).digest('hex').slice(0, 24),
+        }),
     identity: () =>
       installedPackage.identity(releaseAnchors, loadedReleaseComponents(ctx.registry.values())),
     ledgers: () => runningRelease.ledgers,
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
+    diagnostics: updateLifecycle,
     warn: (message) => ctx.logger.warn(message),
   });
   const pluginUpdates = createPluginUpdateService({
     installer: () => releaseInstaller.current,
     restarter: () => releaseRestarter.current,
+    runs: updateRuns,
   });
   const tobModelOperations = createTobModelOperations({
     registry: core.registry,
+    human: () => core.team.ownerContext(),
     presets: core.modelPresets,
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     defaultModel,
+    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean')
         developerModeTarget.gate?.set(patch.developerMode);
@@ -2478,7 +3721,87 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     drafts: shareDrafts,
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
-  const bridgeMethods = createBridgeMethods({
+  let invalidateNativeSkills: (() => void) | undefined;
+  const skillAgentFor = (slug: string) =>
+    hostSkillAgent(ctx, core.runtime.currentOrchestratorSessionId?.(slug));
+  const skillCatalog = new SkillCatalog({
+    grantsFor: (slug) =>
+      core.grants.list(slug).flatMap((grant) => {
+        try {
+          return [core.grants.requireActive(slug, grant.id)];
+        } catch {
+          return [];
+        }
+      }),
+    memoryDirFor: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    viewFor: createSkillViewPort({
+      agentFor: skillAgentFor,
+      presetFor: botModeOf,
+      agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
+    }),
+  });
+  ctx.effect(() => {
+    if (core.operationalDatabase.mode !== 'ready') return () => undefined;
+    const refresh = watchSkillCatalog({
+      catalog: skillCatalog,
+      invalidateNative: () => invalidateNativeSkills?.(),
+      bots: () =>
+        core.registry.list().flatMap((bot) => {
+          const memoryDir = core.registry.memoryDirFor(bot.slug);
+          return memoryDir === undefined
+            ? []
+            : [
+                {
+                  slug: bot.slug,
+                  memoryDir,
+                  agent: skillAgentFor(bot.slug),
+                  preset: botModeOf(bot.slug),
+                },
+              ];
+        }),
+      changed: (botSlugs) =>
+        core.live.publishSkillCatalogChanged({
+          botSlugs,
+          channelIds: core.channels
+            .list()
+            .filter(
+              (channel) =>
+                channel.deletedAt === undefined &&
+                channel.members.some((slug) => botSlugs.includes(slug)),
+            )
+            .map((channel) => channel.id),
+        }),
+      diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
+    });
+    const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
+      if (
+        topics.some((topic) =>
+          ['bot-registry', 'member-purged', 'session-ownership', 'workspace-grants'].includes(
+            topic,
+          ),
+        )
+      )
+        refresh.reconcile();
+    });
+    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
+    const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
+    reconcileBotModeSkills = () => refresh.reconcile();
+    return () => {
+      reconcileBotModeSkills = undefined;
+      offAgents();
+      offHost();
+      offRegistry();
+      refresh.close();
+    };
+  }, 'botharness: live skill catalog');
+  const bridgeDeps: BridgeMethodsDeps = {
+    team,
+    skills: skillCatalog,
+    hostVersion: () => release.version(),
+    callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
+    voiceProviders: core.voiceProviders,
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
@@ -2490,11 +3813,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         defaultModel.currentSelection();
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
       const capacity = contextCapacity(info.context?.contextWindow);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
       return {
         sessionId,
-        usedTokens: agent
-          ? (agent.ctx.get('tokenMeter')?.measure(agent.session).totalTokens ?? null)
-          : null,
+        usedTokens: measurement?.totalTokens ?? null,
+        ...(agent === undefined || measurement === undefined
+          ? {}
+          : {
+              sources: contextSources({
+                nodes: measurement.nodes,
+                totalTokens: measurement.totalTokens,
+                eventAt: (seq) => agent.session.eventAt(seq),
+              }),
+            }),
         ...capacity,
         thresholdTokens: compactionThresholdTokens(
           compactionPolicy(),
@@ -2514,7 +3845,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const agent = sessionId === null ? undefined : liveAgent(sessionId);
       if (agent === undefined) {
         const query = ctx.get('sessionQuery') as unknown as
-          | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+          | {
+              readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+            }
           | undefined;
         const logged =
           sessionId === null || query === undefined
@@ -2545,7 +3878,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         next: {
           text,
           sections: assembly.sections.map(({ name, text }) => ({ name, text })),
-          contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
+          contexts: renderContextSections(assembly).map(({ name, text }) => ({
+            name,
+            text,
+          })),
         },
         pending:
           core.prompts.pending(slug, sessionId ?? undefined) ||
@@ -2555,6 +3891,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     cloudConnections,
     cloudWork,
     approvalReviewer,
+    botModes: {
+      settings: botModeSettings,
+      productDefault: productBotMode,
+      roster: installedBotModes,
+      changed: () => reconcileBotModeSkills?.(),
+    },
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
@@ -2576,11 +3918,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       compactBot,
       compactReservedSession,
     },
-    composerIdentity: () =>
+    composerIdentity: (human) =>
       composerRecoveryIdentity(
         join(homedir(), '.config', 'botharness', 'composer-host-id'),
         join(core.rootDir, '..', 'composer-profile-id'),
-        core.channels.humanIdentity().humanId,
+        human.humanId,
       ),
     warn: (message) => ctx.logger.warn(message),
     registry: core.registry,
@@ -2591,21 +3933,23 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     dataReset,
     defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
+    ...(modelProviders === undefined ? {} : { modelProviders }),
+    subscriptionEngines: engineHost,
+    routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
+    releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
+    modelFavorites: core.modelFavorites,
+    routingGroups: core.routingGroups,
+    routeRests,
     modelCatalog,
     modelReadiness,
     onboarding: core.onboarding,
+    acknowledgements: core.acknowledgements,
     tob: core.tob,
     creations: core.creations,
     zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
-    onboardingNews: (slug) =>
-      onboardingNewsAvailable(
-        ctx,
-        (slug === undefined ? undefined : core.registry.get(slug)?.preset) ??
-          config.agentPreset ??
-          DEFAULT_AGENT_PRESET,
-      ),
+    onboardingNews: (slug) => onboardingNewsAvailable(ctx, botModeOf(slug)),
     defaultModel: defaultModel as DshDefaultModelHost & {
       saveSelection(route: import('./models/presets.js').ModelRoute): Promise<void>;
     },
@@ -2622,6 +3966,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    sessionLive,
+    presentToolResult: (sessionId, name, args, result) => {
+      const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
+      const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);
+      return definition?.presentResult?.(
+        args,
+        result as Parameters<NonNullable<typeof definition.presentResult>>[1],
+      );
+    },
+    orchestratorRunner: (slug) => engineHost.orchestratorRunner(slug),
+    describeEngineSession: (sessionId) => engineHost.describe(sessionId),
     describeToolCall: (sessionId, name, args) => {
       const call = describeToolCall(ctx, sessionId, name, args, true);
       if (call === undefined) return undefined;
@@ -2633,20 +3988,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {
-            readSession(
-              id: string,
-            ): Promise<{ events: readonly DshSessionEvent[]; inheritedEventCount?: number }>;
+            readSession(id: string): Promise<{
+              events: readonly DshSessionEvent[];
+              inheritedEventCount?: number;
+            }>;
           }
         | undefined;
       if (query === undefined) return undefined;
       const snapshot = await query.readSession(sessionId);
-      return { events: snapshot.events, inheritedEventCount: snapshot.inheritedEventCount ?? 0 };
+      return {
+        events: snapshot.events,
+        inheritedEventCount: snapshot.inheritedEventCount ?? 0,
+      };
     },
     roster: core.roster,
     runtime: core.runtime,
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
@@ -2722,6 +4082,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }),
     release: releaseService,
     plugins: pluginUpdates,
+    updates: updateRuns,
     telemetry,
     activeDay,
     git,
@@ -2762,7 +4123,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         provider?.resetBot?.(slug);
       },
     },
-  });
+  };
+  const invocationBridgeMethods = createBridgeMethodsForHumans(bridgeDeps);
+  const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
+  ctx.effect(
+    () =>
+      mountCardContextLive(ctx, core, toolApproval, userQuestions, (slug, id) => {
+        const request =
+          id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
+        const route =
+          request ??
+          core.registry.get(slug)?.modelPlan?.orchestrator ??
+          defaultModel?.currentSelection();
+        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+      }),
+    'botharness: card and context changes',
+  );
   imCommandServices = {
     botDisplayName: (slug) =>
       core.registry.get(slug)?.displayName ?? core.registry.getHistorical(slug)?.displayName,
@@ -2788,7 +4164,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (!result.ok) throw new Error(result.error.message);
     },
     stopTurn: async (slug) => {
-      const channel = core.channels.getOrCreateDm(slug);
+      const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug);
       if (channel === undefined) throw new Error('Bot DM is unavailable');
       const stopped = await bridgeMethods.channelBotStop({
         channelId: channel.id,
@@ -2810,25 +4186,199 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const tobBotProfileOperations = createTobBotProfileOperations({
     registry: core.registry,
+    human: () => core.team.ownerContext(),
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  const tobShareDraftOperations = createTobShareDraftOperations({ bridge: () => bridgeMethods });
+  const tobShareDraftOperations = createTobShareDraftOperations({
+    bridge: () => bridgeMethods,
+  });
+  const tobDiagnosticOperations = createTobDiagnosticOperations({
+    list: (query) => diagnosticEvents.list(query),
+    updateRun: () => {
+      const run = bridgeMethods.updateRun({});
+      if (!run.ok) throw new Error(run.error.code);
+      return run.value;
+    },
+    environment: hostDiagnosticEnvironment,
+  });
+  let tobHostTarget: (() => { origin: string; token: string } | undefined) | undefined;
+  ctx.inject(['connection', 'webServer'], (webCtx) => {
+    const services = webCtx as unknown as {
+      connection: { authenticatedUrl(baseUrl: string): string };
+      webServer: { getOrigin(): string };
+    };
+    webCtx.effect(() => {
+      tobHostTarget = () => {
+        const origin = services.webServer.getOrigin();
+        const token = [
+          ...new URL(services.connection.authenticatedUrl(`${origin}/`)).searchParams.values(),
+        ][0];
+        return token ? { origin, token } : undefined;
+      };
+      return () => {
+        tobHostTarget = undefined;
+      };
+    }, 'botharness: Tob Host CLI target');
+  });
+  const tobHostCliOperations = createTobHostCliOperations({
+    authorize: (argv) =>
+      authorizeTobHostCli(argv, {
+        registry: core.registry,
+        channels: core.channels,
+        human: core.team.ownerContext(),
+      }),
+    run: spawnHostCli({ modulePath: cliModulePath, host: () => tobHostTarget?.() }),
+  });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  registerBridge(ctx, bridgeMethods, privateInputs, {
-    followRoster: (signal) => core.live.followRoster(signal),
-    followActivity: (signal) => core.live.followActivity(signal),
-    followChannel: (channelId, limit, signal, drafts) =>
-      core.live.followChannel(channelId, limit, signal, drafts),
-    journalPage: (channelId, request) => core.channels.readHumanJournalPage(channelId, request),
-    followCompanion: (resume, lastEventId, signal) =>
-      followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
+  voiceCalls = createVoiceCalls({
+    bot: (slug) => core.voiceProviders.effective(core.registry.get(slug)),
+    speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
+    async seesImages(slug) {
+      const route =
+        core.registry.get(slug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
+      if (route === undefined) return true;
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      return info.inputModalities === undefined || info.inputModalities.includes('image');
+    },
+    providers: core.voiceProviders,
+    media: () =>
+      (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
+    async send({ channelId, messageId, body, callId, speech, visual }) {
+      const { attachments, meta } = await callVisualMessage(core.attachments, messageId, visual);
+      const result = await bridgeMethods.channelSend({
+        channelId,
+        messageId,
+        body,
+        ...(attachments === undefined ? {} : { attachments }),
+        voiceCall: {
+          callId,
+          ...(speech === undefined ? {} : { speechFromMs: speech.fromMs, speechToMs: speech.toMs }),
+          ...(meta === undefined ? {} : { visual: meta }),
+        },
+      });
+      if (!result.ok)
+        throw Object.assign(new Error(result.error.message), {
+          code: result.error.code,
+        });
+    },
+    async recordFrames({
+      slug,
+      channelId,
+      callId,
+      startedAt,
+      source,
+      image,
+      frames,
+      fromMs,
+      toMs,
+    }) {
+      if (core.channels.get(channelId) === undefined) return undefined;
+      const record = {
+        callId,
+        botSlug: slug,
+        state: 'frames' as const,
+        startedAt,
+        source,
+        frames,
+        layout: image.layout,
+        fromMs,
+        toMs,
+      };
+      const attachment = await core.attachments.upload({
+        data: (async function* () {
+          yield image.jpeg;
+        })(),
+        name: `call-${source}-record-${Math.round(toMs / 1000)}s.jpg`,
+      });
+      const appended = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id: `voice-call-frames-${callId}-${toMs}`,
+        at: voiceCallFramesAt(startedAt, toMs, Date.now()),
+        author: { kind: 'system' },
+        body: voiceCallRecordBody(record),
+        attachments: [attachment],
+        voiceCallRecord: record,
+      });
+      return appended?.id;
+    },
+    async record({ slug, channelId, record }) {
+      const bot = core.registry.get(slug);
+      if (core.channels.get(channelId) === undefined)
+        core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, bot?.displayName);
+      const appended = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id:
+          'atMs' in record
+            ? `voice-call-${record.state}-${record.callId}-${record.atMs}`
+            : `voice-call-${record.state}-${record.callId}`,
+        at:
+          record.state === 'started'
+            ? record.startedAt
+            : record.state === 'ended'
+              ? record.endedAt
+              : new Date(Date.parse(record.startedAt) + record.atMs).toISOString(),
+        author: { kind: 'system' },
+        body: voiceCallRecordBody(record),
+        voiceCallRecord: record,
+      });
+      return appended?.id;
+    },
+    busy: (slug) => {
+      const overview = bridgeMethods.activityOverview({});
+      return (
+        overview.ok &&
+        overview.value.bots.some(
+          (bot) =>
+            bot.slug === slug && bot.sessions.some((session) => session.role === 'orchestrator'),
+        )
+      );
+    },
+    log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
   });
+  const calls = voiceCalls;
+  core.voiceSpeech.speak = (input) => calls.speak(input);
+  core.voiceZoom.zoom = (input) => calls.zoom(input);
+  voiceDrafts = (event) => calls.draft(event);
+  ctx.effect(
+    () => async () => {
+      core.voiceSpeech.speak = undefined;
+      core.voiceZoom.zoom = undefined;
+      voiceDrafts = () => undefined;
+      voiceCalls = undefined;
+      await calls.dispose();
+    },
+    'botharness: voice calls',
+  );
+  const tobVoiceOperations = createTobVoiceOperations({
+    providers: () => core.voiceProviders,
+    registry: core.registry,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
+  registerBridge(
+    ctx,
+    invocationBridgeMethods,
+    privateInputs,
+    {
+      followRoster: (human, signal) => core.live.followRoster(human, signal),
+      followActivity: (human, signal) => core.live.followActivity(human, signal),
+      followChannel: (human, channelId, limit, signal, drafts) =>
+        core.live.followChannel(human, channelId, limit, signal, drafts),
+      journalPage: (human, channelId, request) =>
+        core.channels.readHumanJournalPage(human, channelId, request),
+      filesPage: (human, channelId, request) =>
+        core.channels.readHumanFilesPage(human, channelId, request),
+      changes: (human, channelId, request) =>
+        core.channels.readHumanChanges?.(human, channelId, request),
+      changeCursor: (human) => core.channels.changeCursor?.(),
+      followCompanion: (human, resume, lastEventId, signal) =>
+        followCompanion((request) => core.companions.open(request), resume, lastEventId, signal),
+    },
+    team,
+  );
 
   ctx.inject(['skills'], (skillsCtx) => {
     const skills = (
@@ -2861,6 +4411,34 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     });
     developerModeTarget.gate = gate;
     skillsCtx.effect(() => {
+      const registry = hostSkillRegistry<SkillRegistryPort>(skillsCtx);
+      if (registry === undefined) return degradeHostCapability(skillsCtx, 'skills.list');
+      const detach = skillCatalog.attach(registry);
+      const stop = installHostSkillInvalidation(skillsCtx, (invalidate) => {
+        invalidateNativeSkills = invalidate;
+        return () => {
+          if (invalidateNativeSkills === invalidate) invalidateNativeSkills = undefined;
+        };
+      });
+      return () => {
+        stop();
+        detach();
+      };
+    }, 'botharness: skill catalog');
+    skillsCtx.effect(
+      () =>
+        skills.register({
+          name: LOCAL_VOICE_SKILL_NAME,
+          description: LOCAL_VOICE_SKILL_DESCRIPTION,
+          whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
+          content: LOCAL_VOICE_SKILL_CONTENT,
+          invocation: LOCAL_VOICE_SKILL_INVOCATION,
+          source: LOCAL_VOICE_SKILL_SOURCE,
+          provider: LOCAL_VOICE_SKILL_PROVIDER,
+        }),
+      'botharness: local voice skill',
+    );
+    skillsCtx.effect(() => {
       syncDeveloperMode();
       return () => {
         gate.set(false);
@@ -2884,6 +4462,56 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         };
       }
     ).connection;
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: ENGINES_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: (request) =>
+            engineRouteFetch(request, {
+              host: engineHost,
+              botExists: (slug) => core.registry.get(slug) !== undefined,
+              tools: (bot) => agentAdapter.engineToolCatalog(bot),
+              runTool: async (bot, tool, args) => {
+                const found = (await core.engineTools({ botSlug: bot, sessionId: '' })).find(
+                  (entry) => entry.name === tool,
+                );
+                if (found === undefined)
+                  throw new Error(
+                    `${tool} is not an engine-only tool; run Bot tools with deepseekbot bot tool`,
+                  );
+                return found.run(args, AbortSignal.timeout(120_000));
+              },
+              releaseQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
+              approvals: () =>
+                core.registry
+                  .list()
+                  .flatMap((bot) => toolApproval?.requests(bot.slug) ?? [])
+                  .filter((notice) => engineHost.describe(notice.sessionId) !== undefined)
+                  .map((notice) => ({
+                    botSlug: notice.botSlug,
+                    sessionId: notice.sessionId,
+                    channelId: notice.channelId,
+                    messageId: notice.messageId,
+                    toolName: notice.toolName,
+                    input: notice.input,
+                    expiresAt: notice.expiresAt,
+                  })),
+            }),
+        }),
+      'botharness: Subscription Engine route',
+    );
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: PRESENCE_PATH,
+          methods: ['GET', 'POST'],
+          requestBody: 'buffered',
+          fetch: (request) => presence.fetch(request, team.ownerContext()),
+        }),
+      'botharness: desktop presence route',
+    );
     connectionCtx.effect(() => {
       const control = createWindowZoomControl(Date.now, (phase, detail) =>
         ctx.logger.info('window-zoom-control %j', { phase, ...detail }),
@@ -2926,12 +4554,34 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       };
     }, 'botharness: explicit Client-local appearance control');
     connectionCtx.effect(() => {
+      const desktopWindow = createDesktopWindowReveal({
+        log: (phase, detail) => ctx.logger.info('desktop-window %j', { phase, ...detail }),
+      });
+      desktopWindow.prime();
+      return connection.fetch.register({
+        path: DESKTOP_WINDOW_PATH,
+        methods: ['POST'],
+        requestBody: 'buffered',
+        fetch: desktopWindow.fetch,
+      });
+    }, 'botharness: bring the Desktop window back from a notification');
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: VOICE_CALL_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createVoiceCallHttp(() => voiceCalls),
+        }),
+      'botharness: Bot calls (Host owner and CLI)',
+    );
+    connectionCtx.effect(() => {
       return connection.fetch.register({
         path: CHANNEL_STREAM_PATH,
         methods: ['GET'],
         requestBody: 'buffered',
         fetch: async (request) => {
-          return core.live.open(request);
+          return core.live.open(OWNER_HUMAN_CONTEXT, request);
         },
       });
     }, 'botharness: Channel live stream');
@@ -2985,6 +4635,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return downloaded;
       },
       (input) => core.externalMessaging.readChannelMedia(input),
+      core.mediaVersions,
     );
     connectionCtx.effect(
       () =>
@@ -3079,7 +4730,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         readDeliveries: async (slug) => (await core.externalMessaging.snapshot(slug)).intents,
         readSession: async (sessionId) => {
           const query = ctx.get('sessionQuery') as unknown as
-            | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+            | {
+                readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
+              }
             | undefined;
           if (query !== undefined) return (await query.readSession(sessionId)).events;
           return dshSessions.get(sessionId)?.snapshotEvents();
@@ -3101,7 +4754,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     const diagnosticBundleHttp = createDiagnosticBundleHttp(diagnosticOptions);
     const feedbackHttp = createMessageFeedbackHttp({
       ...diagnosticOptions,
-      readTimeline: (id, request) => core.channels.readHumanTimeline(id, request),
+      readTimeline: (human, id, request) => core.channels.readHumanTimeline(human, id, request),
       submit: feedbackUploader(),
     });
     for (const action of MESSAGE_FEEDBACK_ACTIONS)
@@ -3182,11 +4835,40 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .list()
         .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
     describeCall: (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
+    assignmentTitle: (botSlug, sessionId) => core.runtime.getAssignment(botSlug, sessionId)?.title,
   });
   ctx.effect(() =>
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
   );
 
+  ctx.on(
+    'subagent/start',
+    (info) => {
+      const parentSessionId = ctx.agents.get(info.id)?.session.header.parentSession;
+      if (parentSessionId) core.usage?.bindParentTurn(info.id, parentSessionId);
+    },
+    { global: true },
+  );
+
+  const botTurnTelemetry = createBotTurnTelemetry({
+    telemetry,
+    role: (sessionId) => core.ownership.resolve(sessionId)?.rootRole,
+    measure: (sessionId) => {
+      const agent = liveAgent(sessionId);
+      const measurement = agent?.ctx.get('tokenMeter')?.measure(agent.session);
+      if (agent === undefined || measurement === undefined) return undefined;
+      return {
+        nodes: measurement.nodes,
+        totalTokens: measurement.totalTokens,
+        eventAt: (seq) => agent.session.eventAt(seq),
+      };
+    },
+    log: (message) => ctx.logger.info(message),
+  });
+  const turnLog = createTurnLog({
+    events: diagnosticEvents,
+    owner: (sessionId) => core.ownership.resolve(sessionId),
+  });
   ctx.on(
     'session/event',
     (session, event) => {
@@ -3196,6 +4878,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           .catch(() => ctx.logger.warn('user-question-reconciliation-failed'));
       });
       activity.handleSessionEvent(session.id, event);
+      sessionLive.observe(session.id, event);
       try {
         core.externalMessaging.approvals.result(session.id, event);
       } catch {
@@ -3203,6 +4886,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       core.usage?.handleSessionEvent(session.id, event);
       core.messagePerf.observeSessionEvent(session.id, event);
+      turnLog.observe(session.id, event);
+      botTurnTelemetry.observe(session.id, event);
       idleCompaction.observeEvent(session.id, event);
       handleCompactionEvent(
         {
@@ -3229,6 +4914,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
           config.subagent,
+          async (route) => {
+            requireBotModel(core.team, core.registry.get(owner.botSlug), route);
+            await openAssignmentRoutes.require(owner.botSlug, route);
+          },
+          () => openAssignmentRoutes.list(owner.botSlug),
         );
       }
     },
@@ -3248,8 +4938,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
+      turnLog.forget(agent.session.id);
+      botTurnTelemetry.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
+      sessionLive.forget(agent.session.id);
     },
     { global: true },
   );

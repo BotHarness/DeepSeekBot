@@ -8,12 +8,12 @@ vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-import { PushRequestFailed, type PushSettings } from '../src/host/push';
+import { PushRequestFailed, type PushSettings } from '@botharness/host-client/push';
 import {
   NotificationSettings,
   type NotificationSettingsPort,
 } from '../src/ui/notification-settings';
-import { t } from '../src/ui/strings';
+import { locale, t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -42,6 +42,7 @@ async function settle(): Promise<void> {
 const registered: PushSettings = {
   registered: true,
   enabled: true,
+  delivery: 'push' as const,
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
   quietChannelIds: [],
 };
@@ -54,12 +55,49 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
       preferences: { ...registered.preferences, ...preferences },
     })),
     setEnabled: vi.fn(async (enabled: boolean) => ({ ...registered, enabled })),
+    setDelivery: vi.fn(async (delivery: 'push' | 'in-app') => ({ ...registered, delivery })),
     test: vi.fn(async () => undefined),
     ...overrides,
   };
 }
 
 describe('Notification settings', () => {
+  it.each(['push-token-timeout', 'Network request failed'])(
+    'reports %s as a registration failure, not an unsupported build',
+    async (reason) => {
+      const view = await render(
+        <NotificationSettings
+          status={{ status: 'unavailable', reason }}
+          hostName="studio"
+          port={port()}
+          onEnable={() => {}}
+          onOpenSettings={() => {}}
+        />,
+      );
+      expect(view.textContent).toContain(
+        locale === 'zh'
+          ? '通知注册未成功，检查网络后重启应用。'
+          : 'Could not register for notifications. Check your connection and restart the app.',
+      );
+      expect(view.textContent).not.toContain(t.notificationsUnavailable);
+      expect(view.textContent).not.toContain(reason);
+    },
+  );
+
+  it('keeps the build diagnostic when the project ID is missing', async () => {
+    const view = await render(
+      <NotificationSettings
+        status={{ status: 'unavailable', reason: 'missing-project-id' }}
+        hostName="studio"
+        port={port()}
+        onEnable={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    );
+    expect(view.textContent).toContain(t.cloudPushUnavailable);
+    expect(view.textContent).not.toContain('missing-project-id');
+  });
+
   it('keeps device choices editable without system permission or a push token', async () => {
     const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const settings = port({
@@ -139,34 +177,67 @@ describe('Notification settings', () => {
     expect(settings.test).toHaveBeenCalled();
     expect(view.textContent).toContain(t.testSent);
     expect(announce).toHaveBeenCalledWith(t.testSent);
-  });
-
-  it('hides the kinds while this phone does not allow notifications, and brings them back', async () => {
-    const settings = port();
-    const view = await render(
-      <NotificationSettings
-        status={{ status: 'on', failed: [] }}
-        hostName="studio"
-        port={settings}
-        onEnable={() => {}}
-        onOpenSettings={() => {}}
-      />,
+    expect(view.textContent).not.toContain(t.notificationLocalTestState.seen);
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>('[data-testid="notification-cloud-test-seen"]')!
+        .click(),
     );
-    const allow = () =>
-      view.querySelector<HTMLInputElement>(`[aria-label="${t.allowNotifications}"]`)!;
-    expect(allow().checked).toBe(true);
-    await act(async () => allow().click());
-    await settle();
-    expect(settings.setEnabled).toHaveBeenCalledWith(false);
-    expect(allow().checked).toBe(false);
-    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).toBeNull();
-    expect(view.textContent).toContain(t.allowNotificationsOff);
-
-    await act(async () => allow().click());
-    await settle();
-    expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
-    expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
+    expect(view.textContent).toContain(t.notificationLocalTestState.seen);
   });
+
+  it.each([
+    ['without a phone preference', undefined],
+    [
+      'with a phone preference',
+      { preferences: registered.preferences, syncing: false, failed: [] as string[] },
+    ],
+  ])(
+    'hides the kinds while delivery is off, and brings them back as in-app only, %s',
+    async (_, preference) => {
+      let host: PushSettings = registered;
+      const setEnabled = vi.fn(async (enabled: boolean) => (host = { ...host, enabled }));
+      const setDelivery = vi.fn(
+        async (delivery: 'push' | 'in-app') => (host = { ...host, delivery }),
+      );
+      const settings = port({ setEnabled, setDelivery });
+      const view = await render(
+        <NotificationSettings
+          status={{ status: 'on', failed: [] }}
+          hostName="studio"
+          port={settings}
+          {...(preference === undefined ? {} : { preference })}
+          onEnable={() => {}}
+          onOpenSettings={() => {}}
+        />,
+      );
+      const choose = async (id: string) => {
+        await act(async () =>
+          view.querySelector<HTMLElement>('[data-testid="notifications-delivery"]')!.click(),
+        );
+        await act(async () =>
+          view.querySelector<HTMLElement>(`[data-testid="notifications-delivery-${id}"]`)!.click(),
+        );
+        await settle();
+      };
+      expect(view.textContent).toContain(t.deliveryPush);
+      expect(view.textContent).toContain(t.deliveryPushHint);
+      await choose('off');
+      expect(settings.setEnabled).toHaveBeenCalledWith(false);
+      expect(settings.setDelivery).not.toHaveBeenCalled();
+      expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).toBeNull();
+      expect(view.textContent).toContain(t.allowNotificationsOff);
+
+      await choose('in-app');
+      expect(settings.setDelivery).toHaveBeenCalledWith('in-app');
+      expect(settings.setEnabled).toHaveBeenLastCalledWith(true);
+      expect(setDelivery.mock.invocationCallOrder[0]!).toBeLessThan(
+        setEnabled.mock.invocationCallOrder.at(-1)!,
+      );
+      expect(view.textContent).toContain(t.deliveryInAppHint);
+      expect(view.querySelector(`[aria-label="${t.pushKind.reply}"]`)).not.toBeNull();
+    },
+  );
 
   it('explains why a test was not sent, and when the phone blocks notifications', async () => {
     const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');

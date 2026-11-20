@@ -4,6 +4,7 @@ import { useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius } from '../design/tokens';
 import {
   ActivityFilterIcon,
+  ArchiveIcon,
   ActivitySearchIcon,
   BrowserIcon,
   ChevronLeftIcon,
@@ -11,6 +12,7 @@ import {
   ComputerIcon,
   HandBackIcon,
   PencilIcon,
+  PhoneIcon,
   PlusIcon,
   MoreIcon,
   SettingsIcon,
@@ -21,6 +23,7 @@ export type HeaderIcon =
   | 'back'
   | 'close'
   | 'clear'
+  | 'archive'
   | 'filter'
   | 'search'
   | 'settings'
@@ -30,6 +33,7 @@ export type HeaderIcon =
   | 'computer'
   | 'hand-back'
   | 'tob'
+  | 'call'
   | 'more';
 
 export type HeaderIconButtonProps = {
@@ -45,6 +49,7 @@ const glyphs = {
   back: { Glyph: ChevronLeftIcon, size: (theme) => theme.type.title.line },
   close: { Glyph: CloseIcon, size: (theme) => theme.type.title.line },
   clear: { Glyph: CloseIcon, size: (theme) => theme.type.title.size },
+  archive: { Glyph: ArchiveIcon, size: (theme) => theme.type.title.size },
   filter: { Glyph: ActivityFilterIcon, size: (theme) => theme.type.title.size },
   search: { Glyph: ActivitySearchIcon, size: (theme) => theme.type.title.size },
   settings: { Glyph: SettingsIcon, size: (theme) => theme.type.title.line },
@@ -54,7 +59,16 @@ const glyphs = {
   computer: { Glyph: ComputerIcon, size: (theme) => theme.touch / 2 },
   'hand-back': { Glyph: HandBackIcon, size: (theme) => theme.touch / 2 },
   tob: { Glyph: TobModeIcon, size: (theme) => theme.type.title.line },
+  call: { Glyph: PhoneIcon, size: (theme) => theme.type.title.line },
 } satisfies Record<HeaderIcon, { Glyph: typeof CloseIcon; size(theme: DesignTheme): number }>;
+
+export function HeaderIconGlyph({ icon, selected }: { icon: HeaderIcon; selected?: boolean }) {
+  const theme = useDesignTheme();
+  const { Glyph, size } = glyphs[icon];
+  const color =
+    selected === true ? theme.color.accent : icon === 'clear' ? theme.color.muted : theme.color.fg;
+  return <Glyph color={color} size={size(theme)} />;
+}
 
 export function HeaderIconButton({
   icon,
@@ -64,9 +78,6 @@ export function HeaderIconButton({
   onPress,
 }: HeaderIconButtonProps) {
   const theme = useDesignTheme();
-  const { Glyph, size } = glyphs[icon];
-  const color =
-    selected === true ? theme.color.accent : icon === 'clear' ? theme.color.muted : theme.color.fg;
   return (
     <Pressable
       testID={testID}
@@ -83,7 +94,7 @@ export function HeaderIconButton({
         backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <Glyph color={color} size={size(theme)} />
+      <HeaderIconGlyph icon={icon} selected={selected === true} />
     </Pressable>
   );
 }

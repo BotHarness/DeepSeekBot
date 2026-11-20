@@ -1,75 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { act, createElement } from 'react';
+
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanion } from '../src/client/window-companion.js';
 import { WindowCompanionView } from '../src/client/window-companion-view.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Menu: ({
-    anchor,
-    open,
-    items,
-    listClassName,
-    onClose,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label?: string }[];
-    listClassName?: string;
-    onClose(): void;
-  }) =>
-    createElement(
-      'div',
-      {},
-      anchor,
-      open
-        ? createPortal(
-            createElement(
-              'div',
-              {
-                role: 'menu',
-                className: listClassName,
-                onKeyDown: (event: { key: string; currentTarget: HTMLElement }) => {
-                  if (event.key === 'Escape') onClose();
-                  if (event.key === 'ArrowDown') {
-                    const rows = [
-                      ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button'),
-                    ];
-                    rows[
-                      (rows.findIndex((row) => row === document.activeElement) + 1) % rows.length
-                    ]?.focus();
-                  }
-                },
-              },
-              items
-                .filter((item) => item.label)
-                .map((item) =>
-                  createElement(
-                    'button',
-                    {
-                      key: item.id,
-                      role: 'menuitem',
-                    },
-                    item.label,
-                  ),
-                ),
-            ),
-            document.body,
-          )
-        : null,
-    ),
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 it('hands character keyboard focus to the portaled menu and restores it after dismissal', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();
-  vi.stubGlobal('requestAnimationFrame', () => 1);
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.push(callback);
+    return frames.length;
+  });
   vi.stubGlobal('cancelAnimationFrame', () => {});
   const events = new EventTarget();
   const companion = new WindowCompanion({
@@ -114,8 +63,11 @@ it('hands character keyboard focus to the portaled menu and restores it after di
         }),
       ),
     );
-    await act(() => vi.advanceTimersByTime(0));
-    const rows = [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] button')];
+    await act(() => {
+      for (const callback of frames.splice(0)) callback(0);
+      vi.advanceTimersByTime(0);
+    });
+    const rows = [...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')];
     expect(rows.length).toBeGreaterThan(2);
     expect(document.activeElement).toBe(rows[0]);
     await act(() =>
@@ -146,7 +98,10 @@ it('hands character keyboard focus to the portaled menu and restores it after di
     const survivingControl = document.createElement('button');
     document.body.append(survivingControl);
     survivingControl.focus();
-    await act(() => vi.advanceTimersByTime(0));
+    await act(() => {
+      for (const callback of frames.splice(0)) callback(0);
+      vi.advanceTimersByTime(0);
+    });
     expect(document.activeElement).toBe(survivingControl);
     survivingControl.remove();
   } finally {

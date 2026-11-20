@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -230,12 +231,12 @@ describe('marketplace:bot_install', () => {
     const r = recorder();
     const registry = registryWith(r.capture);
     let next = 0;
-    const methods = createBridgeMethods({
+    const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       registry,
       states: createBotStateTracker(),
       createBotId: () => `bot-${(next += 1)}`,
       telemetry: r.telemetry,
-    } as unknown as Parameters<typeof createBridgeMethods>[0]);
+    } as unknown as Parameters<typeof createBridgeMethods>[1]);
 
     const installed = await methods.createFromGit({
       displayName: DISPLAY_NAME,

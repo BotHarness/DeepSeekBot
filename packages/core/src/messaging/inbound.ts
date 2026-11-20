@@ -1,3 +1,6 @@
+import { ReceiverRecovery, type ReceptionRecovery } from './receiver-recovery.js';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
+import { pendingExternalReception } from './external-reception.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import {
@@ -35,8 +38,10 @@ import { recordLocalReception } from './reception-history.js';
 import { readMessagingIdentity } from './identity.js';
 import {
   currentReceptionPaths,
+  grantReception,
+  recordGrantReception,
+  type GrantReception,
   recordReceptionPath,
-  pendingReceptionPaths,
   type ReceptionPath,
 } from './reception-paths.js';
 import {
@@ -169,6 +174,7 @@ export interface ExternalSource {
   bridgeRevision?: number;
   localChannelId?: string;
   receptionPaths?: ReceptionPath[];
+  reception?: GrantReception;
   report?: RelatedReport;
   contextReads?: ExternalContextRead[];
   contextMessages?: ExternalContextResult['messages'];
@@ -207,13 +213,15 @@ export interface InboundMessaging {
     editor: BotSourcePolicyEditor,
   ): Promise<ThreadReceptionPolicy>;
   ordinaryDelivery(grantId: string): 'verified' | 'unverified';
+  recovery(grantId: string): ReceptionRecovery | undefined;
+  pairingRecovery(bindingId: string): ReceptionRecovery | undefined;
   status(grantId: string): 'off' | 'connecting' | 'receiving' | 'unavailable';
   available(botSlug: string, sourceEventId: string, context?: boolean): boolean;
-  pendingPaths(
+  pendingExternal(
     botSlug: string,
     now: Date,
     context?: boolean,
-  ): ReturnType<typeof pendingReceptionPaths>;
+  ): ReturnType<typeof pendingExternalReception>;
   sourceSignal(botSlug: string, sourceEventId: string): AbortSignal;
   read(botSlug: string, sourceEventId: string): ExternalSource;
   readShared(botSlug: string, sourceEventId: string): ExternalSource;
@@ -235,9 +243,22 @@ export interface InboundMessaging {
 }
 
 export function createInboundMessaging(options: {
+  onQuestionAction?(
+    providerId: string,
+    event: import('./provider.js').MessagingQuestionAction,
+    signal: AbortSignal,
+  ): Promise<import('./provider.js').MessagingApprovalAck>;
+  onQuestionText?(
+    providerId: string,
+    event: MessagingInboundEvent,
+    signal: AbortSignal,
+  ): Promise<boolean>;
   onApprovalAction?(
     providerId: string,
-    event: import('./provider.js').MessagingCardAction,
+    event: Exclude<
+      import('./provider.js').MessagingCardAction,
+      import('./provider.js').MessagingQuestionAction
+    >,
     signal: AbortSignal,
   ): Promise<import('./provider.js').MessagingApprovalAck>;
   database: OperationalDatabaseModulePort;
@@ -301,7 +322,7 @@ export function createInboundMessaging(options: {
       dispose: (() => void) | undefined;
     }
   >();
-  const retries = new Map<string, { timer: ReturnType<typeof setTimeout>; token: object }>();
+
   const replyStarts = new Map<string, Promise<void>>();
   const executeCommand = createImCommandExecutor();
   let closed = false;
@@ -443,7 +464,7 @@ export function createInboundMessaging(options: {
     if (value.platform !== 'weixin' || value.receiveScope?.kind !== 'dm' || value.dmMirror !== true)
       return;
     try {
-      const channel = options.channels?.getOrCreateDm(value.botSlug);
+      const channel = options.channels?.getOrCreateDm(OWNER_HUMAN_CONTEXT, value.botSlug);
       if (!channel) throw new MessagingError('channel-unavailable');
       const commit = transaction(
         (db) => {
@@ -478,6 +499,7 @@ export function createInboundMessaging(options: {
             sourceEventId,
           );
           return placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
             db,
             { ...mirrored, body: row.body, localChannelId: channel.id },
             value.botSlug,
@@ -500,17 +522,20 @@ export function createInboundMessaging(options: {
   const admitDirect = (db: DatabaseSync, value: MessagingGrant, event: MessagingInboundEvent) => {
     const sourceEventId = persistSource(db, value, event);
     const policy = options.sourcePolicy.resolveIn(db, value.botSlug, 'human-dm');
-    db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+    const admission = db
+      .prepare(`INSERT OR IGNORE INTO inbox_admissions
     (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
-     wake_policy_revision, wake_mode) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
-      sourceEventId,
-      value.botSlug,
-      'human-dm',
-      policy.revision,
-      value.muted ? 'silent' : policy.wake,
-      policy.revision,
-      value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
-    );
+     wake_policy_revision, wake_mode) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        sourceEventId,
+        value.botSlug,
+        'human-dm',
+        policy.revision,
+        value.muted ? 'silent' : policy.wake,
+        policy.revision,
+        value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
+      );
+    if (admission.changes) recordGrantReception(db, sourceEventId, value.botSlug);
     return sourceEventId;
   };
   const admitMention = (db: DatabaseSync, value: MessagingGrant, event: MessagingInboundEvent) => {
@@ -520,20 +545,23 @@ export function createInboundMessaging(options: {
       : undefined;
     const sourceEventId = persistSource(db, value, event);
     const policy = options.sourcePolicy.resolveIn(db, value.botSlug, 'group-mention');
-    db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+    const admission = db
+      .prepare(`INSERT OR IGNORE INTO inbox_admissions
     (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
      wake_policy_revision, wake_mode, external_thread_policy_revision, external_default_revision)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      sourceEventId,
-      value.botSlug,
-      'group-mention',
-      policy.revision,
-      value.muted ? 'silent' : policy.wake,
-      reception.revision,
-      value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
-      thread?.revision ?? null,
-      reception.defaultRevision ?? null,
-    );
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        sourceEventId,
+        value.botSlug,
+        'group-mention',
+        policy.revision,
+        value.muted ? 'silent' : policy.wake,
+        reception.revision,
+        value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
+        thread?.revision ?? null,
+        reception.defaultRevision ?? null,
+      );
+    if (admission.changes) recordGrantReception(db, sourceEventId, value.botSlug);
     return sourceEventId;
   };
   const conversationEntries = (
@@ -567,9 +595,10 @@ export function createInboundMessaging(options: {
       options.warn?.('messaging-reception-publication-failed');
     }
   };
+  const retries = new ReceiverRecovery(receptionChanged);
+  const controlRetries = new ReceiverRecovery(receptionChanged);
   const stop = (id: string) => {
-    clearTimeout(retries.get(id)?.timer);
-    retries.delete(id);
+    retries.clear(id);
     const lease = leases.get(id);
     leases.delete(id);
     lease?.controller.abort();
@@ -583,7 +612,9 @@ export function createInboundMessaging(options: {
     if (value.bridgeRoutes) return true;
     if (!value.receiveTargetChannelId) return true;
     try {
-      database.read((db) => bridgeChannel(db, value.receiveTargetChannelId!, value.botSlug));
+      database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, value.receiveTargetChannelId!, value.botSlug),
+      );
       return true;
     } catch (error) {
       if (error instanceof MessagingError) return false;
@@ -648,6 +679,51 @@ export function createInboundMessaging(options: {
       },
     };
   };
+  const traceInbound =
+    (
+      value: MessagingGrant,
+      handle: (
+        event: MessagingInboundEvent,
+        signal: AbortSignal,
+        skip: (reason: string) => { accepted: true },
+      ) => Promise<{ accepted: true }>,
+    ) =>
+    async (event: MessagingInboundEvent, signal: AbortSignal): Promise<{ accepted: true }> => {
+      const began = Date.now();
+      let skipped: string | undefined;
+      const skip = (reason: string) => {
+        skipped = reason;
+        return { accepted: true as const };
+      };
+      const trace = (phase: string, extra: Record<string, unknown>) => {
+        try {
+          options.warn?.(
+            JSON.stringify({
+              event: 'messaging-inbound',
+              phase,
+              platform: event.channel,
+              conversation: event.conversation.kind,
+              mentioned: event.mentionedAccount,
+              grantId: value.id,
+              durationMs: Date.now() - began,
+              ...extra,
+            }),
+          );
+        } catch {}
+      };
+      try {
+        const result = await handle(event, signal, skip);
+        trace(skipped === undefined ? 'handled' : 'skipped', {
+          ...(skipped === undefined ? {} : { reason: skipped }),
+        });
+        return result;
+      } catch (error) {
+        trace('refused', {
+          reason: error instanceof MessagingError ? error.code : 'internal-error',
+        });
+        throw error;
+      }
+    };
   const start = async (value: MessagingGrant, attempt = 0, replyOnly = false) => {
     stop(value.id);
     const entry = providers.get(value.providerId);
@@ -674,13 +750,18 @@ export function createInboundMessaging(options: {
     receptionChanged();
     const startedAt = Date.now();
     try {
+      const accountRecovery = controlRetries.state(value.bindingId);
+      if (accountRecovery?.kind === 'action-required')
+        throw new MessagingError(accountRecovery.reason);
       const inspected = await inspectGrant(entry.provider, value);
       if (value.platform === 'qq' && !replyOnly) {
         await startControl(value.bindingId);
         const control = controls.get(value.bindingId);
         if (!control?.dispose || control.token !== entry.token)
           throw new MessagingError(
-            controlRetries.has(value.bindingId) ? 'provider-unavailable' : 'consumer-unavailable',
+            controlRetries.pending(value.bindingId)
+              ? 'provider-unavailable'
+              : 'consumer-unavailable',
           );
         lease.controller.signal.throwIfAborted();
       }
@@ -721,7 +802,7 @@ export function createInboundMessaging(options: {
           );
           return { accepted: true };
         },
-        onEvent: async (event, signal) => {
+        onEvent: traceInbound(value, async (event, signal, skip) => {
           signal.throwIfAborted();
           lease.controller.signal.throwIfAborted();
           const latest = grant(value.id);
@@ -740,17 +821,17 @@ export function createInboundMessaging(options: {
             throw new MessagingError('untrusted-source');
           const identity = database.read((db) => readMessagingIdentity(db, value.bindingId));
           if (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
-            return { accepted: true };
-          if (!latest.receiveScope) return { accepted: true };
+            return skip('before-identity-receive-after');
+          if (!latest.receiveScope) return skip('no-receive-scope');
           if (
             event.conversation.kind !== latest.receiveScope.kind ||
             event.conversation.id !== value.receiveScope!.conversationId
           )
-            return { accepted: true };
+            return skip('other-conversation');
           if (!database.read((db) => senderContextAllowed(db, value.botSlug, event)))
-            return { accepted: true };
+            return skip('sender-not-allowed');
           if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
-            return { accepted: true };
+            return skip('before-grant-receive-after');
           if (event.conversation.kind === 'dm' && !latest.bridgeRoutes) {
             if (latest.receiveTargetChannelId || latest.channelBridge || latest.bridgeRoutes)
               throw new MessagingError('capability-unavailable');
@@ -831,7 +912,7 @@ export function createInboundMessaging(options: {
                     return false;
                   if (route.channelId) {
                     try {
-                      bridgeChannel(db, route.channelId, value.botSlug, true);
+                      bridgeChannel(OWNER_HUMAN_CONTEXT, db, route.channelId, value.botSlug, true);
                     } catch {
                       return false;
                     }
@@ -859,12 +940,18 @@ export function createInboundMessaging(options: {
                 for (const route of routes) {
                   if (route.channelId) {
                     const commit = placeBridgeSource(
+                      OWNER_HUMAN_CONTEXT,
                       db,
                       { ...source, body: event.text, localChannelId: route.channelId },
                       value.botSlug,
                     );
                     if (commit) placed.push(commit);
-                    const channel = bridgeChannel(db, route.channelId, value.botSlug);
+                    const channel = bridgeChannel(
+                      OWNER_HUMAN_CONTEXT,
+                      db,
+                      route.channelId,
+                      value.botSlug,
+                    );
                     if (
                       !event.mentionedAccount &&
                       !(event.conversation.kind === 'dm' && channel.type === 'dm')
@@ -954,7 +1041,8 @@ export function createInboundMessaging(options: {
               },
               ['source-event', 'channel', 'bot-inbox'],
             );
-            if (id) {
+            if (!id) return skip('not-admitted');
+            {
               await mirrorDm(latest, id);
               options.onAdmissionCommitted?.(value.botSlug, id);
               for (const commit of placed) {
@@ -982,7 +1070,7 @@ export function createInboundMessaging(options: {
             (latest.channelBridge?.intakeAfter !== undefined &&
               Date.parse(event.at) < Date.parse(latest.channelBridge.intakeAfter))
           )
-            return { accepted: true };
+            return skip('channel-bridge-closed');
           if (ordinaryThreadReply(event))
             lease.ordinaryThreads.set(event.reply.threadId!, event.reply.rootId!);
           let placement: ChannelMessageCommit | undefined;
@@ -991,7 +1079,7 @@ export function createInboundMessaging(options: {
               signal.throwIfAborted();
               lease.controller.signal.throwIfAborted();
               if (value.receiveTargetChannelId)
-                bridgeChannel(db, value.receiveTargetChannelId, value.botSlug);
+                bridgeChannel(OWNER_HUMAN_CONTEXT, db, value.receiveTargetChannelId, value.botSlug);
               if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
                 return undefined;
               const reception = groupReceptionPolicy(db, value.id);
@@ -1027,9 +1115,19 @@ export function createInboundMessaging(options: {
                 .get(id) as { payload_json: string };
               const source = (JSON.parse(row.payload_json) as { external: ExternalSource })
                 .external;
-              placement = placeBridgeSource(db, { ...source, body: event.text }, value.botSlug);
+              placement = placeBridgeSource(
+                OWNER_HUMAN_CONTEXT,
+                db,
+                { ...source, body: event.text },
+                value.botSlug,
+              );
               if (!event.mentionedAccount && source.localChannelId && placement) {
-                const channel = bridgeChannel(db, source.localChannelId, value.botSlug);
+                const channel = bridgeChannel(
+                  OWNER_HUMAN_CONTEXT,
+                  db,
+                  source.localChannelId,
+                  value.botSlug,
+                );
                 admitBridgeMembers(
                   db,
                   id,
@@ -1063,35 +1161,38 @@ export function createInboundMessaging(options: {
                 reception.inheritance !== 'custom' && !thread?.wake && policy.overrideActive
                   ? (policy.digestIntervalSeconds ?? ordinary.intervalSeconds)
                   : ordinary.intervalSeconds;
-              db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+              const admission = db
+                .prepare(`INSERT OR IGNORE INTO inbox_admissions
               (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
                wake_policy_revision, wake_mode, wake_count, wake_interval_ms, external_thread_policy_revision, external_default_revision)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-                id,
-                value.botSlug,
-                reason,
-                policy.revision,
-                wake,
-                reception.revision,
-                passive ? 'silent' : wake === 'immediate' ? 'all' : wake,
-                !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
-                  ? wake === 'immediate'
-                    ? 1
-                    : count
-                  : null,
-                !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
-                  ? wake === 'immediate'
-                    ? 0
-                    : seconds * 1000
-                  : null,
-                thread?.revision ?? null,
-                reception.defaultRevision ?? null,
-              );
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                .run(
+                  id,
+                  value.botSlug,
+                  reason,
+                  policy.revision,
+                  wake,
+                  reception.revision,
+                  passive ? 'silent' : wake === 'immediate' ? 'all' : wake,
+                  !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
+                    ? wake === 'immediate'
+                      ? 1
+                      : count
+                    : null,
+                  !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
+                    ? wake === 'immediate'
+                      ? 0
+                      : seconds * 1000
+                    : null,
+                  thread?.revision ?? null,
+                  reception.defaultRevision ?? null,
+                );
+              if (admission.changes) recordGrantReception(db, id, value.botSlug);
               return id;
             },
             ['source-event', 'channel', 'bot-inbox'],
           );
-          if (id === undefined) return { accepted: true };
+          if (id === undefined) return skip('not-admitted');
           options.onAdmissionCommitted?.(value.botSlug, id);
           if (placement) {
             try {
@@ -1109,7 +1210,7 @@ export function createInboundMessaging(options: {
             }
           });
           return { accepted: true };
-        },
+        }),
       });
       if (closed || leases.get(value.id) !== lease || lease.controller.signal.aborted) {
         dispose();
@@ -1150,22 +1251,15 @@ export function createInboundMessaging(options: {
         }),
       );
     } catch (error) {
+      if (leases.get(value.id) !== lease) return;
       lease.controller.abort();
       if (leases.get(value.id) === lease) {
         leases.delete(value.id);
         receptionChanged();
       }
       const reason = error instanceof MessagingError ? error.code : 'consumer-unavailable';
-      const delays = [250, 1000, 3000];
-      const delay = delays[attempt];
-      if (
-        reason === 'provider-unavailable' &&
-        delay !== undefined &&
-        !closed &&
-        providers.get(value.providerId) === entry
-      ) {
-        const timer = setTimeout(() => {
-          retries.delete(value.id);
+      if (!closed && providers.get(value.providerId) === entry) {
+        retries.fail(value.id, entry.token, reason, attempt, () => {
           if (closed || providers.get(value.providerId) !== entry) return;
           try {
             const latest = grant(value.id);
@@ -1173,9 +1267,7 @@ export function createInboundMessaging(options: {
           } catch {
             stop(value.id);
           }
-        }, delay);
-        timer.unref();
-        retries.set(value.id, { timer, token: entry.token });
+        });
       }
       options.warn?.(
         JSON.stringify({
@@ -1184,6 +1276,9 @@ export function createInboundMessaging(options: {
           grantId: value.id,
           reason,
           retryAttempt: attempt,
+          recovery: retries.state(value.id),
+          botSlug: value.botSlug,
+          bindingId: value.bindingId,
           durationMs: Date.now() - startedAt,
         }),
       );
@@ -1208,16 +1303,24 @@ export function createInboundMessaging(options: {
     const retained = (JSON.parse(row.payload_json) as { external: ExternalSource }).external;
     if (retained.ingestId) throw new MessagingError('source-unavailable');
     const routed = database.read((db) =>
-      db.prepare('SELECT 1 FROM messaging_source_paths WHERE source_event_id = ?').get(id),
+      db
+        .prepare(
+          "SELECT 1 FROM messaging_source_paths WHERE source_event_id = ? AND json_extract(body, '$.kind') IS NOT 'grant'",
+        )
+        .get(id),
     );
     const paths = database.read((db) =>
       currentReceptionPaths(db, botSlug, id, undefined, 'history'),
     );
-    if (routed && !paths.length) throw new MessagingError('source-unavailable');
-    if (!routed && grant(retained.grantId).botSlug !== botSlug)
+    const reception = database.read((db) => grantReception(db, id, botSlug));
+    const grantBacked = !!reception || !routed;
+    if (!grantBacked && !paths.length) throw new MessagingError('source-unavailable');
+    if (grantBacked && grant(retained.grantId).botSlug !== botSlug)
       throw new MessagingError('source-unavailable');
-    if (!routed && retained.localChannelId)
-      database.read((db) => bridgeChannel(db, retained.localChannelId!, botSlug));
+    if (grantBacked && retained.localChannelId)
+      database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, retained.localChannelId!, botSlug),
+      );
     const ownsContext = grant(retained.grantId).botSlug === botSlug;
     const { contextReads, ...sharedSource } = retained;
     const latest =
@@ -1281,7 +1384,8 @@ export function createInboundMessaging(options: {
       ...(contextMessages.length === 0 ? {} : { contextMessages }),
       ...sharedSource,
       ...(ownsContext && contextReads ? { contextReads } : {}),
-      ...(routed
+      ...(reception ? { reception } : {}),
+      ...(!grantBacked
         ? {
             receptionPaths: paths,
             ...(paths.find((path) => path.channelId)?.channelId
@@ -1313,7 +1417,7 @@ export function createInboundMessaging(options: {
         .all(id) as { channel_id: string }[];
       for (const placement of placements) {
         try {
-          const channel = bridgeChannel(db, placement.channel_id, botSlug);
+          const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, placement.channel_id, botSlug);
           if (channel.type === 'group') return channel.id;
         } catch (error) {
           if (!(error instanceof MessagingError)) throw error;
@@ -1327,7 +1431,12 @@ export function createInboundMessaging(options: {
         !(retained.platform === 'weixin' && retained.event.conversation.kind === 'dm'))
     )
       throw new MessagingError('source-unavailable');
-    const { contextReads: _reads, receptionPaths: _paths, ...shared } = retained;
+    const {
+      contextReads: _reads,
+      receptionPaths: _paths,
+      reception: _reception,
+      ...shared
+    } = retained;
     return { ...shared, body: row.body, localChannelId: channelId };
   };
   const controls = new Map<
@@ -1340,10 +1449,8 @@ export function createInboundMessaging(options: {
       dispose?: (() => void) | undefined;
     }
   >();
-  const controlRetries = new Map<string, ReturnType<typeof setTimeout>>();
   const stopControl = (id: string, reason = 'identity-reconciled') => {
-    clearTimeout(controlRetries.get(id));
-    controlRetries.delete(id);
+    controlRetries.clear(id);
     const value = controls.get(id);
     if (!value) return;
     value.controller.abort();
@@ -1398,7 +1505,7 @@ export function createInboundMessaging(options: {
         for (const ingest of current(db)) {
           let channel: ChannelRecord;
           try {
-            channel = humanBridgeChannel(db, ingest.channelId);
+            channel = humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, ingest.channelId);
           } catch (error) {
             if (!(error instanceof MessagingError)) throw error;
             continue;
@@ -1414,6 +1521,7 @@ export function createInboundMessaging(options: {
             .get(id) as { payload_json: string };
           const source = (JSON.parse(row.payload_json) as { external: ExternalSource }).external;
           const commit = placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
             db,
             { ...source, body: event.text, localChannelId: ingest.channelId },
             undefined,
@@ -1650,6 +1758,7 @@ export function createInboundMessaging(options: {
     if (!identity.enabled || identity.revokedAt || !options.isBotActive(identity.botSlug)) return;
     const entry = providers.get(identity.providerId);
     if (!entry?.consume || !entry.provider.reply || !entry.provider.inspectAccount) return;
+    if (controlRetries.state(id)) return;
     const prior = controls.get(id);
     if (prior?.token === entry.token) return prior.ready;
     stopControl(id, 'provider-replaced');
@@ -1662,6 +1771,7 @@ export function createInboundMessaging(options: {
       dispose: undefined as (() => void) | undefined,
     };
     controls.set(id, lease);
+    receptionChanged();
     lease.ready = (async () => {
       try {
         const account = await bounded(entry.provider.inspectAccount!(identity.accountRef));
@@ -1689,34 +1799,31 @@ export function createInboundMessaging(options: {
           }),
         );
         if (controller.signal.aborted || controls.get(id) !== lease) lease.dispose();
-        else
+        else {
+          receptionChanged();
+          retryBoundGrants(id);
           options.warn?.(
             JSON.stringify({
               event: 'bot-pairing',
               phase: 'receiver-ready',
               initiator: 'account-lifecycle',
               externalResource: 'checked-account-consumer',
+              botSlug: identity.botSlug,
+              bindingId: id,
               durationMs: Math.max(0, Math.round(performance.now() - lease.startedAt)),
             }),
           );
+        }
       } catch (error) {
         if (controls.get(id) !== lease) return;
         stopControl(id, 'receiver-acquisition-failed');
         const reason = error instanceof MessagingError ? error.code : 'consumer-unavailable';
-        const delay = [250, 1000, 3000][attempt];
-        if (
-          reason === 'provider-unavailable' &&
-          delay !== undefined &&
-          !closed &&
-          providers.get(identity.providerId) === entry
-        ) {
-          const timer = setTimeout(() => {
-            controlRetries.delete(id);
+        if (!closed && providers.get(identity.providerId) === entry) {
+          controlRetries.fail(id, entry.token, reason, attempt, () => {
             if (!closed && providers.get(identity.providerId) === entry)
               void startControl(id, attempt + 1);
-          }, delay);
-          timer.unref();
-          controlRetries.set(id, timer);
+          });
+          if (reason !== 'provider-unavailable') retryBoundGrants(id);
         }
         options.warn?.(
           JSON.stringify({
@@ -1727,11 +1834,23 @@ export function createInboundMessaging(options: {
             durationMs: Math.max(0, Math.round(performance.now() - lease.startedAt)),
             reason,
             retryAttempt: attempt,
+            recovery: controlRetries.state(id),
+            botSlug: identity.botSlug,
+            bindingId: id,
           }),
         );
       }
     })();
     return lease.ready;
+  };
+  const retryBoundGrants = (bindingId: string) => {
+    const rows = database.read((db) =>
+      db.prepare('SELECT id FROM messaging_grants WHERE binding_id = ?').all(bindingId),
+    );
+    for (const row of rows) {
+      const id = String(row.id);
+      if (retries.pending(id)) void start(grant(id));
+    }
   };
   const sendPairingNotice = async (
     request: PairingRequest,
@@ -1808,6 +1927,7 @@ export function createInboundMessaging(options: {
     event: MessagingInboundEvent,
     signal: AbortSignal,
   ) => {
+    if (await options.onQuestionText?.(provider.id, event, signal)) return true;
     if (!options.pairing || !chatPairingApplies(event) || provider.id !== `dsh-im/${event.channel}`)
       return false;
     signal.throwIfAborted();
@@ -2179,6 +2299,14 @@ export function createInboundMessaging(options: {
     },
     readShared,
     register(provider) {
+      const previous = providers.get(provider.id);
+      if (previous) {
+        for (const [id, control] of controls)
+          if (control.token === previous.token) stopControl(id, 'provider-replaced');
+        for (const [id, lease] of leases) if (lease.token === previous.token) stop(id);
+        retries.clearOwner(previous.token);
+        controlRetries.clearOwner(previous.token);
+      }
       const token = {};
       providers.set(provider.id, {
         provider,
@@ -2190,8 +2318,13 @@ export function createInboundMessaging(options: {
                 async (event, signal) =>
                   (await controlIntake(provider, event, signal)) ||
                   (await commandIntake(provider, event, signal)),
-                options.onApprovalAction
-                  ? (event, signal) => options.onApprovalAction!(provider.id, event, signal)
+                options.onApprovalAction || options.onQuestionAction
+                  ? (event, signal) =>
+                      event.action === 'answer'
+                        ? (options.onQuestionAction?.(provider.id, event, signal) ??
+                          Promise.resolve({ accepted: true as const, status: 'refused' as const }))
+                        : (options.onApprovalAction?.(provider.id, event, signal) ??
+                          Promise.resolve({ accepted: true as const, status: 'refused' as const }))
                   : undefined,
               ),
             }
@@ -2220,12 +2353,13 @@ export function createInboundMessaging(options: {
         for (const [id, control] of controls)
           if (control.token === token) stopControl(id, 'provider-disposed');
         for (const [id, lease] of leases) if (lease.token === token) stop(id);
-        for (const [id, retry] of retries) if (retry.token === token) stop(id);
+        retries.clearOwner(token);
+        controlRetries.clearOwner(token);
       };
     },
     ingests(channelId) {
       return database.read((db) => {
-        humanBridgeChannel(db, channelId);
+        humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId);
         const bindings = (
           db
             .prepare(
@@ -2289,7 +2423,7 @@ export function createInboundMessaging(options: {
     async ingest(channelId, input) {
       transaction(
         (db) => {
-          const channel = humanBridgeChannel(db, channelId);
+          const channel = humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId);
           if (channel.type !== 'group') throw new MessagingError('channel-unavailable');
           if (input.kind === 'add') {
             const identity = readMessagingIdentity(db, input.bindingId);
@@ -2368,7 +2502,9 @@ export function createInboundMessaging(options: {
         (input.collection !== 'all' || input.collectionInheritance === 'inherit')
       )
         throw new MessagingError('capability-unavailable');
-      const channel = database.read((db) => bridgeChannel(db, channelId, value.botSlug, true));
+      const channel = database.read((db) =>
+        bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, value.botSlug, true),
+      );
       const target = input.delivery === 'inbox' ? null : channelId;
       if (target === null && channel.type !== 'dm') throw new MessagingError('channel-unavailable');
       if (value.platform === 'qq' && target !== null && channel.type !== 'group')
@@ -2433,7 +2569,7 @@ export function createInboundMessaging(options: {
           const latest = grant(value.id);
           const currentRoutes = channelBridgeRoutes(latest);
           const current = currentRoutes.find((route) => route.id === configuration?.id);
-          bridgeChannel(db, channelId, latest.botSlug, true);
+          bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, latest.botSlug, true);
           if (
             latest.revision !== input.expectedGrantRevision ||
             (input.kind !== 'add' && (!current || current.revision !== input.expectedRevision)) ||
@@ -2642,7 +2778,10 @@ export function createInboundMessaging(options: {
           )
             throw new MessagingError('grant-unavailable');
           if (value.bridgeRoutes) throw new MessagingError('bridge-stale');
-          if (channelId !== null && bridgeChannel(db, channelId, botSlug, true).type !== 'group')
+          if (
+            channelId !== null &&
+            bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, botSlug, true).type !== 'group'
+          )
             throw new MessagingError('channel-unavailable');
           const { receiveTargetChannelId: _old, channelBridge: _bridge, ...rest } = value;
           const next: MessagingGrant = {
@@ -2887,6 +3026,12 @@ export function createInboundMessaging(options: {
     ordinaryDelivery(id) {
       return valid(grant(id)) && leases.get(id)?.ordinaryVerified ? 'verified' : 'unverified';
     },
+    recovery(id) {
+      return retries.state(id);
+    },
+    pairingRecovery(id) {
+      return controlRetries.state(id);
+    },
     status(id) {
       const value = grant(id);
       if (
@@ -2901,8 +3046,17 @@ export function createInboundMessaging(options: {
       if (valid(value)) return 'receiving';
       return lease && !lease.controller.signal.aborted ? 'connecting' : 'unavailable';
     },
-    pendingPaths(botSlug, now, context = false) {
-      return database.read((db) => pendingReceptionPaths(db, botSlug, now, valid, context));
+    pendingExternal(botSlug, now, context = false) {
+      return database.read((db) =>
+        pendingExternalReception(
+          db,
+          botSlug,
+          now,
+          valid,
+          (id) => service.available(botSlug, id),
+          context,
+        ),
+      );
     },
     endChannel(channelId) {
       transaction(
@@ -2939,6 +3093,7 @@ export function createInboundMessaging(options: {
               AND p.bot_slug = a.bot_slug AND p.channel_id = ?)`)
             .all(channelId)) {
             if (
+              grantReception(db, String(row.source_event_id), String(row.bot_slug)) ||
               currentReceptionPaths(
                 db,
                 String(row.bot_slug),
@@ -2995,7 +3150,7 @@ export function createInboundMessaging(options: {
           if (!service.available(botSlug, sourceEventId))
             throw new MessagingError('source-unavailable');
           if (source.localChannelId) throw new MessagingError('source-conflict');
-          const channel = bridgeChannel(db, channelId, botSlug);
+          const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId, botSlug);
           const prior = db
             .prepare(
               'SELECT channel_id, revision FROM channel_placements WHERE source_event_id = ?',
@@ -3010,7 +3165,12 @@ export function createInboundMessaging(options: {
               revision: prior.revision,
               alreadyShared: true,
             };
-          placement = placeBridgeSource(db, { ...source, localChannelId: channelId }, botSlug);
+          placement = placeBridgeSource(
+            OWNER_HUMAN_CONTEXT,
+            db,
+            { ...source, localChannelId: channelId },
+            botSlug,
+          );
           if (!placement) throw new MessagingError('source-conflict');
           admitted = admitBridgeMembers(
             db,
@@ -3369,9 +3529,10 @@ export function createInboundMessaging(options: {
     },
     close() {
       closed = true;
-      for (const id of new Set([...controls.keys(), ...controlRetries.keys()]))
-        stopControl(id, 'host-shutdown');
-      for (const id of new Set([...leases.keys(), ...retries.keys()])) stop(id);
+      for (const id of controls.keys()) stopControl(id, 'host-shutdown');
+      for (const id of leases.keys()) stop(id);
+      controlRetries.close();
+      retries.close();
       providers.clear();
     },
   };

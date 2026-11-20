@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
+import { cornerBadge } from '../design/tokens';
 import { badgeCount } from './badge-count';
 import type { CountBadgeTone } from './count-badge';
 
@@ -14,17 +15,25 @@ function useBadgeColors(tone: CountBadgeTone) {
   return tone === 'needs-you'
     ? {
         containerColor: theme.color.warning,
-        contentColor: theme.color[theme.scheme === 'dark' ? 'base' : 'fg'],
+        contentColor: theme.color.onWarning,
       }
     : tone === 'unread'
       ? { containerColor: roles.primary, contentColor: roles.onPrimary }
       : { containerColor: roles.surfaceContainerHighest, contentColor: roles.onSurfaceVariant };
 }
 
-export function MaterialCountBadge({ count, tone }: { count: number; tone: CountBadgeTone }) {
+export function MaterialCountBadge({
+  count,
+  tone,
+  fontSize,
+}: {
+  count: number;
+  tone: CountBadgeTone;
+  fontSize?: number;
+}) {
   return (
     <Badge {...useBadgeColors(tone)}>
-      <Text>{badgeCount(count)}</Text>
+      <Text {...(fontSize === undefined ? {} : { style: { fontSize } })}>{badgeCount(count)}</Text>
     </Badge>
   );
 }
@@ -36,10 +45,13 @@ export function MaterialDotBadge({ tone }: { tone: CountBadgeTone }) {
 export function CountBadge({
   count,
   tone,
+  compact = false,
 }: {
   count: number;
   tone: CountBadgeTone;
   label?: string;
+  compact?: boolean;
+  maxFontSizeMultiplier?: number | undefined;
 }) {
   const theme = useDesignTheme();
   return (
@@ -49,7 +61,18 @@ export function CountBadge({
       pointerEvents="none"
     >
       <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
-        <MaterialCountBadge count={count} tone={tone} />
+        <MaterialCountBadge
+          count={count}
+          tone={tone}
+          {...(compact
+            ? {
+                fontSize:
+                  (cornerBadge.materialLabel *
+                    Math.min(theme.fontScale, cornerBadge.maxTextScale)) /
+                  theme.fontScale,
+              }
+            : {})}
+        />
       </Host>
     </View>
   );

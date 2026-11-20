@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, memo, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
-import { createHostClient, type HostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { CONNECTION_OFFLINE_MS, CONNECTION_QUIET_MS } from '../src/ui/connection-presence';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,16 +16,16 @@ import {
 import { channelNavigationHarness } from './channel-navigation-harness';
 let channelHistory = channelNavigationHarness();
 const whoami = vi.fn(async (_id: string) => {});
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
-import { HOST_COLORS, type HostColorId } from '../src/ui/design/host-look';
+import { HOST_COLORS, type HostColorId } from '@botharness/host-client/ui/design/host-look';
 import { Platform } from 'react-native';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
-import type { RosterView } from '../src/host/client';
+import type { RosterView } from '@botharness/host-client/client';
 import { hostDrawer } from '../src/ui/shell/host-drawer';
 
 const { push, cloudState, directoryState, hostState, call, refresh, menus, rowProps } = vi.hoisted(
@@ -345,6 +346,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelIdleCallback', vi.fn());
 });
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
@@ -546,6 +548,7 @@ async function openingFixture() {
 
 describe('Search in the Chats header', () => {
   it('keeps actual Host connection progress at the selected identity through recovery', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const transport = new FakeHost();
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
@@ -572,6 +575,8 @@ describe('Search in the Chats header', () => {
     const view = await home();
     expect(client.getSnapshot().connection.status).toBe('connecting');
     const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => vi.advanceTimersByTime(CONNECTION_QUIET_MS));
     expect(identity().getAttribute('aria-label')).toContain(t.connecting);
     expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
@@ -584,6 +589,8 @@ describe('Search in the Chats header', () => {
     await act(async () => {
       transport.kill();
     });
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => vi.advanceTimersByTime(CONNECTION_QUIET_MS));
     expect(identity().getAttribute('aria-label')).toContain(t.reconnecting);
     expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
@@ -625,7 +632,69 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
   });
-  it('uses refresh copy only when the failed Computer still has a loaded list', async () => {
+  it('waits for the quick automatic retry before reporting a first failed load', async () => {
+    const transport = new FakeHost();
+    transport.kill();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: (attempt) => (attempt === 1 ? 1_500 : 60_000),
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    const view = await home();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    expect(view.querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => {
+      await vi.waitFor(
+        () =>
+          expect(client.getSnapshot().connection).toMatchObject({
+            status: 'unreachable',
+            attempt: 2,
+          }),
+        { timeout: 3_000 },
+      );
+    });
+    expect(view.textContent).toContain(t.hostListLoadFailed);
+  });
+  it.each(['list', 'channels', 'rosterGet', 'settings/describe'])(
+    'diagnoses initial %s transport failure without treating the generic Chats error as a root cause',
+    async (method) => {
+      const transport = new FakeHost();
+      transport.failing.add(method);
+      const route = 'https://studio.tailnet-example.ts.net';
+      const client = createHostClient({
+        routes: [route],
+        credential: transport.credential,
+        carrier: transport.carrier,
+        backoff: () => 60_000,
+      });
+      hostState.live = client;
+      client.start();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+      expect(client.getSnapshot().roster).toBeUndefined();
+      expect(transport.calls.map((request) => request.method)).toContain(method);
+      const view = await home();
+      await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+      expect(view.textContent).toContain(t.hostListLoadFailed);
+      expect(view.textContent).not.toContain(t.hostListUnavailable);
+      expect(view.textContent).not.toContain(t.cloudChannels.empty);
+      transport.failing.delete(method);
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[data-testid="chat-list-retry"]')!.click(),
+      );
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+      expect(client.getSnapshot().connection.route).toBe(route);
+      expect(client.getSnapshot().roster?.bots.length).toBeGreaterThan(0);
+      expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    },
+  );
+  it('keeps a dropped Computer list quiet, then shows it offline once the drop lasts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const transport = new FakeHost();
     const client = createHostClient({
       routes: ['https://studio.tailnet-example.ts.net'],
@@ -645,7 +714,12 @@ describe('Search in the Chats header', () => {
       await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
     });
     expect(client.getSnapshot().roster).toEqual(loadedRoster);
-    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.querySelector('[data-testid="home-status-chip"]')).toBeNull();
+    expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
+    await act(async () => vi.advanceTimersByTime(CONNECTION_OFFLINE_MS));
+    expect(view.querySelector('[data-testid="home-status-chip"]')?.textContent).toContain(
+      t.hostListOffline,
+    );
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
     expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
   });
@@ -1016,6 +1090,21 @@ describe('Search in the Chats header', () => {
     });
   });
 
+  it('does not send a pending message search after leaving Home', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'launch');
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+      await act(async () => root?.unmount());
+      root = undefined;
+      await act(async () => vi.advanceTimersByTimeAsync(150));
+      expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lists matching messages under the Chats and opens the conversation at that message', async () => {
     vi.useFakeTimers();
     try {
@@ -1058,6 +1147,19 @@ describe('Search in the Chats header', () => {
     await type(view, ' zed ');
     expect(rows(view)).toEqual([]);
     expect(view.textContent).toContain(t.searchNoMatch('zed'));
+  });
+  it('drops a pending message search when the screen goes away', async () => {
+    vi.useFakeTimers();
+    try {
+      const view = await home();
+      await type(view, 'zed');
+      act(() => root?.unmount());
+      root = undefined;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(call).not.toHaveBeenCalledWith('messageSearch', expect.anything());
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('wraps the list in the last-chat swipe, off while searching', async () => {
     const view = await home();

@@ -1,6 +1,7 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import {
   PersonaBotFacepile,
@@ -77,7 +78,7 @@ const styles = stylex.create({
 export function ChannelMenuCaret({ attention }: { readonly attention: boolean }): ReactElement {
   return (
     <span aria-hidden="true" data-channel-menu-caret="" {...stylex.props(styles.caret)}>
-      <IconChevronDownOutlineRegular size={14} />
+      <Icon name="chevron-down" size={14} />
       {attention ? (
         <span {...stylex.props(styles.caretDot)}>
           <ChannelAttentionDot />

@@ -1,4 +1,8 @@
-import { lstatSync, realpathSync } from 'node:fs';
+import { z } from 'zod';
+import { setImmediate } from 'node:timers/promises';
+import type { Context } from '@deepseek-ai/cordis';
+import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import type { Session } from '@deepseek-ai/dsh-session';
@@ -9,6 +13,7 @@ type GrantCore = Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'regi
 type AccessKind = 'read' | 'write';
 
 export const NATIVE_FILE_TOOL_NAMES = new Set([
+  'apply_patch',
   'read',
   'read_image',
   'write',
@@ -25,22 +30,36 @@ function within(root: string, target: string): boolean {
   return tail === '' || (tail !== '..' && !tail.startsWith('..' + sep) && !isAbsolute(tail));
 }
 
+function missingEntry(path: string): boolean {
+  try {
+    lstatSync(path);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+}
+
 function canonicalTarget(path: string): string | undefined {
   try {
     return realpathSync(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
+  }
+  const missing: string[] = [];
+  let current = path;
+  while (true) {
+    if (!missingEntry(current)) return undefined;
+    missing.unshift(basename(current));
+    const parent = dirname(current);
+    if (parent === current) return undefined;
     try {
-      lstatSync(path);
-      return undefined;
-    } catch (leafError) {
-      if ((leafError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
+      const real = realpathSync(parent);
+      if (!statSync(real).isDirectory()) return undefined;
+      return join(real, ...missing);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
     }
-    try {
-      return join(realpathSync(dirname(path)), basename(path));
-    } catch {
-      return undefined;
-    }
+    current = parent;
   }
 }
 
@@ -55,7 +74,16 @@ function canonicalRoot(root: string): string | undefined {
 }
 
 export function currentRoots(core: GrantCore, session: Session, kind: AccessKind): string[] {
-  let owner = core.ownership.resolve(session.id);
+  return sessionRoots(core, session.id, kind, session.header.cwd);
+}
+
+export function sessionRoots(
+  core: GrantCore,
+  sessionId: string,
+  kind: AccessKind,
+  cwd: string | undefined,
+): string[] {
+  let owner = core.ownership.resolve(sessionId);
   if (owner === undefined) return [];
   const seen = new Set<string>();
   while (owner.parentSessionId !== undefined) {
@@ -85,7 +113,7 @@ export function currentRoots(core: GrantCore, session: Session, kind: AccessKind
   }
   if (owner.rootRole !== 'assignment') return [];
   const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
-  if (permission === undefined || permission.primaryCwd !== session.header.cwd) return [];
+  if (permission === undefined || (cwd !== undefined && permission.primaryCwd !== cwd)) return [];
   try {
     const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
     return (kind === 'read' || grant.orchestratorWrite === true) &&
@@ -96,6 +124,49 @@ export function currentRoots(core: GrantCore, session: Session, kind: AccessKind
   } catch {
     return [];
   }
+}
+
+const OUTSIDE_WORKSPACE = "Path is outside this Session's authorized workspace";
+const READ_ONLY_WORKSPACE =
+  'This Workspace Grant is read-only: the Human has not allowed this Bot to write in this folder. Do not write it another way.';
+const READ_ONLY_NEXT_STEP = {
+  orchestrator:
+    ' Call request_workspace_grant with a short reason so the Human can allow writing in this folder, then end your turn.',
+  assignment:
+    ' Stop and report that this work needs write access to this folder, so your Orchestrator can ask the Human for it.',
+};
+
+function rootRole(core: GrantCore, sessionId: string): string | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  const seen = new Set<string>();
+  while (owner?.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    owner = core.ownership.resolve(owner.parentSessionId);
+  }
+  return owner?.rootRole;
+}
+
+function insideAnyRoot(roots: readonly string[], target: string): boolean {
+  return roots.some((root) => {
+    const canonical = canonicalRoot(root);
+    return canonical !== undefined && within(canonical, target);
+  });
+}
+
+function outsideDenial(
+  core: GrantCore,
+  session: Session,
+  kind: AccessKind,
+  target: string,
+): string {
+  if (kind !== 'write' || !insideAnyRoot(currentRoots(core, session, 'read'), target))
+    return OUTSIDE_WORKSPACE;
+  const role = rootRole(core, session.id);
+  return (
+    READ_ONLY_WORKSPACE +
+    (role === 'orchestrator' || role === 'assignment' ? READ_ONLY_NEXT_STEP[role] : '')
+  );
 }
 
 function nativePath(name: string, args: unknown): { path: string; kind: AccessKind } | undefined {
@@ -119,29 +190,180 @@ function nativePath(name: string, args: unknown): { path: string; kind: AccessKi
   return { path, kind: name === 'write' || name === 'edit' ? 'write' : 'read' };
 }
 
+function nativePaths(name: string, args: unknown): { path: string; kind: AccessKind }[] {
+  if (name !== 'apply_patch') {
+    const request = nativePath(name, args);
+    return request ? [request] : [];
+  }
+  if (
+    typeof args !== 'object' ||
+    args === null ||
+    !('input' in args) ||
+    typeof args.input !== 'string'
+  )
+    return [];
+  return [
+    ...args.input.matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gmu),
+  ].map((match) => ({ path: match[1]!, kind: 'write' }));
+}
+
+function validateSpacePath(core: GrantCore, session: Session, path: string): string | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (!owner || !core.grants.validatePath) return undefined;
+  try {
+    core.grants.validatePath?.(owner.botSlug, path);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'grant-protected-path';
+  }
+}
+
+function originalAttachmentRoot(
+  core: GrantCore,
+  session: Session,
+  path: string,
+  kind: AccessKind,
+  shell = false,
+): string | undefined {
+  if (core.ownership.resolve(session.id)?.rootRole !== 'orchestrator') return undefined;
+  try {
+    const stat = statSync(path);
+    if (stat.isFile() && stat.nlink !== 1) return undefined;
+  } catch {}
+  return core.runtime.originalAttachmentRoot?.(session.id, path, kind, shell);
+}
+
+export function nativeFileSpaceDenial(
+  core: GrantCore,
+  session: Session,
+  name: string,
+  args: unknown,
+): string | undefined {
+  try {
+    return nativeFileSpaceDenialImpl(core, session, name, args);
+  } catch (error) {
+    return error instanceof Error ? error.message : 'grant-protected-path';
+  }
+}
+
+function nativeFileSpaceDenialImpl(
+  core: GrantCore,
+  session: Session,
+  name: string,
+  args: unknown,
+): string | undefined {
+  if (!core.grants.validatePath) return undefined;
+  const requests = nativePaths(name, args);
+  if (!requests.length || session.header.cwd === undefined) return 'grant-protected-path';
+  for (const request of requests) {
+    const path = isAbsolute(request.path) ? request.path : session.header.cwd + sep + request.path;
+    const target = canonicalTarget(path);
+    if (target === undefined)
+      return validateSpacePath(core, session, path) ?? 'grant-protected-path';
+    if (originalAttachmentRoot(core, session, target, request.kind) !== undefined) continue;
+    const denial = validateSpacePath(core, session, path);
+    if (denial) return denial;
+  }
+  return undefined;
+}
+
 export function nativeFileToolDenial(
   core: GrantCore,
   session: Session,
   name: string,
   args: unknown,
 ): string | undefined {
-  const request = nativePath(name, args);
-  if (request === undefined) return 'BotHarness Session requires a valid native file path';
+  try {
+    return nativeFileToolDenialImpl(core, session, name, args);
+  } catch (error) {
+    return error instanceof Error ? error.message : 'grant-protected-path';
+  }
+}
+
+function nativeFileToolDenialImpl(
+  core: GrantCore,
+  session: Session,
+  name: string,
+  args: unknown,
+): string | undefined {
+  const requests = nativePaths(name, args);
+  if (!requests.length) return 'BotHarness Session requires a valid native file path';
   const cwd = session.header.cwd;
   if (cwd === undefined) return 'BotHarness Session working directory is unavailable';
-  const target = canonicalTarget(resolve(cwd, request.path));
-  if (target === undefined) return 'BotHarness Session file path cannot be resolved';
-  if (
-    core.ownership.resolve(session.id)?.rootRole === 'orchestrator' &&
-    core.runtime.originalAttachmentRoot?.(session.id, target, request.kind) !== undefined
-  )
-    return undefined;
-  const roots = currentRoots(core, session, request.kind);
-  for (const root of roots) {
-    const canonical = canonicalRoot(root);
-    if (canonical !== undefined && within(canonical, target)) return undefined;
+  for (const request of requests) {
+    const path = isAbsolute(request.path) ? request.path : cwd + sep + request.path;
+    const target = canonicalTarget(path);
+    if (target === undefined)
+      return (
+        validateSpacePath(core, session, path) ?? 'BotHarness Session file path cannot be resolved'
+      );
+    if (originalAttachmentRoot(core, session, target, request.kind) !== undefined) continue;
+    const spaceDenial = validateSpacePath(core, session, path);
+    if (spaceDenial) return spaceDenial;
+    if (!insideAnyRoot(currentRoots(core, session, request.kind), target))
+      return outsideDenial(core, session, request.kind, target);
   }
-  return "Path is outside this Session's authorized workspace";
+  return undefined;
+}
+
+export function installNativeSearchResultGuard(
+  ctx: Context,
+  core: GrantCore,
+  fullAccess: (session: Session) => boolean,
+): () => void {
+  return ctx.on(
+    'tools/execute',
+    async (execution, next) => {
+      const session = execution.agent?.session;
+      if (
+        !session ||
+        !core.ownership.resolve(session.id) ||
+        (execution.name !== 'glob' && execution.name !== 'grep')
+      )
+        return next();
+      const result = await next();
+      await assertNativeSearchResult(
+        core,
+        session,
+        execution.name,
+        result,
+        execution.signal,
+        fullAccess(session),
+      );
+      return result;
+    },
+    { global: true },
+  );
+}
+
+export async function assertNativeSearchResult(
+  core: GrantCore,
+  session: Session,
+  name: string,
+  result: ToolExecutionResult,
+  signal: AbortSignal,
+  fullAccess = false,
+): Promise<void> {
+  if (result.isError || (name !== 'glob' && name !== 'grep')) return;
+  const paths =
+    name === 'glob'
+      ? z.object({ paths: z.array(z.string()) }).parse(result.value).paths
+      : z
+          .object({ matches: z.array(z.object({ path: z.string() })) })
+          .parse(result.value)
+          .matches.map((match) => match.path);
+  let visited = 0;
+  for (const path of new Set(paths)) {
+    signal.throwIfAborted();
+    if (visited++ % 64 === 0) await setImmediate(undefined, { signal });
+    const denial = (fullAccess ? nativeFileSpaceDenial : nativeFileToolDenial)(
+      core,
+      session,
+      'read',
+      { file_path: path },
+    );
+    if (denial) throw new Error(denial);
+  }
 }
 
 export function nativeExecutionRoot(
@@ -154,26 +376,41 @@ export function nativeExecutionRoot(
   const shell = NATIVE_SHELL_TOOL_NAMES.has(name);
   const request = shell
     ? { path: typeof input.workdir === 'string' ? input.workdir : '.', kind: 'write' as const }
-    : nativePath(name, args);
+    : nativePaths(name, args)[0];
   if (request === undefined || session.header.cwd === undefined)
     throw new Error('BotHarness requires an authorized execution path');
   const target = canonicalTarget(resolve(session.header.cwd, request.path));
   if (target !== undefined) {
-    if (core.ownership.resolve(session.id)?.rootRole === 'orchestrator') {
-      const original = core.runtime.originalAttachmentRoot?.(
-        session.id,
-        target,
-        request.kind,
-        shell,
-      );
-      if (original !== undefined) return original;
+    if (!shell) {
+      const denial = nativeFileToolDenial(core, session, name, args);
+      if (denial) throw new Error(denial);
     }
+    const original = originalAttachmentRoot(core, session, target, request.kind, shell);
+    if (original !== undefined) return original;
+  }
+  const spacePathDenial = validateSpacePath(
+    core,
+    session,
+    resolve(session.header.cwd, request.path),
+  );
+  if (spacePathDenial) throw new Error(spacePathDenial);
+  if (target !== undefined) {
     for (const root of currentRoots(core, session, request.kind)) {
       const canonical = canonicalRoot(root);
-      if (canonical !== undefined && within(canonical, target)) return root;
+      if (
+        canonical !== undefined &&
+        within(canonical, target) &&
+        (shell ||
+          nativePaths(name, args).every((entry) => {
+            const path = canonicalTarget(resolve(session.header.cwd!, entry.path));
+            return path !== undefined && within(canonical, path);
+          }))
+      )
+        return root;
     }
+    throw new Error(outsideDenial(core, session, request.kind, target));
   }
-  throw new Error("Path is outside this Session's authorized workspace");
+  throw new Error(OUTSIDE_WORKSPACE);
 }
 
 export function authorizedPathRoot(roots: readonly string[], path: string): string | undefined {

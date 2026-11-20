@@ -10,7 +10,6 @@ import {
 import type { PromptLimits } from './prompt-limits.js';
 import {
   promptLimitValues,
-  promptPartTexts,
   resolvePromptLimits,
   resolvePromptParts,
   type ResolvedPromptLimit,
@@ -34,7 +33,7 @@ function parseTexts(body: string | undefined): PromptPartTexts | undefined {
   try {
     const value = JSON.parse(body) as unknown;
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
-    const texts: PromptPartTexts = {};
+    const texts: PromptPartTexts = { 'skill-installation': '' };
     for (const [id, text] of Object.entries(value))
       if (isPromptPartId(id) && typeof text === 'string') texts[id] = text;
     return texts;
@@ -70,7 +69,11 @@ export function createPromptSettings(options: {
       bot: bot?.promptLimits,
     });
   };
-  const currentTexts = (botSlug: string) => promptPartTexts(resolved(botSlug));
+  const currentTexts = (botSlug: string): PromptPartTexts => {
+    const texts: PromptPartTexts = {};
+    for (const part of resolved(botSlug)) texts[part.id] = part.text;
+    return texts;
+  };
   const snapshotTexts = (sessionId: string) => parseTexts(ownership.promptSnapshot(sessionId));
   return {
     library,

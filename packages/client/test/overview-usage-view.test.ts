@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { type OverviewUsage } from '../../core/src/bridge/methods.js';
 import { botNameColor } from '../src/client/bot-primary-color.js';
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('../src/client/model-usage-charts.js', () => ({
@@ -20,23 +21,15 @@ vi.mock('../src/client/model-usage-charts.js', () => ({
   UsageToneLegend: () => createElement('div', { 'data-tone-legend': '' }),
   UsageMeasures: () => null,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconRefreshOutlineRegular: () => createElement('svg'),
-  IconRightUpOutlineRegular: () => createElement('svg'),
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-    createElement('button', props, children as ReactNode),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { OverviewUsageView } from '../src/client/overview-usage-view.js';
 import { createActions } from '../src/client/actions.js';
 import { createStore } from '../src/client/store.js';
 import { loadOverviewUsage, type BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { OverviewUsage } from '../../core/src/bridge/methods.js';
+
 import {
   usageOverviewPeriodDays,
   type UsageOverviewPeriod,
@@ -222,7 +215,7 @@ it('marks a total that leaves out unreported usage as a lower bound', async () =
       async () => ({ ok: true, value: { ...value, totals: { ...value.totals, partial: 'yes' } } }),
       'today',
     ),
-  ).rejects.toThrow('invalid Overview usage');
+  ).rejects.toThrow('overviewUsage returned an unreadable usage overview.');
 });
 
 it('preserves unknown totals and rejects malformed usage instead of reporting zero', async () => {
@@ -232,7 +225,9 @@ it('preserves unknown totals and rejects malformed usage instead of reporting ze
   const call: BridgeCall = async () => ({ ok: true, value });
   expect((await loadOverviewUsage(call, 'today')).totals.totalTokens).toBeNull();
   value.totals.totalTokens = -1;
-  await expect(loadOverviewUsage(call, 'today')).rejects.toThrow('invalid Overview usage');
+  await expect(loadOverviewUsage(call, 'today')).rejects.toThrow(
+    'overviewUsage returned an unreadable usage overview.',
+  );
 });
 it('accepts 28 and 84 day ranges only when the day list matches the period', async () => {
   for (const period of ['month', 'quarter'] as const) {
@@ -242,7 +237,9 @@ it('accepts 28 and 84 day ranges only when the day list matches the period', asy
     );
   }
   const short: BridgeCall = async () => ({ ok: true, value: result('quarter', 155, 28) });
-  await expect(loadOverviewUsage(short, 'quarter')).rejects.toThrow('invalid Overview usage');
+  await expect(loadOverviewUsage(short, 'quarter')).rejects.toThrow(
+    'overviewUsage returned an unreadable usage overview.',
+  );
 });
 it('keeps all expanded Bot pages fresh during polling and manual refresh', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

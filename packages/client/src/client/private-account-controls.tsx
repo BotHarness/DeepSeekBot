@@ -1,10 +1,9 @@
+import { observeHostResource } from './messaging-defaults-live.js';
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
 import { useMessageHost } from './message-host.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  Button,
-  IconRefreshOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store } from './store.js';
@@ -41,27 +40,30 @@ export function PrivateAccountControls({
     setBusy(false);
     setError(false);
     setResult(undefined);
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = () => {
-      void actions.privateAccountStatus?.(channelId, messageId).then(
-        (value) => {
-          if (!current.active || current.terminal) return;
+    const stop = observeHostResource(
+      'private-inputs',
+      async () => {
+        if (current.terminal) return;
+        try {
+          const value = await actions.privateAccountStatus?.(channelId, messageId);
+          if (!current.active || current.terminal || value === undefined) return;
           setStatus(value.status);
           setError(false);
-          if (value.status !== 'configured') current.terminal = true;
-          if (value.status === 'configured') timer = setTimeout(poll, 2500);
-        },
-        () => {
+          if (value.status !== 'configured') {
+            current.terminal = true;
+            stop();
+          }
+        } catch {
           if (current.active && !current.terminal) setError(true);
-        },
-      );
-    };
-    poll();
+        }
+      },
+      host?.client,
+    );
     return () => {
       current.active = false;
-      clearTimeout(timer);
+      stop();
     };
-  }, [actions, channelId, messageId]);
+  }, [actions, channelId, host?.client, messageId]);
   const change = async (action: 'replace' | 'revoke') => {
     const current = lease.current;
     if (
@@ -112,7 +114,7 @@ export function PrivateAccountControls({
             type="button"
             variant="primary"
             size="sm"
-            icon={<IconRefreshOutlineRegular size={14} />}
+            icon={<Icon name="refresh-cw" size={14} />}
             disabled={busy}
             onClick={() => void change('replace')}
           >
@@ -122,7 +124,7 @@ export function PrivateAccountControls({
             type="button"
             variant="primary"
             size="sm"
-            icon={<IconCloseOutlineRegular size={14} />}
+            icon={<Icon name="x" size={14} />}
             disabled={busy}
             onClick={() => void change('revoke')}
           >

@@ -18,9 +18,9 @@ vi.mock('../src/ui/shell/icons', async () => ({
   ChevronRightIcon: () => null,
 }));
 
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { shiftDay } from '../src/host/usage-days';
-import type { ProfileActivity } from '../src/host/wire';
+import type { ProfileActivity } from '@botharness/host-protocol/wire';
 import { ActivityDetailView, type ActivityQuery } from '../src/ui/chat/activity-detail';
 import { heatLevel, heatWeeks } from '../src/ui/primitives/day-heat';
 import { chartSummary, peakBar } from '../src/ui/primitives/day-bars';

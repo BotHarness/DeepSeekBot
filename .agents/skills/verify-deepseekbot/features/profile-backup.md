@@ -1,5 +1,21 @@
 # Complete environment backup across versions
 
+## Sources
+
+- `packages/core/src/portability/**`
+- `packages/core/src/bots/cli-profile-backup.ts`
+- `packages/core/src/*/backup.ts`
+- `packages/core/src/*/profile-restore.ts`
+- `packages/client/src/client/profile-backup.tsx`
+- `scripts/profile-restore.mjs`
+
+## Terms
+
+- Profile Backup
+- Managed Restore
+- Backup Barrier
+- Disaster Restore
+
 ## Sub-features
 
 - Preview and download a Profile Backup on a compatible Host without an exact DSH release gate.

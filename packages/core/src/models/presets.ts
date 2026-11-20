@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
+import { isEngineId, type EngineChoice, type EngineId } from '../engines/engine-session.js';
 
 export interface ModelRoute {
   provider: string;
@@ -20,14 +21,197 @@ export interface AssignmentModelOption {
 
 export const ASSIGNMENT_MODEL_NOTE_MAX = 500;
 
-export interface ModelPreset {
+export interface AssignmentGroupOption {
+  group: string;
+  allowedEfforts?: string[];
+  defaultEffort?: string;
+  note?: string;
+}
+
+export interface ModelPresetEngine extends EngineChoice {
+  engine: EngineId;
+}
+
+export interface ModelPresetEngines {
+  orchestratorEngine?: ModelPresetEngine;
+  assignmentEngine?: ModelPresetEngine;
+}
+
+export interface ModelPresetEngineInput {
+  orchestratorEngine?: ModelPresetEngine | null;
+  assignmentEngine?: ModelPresetEngine | null;
+}
+
+export function isModelPresetEngine(value: unknown): value is ModelPresetEngine {
+  if (typeof value !== 'object' || value === null) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    isEngineId(row['engine']) &&
+    [row['model'], row['effort']].every(
+      (entry) => entry === undefined || (typeof entry === 'string' && entry.trim() !== ''),
+    )
+  );
+}
+
+export function hasPresetEngines(preset: ModelPresetEngines): boolean {
+  return preset.orchestratorEngine !== undefined || preset.assignmentEngine !== undefined;
+}
+
+function presetEngines(
+  input: ModelPresetEngineInput,
+  current: ModelPresetEngines = {},
+): ModelPresetEngines {
+  const clean = (choice: ModelPresetEngine): ModelPresetEngine => {
+    if (!isModelPresetEngine(choice)) throw new Error('Invalid Model Preset Subscription Engine');
+    const { engine, model, effort } = choice;
+    return {
+      engine,
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+    };
+  };
+  const orchestrator =
+    input.orchestratorEngine === undefined ? current.orchestratorEngine : input.orchestratorEngine;
+  const assignment =
+    input.assignmentEngine === undefined ? current.assignmentEngine : input.assignmentEngine;
+  return {
+    ...(orchestrator == null ? {} : { orchestratorEngine: clean(orchestrator) }),
+    ...(assignment == null ? {} : { assignmentEngine: clean(assignment) }),
+  };
+}
+
+export interface ModelPreset extends ModelPresetEngines {
   id: string;
   name: string;
   revision: number;
   orchestrator: ModelRoute;
   assignmentDefault: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
+  openAssignmentModels?: true;
+  orchestratorGroupId?: string;
+  orchestratorGroupEffort?: string;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
   createdAt: string;
+}
+
+export interface ModelPresetGroups {
+  orchestratorGroupId?: string;
+  orchestratorGroupEffort?: string;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
+}
+
+export function presetGroups(source: ModelPresetGroups): ModelPresetGroups {
+  return {
+    ...(source.orchestratorGroupId === undefined
+      ? {}
+      : { orchestratorGroupId: source.orchestratorGroupId }),
+    ...(source.orchestratorGroupId === undefined ||
+    source.orchestratorGroupEffort === undefined ||
+    source.orchestratorGroupEffort.trim() === ''
+      ? {}
+      : { orchestratorGroupEffort: source.orchestratorGroupEffort.trim() }),
+    ...(source.assignmentGroups === undefined || source.assignmentGroups.length === 0
+      ? {}
+      : { assignmentGroups: [...source.assignmentGroups] }),
+    ...(source.assignmentDefaultGroupId === undefined ||
+    source.assignmentGroups === undefined ||
+    source.assignmentGroups.length === 0
+      ? {}
+      : { assignmentDefaultGroupId: source.assignmentDefaultGroupId }),
+    ...groupOptionsWithin(source.assignmentGroups, source.assignmentGroupOptions),
+  };
+}
+
+function groupOptionsWithin(
+  groups: string[] | undefined,
+  options: AssignmentGroupOption[] | undefined,
+): { assignmentGroupOptions?: AssignmentGroupOption[] } {
+  const kept = (options ?? []).filter((option) => (groups ?? []).includes(option.group));
+  return kept.length === 0
+    ? {}
+    : { assignmentGroupOptions: kept.map((option) => assignmentGroupOption(option)) };
+}
+
+function assignmentGroupOption(option: AssignmentGroupOption): AssignmentGroupOption {
+  return {
+    group: option.group,
+    ...(option.allowedEfforts === undefined
+      ? {}
+      : { allowedEfforts: [...option.allowedEfforts], defaultEffort: option.defaultEffort! }),
+    ...(option.note === undefined ? {} : { note: option.note }),
+  };
+}
+
+export function isAssignmentGroupOption(value: unknown): value is AssignmentGroupOption {
+  if (typeof value !== 'object' || value === null) return false;
+  const option = value as Record<string, unknown>;
+  const efforts = option['allowedEfforts'];
+  const note = option['note'];
+  return (
+    typeof option['group'] === 'string' &&
+    option['group'].trim().length > 0 &&
+    (efforts === undefined
+      ? option['defaultEffort'] === undefined
+      : Array.isArray(efforts) &&
+        efforts.length > 0 &&
+        efforts.length <= 16 &&
+        efforts.every((effort) => typeof effort === 'string' && effort.trim().length > 0) &&
+        new Set(efforts).size === efforts.length &&
+        typeof option['defaultEffort'] === 'string' &&
+        efforts.includes(option['defaultEffort'])) &&
+    (note === undefined ||
+      (typeof note === 'string' &&
+        note.trim().length > 0 &&
+        note.length <= ASSIGNMENT_MODEL_NOTE_MAX)) &&
+    (efforts !== undefined || note !== undefined)
+  );
+}
+
+function isAssignmentGroupOptions(value: unknown, groups: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || !Array.isArray(groups) || value.length === 0) return false;
+  const ids = value.map((option) => (option as Record<string, unknown> | null)?.['group']);
+  return (
+    value.every(isAssignmentGroupOption) &&
+    new Set(ids).size === ids.length &&
+    ids.every((id) => groups.includes(id))
+  );
+}
+
+export function assignmentGroupOptionOf(
+  plan: Pick<PersonaBotModelPlan, 'assignmentGroupOptions'> | undefined,
+  groupId: string,
+): AssignmentGroupOption | undefined {
+  return plan?.assignmentGroupOptions?.find((option) => option.group === groupId);
+}
+
+export function hasPresetGroups(source: ModelPresetGroups): boolean {
+  return source.orchestratorGroupId !== undefined || (source.assignmentGroups?.length ?? 0) > 0;
+}
+
+function isGroupEffort(value: Record<string, unknown>): boolean {
+  const effort = value['orchestratorGroupEffort'];
+  return (
+    effort === undefined ||
+    (typeof effort === 'string' &&
+      effort.trim().length > 0 &&
+      typeof value['orchestratorGroupId'] === 'string')
+  );
+}
+
+export function isModelPresetGroups(value: Record<string, unknown>): boolean {
+  return (
+    (value['orchestratorGroupId'] === undefined ||
+      (typeof value['orchestratorGroupId'] === 'string' &&
+        value['orchestratorGroupId'].trim().length > 0)) &&
+    isGroupEffort(value) &&
+    isAssignmentGroups(value['assignmentGroups'], value['assignmentDefaultGroupId']) &&
+    isAssignmentGroupOptions(value['assignmentGroupOptions'], value['assignmentGroups'])
+  );
 }
 
 export interface PersonaBotModelPlan {
@@ -35,9 +219,48 @@ export interface PersonaBotModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
+  orchestratorGroupId?: string;
+  orchestratorGroupEffort?: string;
   assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
+  openAssignmentModels?: true;
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
   appliedAt: string;
+}
+
+export interface AssignmentGroupChoice {
+  group: string;
+}
+
+export function isAssignmentGroupChoice(value: unknown): value is AssignmentGroupChoice {
+  if (typeof value !== 'object' || value === null) return false;
+  const group = (value as Record<string, unknown>)['group'];
+  return typeof group === 'string' && group.trim().length > 0;
+}
+
+export function selectAssignmentGroup(
+  plan: PersonaBotModelPlan,
+  requested?: ModelRoute | AssignmentGroupChoice,
+): string | undefined {
+  if (requested === undefined) return plan.assignmentDefaultGroupId;
+  if (!isAssignmentGroupChoice(requested)) return undefined;
+  const id = requested.group.trim();
+  if (!(plan.assignmentGroups ?? []).includes(id))
+    throw new Error(`Assignment Routing Group ${id} is not allowed`);
+  return id;
+}
+
+function isAssignmentGroups(groups: unknown, defaultId: unknown): boolean {
+  if (groups === undefined) return defaultId === undefined;
+  return (
+    Array.isArray(groups) &&
+    groups.length > 0 &&
+    groups.every((id) => typeof id === 'string' && id.trim().length > 0) &&
+    new Set(groups).size === groups.length &&
+    (defaultId === undefined || (typeof defaultId === 'string' && groups.includes(defaultId)))
+  );
 }
 
 export interface ModelPresetStore {
@@ -48,6 +271,9 @@ export interface ModelPresetStore {
     orchestrator: ModelRoute;
     assignmentDefault: ModelRoute;
     assignmentModels?: AssignmentModelOption[];
+    openAssignmentModels?: boolean;
+    groups?: ModelPresetGroups;
+    engines?: ModelPresetEngineInput;
   }): ModelPreset;
   update(
     id: string,
@@ -57,6 +283,9 @@ export interface ModelPresetStore {
       orchestrator: ModelRoute;
       assignmentDefault: ModelRoute;
       assignmentModels?: AssignmentModelOption[];
+      openAssignmentModels?: boolean;
+      groups?: ModelPresetGroups;
+      engines?: ModelPresetEngineInput;
     },
   ): ModelPreset | undefined;
 }
@@ -148,6 +377,15 @@ export function validateAssignmentModels(
     throw new Error('Assignment default must match one model and its default effort');
 }
 
+export function isListedAssignmentRoute(
+  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels'>,
+  route: Pick<ModelRoute, 'provider' | 'model'>,
+): boolean {
+  return assignmentModelsOf(plan).some(
+    (option) => option.provider === route.provider && option.model === route.model,
+  );
+}
+
 export function selectAssignmentRoute(plan: PersonaBotModelPlan, requested: ModelRoute): ModelRoute;
 export function selectAssignmentRoute(
   plan: PersonaBotModelPlan,
@@ -162,6 +400,14 @@ export function selectAssignmentRoute(
   const option = assignmentModelsOf(plan).find(
     (candidate) => candidate.provider === requested.provider && candidate.model === requested.model,
   );
+  if (option === undefined && plan.openAssignmentModels === true && plan.assignmentDefault)
+    return {
+      provider: requested.provider,
+      model: requested.model,
+      ...(requested.reasoningEffort === undefined || requested.reasoningEffort === ''
+        ? {}
+        : { reasoningEffort: requested.reasoningEffort }),
+    };
   if (option === undefined)
     throw new Error(`Assignment model ${requested.provider}/${requested.model} is not allowed`);
   const effort = requested.reasoningEffort ?? option.defaultEffort;
@@ -186,6 +432,15 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['openAssignmentModels'] === undefined ||
+      (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
+    (plan['orchestratorGroupId'] === undefined ||
+      (typeof plan['orchestratorGroupId'] === 'string' &&
+        plan['orchestratorGroupId'].trim().length > 0)) &&
+    isGroupEffort(plan) &&
+    isAssignmentGroups(plan['assignmentGroups'], plan['assignmentDefaultGroupId']) &&
+    isAssignmentGroupOptions(plan['assignmentGroupOptions'], plan['assignmentGroups']) &&
+    (plan['assignmentGroups'] === undefined || plan['assignmentDefault'] !== undefined) &&
     (plan['assignmentDefault'] === undefined
       ? plan['assignmentModels'] === undefined
       : isModelRoute(plan['assignmentDefault']) &&
@@ -214,6 +469,11 @@ function isModelPreset(value: unknown): value is ModelPreset {
     typeof preset['createdAt'] === 'string' &&
     isModelRoute(preset['orchestrator']) &&
     isModelRoute(preset['assignmentDefault']) &&
+    (preset['openAssignmentModels'] === undefined || preset['openAssignmentModels'] === true) &&
+    isModelPresetGroups(preset) &&
+    (preset['orchestratorEngine'] === undefined ||
+      isModelPresetEngine(preset['orchestratorEngine'])) &&
+    (preset['assignmentEngine'] === undefined || isModelPresetEngine(preset['assignmentEngine'])) &&
     (preset['assignmentModels'] === undefined ||
       isAssignmentModelsForDefault(preset['assignmentDefault'], preset['assignmentModels']))
   );
@@ -250,6 +510,9 @@ function presetRecord(preset: ModelPreset): ModelPreset {
             ...(option.note === undefined ? {} : { note: option.note }),
           })),
         }),
+    ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+    ...presetGroups(preset),
+    ...presetEngines(preset),
   };
 }
 
@@ -297,7 +560,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         legacy = JSON.parse(readFileSync(join(options.rootDir, 'model-presets.json'), 'utf8'));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
-          throw new Error('Invalid Model Preset import source');
+          throw new Error('Invalid Model Preset import source', { cause: error });
         legacy = [];
       }
       if (
@@ -356,8 +619,13 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(input.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        ...presetGroups(input.groups ?? {}),
+        ...presetEngines(input.engines ?? {}),
         createdAt: now().toISOString(),
       };
+      if (!isModelPresetGroups(preset as unknown as Record<string, unknown>))
+        throw new Error('Model Preset Routing Groups are invalid');
       write(preset);
       return preset;
     },
@@ -381,8 +649,39 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       ) {
         throw new Error('Model Preset name already exists');
       }
+      const {
+        openAssignmentModels: currentOpen,
+        orchestratorGroupId: currentOrchestratorGroup,
+        orchestratorGroupEffort: currentOrchestratorEffort,
+        assignmentGroups: currentGroups,
+        assignmentDefaultGroupId: currentDefaultGroup,
+        assignmentGroupOptions: currentGroupOptions,
+        orchestratorEngine: _orchestratorEngine,
+        assignmentEngine: _assignmentEngine,
+        ...rest
+      } = current;
+      const open = input.openAssignmentModels ?? currentOpen === true;
+      const groups = presetGroups(
+        input.groups ?? {
+          ...(currentOrchestratorGroup === undefined
+            ? {}
+            : { orchestratorGroupId: currentOrchestratorGroup }),
+          ...(currentOrchestratorEffort === undefined
+            ? {}
+            : { orchestratorGroupEffort: currentOrchestratorEffort }),
+          ...(currentGroups === undefined ? {} : { assignmentGroups: currentGroups }),
+          ...(currentDefaultGroup === undefined
+            ? {}
+            : { assignmentDefaultGroupId: currentDefaultGroup }),
+          ...(currentGroupOptions === undefined
+            ? {}
+            : { assignmentGroupOptions: currentGroupOptions }),
+        },
+      );
+      if (!isModelPresetGroups(groups as Record<string, unknown>))
+        throw new Error('Model Preset Routing Groups are invalid');
       const updated: ModelPreset = {
-        ...current,
+        ...rest,
         name,
         revision: current.revision + 1,
         orchestrator: { ...input.orchestrator },
@@ -395,6 +694,9 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
                 allowedEfforts: [...option.allowedEfforts],
               })),
             }),
+        ...(open ? { openAssignmentModels: true } : {}),
+        ...groups,
+        ...presetEngines(input.engines ?? {}, current),
       };
       write(updated);
       return updated;

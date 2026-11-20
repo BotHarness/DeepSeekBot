@@ -1,8 +1,35 @@
+import { afterEach } from 'vitest';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../src/database/owner.js';
-import { createWorkspaceGrantStore } from '../src/workspaces/grants.js';
-import { FIXED_NOW } from './helpers.js';
+import { createWorkspaceGrantStore, type DshWorkspaceLookup } from '../src/workspaces/grants.js';
+import { FIXED_NOW, createTempRoot } from './helpers.js';
 
 export const TEST_GRANT_ID = 'test-workspace-grant';
+
+const nativeWorkspaces = new Map<string, ReturnType<typeof nativeWorkspace>>();
+afterEach(() => nativeWorkspaces.clear());
+
+export function createTestNativeWorkspace(profile: string) {
+  let workspace = nativeWorkspaces.get(profile);
+  if (!workspace) {
+    workspace = nativeWorkspace();
+    nativeWorkspaces.set(profile, workspace);
+  }
+  return workspace;
+}
+
+function nativeWorkspace() {
+  const workspace = {
+    id: 'test-workspace',
+    path: createTempRoot('botharness-native-workspace-'),
+    title: 'Test Workspace',
+    status: async () => 'ok' as const,
+  };
+  const lookup: DshWorkspaceLookup = {
+    get: (id) => (id === workspace.id ? workspace : undefined),
+    list: () => [workspace],
+  };
+  return { ...workspace, lookup };
+}
 
 export function createTestWorkspaceGrants(owner: OperationalDatabaseOwner, workspacePath: string) {
   const database = attachOperationalModule(owner, 'workspace-grant-test');

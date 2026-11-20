@@ -1,7 +1,8 @@
 import { decodeHTML } from 'entities';
 import type { Token } from 'marked';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { HorizontalScroll } from './primitives/horizontal-scroll';
 
 import { copyMessage } from './chat/message-menu';
 import { edge, radius, space } from './design/tokens';
@@ -102,15 +103,11 @@ export function MarkdownText({
               </Text>
             </Pressable>
           </View>
-          <ScrollView
-            horizontal
-            style={{ flexGrow: 0 }}
-            contentContainerStyle={{ padding: space.x3 }}
-          >
+          <HorizontalScroll style={{ flexGrow: 0 }} contentContainerStyle={{ padding: space.x3 }}>
             <Text selectable={selectable} variant="meta" style={{ color, fontFamily: theme.mono }}>
               {token.text}
             </Text>
-          </ScrollView>
+          </HorizontalScroll>
         </View>
       );
     if (token.type === 'list')

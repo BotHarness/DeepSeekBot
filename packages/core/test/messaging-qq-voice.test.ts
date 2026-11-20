@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { setImmediate as tick } from 'node:timers/promises';
@@ -167,7 +168,10 @@ it.each(['platform', 'unavailable', 'audio'])(
         ).toBe(wav.fileId);
         expect(runs).toBe(1);
         expect(core.attention.list({ botSlug: 'ada' }).items).toHaveLength(1);
-        const room = core.channels.createGroup({ name: 'QQ voice', members: ['ada'] });
+        const room = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'QQ voice',
+          members: ['ada'],
+        });
         const grant = (await core.externalMessaging.snapshot('ada')).grants[0]!;
         await core.externalMessaging.inbound.channelBridge(room.id, {
           kind: 'add',

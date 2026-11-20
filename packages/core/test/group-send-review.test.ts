@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -40,7 +41,9 @@ it('adds review tables after the canonical Channel management migration while pr
     const port = attachOperationalModule(upgraded, 'review-upgrade-test');
     expect(
       port.read(
-        (db) => db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get()?.bot_slug,
+        (db) =>
+          db.prepare("SELECT bot_slug FROM tob_identity WHERE human_id = 'local-human'").get()
+            ?.bot_slug,
       ),
     ).toBe('protected-tob');
     expect(
@@ -101,11 +104,14 @@ it('revoking the initiating Group stops cross-Channel continuation but not a lat
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bob', displayName: 'Bob' });
-    const group = core.channels.createGroup({ name: 'Review', members: ['ada', 'bob'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Review',
+      members: ['ada', 'bob'],
+    });
     groupId = group.id;
     core.runtime.groupSendReview!.configure(groupId, true);
-    core.channels.getOrCreateDm('ada', 'Ada');
-    await core.channels.appendMessage(groupId, {
+    core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
       id: 'request',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -118,13 +124,13 @@ it('revoking the initiating Group stops cross-Channel continuation but not a lat
     for (const error of outcomes)
       expect(error).toMatchObject({ code: 'group-reply-source-revoked' });
     expect(core.channels.readMessages('dm-ada')).toHaveLength(0);
-    await core.channels.appendMessage('dm-ada', {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, 'dm-ada', {
       id: 'new-dm',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'New independent request',
     });
-    const admission = core.runtime.admitDmMessage({
+    const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: 'dm-ada',
       messageId: 'new-dm',
       body: 'New independent request',
@@ -180,7 +186,10 @@ async function fixture(
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
     core.registry.create({ slug: 'bob', displayName: 'Bob' });
-    const group = core.channels.createGroup({ name: 'Review', members: ['ada', 'bob'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Review',
+      members: ['ada', 'bob'],
+    });
     for (const bot of group.members)
       core.channels.setGroupWakePolicy(group.id, bot, {
         mode: 'silent',
@@ -192,7 +201,7 @@ async function fixture(
       core,
       channelId: group.id,
       human: async (id, body) => {
-        await core.channels.appendMessage(group.id, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
           id,
           body,
           author: { kind: 'human' },
@@ -230,7 +239,7 @@ describe('Group send review through the same direct model tools', () => {
           yield Buffer.from('Original');
         })(),
       });
-      await core.channels.appendMessage(channelId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'peer-with-file',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'bob' },
@@ -330,6 +339,63 @@ describe('Group send review through the same direct model tools', () => {
       });
       expect(answer.status).toBe('committed');
       expect(core.channels.message(channelId, 'new-question')?.id).toBe('new-question');
+    });
+  });
+
+  it('replays a committed quoting draft, and refuses it without a second copy once message cleanup removes its target', async () => {
+    await fixture(async ({ core, channelId, human, tool }) => {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+        id: 'plan',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Ship the export fix on Friday.',
+      });
+      await human('question', 'Is the export fix still on?');
+      const read = await tool('channel_read', {});
+      const peerRead = await tool('channel_read', {}, 'bob');
+      await tool(
+        'bot_send_message',
+        { body: 'Friday works', observation_id: peerRead.observationIds[channelId] },
+        'bob',
+      );
+      const quotes = [{ message_id: 'plan', text: 'export fix', note: 'Confirmed' }];
+      const held = await tool('bot_send_message', {
+        body: 'The fix ships Friday.',
+        quotes,
+        observation_id: read.observationIds[channelId],
+      });
+      const args = {
+        body: 'The fix ships Friday.',
+        quotes,
+        draft_id: held.draftId,
+        observation_id: held.review!.observationId,
+      };
+      const sent = await tool('bot_send_message', args);
+      expect(sent.status).toBe('committed');
+      expect(await tool('bot_send_message', args)).toMatchObject({
+        status: 'committed',
+        messageId: sent.messageId,
+      });
+      expect(
+        await tool('bot_send_message', { ...args, quotes: [{ ...quotes[0], note: 'Changed' }] }),
+      ).toMatchObject({ reason: 'draft-commit-content-changed' });
+      attachOperationalModule(core.operationalDatabase, 'test').transaction((db) => {
+        db.prepare(
+          "UPDATE inbox_admissions SET attempt_state = 'handled' WHERE source_event_id IN (SELECT source_event_id FROM channel_placements WHERE message_id = 'plan')",
+        ).run();
+      });
+      const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [channelId] };
+      const preview = core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(preview.messages).toBe(1);
+      core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+      expect(core.channels.message(channelId, 'plan')).toHaveProperty('contentPurge');
+      await expect(tool('bot_send_message', args)).rejects.toThrow(
+        'Quote text is not part of message plan',
+      );
+      const page = core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, channelId, { limit: 20 })!;
+      expect(
+        page.entries.filter((entry) => 'body' in entry && entry.body === 'The fix ships Friday.'),
+      ).toHaveLength(1);
     });
   });
 
@@ -716,8 +782,15 @@ it('refuses automatic recovery after restart or expiry and removes draft content
     const expired = new GroupSendReview(database, () => new Date(draft.expires + 1));
     expect(database.transaction((db) => expired.check(db, input))?.status).toBe('expired');
     core.channels.deleteGroup(channelId);
-    const preview = core.contentPurge.preview(channelId, [draft.sourceEventId]);
-    core.contentPurge.confirm(channelId, preview.sourceEventIds, preview.token);
+    const preview = core.contentPurge.preview(OWNER_HUMAN_CONTEXT, channelId, [
+      draft.sourceEventId,
+    ]);
+    core.contentPurge.confirm(
+      OWNER_HUMAN_CONTEXT,
+      channelId,
+      preview.sourceEventIds,
+      preview.token,
+    );
     expect(core.runtime.groupSendReview!.inspect(owner, channelId, draft.id)).toBeUndefined();
     await expect(
       tool('bot_send_message', { body: 'Private draft', draft_id: draft.id }),
@@ -791,7 +864,7 @@ describe('busy Group progress through the direct tool', () => {
           let draftId: string | undefined;
           for (let n = 0; n < 3; n++) {
             const read = JSON.parse(run.channels.readModel({ channelId: groupId }));
-            await core.channels.appendMessage(groupId, {
+            await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
               id: `busy-turn-${n}`,
               at: new Date().toISOString(),
               author: { kind: 'human' },
@@ -851,7 +924,10 @@ describe('busy Group progress through the direct tool', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bob', displayName: 'Bob' });
-      groupId = core.channels.createGroup({ name: 'Budget', members: ['ada', 'bob'] }).id;
+      groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Budget',
+        members: ['ada', 'bob'],
+      }).id;
       core.channels.setGroupWakePolicy(groupId, 'ada', {
         mode: 'silent',
         count: 5,
@@ -864,7 +940,7 @@ describe('busy Group progress through the direct tool', () => {
       });
       core.runtime.groupSendReview!.configure(groupId, true);
       for (const id of ['initial-request', 'new-request']) {
-        await core.channels.appendMessage(groupId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
           id,
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -1073,8 +1149,15 @@ describe('busy Group progress through the direct tool', () => {
         }
         if (fault === 'purge') {
           f.core.channels.deleteGroup(f.channelId);
-          const preview = f.core.contentPurge.preview(f.channelId, [draft.sourceEventId]);
-          f.core.contentPurge.confirm(f.channelId, preview.sourceEventIds, preview.token);
+          const preview = f.core.contentPurge.preview(OWNER_HUMAN_CONTEXT, f.channelId, [
+            draft.sourceEventId,
+          ]);
+          f.core.contentPurge.confirm(
+            OWNER_HUMAN_CONTEXT,
+            f.channelId,
+            preview.sourceEventIds,
+            preview.token,
+          );
         }
         const attempt = f.tool('bot_send_message', {
           body: 'Meet at 11:00',
@@ -1123,6 +1206,76 @@ it('unified messaging preserves Group draft review before committing', async () 
         .filter((message) => message.author.kind === 'bot')
         .map((message) => message.body),
     ).toEqual(['October 21']);
+  });
+});
+
+it('a Human stop invalidates a held Group draft so it can no longer be recovered or sent', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    await human('question', 'What is the release date?');
+    const read = await tool('channel_read', {});
+    await human('correction', 'Use October 21, not October 20.');
+    const held = await tool('bot_send_message', {
+      body: 'October 20',
+      observation_id: read.observationIds[channelId],
+      end_turn: true,
+    });
+    expect(held.status).toBe('held');
+
+    await core.runtime.stopTurn!('ada');
+
+    expect(
+      core.runtime.groupSendReview!.inspect('direct:ada', channelId, held.draftId!),
+    ).toMatchObject({ state: 'dropped', terminationReason: 'stopped' });
+    const fresh = await tool('channel_read', {});
+    expect(
+      await tool('bot_send_message', {
+        body: 'October 21',
+        draft_id: held.draftId,
+        observation_id: fresh.observationIds[channelId],
+        recover: true,
+      }),
+    ).toMatchObject({ status: 'refused', reason: 'draft-terminal' });
+    expect(
+      core.channels.readMessages(channelId).filter((message) => message.author.kind === 'bot'),
+    ).toHaveLength(0);
+  });
+});
+
+it('keeps a terminal draft terminal after its review window passes', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    await human('question', 'What is the release date?');
+    const read = await tool('channel_read', {});
+    await human('correction', 'Use October 21, not October 20.');
+    const held = await tool('bot_send_message', {
+      body: 'October 20',
+      observation_id: read.observationIds[channelId],
+      end_turn: true,
+    });
+    await core.runtime.stopTurn!('ada');
+    const owner = 'direct:ada';
+    const draft = core.runtime.groupSendReview!.inspect(owner, channelId, held.draftId!)!;
+    const database = attachOperationalModule(core.operationalDatabase, 'test');
+    const later = new GroupSendReview(database, () => new Date(draft.expires + 1));
+
+    expect(
+      database.transaction((db) =>
+        later.check(db, {
+          owner,
+          channelId,
+          sourceEventId: draft.sourceEventId,
+          message: draft.current,
+          draftId: draft.id,
+        }),
+      ),
+    ).toMatchObject({ status: 'expired', reason: 'draft-expired' });
+    expect(later.drop(owner, channelId, draft.id)).toMatchObject({ status: 'expired' });
+    expect(later.inspectRecords(owner, channelId, draft.id)).toMatchObject({
+      drafts: [{ state: 'dropped', requiresRecovery: false }],
+    });
+    expect(later.inspect(owner, channelId, draft.id)).toMatchObject({
+      state: 'dropped',
+      terminationReason: 'stopped',
+    });
   });
 });
 

@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { auditSources } from './feature-sources.mjs';
 import { auditInventory, mapDirectory } from './verification-inventory.mjs';
 export { mapDirectory };
 const sections = [
@@ -87,7 +88,7 @@ export function checkFeatureMap(repo = root) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const result = checkFeatureMap();
   const inventory = auditInventory();
-  result.errors.push(...inventory.errors);
+  result.errors.push(...inventory.errors, ...auditSources(root));
   result.ok = result.errors.length === 0;
   console.log(JSON.stringify(result, null, 2));
   process.exitCode = result.ok ? 0 : 1;

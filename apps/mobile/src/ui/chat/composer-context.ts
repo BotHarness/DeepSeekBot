@@ -7,7 +7,7 @@ import {
   type AssignmentAccess,
   type BotSettings,
   type Loadable,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import { useMounted } from '../mounted';
 
 function useLoadable<T>(load: (() => Promise<T>) | undefined) {

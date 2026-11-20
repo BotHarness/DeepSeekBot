@@ -12,12 +12,16 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { grantRequestPort, loadGrantRequest, type RequestRef } from '../src/host/requests';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import {
+  grantRequestPort,
+  loadGrantRequest,
+  type RequestRef,
+} from '@botharness/host-client/requests';
 import { GrantRequestCard } from '../src/ui/chat/grant-request-card';
 import { t } from '../src/ui/strings';
 import { played } from './expo-haptics-shim';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -60,7 +64,10 @@ afterEach(() => {
 
 function host(entries: unknown[] = [request()]): FakeHost {
   const fake = new FakeHost();
-  fake.methods.set('channelTimeline', () => ({ page: { entries } }));
+  fake.methods.set('channelTimeline', () => ({
+    revision: 1,
+    page: { olderCursor: null, newerCursor: null, hasOlder: false, hasNewer: false, entries },
+  }));
   fake.methods.set('directoryPicker/list', (args) => {
     const path = typeof args['path'] === 'string' ? args['path'] : '/Users/qa';
     return {
@@ -197,13 +204,22 @@ describe('Folder request card', () => {
       ok: false,
       error: { code: 'directory-picker/unavailable', message: 'native chooser' },
     }));
-    fake.methods.set('folderBrowse', (args) => ({
-      ...(listed(args) as object),
-      roots: [
-        { name: 'qa', path: '/Users/qa' },
-        { name: 'D:\\', path: 'D:\\' },
-      ],
-    }));
+    const shown = (folders: unknown) =>
+      (folders as { name: string; path: string }[]).map((entry) => ({ ...entry, hidden: false }));
+    fake.methods.set('folderBrowse', (args) => {
+      const listing = listed(args) as { path: string; crumbs: unknown; entries: unknown };
+      return {
+        path: listing.path,
+        home: '/Users/qa',
+        crumbs: shown(listing.crumbs),
+        entries: shown(listing.entries),
+        truncated: false,
+        roots: shown([
+          { name: 'qa', path: '/Users/qa' },
+          { name: 'D:\\', path: 'D:\\' },
+        ]),
+      };
+    });
     const view = await render(card(connect(fake)));
     await press(button(view, t.grantChoose));
     expect(view.textContent).not.toContain(t.browseUnavailableTypePath);
@@ -272,7 +288,14 @@ describe('Folder request card', () => {
       throw new Error('Workspace request is no longer available for this Bot');
     });
     fake.methods.set('channelTimeline', () => ({
-      page: { entries: [request({ grantRequestResolved: true })] },
+      revision: 1,
+      page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
+        entries: [request({ grantRequestResolved: true })],
+      },
     }));
     await press(button(view, t.grantChoose));
     await press(button(view, t.authorizeHere));

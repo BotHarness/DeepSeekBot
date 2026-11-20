@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tobs PV</title>
+<style>
+@font-face { font-family: Geist; src: url(node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2) format('woff2'); font-weight: 100 900; }
+@font-face { font-family: GeistMono; src: url(node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2) format('woff2'); font-weight: 100 900; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+body { font-family: Geist, "Noto Sans CJK SC", sans-serif; color: #0F1115; -webkit-font-smoothing: antialiased; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+.abs { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.title { font-weight: 800; font-size: 88px; line-height: 1.12; letter-spacing: -0.02em; white-space: nowrap; }
+.sub { font-weight: 500; font-size: 34px; line-height: 1.45; color: #5A5D63; white-space: nowrap; }
+.kicker { font-family: GeistMono, Geist, monospace; font-weight: 500; font-size: 22px; letter-spacing: 0.08em; }
+.stk { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; border: 8px solid #fff; border-radius: 26px; box-shadow: 0 3px 0 rgba(15,17,21,.06), 0 22px 40px -18px rgba(15,17,21,.35); overflow: hidden; }
+</style></head>
+<body><div id="stage"></div>
+<script src="lib/pixel-avatar.js"></script>
+<script src="beats.js"></script>
+<script src="kit/globals.js"></script>
+<script src="kit/motion.js"></script>
+<script src="kit/pixel-cosmos.js"></script>
+<script src="scenes.js"></script>
+<script src="kit/boot.js"></script>
+</body></html>

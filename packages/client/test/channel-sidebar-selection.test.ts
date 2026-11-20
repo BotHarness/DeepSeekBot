@@ -1,28 +1,23 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarController } from '../src/client/channel-sidebar-view.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { type ClientState } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ anchor }: { anchor: ReactNode }) => anchor,
-  MenuItemButton: () => null,
-  MenuSurface: () => null,
-  IconChevronRightOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import {
   createChannelSidebarRegistry,
   resolveChannelSidebarContext,
 } from '../src/client/channel-sidebar.js';
-import {
-  ChannelSidebar,
-  useChannelSidebar,
-  type ChannelSidebarController,
-} from '../src/client/channel-sidebar-view.js';
+import { ChannelSidebar, useChannelSidebar } from '../src/client/channel-sidebar-view.js';
 import { createChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
-import { createStore, type ChannelSummary, type ClientState } from '../src/client/store.js';
+import { createStore } from '../src/client/store.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 

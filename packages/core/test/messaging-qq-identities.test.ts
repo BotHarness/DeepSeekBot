@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -210,7 +211,10 @@ it.each(['disconnected', 'consumer-unavailable'] as const)(
     await fx.bind('qq-b');
     await fx.receive('qq-a', 'first');
     await fx.receive('qq-b', 'first');
-    const room = fx.core.channels.createGroup({ name: 'Shared QQ QA', members: ['ada', 'bea'] });
+    const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Shared QQ QA',
+      members: ['ada', 'bea'],
+    });
     await fx.sync('qq-a', room.id);
     await fx.sync('qq-b', room.id);
     const a = await fx.receive('qq-a', 'same-native-id');
@@ -286,7 +290,7 @@ it('revoking one QQ owner fences its reply without transferring identity or eras
   ).rejects.toThrow('binding-conflict');
   await fx.receive('qq-a', 'first');
   await fx.receive('qq-b', 'first');
-  const room = fx.core.channels.createGroup({
+  const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
     name: 'Independent owners',
     members: ['ada', 'bea'],
   });
@@ -324,7 +328,10 @@ it('QQ shared reading cannot qualify a foreign reply proof or choose between two
   await fx.bind('qq-b');
   await fx.receive('qq-a', 'first-a');
   await fx.receive('qq-b', 'first-b');
-  const room = fx.core.channels.createGroup({ name: 'Qualified group', members: ['ada', 'bea'] });
+  const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Qualified group',
+    members: ['ada', 'bea'],
+  });
   await fx.sync('qq-a', room.id);
   const source = await fx.receive('qq-a', 'shared');
   await expect(fx.core.externalMessaging.reply('bea', source, 'foreign proof')).rejects.toThrow(
@@ -348,7 +355,10 @@ it.each(['block', 'archive'] as const)(
     await fx.receive('qq-b', 'first-b');
     expect(fx.hasEchoReceiver('qq-a')).toBe(false);
     expect(fx.hasEchoReceiver('qq-b')).toBe(false);
-    const room = fx.core.channels.createGroup({ name: 'QQ lifecycle', members: ['ada', 'bea'] });
+    const room = fx.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'QQ lifecycle',
+      members: ['ada', 'bea'],
+    });
     await fx.sync('qq-a', room.id);
     await fx.sync('qq-b', room.id);
     const a = await fx.receive('qq-a', 'pending-a');

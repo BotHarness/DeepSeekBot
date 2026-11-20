@@ -1,7 +1,7 @@
 import { File, Paths } from 'expo-file-system';
-import { createDeviceNotificationPreferences } from './device-notification-preferences';
+import { createDeviceNotificationPreferences } from '@botharness/host-client/device-notification-preferences';
 import { nativeCarrier } from './native-carrier';
-import { createHostPush } from './push';
+import { createHostPush } from '@botharness/host-client/push';
 
 const file = () => new File(Paths.document, 'deepseekbot-notification-preferences.json');
 export const notificationPreferences = createDeviceNotificationPreferences({

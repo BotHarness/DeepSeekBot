@@ -1,4 +1,5 @@
 import type { Language } from './schemas.js';
+import { logWorker } from './worker-log.js';
 
 export const SITE_ORIGIN = 'https://tobs.app';
 export const SHORT_ORIGIN = 'https://go.tobs.app';
@@ -76,13 +77,9 @@ export async function sendLinkClicked(
       body: JSON.stringify(linkClickedEvent(link, config.key, timestamp)),
     });
     if (!response.ok) {
-      console.warn(
-        JSON.stringify({ module: 'links-worker', phase: 'posthog', status: response.status }),
-      );
+      logWorker('warn', { module: 'links-worker', phase: 'posthog', status: response.status });
     }
   } catch (error) {
-    console.warn(
-      JSON.stringify({ module: 'links-worker', phase: 'posthog', error: String(error) }),
-    );
+    logWorker('warn', { module: 'links-worker', phase: 'posthog', error: String(error) });
   }
 }

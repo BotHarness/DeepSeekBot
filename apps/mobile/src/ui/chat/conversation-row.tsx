@@ -1,16 +1,24 @@
 import type { ReactNode, Ref } from 'react';
 import type { Href } from 'expo-router';
-import { SourceName } from './source-name';
+import { SourceMark, SourceName } from './source-name';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
-import type { HostLook } from '../design/host-look';
-import { chatList, conversationType, edge, radius, space } from '../design/tokens';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
+import {
+  chatList,
+  conversationType,
+  edge,
+  environmentBadge,
+  radius,
+  space,
+} from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
+import { humanInitial } from '../shell/human-avatar-initial';
 import {
   countBadge,
   previewText,
@@ -22,6 +30,7 @@ import {
   type RowStatus,
 } from './conversations';
 import { RowStatusGlyph } from './row-status-glyph';
+import { callRecordPreview } from './call-record-text';
 import {
   AvatarSlot,
   CONVERSATION_AVATAR as AVATAR,
@@ -62,10 +71,13 @@ export function ConversationRow({
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
-  const preview = previewText(latest, copy);
+  const call = row.kind === 'bot' ? row.bot.previewCall : row.channel.previewCall;
+  const preview =
+    call === undefined ? previewText(latest, copy) : callRecordPreview(call, copy.call);
   const badge = countBadge(row);
   const time = shortTime(row.at ?? row.createdAt, now);
-  const description = rowLabel(row, title, status, preview);
+  const summary = rowLabel(row, title, status, preview);
+  const description = time === '' ? summary : `${summary}, ${time}`;
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
   const availableActions = onAction ? actions : [];
@@ -86,12 +98,7 @@ export function ConversationRow({
                 : 'bell',
       run: () => act(action.key),
     }));
-  const avatar =
-    row.kind === 'bot' ? (
-      <ConversationBotAvatar bot={row.bot} />
-    ) : (
-      <ConversationGroupAvatar avatar={row.channel.avatar} />
-    );
+  const avatar = <ConversationAvatar row={row} />;
   const frame = (
     <ConversationRowFrame
       testID={`conversation-row-${row.key}`}
@@ -159,6 +166,27 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
   );
 }
 
+export function ConversationPersonAvatar({ name }: { name: string }) {
+  return (
+    <AvatarSlot>
+      <GroupMark
+        avatar={undefined}
+        initial={humanInitial(name) ?? '#'}
+        size={AVATAR}
+        corner={radius.md}
+        variant="title"
+        strong={false}
+      />
+    </AvatarSlot>
+  );
+}
+
+export function ConversationAvatar({ row }: { row: Conversation }) {
+  if (row.kind === 'bot') return <ConversationBotAvatar bot={row.bot} />;
+  if (row.person === true) return <ConversationPersonAvatar name={row.channel.name} />;
+  return <ConversationGroupAvatar avatar={row.channel.avatar} />;
+}
+
 export function ConversationRowFrame({
   title,
   sourceLabel,
@@ -179,7 +207,9 @@ export function ConversationRowFrame({
   onMenu,
   look,
   ref,
+  mixed = sourceLabel !== undefined,
 }: {
+  mixed?: boolean;
   sourceLabel?: string | undefined;
   ref?: Ref<ViewInstance>;
 
@@ -203,6 +233,7 @@ export function ConversationRowFrame({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const large = theme.largeText;
   return (
     <Pressable
       ref={ref}
@@ -237,20 +268,51 @@ export function ConversationRowFrame({
     >
       <View>
         {avatar}
-        {badge === undefined ? null : (
+        {badge === undefined || large ? null : (
           <View
             style={{
               position: 'absolute',
-              top: -space.x2,
-              right: -space.x3,
+              top: -space.x1,
+              right: -space.x2,
               padding: edge.focus,
-              borderRadius: radius.sm + edge.focus,
+              borderRadius: radius.round,
               backgroundColor: theme.layer.canvas.fill,
             }}
           >
-            <CountBadge count={badge.count} tone={badge.tone} />
+            <CountBadge count={badge.count} tone={badge.tone} compact />
           </View>
         )}
+        {mixed ? (
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              position: 'absolute',
+              bottom: -space.x1,
+              right: -space.x2,
+              padding: edge.focus,
+              borderRadius: radius.sm,
+              backgroundColor: theme.layer.canvas.fill,
+            }}
+          >
+            <View
+              style={{
+                width: environmentBadge.size,
+                height: environmentBadge.size,
+                borderRadius: radius.sm - edge.focus,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: theme.layer.canvas.inset,
+              }}
+            >
+              <SourceMark
+                source={source}
+                look={look}
+                size={environmentBadge.size * environmentBadge.glyphRatio}
+              />
+            </View>
+          </View>
+        ) : null}
       </View>
       <View
         key={`${theme.scheme}:${theme.fontScale}:${title}`}
@@ -263,13 +325,32 @@ export function ConversationRowFrame({
             gap: space.x3,
           }}
         >
-          <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
-          {time === '' ? null : (
+          <SourceName
+            name={title}
+            source={source}
+            look={look}
+            sourceLabel={sourceLabel}
+            lines={large ? 2 : 1}
+            glyph={false}
+          />
+          {time === '' || large ? null : (
             <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
         </View>
+        {large && (time !== '' || badge !== undefined) ? (
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 }}
+          >
+            {badge === undefined ? null : <CountBadge count={badge.count} tone={badge.tone} />}
+            {time === '' ? null : (
+              <Text variant="meta" tone="subtle">
+                {time}
+              </Text>
+            )}
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"

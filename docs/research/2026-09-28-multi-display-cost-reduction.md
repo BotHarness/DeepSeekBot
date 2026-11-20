@@ -206,7 +206,7 @@ Option C 是让每个 PersonaBot 在共享 Computer 容器内拥有自己的虚�
 
 ## 参考来源（URL）
 
-- ADR-0055（2C2G/shm/空闲停机默认）`docs/adr/0055-computer-runs-the-upstream-webtop-image-under-resource-bounds.md`；ADR-0006（secret 边界）；ADR-0062（卷/静默）；`packages/computer/src/providers/docker.ts`（配置项与 env 漂移检测）。
+- ADR-0055（2C2G/shm/空闲停机默认）`docs/decisions/computer.md`；ADR-0006（secret 边界）；ADR-0062（卷/静默）；`packages/computer/src/providers/docker.ts`（配置项与 env 漂移检测）。
 - LinuxServer Selkies 配置（`MAX_RES` 默认 16K、`SELKIES_MANUAL_WIDTH/HEIGHT`、编码器）：<https://docs.linuxserver.io/selkies/user-guide/configuration>；`svc-xorg/run` 源：<https://github.com/linuxserver/docker-baseimage-selkies>（`root/etc/s6-overlay/s6-rc.d/svc-xorg/run`）；webtop 镜像页：<https://docs.linuxserver.io/images/docker-webtop>。
 - Chromium「一实例一 X display、一 profile 一实例」原文：<https://chromium.googlesource.com/chromium/src/+/main/docs/user_data_dir.md>；进程模型与 `--process-per-site` / `--renderer-process-limit` 注释：<https://chromium.googlesource.com/chromium/src/+/main/content/public/common/content_switches.cc>；`--enable-low-end-device-mode` 开关列表：<https://peter.sh/experiments/chromium-command-line-switches>；标签丢弃/Memory Saver：<https://developer.chrome.com/blog/memory-and-energy-saver-mode>、<https://www.chromium.org/chromium-os/chromiumos-design-docs/tab-discarding-and-reloading>；Chrome ≥136 远程调试限制：<https://developer.chrome.com/blog/remote-debugging-port>。
 - cua-driver 平台矩阵与桌面 scope：<https://cua.ai/docs/reference/cua-driver/platform-support>、<https://cua.ai/docs/reference/cua-driver/limits>、Linux X11 行为矩阵：<https://github.com/trycua/cua/blob/main/libs/cua-driver/docs/action-support.md>；`xfce-cua` 镜像：<https://github.com/trycua/cua/tree/main/libs/xfce-cua>。

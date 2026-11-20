@@ -11,12 +11,16 @@ it('waits for native settings and selects the actual IM and Feishu controls', as
   vi.useFakeTimers();
   const trigger = document.createElement('button');
   trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-label', 'Settings');
   document.body.append(trigger);
   const selected = vi.fn();
   trigger.onclick = () => {
     queueMicrotask(() => {
       const dialog = document.createElement('div');
       dialog.setAttribute('role', 'dialog');
+      dialog.dataset.shortcutModal = 'settings';
+      const navigation = document.createElement('nav');
+      dialog.append(navigation);
       const nav = document.createElement('button');
       nav.textContent = 'IM bots';
       nav.onclick = () => {
@@ -25,7 +29,7 @@ it('waits for native settings and selects the actual IM and Feishu controls', as
         platform.onclick = selected;
         dialog.append(platform);
       };
-      dialog.append(nav);
+      navigation.append(nav);
       document.body.append(dialog);
     });
   };
@@ -61,8 +65,12 @@ it.each([false, true])(
   async (cancelled) => {
     const trigger = document.createElement('button');
     trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.setAttribute('aria-label', 'Settings');
     const dialog = document.createElement('div');
     dialog.setAttribute('role', 'dialog');
+    dialog.dataset.shortcutModal = 'settings';
+    const navigation = document.createElement('nav');
+    dialog.append(navigation);
     const nav = document.createElement('button');
     nav.textContent = 'IM机器人';
     const wechat = document.createElement('button');
@@ -70,7 +78,7 @@ it.each([false, true])(
     const selected = vi.fn();
     wechat.onclick = selected;
     nav.onclick = () => dialog.append(wechat);
-    dialog.append(nav);
+    navigation.append(nav);
     trigger.onclick = () => document.body.append(dialog);
     document.body.append(trigger);
     const returned = vi.fn();

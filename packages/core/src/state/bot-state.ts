@@ -50,6 +50,7 @@ export type BotStateEvent =
 
 export interface BotStateTracker {
   beginAssignmentWait(slug: string, sessionId: string): () => void;
+  syncDurableAttentionWith(sync: () => void): void;
   replaceDurableAttention(
     rows: readonly {
       botSlug: string;
@@ -72,6 +73,7 @@ export interface BotStateTracker {
   ): void;
   activity(slug: string): PersonaBotToolActivity | undefined;
   sessionActivity(slug: string): readonly PersonaBotSessionActivity[];
+  sessionIdForActivity(slug: string, activityId: string): string | undefined;
   rebuildSessionStates(
     rows: readonly {
       slug: string;
@@ -120,7 +122,9 @@ export function createBotStateTracker(): BotStateTracker {
       informationalCount: number;
     }
   >();
+  let syncDurableAttention = (): void => {};
   const attentionOf = (slug: string): PersonaBotAttention | undefined => {
+    syncDurableAttention();
     const count = approvalCounts.get(slug);
     const questionCount = questionCounts.get(slug);
     const privateInputCount = privateInputCounts.get(slug);
@@ -243,14 +247,15 @@ export function createBotStateTracker(): BotStateTracker {
   };
   const publishActivity = (slug: string, cause: PersonaBotActivityEvent['cause']): void => {
     const activity = activityOf(slug);
-    const state = snapshotOf(slug, bots.get(slug) ?? new Map()).state;
+    const snapshot = snapshotOf(slug, bots.get(slug) ?? new Map());
     const sessions = sessionActivityOf(slug);
     const attention = attentionOf(slug);
     const event: PersonaBotActivityEvent = {
       generation,
       revision,
       slug,
-      state,
+      state: snapshot.state,
+      active: hasActiveSession(snapshot),
       cause,
       ...(attention === undefined ? {} : { attention }),
       ...(sessions.length === 0 ? {} : { sessions }),
@@ -289,6 +294,9 @@ export function createBotStateTracker(): BotStateTracker {
           assignmentWaits.delete(sessionId);
         if (bots.get(slug)?.has(sessionId)) update(previous);
       };
+    },
+    syncDurableAttentionWith(sync) {
+      syncDurableAttention = sync;
     },
     replaceDurableAttention(rows) {
       if (
@@ -460,6 +468,11 @@ export function createBotStateTracker(): BotStateTracker {
     },
     activity: activityOf,
     sessionActivity: sessionActivityOf,
+    sessionIdForActivity(slug, activityId) {
+      for (const sessionId of bots.get(slug)?.keys() ?? [])
+        if (sessionDetails.get(sessionId)?.id === activityId) return sessionId;
+      return undefined;
+    },
     onActivity(listener) {
       activityListeners.add(listener);
       return () => {
@@ -483,6 +496,7 @@ export function createBotStateTracker(): BotStateTracker {
 }
 
 export interface PersonaBotActivityEvent {
+  active?: boolean;
   generation: string;
   revision: number;
   slug: string;
@@ -499,29 +513,35 @@ export interface PersonaBotActivitySnapshot {
   bots: {
     slug: string;
     state: AggregatedState;
+    active?: boolean;
     attention?: PersonaBotAttention;
     activity?: PersonaBotToolActivity;
     sessions?: readonly PersonaBotSessionActivity[];
   }[];
 }
 
+function hasActiveSession(snapshot: BotStateSnapshot): boolean {
+  return Object.values(snapshot.sessions).some(
+    (state) => state === 'thinking' || state === 'working',
+  );
+}
+
 export function personaBotActivitySnapshot(
   slugs: readonly string[],
   states: BotStateTracker,
 ): PersonaBotActivitySnapshot {
-  return {
-    ...states.version(),
-    bots: slugs.map((slug) => {
-      const activity = states.activity(slug);
-      const sessions = states.sessionActivity(slug);
-      const snapshot = states.snapshot(slug);
-      return {
-        slug,
-        state: snapshot.state,
-        ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
-        ...(activity === undefined ? {} : { activity }),
-        ...(sessions.length === 0 ? {} : { sessions }),
-      };
-    }),
-  };
+  const bots = slugs.map((slug) => {
+    const activity = states.activity(slug);
+    const sessions = states.sessionActivity(slug);
+    const snapshot = states.snapshot(slug);
+    return {
+      slug,
+      state: snapshot.state,
+      active: hasActiveSession(snapshot),
+      ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
+      ...(activity === undefined ? {} : { activity }),
+      ...(sessions.length === 0 ? {} : { sessions }),
+    };
+  });
+  return { ...states.version(), bots };
 }

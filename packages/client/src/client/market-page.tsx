@@ -1,6 +1,7 @@
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
 import type { ReactElement, ReactNode, RefCallback } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { border, color, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -125,7 +126,7 @@ export function MarketPage({
           data-market-back
           onClick={onBack}
         >
-          <IconChevronLeftOutlineRegular size={16} />
+          <Icon name="chevron-left" size={16} />
         </Button>
         <h2 {...stylex.props(styles.title)}>{title}</h2>
       </header>

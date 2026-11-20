@@ -282,7 +282,7 @@ async function main() {
     steps.push('paired the app by pasting the link');
 
     await page.locator('::-p-text(Launch)').click();
-    await page.waitForSelector('[placeholder="Message #Launch"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await new Promise((done) => setTimeout(done, 600));
     await shot('0-group-chat');
     await page.waitForSelector('[aria-label$=" members"][aria-label^="Launch, "]');

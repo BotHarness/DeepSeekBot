@@ -1,10 +1,9 @@
+import { Icon } from './ds/icon.js';
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import {
-  Button,
-  Checkbox,
-  IconChevronDownOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   resolveBehaviorPermissions,
@@ -155,7 +154,9 @@ export function BehaviorSelection({
                   ? [...(value[key] ?? []), row.original.id]
                   : (value[key] ?? []).filter((id) => id !== row.original.id),
                 ...(checked
-                  ? { [opposite]: (value[opposite] ?? []).filter((id) => id !== row.original.id) }
+                  ? {
+                      [opposite]: (value[opposite] ?? []).filter((id) => id !== row.original.id),
+                    }
                   : {}),
               })
             }
@@ -259,7 +260,7 @@ function BehaviorPersonPreview({
           className={`bh-channel-sidebar-entry-chevron${open ? '' : ' bh-chevron-collapsed'}`}
           aria-hidden="true"
         >
-          <IconChevronDownOutlineRegular size={14} />
+          <Icon name="chevron-down" size={14} />
         </span>
         <span className="bh-channel-sidebar-entry-label" title={name}>
           {name}
@@ -315,7 +316,11 @@ export function BehaviorPermissionsPanel({
       header: t('pairing.behavior'),
       cell: (cell) => <span className="bh-pairing-policy-preview">{String(cell.getValue())}</span>,
     },
-    { id: 'revision', accessorKey: 'revision', header: t('pairing.behaviorRevision') },
+    {
+      id: 'revision',
+      accessorKey: 'revision',
+      header: t('pairing.behaviorRevision'),
+    },
     {
       id: 'time',
       accessorFn: (item) => Date.parse(item.updatedAt),
@@ -580,7 +585,13 @@ function BehaviorPermissionDialog({
           </div>
           <PairingTable
             data={items.filter((entry) => entry.id !== item?.id)}
-            columns={[{ id: 'name', accessorKey: 'name', header: t('pairing.behaviorName') }]}
+            columns={[
+              {
+                id: 'name',
+                accessorKey: 'name',
+                header: t('pairing.behaviorName'),
+              },
+            ]}
             selectedIds={excludes}
             select={(entry) =>
               setExcludes((current) =>

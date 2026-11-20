@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { rmSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -132,7 +133,10 @@ describe('scoped Channel operations through the canonical owner', () => {
   });
   it('preserves pending invitations, canonical acceptance, and no duplicate invite on response-loss retry', async () => {
     const f = fixture();
-    const group = f.core.channels.createGroup({ name: 'Project', members: ['research'] });
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Project',
+      members: ['research'],
+    });
     const input = inviteArgs(f, group.id);
     const prepared = (await f.prepare('group-invite', input))!;
     expect(prepared.proposal).toMatchObject({
@@ -175,7 +179,10 @@ describe('scoped Channel operations through the canonical owner', () => {
   });
   it('rechecks Channel state, invitation policy and Bot identity after review', async () => {
     const f = fixture();
-    const group = f.core.channels.createGroup({ name: 'Project', members: ['research'] });
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Project',
+      members: ['research'],
+    });
     const initial = inviteArgs(f, group.id);
     const changedPolicy = (await f.prepare('group-invite', initial))!;
     f.setAutoAccept(true);
@@ -186,7 +193,7 @@ describe('scoped Channel operations through the canonical owner', () => {
     f.core.registry.update('writer', { displayName: 'Renamed after review' });
     expect(() => changedBot.run(() => {}, effect)).toThrow('stale-profile');
     const changedGroup = (await f.prepare('group-invite', initial))!;
-    f.core.channels.rename(group.id, 'Renamed group');
+    f.core.channels.rename(OWNER_HUMAN_CONTEXT, group.id, 'Renamed group');
     expect(() => changedGroup.run(() => {}, effect)).toThrow('stale-channel');
     expect(effect).not.toHaveBeenCalled();
     expect(f.core.channels.get(group.id)?.invitations ?? []).toHaveLength(0);
@@ -194,12 +201,15 @@ describe('scoped Channel operations through the canonical owner', () => {
   it('does not invalidate reviewed management for unrelated messages and reports automatic acceptance honestly', async () => {
     const f = fixture();
     f.setAutoAccept(true);
-    const group = f.core.channels.createGroup({ name: 'Project', members: ['research'] });
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Project',
+      members: ['research'],
+    });
     const input = inviteArgs(f, group.id);
     const prepared = (await f.prepare('group-invite', input))!;
     expect(prepared.proposal).toMatchObject({ patch: { invitationPolicy: { autoAccept: true } } });
     input.botSlug = 'research';
-    await f.core.channels.appendMessage(group.id, {
+    await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
       id: 'unrelated-human-message',
       at: '2099-01-01T00:00:00.000Z',
       author: { kind: 'human' },
@@ -236,9 +246,17 @@ describe('scoped Channel operations through the canonical owner', () => {
   });
   it('returns bounded metadata without messages, images or private Bot DMs', async () => {
     const f = fixture();
-    const group = f.core.channels.createGroup({ name: 'Project', members: ['research'] });
-    f.core.channels.getOrCreateDm('research');
-    const privateDm = f.core.channels.getOrCreateBotDm('research', 'writer', 'private');
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Project',
+      members: ['research'],
+    });
+    f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'research');
+    const privateDm = f.core.channels.getOrCreateBotDm(
+      OWNER_HUMAN_CONTEXT,
+      'research',
+      'writer',
+      'private',
+    );
     const page = (await f.run('channels', { limit: 1 })) as {
       channels: Array<{ id: string }>;
       nextCursor?: string;
@@ -264,7 +282,10 @@ describe('reviewed Group settings and member removal', () => {
   function groupFixture() {
     const f = fixture();
     f.setAutoAccept(true);
-    const group = f.core.channels.createGroup({ name: 'Project', members: ['research', 'writer'] });
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Project',
+      members: ['research', 'writer'],
+    });
     const args = (patch: Record<string, unknown> = {}): Record<string, unknown> => ({
       channelId: group.id,
       expectedChannel: f.core.channelManagement.snapshot(group.id).channelFingerprint,
@@ -318,7 +339,7 @@ describe('reviewed Group settings and member removal', () => {
     const f = groupFixture();
     const rename = (await f.prepare('channel-rename', f.args({ name: 'Stale name' })))!;
     const remove = (await f.prepare('group-member-remove', f.args({ botSlug: 'writer' })))!;
-    f.core.channels.rename(f.group.id, 'Independent name');
+    f.core.channels.rename(OWNER_HUMAN_CONTEXT, f.group.id, 'Independent name');
     const effect = vi.fn();
     expect(() => rename.run(() => {}, effect)).toThrow('stale-channel');
     expect(() => remove.run(() => {}, effect)).toThrow('stale-channel');
@@ -340,7 +361,7 @@ describe('reviewed Group settings and member removal', () => {
   it('removes an archived member through the owner while keeping its Bot and the Group history', async () => {
     const f = groupFixture();
     f.core.registry.setPaused('writer', true);
-    await f.core.channels.appendMessage(f.group.id, {
+    await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.group.id, {
       id: 'preserved-message',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -422,7 +443,7 @@ describe('reviewed Group settings and member removal', () => {
     await expect(
       f.run('group-member-remove', f.args({ botSlug: 'missing' })),
     ).rejects.toMatchObject({ code: 'not-group-member' });
-    const dm = f.core.channels.getOrCreateDm('research')!;
+    const dm = f.core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'research')!;
     await expect(
       f.run('channel-rename', {
         channelId: dm.id,
@@ -436,14 +457,20 @@ describe('reviewed Group settings and member removal', () => {
 describe('reviewed invitation cancellation and join decisions', () => {
   function decisionFixture() {
     const f = fixture();
-    const group = f.core.channels.createGroup({ name: 'Decisions', members: ['research'] });
+    const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Decisions',
+      members: ['research'],
+    });
     const args = (patch: Record<string, unknown>): Record<string, unknown> => ({
       channelId: group.id,
       expectedChannel: f.core.channelManagement.snapshot(group.id).channelFingerprint,
       ...patch,
     });
     const invite = () =>
-      f.core.channelManagement.invite({ channelId: group.id, botSlug: 'writer' }).invitation!;
+      f.core.channelManagement.invite(OWNER_HUMAN_CONTEXT, {
+        channelId: group.id,
+        botSlug: 'writer',
+      }).invitation!;
     const join = () =>
       f.core.channels.requestGroupJoin({
         channelId: group.id,
@@ -570,7 +597,7 @@ describe('reviewed invitation cancellation and join decisions', () => {
       'group-join-decide',
       f.args({ requestId: request.id, accept: true }),
     ))!;
-    f.core.channelManagement.decideJoin({
+    f.core.channelManagement.decideJoin(OWNER_HUMAN_CONTEXT, {
       channelId: f.group.id,
       requestId: request.id,
       accept: false,
@@ -605,7 +632,10 @@ describe('reviewed invitation cancellation and join decisions', () => {
   it('rejects missing, foreign and malformed targets before review', async () => {
     const f = decisionFixture();
     const request = f.join();
-    const foreign = f.core.channels.createGroup({ name: 'Other', members: [] });
+    const foreign = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Other',
+      members: [],
+    });
     await expect(
       f.run('group-join-decide', {
         channelId: foreign.id,

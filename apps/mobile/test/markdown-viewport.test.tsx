@@ -78,13 +78,13 @@ function Document() {
     </View>
   );
 }
-function Conversation() {
+function Conversation({ inverted = false }: { inverted?: boolean }) {
   const viewport = useAnimatedRef<ViewInstance>();
   const content = useAnimatedRef<ViewInstance>();
   const scroll = useSharedValue(16533);
   const layout = useSharedValue(1);
   native.scroll = scroll;
-  const stage = { viewport, content, scroll, layout, active: true };
+  const stage = { viewport, content, scroll, layout, active: true, inverted };
   return (
     <MarkdownViewportContext.Provider value={stage}>
       <Document />
@@ -125,4 +125,34 @@ it('restores blocks on the last return scroll event even while Fabric still meas
   await flush();
   expect(window.project(blocks, read()).every((part) => part.kind === 'block')).toBe(true);
   expect(read().top).toBe(-500);
+});
+
+it('restores visible markdown from newest-first coordinates after a return scroll', async () => {
+  native.frames = [
+    { pageY: 0, height: 800 },
+    { pageY: -3200, height: 5000 },
+    { pageY: 1500, height: 222 },
+  ];
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  cleanup = () => {
+    act(() => root.unmount());
+    container.remove();
+  };
+  await act(async () => root.render(<Conversation inverted />));
+  native.scroll.value = 0;
+  await act(async () => {
+    native.react();
+    for (const callback of native.scheduled.splice(0)) callback();
+  });
+  const visible: MarkdownViewport = JSON.parse(
+    container.querySelector('output')?.textContent ?? '{}',
+  );
+  expect(visible).toEqual({ top: -500, height: 800 });
+  const blocks = createMarkdownBlocks()('# Heading\n\nBody\n\nTail');
+  const window = createMarkdownWindow();
+  for (const [index, block] of blocks.entries())
+    window.measure(block, index < blocks.length - 1, 100);
+  expect(window.project(blocks, visible).every((part) => part.kind === 'block')).toBe(true);
 });

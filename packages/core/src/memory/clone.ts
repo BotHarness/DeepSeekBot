@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
-import { rmSync } from 'node:fs';
 import { promisify } from 'node:util';
+
+import { removeTreeQuietly } from '../fs/remove-tree.js';
 
 import { probeGit, type GitAvailability } from './git-probe.js';
 
@@ -145,12 +146,12 @@ export async function cloneMemoryRepository(input: {
     const code = cloneFailure(error);
     const https = code === 'git-not-found' ? undefined : httpsUrlForSsh(url);
     if (https === undefined) return { ok: false, code };
-    rmSync(input.destination, { recursive: true, force: true });
+    removeTreeQuietly(input.destination);
     try {
       await gitClone(https, input.destination, timeoutMs);
       return { ok: true, httpsFallback: { from: url, to: https, ...sshFailure(error) } };
     } catch {
-      rmSync(input.destination, { recursive: true, force: true });
+      removeTreeQuietly(input.destination);
       return { ok: false, code };
     }
   }

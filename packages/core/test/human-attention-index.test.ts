@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createHash } from 'node:crypto';
 import type { SQLInputValue } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
@@ -5,8 +6,12 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery, UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+
+const canonicalHistorySql = `SELECT source_event_id, source_kind, bot_slug, channel_id, message_id,
+  assignment_session_id, body, created_at, handled_at, attempt_state, side_effect_started_at,
+  expects_reply, observed_at, payload_json FROM source_events ORDER BY source_event_id`;
 
 const indexes = [
   'source_events_attention_question',
@@ -14,85 +19,83 @@ const indexes = [
   'source_events_attention_private',
   'source_events_attention_grant',
   'source_events_attention_rejection',
+  'source_events_attention_takeover',
 ];
 
 describe('Human attention candidate indexes', () => {
-  it('upgrades generation 112 without rewriting canonical history and refuses older writers', () => {
-    const dshHome = createTempRoot('attention-index-upgrade-');
-    const priorPlan = defineSchemaPlan(
-      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 112),
-    );
-    const prior = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
-    const database = attachOperationalModule(prior, 'attention-index-upgrade');
-    database.transaction((connection) => {
-      const event = connection.prepare(`INSERT INTO source_events
+  it.each([112, 113])(
+    'upgrades generation %i without rewriting canonical history and refuses older writers',
+    (generation) => {
+      const dshHome = createTempRoot('attention-index-upgrade-');
+      const priorPlan = defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
+          (migration) => migration.generation <= generation,
+        ),
+      );
+      const prior = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
+      const database = attachOperationalModule(prior, 'attention-index-upgrade');
+      database.transaction((connection) => {
+        const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
         VALUES (?, 'bot-message', 'unplaced-history', ?, ?, ?, ?)`);
-      for (let index = 0; index < 2000; index++) {
-        const id = `unplaced-${index}`;
-        event.run(
-          id,
-          id,
-          'Retained historical content',
-          '2026-11-01T00:00:00.000Z',
-          JSON.stringify({
-            author: { kind: 'bot', slug: 'ada' },
-            ...(index % 100 === 0 ? { grantRequest: true } : {}),
-          }),
+        for (let index = 0; index < 2000; index++) {
+          const id = `unplaced-${index}`;
+          event.run(
+            id,
+            id,
+            'Retained historical content',
+            '2026-11-01T00:00:00.000Z',
+            JSON.stringify({
+              author: { kind: 'bot', slug: 'ada' },
+              ...(index % 100 === 0 ? { grantRequest: true } : {}),
+            }),
+          );
+        }
+      });
+      const facts = () =>
+        database.read((connection) =>
+          createHash('sha256')
+            .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
+            .digest('hex'),
         );
-      }
-    });
-    const facts = () =>
-      database.read((connection) =>
+      const before = facts();
+      prior.close();
+      const upgraded = trackTestOwner(
+        mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      );
+      expect(upgraded.mode).toBe('ready');
+      expect(upgraded.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
+      const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
+      const after = current.read((connection) =>
         createHash('sha256')
-          .update(
-            JSON.stringify(
-              connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-            ),
-          )
+          .update(JSON.stringify(connection.prepare(canonicalHistorySql).all()))
           .digest('hex'),
       );
-    const before = facts();
-    prior.close();
-    const upgraded = trackTestOwner(
-      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
-    );
-    expect(upgraded.mode).toBe('ready');
-    expect(upgraded.generation).toBe(113);
-    const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
-    const after = current.read((connection) =>
-      createHash('sha256')
-        .update(
-          JSON.stringify(
-            connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-          ),
-        )
-        .digest('hex'),
-    );
-    expect(after).toBe(before);
-    expect(
-      current.read((connection) =>
-        connection
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'source_events_attention_%' ORDER BY name",
-          )
-          .all()
-          .map((row) => row.name),
-      ),
-    ).toEqual([...indexes].sort());
-    expect(
-      current.read((connection) => connection.prepare('PRAGMA integrity_check').get()),
-    ).toEqual({
-      integrity_check: 'ok',
-    });
-    expect(
-      current.read((connection) => connection.prepare('PRAGMA foreign_key_check').all()),
-    ).toEqual([]);
-    upgraded.close();
-    const older = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
-    expect(older.mode).toBe('recovery');
-    expect(older.diagnostics().recovery?.code).toBe('upgrade-required');
-  });
+      expect(after).toBe(before);
+      expect(
+        current.read((connection) =>
+          connection
+            .prepare(
+              "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'source_events_attention_%' ORDER BY name",
+            )
+            .all()
+            .map((row) => row.name),
+        ),
+      ).toEqual([...indexes].sort());
+      expect(
+        current.read((connection) => connection.prepare('PRAGMA integrity_check').get()),
+      ).toEqual({
+        integrity_check: 'ok',
+      });
+      expect(
+        current.read((connection) => connection.prepare('PRAGMA foreign_key_check').all()),
+      ).toEqual([]);
+      upgraded.close();
+      const older = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
+      expect(older.mode).toBe('recovery');
+      expect(older.diagnostics().recovery?.code).toBe('upgrade-required');
+    },
+  );
 
   it('uses selective candidates rather than scanning placements for an empty action list', () => {
     const dshHome = createTempRoot('attention-index-plan-');
@@ -101,7 +104,7 @@ describe('Human attention candidate indexes', () => {
     );
     const database = attachOperationalModule(owner, 'attention-index-plan');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
-    const channel = channels.getOrCreateDm('ada', 'Ada')!;
+    const channel = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     database.transaction((connection) => {
       const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
@@ -158,8 +161,8 @@ describe('Human attention candidate indexes', () => {
         );
       },
     };
-    expect(createHumanAttentionQuery(observed).status()).toEqual({
-      unreadCount: 2000,
+    expect(createHumanAttentionQuery(observed).status(OWNER_HUMAN_CONTEXT)).toEqual({
+      unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
     });
     expect(plans.length).toBeGreaterThan(0);

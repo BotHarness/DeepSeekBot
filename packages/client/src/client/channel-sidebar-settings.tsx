@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import {
   createContext,
@@ -8,11 +9,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import {
-  IconChevronRightOutlineRegular,
-  MenuItemButton,
-  MenuSurface,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { MenuItemButton, MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { ChannelSidebarEntry, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -67,7 +65,7 @@ export function SettingsSubmenu({
         }}
       >
         <span>{label}</span>
-        <IconChevronRightOutlineRegular size={14} />
+        <Icon name="chevron-right" size={14} />
       </button>
       {open ? (
         <MenuSurface role="menu" className="bh-sidebar-settings-options">
@@ -134,7 +132,7 @@ export function ChannelSidebarSettings({
         align="end"
         className="bh-sidebar-settings-menu"
         listClassName="bh-sidebar-settings-list"
-        getAnchorRect={() => anchor.current?.getBoundingClientRect() ?? null}
+        anchorRef={anchor}
         anchor={
           <Tooltip label={label} side="bottom" delayMs={500}>
             <button

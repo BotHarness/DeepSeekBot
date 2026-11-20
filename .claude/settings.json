@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm evidence:publish:*)",
+      "Bash(pnpm evidence:check:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-lint-hook.mjs\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

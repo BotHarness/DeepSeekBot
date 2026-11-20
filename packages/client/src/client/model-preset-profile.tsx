@@ -1,29 +1,46 @@
+import type { ModelPresetEngines, SubscriptionModel } from '@botharness/host-client/model-plans';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  Button,
-  Checkbox,
-  Input,
-  SegmentedControl,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
+import { modelEffortChoices } from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
-  AssignmentModelOptionView,
   ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  ModelPlanGroupsView,
   ModelPlanView,
   ModelPlanStateView,
   ModelPresetView,
   ModelRouteView,
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
+import { AssignmentModelPolicy } from './assignment-model-policy.js';
 import { Combobox, type ComboboxOption } from './combobox.js';
+import { engineRoles, useSubscriptionEngines, type EngineRole } from './engine-choice.js';
+import { engineName } from './session-engine.js';
+import { isOriginActions } from './origin-actions.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { engineMenuItems, groupMenuId, groupMenuKey } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
+import { savePresetStyles } from './model-preset-save-styles.js';
+import {
+  draftOf,
+  modelKey,
+  planParts,
+  routeLabel,
+  routeOfKey,
+  trailing,
+  withAdvanced,
+  type ModelDraft,
+} from './model-preset-draft.js';
 import {
   invalidateModelPlan,
   modelPlanOf,
@@ -44,150 +61,28 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: color.divider,
   },
-  savePreset: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    minWidth: 0,
-  },
-  grow: { flexGrow: 1, minWidth: 0 },
 });
 
-export function routeLabel(route: ModelRouteView, defaultLabel: string): string {
-  return `${route.model} · ${route.reasoningEffort ?? defaultLabel}`;
-}
-
-const modelKey = (route: Pick<ModelRouteView, 'provider' | 'model'>): string =>
-  JSON.stringify([route.provider, route.model]);
-
-function routeOfKey(key: string, effort: string): ModelRouteView {
-  const [provider, model] = JSON.parse(key) as [string, string];
-  return { provider, model, ...(effort === '' ? {} : { reasoningEffort: effort }) };
-}
-
-interface ModelChoice {
-  key: string;
-  effort: string;
-}
-
-interface ModelDraft {
-  orchestrator: ModelChoice;
-  assignment: ModelChoice;
-  allowed: AssignmentModelOptionView[];
-  advanced: boolean;
-  presetId: string;
-}
-
-function allowedOf(
-  assignmentDefault: ModelRouteView | undefined,
-  assignmentModels: readonly AssignmentModelOptionView[] | undefined,
-): AssignmentModelOptionView[] {
-  if (assignmentDefault === undefined) return [];
+function sameEngine(left: SubscriptionModel | null, right: SubscriptionModel | null): boolean {
   return (
-    assignmentModels ?? [
-      {
-        provider: assignmentDefault.provider,
-        model: assignmentDefault.model,
-        allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-        defaultEffort: assignmentDefault.reasoningEffort ?? '',
-      },
-    ]
-  ).map((option) => ({ ...option, allowedEfforts: [...option.allowedEfforts] }));
-}
-
-function draftOf(
-  source: Pick<ModelPlanView, 'orchestrator' | 'assignmentDefault' | 'assignmentModels'>,
-  presetId: string,
-): ModelDraft {
-  return {
-    orchestrator: {
-      key: modelKey(source.orchestrator),
-      effort: source.orchestrator.reasoningEffort ?? '',
-    },
-    assignment: {
-      key: source.assignmentDefault === undefined ? '' : modelKey(source.assignmentDefault),
-      effort: source.assignmentDefault?.reasoningEffort ?? '',
-    },
-    allowed: allowedOf(source.assignmentDefault, source.assignmentModels),
-    advanced:
-      (source.assignmentModels?.length ?? 1) > 1 ||
-      source.assignmentModels?.some(
-        (option) => option.note !== undefined || option.allowedEfforts.length > 1,
-      ) === true,
-    presetId,
-  };
-}
-
-function withNote(
-  option: AssignmentModelOptionView,
-  note: string | undefined,
-): AssignmentModelOptionView {
-  const { note: _previous, ...rest } = option;
-  const trimmed = note?.trim() ?? '';
-  return trimmed === '' ? rest : { ...rest, note: trimmed };
-}
-
-function assignmentChoice(draft: ModelDraft): ModelChoice {
-  if (!draft.advanced) return draft.assignment;
-  const option = draft.allowed.find((item) => modelKey(item) === draft.assignment.key);
-  return { key: draft.assignment.key, effort: option?.defaultEffort ?? draft.assignment.effort };
-}
-
-function assignmentRoute(draft: ModelDraft): ModelRouteView {
-  const { key, effort } = assignmentChoice(draft);
-  return routeOfKey(key, effort);
-}
-
-function finalAllowed(draft: ModelDraft): AssignmentModelOptionView[] {
-  if (draft.advanced) return draft.allowed.map((option) => withNote(option, option.note));
-  const {
-    provider,
-    model,
-    reasoningEffort = '',
-  } = routeOfKey(draft.assignment.key, draft.assignment.effort);
-  return [{ provider, model, allowedEfforts: [reasoningEffort], defaultEffort: reasoningEffort }];
-}
-
-function withAdvanced(draft: ModelDraft, advanced: boolean): ModelDraft {
-  if (!advanced) return { ...draft, advanced, assignment: assignmentChoice(draft) };
-  const { key, effort } = draft.assignment;
-  const existing = draft.allowed.find((option) => modelKey(option) === key);
-  const route = routeOfKey(key, effort);
-  const allowed =
-    existing === undefined
-      ? [
-          {
-            provider: route.provider,
-            model: route.model,
-            allowedEfforts: [effort],
-            defaultEffort: effort,
-          },
-          ...draft.allowed,
-        ]
-      : draft.allowed.map((option) =>
-          modelKey(option) === key
-            ? {
-                ...option,
-                allowedEfforts: option.allowedEfforts.includes(effort)
-                  ? option.allowedEfforts
-                  : [...option.allowedEfforts, effort],
-                defaultEffort: effort,
-              }
-            : option,
-        );
-  return { ...draft, advanced, allowed };
+    left?.engine === right?.engine && left?.model === right?.model && left?.effort === right?.effort
+  );
 }
 
 export function ModelPresetProfile({
   slug,
   actions,
   t,
+  onClose,
 }: {
   slug: string;
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  onClose?: (() => void) | undefined;
 }): ReactElement {
   const [catalog, setCatalog] = useState<ModelCatalogEntryView[]>();
+  const [catalogDefault, setCatalogDefault] = useState<ModelRouteView>();
+  const [catalogGroups, setCatalogGroups] = useState<ModelCatalogGroupView[]>([]);
   const [presets, setPresets] = useState<ModelPresetView[]>([]);
   const [plan, setPlan] = useState<ModelPlanView>();
   const [revision, setRevision] = useState(0);
@@ -195,17 +90,42 @@ export function ModelPresetProfile({
   const [planLoadError, setPlanLoadError] = useState(false);
   const planRequest = useRef(0);
   const [draft, setDraft] = useState<ModelDraft>();
+  const [initialDraft, setInitialDraft] = useState<ModelDraft>();
   const [presetName, setPresetName] = useState<string>();
+  const pendingPreset = useRef<ModelPresetView>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(onClose !== undefined);
+  const [selectionMode, setSelectionMode] = useState('models');
   const [modeSwitched, setModeSwitched] = useState(false);
+  const origin = isOriginActions(actions);
+  const engines = useSubscriptionEngines(origin && editorOpen);
+  const [engineDraft, setEngineDraft] = useState<
+    Partial<Record<EngineRole, SubscriptionModel | null>>
+  >({});
+  const engineItems = engineMenuItems(
+    engines.view?.engines ?? [],
+    engines.models,
+    engines.signingIn,
+    t,
+  );
+  const liveEngine = (role: EngineRole) =>
+    origin && engines.view?.engines.length
+      ? (engines.view.selections.find((item) => item.botSlug === slug && item.role === role) ??
+        null)
+      : null;
+  const desiredEngine = (role: EngineRole) =>
+    origin && engineDraft[role] !== undefined ? engineDraft[role] : liveEngine(role);
+  const pendingEngines = engineRoles.filter(
+    (role) => !sameEngine(liveEngine(role), desiredEngine(role)),
+  );
+  const chosenPreset = presets.find((preset) => preset.id === draft?.presetId);
 
   const acceptPlan = (
     current: ModelPlanView | undefined,
     currentRevision = current?.revision ?? 0,
   ): void => {
-    rememberModelPlan(slug, current);
+    rememberModelPlan(slug, current, actions);
     setPlan((previous) => ((previous?.revision ?? 0) > currentRevision ? previous : current));
   };
 
@@ -215,7 +135,7 @@ export function ModelPresetProfile({
       void actions.modelPlanState(slug).then(
         (state) => {
           if (planRequest.current !== request) return;
-          rememberModelPlan(slug, state.plan);
+          rememberModelPlan(slug, state.plan, actions);
           setRevision(state.revision ?? state.plan?.revision ?? 0);
           setRepair(state.repair);
           setPlanLoadError(false);
@@ -230,10 +150,11 @@ export function ModelPresetProfile({
         },
       );
     };
-    read();
+    if (onClose === undefined) read();
+    else void load();
     const unsubscribe = subscribeModelPlans(() => {
-      if (modelPlanOf(slug) === undefined) read();
-    });
+      if (modelPlanOf(slug, actions) === undefined) read();
+    }, actions);
     return () => {
       ++planRequest.current;
       unsubscribe();
@@ -244,7 +165,7 @@ export function ModelPresetProfile({
     const request = planRequest.current;
     setError(undefined);
     try {
-      const [{ models, default: fallback }, saved, state] = await Promise.all([
+      const [{ models, default: fallback, groups }, saved, state] = await Promise.all([
         actions.modelCatalog(),
         actions.modelPresets(),
         actions.modelPlanState(slug),
@@ -255,19 +176,22 @@ export function ModelPresetProfile({
       acceptPlan(current, state.revision);
       setRepair(state.repair);
       setCatalog(models);
+      setCatalogDefault(fallback);
+      setCatalogGroups(groups ?? []);
       setPresets(saved);
-      setDraft((previous) => {
-        if (previous !== undefined) return previous;
+      const initial = (() => {
         if (current !== undefined) return draftOf(current, current.sourcePresetId);
         const usable = models.filter((entry) => entry.credential === undefined);
         const first =
           usable.find(
             (entry) => entry.provider === fallback?.provider && entry.model === fallback.model,
           ) ?? usable[0];
-        if (first === undefined) return undefined;
+        if (first === undefined) return draftOf({}, '');
         const route = { provider: first.provider, model: first.model };
-        return draftOf({ orchestrator: route, assignmentDefault: route }, '');
-      });
+        return draftOf({ orchestrator: route }, '');
+      })();
+      setInitialDraft(initial);
+      setDraft((previous) => previous ?? initial);
       setPlanLoadError(false);
     } catch (failure) {
       if (planRequest.current === request) setError(errorMessage(failure));
@@ -290,57 +214,164 @@ export function ModelPresetProfile({
 
   const openEditor = (): void => {
     setDraft(undefined);
+    setEngineDraft({});
     setPresetName(undefined);
+    pendingPreset.current = undefined;
     setError(undefined);
     setModeSwitched(false);
+    setSelectionMode('models');
     setEditorOpen(true);
     void load();
   };
 
-  const edit = (change: Partial<ModelDraft>): void =>
+  const updateDraft = (change: (current: ModelDraft) => Partial<ModelDraft>): void =>
     setDraft((current) =>
-      current === undefined ? current : { ...current, ...change, presetId: '' },
+      current === undefined ? current : { ...current, ...change(current), presetId: '' },
     );
+  const edit = (change: Partial<ModelDraft>): void => updateDraft(() => change);
 
-  const inCatalog = (key: string): boolean =>
-    catalog?.some((entry) => modelKey(entry) === key) === true;
+  const editEngine = (role: EngineRole, choice: SubscriptionModel | null): void => {
+    setEngineDraft((current) => ({ ...current, [role]: choice }));
+    edit({});
+  };
+
+  const subscription = (role: EngineRole) =>
+    origin
+      ? {
+          choice: desiredEngine(role),
+          items: engineItems,
+          models: engines.models,
+          onChange: (choice: SubscriptionModel) => editEngine(role, choice),
+          signIn: engines.signIn,
+        }
+      : undefined;
+
+  const stagePreset = (preset: ModelPresetView) => {
+    setDraft(draftOf(preset, preset.id));
+    setEngineDraft({
+      orchestrator: preset.orchestratorEngine ?? null,
+      assignment: preset.assignmentEngine ?? null,
+    });
+  };
+  const presetEngines = (): ModelPresetEngines => {
+    const choice = (role: EngineRole): SubscriptionModel | undefined => {
+      const value = desiredEngine(role);
+      if (value === null) return undefined;
+      const { engine, model, effort } = value;
+      return {
+        engine,
+        ...(model === undefined ? {} : { model }),
+        ...(effort === undefined ? {} : { effort }),
+      };
+    };
+    const orchestratorEngine = choice('orchestrator');
+    const assignmentEngine = choice('assignment');
+    return {
+      ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+      ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
+    };
+  };
+
+  const inCatalog = (key: string): boolean => {
+    const group = groupMenuId(key);
+    return group === undefined
+      ? catalog?.some((entry) => modelKey(entry) === key) === true
+      : catalogGroups.some((entry) => entry.id === group);
+  };
   const canSave =
     draft !== undefined &&
     inCatalog(draft.orchestrator.key) &&
     (draft.assignment.key === '' || inCatalog(draft.assignment.key)) &&
     !busy;
+  const planEdited = JSON.stringify(draft) !== JSON.stringify(initialDraft);
+  const enginesOnly = !planEdited && pendingEngines.length > 0;
+  const canApply =
+    !busy &&
+    (enginesOnly || (canSave && (plan !== undefined || planEdited || chosenPreset !== undefined)));
+  const presetDraft =
+    draft?.assignment.key === '' && engineRoles.some((role) => desiredEngine(role) !== null)
+      ? {
+          ...draft,
+          assignment:
+            catalogDefault === undefined
+              ? draft.orchestrator
+              : { key: modelKey(catalogDefault), effort: catalogDefault.reasoningEffort ?? '' },
+        }
+      : draft;
+  const canSavePreset = canSave && presetDraft?.assignment.key !== '';
+
+  const closeEditor = (): void => {
+    if (busy) return;
+    setEditorOpen(false);
+    onClose?.();
+  };
 
   const finish = (applied: ModelPlanView): void => {
     planRequest.current += 1;
-    rememberModelPlan(slug, applied);
+    rememberModelPlan(slug, applied, actions);
     setPlan(applied);
     setRevision(applied.revision);
     setRepair(undefined);
     setEditorOpen(false);
+    onClose?.();
   };
 
   const save = async (): Promise<void> => {
-    if (!canSave || draft === undefined) return;
+    if (!canApply || draft === undefined) return;
     setBusy(true);
     setError(undefined);
     try {
+      const orchestratorGroup = groupMenuId(draft.orchestrator.key);
+      const parts =
+        draft.assignment.key === '' || enginesOnly
+          ? undefined
+          : planParts(draft, catalogGroups, catalog);
       const applied =
-        draft.presetId !== '' && presets.some((preset) => preset.id === draft.presetId)
-          ? await actions.applyModelPreset(slug, draft.presetId)
-          : draft.assignment.key === ''
-            ? await actions.customizeModelPlan(
-                slug,
-                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-                plan?.revision ?? revision,
-              )
-            : await actions.setModelPlan(
-                slug,
-                plan?.revision ?? revision,
-                routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-                assignmentRoute(draft),
-                finalAllowed(draft),
-              );
-      finish(applied);
+        chosenPreset !== undefined
+          ? await actions.applyModelPreset(slug, chosenPreset.id)
+          : enginesOnly
+            ? plan
+            : draft.assignment.key === ''
+              ? orchestratorGroup === undefined
+                ? await actions.customizeModelPlan(
+                    slug,
+                    routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
+                    plan?.revision ?? revision,
+                  )
+                : await actions.chooseModelPlanGroup(
+                    slug,
+                    orchestratorGroup,
+                    plan?.revision ?? revision,
+                    draft.orchestrator.effort,
+                  )
+              : parts === undefined
+                ? undefined
+                : await actions.setModelPlan(
+                    slug,
+                    plan?.revision ?? revision,
+                    parts.orchestrator,
+                    parts.assignmentDefault,
+                    parts.assignmentModels,
+                    ...trailing(draft, parts),
+                  );
+      if (applied === undefined && (planEdited || pendingEngines.length === 0)) {
+        setError(t('modelPreset.routeUnavailable'));
+        return;
+      }
+      if (applied !== undefined) {
+        acceptPlan(applied);
+        setRevision(applied.revision);
+        setInitialDraft(draft);
+      }
+      if (chosenPreset === undefined) {
+        for (const role of pendingEngines)
+          await engines.saveSelection(slug, role, desiredEngine(role), liveEngine(role)?.fallback);
+        if (pendingEngines.length > 0 && (await engines.refresh()) === undefined) return;
+      }
+      if (applied === undefined) {
+        setEditorOpen(false);
+        onClose?.();
+      } else finish(applied);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -350,18 +381,42 @@ export function ModelPresetProfile({
 
   const saveAsPreset = async (): Promise<void> => {
     const name = presetName?.trim() ?? '';
-    if (!canSave || draft === undefined || draft.assignment.key === '' || name === '') return;
+    if (!canSavePreset || presetDraft === undefined || name === '') return;
+    const parts = planParts(presetDraft, catalogGroups, catalog);
+    if (parts === undefined) {
+      setError(t('modelPreset.routeUnavailable'));
+      return;
+    }
     setBusy(true);
     setError(undefined);
     try {
-      const preset = await actions.createModelPreset(
+      const storedEngines = presetEngines();
+      const hasEngines = Object.keys(storedEngines).length > 0;
+      const args = [
         name,
-        routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-        assignmentRoute(draft),
-        finalAllowed(draft),
-      );
-      setPresets((current) => [...current, preset]);
-      finish(await actions.applyModelPreset(slug, preset.id));
+        parts.orchestrator,
+        parts.assignmentDefault,
+        parts.assignmentModels,
+      ] as const;
+      const preset =
+        pendingPreset.current ??
+        (hasEngines
+          ? await actions.createModelPreset(
+              ...args,
+              presetDraft.open || undefined,
+              parts.groups,
+              storedEngines,
+            )
+          : await actions.createModelPreset(...args, ...trailing(presetDraft, parts)));
+      if (pendingPreset.current === undefined) {
+        pendingPreset.current = preset;
+        setPresets((current) => [...current, preset]);
+      }
+      const applied = await actions.applyModelPreset(slug, preset.id);
+      acceptPlan(applied);
+      setRevision(applied.revision);
+      setInitialDraft(draft);
+      finish(applied);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -385,21 +440,32 @@ export function ModelPresetProfile({
             ),
       disabled: entry.credential !== undefined,
     }));
-  const presetOptions: ComboboxOption[] = presets.map((preset) => ({
-    value: preset.id,
-    label: preset.name,
-    hint: routeLabel(preset.orchestrator, t('modelPreset.providerDefault')),
-  }));
-  const currentPreset = presets.find((preset) => preset.id === draft?.presetId);
+  const groupName = (id: string | undefined): string | undefined =>
+    id === undefined ? undefined : (catalogGroups.find((group) => group.id === id)?.name ?? id);
+  const presetRouteLabel = (route: ModelRouteView): string =>
+    routeLabel(
+      {
+        ...route,
+        model:
+          catalog?.find((entry) => modelKey(entry) === modelKey(route))?.modelName ?? route.model,
+      },
+      t('modelPreset.providerDefault'),
+    );
+  const presetEngineLabel = (choice: SubscriptionModel | undefined): string | undefined =>
+    choice === undefined ? undefined : (choice.model ?? engineName(choice.engine));
 
   const messages = (
     <>
       {repair !== undefined && (
         <span className="bh-profile-error" role="alert">
           {repair.code === 'legacy-ambiguous'
-            ? t('modelPreset.legacyAmbiguous', { model: repair.legacyModel ?? '' })
+            ? t('modelPreset.legacyAmbiguous', {
+                model: repair.legacyModel ?? '',
+              })
             : repair.code === 'legacy-missing'
-              ? t('modelPreset.legacyMissing', { model: repair.legacyModel ?? '' })
+              ? t('modelPreset.legacyMissing', {
+                  model: repair.legacyModel ?? '',
+                })
               : t('modelPreset.routeRepair')}
         </span>
       )}
@@ -415,128 +481,6 @@ export function ModelPresetProfile({
       )}
     </>
   );
-
-  const effortsOf = (entry: ModelCatalogEntryView | undefined) => [
-    { id: '', name: t('modelPreset.providerDefault') },
-    ...(entry?.efforts ?? []),
-  ];
-  const editAllowed = (
-    key: string,
-    change: (option: AssignmentModelOptionView) => AssignmentModelOptionView,
-  ): void =>
-    setDraft((current) =>
-      current === undefined
-        ? current
-        : {
-            ...current,
-            presetId: '',
-            allowed: current.allowed.map((item) => (modelKey(item) === key ? change(item) : item)),
-          },
-    );
-
-  const modelCard = (option: AssignmentModelOptionView, isDefault: boolean) => {
-    const key = modelKey(option);
-    const entry = catalog?.find((item) => modelKey(item) === key);
-    const name = entry?.modelName ?? option.model;
-    const efforts = effortsOf(entry);
-    const allowedEfforts = efforts.filter((effort) => option.allowedEfforts.includes(effort.id));
-    return (
-      <li key={key} className="bh-card-row bh-model-card">
-        <div className="bh-model-card-head">
-          <strong>{name}</strong>
-          <span className="bh-model-card-provider">{entry?.providerName ?? option.provider}</span>
-          {isDefault ? (
-            <Tag tone="neutral">{t('modelPreset.defaultModel')}</Tag>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => edit({ assignment: { key, effort: option.defaultEffort } })}
-              >
-                {t('modelPreset.makeDefault')}
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                aria-label={t('modelPreset.removeAllowed', { model: name })}
-                onClick={() =>
-                  setDraft((current) =>
-                    current === undefined
-                      ? current
-                      : {
-                          ...current,
-                          presetId: '',
-                          allowed: current.allowed.filter((item) => modelKey(item) !== key),
-                        },
-                  )
-                }
-              >
-                ×
-              </Button>
-            </>
-          )}
-        </div>
-        <div className="bh-model-card-field">
-          <span>{t('modelPreset.allowedEfforts')}</span>
-          <div className="bh-model-card-efforts">
-            {efforts.map((effort) => (
-              <Checkbox
-                key={effort.id}
-                label={effort.name}
-                checked={option.allowedEfforts.includes(effort.id)}
-                disabled={
-                  busy ||
-                  (option.allowedEfforts.length === 1 && option.allowedEfforts.includes(effort.id))
-                }
-                onChange={(checked) =>
-                  editAllowed(key, (item) => {
-                    const next = efforts
-                      .map((candidate) => candidate.id)
-                      .filter((id) =>
-                        id === effort.id ? checked : item.allowedEfforts.includes(id),
-                      );
-                    if (next.length === 0) return item;
-                    return {
-                      ...item,
-                      allowedEfforts: next,
-                      defaultEffort: next.includes(item.defaultEffort)
-                        ? item.defaultEffort
-                        : next[0]!,
-                    };
-                  })
-                }
-              />
-            ))}
-          </div>
-        </div>
-        {allowedEfforts.length > 1 && (
-          <div className="bh-model-card-field">
-            <span>{t('modelPreset.defaultEffort')}</span>
-            <SegmentedControl
-              id={`bh-model-card-effort-${key}`}
-              value={option.defaultEffort}
-              options={allowedEfforts.map((effort) => ({ value: effort.id, label: effort.name }))}
-              onChange={(defaultEffort) => editAllowed(key, (item) => ({ ...item, defaultEffort }))}
-              label={`${name} · ${t('modelPreset.defaultEffort')}`}
-              disabled={busy}
-            />
-          </div>
-        )}
-        <Input
-          aria-label={t('modelPreset.noteLabel', { model: name })}
-          placeholder={t('modelPreset.notePlaceholder')}
-          value={option.note ?? ''}
-          maxLength={500}
-          disabled={busy}
-          onChange={(event) => {
-            const note = event.target.value;
-            editAllowed(key, (item) => ({ ...item, note }));
-          }}
-        />
-      </li>
-    );
-  };
 
   const modeControl =
     draft === undefined || draft.assignment.key === '' ? null : (
@@ -569,7 +513,7 @@ export function ModelPresetProfile({
         aria-label={t('modelPreset.assignment')}
         data-mode-switched={modeSwitched || undefined}
       >
-        {draft.advanced ? (
+        {draft.advanced && engineItems.length === 0 ? (
           <div className="bh-model-picker-heading-row">
             <div className="bh-model-picker-heading">
               <strong>{t('modelPreset.assignment')}</strong>
@@ -580,23 +524,32 @@ export function ModelPresetProfile({
         ) : (
           <ModelPicker
             title={t('modelPreset.assignment')}
-            hint={t('modelPreset.assignmentHint')}
+            hint={t(draft.advanced ? 'modelPreset.allowedHint' : 'modelPreset.assignmentHint')}
             choice={draft.assignment}
             catalog={catalog}
+            groups={catalogGroups}
+            groupEffort
             options={
               plan?.assignmentDefault === undefined
                 ? [{ value: '', label: t('onboarding.inherit') }, ...modelOptions]
                 : modelOptions
             }
-            onChange={(assignment) =>
+            onChange={(assignment) => {
+              editEngine('assignment', null);
+              const group = groupMenuId(assignment.key);
+              if (draft.advanced && assignment.key !== '') {
+                edit(withAdvanced({ ...draft, assignment }, true));
+                return;
+              }
               edit({
                 assignment,
                 allowed:
-                  assignment.key === draft.assignment.key
+                  assignment.key === draft.assignment.key || group !== undefined
                     ? draft.allowed
                     : draft.allowed.filter((option) => modelKey(option) !== draft.assignment.key),
-              })
-            }
+              });
+            }}
+            subscription={subscription('assignment')}
             disabled={busy}
             action={modeControl}
             t={t}
@@ -606,21 +559,29 @@ export function ModelPresetProfile({
           <div className="bh-model-allowed">
             <Combobox
               value=""
-              options={modelOptions.filter(
-                (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
-              )}
+              options={[
+                ...catalogGroups
+                  .filter((group) => !draft.groups.some((item) => item.group === group.id))
+                  .map((group) => ({
+                    value: groupMenuKey(group.id),
+                    label: group.name,
+                    hint: t('modelPreset.groupCount', { count: group.routes.length }),
+                  })),
+                ...modelOptions.filter(
+                  (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
+                ),
+              ]}
               onSelect={(key) => {
+                const group = groupMenuId(key);
+                if (group !== undefined) {
+                  edit({ groups: [{ group }, ...draft.groups] });
+                  return;
+                }
                 const entry = catalog.find((item) => modelKey(item) === key);
                 if (entry === undefined) return;
-                const effort = entry.defaultEffort ?? '';
                 edit({
                   allowed: [
-                    {
-                      provider: entry.provider,
-                      model: entry.model,
-                      allowedEfforts: [effort],
-                      defaultEffort: effort,
-                    },
+                    { provider: entry.provider, model: entry.model, ...modelEffortChoices(entry) },
                     ...draft.allowed,
                   ],
                 });
@@ -631,11 +592,32 @@ export function ModelPresetProfile({
               emptyLabel={t('modelPreset.noMatch')}
               disabled={busy}
             />
-            <ul className="bh-card-list bh-model-cards" aria-label={t('modelPreset.allowedTitle')}>
-              {draft.allowed.map((option) =>
-                modelCard(option, modelKey(option) === draft.assignment.key),
-              )}
-            </ul>
+            <AssignmentModelPolicy
+              draft={draft}
+              catalog={catalog}
+              catalogGroups={catalogGroups}
+              busy={busy}
+              t={t}
+              updateDraft={updateDraft}
+              onMakeDefault={(assignment) => {
+                editEngine('assignment', null);
+                edit({ assignment });
+              }}
+            />
+          </div>
+        )}
+        {draft.assignment.key === '' ? null : (
+          <div className="bh-model-picker-heading-row">
+            <div className="bh-model-picker-heading">
+              <strong>{t('modelPreset.openModels')}</strong>
+              <span>{t('modelPreset.openModelsHint')}</span>
+            </div>
+            <Switch
+              checked={draft.open}
+              label={t('modelPreset.openModels')}
+              disabled={busy}
+              onChange={(open) => edit({ open })}
+            />
           </div>
         )}
       </section>
@@ -647,167 +629,250 @@ export function ModelPresetProfile({
       role="region"
       aria-label={t('modelPreset.title')}
     >
-      <div className="bh-onboarding-actions">
-        <span className="bh-note">
-          {t(plan === undefined ? 'onboarding.inheritHint' : 'onboarding.fixed')}
-        </span>
-        {plan !== undefined || repair !== undefined ? (
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void actions
-                .inheritModel(slug, plan?.revision ?? revision)
-                .then(
-                  (result) => {
-                    planRequest.current += 1;
-                    invalidateModelPlan(slug);
-                    setPlan(undefined);
-                    setRevision(result.revision);
-                    setRepair(undefined);
-                  },
-                  (failure) => setError(errorMessage(failure)),
+      {onClose === undefined && (
+        <>
+          <div className="bh-onboarding-actions">
+            <span className="bh-note">
+              {t(plan === undefined ? 'onboarding.inheritHint' : 'onboarding.fixed')}
+            </span>
+            {plan !== undefined || repair !== undefined ? (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void actions
+                    .inheritModel(slug, plan?.revision ?? revision)
+                    .then(
+                      (result) => {
+                        planRequest.current += 1;
+                        invalidateModelPlan(slug, actions);
+                        setPlan(undefined);
+                        setRevision(result.revision);
+                        setRepair(undefined);
+                      },
+                      (failure) => setError(errorMessage(failure)),
+                    )
+                    .finally(() => setBusy(false));
+                }}
+              >
+                {t('onboarding.inherit')}
+              </Button>
+            ) : null}
+          </div>
+          <SidebarCardList label={t('modelPreset.title')}>
+            <SidebarCardRow
+              icon="bot"
+              title={t('modelPreset.title')}
+              chips={
+                presetLabel === undefined &&
+                extraAllowed <= 0 &&
+                plan?.openAssignmentModels !== true ? undefined : (
+                  <>
+                    {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
+                    {plan?.openAssignmentModels === true ? (
+                      <Tag tone="quiet">{t('modelPreset.openTag')}</Tag>
+                    ) : null}
+                    {extraAllowed > 0 ? (
+                      <Tag tone="quiet">
+                        {t('modelPreset.moreAllowed', { count: extraAllowed })}
+                      </Tag>
+                    ) : null}
+                  </>
                 )
-                .finally(() => setBusy(false));
-            }}
-          >
-            {t('onboarding.inherit')}
-          </Button>
-        ) : null}
-      </div>
-      <SidebarCardList label={t('modelPreset.title')}>
-        <SidebarCardRow
-          icon="bot"
-          title={t('modelPreset.title')}
-          chips={
-            presetLabel === undefined && extraAllowed <= 0 ? undefined : (
-              <>
-                {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
-                {extraAllowed > 0 ? (
-                  <Tag tone="quiet">{t('modelPreset.moreAllowed', { count: extraAllowed })}</Tag>
-                ) : null}
-              </>
-            )
-          }
-          meta={
-            plan === undefined || repair !== undefined || hasPlanError ? (
-              summary
-            ) : (
-              <>
-                <span className="bh-card-meta-line">
-                  {t('modelPreset.orchestrator')} · {summary}
-                </span>
-                <span className="bh-card-meta-line">
-                  {t('modelPreset.assignment')} ·{' '}
-                  {plan.assignmentDefault === undefined
-                    ? t('onboarding.inherit')
-                    : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
-                </span>
-              </>
-            )
-          }
-          onClick={openEditor}
-          dialog
-        />
-      </SidebarCardList>
+              }
+              meta={
+                plan === undefined || repair !== undefined || hasPlanError ? (
+                  summary
+                ) : (
+                  <>
+                    <span className="bh-card-meta-line">
+                      {t('modelPreset.orchestrator')} · {summary}
+                    </span>
+                    <span className="bh-card-meta-line">
+                      {t('modelPreset.assignment')} ·{' '}
+                      {plan.assignmentDefault === undefined
+                        ? t('onboarding.inherit')
+                        : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
+                    </span>
+                  </>
+                )
+              }
+              onClick={openEditor}
+              dialog
+            />
+          </SidebarCardList>
+        </>
+      )}
       {editorOpen ? null : messages}
       {editorOpen && (
         <PanelDialog
           size="medium"
           scroll
-          onClose={() => setEditorOpen(false)}
+          onClose={closeEditor}
           closeLabel={t('common.close')}
           title={t('modelPreset.title')}
           secondary={
-            <Button
-              variant="ghost"
-              disabled={!canSave || draft?.assignment.key === '' || presetName !== undefined}
-              onClick={() => setPresetName('')}
-            >
-              {t('modelPreset.saveAs')}
-            </Button>
+            selectionMode === 'models' ? (
+              <Button
+                variant="ghost"
+                disabled={!canSavePreset || presetName !== undefined}
+                onClick={() => setPresetName('')}
+              >
+                {t('modelPreset.saveAs')}
+              </Button>
+            ) : undefined
           }
           actions={
             <>
-              <Button variant="outline" disabled={busy} onClick={() => setEditorOpen(false)}>
+              <Button variant="outline" disabled={busy} onClick={closeEditor}>
                 {t('common.cancel')}
               </Button>
-              <Button variant="primary" disabled={!canSave} onClick={() => void save()}>
+              <Button
+                variant="primary"
+                disabled={!canApply || (selectionMode === 'presets' && !chosenPreset)}
+                onClick={() => void save()}
+              >
                 {t('modelPreset.save')}
               </Button>
             </>
           }
         >
+          <SegmentedControl
+            id="bh-model-selection-mode"
+            value={selectionMode}
+            options={[
+              { value: 'models', label: t('modelPreset.specificModels') },
+              { value: 'presets', label: t('modelPreset.presets') },
+            ]}
+            onChange={setSelectionMode}
+            label={t('modelPreset.selectionMode')}
+            disabled={busy}
+          />
           {catalog === undefined ? (
             <Note>{t('modelPreset.loading')}</Note>
-          ) : catalog.length === 0 || draft === undefined ? (
+          ) : (catalog.length === 0 && engineItems.length === 0) || draft === undefined ? (
             <Note>{t('modelPreset.emptyCatalog')}</Note>
           ) : (
             <>
-              {presets.length > 0 && (
+              {selectionMode === 'presets' ? (
                 <div data-model-preset-source="" {...stylex.props(styles.source)}>
-                  <Combobox
-                    value={draft.presetId}
-                    options={presetOptions}
-                    onSelect={(id) => {
-                      const preset = presets.find((item) => item.id === id);
-                      if (preset !== undefined) setDraft(draftOf(preset, preset.id));
-                    }}
-                    label={t('modelPreset.fromPreset')}
-                    toggleLabel={t('modelPreset.showPresets')}
-                    placeholder={t('modelPreset.fromPreset')}
-                    emptyLabel={t('modelPreset.noMatch')}
-                    disabled={busy}
-                  />
+                  <SidebarCardList label={t('modelPreset.presets')}>
+                    {presets.map((preset) => (
+                      <SidebarCardRow
+                        key={preset.id}
+                        title={preset.name}
+                        selection={{ checked: draft.presetId === preset.id }}
+                        meta={
+                          <>
+                            <span className="bh-card-meta-line">
+                              {t('modelPreset.orchestrator')} ·{' '}
+                              {presetEngineLabel(preset.orchestratorEngine) ??
+                                groupName(preset.orchestratorGroupId) ??
+                                presetRouteLabel(preset.orchestrator)}
+                            </span>
+                            <span className="bh-card-meta-line">
+                              {t('modelPreset.assignment')} ·{' '}
+                              {presetEngineLabel(preset.assignmentEngine) ??
+                                groupName(preset.assignmentDefaultGroupId) ??
+                                presetRouteLabel(preset.assignmentDefault)}
+                            </span>
+                          </>
+                        }
+                        disabled={busy}
+                        onClick={() => stagePreset(preset)}
+                      />
+                    ))}
+                  </SidebarCardList>
                   <Note>
-                    {currentPreset === undefined
+                    {chosenPreset === undefined
                       ? t('modelPreset.noPreset')
-                      : t('modelPreset.usingPreset', { name: currentPreset.name })}
+                      : t('modelPreset.usingPreset', {
+                          name: chosenPreset.name,
+                        })}
                   </Note>
+                  {presets.length === 0 && <Note>{t('modelPreset.emptyPresets')}</Note>}
                 </div>
-              )}
-              <ModelPicker
-                title={t('modelPreset.orchestrator')}
-                hint={t('modelPreset.orchestratorHint')}
-                choice={draft.orchestrator}
-                catalog={catalog}
-                options={modelOptions}
-                onChange={(orchestrator) => edit({ orchestrator })}
-                disabled={busy}
-                t={t}
-              />
-              {taskEditor}
-              {presetName !== undefined && (
-                <div {...stylex.props(styles.savePreset)}>
-                  <span {...stylex.props(styles.grow)}>
-                    <Input
-                      aria-label={t('modelPreset.name')}
-                      placeholder={t('modelPreset.name')}
-                      value={presetName}
-                      maxLength={100}
-                      autoFocus
-                      onChange={(event) => setPresetName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.nativeEvent.isComposing)
-                          void saveAsPreset();
-                      }}
-                    />
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={!canSave || presetName.trim() === ''}
-                    onClick={() => void saveAsPreset()}
-                  >
-                    {t('modelPreset.savePreset')}
-                  </Button>
-                  <Button variant="ghost" disabled={busy} onClick={() => setPresetName(undefined)}>
-                    {t('common.cancel')}
-                  </Button>
-                </div>
+              ) : (
+                <>
+                  <ModelPicker
+                    title={t('modelPreset.orchestrator')}
+                    hint={t('modelPreset.orchestratorHint')}
+                    choice={draft.orchestrator}
+                    catalog={catalog}
+                    groups={catalogGroups}
+                    groupEffort
+                    options={modelOptions}
+                    onChange={(orchestrator) => {
+                      editEngine('orchestrator', null);
+                      edit({ orchestrator });
+                    }}
+                    subscription={subscription('orchestrator')}
+                    disabled={busy}
+                    t={t}
+                  />
+                  {taskEditor}
+                  {presetName !== undefined && (
+                    <div {...stylex.props(savePresetStyles.row)}>
+                      <span {...stylex.props(savePresetStyles.grow)}>
+                        <Input
+                          aria-label={t('modelPreset.name')}
+                          placeholder={t('modelPreset.name')}
+                          value={presetName}
+                          disabled={busy || pendingPreset.current !== undefined}
+                          maxLength={100}
+                          autoFocus
+                          onChange={(event) => setPresetName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+                              void saveAsPreset();
+                          }}
+                        />
+                      </span>
+                      <Button
+                        variant="outline"
+                        disabled={!canSavePreset || presetName.trim() === ''}
+                        onClick={() => void saveAsPreset()}
+                      >
+                        {t('modelPreset.savePreset')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          pendingPreset.current = undefined;
+                          setPresetName(undefined);
+                        }}
+                      >
+                        {t('common.cancel')}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
+          {origin ? (
+            <div ref={engines.mount} hidden={selectionMode !== 'models'}>
+              {engines.view?.engines.length === 0 ? <Note>{t('engine.localOnly')}</Note> : null}
+              {engines.signInUrl === undefined ? null : (
+                <Note>
+                  <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">
+                    {t('engine.openSignIn')}
+                  </a>
+                </Note>
+              )}
+              {engines.loadFailed ? (
+                <Note tone="warning">
+                  {t('engine.loadFailed')}{' '}
+                  <Button variant="ghost" onClick={() => void engines.refresh()}>
+                    {t('engine.reload')}
+                  </Button>
+                </Note>
+              ) : null}
+              {engines.error === undefined ? null : <Note tone="danger">{engines.error}</Note>}
+            </div>
+          ) : null}
           {messages}
         </PanelDialog>
       )}

@@ -1,13 +1,19 @@
-import { useRef, useSyncExternalStore } from 'react';
+import { createContext, useContext, useRef, useSyncExternalStore } from 'react';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 
 import { store, type BotSummary, type ClientState, type ClientStore } from './store.js';
+
+export const ClientStoreContext = createContext<ClientStore>(store);
+
+export function useConversationStore(): ClientStore {
+  return useContext(ClientStoreContext);
+}
 
 export const useClientStore: SnapshotSelectorHook<ClientState> = function useClientStore<S>(
   select: (state: ClientState) => S,
   equal: (a: S, b: S) => boolean = Object.is,
 ): S {
-  return useStoreSlice(store, select, equal);
+  return useStoreSlice(useConversationStore(), select, equal);
 };
 
 export function useStoreSlice<S>(
@@ -84,3 +90,35 @@ export function sameFields<K extends keyof ClientState>(
 }
 
 export const keepClientState = (state: ClientState): ClientState => state;
+export const selectConversationChannel = (state: ClientState) => state.conversation.channel;
+export const selectConversationSending = (state: ClientState) => state.conversation.sending;
+
+const fieldSelections = new WeakMap<
+  readonly (keyof ClientState)[],
+  {
+    select: (state: ClientState) => Partial<ClientState>;
+    equal: (left: Partial<ClientState>, right: Partial<ClientState>) => boolean;
+  }
+>();
+
+export function useClientFields<K extends keyof ClientState>(
+  keys: readonly K[],
+  source?: Pick<ClientStore, 'subscribe' | 'getSnapshot'>,
+): Pick<ClientState, K> {
+  const contextual = useConversationStore();
+  let selection = fieldSelections.get(keys);
+  if (selection === undefined) {
+    selection = {
+      select: (state) =>
+        Object.fromEntries(
+          keys.flatMap((key) => (state[key] === undefined ? [] : [[key, state[key]]])),
+        ) as Partial<ClientState>,
+      equal: (left, right) => keys.every((key) => left[key] === right[key]),
+    };
+    fieldSelections.set(keys, selection);
+  }
+  return useStoreSlice(source ?? contextual, selection.select, selection.equal) as Pick<
+    ClientState,
+    K
+  >;
+}

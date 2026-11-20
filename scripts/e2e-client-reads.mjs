@@ -191,19 +191,19 @@ try {
     }),
   );
 } catch (error) {
-  failure = error;
+  failure = error instanceof Error ? error : new Error(String(error), { cause: error });
 } finally {
   try {
     await browser?.close();
   } catch (error) {
     console.error('browser close failed', error);
-    failure ??= error;
+    failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
   }
   try {
     await rpc('channelGroupDelete', { channelId: group.id });
   } catch (error) {
     console.error('group cleanup failed', error);
-    failure ??= error;
+    failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
   }
 }
 if (failure) throw failure;

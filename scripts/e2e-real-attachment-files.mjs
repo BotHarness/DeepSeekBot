@@ -17,7 +17,7 @@ if (!process.env.BH_E2E_INSTANCE || !process.env.BH_E2E_FIXTURE)
   throw new Error('Set private BH_E2E_INSTANCE and BH_E2E_FIXTURE paths');
 const instance = JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE, 'utf8'));
 const fixturePath = process.env.BH_E2E_FIXTURE;
-const out = resolve(process.env.BH_E2E_OUTPUT ?? join(w, 'docs/assets/pr/576-real-attachments'));
+const out = resolve(process.env.BH_E2E_OUTPUT ?? join(w, '.humanlayer/tasks/576-real-attachments'));
 mkdirSync(out, { recursive: true });
 const local = dirname(fixturePath);
 const source = join(local, 'source', '报告 notes.txt');

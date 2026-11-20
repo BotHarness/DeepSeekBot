@@ -3,8 +3,8 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { createMobileTelemetry } from '../src/telemetry/mobile-telemetry';
-import { isUuid, record, type TelemetryEvent } from '../src/telemetry/schema';
+import { createMobileTelemetry } from '@botharness/host-client/telemetry/mobile-telemetry';
+import { isUuid, record, type TelemetryEvent } from '@botharness/host-client/telemetry/schema';
 
 const configPath = process.env.BH_MOBILE_WIRE_QA_CONFIG;
 

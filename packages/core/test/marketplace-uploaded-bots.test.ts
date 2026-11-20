@@ -1,7 +1,8 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createMarketplaceClient, type MarketplaceClient } from '../src/marketplace/client.js';
@@ -63,7 +64,11 @@ function fixture() {
     fresh: 0,
   };
   const account = {
-    status: () => ({ state: session.state, email: 'alice@example.com' }),
+    status: () => ({
+      state: session.state,
+      email: 'alice@example.com',
+      ...(session.state === 'error' ? { issue: 'relay-unavailable' } : {}),
+    }),
     accessToken: (options?: { fresh?: boolean }) => {
       if (options?.fresh === true) session.fresh += 1;
       return Promise.resolve(
@@ -87,8 +92,10 @@ function fixture() {
     run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
   };
   const captures: [string, Record<string, unknown> | undefined][] = [];
-  const bridge = createBridgeMethods({
+  const warnings: string[] = [];
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
+    warn: (message: string) => warnings.push(message),
     telemetry: {
       status: () => ({ enabled: true, preference: true }),
       setPreference: () => ({ enabled: true, preference: true }),
@@ -112,7 +119,7 @@ function fixture() {
       },
     }),
   });
-  return { core, bridge, market, session, reviewer, receipts, captures };
+  return { core, bridge, market, session, reviewer, receipts, captures, warnings };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -203,6 +210,11 @@ it('needs a Connect sign-in and an author before uploading', async () => {
   expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
     ok: false,
     error: { code: 'sign-in-required' },
+  });
+  f.session.state = 'error';
+  expect(await f.bridge.marketplaceAccount()).toEqual({
+    ok: true,
+    value: { signedIn: false, issue: 'relay-unavailable', author: null },
   });
   f.session.state = 'signed-in';
   expect(await f.bridge.marketplaceAccount()).toEqual({
@@ -496,4 +508,64 @@ it('lists, replaces and deletes my uploads, marking earlier installs as author-u
     error: { code: 'bot-not-found' },
   });
   expect(f.core.registry.get(copy)).toBeDefined();
+});
+
+it('remembers which local Bot a listing was uploaded from and moves it when another Bot replaces it', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+  expect(f.core.registry.get(slug)?.marketplaceUpload).toEqual({
+    id,
+    pushedAt: uploaded.value.bot.pushedAt,
+  });
+  const reviewed = await f.bridge.marketplaceInstallReview({ id });
+  if (!reviewed.ok) throw new Error(reviewed.error.message);
+  const installed = await f.bridge.marketplaceInstall({ id, reviewId: reviewed.value.reviewId });
+  if (!installed.ok) throw new Error(installed.error.message);
+  const copy = installed.value.bot.slug;
+  const links = () => {
+    const listed = f.bridge.list({});
+    if (!listed.ok) throw new Error(listed.error.message);
+    return Object.fromEntries(
+      listed.value.bots
+        .filter((bot) => bot.slug === slug || bot.slug === copy)
+        .map((bot) => [
+          bot.slug,
+          'metadataOnly' in bot ? [] : [bot.uploadedListing, bot.installedListing],
+        ]),
+    );
+  };
+  expect(links()).toEqual({ [slug]: [id, undefined], [copy]: [undefined, id] });
+
+  f.market.clock.value = new Date('2026-10-06T09:00:00Z');
+  readyDraft(f, copy);
+  const replaced = await f.bridge.marketplaceUpload({
+    slug: copy,
+    displayName: 'Helper',
+    replaces: id,
+  });
+  if (!replaced.ok) throw new Error(replaced.error.message);
+  expect(links()).toEqual({ [slug]: [undefined, undefined], [copy]: [id, id] });
+});
+
+it('still reports a successful upload when remembering the local Bot fails', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const write = vi.spyOn(f.core.registry, 'setMarketplaceUpload').mockImplementation(() => {
+    throw new Error('disk full');
+  });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  write.mockRestore();
+  expect(uploaded.ok).toBe(true);
+  expect(f.warnings.map((line) => JSON.parse(line))).toContainEqual(
+    expect.objectContaining({ phase: 'upload-link-not-saved', reason: 'disk full' }),
+  );
 });

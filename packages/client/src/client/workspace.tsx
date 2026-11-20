@@ -1,6 +1,9 @@
+import { SegmentedControl } from './ds/segmented.js';
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
+import { BugReportEntry } from './bug-report-entry.js';
 import { MobileAppsEntry } from './mobile-apps.js';
+import { CallRailButton } from './call-rail-button.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
@@ -12,21 +15,24 @@ import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { Slider } from './ds/slider.js';
+import { Button } from './ds/button.js';
 
-import { workspaceColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
+import { workspaceMoveColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
-import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import { BotSidebar } from './bot-sidebar.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+import type { ClientState } from './store.js';
 import { BotIcon } from './bot-icon.js';
 import { ExitIcon } from './exit-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { RailSearchButton } from './rail-search-button.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
 import { useChannelDockActive, useChannelsHeader } from './channel-dock.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -34,6 +40,7 @@ import { mountWorkspaceShell, type WorkspaceLayoutCommand } from './workspace-sh
 import { CHANNEL_BODY_PANEL, CHANNEL_WORKSPACE_PANELS } from './channel-dock-layout.js';
 import { WORKSPACE_CHANNELS, WorkspaceContext } from './workspace-context.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { unreadCountLabel } from './unread-count.js';
 
 export type WorkspaceOptions = Omit<
   BotModeSidebarProps,
@@ -51,7 +58,13 @@ export type WorkspaceOptions = Omit<
   registerLayoutSettings(setTarget: (node: HTMLDivElement | null) => void): () => void;
 };
 
-const railInputs = sameFields(['humanInbox', 'selection']);
+const selectRailAttention = (state: ClientState) => ({
+  unreadCount: state.activityList.unreadCount,
+  hasAction: state.activityList.hasAction,
+  messageCounts: state.activityList.messageCounts,
+  attentionStatus: state.activityList.attentionStatus,
+});
+const selectRailBotSlug = (state: ClientState) => resolveChannelSidebarContext(state)?.botSlug;
 export function Workspace({
   options,
   t,
@@ -123,14 +136,16 @@ export function Workspace({
       const openTob = async () => {
         registry.open(CHANNEL_BODY_PANEL);
         const tob = await options.actions.tobHome();
+        if (typeof tob.channelId !== 'string') return undefined;
         await options.actions.openChannel(tob.channelId);
-        return tob;
+        return { ...tob, channelId: tob.channelId };
       };
       const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
       const stopRequests = receiveTobMessages(
         (body) =>
           void openTob()
             .then(async (tob) => {
+              if (tob === undefined) return;
               if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
                 await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
             })
@@ -229,14 +244,21 @@ function WorkspaceRail({
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
   );
-  const state = useClientStore(keepClientState, railInputs);
+  const localAttention = useClientStore(selectRailAttention, shallowEqual);
+  const environmentSources = useRemoteHosts();
+  const attention = environmentAttention(localAttention, environmentSources);
+  const railBotSlug = useClientStore(selectRailBotSlug);
   const indicatorMenu = useActivityIndicatorMenu(t);
-  const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
+  const indicator = activityIndicator(indicatorMenu.scope, attention);
   const attentionLabel = [
-    ...(state.humanInbox.unreadCount > 0
-      ? [t('humanInbox.unreadCount', { count: String(state.humanInbox.unreadCount) })]
+    ...(attention.unreadCount > 0
+      ? [
+          t('activityList.unreadCount', {
+            count: unreadCountLabel(attention.unreadCount),
+          }),
+        ]
       : []),
-    ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
+    ...(attention.hasAction ? [t('activityList.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
   ].join(' · ');
   const shortcuts = useSyncExternalStore(
@@ -244,7 +266,7 @@ function WorkspaceRail({
     options.shortcuts.catalog.getSnapshot,
   );
   const panels = useSyncExternalStore(options.dockPanels!.subscribe, options.dockPanels!.panels);
-  const botOnlyHidden = resolveChannelSidebarContext(state)?.botSlug
+  const botOnlyHidden = railBotSlug
     ? []
     : [
         ...BOT_ONLY_CHANNEL_PANELS,
@@ -277,6 +299,7 @@ function WorkspaceRail({
     keepOpen: true,
     onSelect: (id) => setControlVisible(id, hiddenControls.includes(id)),
   });
+  const launcher = options.quickSwitcherSettings?.launcher;
   const [menu, setMenu] = useState(false);
   const [settingsTarget, setSettingsTarget] = useState<HTMLDivElement | null>(null);
   const settingsMount = useMountedResource<HTMLSpanElement>(
@@ -293,20 +316,29 @@ function WorkspaceRail({
       {...controlMenu.triggerProps}
     >
       {controlMenu.menu}
-      <Tooltip label={t('panel.exit')} side="right">
-        <button
-          className="bh-workspace-exit"
-          aria-label={t('panel.exit')}
-          onClick={options.exitBotMode}
-        >
+      {options.exitBotMode === undefined ? (
+        <span className="bh-workspace-exit" data-glyph={icon === 'bot' ? '' : undefined}>
           <span className="bh-workspace-brand">
-            <BotIcon icon={icon} size={24} />
+            <BotIcon icon={icon} size={icon === 'bot' ? 16 : 36} />
           </span>
-          <span className="bh-workspace-exit-icon">
-            <ExitIcon size={20} />
-          </span>
-        </button>
-      </Tooltip>
+        </span>
+      ) : (
+        <Tooltip label={t('panel.exit')} side="right" portal>
+          <button
+            className="bh-workspace-exit"
+            data-glyph={icon === 'bot' ? '' : undefined}
+            aria-label={t('panel.exit')}
+            onClick={options.exitBotMode}
+          >
+            <span className="bh-workspace-brand">
+              <BotIcon icon={icon} size={icon === 'bot' ? 16 : 36} />
+            </span>
+            <span className="bh-workspace-exit-icon">
+              <ExitIcon />
+            </span>
+          </button>
+        </Tooltip>
+      )}
       <div className="bh-workspace-controls" data-window-drag>
         <div data-window-drag-recall>
           {options.dockPanels && (
@@ -332,8 +364,8 @@ function WorkspaceRail({
               badge={(id) =>
                 id === 'activity-center'
                   ? {
-                      count: state.humanInbox.unreadCount,
-                      dot: state.humanInbox.hasAction,
+                      count: attention.unreadCount,
+                      dot: attention.hasAction,
                       indicator,
                       label: attentionLabel || undefined,
                     }
@@ -366,12 +398,10 @@ function WorkspaceRail({
           }
           items={[
             { id: 'left', label: t('workspace.left') },
-            ...workspaceColumns(api)
-              .slice(1)
-              .map((column, index) => ({
-                id: column.id,
-                label: t('workspace.beforeColumn', { index: String(index + 2) }),
-              })),
+            ...workspaceMoveColumns(api, menu).map((id, index) => ({
+              id,
+              label: t('workspace.beforeColumn', { index: String(index + 2) }),
+            })),
             { id: 'right', label: t('workspace.right') },
           ]}
           onSelect={(id) => {
@@ -385,7 +415,7 @@ function WorkspaceRail({
       <span ref={layoutMount} hidden />
       {settingsTarget &&
         createPortal(
-          <SettingsSection title={t('workspace.appearance')}>
+          <SettingsSection title={t('workspace.appearance')} portaled>
             <SettingsRow
               title={t('workspace.layoutMode')}
               description={t('workspace.layoutModeHint')}
@@ -395,12 +425,20 @@ function WorkspaceRail({
                   label={t('workspace.layoutMode')}
                   value={layoutMode.mode}
                   options={[
-                    { value: 'simple', label: t('workspace.layoutMode.simple') },
-                    { value: 'advanced', label: t('workspace.layoutMode.advanced') },
+                    {
+                      value: 'simple',
+                      label: t('workspace.layoutMode.simple'),
+                    },
+                    {
+                      value: 'advanced',
+                      label: t('workspace.layoutMode.advanced'),
+                    },
                   ]}
                   onChange={(mode) => {
                     layoutMode.setMode(mode as LayoutMode);
-                    options.actions.telemetryEvent('layout:mode_select', { mode });
+                    options.actions.telemetryEvent('layout:mode_select', {
+                      mode,
+                    });
                   }}
                 />
               }
@@ -408,44 +446,54 @@ function WorkspaceRail({
             <SettingsRow
               title={t('workspace.gap')}
               control={
-                <>
-                  <output>{gap}px</output>
-                  <input
-                    aria-label={t('workspace.gap')}
-                    type="range"
-                    min={0}
-                    max={16}
-                    step={1}
-                    value={gap}
-                    onChange={(event) => setGap(Number(event.target.value))}
-                  />
-                </>
+                <Slider
+                  label={t('workspace.gap')}
+                  value={gap}
+                  min={0}
+                  max={16}
+                  unit="px"
+                  onChange={setGap}
+                />
               }
             />
             <SettingsRow
               title={t('dock.reset')}
               control={
-                <ActionButton icon="refresh" onClick={reset}>
-                  {t('dock.reset')}
-                </ActionButton>
+                <Button type="button" variant="outline" size="sm" onClick={reset}>
+                  {t('dock.resetAction')}
+                </Button>
               }
             />
           </SettingsSection>,
           settingsTarget,
         )}
 
-      <MobileAppsEntry t={t} />
-      <Tooltip label={t('panel.settings')} side="right">
+      <CallRailButton t={t} onReturn={() => options.dockPanels?.open(CHANNEL_BODY_PANEL)} />
+      <MobileAppsEntry t={t} onPair={() => options.openBotSettings('pair-phone')} />
+      <BugReportEntry t={t} />
+      {launcher ? (
+        <RailSearchButton launcher={launcher} bindings={options.shortcutBindings} t={t} />
+      ) : null}
+      <Tooltip label={t('panel.settings')} side="right" portal>
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />
         </button>
       </Tooltip>
       <DeviceRequestsNotice t={t} />
-      <Tooltip label={t('panel.backToHarness')} side="right">
-        <button type="button" aria-label={t('panel.backToHarness')} onClick={options.exitBotMode}>
-          <ExitIcon size={20} />
-        </button>
-      </Tooltip>
+      {options.exitBotMode === undefined ? null : (
+        <Tooltip label={t('panel.backToHarness')} side="right" portal>
+          <button
+            type="button"
+            className="bh-workspace-leave"
+            aria-label={t('panel.backToHarness')}
+            onClick={options.exitBotMode}
+          >
+            <ExitIcon />
+          </button>
+        </Tooltip>
+      )}
     </nav>
   );
 }
+import { useRemoteHosts } from './host-tabs.js';
+import { environmentAttention } from './environment-activity.js';

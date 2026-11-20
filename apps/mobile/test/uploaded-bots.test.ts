@@ -1,0 +1,130 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import type { MarketplaceAuthoredBot } from '../../../packages/core/src/marketplace/client';
+import { createUploadedBots } from '../src/account/uploaded-bots';
+
+const item = (id: string) =>
+  ({ bot: { id }, files: 1, bytes: 10, blocked: false }) as unknown as MarketplaceAuthoredBot;
+
+describe('uploaded Bots', () => {
+  it('loads the account uploads and removes one after the Market deletes it', async () => {
+    const authored = vi.fn(async () => ({ ok: true as const, value: [item('U_a'), item('U_b')] }));
+    const deleteUpload = vi.fn(async () => ({
+      ok: true as const,
+      value: { deleted: true as const },
+    }));
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: 'token' }) },
+      client: { authored, deleteUpload },
+    });
+    await uploads.refresh('zh');
+    expect(authored).toHaveBeenCalledWith('token', 'zh');
+    await uploads.remove('U_a');
+    expect(deleteUpload).toHaveBeenCalledWith('token', 'U_a');
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual(['U_b']);
+  });
+
+  it('drops a refresh that started before a delete succeeded', async () => {
+    let finish: (value: { ok: true; value: MarketplaceAuthoredBot[] }) => void = () => undefined;
+    const authored = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, value: [item('U_a'), item('U_b')] })
+      .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: 'token' }) },
+      client: {
+        authored,
+        deleteUpload: async () => ({ ok: true, value: { deleted: true } }),
+      },
+    });
+    await uploads.refresh();
+    const stale = uploads.refresh();
+    await uploads.remove('U_a');
+    finish({ ok: true, value: [item('U_a'), item('U_b')] });
+    await stale;
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual(['U_b']);
+  });
+
+  it('finishes loading when a delete succeeds while the list is still loading', async () => {
+    let finish: (value: { ok: true; value: MarketplaceAuthoredBot[] }) => void = () => undefined;
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: 'token' }) },
+      client: {
+        authored: () => new Promise((resolve) => (finish = resolve)),
+        deleteUpload: async () => ({ ok: true, value: { deleted: true } }),
+      },
+    });
+    const pending = uploads.refresh();
+    await uploads.remove('U_a');
+    expect(uploads.getSnapshot().status).toBe('loading');
+    finish({ ok: true, value: [item('U_a'), item('U_b')] });
+    await pending;
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual(['U_b']);
+  });
+
+  it('keeps the list when the Market refuses a delete', async () => {
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: 'token' }) },
+      client: {
+        authored: async () => ({ ok: true, value: [item('U_a')] }),
+        deleteUpload: async () => ({ ok: false, code: 'bot-not-found' }),
+      },
+    });
+    await uploads.refresh();
+    await expect(uploads.remove('U_a')).rejects.toThrow('bot-not-found');
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots).toHaveLength(1);
+  });
+
+  it('clears the list once the account signs out', async () => {
+    let signedIn = true;
+    const uploads = createUploadedBots({
+      connect: {
+        accessToken: async () =>
+          signedIn ? { ok: true, value: 'token' } : { ok: false, code: 'sign-in-required' },
+      },
+      client: {
+        authored: async () => ({ ok: true, value: [item('U_a')] }),
+        deleteUpload: vi.fn(),
+      },
+    });
+    await uploads.refresh();
+    signedIn = false;
+    expect((await uploads.refresh()).status).toBe('signed-out');
+  });
+
+  it('hides the previous account rows while another account loads', async () => {
+    let account = 'token-a';
+    const seen: string[] = [];
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: true, value: account }) },
+      client: {
+        authored: async (token: string) => ({ ok: true, value: [item(`U_${token}`)] }),
+        deleteUpload: vi.fn(),
+      },
+    });
+    uploads.subscribe(() => seen.push(uploads.getSnapshot().status));
+    await uploads.refresh();
+    account = 'token-b';
+    seen.length = 0;
+    await uploads.refresh();
+    expect(seen).toEqual(['loading', 'ready']);
+    const state = uploads.getSnapshot();
+    expect(state.status === 'ready' && state.bots.map((entry) => entry.bot.id)).toEqual([
+      'U_token-b',
+    ]);
+  });
+
+  it('reports signed out without an account', async () => {
+    const authored = vi.fn();
+    const uploads = createUploadedBots({
+      connect: { accessToken: async () => ({ ok: false, code: 'sign-in-required' }) },
+      client: { authored, deleteUpload: vi.fn() },
+    });
+    expect((await uploads.refresh()).status).toBe('signed-out');
+    expect(authored).not.toHaveBeenCalled();
+  });
+});

@@ -58,6 +58,7 @@ interface DockerComputerProviderOptions {
   readonly runner: ComputerRuntimeRunner;
   readonly config?: Partial<DockerComputerConfig>;
   readonly onEvent?: (detail: string) => void;
+  readonly onStatusChanged?: () => void;
   readonly getLanguage?: () => string;
   readonly platform?: () => string;
   readonly fetchImpl?: typeof fetch;
@@ -201,6 +202,12 @@ export function createDockerComputerProvider(
   let lastObservedState: string | undefined;
   let desiredMedia: SelkiesWebRtcMedia | undefined;
 
+  const setPhase = (next: ComputerPhase): void => {
+    if (next === phase) return;
+    phase = next;
+    options.onStatusChanged?.();
+  };
+
   const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
     const run = lifecycle.then(task, task);
     lifecycle = run.then(
@@ -213,7 +220,7 @@ export function createDockerComputerProvider(
   const throwIfCancelled = (): void => {
     if (!cancelRequested) return;
     cancelRequested = false;
-    phase = 'idle';
+    setPhase('idle');
     detail = undefined;
     throw new Error('computer start cancelled');
   };
@@ -261,7 +268,7 @@ export function createDockerComputerProvider(
   };
 
   const fail = (message: string): never => {
-    phase = 'failed';
+    setPhase('failed');
     detail = message;
     throw failure(message);
   };
@@ -438,7 +445,7 @@ export function createDockerComputerProvider(
   const quiesceBrowser = async (): Promise<void> => {
     const current = await inspect();
     if (current.state !== 'running') return;
-    phase = 'stopping';
+    setPhase('stopping');
     detail = '正在关闭浏览器…';
     const script =
       'term_browsers() { for p in /proc/[0-9]*; do c=$(cat "$p/comm" 2>/dev/null) || continue; case "$c" in chromium|chrome) kill -TERM "$(basename "$p")" 2>/dev/null ;; esac; done; }; term_browsers; i=0; while [ "$i" -lt 20 ]; do alive=0; for p in /proc/[0-9]*; do c=$(cat "$p/comm" 2>/dev/null) || continue; case "$c" in chromium|chrome) alive=1 ;; esac; done; [ "$alive" -eq 0 ] && exit 0; sleep 0.5; i=$((i + 1)); done; exit 0';
@@ -453,7 +460,7 @@ export function createDockerComputerProvider(
     const delay =
       sleepImpl ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     const probeFetch = fetchImpl ?? globalThis.fetch;
-    phase = 'starting';
+    setPhase('starting');
     detail = '正在等待桌面响应…';
     const startedAt = Date.now();
     for (;;) {
@@ -474,7 +481,7 @@ export function createDockerComputerProvider(
 
   const confirmRunning = async (): Promise<void> => {
     await waitForDesktop();
-    phase = 'running';
+    setPhase('running');
     detail = undefined;
     running = true;
   };
@@ -503,7 +510,7 @@ export function createDockerComputerProvider(
       return;
     }
     if (existing.state === 'stopped' && !(await recreateIfSpecChanged(true))) {
-      phase = 'starting';
+      setPhase('starting');
       detail = '正在启动已有容器…';
       throwIfCancelled();
       await ensureDesktopDefaults(storage);
@@ -521,7 +528,7 @@ export function createDockerComputerProvider(
     const image = await runner.run(['docker', 'image', 'inspect', config.image]);
     throwIfCancelled();
     if (image.code !== 0) {
-      phase = 'pulling';
+      setPhase('pulling');
       detail = '正在拉取镜像（首次约 1.5 GB，请耐心等待）…';
       const tracker = createPullTracker();
       pullProgress = tracker.snapshot();
@@ -531,6 +538,7 @@ export function createDockerComputerProvider(
           : await runner.runStreaming(['docker', 'pull', config.image], (chunk) => {
               tracker.observe(chunk);
               pullProgress = tracker.snapshot();
+              options.onStatusChanged?.();
             });
       if (pull.code !== 0) {
         fail(pull.stderr.trim() || 'docker pull failed');
@@ -538,7 +546,7 @@ export function createDockerComputerProvider(
       pullProgress = undefined;
       throwIfCancelled();
     }
-    phase = 'starting';
+    setPhase('starting');
     detail = '正在创建并启动容器…';
     if (storage.kind === 'bind') {
       const mk = await runner.run(['mkdir', '-p', storage.target]);
@@ -608,7 +616,7 @@ export function createDockerComputerProvider(
       cancelRequested = false;
       await runner.run(['docker', 'stop', config.containerName]);
       running = false;
-      phase = 'idle';
+      setPhase('idle');
       detail = undefined;
       throw new Error('computer start cancelled');
     }
@@ -627,7 +635,7 @@ export function createDockerComputerProvider(
   const ensureStopped = async (reason: string): Promise<boolean> => {
     const current = await inspect();
     if (current.state !== 'running') return false;
-    phase = 'stopping';
+    setPhase('stopping');
     detail = reason;
     const stop = await runner.run(['docker', 'stop', config.containerName]);
     if (stop.code !== 0) fail(stop.stderr.trim() || 'docker stop failed');
@@ -638,7 +646,7 @@ export function createDockerComputerProvider(
   const exportTo = async (destDir: string): Promise<string> => {
     await quiesceBrowser();
     const wasRunning = await ensureStopped('正在停止容器以导出…');
-    phase = 'exporting';
+    setPhase('exporting');
     detail = '正在打包 Computer 数据…';
     const archive = `${config.volumeName}-${new Date().toISOString().replace(/[:.]/g, '-')}.tar`;
     try {
@@ -657,7 +665,7 @@ export function createDockerComputerProvider(
         `tar cf /backup/${archive} -C /data .`,
       ]);
       if (tar.code !== 0) fail(tar.stderr.trim() || 'computer export failed');
-      phase = 'idle';
+      setPhase('idle');
       detail = undefined;
       return join(destDir, archive);
     } finally {
@@ -674,7 +682,7 @@ export function createDockerComputerProvider(
             onEvent?.('desktop readiness unconfirmed after export restart');
           }
           running = confirmed;
-          phase = 'idle';
+          setPhase('idle');
           detail = undefined;
         }
       }
@@ -683,7 +691,7 @@ export function createDockerComputerProvider(
 
   const importFrom = async (archive: string): Promise<void> => {
     await ensureStopped('正在停止容器以导入…');
-    phase = 'importing';
+    setPhase('importing');
     detail = '正在恢复 Computer 数据…';
     const volume = await runner.run(['docker', 'volume', 'create', config.volumeName]);
     if (volume.code !== 0) fail(volume.stderr.trim() || 'docker volume create failed');
@@ -702,7 +710,7 @@ export function createDockerComputerProvider(
       `tar xf /backup/${basename(archive)} -C /data`,
     ]);
     if (untar.code !== 0) fail(untar.stderr.trim() || 'computer import failed');
-    phase = 'idle';
+    setPhase('idle');
     detail = undefined;
     await runStart();
   };
@@ -753,16 +761,16 @@ export function createDockerComputerProvider(
     async stop(): Promise<void> {
       cancelRequested = true;
       await enqueue(async () => {
-        phase = 'stopping';
+        setPhase('stopping');
         detail = undefined;
         const result = await runner.run(['docker', 'stop', config.containerName]);
         if (result.code !== 0 && !result.stderr.includes('No such container')) {
-          phase = 'failed';
+          setPhase('failed');
           detail = result.stderr.trim() || 'docker stop failed';
           throw failure(detail);
         }
         running = false;
-        phase = 'idle';
+        setPhase('idle');
         detail = undefined;
       });
     },

@@ -1,6 +1,7 @@
-import type { HostLook } from '../ui/design/host-look';
+import { t } from '../ui/strings';
+import type { HostLook } from '@botharness/host-client/ui/design/host-look';
 import { observeActivityCount, type createActivityCountPreferences } from './activity-count';
-import type { HostClient, HostSnapshot } from './client';
+import type { HostClient, HostSnapshot } from '@botharness/host-client/client';
 import {
   INBOX_SECTIONS,
   observeInbox,
@@ -8,8 +9,8 @@ import {
   type InboxQuery,
   type InboxSnapshot,
   type InboxSection,
-} from './inbox';
-import type { HumanAttentionItem } from './wire';
+} from '@botharness/host-client/inbox';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 
 export interface ActivitySource {
   hostId: string;
@@ -29,7 +30,7 @@ export const activityKey = (item: ActivityItem): string =>
 export const activityBotKey = (item: ActivityItem): string =>
   item.activitySource ? activitySelection(item.activitySource.hostId, item.botSlug) : item.botSlug;
 
-function localSelection(
+export function localSelection(
   value: string | undefined,
   source: ActivitySource,
 ): string | undefined | false {
@@ -56,7 +57,12 @@ export function observeActivitySources(sources: readonly ActivitySource[], query
       : [
           {
             source,
-            observer: observeInbox(source.client, { ...query, botSlug, channelId }),
+            observer: observeInbox(source.client, {
+              ...query,
+              botSlug,
+              channelId,
+              activityUpdateHost: () => t.activityUpdateHost,
+            }),
           },
         ];
   });

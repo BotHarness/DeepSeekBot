@@ -49,7 +49,7 @@
 
 工具链与检查命令以 [AGENTS.md](AGENTS.md#commands) 为准；从 [README 开发入口](README.md#docs) 和[隔离实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc2) 开始。使用隔离 Profile，凭据留在本机，不操作其他贡献者正在运行的实例。
 
-先跑相关检查，再按需要扩展。记录真实命令和结果，没跑或被阻塞的检查明确说明。避免无关重构和修改生成文件；涉及边界时再读[产品术语](CONTEXT.zh.md)和[架构](docs/architecture/botharness-architecture.md)。
+先跑相关检查，再按需要扩展。记录真实命令和结果，没跑或被阻塞的检查明确说明。避免无关重构和修改生成文件；涉及边界时再读[产品术语](GLOSSARY.zh.md)和[架构](docs/architecture/botharness-architecture.md)。
 
 运行 `pnpm install` 后，提交前钩子会使用与 CI 相同的 oxfmt 配置格式化暂存文件，包括 `.github/pr-screenshots/` 下的 Markdown。lint-staged 会还原部分暂存文件中的未暂存修改，不会格式化其他未暂存文件。推送前运行 `pnpm format:check` 检查整个仓库。
 
@@ -63,7 +63,7 @@
 
 ## PR 与评审
 
-- 一个 PR 聚焦一件事，关联相关 Issue 和 Discussion。完成整个 Issue 才用 `Closes #...`，部分工作用 `Refs #...`。
+- 一个 PR 聚焦一件事，关联相关 Issue 和 Discussion。PR 做完了 Issue 的功能或修好了 bug，就在 PR 正文里用纯文本写 `Closes #...`，合并时自动关闭 Issue；不必等发版或真机 / Human 验收，剩余验收另开 Issue 跟踪。只有 Issue 还有未实现的部分时才用 `Refs #...`。GitHub 只在 PR 合进 `main` 时处理 `Closes #...`：叠放的 PR 等父 PR 合进 `main` 后，再把目标分支改回 `main` 并合并；否则等工作进入 `main` 后手动关闭 Issue。
 - 说明为什么改、如何验证，按 PR 模板列真实检查与缺口。
 - 可见 UI 或交互变化附脱敏、GitHub 可渲染的前后截图；无法捕获时说明具体阻塞与可运行的验收路径。见[视觉证据规范](docs/agents/pr-ui-visual-evidence.md)。
 - 用户可见或独立有价值的公开文档变化遵循 [Release Ledger](docs/agents/changelog.md)，保持要求的中英对应。

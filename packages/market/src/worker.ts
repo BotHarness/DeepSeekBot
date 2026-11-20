@@ -47,6 +47,7 @@ import {
   type UploadResult,
   type Uploads,
 } from './uploads.js';
+import { logLine, logWorker } from './worker-log.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -269,7 +270,8 @@ export function createMarketHandler(
     ) {
       if (deps.uploads === undefined) return failure(503, 'uploads-unavailable');
       const token = bearer(request);
-      const account = token === undefined ? undefined : await deps.uploads.verifier.verify(token);
+      const account =
+        token === undefined ? undefined : (await deps.uploads.verifier.verify(token))?.account;
       if (account === undefined) return failure(401, 'unauthorized');
       const store = deps.uploads.store;
       if (url.pathname === '/v1/me') {
@@ -635,7 +637,7 @@ export async function runScheduled(
   cron: string,
   env: MarketEnv,
   github: GitHubClient = createGitHubClient({ token: env.GITHUB_TOKEN }),
-  log: (line: string) => void = (line) => console.log(line),
+  log: (line: string) => void = logLine,
   summarizer: Summarizer | undefined = summarizerForEnv(env),
   digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
   now: () => Date = () => new Date(),
@@ -690,7 +692,7 @@ async function refreshSummariesLogged(
 
 export async function runDaily(
   env: MarketEnv,
-  log: (line: string) => void = (line) => console.log(line),
+  log: (line: string) => void = logLine,
   now: () => Date = () => new Date(),
   digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
 ): Promise<void> {
@@ -740,7 +742,16 @@ export default {
     const crawl = runScheduled(controller.cron, env);
     context.waitUntil(
       controller.cron === DISCOVERY_CRON
-        ? crawl.then(undefined, (error: unknown) => console.error(error)).then(() => runDaily(env))
+        ? crawl
+            .then(undefined, (error: unknown) =>
+              logWorker('error', {
+                module: 'marketplace-worker',
+                initiator: 'scheduled',
+                phase: 'discovery',
+                error: String(error),
+              }),
+            )
+            .then(() => runDaily(env))
         : crawl,
     );
   },

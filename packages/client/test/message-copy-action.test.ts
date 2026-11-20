@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconCheckOutlineRegular: () => createElement('span', { 'data-icon': 'check' }),
-  IconCopyOutlineRegular: () => createElement('span', { 'data-icon': 'copy' }),
-  Tooltip: ({ children, label }: PropsWithChildren<{ label: string }>) =>
-    createElement('span', { 'data-tooltip': label }, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
+import { openTooltip } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { MessageCopyAction } from '../src/client/message-copy-action.js';
 
@@ -68,12 +67,12 @@ describe('message Copy action', () => {
 
     await act(async () => buttons()[0]?.click());
     expect(writeText).toHaveBeenCalledWith('first');
-    expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
+    expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
     await act(async () => resolveFirstWrite());
-    expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('check');
     expect(buttons()[0]?.getAttribute('aria-label')).toBe('已复制');
-    expect(buttons()[0]?.parentElement?.getAttribute('data-tooltip')).toBe('已复制');
-    expect(buttons()[1]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
+    expect(buttons()[0]?.getAttribute('aria-label')).toBe('已复制');
+    expect((await openTooltip(buttons()[0]!)).textContent).toBe('已复制');
+    expect(buttons()[1]?.getAttribute('aria-label')).toBe('复制消息');
 
     await act(async () => vi.advanceTimersByTime(1_000));
     await act(async () => buttons()[0]?.click());
@@ -81,7 +80,7 @@ describe('message Copy action', () => {
     await act(async () => vi.advanceTimersByTime(1_000));
     expect(buttons()[0]?.getAttribute('aria-label')).toBe('已复制');
     await act(async () => vi.advanceTimersByTime(1_000));
-    expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
+    expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
     expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
   });
 
@@ -94,12 +93,12 @@ describe('message Copy action', () => {
 
     await act(async () => buttons()[0]?.click());
     expect(writeText).toHaveBeenCalledWith('message');
-    expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
+    expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
     expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
 
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
     await act(async () => buttons()[0]?.click());
-    expect(buttons()[0]?.querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('copy');
+    expect(buttons()[0]?.getAttribute('aria-label')).toBe('复制消息');
   });
 
   it('invalidates pending and visible confirmation when the message body changes', async () => {

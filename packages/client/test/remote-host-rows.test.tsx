@@ -1,14 +1,12 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: () => null,
-  Modal: () => null,
-  Input: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   Textarea: () => null,
-  Tooltip: ({ children }: { children?: import('react').ReactNode }) => children,
 }));
 
 const fixture = vi.hoisted(() => ({
@@ -24,8 +22,48 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
 }));
 
 import { RemoteHostRows } from '../src/client/host-tabs.js';
+import {
+  EnvironmentFilter,
+  EnvironmentPanel,
+  EnvironmentAddAction,
+  createEnvironmentPanel,
+} from '../src/client/environment-panel.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
+import * as hostLooks from '../src/client/host-looks.js';
+
+afterEach(() => vi.unstubAllGlobals());
+
+it.each(['member', 'admin'])('hides Owner environment surfaces from the %s page', (role) => {
+  vi.stubGlobal('__DSH_REMOTE_ACCESS__', { owner: false, role });
+  const read = vi.fn(() => {
+    throw new Error('Owner storage must not be read');
+  });
+  vi.stubGlobal('localStorage', { getItem: read });
+  const look = vi.spyOn(hostLooks, 'useHostLook');
+  const name = vi.spyOn(hostLooks, 'useHostName');
+  try {
+    expect(renderToStaticMarkup(createElement(EnvironmentPanel, { t: zhTranslate }))).toBe('');
+    expect(renderToStaticMarkup(createElement(EnvironmentFilter, { t: zhTranslate }))).toBe('');
+    expect(renderToStaticMarkup(createElement(EnvironmentAddAction, { t: zhTranslate }))).toBe('');
+    expect(read).not.toHaveBeenCalled();
+    expect(look).not.toHaveBeenCalled();
+    expect(name).not.toHaveBeenCalled();
+  } finally {
+    look.mockRestore();
+    name.mockRestore();
+  }
+});
+
+it('keeps Add remote as an accessible icon action in the Environment header, without a footer entry', () => {
+  fixture.hosts = [];
+  const header = renderToStaticMarkup(createElement(EnvironmentAddAction, { t: zhTranslate }));
+  const body = renderToStaticMarkup(createElement(EnvironmentPanel, { t: zhTranslate }));
+  expect(createEnvironmentPanel(zhTranslate).headerAction).toBeDefined();
+  expect(header).toContain('aria-label="添加远程"');
+  expect(header).toContain('<svg');
+  expect(body).not.toContain('添加远程');
+});
 
 const remote: RemoteHost = {
   host: {
@@ -82,7 +120,7 @@ describe('remote Host rows', () => {
     expect(html).toContain('data-effect="coding"');
     expect(html).toContain('2 条未读');
     expect(html).toContain('3 条未读');
-    expect(html.match(/bh-unread-corner/g)).toHaveLength(2);
+    expect(html.match(/class="bh-unread-count"/g)).toHaveLength(2);
     expect(html).toContain('bh-group-avatar-stack');
     expect(html.match(/src="blob:studio-tob"/g)).toHaveLength(2);
     expect(html).toContain('Studio preview');

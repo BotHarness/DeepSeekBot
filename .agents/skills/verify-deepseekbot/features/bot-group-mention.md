@@ -2,6 +2,19 @@
 
 A PersonaBot in a Group mentions a colleague, the colleague shows as a mention badge and wakes, even when its Group wake policy is `mentions`. This is how a coordinator Bot hands out work and how workers report back.
 
+## Sources
+
+- `packages/core/src/channels/{bot-mention-text,all-bot-mention}.ts`
+- `packages/core/src/messaging/mention-text.ts`
+- `packages/core/src/runtime/{bot-message-tool,session-mentions}.ts`
+- `packages/client/src/client/{group-wake-policy-list,wake-policy-entry}.tsx`
+
+## Terms
+
+- Actor mention
+- Wake Policy
+- Inbox Admission
+
 ## Sub-features
 
 - `mention by ID`: `bot_send_message` with `mention_bot_ids`.

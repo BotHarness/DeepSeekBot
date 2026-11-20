@@ -2,6 +2,18 @@
 
 A paired phone watches a PersonaBot's local Browser on a native screen, pauses the Bot, drives the page with touch and the keyboard, and hands it back. Every request goes through the device gateway, and revoking the phone stops the screen.
 
+## Sources
+
+- `apps/mobile/app/browser/**`
+- `apps/mobile/src/ui/chat/browser-stage.tsx`
+
+## Terms
+
+- Bot Browser
+- Browser viewer
+- Browser Takeover
+- Paired Device
+
 ## Sub-features
 
 - `live` long-polls `/api/browser/frame` through `/botharness-device/api/…` and shows the newest frame, fitted to the screen and zoomable with pinch.

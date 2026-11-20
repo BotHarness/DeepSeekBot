@@ -4,9 +4,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createConversation, type ConversationMessage } from '../src/host/conversation';
-import { createHostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
+import { createConversation, type ConversationMessage } from '@botharness/host-client/conversation';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { syntheticGenuiDocument } from '../../../packages/core/test/fixtures/genui-document';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -20,13 +21,41 @@ const native = vi.hoisted(() => ({
   shared: [] as string[],
   pick: 0,
   presses: new Map<string, () => void>(),
+  holds: new Map<string, () => void>(),
+  actions: new Map<string, (event: { nativeEvent: { actionName: string } }) => void>(),
+  layouts: new Map<string, (event: { nativeEvent: { layout: { height: number } } }) => void>(),
   dismiss: () => {},
+  longPresses: Array<{ enabled: boolean; duration: number; start: () => void }>(),
 }));
 
+vi.mock('../src/ui/chat/message-attachment-picker', () => ({
+  MessageAttachmentPicker: () => null,
+}));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
-vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-gesture-handler', async () => {
+  const shim = await import('./gesture-handler-shim');
+  return {
+    ...shim,
+    Gesture: new Proxy(shim.Gesture, {
+      get: (target, key) => {
+        if (key !== 'LongPress') return Reflect.get(target, key);
+        return () => {
+          const gesture = { enabled: true, duration: 500, start: () => {} };
+          native.longPresses.push(gesture);
+          const builder = {
+            enabled: (value: boolean) => ((gesture.enabled = value), builder),
+            minDuration: (value: number) => ((gesture.duration = value), builder),
+            runOnJS: () => builder,
+            onStart: (callback: () => void) => ((gesture.start = callback), builder),
+          };
+          return builder;
+        };
+      },
+    }),
+  };
+});
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
@@ -34,6 +63,12 @@ vi.mock('react-native', async () => {
       const pressKey = props['accessibilityLabel'] ?? props['accessibilityHint'];
       if (typeof props['onPress'] === 'function' && typeof pressKey === 'string')
         native.presses.set(pressKey, props['onPress'] as () => void);
+      if (typeof props['onLongPress'] === 'function' && typeof pressKey === 'string')
+        native.holds.set(pressKey, props['onLongPress'] as () => void);
+      if (typeof props['onAccessibilityAction'] === 'function' && typeof pressKey === 'string')
+        native.actions.set(pressKey, props['onAccessibilityAction'] as never);
+      if (typeof props['onLayout'] === 'function' && typeof props['testID'] === 'string')
+        native.layouts.set(props['testID'], props['onLayout'] as never);
       const attributes: Record<string, string> = {};
       for (const key of [
         'accessible',
@@ -46,11 +81,17 @@ vi.mock('react-native', async () => {
         'source',
         'recyclingKey',
         'cachePolicy',
+        'nativeID',
+        'testID',
+        'accessibilityElementsHidden',
+        'accessibilityActions',
+        'importantForAccessibility',
       ])
         if (props[key] !== undefined)
           attributes[`data-${key.toLowerCase()}`] =
             typeof props[key] === 'object' ? JSON.stringify(props[key]) : String(props[key]);
       const style = props['style'] as { opacity?: number } | undefined;
+      const touch = props['onTouchStart'];
       return (
         <div
           ref={props['ref'] as never}
@@ -58,6 +99,7 @@ vi.mock('react-native', async () => {
           {...attributes}
           style={{ opacity: style?.opacity }}
           onClick={props['onPress'] as (() => void) | undefined}
+          onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
         >
           {children as never}
         </div>
@@ -66,6 +108,7 @@ vi.mock('react-native', async () => {
     return Component;
   };
   return {
+    I18nManager: { isRTL: false },
     useWindowDimensions,
     Dimensions: {
       get: useWindowDimensions,
@@ -122,6 +165,9 @@ vi.mock('react-native', async () => {
 });
 
 vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/chat/genui-document-card', () => ({
+  GenuiDocumentCard: () => <input aria-label="GenUI note" />,
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
@@ -139,6 +185,7 @@ vi.mock('react-native-enriched-markdown', () => ({
   EnrichedMarkdownText: (props: {
     markdown: string;
     selectable?: boolean;
+    enableBlockContextMenu?: boolean;
     flavor?: string;
     md4cFlags?: { latexMath?: boolean };
     onLinkPress?: unknown;
@@ -146,6 +193,7 @@ vi.mock('react-native-enriched-markdown', () => ({
     <div
       data-native="EnrichedMarkdownText"
       data-selectable={String(props.selectable)}
+      data-block-context-menu={String(props.enableBlockContextMenu)}
       data-flavor={props.flavor}
       data-latex={String(props.md4cFlags?.latexMath)}
       data-links={String(typeof props.onLinkPress === 'function')}
@@ -168,7 +216,7 @@ const { t } = await import('../src/ui/strings');
 const { openMessageMenu, shareText } = await import('../src/ui/chat/message-menu');
 const { MessageActions, dismissQueue, menuTime, messageMenuActions } =
   await import('../src/ui/chat/message-actions');
-const { MENU_REACTIONS, QUICK_REACTIONS } = await import('../src/host/conversation');
+const { MENU_REACTIONS, QUICK_REACTIONS } = await import('@botharness/host-client/conversation');
 
 beforeEach(() => {
   native.os = 'ios';
@@ -178,6 +226,10 @@ beforeEach(() => {
   native.shared.length = 0;
   native.pick = 0;
   native.presses.clear();
+  native.holds.clear();
+  native.layouts.clear();
+  native.actions.clear();
+  native.longPresses.length = 0;
 });
 
 const human = (overrides: Partial<ConversationMessage>): ConversationMessage => ({
@@ -188,6 +240,66 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('GenUI keyboard interaction', () => {
+  it.each(['ios', 'android'])(
+    'pauses following before an embedded input opens the keyboard on %s',
+    (os) => {
+      native.os = os;
+      const onInteractionStart = vi.fn();
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      act(() =>
+        root.render(
+          <MessageBubble
+            {...{
+              message: human({ author: 'bot', genuiDocument: syntheticGenuiDocument }),
+              onInteractionStart,
+            }}
+          />,
+        ),
+      );
+      act(() => {
+        container.querySelector('input')!.dispatchEvent(new Event('touchstart', { bubbles: true }));
+      });
+      expect(onInteractionStart).toHaveBeenCalledTimes(os === 'ios' ? 1 : 0);
+      act(() => root.unmount());
+    },
+  );
+});
+
+describe('reply swipe touch region', () => {
+  it('leaves the speaker and row space outside the reply gesture', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({ author: 'bot', bot: 'ada', body: 'On it' })}
+        speaker={{ name: 'Ada', bot: undefined, group: 'g', first: true, last: true }}
+        onReply={() => undefined}
+      />,
+    );
+    const region = container.querySelector('[data-nativeid="horizontal-swipe-owner"]')!;
+    expect(region).not.toBeNull();
+    expect(region.textContent).not.toContain('Ada');
+    expect(region.parentElement?.textContent).not.toContain('Ada');
+    expect(container.textContent).toContain('Ada');
+  });
+
+  it('leaves the delivery control beside a human bubble outside the reply gesture', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({ mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 3 }] })}
+        onOpenDelivery={() => undefined}
+        onReply={() => undefined}
+      />,
+    );
+    const region = container.querySelector('[data-nativeid="horizontal-swipe-owner"]')!;
+    expect(region.textContent).toContain('hello');
+    expect(container.querySelector('[data-accessibilityrole="button"]')).not.toBeNull();
+    expect(region.querySelector('[data-accessibilityrole="button"]')).toBeNull();
+  });
 });
 
 describe('message delivery receipt', () => {
@@ -347,6 +459,22 @@ describe('message states', () => {
     expect(html).toContain('data-accessibilityrole="button"');
   });
 
+  it('keeps standalone selectable Markdown block menus available', async () => {
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(<MarkdownView source={'```ts\nconst value = 1;\n```'} />);
+    expect(html).toContain('data-selectable="true"');
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
+  it('preserves the Android renderer block-menu default', async () => {
+    native.os = 'android';
+    const { MarkdownView } = await import('../src/ui/markdown-view');
+    const html = renderToStaticMarkup(
+      <MarkdownView source={'```ts\nconst value = 1;\n```'} selectable={false} />,
+    );
+    expect(html).toContain('data-block-context-menu="true"');
+  });
+
   it('renders a Bot reply as Markdown that long-press copies whole', () => {
     const html = renderToStaticMarkup(
       <MessageBubble
@@ -359,6 +487,7 @@ describe('message states', () => {
       />,
     );
     expect(html).toContain('data-selectable="false"');
+    expect(html).toContain('data-block-context-menu="false"');
     expect(html).not.toContain('data-selectable="true"');
     expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
     expect(html).toContain(
@@ -415,6 +544,46 @@ describe('message states', () => {
     );
     expect(draft).toContain('Hel');
     expect(draft).not.toContain(t.typing);
+  });
+
+  it('shows a Bot voice bar above the text, and the text alone when the voice failed', () => {
+    const audio = {
+      key: 'computer:c:m:voice',
+      identity: 'voice-hash',
+      kind: 'audio' as const,
+      name: 'voice-m.mp3',
+      mime: 'audio/mpeg',
+      size: 4096,
+      local: false,
+      source: { uri: 'https://computer.test/attachment', headers: {} },
+    };
+    const ready = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          author: 'bot',
+          bot: 'ada',
+          body: 'All checks passed.',
+          voice: { state: 'ready', audio },
+        })}
+      />,
+    );
+    expect(ready).toContain(`data-accessibilitylabel="${t.playVoice}"`);
+    expect(ready.indexOf(t.playVoice)).toBeLessThan(ready.indexOf('All checks passed.'));
+    expect(ready).not.toContain('voice-m.mp3');
+
+    const failed = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          author: 'bot',
+          bot: 'ada',
+          body: 'Still here.',
+          voice: { state: 'failed', error: 'The voice service is busy.' },
+        })}
+      />,
+    );
+    expect(failed).toContain('Still here.');
+    expect(failed).toContain(t.voiceFailed('The voice service is busy.'));
+    expect(failed).not.toContain(t.playVoice);
   });
 
   it('names a group Channel Bot above its first bubble and puts its avatar at the last one', () => {
@@ -590,6 +759,54 @@ describe('double-tap to react', () => {
   it('leaves messages that cannot take reactions alone', () => {
     expect(doubleTap({ ...bot, delivery: 'pending' })).not.toHaveBeenCalled();
   });
+
+  it('on Android with selection, selects on a long press and no longer reacts to taps', () => {
+    native.os = 'android';
+    const onReact = vi.fn();
+    const onSelect = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={bot} onReact={onReact} onSelect={onSelect} />);
+    native.presses.get(t.messageActionsHint)?.();
+    native.presses.get(t.messageActionsHint)?.();
+    expect(onReact).not.toHaveBeenCalled();
+    native.longPresses.find((gesture) => gesture.enabled)?.start();
+    expect(onSelect).toHaveBeenCalledWith(bot);
+  });
+
+  it('recognizes Android bubble holds natively without the transformed React responder region', () => {
+    native.os = 'android';
+    const onSelect = vi.fn();
+    renderToStaticMarkup(<MessageBubble message={bot} onSelect={onSelect} />);
+    const gestures = native.longPresses.filter((gesture) => gesture.enabled);
+    expect(gestures).toHaveLength(1);
+    expect(native.holds.has(t.messageActionsHint)).toBe(false);
+    gestures[0]?.start();
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(bot);
+  });
+
+  it('keeps an iOS native hold opening message actions instead of selecting the message', async () => {
+    const measurement = await import('../src/ui/primitives/measure-message-view');
+    const measured = vi
+      .spyOn(measurement, 'measureMessageView')
+      .mockImplementation((_view, then) => {
+        then(16, 400, 200, 60);
+      });
+    const onLongPress = vi.fn();
+    const onSelect = vi.fn();
+    try {
+      renderToStaticMarkup(
+        <MessageBubble message={bot} onLongPress={onLongPress} onSelect={onSelect} />,
+      );
+      native.longPresses.find((gesture) => gesture.enabled)?.start();
+      expect(onLongPress).toHaveBeenCalledExactlyOnceWith(
+        bot,
+        { x: 16, y: 400, width: 200, height: 60 },
+        expect.anything(),
+      );
+      expect(onSelect).not.toHaveBeenCalled();
+    } finally {
+      measured.mockRestore();
+    }
+  });
 });
 
 describe('the long-press menu', () => {
@@ -697,7 +914,16 @@ describe('the long-press menu', () => {
   it('heads the actions with the message time, marking today', () => {
     const now = new Date('2026-10-14T09:00:00.000Z');
     expect(menuTime(bot.at, now).startsWith(`${t.today} `)).toBe(true);
-    expect(menuTime('2026-10-13T08:00:00.000Z', now).startsWith(t.yesterday)).toBe(true);
+    const earlier = new Date(2026, 9, 13, 8);
+    expect(menuTime(earlier.toISOString(), now)).toBe(
+      new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(earlier),
+    );
+    expect(menuTime('invalid', now)).toBe('');
   });
 
   it('opens the share sheet on iOS only once the menu has gone', () => {
@@ -791,7 +1017,10 @@ describe('outgoing delivery presentation through Conversation', () => {
     };
     const surface = () =>
       Array.from(container.querySelectorAll<HTMLElement>('[data-native="View"]')).findLast(
-        (node) => node.textContent === 'A quiet message',
+        (node) =>
+          node
+            .querySelector(':scope > [data-testid="message-text"]')
+            ?.textContent?.startsWith('A quiet message') === true,
       )!;
     return {
       container,
@@ -818,10 +1047,14 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.container.textContent).not.toContain(t.sending);
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(2_999));
+    act(() => {
+      vi.advanceTimersByTime(2_999);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     expect(
@@ -843,11 +1076,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('never shows feedback for a fast committed send when its old deadline passes', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_900));
+    act(() => {
+      vi.advanceTimersByTime(2_900);
+    });
     await view.settle();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(3_100));
+    act(() => {
+      vi.advanceTimersByTime(3_100);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
     expect(view.container.textContent).not.toContain(t.sending);
@@ -858,7 +1095,9 @@ describe('outgoing delivery presentation through Conversation', () => {
     async (delay) => {
       const view = await open();
       await view.send();
-      act(() => vi.advanceTimersByTime(delay));
+      act(() => {
+        vi.advanceTimersByTime(delay);
+      });
       const originalAt = view.target.getSnapshot().messages[0]!.at;
       await view.settle(true);
       expect(view.container.textContent).toContain('!');
@@ -873,10 +1112,14 @@ describe('outgoing delivery presentation through Conversation', () => {
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
       expect(view.container.textContent).not.toContain(t.notSent);
-      act(() => vi.advanceTimersByTime(2_999));
+      act(() => {
+        vi.advanceTimersByTime(2_999);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).not.toContain('…');
-      act(() => vi.advanceTimersByTime(1));
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
       expect(view.surface().style.opacity).not.toBe('0.7');
       expect(view.container.textContent).toContain('…');
       await view.settle();
@@ -896,11 +1139,15 @@ describe('outgoing delivery presentation through Conversation', () => {
   it('keeps elapsed attempt time when the bubble is virtualized and remounted', async () => {
     const view = await open();
     await view.send();
-    act(() => vi.advanceTimersByTime(2_000));
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
     view.remount();
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
-    act(() => vi.advanceTimersByTime(1_000));
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).toContain('…');
     view.remount();
@@ -932,9 +1179,52 @@ describe('outgoing delivery presentation through Conversation', () => {
   });
 });
 
+describe('message time', () => {
+  const time = (html: string) => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return container.querySelector('[data-testid="message-time"]')?.textContent;
+  };
+  const bot = (overrides: Partial<ConversationMessage>) =>
+    human({
+      id: 'bot-1',
+      author: 'bot',
+      bot: 'ada',
+      body: 'On it',
+      ...overrides,
+    });
+
+  it.each([
+    human({}),
+    bot({}),
+    bot({ body: 'First paragraph\n\nSecond one' }),
+    human({ delivery: 'pending' }),
+    human({ delivery: 'failed' }),
+  ])('keeps the timestamp off a $delivery $author bubble', (message) => {
+    const html = renderToStaticMarkup(<MessageBubble message={message} />);
+    expect(time(html)).toBeUndefined();
+    expect(html).not.toContain('message-time-unsent');
+    expect(html).not.toContain('✓');
+  });
+
+  it('shows no time while a reply streams', () => {
+    expect(
+      time(renderToStaticMarkup(<MessageBubble message={bot({})} streaming />)),
+    ).toBeUndefined();
+    expect(
+      time(
+        renderToStaticMarkup(
+          <DraftBubble draft={{ draftId: 'd', botSlug: 'ada', body: 'Thinking' } as never} />,
+        ),
+      ),
+    ).toBeUndefined();
+  });
+});
+
 describe('replies', () => {
-  it('quotes the replied message above the body, or says it is gone', () => {
-    const quoted = renderToStaticMarkup(
+  it('quotes the replied message in a block named for its author, or says it is gone', () => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
       <MessageBubble
         message={human({
           body: 'this one',
@@ -944,15 +1234,99 @@ describe('replies', () => {
         botName={(id) => (id === 'ada' ? 'Ada' : id)}
       />,
     );
-    expect(quoted.indexOf('Ada')).toBeGreaterThan(-1);
-    expect(quoted.indexOf('Pick a file')).toBeLessThan(quoted.indexOf('this one'));
-    const gone = renderToStaticMarkup(
+    const quote = container.querySelector('[data-testid="reply-quote"]')!;
+    expect(container.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Ada');
+    expect(container.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
+      'Pick a file',
+    );
+    expect(
+      quote.compareDocumentPosition(container.querySelector('[data-testid="message-text"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const gone = document.createElement('div');
+    gone.innerHTML = renderToStaticMarkup(
       <MessageBubble message={human({ replyTo: 'bot-1', replyPreview: null })} />,
     );
-    expect(gone).toContain(t.reply.unavailable);
-    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+    expect(gone.querySelector('[data-testid="reply-quote-author"]')).toBeNull();
+    expect(gone.querySelector('[data-testid="reply-quote-text"]')?.textContent).toBe(
       t.reply.unavailable,
     );
+    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+      'reply-quote',
+    );
+    const person = document.createElement('div');
+    person.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: {
+            author: { kind: 'human', humanId: 'human-bob', displayName: 'Bob' },
+            body: 'hi alice',
+          },
+        })}
+      />,
+    );
+    expect(person.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe('Bob');
+    const unnamed = document.createElement('div');
+    unnamed.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bob-1',
+          replyPreview: { author: { kind: 'human', humanId: 'human-bob' }, body: 'hi alice' },
+        })}
+      />,
+    );
+    expect(unnamed.querySelector('[data-testid="reply-quote-author"]')?.textContent).toBe(
+      t.reply.member,
+    );
+  });
+
+  it('jumps to the original when its quote is tapped', () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={{
+          ...human({ id: 'bot-2', body: 'Done', replyTo: 'human-0' }),
+          author: 'bot',
+          bot: 'ada',
+          replyPreview: { author: { kind: 'human' }, body: 'Fix the build' },
+        }}
+        onOpenReply={open}
+      />,
+    );
+    const label = t.reply.quote(t.reply.you, 'Fix the build');
+    const button = container.querySelector(`[data-accessibilitylabel="${label}"]`);
+    expect(button?.getAttribute('data-accessibilityrole')).toBe('button');
+    expect(button?.getAttribute('data-testid')).toBe('reply-quote');
+    native.presses.get(label)!();
+    expect(open).toHaveBeenCalledWith('human-0');
+  });
+
+  it("lets a screen reader jump from a reply to its original through the bubble's actions", () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          replyTo: 'bot-1',
+          replyPreview: {
+            author: { kind: 'bot', slug: 'ada' },
+            body: 'Pick a file',
+          },
+        })}
+        onOpenReply={open}
+      />,
+    );
+    const bubble = container.querySelector(`[data-accessibilityhint="${t.messageActionsHint}"]`)!;
+    expect(JSON.parse(bubble.getAttribute('data-accessibilityactions')!)).toContainEqual({
+      name: 'reply-original',
+      label: t.reply.jumpHint,
+    });
+    native.actions.get(t.messageActionsHint)!({
+      nativeEvent: { actionName: 'reply-original' },
+    });
+    expect(open).toHaveBeenCalledWith('bot-1');
   });
 
   it('offers a swipe reply only on committed Human and Bot messages', () => {
@@ -963,4 +1337,256 @@ describe('replies', () => {
     expect(replyable({ ...human({}), author: 'system' })).toBe(false);
     expect(replyable(human({ welcome: true }))).toBe(false);
   });
+});
+
+describe('media bubbles', () => {
+  const source = { uri: 'https://host/a', headers: {} };
+  const image = (index: number) => ({
+    key: `img-${index}`,
+    kind: 'image' as const,
+    name: `photo-${index}.jpg`,
+    source,
+    local: false,
+  });
+  const render = (message: ConversationMessage, props: Record<string, unknown> = {}) => {
+    const container = document.createElement('div');
+    container.innerHTML = renderToStaticMarkup(<MessageBubble message={message} {...props} />);
+    return container;
+  };
+  const byTest = (container: Element, id: string) =>
+    container.querySelectorAll(`[data-testid="${id}"]`);
+
+  it.each(['ios', 'android'])('routes each file row to its own attachment on %s', async (os) => {
+    native.os = os;
+    const files: ConversationMessage['attachments'] = ['first.txt', 'second.pdf', 'third.csv'].map(
+      (name, index) => ({
+        key: `multi-file:${index}`,
+        kind: 'file',
+        name,
+        source: { uri: `https://host/file-${index}`, headers: {} },
+        local: false,
+      }),
+    );
+    const shared = vi.fn(async (_attachment: ConversationMessage['attachments'][number]) => {});
+    const menu = vi.fn();
+    const select = vi.fn();
+    render(human({ body: '', attachments: files }), {
+      onShare: shared,
+      onLongPress: menu,
+      onSelect: select,
+    });
+    for (const name of ['second.pdf', 'third.csv', 'first.txt']) {
+      const press = native.presses.get(t.shareFile(name));
+      expect(press).toBeDefined();
+      await act(async () => press?.());
+    }
+    expect(shared.mock.calls.map(([attachment]) => attachment.source?.uri)).toEqual([
+      'https://host/file-1',
+      'https://host/file-2',
+      'https://host/file-0',
+    ]);
+    expect(menu).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('shows an uncaptioned image without a time pill', () => {
+    const container = render(human({ body: '', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    expect(byTest(album, 'message-album-tile')).toHaveLength(1);
+    expect(byTest(container, 'message-image-time')).toHaveLength(0);
+    expect(byTest(container, 'message-time')).toHaveLength(0);
+  });
+
+  it('puts a caption below the image without a bubble time', () => {
+    const container = render(human({ body: 'Sunset', attachments: [image(1)] }));
+    const album = byTest(container, 'message-album')[0]!;
+    const caption = byTest(container, 'message-text')[0]!;
+    expect(album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(byTest(container, 'message-image-time')).toHaveLength(0);
+    expect(album.querySelector('[data-testid="message-time"]')).toBeNull();
+    expect(byTest(container, 'message-time')).toHaveLength(0);
+  });
+
+  it('gathers several images into one album with +N on the last tile', () => {
+    const opened: string[] = [];
+    const images = Array.from({ length: 7 }, (_, index) => image(index + 1));
+    const container = render(human({ body: '', attachments: images }), {
+      onOpenImage: (attachment: { key: string }) => opened.push(attachment.key),
+    });
+    const albums = byTest(container, 'message-album');
+    expect(albums).toHaveLength(1);
+    expect(albums[0]!.getAttribute('data-accessibilitylabel')).toBe(t.imageCount(7));
+    const tiles = byTest(container, 'message-album-tile');
+    expect(tiles).toHaveLength(5);
+    expect(tiles[4]!.textContent).toContain('+2');
+    expect(tiles[3]!.textContent).not.toContain('+');
+    native.presses.get(t.openImage('photo-3.jpg'))!();
+    expect(opened).toEqual(['img-3']);
+  });
+
+  it('plays voice from one row with the played and total time, no title or download', () => {
+    const audio = {
+      key: 'voice-key',
+      identity: 'voice-hash',
+      kind: 'audio' as const,
+      name: 'voice-m.mp3',
+      size: 4096,
+      local: false,
+      source,
+    };
+    const container = render(
+      human({
+        author: 'bot',
+        bot: 'ada',
+        body: 'Spoken',
+        voice: { state: 'ready', audio, durationMs: 7000 },
+      }),
+    );
+    const row = byTest(container, 'voice-bar')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.playVoice);
+    expect(byTest(row, 'voice-time')[0]?.textContent).toBe('0:00 / 0:07');
+    expect(row.textContent).not.toContain(t.voiceLabel);
+    expect(row.textContent).not.toContain('4 KB');
+    expect(container.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(1);
+  });
+
+  it('shows a file as one row with a type tile, its name, and size · type', () => {
+    const container = render(
+      human({
+        author: 'bot',
+        body: '',
+        attachments: [
+          { key: 'f', kind: 'file', name: 'Q3 report.pdf', size: 3_500_000, source, local: false },
+        ],
+      }),
+    );
+    const row = byTest(container, 'message-file')[0]!;
+    expect(row.getAttribute('data-accessibilitylabel')).toBe(t.shareFile('Q3 report.pdf'));
+    expect(byTest(row, 'message-file-tile')[0]?.textContent).toBe('PDF');
+    expect(row.textContent).toContain('Q3 report.pdf');
+    expect(row.textContent).toContain('3.3 MB · PDF');
+    expect(row.querySelectorAll('[data-accessibilityrole="button"]')).toHaveLength(0);
+  });
+
+  it('hints at quoted media: a thumbnail for images, the length for voice, the name for files', () => {
+    const quote = (media: never, body = '', extra: Partial<ConversationMessage> = {}) => {
+      const container = render(
+        human({
+          body: 'this',
+          replyTo: 'm-1',
+          replyPreview: { author: { kind: 'bot', slug: 'ada' }, body, media },
+          ...extra,
+        }),
+      );
+      return {
+        text: byTest(container, 'reply-quote-text')[0]?.textContent,
+        thumb: byTest(container, 'reply-quote-thumb')[0],
+      };
+    };
+    const photo = quote({ kind: 'image', count: 1 } as never, '', {
+      replyThumbnail: { source, thumbhash: 'abc' },
+    });
+    expect(photo.text).toBe(t.reply.photo);
+    expect(photo.thumb?.getAttribute('data-native')).toBe('Image');
+    expect(quote({ kind: 'image', count: 3 } as never, 'Trip').text).toBe('Trip');
+    expect(quote({ kind: 'image', count: 3 } as never).text).toBe(t.reply.photos(3));
+    expect(quote({ kind: 'image', count: 3 } as never).thumb).toBeUndefined();
+    expect(quote({ kind: 'voice', durationMs: 7000 } as never, 'Spoken').text).toBe(
+      t.reply.voice('0:07'),
+    );
+    expect(quote({ kind: 'voice' } as never, 'Spoken').text).toBe(t.reply.voice('Spoken'));
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never).text).toBe(
+      t.reply.file('Q3.pdf'),
+    );
+    expect(quote({ kind: 'file', name: 'Q3.pdf', count: 1 } as never, 'See this').text).toBe(
+      'See this',
+    );
+  });
+
+  it('moves downloading and sharing attachments into the long-press menu', () => {
+    const shared: string[] = [];
+    const file = {
+      key: 'f',
+      kind: 'file' as const,
+      name: 'Q3.pdf',
+      size: 10,
+      source,
+      local: false,
+    };
+    const photo = image(1);
+    const message = human({ author: 'bot', body: '', attachments: [photo, file] });
+    renderToStaticMarkup(
+      <MessageActions
+        target={{
+          message,
+          anchor: { x: 0, y: 400, width: 200, height: 60 },
+          group: { first: true, last: true },
+        }}
+        onClose={() => {}}
+        onReact={() => {}}
+        onCopy={() => {}}
+        onShareText={() => {}}
+        onShareAttachment={(attachment) => shared.push(attachment.key)}
+      />,
+    );
+    expect(messageMenuActions(message).map((action) => action.label)).toEqual([
+      t.shareFile('photo-1.jpg'),
+      t.shareFile('Q3.pdf'),
+    ]);
+    native.presses.get(t.shareFile('Q3.pdf'))!();
+    expect(shared).toEqual([]);
+    native.dismiss();
+    expect(shared).toEqual(['f']);
+    const audio = { ...file, key: 'v', kind: 'audio' as const, name: 'voice.mp3' };
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: 'Hi', voice: { state: 'ready', audio } }),
+      ).map((action) => action.label),
+    ).toContain(t.shareFile('voice.mp3'));
+    expect(
+      messageMenuActions(
+        human({ author: 'bot', body: '', attachments: [{ ...file, source: undefined } as never] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps two images side by side in one album', () => {
+    const container = render(human({ body: '', attachments: [image(1), image(2)] }));
+    expect(byTest(container, 'message-album')).toHaveLength(1);
+    expect(byTest(container, 'message-album-tile')).toHaveLength(2);
+    expect(container.textContent).not.toContain('+');
+  });
+});
+
+it('keeps the displayed image mounted when reply becomes unavailable and recovers', () => {
+  native.os = 'android';
+  const message = human({
+    author: 'bot',
+    body: 'image',
+    attachments: [
+      {
+        key: 'photo',
+        name: 'photo.png',
+        kind: 'image',
+        local: false,
+        source: { uri: 'https://example.test/photo.png', headers: {} },
+      },
+    ],
+  });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const reply = vi.fn();
+  try {
+    act(() => root.render(<MessageBubble message={message} onReply={reply} />));
+    const image = container.querySelector('[data-native="Image"]');
+    expect(image).not.toBeNull();
+    act(() => root.render(<MessageBubble message={message} />));
+    expect(container.querySelector('[data-native="Image"]')).toBe(image);
+    expect(container.querySelector('[data-nativeid="horizontal-swipe-owner"]')).toBeNull();
+    act(() => root.render(<MessageBubble message={message} onReply={reply} />));
+    expect(container.querySelector('[data-native="Image"]')).toBe(image);
+    expect(container.querySelector('[data-nativeid="horizontal-swipe-owner"]')).not.toBeNull();
+  } finally {
+    act(() => root.unmount());
+  }
 });

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../../../../design/tokens.css";
 
 @custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
@@ -18,30 +19,30 @@
 	--nb-accent: oklch(0.967 0 0);
 	--nb-accent-foreground: var(--nb-foreground);
 
-	--nb-primary: oklch(0.145 0 0);
-	--nb-primary-foreground: oklch(0.97 0 0);
-	--nb-primary-hover: oklch(0.371 0 0);
+	--nb-primary: var(--tobs-core-brand);
+	--nb-primary-foreground: var(--tobs-core-on-solid);
+	--nb-primary-hover: var(--tobs-core-brand-hover);
 
 	--nb-border: oklch(0.935 0 0);
 	--nb-border-strong: oklch(0.87 0 0);
 	--nb-selected: oklch(0.89 0 0);
-	--nb-ring: oklch(0.145 0 0 / 0.35);
+	--nb-ring: var(--tobs-core-brand);
 
-	--nb-info: oklch(0.45 0.18 255);
-	--nb-info-foreground: oklch(0.45 0.18 255);
-	--nb-info-muted: oklch(0.965 0.015 255);
+	--nb-info: var(--tobs-core-info);
+	--nb-info-foreground: var(--tobs-core-info);
+	--nb-info-muted: var(--tobs-core-info-tint);
 
-	--nb-success: oklch(0.42 0.14 152);
-	--nb-success-foreground: oklch(0.42 0.14 152);
-	--nb-success-muted: oklch(0.965 0.015 152);
+	--nb-success: var(--tobs-core-success);
+	--nb-success-foreground: var(--tobs-core-success);
+	--nb-success-muted: var(--tobs-core-success-tint);
 
-	--nb-warning: oklch(0.48 0.15 65);
-	--nb-warning-foreground: oklch(0.48 0.15 65);
-	--nb-warning-muted: oklch(0.97 0.02 70);
+	--nb-warning: var(--tobs-core-warning);
+	--nb-warning-foreground: var(--tobs-core-warning);
+	--nb-warning-muted: var(--tobs-core-warning-tint);
 
- 	--nb-danger: oklch(0.47 0.18 25);
- 	--nb-danger-foreground: oklch(0.47 0.18 25);
- 	--nb-danger-muted: oklch(0.965 0.015 25);
+	--nb-danger: var(--tobs-core-danger);
+	--nb-danger-foreground: var(--tobs-core-danger);
+	--nb-danger-muted: var(--tobs-core-danger-tint);
  
  	--nb-m-get: oklch(0.48 0.12 156);
  	--nb-m-post: oklch(0.48 0.15 262);
@@ -97,31 +98,10 @@
 	--nb-accent: oklch(0.269 0 0);
 	--nb-accent-foreground: var(--nb-foreground);
 
-	--nb-primary: oklch(0.9 0 0);
-	--nb-primary-foreground: oklch(0.085 0 0);
-	--nb-primary-hover: oklch(0.7 0 0);
-
 	--nb-border: oklch(0.269 0 0);
 	--nb-border-strong: oklch(0.371 0 0);
 	--nb-selected: oklch(0.371 0 0);
-	--nb-ring: oklch(0.9 0 0 / 0.35);
 
-	--nb-info: oklch(0.75 0.12 255);
-	--nb-info-foreground: oklch(0.75 0.12 255);
-	--nb-info-muted: oklch(0.17 0.03 260);
-
-	--nb-success: oklch(0.72 0.12 150);
-	--nb-success-foreground: oklch(0.72 0.12 150);
-	--nb-success-muted: oklch(0.17 0.025 153);
-
-	--nb-warning: oklch(0.78 0.11 80);
-	--nb-warning-foreground: oklch(0.78 0.11 80);
-	--nb-warning-muted: oklch(0.19 0.03 70);
-
- 	--nb-danger: oklch(0.72 0.14 25);
- 	--nb-danger-foreground: oklch(0.72 0.14 25);
- 	--nb-danger-muted: oklch(0.17 0.03 25);
- 
  	--nb-m-get: oklch(0.82 0.14 162);
  	--nb-m-post: oklch(0.8 0.13 266);
  	--nb-m-put: oklch(0.85 0.13 78);
@@ -189,6 +169,7 @@
 	--color-popover-foreground: var(--nb-card-foreground);
 	--color-destructive: var(--nb-danger);
 	--color-destructive-foreground: var(--nb-danger-foreground);
+	--color-on-destructive: var(--tobs-core-on-solid);
 }
 
 html {
@@ -413,11 +394,11 @@ pre.astro-code .line.diff {
 	position: relative;
 }
 pre.astro-code .line.diff.add {
-	background: color-mix(in oklch, var(--nb-success) 10%, transparent);
+	background: var(--nb-success-muted);
 	box-shadow: inset 2px 0 0 var(--nb-success);
 }
 pre.astro-code .line.diff.remove {
-	background: color-mix(in oklch, var(--nb-danger) 10%, transparent);
+	background: var(--nb-danger-muted);
 	box-shadow: inset 2px 0 0 var(--nb-danger);
 }
 pre.astro-code .line.diff.add::before,

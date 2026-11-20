@@ -1,11 +1,9 @@
-import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { Icon } from './ds/icon.js';
+import { Checkbox } from './ds/checkbox.js';
+import { Button } from './ds/button.js';
+import { BotCreateSteps } from './bot-create-source.js';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Button,
-  Checkbox,
-  IconChevronDownOutlineRegular,
-  IconChevronRightOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, type BotZipFileListing } from './bridge.js';
@@ -98,7 +96,10 @@ const styles = stylex.create({
     backgroundColor: 'transparent',
     color: color.subtle,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
   },
   spacer: { cursor: 'default' },
   label: {
@@ -150,19 +151,23 @@ export function botZipError(error: unknown, t: BotHarnessTranslate): string {
 }
 
 export function ImportBotZipModal({
+  target,
   actions,
   sectionId,
   sectionName,
   t,
   onCancel,
   onImported,
+  onBack,
 }: {
+  target?: ReactNode;
   actions: BridgeActions;
   sectionId?: string;
   sectionName?: string;
   t: BotHarnessTranslate;
   onCancel: () => void;
   onImported: () => void;
+  onBack?: (() => void) | undefined;
 }): ReactElement {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File>();
@@ -207,6 +212,8 @@ export function ImportBotZipModal({
       }}
       onSubmit={submit}
     >
+      {onBack ? <BotCreateSteps t={t} onBack={onBack} disabled={importing} /> : null}
+      {target}
       <div {...stylex.props(styles.file)}>
         <span {...stylex.props(styles.fileName, file === undefined && styles.fileEmpty)}>
           {file?.name ?? t('botZip.import.none')}
@@ -374,9 +381,9 @@ function BotZipTreeRows({
                 onClick={() => onExpand(node.path)}
               >
                 {open ? (
-                  <IconChevronDownOutlineRegular size={14} />
+                  <Icon name="chevron-down" size={14} />
                 ) : (
-                  <IconChevronRightOutlineRegular size={14} />
+                  <Icon name="chevron-right" size={14} />
                 )}
               </button>
               <label {...stylex.props(styles.label)}>

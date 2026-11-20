@@ -1,6 +1,5 @@
+import { Button } from './ds/button.js';
 import type { ReactElement } from 'react';
-
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { gitInstalling, type GitAvailability, type GitInstallState } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -27,7 +26,9 @@ function megabytes(bytes: number): string {
 function installText(install: GitInstallState, t: BotHarnessTranslate): string | undefined {
   if (install.phase === 'downloading') {
     return install.total === undefined
-      ? t('git.install.downloadingUnknown', { received: megabytes(install.received) })
+      ? t('git.install.downloadingUnknown', {
+          received: megabytes(install.received),
+        })
       : t('git.install.downloading', {
           received: megabytes(install.received),
           total: megabytes(install.total),

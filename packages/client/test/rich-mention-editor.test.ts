@@ -1,23 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { act, createElement, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
+
   ImageLightbox: () => null,
 }));
 
@@ -41,6 +33,60 @@ import {
 } from '../src/client/rich-mention-editor.js';
 
 describe('rich mention editor', () => {
+  it('drops the trailing-line placeholder when Backspace removes the line break', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const changes: string[] = [];
+    const Draft = () => {
+      const [value, setValue] = useState('abc\n');
+      return createElement(ChannelComposer, {
+        value,
+        mentionCandidates: [
+          {
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            aggregateState: 'idle',
+            workspaces: [],
+            createdAt: '2026-09-25T00:00:00.000Z',
+          },
+        ],
+        placeholder: 'Message',
+        sending: false,
+        onChange: (next: string) => {
+          changes.push(next);
+          setValue(next);
+        },
+        onSubmit: () => undefined,
+      });
+    };
+    try {
+      await act(async () => {
+        root.render(createElement(Draft));
+      });
+      const editor = container.querySelector<HTMLElement>('.bh-composer-rich-input');
+      expect(editor?.innerHTML).toBe('abc<br><br data-rich-placeholder="">');
+      for (const [left, after, draft] of [
+        ['abc<br data-rich-placeholder="">', 'abc', 'abc'],
+        ['abc<br><br>', 'abc<br><br data-rich-placeholder="">', 'abc\n'],
+        ['<br data-rich-placeholder="">', '', ''],
+        ['<br>', '', ''],
+      ] as const) {
+        editor!.innerHTML = left;
+        await act(async () => {
+          editor!.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        expect(editor!.innerHTML).toBe(after);
+        expect(changes.at(-1)).toBe(draft);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('keeps a trailing line editable after an attachment and repeated line breaks', () => {
     const editor = document.createElement('div');
     document.body.append(editor);
@@ -82,7 +128,7 @@ describe('rich mention editor', () => {
     const chip = editor.querySelector<HTMLElement>('[data-attachment-id="report"]')!;
     expect(chip.contentEditable).toBe('false');
     expect(chip.textContent).toBe('1report.txt5 B');
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [] });
+    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [], skills: [] });
     setRichSelection(editor, 9 + text.length);
     expect(richSelectionOffsets(editor)).toEqual({ start: 9 + text.length, end: 9 + text.length });
     insertRichPlainText(editor, ' next');
@@ -127,6 +173,7 @@ describe('rich mention editor', () => {
       value: '@All Bots check',
       mentions: [{ kind: 'all-bots', preview, label: 'All Bots', start: 0, end: 9 }],
       channelRefs: [],
+      skills: [],
     });
     expect(
       deleteSelectedMention(
@@ -277,6 +324,7 @@ describe('rich mention editor', () => {
       container.querySelector<HTMLElement>(
         `.bh-composer-inline-mention[data-bot-id="${slug}"] > span:last-child`,
       )!;
+    const appearance = mountAppearanceFixture();
     try {
       await show('@Ada @Ada hi #Team', candidate('ada', '#ffffff'));
       expect(token('ada').dataset['botNameColor']).toBe(botNameColor('#ffffff', '#ffffff'));
@@ -284,11 +332,11 @@ describe('rich mention editor', () => {
       expect(token('bea').dataset['botNameColor']).toBe('#000000');
       expect(token('bea').style.color).not.toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(token('ada').dataset['botNameColor']).toBe('#ffffff');
       expect(token('bea').dataset['botNameColor']).not.toBe('#000000');
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show('@Ada @Ada hi #Team', candidate('ada', '#d9475a'));
@@ -316,7 +364,7 @@ describe('rich mention editor', () => {
         '#000000',
       ]);
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }
@@ -332,8 +380,10 @@ describe('rich mention editor', () => {
     ];
     const mounts = renderRichMentionDraft(editor, value, mentions, []);
     expect(editor.textContent).toBe('Ada hi Bea');
-    expect(mounts.map((item) => item.botSlug)).toEqual(['ada', 'bea']);
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [] });
+    expect(
+      mounts.map((item) => (item.kind === 'workspace' ? item.workspaceId : item.botSlug)),
+    ).toEqual(['ada', 'bea']);
+    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: [], skills: [] });
 
     setRichSelection(editor, 4);
     expect(richSelectionOffsets(editor)).toEqual({ start: 4, end: 4 });
@@ -342,6 +392,7 @@ describe('rich mention editor', () => {
       value: '@Ada there hi @Bea',
       mentions: [mentions[0], { botSlug: 'bea', label: 'Bea', start: 14, end: 18 }],
       channelRefs: [],
+      skills: [],
     });
     editor.remove();
   });
@@ -373,7 +424,12 @@ describe('rich mention editor', () => {
     expect(editor.querySelector('[data-channel-id="group-planning"]')?.textContent).toBe(
       '#Planning',
     );
-    expect(readRichMentionDraft(editor)).toEqual({ value, mentions, channelRefs: refs });
+    expect(readRichMentionDraft(editor)).toEqual({
+      value,
+      mentions,
+      channelRefs: refs,
+      skills: [],
+    });
     expect(referenceRuns(value, mentions, refs).map((run) => run.text)).toEqual([
       '@Ada',
       ' please use ',

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -22,41 +23,43 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    const args = method.startsWith('dsh-im/') ? body.payload : body.payload.args;
-    calls.push({ method, args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      const args = method.startsWith('dsh-im/') ? body.payload : body.payload.args;
+      calls.push({ method, args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -275,4 +278,80 @@ describe('Agent IM commands', () => {
         .code,
     ).toBe('usage');
   });
+});
+
+it('reconnects an IM identity through the live owner without unbinding or changing access', async () => {
+  const live = await host((method, args) => ({
+    ok: true,
+    value: method === 'messagingSnapshot' ? SNAPSHOT : { identity: args.input },
+  }));
+  const result = await invoke(['im-reconnect', 'ada', '--app', 'discord_1'], live.url);
+  expect(result.code).toBe(0);
+  expect(live.calls.at(-1)).toEqual({
+    method: 'messagingIdentity',
+    args: {
+      slug: 'ada',
+      input: { kind: 'reconnect', id: '11111111-1111-4111-8111-111111111111', expectedRevision: 2 },
+    },
+  });
+});
+
+it('preserves canonical retry metadata in IM status and never replays a failed reconnect', async () => {
+  const recovery = {
+    kind: 'retrying',
+    reason: 'provider-unavailable',
+    attempt: 6,
+    nextRetryAt: '2026-11-15T10:00:30Z',
+  };
+  const snapshot = {
+    ...SNAPSHOT,
+    identities: SNAPSHOT.identities.map((identity) => ({ ...identity, recovery })),
+  };
+  const live = await host((method) =>
+    method === 'messagingSnapshot'
+      ? { ok: true, value: snapshot }
+      : { ok: false, error: { code: 'identity-stale', message: 'refresh' } },
+  );
+  expect((await invoke(['im-status', 'ada'], live.url)).json.bindings[0].recovery).toEqual(
+    recovery,
+  );
+  expect((await invoke(['im-reconnect', 'ada', '--app', 'discord_1'], live.url)).code).not.toBe(0);
+  expect(live.calls.filter((call) => call.method === 'messagingIdentity')).toHaveLength(1);
+});
+
+it.each(['im-status', 'messaging-grants', 'channel-bridges'])(
+  '%s exposes saved/status reads through the same owner',
+  async (command) => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'messagingSnapshot'
+          ? { ...SNAPSHOT, checks: 'pending' }
+          : { channelId: 'group', checks: 'pending', bridges: [], sources: [] },
+    }));
+    const target = command === 'channel-bridges' ? 'group' : 'ada';
+    for (const mode of ['saved', 'status']) {
+      const result = await invoke([command, target, '--read-mode', mode], live.url);
+      expect(result.code).toBe(0);
+      expect(result.json.checks).toBe('pending');
+      expect(live.calls.at(-1)).toEqual(
+        command === 'channel-bridges'
+          ? { method: 'channelBridges', args: { channelId: target, mode } }
+          : { method: 'messagingSnapshot', args: { slug: target, mode } },
+      );
+    }
+    expect(
+      (await invoke([command, target, '--read-mode', 'cached'], live.url)).json.error.code,
+    ).toBe('usage');
+  },
+);
+
+it('refuses settings read modes on reconnect rather than weakening mutation checks', async () => {
+  const live = await host(() => ({ ok: true, value: SNAPSHOT }));
+  const result = await invoke(
+    ['im-reconnect', 'ada', '--app', 'discord_1', '--read-mode', 'saved'],
+    live.url,
+  );
+  expect(result.json.error.code).toBe('usage');
+  expect(live.calls).toEqual([]);
 });

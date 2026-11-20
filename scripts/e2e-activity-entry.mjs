@@ -156,13 +156,13 @@ const login = async (client) => {
       .find((n) => ['继续', 'Continue'].includes(n.textContent?.trim() ?? ''))
       ?.click(),
   );
-  await client.waitForSelector('.bh-human-inbox-entry', { timeout: 5000 }).catch(async () => {
+  await client.waitForSelector('.bh-activity-list-entry', { timeout: 5000 }).catch(async () => {
     await client.evaluate(() =>
       [...document.querySelectorAll('button')]
         .find((n) => n.textContent?.includes('Bot 模式'))
         ?.click(),
     );
-    await client.waitForSelector('.bh-human-inbox-entry');
+    await client.waitForSelector('.bh-activity-list-entry');
   });
   const expand = await client.$('button[aria-label="打开侧边栏"]');
   if (expand) await expand.click();
@@ -207,8 +207,8 @@ try {
     await page.waitForFunction(
       () => getComputedStyle(document.querySelector('.bh-panel-activity')).opacity === '0',
     );
-    assert.equal(await page.$('.bh-panel-activity .bh-human-inbox-count'), null);
-    assert.equal(await page.$('.bh-panel-activity .bh-human-inbox-notification-dot'), null);
+    assert.equal(await page.$('.bh-panel-activity .bh-activity-list-count'), null);
+    assert.equal(await page.$('.bh-panel-activity .bh-activity-list-notification-dot'), null);
     await theme(false);
     await shot('empty-hidden-light');
     await theme(true);
@@ -291,20 +291,20 @@ try {
           headers: [...document.querySelectorAll('h1,h2,[data-conversation-title]')].map(
             (n) => n.textContent,
           ),
-          inbox: !!document.querySelector('.bh-human-inbox-inner'),
+          inbox: !!document.querySelector('.bh-activity-list-inner'),
           text: document.querySelector('.bh-main')?.textContent?.slice(0, 400),
         })),
       );
       throw error;
     });
     await page.waitForFunction(
-      () => document.querySelector('.bh-human-inbox-count')?.textContent?.trim() === '99+',
+      () => document.querySelector('.bh-activity-list-count')?.textContent?.trim() === '99+',
     );
     const status = await rpc('humanAttentionStatus');
     assert.ok(status.unreadCount > 99);
     assert.equal(status.hasAction, true);
-    assert.equal(await page.$('.bh-panel-activity .bh-human-inbox-notification-dot'), null);
-    assert.equal(await page.$('.bh-panel-activity .bh-human-inbox-action-dot'), null);
+    assert.equal(await page.$('.bh-panel-activity .bh-activity-list-notification-dot'), null);
+    assert.equal(await page.$('.bh-panel-activity .bh-activity-list-action-dot'), null);
     const geometry = await page.evaluate(() => {
       const box = (n) => {
         const r = n.getBoundingClientRect();
@@ -318,7 +318,7 @@ try {
         bot: box(bot),
         gear: box(gear),
         label: chip.getAttribute('aria-label'),
-        entries: document.querySelectorAll('.bh-human-inbox-entry').length,
+        entries: document.querySelectorAll('.bh-activity-list-entry').length,
       };
     });
     assert.equal(geometry.entries, 1);
@@ -334,20 +334,20 @@ try {
     await theme(true);
     await shot('expanded-overview-dark');
     await theme(false);
-    await click('.bh-activity-center-header .bh-human-inbox-tabs button', '收件箱');
-    await page.waitForSelector('.bh-human-inbox-inner');
+    await click('.bh-activity-center-header .bh-activity-list-tabs button', '收件箱');
+    await page.waitForSelector('.bh-activity-list-inner');
     await shot('expanded-inbox-light');
     await page.click('[data-channel-id="dm-entry-review"]');
     await page.waitForSelector('.bh-channel-options');
     await page.click('.bh-panel-activity');
-    await page.waitForSelector('.bh-human-inbox-inner');
+    await page.waitForSelector('.bh-activity-list-inner');
     assert.equal(await page.$('.bh-overview'), null);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.bh-panel-activity');
     await page.click('.bh-panel-activity');
-    await page.waitForSelector('.bh-human-inbox-inner');
+    await page.waitForSelector('.bh-activity-list-inner');
     await shot('remembered-inbox-reloaded');
-    await click('.bh-activity-center-header .bh-human-inbox-tabs button', '总览');
+    await click('.bh-activity-center-header .bh-activity-list-tabs button', '总览');
     await page.waitForSelector('.bh-overview');
     await page.click('button[aria-label="收起侧边栏"]');
     await delay(400);
@@ -359,16 +359,16 @@ try {
       return {
         bot: box(document.querySelector('.bh-panel-glyph').closest('button')),
         chip: box(document.querySelector('.bh-panel-activity')),
-        dot: box(document.querySelector('.bh-human-inbox-notification-dot')),
-        dotColor: getComputedStyle(document.querySelector('.bh-human-inbox-notification-dot'))
+        dot: box(document.querySelector('.bh-activity-list-notification-dot')),
+        dotColor: getComputedStyle(document.querySelector('.bh-activity-list-notification-dot'))
           .backgroundColor,
       };
     });
-    assert.equal(await page.$('.bh-panel-activity .bh-human-inbox-count'), null);
+    assert.equal(await page.$('.bh-panel-activity .bh-activity-list-count'), null);
     assert.equal(
       await page.evaluate(
         () =>
-          document.querySelectorAll('.bh-panel-activity .bh-human-inbox-notification-dot').length,
+          document.querySelectorAll('.bh-panel-activity .bh-activity-list-notification-dot').length,
       ),
       1,
     );

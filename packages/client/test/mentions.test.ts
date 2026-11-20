@@ -5,6 +5,7 @@ import {
   appendMention,
   deleteSelectedMention,
   mentionRuns,
+  quoteMention,
   rebaseMentions,
   selectMention,
   sessionBotReference,
@@ -123,6 +124,65 @@ describe('appendMention', () => {
       value: first.value,
       mentions: first.mentions,
       caret: first.value.length,
+    });
+  });
+});
+
+describe('quoteMention', () => {
+  it('puts the quoted Bot first in an empty or written draft', () => {
+    expect(quoteMention('', [], 'ada', 'Ada')).toEqual({
+      value: '@Ada ',
+      mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      caret: 5,
+    });
+    const written = quoteMention(
+      'see @Bea',
+      [{ botSlug: 'bea', label: 'Bea', start: 4, end: 8 }],
+      'ada',
+      'Ada',
+    );
+    expect(written.value).toBe('@Ada see @Bea');
+    expect(written.mentions).toEqual([
+      { botSlug: 'ada', label: 'Ada', start: 0, end: 4 },
+      { botSlug: 'bea', label: 'Bea', start: 9, end: 13 },
+    ]);
+    expect(written.caret).toBe(written.value.length);
+  });
+
+  it('keeps a selected mention at the start of the draft', () => {
+    const next = quoteMention(
+      '@Bea hi',
+      [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      'ada',
+      'Ada',
+    );
+    expect(next.value).toBe('@Ada @Bea hi');
+    expect(next.mentions).toEqual([
+      { botSlug: 'ada', label: 'Ada', start: 0, end: 4 },
+      { botSlug: 'bea', label: 'Bea', start: 5, end: 9 },
+    ]);
+  });
+
+  it('keeps the next mention when the quoted mention is deleted', () => {
+    const quoted = quoteMention(
+      '@Bea hi',
+      [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      'ada',
+      'Ada',
+    );
+    expect(deleteSelectedMention(quoted.value, quoted.mentions, 5, 5, 'Backspace')).toEqual({
+      value: '@Bea hi',
+      mentions: [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      caret: 0,
+    });
+  });
+
+  it('leaves a draft that already mentions the quoted Bot alone', () => {
+    const mentions = [{ botSlug: 'ada', label: 'Ada', start: 3, end: 7 }];
+    expect(quoteMention('hi @Ada ', mentions, 'ada', 'Ada')).toEqual({
+      value: 'hi @Ada ',
+      mentions,
+      caret: 8,
     });
   });
 });

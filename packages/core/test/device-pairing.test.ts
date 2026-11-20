@@ -8,6 +8,7 @@ import {
   type DevicePairingEvent,
 } from '../src/devices/pairing.js';
 import { createDevicesHttp, offeredRoutes, type PairingOfferView } from '../src/devices/http.js';
+import type { AccountResult, ConnectedHostsResult } from '../src/devices/connect-account.js';
 import { detectPhoneRoutes, type RunCommand } from '../src/devices/routes.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -15,7 +16,7 @@ function fixture() {
   const home = createTempRoot('botharness-device-pairing-');
   let clock = Date.parse('2026-10-14T08:00:00.000Z');
   const events: DevicePairingEvent[] = [];
-  const open = () => {
+  const open = (onRevoked?: (deviceId: string) => void) => {
     const owner = trackTestOwner(
       mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
     );
@@ -26,6 +27,7 @@ function fixture() {
         hostName: 'studio',
         now: () => clock,
         record: (event) => events.push(event),
+        ...(onRevoked ? { onRevoked } : {}),
       }),
     };
   };
@@ -39,6 +41,194 @@ function fixture() {
 }
 
 describe('Device Pairing', () => {
+  it('runs the same bounded Connect health owner from HTTP and snapshots without accepting a caller target', async () => {
+    const host = fixture().open();
+    let checks = 0;
+    const observed = {
+      state: 'failed' as const,
+      stage: 'public' as const,
+      code: 'dns' as const,
+      checkedAt: '2026-11-14T00:00:00.000Z',
+      elapsedMs: 10,
+    };
+    const common = {
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+    };
+    const missing = createDevicesHttp(common);
+    const request = () =>
+      new Request('http://h/api/botharness/devices/connect-health', {
+        method: 'POST',
+        body: JSON.stringify({ origin: 'https://attacker.invalid' }),
+      });
+    expect((await missing(request())).status).toBe(409);
+    const http = createDevicesHttp({
+      ...common,
+      connectHealth: {
+        status: () => observed,
+        check: async () => {
+          checks++;
+          return observed;
+        },
+      },
+    });
+    const snapshot = await (await http(new Request('http://h/api/botharness/devices'))).json();
+    expect(snapshot.connect.health).toEqual(observed);
+    expect(checks).toBe(0);
+    const response = await http(request());
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ health: observed });
+    expect(checks).toBe(1);
+    host.owner.close();
+  });
+
+  it('persists only an explicit device Feed acknowledgement and keeps revocation authoritative', () => {
+    const test = fixture();
+    const first = test.open();
+    const result = first.pairing.redeem({ offer: first.pairing.createOffer().offer });
+    if (!result.ok) throw new Error(result.code);
+    expect(first.pairing.check(result.device.id)).toMatchObject({ ok: true });
+    expect(first.pairing.list()[0]?.feedReadAt).toBeUndefined();
+    const receipt = first.pairing.acknowledgeFeed(result.device.id);
+    expect(receipt).toMatchObject({ ok: true, device: { feedReadAt: '2026-10-14T08:00:00.000Z' } });
+    test.advance(1000);
+    expect(first.pairing.acknowledgeFeed(result.device.id)).toEqual(receipt);
+    first.owner.close();
+    const reopened = test.open();
+    expect(reopened.pairing.list()[0]?.feedReadAt).toBe('2026-10-14T08:00:00.000Z');
+    reopened.pairing.revoke(result.device.id);
+    expect(reopened.pairing.acknowledgeFeed(result.device.id)).toEqual({
+      ok: false,
+      code: 'device-revoked',
+    });
+    expect(reopened.pairing.acknowledgeFeed('unknown')).toEqual({
+      ok: false,
+      code: 'device-unknown',
+    });
+  });
+
+  it('exposes account-host management only on demand and requires confirmation before owner calls', async () => {
+    const host = fixture().open();
+    let listCalls = 0;
+    const revokes: string[] = [];
+    const state = { state: 'signed-in' as const };
+    const http = createDevicesHttp({
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+      account: {
+        status: () => state,
+        signIn: async () => ({ ok: true, status: state }),
+        signOut: async () => ({ ok: true, status: state }),
+        connectedHosts: async (): Promise<ConnectedHostsResult> => {
+          listCalls += 1;
+          return {
+            ok: true,
+            hosts: [
+              {
+                id: 'hother',
+                name: 'Other',
+                hostname: 'other.test',
+                createdAt: '2026-01-01T00:00:00Z',
+                current: false,
+                sessionKnown: true,
+              },
+            ],
+          };
+        },
+        revokeConnectedHost: async (hostId): Promise<AccountResult> => {
+          revokes.push(hostId);
+          return { ok: false, code: 'current-host' };
+        },
+      },
+    });
+    await http(new Request('http://h/api/botharness/devices'));
+    expect(listCalls).toBe(0);
+    const list = await (
+      await http(new Request('http://h/api/botharness/devices/account-hosts'))
+    ).json();
+    expect(list).toMatchObject({ hosts: [{ id: 'hother', current: false, sessionKnown: true }] });
+    expect(listCalls).toBe(1);
+    const revoke = (body: unknown) =>
+      http(
+        new Request('http://h/api/botharness/devices/account-hosts/revoke', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    expect((await revoke({ hostId: 'hother' })).status).toBe(400);
+    expect((await revoke({ confirm: true })).status).toBe(400);
+    expect(revokes).toHaveLength(0);
+    expect(
+      await (
+        await revoke({ hostId: 'hother', confirm: true, token: 'ignored-client-token' })
+      ).json(),
+    ).toEqual({ code: 'current-host' });
+    expect(revokes).toEqual(['hother']);
+    host.owner.close();
+  });
+
+  it.each([
+    { state: 'signed-in' as const },
+    {
+      state: 'error' as const,
+      issue: 'relay-unavailable' as const,
+      recovery: 'automatic' as const,
+    },
+    { state: 'signing-in' as const },
+  ])(
+    'keeps a %o Host on its account tunnel instead of a disable the account would undo',
+    async (state) => {
+      const host = fixture().open();
+      let disabled = 0;
+      const http = createDevicesHttp({
+        pairing: host.pairing,
+        routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+        connect: {
+          status: () => ({ state: 'connected' }),
+          route: () => undefined,
+          start: async () => {},
+          enable: async () => ({ ok: true, status: { state: 'connected' } }),
+          disable: async () => {
+            disabled += 1;
+            return { ok: true, status: { state: 'off' } };
+          },
+          close: async () => {},
+        },
+        account: {
+          status: () => state,
+          signIn: async () => ({ ok: true, status: state }),
+          signOut: async () => ({ ok: true, status: state }),
+          connectedHosts: async (): Promise<ConnectedHostsResult> => ({ ok: true, hosts: [] }),
+          revokeConnectedHost: async (): Promise<AccountResult> => ({ ok: true, status: state }),
+        },
+      });
+      const response = await http(
+        new Request('http://h/api/botharness/devices/connect', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'disable' }),
+        }),
+      );
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: 'connect-signed-in',
+        error: expect.stringContaining('connect-sign-out'),
+      });
+      expect(disabled).toBe(0);
+      host.owner.close();
+    },
+  );
+
+  it('returns a coded signed-out refusal for account management without an owner', async () => {
+    const host = fixture().open();
+    const http = createDevicesHttp({
+      pairing: host.pairing,
+      routes: () => detectPhoneRoutes({ port: 4100, run: async () => '' }),
+    });
+    expect(
+      await (await http(new Request('http://h/api/botharness/devices/account-hosts'))).json(),
+    ).toEqual({ code: 'signed-out' });
+    host.owner.close();
+  });
   it('requires approval of the exact Noise device key and keeps that binding across restart', () => {
     const f = fixture();
     let host = f.open();
@@ -95,6 +285,43 @@ describe('Device Pairing', () => {
     });
     expect(host.pairing.list()[0]?.revokedAt).toBeDefined();
     expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: false, closedStreams: 0 });
+  });
+
+  it('tears down a known already-revoked device without a stream', () => {
+    const notified: string[] = [];
+    const host = fixture().open((id) => notified.push(id));
+    const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+    if (!paired.ok) throw new Error('pairing failed');
+    attachOperationalModule(host.owner, 'device-pairing').transaction((db) =>
+      db
+        .prepare('UPDATE paired_devices SET revoked_at = paired_at WHERE device_id = ?')
+        .run(paired.device.id),
+    );
+    expect(host.pairing.list()).toMatchObject([
+      { id: paired.device.id, revokedAt: expect.any(String) },
+    ]);
+    expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: false, closedStreams: 0 });
+    expect(notified).toEqual([paired.device.id]);
+  });
+
+  it('tears down an owned stream after its canonical device row has been purged', () => {
+    const notified: string[] = [];
+    const host = fixture().open((id) => notified.push(id));
+    const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+    if (!paired.ok) throw new Error('pairing failed');
+    let closed = 0;
+    host.pairing.attachStream(paired.device.id, () => {
+      closed++;
+    });
+    attachOperationalModule(host.owner, 'device-pairing').transaction((db) =>
+      db.prepare('DELETE FROM paired_devices WHERE device_id = ?').run(paired.device.id),
+    );
+    expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: true, closedStreams: 1 });
+    expect(closed).toBe(1);
+    expect(notified).toEqual([paired.device.id]);
+    expect(host.pairing.revoke(paired.device.id)).toEqual({ revoked: false, closedStreams: 0 });
+    expect(host.pairing.revoke('unknown')).toEqual({ revoked: false, closedStreams: 0 });
+    expect(notified).toEqual([paired.device.id]);
   });
 
   it('tells a missing, unknown and forged credential apart from a revoked one', () => {

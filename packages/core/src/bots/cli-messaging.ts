@@ -1,17 +1,7 @@
+export { MESSAGING_OPTIONS } from './cli-option-spec.js';
 import { randomUUID } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const MESSAGING_OPTIONS = {
-  'input-stdin': { type: 'boolean' },
-  confirm: { type: 'boolean' },
-  binding: { type: 'string' },
-  source: { type: 'string' },
-  channel: { type: 'string' },
-  pairing: { type: 'string' },
-  delivery: { type: 'string' },
-  'request-id': { type: 'string' },
-} as const;
 
 export const MESSAGING_COMMANDS = [
   {
@@ -24,7 +14,7 @@ export const MESSAGING_COMMANDS = [
   },
   {
     command: 'messaging-grants',
-    description: "list a Bot's authorized IM conversations with their policies and post limits",
+    description: "list a Bot's authorized IM conversations (--read-mode saved|status)",
   },
   {
     command: 'messaging-targets',
@@ -88,7 +78,7 @@ export const MESSAGING_COMMANDS = [
   },
   {
     command: 'channel-bridges',
-    description: "list a Channel's IM bridges and bridge sources",
+    description: "list a Channel's IM bridges and sources (--read-mode saved|status)",
   },
   {
     command: 'channel-bridge',
@@ -111,6 +101,14 @@ export const MESSAGING_COMMANDS = [
     description: 'retry one failed IM approval delivery',
   },
   {
+    command: 'question-retry',
+    description: 'repair one IM question notification or unconfirmed answer',
+  },
+  {
+    command: 'question-deliveries',
+    description: "read a Bot's IM question notifications",
+  },
+  {
     command: 'failure-alerts',
     description: "read a Bot's IM failure-alert setting and deliveries",
   },
@@ -131,6 +129,7 @@ export const MESSAGING_COMMANDS = [
 export type MessagingCommand = (typeof MESSAGING_COMMANDS)[number]['command'];
 
 export interface MessagingValues {
+  'read-mode'?: string;
   'input-stdin'?: boolean;
   confirm?: boolean;
   binding?: string;
@@ -153,7 +152,20 @@ export interface MessagingValues {
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
-const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin'];
+export function messagingReadMode(
+  command: string,
+  mode: string | undefined,
+): 'saved' | 'status' | undefined {
+  if (mode === undefined) return undefined;
+  if (
+    !['im-status', 'messaging-grants', 'channel-bridges'].includes(command) ||
+    !['saved', 'status'].includes(mode)
+  )
+    throw new CliLiveError('usage', '--read-mode saved|status is only for IM settings queries.');
+  return mode === 'saved' ? 'saved' : 'status';
+}
+
+const PLATFORMS = ['feishu', 'slack', 'discord', 'weixin', 'qq'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const STDIN_COMMANDS = new Set<MessagingCommand>([
   'messaging-defaults-set',
@@ -217,6 +229,7 @@ export async function prepareMessaging(
   values: MessagingValues,
   io: BotCreateCliIo,
 ): Promise<MessagingOperation> {
+  messagingReadMode(command, values['read-mode']);
   const what =
     command === 'messaging-defaults' || command === 'messaging-defaults-set'
       ? 'a platform'
@@ -270,6 +283,7 @@ export async function prepareMessaging(
     case 'channel-bridge':
     case 'approval-routes':
     case 'approval-test':
+    case 'question-deliveries':
     case 'failure-alerts':
     case 'failure-alerts-test':
       break;
@@ -324,6 +338,7 @@ export async function prepareMessaging(
       if (values.pairing !== 'none') uuid(values.pairing, '--pairing');
       break;
     case 'approval-retry':
+    case 'question-retry':
     case 'failure-alerts-retry':
       uuid(values.delivery, '--delivery');
       break;
@@ -334,7 +349,9 @@ export async function prepareMessaging(
 export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Promise<unknown> {
   const { command, target, values } = operation;
   const input = operation.input ?? {};
-  const snapshot = async () => record(await rpc('messagingSnapshot', { slug: target }));
+  const mode = messagingReadMode(command, values['read-mode']);
+  const snapshot = async () =>
+    record(await rpc('messagingSnapshot', { slug: target, ...(mode ? { mode } : {}) }));
   const app = async (ref: string) => {
     const found = list(record(await rpc('messagingApps', {}))['apps']).find(
       (entry) => entry['ref'] === ref,
@@ -352,6 +369,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
     case 'messaging-grants': {
       const value = await snapshot();
       return {
+        ...(value['checks'] === undefined ? {} : { checks: value['checks'] }),
         grants: list(value['grants']).map((grant) => ({
           id: grant['id'],
           bindingId: grant['bindingId'],
@@ -362,6 +380,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
           revision: grant['revision'],
           availability: grant['availability'],
           reception: grant['reception'],
+          ...(grant['recovery'] === undefined ? {} : { recovery: grant['recovery'] }),
           canReceive: grant['canReceive'],
           canPost: grant['canPost'],
           muted: grant['muted'] === true,
@@ -508,7 +527,7 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
       await rpc('senderAccess', { slug: target, input });
       return { updated: true };
     case 'channel-bridges':
-      return rpc('channelBridges', { channelId: target });
+      return rpc('channelBridges', { channelId: target, ...(mode ? { mode } : {}) });
     case 'channel-bridge':
       return rpc('channelBridge', { channelId: target, input });
     case 'approval-routes':
@@ -528,6 +547,13 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
         slug: target,
         id: values.delivery!.trim(),
       });
+    case 'question-retry':
+      return rpc('questionRetry', {
+        slug: target,
+        id: values.delivery!.trim(),
+      });
+    case 'question-deliveries':
+      return { deliveries: (await snapshot())['questions'] ?? [] };
     case 'failure-alerts':
       return record((await snapshot())['failureAlerts']);
     case 'failure-alerts-set': {

@@ -1,5 +1,5 @@
-import type { Inbox } from './inbox';
-import type { HumanAttentionPage } from './wire';
+import type { Inbox } from '@botharness/host-client/inbox';
+import type { HumanAttentionPage } from '@botharness/host-protocol/wire';
 
 export const ACTIVITY_COUNT_KINDS = [
   'approvals',
@@ -190,7 +190,12 @@ export function observeActivityCount(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
+        const initial = inbox.getSnapshot();
+        let sections: unknown = initial.status === 'ready' ? initial.sections : undefined;
         const stopInbox = inbox.subscribe(() => {
+          const next = inbox.getSnapshot();
+          if (next.status !== 'ready' || next.sections === sections) return;
+          sections = next.sections;
           void refresh();
         });
         const stopPreferences = preferences.subscribe(() => {

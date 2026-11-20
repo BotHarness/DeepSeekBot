@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   attachOperationalModule,
@@ -21,8 +21,13 @@ import {
   withHost,
   withoutHost,
   type SavedHost,
-} from '../src/host/hosts';
-import { createHostPush, parsePushData, pushHref, PushRequestFailed } from '../src/host/push';
+} from '@botharness/host-client/hosts';
+import {
+  createHostPush,
+  parsePushData,
+  pushHref,
+  PushRequestFailed,
+} from '@botharness/host-client/push';
 import {
   decideFromPush,
   registerApprovalCategories,
@@ -159,6 +164,7 @@ function fakeNotifications(permission: PermissionState) {
 
 const servers: Server[] = [];
 const roots: string[] = [];
+const owners: ReturnType<typeof mountOperationalDatabase>[] = [];
 afterEach(async () => {
   await Promise.all(
     servers.splice(0).map(
@@ -169,6 +175,7 @@ afterEach(async () => {
         }),
     ),
   );
+  for (const owner of owners.splice(0)) owner.close();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -176,6 +183,7 @@ async function realHost() {
   const home = mkdtempSync(join(tmpdir(), 'bh-mobile-push-'));
   roots.push(home);
   const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  owners.push(owner);
   const sent: ExpoMessage[] = [];
   let items: Array<{ id: string; createdAt: string }> = [];
   let push: ReturnType<typeof createPushDelivery>;
@@ -331,6 +339,71 @@ describe('notification buttons', () => {
 });
 
 describe('push registration with a real Host gateway', () => {
+  it('does not re-register when fetching the token reports the same device token again', async () => {
+    const h = await realHost();
+    const base = createHostPush(nodeCarrier(), 2_000);
+    let registrations = 0;
+    let preferences = 0;
+    const hostPush = {
+      ...base,
+      register: (...args: Parameters<typeof base.register>) => {
+        registrations++;
+        return base.register(...args);
+      },
+    };
+    const phone = fakeNotifications('granted');
+    const listeners = new Set<
+      (resolveToken: () => Promise<string>, nativeToken?: string) => void
+    >();
+    let device = 'device-token-1';
+    const emit = () => {
+      for (const listener of listeners) listener(() => fetchToken(), device);
+    };
+    const fetchToken = phone.port.token;
+    phone.port.token = async () => {
+      emit();
+      return fetchToken();
+    };
+    phone.port.onTokenChanged = (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    };
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush,
+      platform: 'ios',
+      locale: 'en',
+      beforeRegister: async () => {
+        preferences++;
+      },
+    });
+    await session.sync([h.saved]);
+    expect(registrations).toBe(1);
+    emit();
+    emit();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(1);
+    expect(preferences).toBe(1);
+    device = 'device-token-2';
+    emit();
+    await vi.waitFor(() => expect(registrations).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(2);
+    expect(preferences).toBe(2);
+    phone.port.token = async () => {
+      emit();
+      device = 'device-token-3';
+      emit();
+      return fetchToken();
+    };
+    await session.sync([h.saved]);
+    await vi.waitFor(() => expect(registrations).toBe(3));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(3);
+    session.stop();
+    h.owner.close();
+  });
+
   it('registers replacement credentials without asking permission again after revoking the old device', async () => {
     const h = await realHost();
     const hostPush = createHostPush(nodeCarrier(), 2_000);
@@ -386,6 +459,7 @@ describe('push registration with a real Host gateway', () => {
     expect(await hostPush.settings(h.saved)).toEqual({
       registered: true,
       enabled: true,
+      delivery: 'push',
       preferences: { approval: true, question: true, 'private-input': true, reply: true },
       quietChannelIds: [],
     });
@@ -395,6 +469,8 @@ describe('push registration with a real Host gateway', () => {
       enabled: true,
       quietChannelIds: ['g1'],
     });
+    expect((await hostPush.setDelivery(h.saved, 'in-app')).delivery).toBe('in-app');
+    expect((await hostPush.setDelivery(h.saved, 'push')).delivery).toBe('push');
 
     h.raise('approval:1');
     await h.push.reconcile();
@@ -505,6 +581,42 @@ describe('push registration with a real Host gateway', () => {
     h.owner.close();
   });
 
+  it('retries only the Host that reconnected and keeps other failures for their own retry', async () => {
+    const online = new Set<string>();
+    const register = vi.fn(async (host: SavedHost) => {
+      if (!online.has(host.hostId)) throw new Error('unreachable');
+      return {
+        registered: true,
+        enabled: true,
+        delivery: 'push' as const,
+        quietChannelIds: [],
+        preferences: { approval: true, question: true, 'private-input': true, reply: true },
+      };
+    });
+    const session = createPushSession({
+      notifications: fakeNotifications('granted').port,
+      hostPush: { ...createHostPush(nodeCarrier()), register },
+      platform: 'ios',
+      locale: 'en',
+    });
+    const saved = (hostId: string): SavedHost => ({
+      hostId,
+      hostName: hostId,
+      deviceId: 'device',
+      credential: hostId,
+      routes: [`https://${hostId}.ts.net`],
+    });
+    await session.sync([saved('stale'), saved('live')]);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: ['stale', 'live'] });
+    register.mockClear();
+    online.add('live');
+    await session.retryFailed(saved('live'));
+    expect(register.mock.calls.map(([host]) => host.hostId)).toEqual(['live']);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: ['stale'] });
+    await session.retryFailed(saved('live'));
+    expect(register).toHaveBeenCalledTimes(1);
+  });
+
   it('mirrors the badge and clears banners for items resolved elsewhere', async () => {
     const phone = fakeNotifications('granted');
     phone.state.presented = [
@@ -523,6 +635,25 @@ describe('push registration with a real Host gateway', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(phone.state.badge).toBe(1);
     expect(phone.state.dismissed).toEqual(['n1']);
+  });
+
+  it('clears reply notifications read on another device once the full notification set is known', async () => {
+    const phone = fakeNotifications('granted');
+    phone.state.presented = [
+      { id: 'n1', data: { v: 1, hostId: 'h', itemId: 'reply:1', kind: 'channel-reply' } },
+      { id: 'n2', data: { v: 1, hostId: 'h', itemId: 'reply:2', kind: 'channel-mention' } },
+      { id: 'n3', data: { v: 1, hostId: 'h', itemId: 'dm-reply:3', kind: 'channel-reply' } },
+      { id: 'n4', data: { v: 1, hostId: 'other', itemId: 'reply:1', kind: 'channel-reply' } },
+    ];
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush: createHostPush(nodeCarrier()),
+      platform: 'ios',
+      locale: 'en',
+    });
+    session.reflect('h', new Set(), 0, new Set(['reply:2']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(phone.state.dismissed).toEqual(['n1', 'n3']);
   });
 
   it('reflects an unchanged Inbox again after the app returns to the foreground', async () => {

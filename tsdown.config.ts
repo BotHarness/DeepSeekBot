@@ -7,10 +7,12 @@ import { defineConfig, type UserConfig } from 'tsdown';
 import { preparePackagedDesktopZoomTheme } from './scripts/desktop-zoom-compat.mjs';
 import { dockviewCssPlugin } from './scripts/dockview-css-plugin.mjs';
 import { stylexPlugin } from './scripts/stylex-plugin.mjs';
+import { genuiRuntimeAssetsPlugin } from './scripts/genui-runtime-assets.mjs';
 
 const ROOT_DIR = fileURLToPath(new URL('.', import.meta.url));
 
 const CLIENT_ID = '@botharness/ui';
+const SHARED_HOST_PACKAGES = /^@botharness\/host-(?:client|protocol)(?:\/|$)/;
 
 const PLATFORM_MODULES = [
   /^react$/,
@@ -38,6 +40,7 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
     clean: true,
     sourcemap: true,
     external: PLATFORM_MODULES,
+    deps: { alwaysBundle: [SHARED_HOST_PACKAGES] },
     plugins: [
       {
         name: 'botharness:vfile-browser-imports',
@@ -52,6 +55,7 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
       },
       stylexPlugin({ rootDir: ROOT_DIR }),
       dockviewCssPlugin({ rootDir: ROOT_DIR }),
+      ...(id === CLIENT_ID ? [genuiRuntimeAssetsPlugin('client')] : []),
     ],
     outputOptions: {
       entryFileNames: 'client.js',
@@ -75,6 +79,8 @@ export function buildStamp(env: NodeJS.ProcessEnv = process.env): { sha: string;
     try {
       sha = execFileSync('git', ['rev-parse', '--short=9', 'HEAD'], {
         cwd: ROOT_DIR,
+        shell: false,
+        windowsHide: true,
         stdio: ['ignore', 'pipe', 'ignore'],
       })
         .toString()
@@ -119,8 +125,8 @@ export const coreCliBundleOptions: UserConfig = {
   platform: 'node',
   dts: false,
   clean: true,
-  external: ['@resvg/resvg-js', 'silk-wasm', 'css-tree'],
-  deps: { alwaysBundle: [/^@deepseek-ai\//] },
+  external: ['@resvg/resvg-js', 'silk-wasm', 'opus-decoder', 'css-tree', 'sharp'],
+  deps: { alwaysBundle: [/^@deepseek-ai\//, SHARED_HOST_PACKAGES] },
 };
 
 function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
@@ -210,17 +216,22 @@ export default defineConfig([
     entry: {
       index: 'packages/core/src/index.ts',
       'folder-browse-worker': 'packages/core/src/workspaces/folder-browse-worker.ts',
+      'genui-diagram-worker': 'packages/core/src/runtime/genui-diagram-worker.ts',
     },
     outDir: 'packages/core/dist',
     define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
+    plugins: [genuiRuntimeAssetsPlugin('core')],
     format: ['esm'],
     platform: 'node',
     dts: true,
     clean: true,
+    deps: { alwaysBundle: [/^pele(?:\/|$)/, SHARED_HOST_PACKAGES] },
     external: [
       '@resvg/resvg-js',
       'silk-wasm',
+      'opus-decoder',
       'css-tree',
+      'sharp',
       '@deepseek-ai/dsh-agent',
       '@deepseek-ai/dsh-llm',
       '@deepseek-ai/dsh-session',
@@ -229,6 +240,7 @@ export default defineConfig([
       '@deepseek-ai/dsh-subagent',
       '@deepseek-ai/dsh-tool-bash',
       '@deepseek-ai/dsh-tool-pwsh',
+      '@deepseek-ai/dsh-tool-executor-native',
     ],
   },
   coreCliBundleOptions,
@@ -291,8 +303,16 @@ export default defineConfig([
     deps: { alwaysBundle: ['@deepseek-ai/schemastery'] },
     onSuccess: () => {
       preparePackagedDesktopZoomTheme({
+        source: join(ROOT_DIR, 'packages/client/vendor/dsh-ui-theme-022-rc2'),
+        target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme-0.2.2-rc.2'),
+      });
+      preparePackagedDesktopZoomTheme({
         source: join(ROOT_DIR, 'packages/client/node_modules/@deepseek-ai/dsh-client-ui-theme'),
         target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme'),
+      });
+      preparePackagedDesktopZoomTheme({
+        source: join(ROOT_DIR, 'packages/client/node_modules/dsh-ui-theme-022'),
+        target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme-0.2.2-rc.1'),
       });
     },
     outDir: 'packages/deepseekbot/dist',

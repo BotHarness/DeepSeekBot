@@ -3,7 +3,7 @@ import { useHostSessions } from './host-session';
 import { useConversationFilter } from './native-conversation-filter';
 import { includesComputerActivity } from './conversation-environments';
 import { hostLooks } from './native-host-look';
-import { shownHostName } from '../ui/design/host-look';
+import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { ActivitySource } from './activity-sources';
 
 export function useActivitySources(visible = true): readonly ActivitySource[] {

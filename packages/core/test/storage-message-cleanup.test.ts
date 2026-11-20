@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTempRoot } from './helpers.js';
@@ -30,10 +31,16 @@ async function seeded(now = () => new Date(NOW)) {
     databaseOwnerReady: true,
     attachments: createAttachmentStore({ rootDir: join(home, 'botharness', 'attachments') }),
   });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const group = channels.createGroup({ name: 'Trip', members: [] });
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const group = channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Trip', members: [] });
   const send = (channelId: string, id: string, at: string, body: string) =>
-    channels.appendMessage(channelId, { id, at, author: { kind: 'human' }, body, attachments: [] });
+    channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+      id,
+      at,
+      author: { kind: 'human' },
+      body,
+      attachments: [],
+    });
   await send(dm.id, 'dm-old', '2026-01-02T00:00:00.000Z', 'january plans in the DM');
   await send(dm.id, 'dm-busy', '2026-01-03T00:00:00.000Z', 'a Bot is still answering this');
   await send(dm.id, 'dm-new', '2026-10-19T00:00:00.000Z', 'yesterday in the DM');
@@ -62,7 +69,9 @@ const bodies = (core: Awaited<ReturnType<typeof seeded>>, channelId: string) =>
 describe('time-based message cleanup through Content Purge', () => {
   it('previews and deletes old messages in live chats, keeping recent ones and Bot work', async () => {
     const core = await seeded();
-    const preview = core.purge.textPreview({ before: '2026-07-01T00:00:00.000Z' });
+    const preview = core.purge.textPreview(OWNER_HUMAN_CONTEXT, {
+      before: '2026-07-01T00:00:00.000Z',
+    });
     expect(preview).toMatchObject({
       scope: { before: '2026-07-01T00:00:00.000Z', channelIds: [] },
       messages: 2,
@@ -79,7 +88,11 @@ describe('time-based message cleanup through Content Purge', () => {
     expect(preview.bytes).toBeGreaterThan(0);
     expect(core.purge.checkpoint().facts).toEqual([]);
 
-    const result = core.purge.textConfirm({ before: preview.scope.before }, preview.token);
+    const result = core.purge.textConfirm(
+      OWNER_HUMAN_CONTEXT,
+      { before: preview.scope.before },
+      preview.token,
+    );
     expect(result).toMatchObject({ messages: 2 });
     expect(result.freedBytes).toBeGreaterThanOrEqual(0);
     expect(bodies(core, core.dm.id)).toEqual([
@@ -94,17 +107,19 @@ describe('time-based message cleanup through Content Purge', () => {
       ),
     ).toEqual(expect.not.arrayContaining([{ attempt_state: 'needs-repair' }]));
     expect(core.purge.checkpoint().facts).toHaveLength(2);
-    expect(() => core.purge.textConfirm({ before: preview.scope.before }, preview.token)).toThrow(
-      'Scope changed',
-    );
-    expect(core.purge.textPreview({ before: preview.scope.before })).toMatchObject({
+    expect(() =>
+      core.purge.textConfirm(OWNER_HUMAN_CONTEXT, { before: preview.scope.before }, preview.token),
+    ).toThrow('Scope changed');
+    expect(
+      core.purge.textPreview(OWNER_HUMAN_CONTEXT, { before: preview.scope.before }),
+    ).toMatchObject({
       messages: 0,
     });
   });
 
   it('limits the scope to chosen chats and clamps a future cutoff to now', async () => {
     const core = await seeded();
-    const preview = core.purge.textPreview({
+    const preview = core.purge.textPreview(OWNER_HUMAN_CONTEXT, {
       before: '2099-01-01T00:00:00.000Z',
       channelIds: [core.group.id],
     });
@@ -113,7 +128,7 @@ describe('time-based message cleanup through Content Purge', () => {
       channelIds: [core.group.id],
     });
     expect(preview).toMatchObject({ messages: 1, kept: [] });
-    core.purge.textConfirm(preview.scope, preview.token);
+    core.purge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
     expect(bodies(core, core.group.id)).toEqual(['']);
     expect(bodies(core, core.dm.id)).toContain('january plans in the DM');
   });
@@ -121,18 +136,24 @@ describe('time-based message cleanup through Content Purge', () => {
   it('refuses a preview after a new old message appears or the token expires', async () => {
     let time = NOW;
     const core = await seeded(() => new Date(time));
-    const preview = core.purge.textPreview({ before: '2026-07-01T00:00:00.000Z' });
-    await core.channels.appendMessage(core.group.id, {
+    const preview = core.purge.textPreview(OWNER_HUMAN_CONTEXT, {
+      before: '2026-07-01T00:00:00.000Z',
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, core.group.id, {
       id: 'imported',
       at: '2026-03-01T00:00:00.000Z',
       author: { kind: 'human' },
       body: 'imported later',
       attachments: [],
     });
-    expect(() => core.purge.textConfirm(preview.scope, preview.token)).toThrow('Scope changed');
-    const fresh = core.purge.textPreview(preview.scope);
+    expect(() => core.purge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token)).toThrow(
+      'Scope changed',
+    );
+    const fresh = core.purge.textPreview(OWNER_HUMAN_CONTEXT, preview.scope);
     time += 10 * 60_000 + 1;
-    expect(() => core.purge.textConfirm(fresh.scope, fresh.token)).toThrow('expired');
+    expect(() => core.purge.textConfirm(OWNER_HUMAN_CONTEXT, fresh.scope, fresh.token)).toThrow(
+      'expired',
+    );
     expect(core.purge.checkpoint().facts).toEqual([]);
   });
 });

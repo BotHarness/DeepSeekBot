@@ -1,5 +1,16 @@
 # Mobile group and Bot avatars
 
+## Sources
+
+- `apps/mobile/src/host/{bot-avatar,group-channel}.ts`
+- `apps/mobile/src/ui/chat/{group-info,bot-profile,profile-presentation}.tsx`
+
+## Terms
+
+- Avatar
+- Group Profile
+- PersonaBot Profile
+
 ## Sub-features
 
 Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, shared phone photo selection and square conversion, independent chat backgrounds, editable Bot display names, cancellation and duplicate-tap/failure recovery.

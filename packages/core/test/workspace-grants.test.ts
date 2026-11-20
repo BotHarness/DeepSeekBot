@@ -10,6 +10,104 @@ import { createWorkspaceGrantStore, type DshWorkspace } from '../src/workspaces/
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 
 describe('Workspace Grant store', () => {
+  it('keeps one authority when the same canonical directory is registered twice', async () => {
+    const home = createTempRoot('botharness-grant-alias-');
+    const path = join(home, 'project');
+    mkdirSync(path);
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const workspaces: DshWorkspace[] = ['first', 'second'].map((id) => ({
+      id,
+      path,
+      title: id,
+      status: async () => 'ok',
+    }));
+    const grants = createWorkspaceGrantStore({
+      database: attachOperationalModule(owner, 'workspace-grants'),
+      workspaces: () => ({
+        get: (id) => workspaces.find((workspace) => workspace.id === id),
+        list: () => workspaces,
+      }),
+    });
+    try {
+      const first = await grants.create('ada', 'first');
+      grants.setOrchestratorWrite('ada', first.id, true);
+      const second = await grants.create('ada', 'second');
+      expect(second.id).toBe(first.id);
+      expect(second.orchestratorWrite).toBe(true);
+      expect(grants.list('ada').filter((grant) => !grant.revokedAt)).toHaveLength(1);
+      expect(grants.requireActive('ada', first.id).workspaceId).toBe('first');
+      const prepared = await grants.prepareWrite!('ada', 'second', () => {});
+      attachOperationalModule(owner, 'workspace-grants').transaction((database) =>
+        prepared.commit(database),
+      );
+      expect(prepared.grant.id).toBe(first.id);
+      expect(prepared.grant.workspaceId).toBe('first');
+      const pending = await grants.prepareWrite!('ada', 'second', () => {});
+      grants.revoke('ada', first.id);
+      expect(() =>
+        attachOperationalModule(owner, 'workspace-grants').transaction((database) =>
+          pending.commit(database),
+        ),
+      ).toThrow(
+        expect.objectContaining({ cause: expect.objectContaining({ code: 'invalid-grant' }) }),
+      );
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+  it('migrates duplicate paths without merging older write authority or deleting history', () => {
+    const home = createTempRoot('botharness-grant-path-migration-');
+    const path = join(home, 'project');
+    mkdirSync(path);
+    const prior = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation < 131),
+      ),
+    });
+    attachOperationalModule(prior, 'workspace-grants').transaction((database) => {
+      const insert = database.prepare(
+        'INSERT INTO workspace_grants (id, bot_slug, workspace_id, workspace_path, workspace_title, created_at, orchestrator_write, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      insert.run('old-write', 'ada', 'old', path, 'Old', '2026-11-01T00:00:00Z', 1, null);
+      insert.run('new-read', 'ada', 'new', path, 'New', '2026-11-02T00:00:00Z', 0, null);
+      insert.run('a-tied-write', 'ada', 'tied', path, 'Tied', '2026-11-02T00:00:00Z', 1, null);
+      insert.run(
+        'revoked',
+        'ada',
+        'revoked',
+        path,
+        'Revoked',
+        '2026-11-03T00:00:00Z',
+        1,
+        '2026-11-04T00:00:00Z',
+      );
+      insert.run('other-bot', 'bob', 'old', path, 'Other', '2026-11-01T00:00:00Z', 1, null);
+    });
+    prior.close();
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const workspace: DshWorkspace = { id: 'new', path, title: 'Project', status: async () => 'ok' };
+    const grants = createWorkspaceGrantStore({
+      database: attachOperationalModule(owner, 'workspace-grants'),
+      workspaces: () => ({ get: () => workspace, list: () => [workspace] }),
+    });
+    try {
+      expect(grants.list('ada')).toHaveLength(4);
+      expect(grants.list('ada').filter((grant) => !grant.revokedAt)).toMatchObject([
+        { id: 'new-read', orchestratorWrite: false },
+      ]);
+      expect(grants.list('bob').filter((grant) => !grant.revokedAt)).toHaveLength(1);
+      expect(grants.list('ada').find((grant) => grant.id === 'revoked')?.revokedAt).toBe(
+        '2026-11-04T00:00:00Z',
+      );
+      expect(() => grants.requireActive('ada', 'old-write')).toThrow(/revoked/);
+      expect(() => grants.requireActive('ada', 'a-tied-write')).toThrow(/revoked/);
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
   it('rechecks scoped eligibility after async directory validation and reports only committed new Grants', async () => {
     const home = createTempRoot('botharness-group-grants-');
     const path = join(home, 'project');
@@ -208,7 +306,7 @@ describe('Workspace Grant store', () => {
     try {
       const first = await grants.create('ada', workspace.id);
       blockStatus = true;
-      const pendingCreate = grants.create('ada', workspace.id);
+      const pendingCreate = grants.create('ada', 'second-registration-same-path');
       await statusEntered;
       grants.revoke('ada', first.id);
       releaseStatus();

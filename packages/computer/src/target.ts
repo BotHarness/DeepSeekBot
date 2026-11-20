@@ -17,16 +17,24 @@ export interface ComputerTargetRuntime {
 
 export function createComputerTargetRuntime(options: {
   target: () => ComputerTarget;
-  create: (target: ComputerTarget) => { provider: ComputerProvider; driver: CuaDriver };
+  create: (
+    target: ComputerTarget,
+    onStatusChanged: () => void,
+  ) => { provider: ComputerProvider; driver: CuaDriver };
   onChange: () => void;
+  onStatusChanged?: () => void;
   onEvent?: ((detail: string) => void) | undefined;
 }): ComputerTargetRuntime {
+  let disposed = false;
+  const create = (selected: ComputerTarget) =>
+    options.create(selected, () => {
+      if (!disposed && options.target() === selected) options.onStatusChanged?.();
+    });
   let target = options.target();
-  let active = options.create(target);
+  let active = create(target);
   let revision = 0;
   let running = false;
   let changing: Promise<void> | undefined;
-  let disposed = false;
   const sync = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error('Computer runtime is disposed'));
     if (changing !== undefined) return changing.then(sync);
@@ -41,7 +49,7 @@ export function createComputerTargetRuntime(options: {
       await active.provider.stop();
       if (disposed) return;
       target = next;
-      active = options.create(next);
+      active = create(next);
     })().finally(() => {
       changing = undefined;
     });

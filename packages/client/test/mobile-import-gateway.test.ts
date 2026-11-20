@@ -1,11 +1,12 @@
+import { OWNER_HUMAN_CONTEXT } from '../../core/src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
 import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createBotCreationController } from '../../../apps/mobile/src/host/bot-creation';
-import { botCreationTransport } from '../../../apps/mobile/src/host/bot-creation-transport';
+import { createBotCreationController } from '@botharness/host-client/bot-creation';
+import { botCreationTransport } from '@botharness/host-client/bot-creation-transport';
 import { createCore } from '../../core/src/plugin';
 import { createBridgeMethods } from '../../core/src/bridge/methods';
 import { registerBridge } from '../../core/src/bridge/rpc';
@@ -41,7 +42,10 @@ function fixture(home = createTempRoot('git-import-receipt-'), warn?: (message: 
     core,
     home,
     close,
-    bridge: createBridgeMethods({ ...core, ...(warn === undefined ? {} : { warn }) }),
+    bridge: createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...core,
+      ...(warn === undefined ? {} : { warn }),
+    }),
   };
 }
 function repository() {
@@ -65,7 +69,7 @@ it.each([undefined, 'marketplace'] as const)(
     const source = repository();
     const f = fixture();
     const ctx = new Context();
-    registerBridge(ctx, f.bridge);
+    registerBridge(ctx, () => f.bridge);
     ctx.provide('typert');
     ctx.set('typert', {
       local: { get: () => undefined, hasSeen: () => false },

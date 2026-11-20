@@ -1,3 +1,7 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { ReceptionStatus } from './reception-status.js';
 import { externalPlatformLabel } from './bridge-source-label.js';
 import * as stylex from '@stylexjs/stylex';
 import { DangerTextButton } from './ds/form-dialog.js';
@@ -12,7 +16,7 @@ import type {
   GroupReceptionPolicy,
 } from '../../../core/src/messaging/group-policy.js';
 import { useRef, useState, type ReactElement } from 'react';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { OutboxState } from '../../../core/src/messaging/outbound.js';
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { BridgeActions } from './actions.js';
@@ -56,7 +60,13 @@ export function MessagingGrantRow({
   const [open, setOpen] = useState(false);
   const [report, setReport] = useState<OutboxIntent>();
   const origin = report?.reply ?? report?.report;
-  const { snapshot, failed: loadFailed, refresh, mount } = useMessagingSnapshot(slug, actions);
+  const {
+    snapshot,
+    failed: loadFailed,
+    refresh,
+    discover,
+    mount,
+  } = useMessagingSnapshot(slug, actions);
   const [accountKey, setAccountKey] = useState('');
   const [targets, setTargets] = useState<MessagingTarget[]>([]);
   const [targetRef, setTargetRef] = useState('');
@@ -171,6 +181,7 @@ export function MessagingGrantRow({
         onClick={() => {
           setReport(undefined);
           setOpen(true);
+          void discover().catch(() => undefined);
         }}
         trailing={<span ref={mount} hidden />}
       />
@@ -284,13 +295,20 @@ export function MessagingGrantRow({
                         />
                       </div>
                       <p className="bh-im-status" role="status">
-                        {grant.platform === 'weixin'
-                          ? t(
-                              grant.reception === 'receiving'
-                                ? 'im.receptionDM'
-                                : 'im.receptionDMOff',
-                            )
-                          : t(`im.reception.${grant.reception ?? 'off'}`)}
+                        {grant.platform === 'weixin' && snapshot.checks !== 'pending' ? (
+                          t(
+                            grant.reception === 'receiving'
+                              ? 'im.receptionDM'
+                              : 'im.receptionDMOff',
+                          )
+                        ) : (
+                          <ReceptionStatus
+                            checking={snapshot.checks === 'pending'}
+                            reception={grant.reception}
+                            recovery={grant.recovery}
+                            t={t}
+                          />
+                        )}
                       </p>
                       {grant.receiveScope && grant.groupPolicy ? (
                         <GroupReceptionSettings
@@ -420,7 +438,10 @@ export function MessagingGrantRow({
                       value={targetRef}
                       disabled={busy || !account}
                       onSelect={setTargetRef}
-                      options={targets.map((item) => ({ value: item.ref, label: item.name }))}
+                      options={targets.map((item) => ({
+                        value: item.ref,
+                        label: item.name,
+                      }))}
                     />
                   </div>
                   <Button
@@ -472,7 +493,11 @@ export function MessagingGrantRow({
                   <Tag tone="neutral">{stateLabel(report.state)}</Tag>
                 </div>
                 <strong>{origin?.targetName}</strong>
-                <span>{t('im.sentAs', { name: origin?.accountName ?? report.botSlug })}</span>
+                <span>
+                  {t('im.sentAs', {
+                    name: origin?.accountName ?? report.botSlug,
+                  })}
+                </span>
                 <p className="bh-external-context-hint">{t('im.externalOnly')}</p>
               </header>
               <article className="bh-external-message">
@@ -614,7 +639,11 @@ export function GroupReceptionSettings({
           onSelect={(value) => setCollection(value === 'all' ? 'all' : 'mentions')}
           options={[
             { value: 'mentions', label: t('im.collection.mentions') },
-            { value: 'all', label: t('im.collection.all'), disabled: !verified },
+            {
+              value: 'all',
+              label: t('im.collection.all'),
+              disabled: !verified,
+            },
           ]}
         />
       </div>

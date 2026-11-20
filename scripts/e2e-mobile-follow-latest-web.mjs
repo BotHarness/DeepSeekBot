@@ -268,7 +268,7 @@ async function main() {
     steps.push('the Bot posted 30 messages in its DM through its own bot_send_message');
 
     await page.locator(`::-p-text(${displayName})`).click();
-    await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await text('History line 30');
     checks.startsWithoutJumpButton =
       (await page.$('[aria-label="Return to latest messages"]')) === null;

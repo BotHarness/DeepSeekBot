@@ -1,6 +1,6 @@
 # Stopping an Assignment and checking recovery
 
-This guide describes a verified BotHarness workflow on DSH 0.2.0-rc.1. An Assignment is application-defined work in an explicitly owned DSH Session; see [ADR-0045](../../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md) and the [architecture](../../architecture/botharness-architecture.md) for its authority boundaries.
+This guide describes a verified BotHarness workflow on DSH 0.2.0-rc.1. An Assignment is application-defined work in an explicitly owned DSH Session; see [ADR-0045](../../decisions/sessions.md#adr-0045) and the [architecture](../../architecture/botharness-architecture.md) for its authority boundaries.
 
 ## Human workflow
 

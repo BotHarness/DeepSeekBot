@@ -6,6 +6,7 @@ import type {
   PluginUpdates,
 } from '../../../core/src/release/plugins.js';
 import type { BridgeCall } from './bridge.js';
+import { UpdateRunsController } from './update-runs.js';
 import {
   DEFAULT_RESTART_WATCH,
   INSTALL_FAILURES,
@@ -120,10 +121,16 @@ export class PluginUpdatesController {
 
   private readonly call: BridgeCall;
   private readonly watch: ReleaseRestartWatch;
+  readonly runs: UpdateRunsController;
 
-  constructor(call: BridgeCall, watch: ReleaseRestartWatch = DEFAULT_RESTART_WATCH) {
+  constructor(
+    call: BridgeCall,
+    watch: ReleaseRestartWatch = DEFAULT_RESTART_WATCH,
+    runs: UpdateRunsController = new UpdateRunsController(call, watch),
+  ) {
     this.call = call;
     this.watch = watch;
+    this.runs = runs;
     this.source = createSnapshotStore<PluginUpdatesSnapshot>({
       status: 'loading',
       checking: false,
@@ -165,15 +172,19 @@ export class PluginUpdatesController {
 
   async install(name: string, version: string): Promise<void> {
     const rows = this.source.getSnapshot().rows;
-    if (Object.values(rows).some((row) => row.status === 'installing')) return;
+    if (Object.values(rows).some((row) => row.status === 'installing') || this.runs.busy()) return;
     this.setRow(name, { status: 'installing', version });
-    let outcome: PluginInstall | undefined;
-    try {
-      const result = await this.call('pluginInstall', { name, version });
-      outcome = result.ok ? parsePluginInstall(result.value) : undefined;
-    } catch {
-      outcome = undefined;
-    }
+    const outcome = await this.runs.run(
+      { kind: 'plugin', name, version },
+      async (requestId): Promise<PluginInstall | undefined> => {
+        try {
+          const result = await this.call('pluginInstall', { name, version, requestId });
+          return result.ok ? parsePluginInstall(result.value) : undefined;
+        } catch {
+          return undefined;
+        }
+      },
+    );
     if (outcome?.status === 'installed' && outcome.applied) {
       this.setRow(name, { status: 'reloading', version });
       await this.watch.wait(RELOAD_DELAY_MS);
@@ -185,7 +196,12 @@ export class PluginUpdatesController {
       await this.load();
       return;
     }
-    this.setRow(name, outcome ?? { status: 'failed', name, reason: 'failed' });
+    this.setRow(
+      name,
+      outcome?.status === 'failed' && outcome.reason === 'cancelled'
+        ? { status: 'idle' }
+        : (outcome ?? { status: 'failed', name, reason: 'failed' }),
+    );
   }
 
   async restart(): Promise<void> {

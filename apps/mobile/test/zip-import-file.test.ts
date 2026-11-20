@@ -6,7 +6,7 @@ import {
   zipFile,
   ZIP_CHUNK_BYTES,
   ZIP_MAX_BYTES,
-} from '../src/host/zip-import-file';
+} from '@botharness/host-client/zip-import-file';
 
 const file = {
   fileId: '12345678-1234-1234-1234-123456789abc',

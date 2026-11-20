@@ -1,5 +1,28 @@
+import type { ApprovalCard } from '../team/approval-contract.js';
+import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
+import type { ChannelMessageAuthor } from './message-author.js';
+import type { ChannelReplyPreview } from './reply-preview.js';
+import { isChannelQuoteList, type ChannelQuote } from './quotes.js';
+import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
+import { isValidSlug } from '../bots/slug.js';
+import {
+  isChannelTurnStopEngine,
+  isChannelTurnStopRests,
+  isChannelTurnStopTarget,
+  type ChannelTurnStopEngine,
+  type ChannelTurnStopRest,
+  type ChannelTurnStopTarget,
+} from './turn-stop.js';
+import { isChannelModelSwitch, type ChannelModelSwitch } from './model-switch.js';
+export type { ChannelModelSwitch } from './model-switch.js';
+import { isCallGridLayout, type CallGridLayout } from '../voice/keyframes.js';
+import { isChannelVoiceCallRecord, type ChannelVoiceCallRecord } from './voice-call-record.js';
+
+export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
+export { isChannelVoiceCallRecord, type ChannelVoiceCallRecord };
+import type { GenuiContent, GenuiMessageReply } from './genui.js';
 
 import {
   isChannelAttachmentRef,
@@ -14,6 +37,13 @@ import {
   type PrivateInputCard,
   type PrivateInputResolution,
 } from '../credentials/contracts.js';
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+  type TakeoverRequestCard,
+  type TakeoverResolution,
+} from '../takeover/contracts.js';
+import { PRIVATE_REFERENCE } from '../credentials/references.js';
 
 export type ChannelType = 'dm' | 'group';
 
@@ -46,7 +76,7 @@ export interface GroupMemberWakePolicy {
 
 export const DEFAULT_GROUP_WAKE_POLICY: GroupWakePolicy = {
   mode: 'digest',
-  count: 5,
+  count: 10,
   intervalSeconds: 30,
   revision: 0,
 };
@@ -59,8 +89,13 @@ export interface ChannelRecord {
   avatar?: string;
   members: string[];
   botSlug?: string;
+  humanParticipants?: string[];
+  dmHumanId?: string;
+  description?: string;
+  remoteBot?: RemoteBotParticipant;
 
   ownerBotSlug?: string;
+  ownerHumanId?: string;
   invitations?: GroupInvitation[];
   joinRequests?: GroupJoinRequest[];
   wakePolicies?: Record<string, GroupWakePolicy>;
@@ -68,6 +103,115 @@ export interface ChannelRecord {
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TailnetBotMembership {
+  kind: 'tailnet';
+  localNodeId: string;
+  remoteNodeId: string;
+}
+
+export interface ConnectBotMembership {
+  kind: 'connect';
+  accountId: string;
+  localHostId: string;
+  remoteHostId: string;
+}
+
+export interface LanBotMembership {
+  kind: 'lan';
+  localAdmissionId: string;
+  remoteAdmissionId: string;
+}
+
+export type BotNetworkScope = TailnetBotMembership | ConnectBotMembership | LanBotMembership;
+export type BotNetworkMembership = BotNetworkScope | { kind: 'scopes'; scopes: BotNetworkScope[] };
+
+function isBotNetworkScope(value: unknown): value is BotNetworkScope {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const id = (field: string) =>
+    typeof record[field] === 'string' && /^[a-zA-Z0-9_-]{1,128}$/u.test(record[field]);
+  return record['kind'] === 'tailnet'
+    ? id('localNodeId') && id('remoteNodeId')
+    : record['kind'] === 'connect'
+      ? id('accountId') && id('localHostId') && id('remoteHostId')
+      : record['kind'] === 'lan' && id('localAdmissionId') && id('remoteAdmissionId');
+}
+
+export function isBotNetworkMembership(value: unknown): value is BotNetworkMembership {
+  if (isBotNetworkScope(value)) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const scopes = record['scopes'];
+  return (
+    record['kind'] === 'scopes' &&
+    Array.isArray(scopes) &&
+    scopes.length >= 2 &&
+    scopes.length <= 3 &&
+    scopes.every(isBotNetworkScope) &&
+    new Set(scopes.map((scope) => scope.kind)).size === scopes.length
+  );
+}
+
+export function botNetworkScopes(membership: BotNetworkMembership): readonly BotNetworkScope[] {
+  return membership.kind === 'scopes' ? membership.scopes : [membership];
+}
+
+export function mergeBotNetworkMembership(
+  previous: BotNetworkMembership | undefined,
+  next: BotNetworkMembership,
+): BotNetworkMembership {
+  const scopes = new Map<BotNetworkScope['kind'], BotNetworkScope>();
+  for (const scope of previous === undefined ? [] : botNetworkScopes(previous))
+    scopes.set(scope.kind, scope);
+  for (const scope of botNetworkScopes(next)) scopes.set(scope.kind, scope);
+  return scopes.size === 1
+    ? [...scopes.values()][0]!
+    : { kind: 'scopes', scopes: [...scopes.values()] };
+}
+
+export interface RemoteBotParticipant {
+  membership?: BotNetworkMembership;
+  hostKey?: string;
+  hostId: string;
+  botSlug: string;
+  displayName: string;
+}
+
+export function remoteBotDmRecord(
+  localBotSlug: string,
+  remoteBot: RemoteBotParticipant,
+  at: string,
+): ChannelRecord {
+  if (
+    !isValidSlug(localBotSlug) ||
+    !isValidSlug(remoteBot.botSlug) ||
+    !/^[a-zA-Z0-9_-]{1,128}$/u.test(remoteBot.hostId) ||
+    remoteBot.displayName.length > 128 ||
+    (remoteBot.membership !== undefined &&
+      (!isBotNetworkMembership(remoteBot.membership) || remoteBot.hostKey === undefined)) ||
+    (remoteBot.hostKey !== undefined && !/^[0-9a-f]{64}$/u.test(remoteBot.hostKey))
+  )
+    throw new Error('Invalid remote Bot participant');
+  return {
+    id: `dm-remote-${createHash('sha256')
+      .update(JSON.stringify([localBotSlug, remoteBot.hostId, remoteBot.botSlug]))
+      .digest('hex')
+      .slice(0, 32)}`,
+    type: 'dm',
+    name: remoteBot.displayName,
+    members: [localBotSlug],
+    remoteBot: {
+      hostId: remoteBot.hostId,
+      botSlug: remoteBot.botSlug,
+      displayName: remoteBot.displayName,
+      ...(remoteBot.hostKey === undefined ? {} : { hostKey: remoteBot.hostKey }),
+      ...(remoteBot.membership === undefined ? {} : { membership: { ...remoteBot.membership } }),
+    },
+    createdAt: at,
+    updatedAt: at,
+  };
 }
 
 export interface GroupInvitation {
@@ -108,21 +252,15 @@ export interface GroupJoinRequest {
   decidedBy?: 'human' | string;
 }
 
-export type ChannelMessageAuthor =
-  | { kind: 'human' }
-  | { kind: 'bot'; slug: string }
-  | { kind: 'bridged'; source: string }
-  | { kind: 'system' };
+export type { ChannelMessageAuthor };
 
 export interface ChannelMessageExternal {
   id: string;
   thread?: string;
 }
 
-export interface ChannelReplyPreview {
-  author: ChannelMessageAuthor;
-  body: string;
-}
+export type { ChannelReplyPreview, ChannelReplyPreviewMedia } from './reply-preview.js';
+export type { ChannelQuote } from './quotes.js';
 
 export interface SessionFailureCard {
   requestMessageId?: string;
@@ -133,6 +271,20 @@ export interface SessionFailureCard {
   status?: number;
   detail: string;
   context?: string;
+  progress?: SessionFailureProgress;
+  autoContinue?: SessionFailureAutoContinue;
+}
+
+export interface SessionFailureProgress {
+  completedSteps: number;
+  lastTool?: string;
+  unknownTools?: string[];
+}
+
+export interface SessionFailureAutoContinue {
+  attempt: number;
+  maxAttempts: number;
+  at: string;
 }
 
 export interface ChannelMention {
@@ -149,12 +301,70 @@ export interface ChannelReference {
   end: number;
 }
 
+export interface ChannelSkillInvocation {
+  name: string;
+  owner: SkillOwner;
+  start: number;
+  end: number;
+  path?: string;
+  content: string;
+}
+
+export type ChannelSkillInvocationToken = Pick<
+  ChannelSkillInvocation,
+  'name' | 'owner' | 'start' | 'end'
+>;
+
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+export function isSkillInvocationToken(
+  item: unknown,
+  body: string,
+): item is ChannelSkillInvocationToken {
+  if (typeof item !== 'object' || item === null) return false;
+  const { name, owner, start, end } = item as Record<string, unknown>;
+  if (typeof name !== 'string' || name.length > 64 || !SKILL_NAME.test(name)) return false;
+  if (typeof owner !== 'object' || owner === null) return false;
+  const { kind, botSlug, workspaceId, name: workspaceName } = owner as Record<string, unknown>;
+  if (
+    kind !== 'host' &&
+    !(kind === 'bot' && typeof botSlug === 'string' && isValidSlug(botSlug)) &&
+    !(kind === 'workspace' && isSkillWorkspaceId(workspaceId) && typeof workspaceName === 'string')
+  )
+    return false;
+  return (
+    typeof start === 'number' &&
+    typeof end === 'number' &&
+    Number.isSafeInteger(start) &&
+    Number.isSafeInteger(end) &&
+    start >= 0 &&
+    end > start &&
+    body.slice(start, end) === '/' + name
+  );
+}
+
 export const LOCAL_HUMAN_ID = 'local-human';
 
 export interface LocalHumanIdentity {
   humanId: string;
   defaultDisplayName: string | null;
   displayName: string;
+  avatarVersion?: string;
+  profileSetup?: 'pending';
+}
+
+export interface HumanAvatar {
+  humanId: string;
+  version: string;
+  avatar: string;
+}
+
+export const HUMAN_AVATAR_BATCH = 64;
+
+export const isHumanAvatar = (value: unknown): value is string => isGroupAvatar(value);
+
+export function humanAvatarVersion(avatar: string): string {
+  return createHash('sha256').update(avatar).digest('hex').slice(0, 16);
 }
 
 export interface ChannelHumanReceipt {
@@ -175,7 +385,8 @@ export interface ChannelToolAutoApproval {
   toolName: string;
   input: string;
   template: string;
-  outcome: 'allowed' | 'rejected';
+  templateVersion?: string;
+  outcome: 'allowed' | 'rejected' | 'ask-human';
   reason: string;
 }
 
@@ -199,6 +410,13 @@ export interface ChannelTurnStop {
   botName: string;
   humanName: string;
   sessionId: string;
+  held?: true;
+  cause?: 'human-stop' | 'failures' | 'quota';
+  failures?: number;
+  rests?: ChannelTurnStopRest[];
+  engine?: ChannelTurnStopEngine;
+  routingGroup?: true;
+  target?: ChannelTurnStopTarget;
 }
 
 export interface ChannelMemberDeparture {
@@ -287,7 +505,80 @@ export function isReactionEmoji(value: unknown): value is string {
   );
 }
 
+export type ChannelCallVisual =
+  | {
+      source: 'camera' | 'screen';
+      frames: number;
+      layout: CallGridLayout;
+      fromMs: number;
+      toMs: number;
+      unseen?: true;
+    }
+  | {
+      source: 'camera' | 'screen';
+      sameAs: string;
+    };
+
+const callOffset = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
+const callRange = (from: unknown, to: unknown) => callOffset(from) && callOffset(to) && to >= from;
+
+export function isChannelCallVisual(value: unknown): value is ChannelCallVisual {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const visual = value as Record<string, unknown>;
+  if (visual['source'] !== 'camera' && visual['source'] !== 'screen') return false;
+  const keys = Object.keys(visual).sort().join();
+  if (keys === 'sameAs,source')
+    return (
+      typeof visual['sameAs'] === 'string' &&
+      visual['sameAs'].length > 0 &&
+      visual['sameAs'].length <= 150
+    );
+  return (
+    ['frames,fromMs,layout,source,toMs', 'frames,fromMs,layout,source,toMs,unseen'].includes(
+      keys,
+    ) &&
+    (visual['unseen'] === undefined || visual['unseen'] === true) &&
+    isCallGridLayout(visual['frames'], visual['layout']) &&
+    callRange(visual['fromMs'], visual['toMs'])
+  );
+}
+
+export interface ChannelVoiceCallMessage {
+  callId: string;
+  speechFromMs?: number;
+  speechToMs?: number;
+  atMs?: number;
+  visual?: ChannelCallVisual;
+}
+
+const VOICE_CALL_MESSAGE_KEYS = new Set(['callId', 'visual', 'speechFromMs', 'speechToMs', 'atMs']);
+
+export function isChannelVoiceCallMessage(value: unknown): value is ChannelVoiceCallMessage {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const call = value as Record<string, unknown>;
+  if (Object.keys(call).some((key) => !VOICE_CALL_MESSAGE_KEYS.has(key))) return false;
+  if (typeof call['callId'] !== 'string' || !/^call-[a-f0-9]{16}$/u.test(call['callId']))
+    return false;
+  if (call['visual'] !== undefined && !isChannelCallVisual(call['visual'])) return false;
+  const spoken = call['speechFromMs'] !== undefined || call['speechToMs'] !== undefined;
+  if (call['atMs'] !== undefined) return !spoken && callOffset(call['atMs']);
+  if (!spoken) return true;
+  return callRange(call['speechFromMs'], call['speechToMs']);
+}
+
+export interface ChannelSessionLink {
+  sessionId: string;
+  kind: 'created' | 'sent';
+  title: string;
+}
+
 export interface ChannelMessage {
+  genui?: GenuiContent;
+  sessionLinks?: ChannelSessionLink[];
+  genuiReply?: GenuiMessageReply;
+  genuiReplyContext?: string;
   id: string;
   at: string;
   author: ChannelMessageAuthor;
@@ -295,11 +586,13 @@ export interface ChannelMessage {
 
   onboardingWelcome?: { version: 1; kind?: 'tob' };
 
+  tobCliRequestId?: string;
   memorySwitchTarget?: string;
 
   mentions?: ChannelMention[];
   humanMentions?: { humanId: string; label: string; start: number; end: number }[];
   channelRefs?: ChannelReference[];
+  skillInvocations?: ChannelSkillInvocation[];
 
   channelRevision?: number;
 
@@ -315,6 +608,7 @@ export interface ChannelMessage {
   noticeOrigin?: { channelId: string };
   memberDeparture?: ChannelMemberDeparture;
   turnStop?: ChannelTurnStop;
+  modelSwitch?: ChannelModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;
   toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
   toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;
@@ -327,6 +621,7 @@ export interface ChannelMessage {
 
   grantRequestResolution?: { requestMessageId: string; grantId: string };
 
+  approval?: ApprovalCard;
   toolApprovalRequest?: ToolApprovalRequestCard;
 
   sessionFailure?: SessionFailureCard;
@@ -338,11 +633,22 @@ export interface ChannelMessage {
   userQuestionResolution?: ChannelQuestionResolution;
   privateInputRequest?: PrivateInputCard;
   privateInputResolution?: PrivateInputResolution;
+  takeoverRequest?: TakeoverRequestCard;
+  takeoverResolution?: TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
+  voice?: ChannelMessageVoice;
+  voiceCall?: ChannelVoiceCallMessage;
+  voiceCallRecord?: ChannelVoiceCallRecord;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
-    items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+    items: {
+      id: string;
+      kind: 'image' | 'file' | 'audio' | 'video';
+      name: string;
+      sizeBytes?: number;
+    }[];
     parts?: import('../messaging/provider.js').MessagingContentPart[];
   };
   bridgeOrigin?: {
@@ -365,8 +671,12 @@ export interface ChannelMessage {
 
   replyToPreview?: ChannelReplyPreview | null;
 
+  quotes?: ChannelQuote[];
+
   perf?: ChannelMessagePerf;
 }
+
+export { isChannelMessageVoice, type ChannelMessageVoice };
 
 export interface ChannelMessagePerf {
   outputTokens: number;
@@ -374,7 +684,14 @@ export interface ChannelMessagePerf {
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 32;
+export const DEFAULT_BOT_HOP_LIMIT = 128;
+export const MAX_BOT_HOP_LIMIT = 1000;
+
+export function isBotHopLimit(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_BOT_HOP_LIMIT
+  );
+}
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -393,7 +710,11 @@ export function botDmChannelId(firstBotSlug: string, secondBotSlug: string): str
 }
 
 export function isBotDmChannel(channel: ChannelRecord): boolean {
-  return channel.type === 'dm' && channel.botSlug === undefined && channel.members.length === 2;
+  return (
+    channel.type === 'dm' &&
+    channel.botSlug === undefined &&
+    (channel.remoteBot === undefined ? channel.members.length === 2 : channel.members.length === 1)
+  );
 }
 
 export function slugifyChannelName(name: string): string {
@@ -415,10 +736,26 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
   const author = value as Record<string, unknown>;
   switch (author['kind']) {
     case 'human':
+      return (
+        (author['deleted'] === undefined || typeof author['deleted'] === 'boolean') &&
+        (author['humanId'] === undefined || typeof author['humanId'] === 'string') &&
+        (author['displayName'] === undefined || typeof author['displayName'] === 'string')
+      );
     case 'system':
       return true;
     case 'bot':
-      return typeof author['slug'] === 'string' && author['slug'].length > 0;
+      return (
+        typeof author['slug'] === 'string' &&
+        author['slug'].length > 0 &&
+        (author['displayName'] === undefined || typeof author['displayName'] === 'string')
+      );
+    case 'remote-bot':
+      return (
+        typeof author['hostId'] === 'string' &&
+        /^[a-zA-Z0-9_-]{1,128}$/u.test(author['hostId']) &&
+        typeof author['slug'] === 'string' &&
+        isValidSlug(author['slug'])
+      );
     case 'bridged':
       return typeof author['source'] === 'string' && author['source'].length > 0;
     default:
@@ -445,8 +782,53 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   if (typeof record['updatedAt'] !== 'string') return false;
   const members = record['members'];
   if (!Array.isArray(members) || !members.every((entry) => typeof entry === 'string')) return false;
+  const participants = record['humanParticipants'];
+  if (
+    participants !== undefined &&
+    (record['type'] !== 'dm' ||
+      members.length !== 0 ||
+      !Array.isArray(participants) ||
+      participants.length !== 2 ||
+      participants[0] === participants[1] ||
+      !participants.every((id) => typeof id === 'string' && id.length > 0) ||
+      record['botSlug'] !== undefined)
+  )
+    return false;
+  if (
+    record['dmHumanId'] !== undefined &&
+    (record['type'] !== 'dm' || typeof record['dmHumanId'] !== 'string' || !record['dmHumanId'])
+  )
+    return false;
   const botSlug = record['botSlug'];
   if (botSlug !== undefined && typeof botSlug !== 'string') return false;
+  const remote = record['remoteBot'];
+  if (remote !== undefined) {
+    if (
+      record['type'] !== 'dm' ||
+      botSlug !== undefined ||
+      members.length !== 1 ||
+      typeof remote !== 'object' ||
+      remote === null
+    )
+      return false;
+    const peer = remote as Record<string, unknown>;
+    if (
+      typeof peer['hostId'] !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(peer['hostId']) ||
+      typeof peer['botSlug'] !== 'string' ||
+      !isValidSlug(peer['botSlug']) ||
+      typeof peer['displayName'] !== 'string' ||
+      peer['displayName'].length > 128 ||
+      (peer['membership'] !== undefined &&
+        (!isBotNetworkMembership(peer['membership']) || peer['hostKey'] === undefined)) ||
+      (peer['hostKey'] !== undefined &&
+        (typeof peer['hostKey'] !== 'string' || !/^[0-9a-f]{64}$/u.test(peer['hostKey'])))
+    )
+      return false;
+  }
+  const ownerHumanId = record['ownerHumanId'];
+  if (ownerHumanId !== undefined && (typeof ownerHumanId !== 'string' || !ownerHumanId))
+    return false;
   const ownerBotSlug = record['ownerBotSlug'];
   if (ownerBotSlug !== undefined) {
     if (
@@ -527,6 +909,37 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   return true;
 }
 
+function validFailureProgress(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const progress = value as Record<string, unknown>;
+  return (
+    typeof progress['completedSteps'] === 'number' &&
+    Number.isInteger(progress['completedSteps']) &&
+    progress['completedSteps'] >= 0 &&
+    (progress['lastTool'] === undefined || typeof progress['lastTool'] === 'string') &&
+    (progress['unknownTools'] === undefined ||
+      (Array.isArray(progress['unknownTools']) &&
+        progress['unknownTools'].every((name) => typeof name === 'string')))
+  );
+}
+
+function validFailureAutoContinue(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const auto = value as Record<string, unknown>;
+  return (
+    typeof auto['attempt'] === 'number' &&
+    Number.isInteger(auto['attempt']) &&
+    auto['attempt'] >= 1 &&
+    typeof auto['maxAttempts'] === 'number' &&
+    Number.isInteger(auto['maxAttempts']) &&
+    auto['maxAttempts'] >= auto['attempt'] &&
+    typeof auto['at'] === 'string' &&
+    Number.isFinite(Date.parse(auto['at']))
+  );
+}
+
 export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
@@ -540,6 +953,21 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       welcome === null ||
       (welcome as { version?: unknown }).version !== 1 ||
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system')
+  )
+    return false;
+  const voiceCall = message['voiceCall'];
+  if (
+    voiceCall !== undefined &&
+    (!isChannelVoiceCallMessage(voiceCall) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human')
+  )
+    return false;
+  const cliRequest = message['tobCliRequestId'];
+  if (
+    cliRequest !== undefined &&
+    (typeof cliRequest !== 'string' ||
+      !/^[a-f0-9-]{36}$/u.test(cliRequest) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human')
   )
     return false;
   const switchTarget = message['memorySwitchTarget'];
@@ -638,7 +1066,9 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       notice['detail'].length === 0 ||
       (notice['code'] !== undefined && typeof notice['code'] !== 'string') ||
       (notice['status'] !== undefined && typeof notice['status'] !== 'number') ||
-      (notice['context'] !== undefined && typeof notice['context'] !== 'string')
+      (notice['context'] !== undefined && typeof notice['context'] !== 'string') ||
+      !validFailureProgress(notice['progress']) ||
+      !validFailureAutoContinue(notice['autoContinue'])
     )
       return false;
   }
@@ -655,6 +1085,28 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       message['replyTo'] !== target['recordMessageId']
     )
       return false;
+  }
+  for (const key of [
+    'toolApprovalRequest',
+    'userQuestionRequest',
+    'privateInputRequest',
+    'toolApprovalDecision',
+    'userQuestionResolution',
+    'privateInputResolution',
+  ]) {
+    const decision = message[key];
+    if (decision !== null && typeof decision === 'object' && 'decidedBy' in decision) {
+      const decider = decision.decidedBy;
+      if (
+        decider === null ||
+        typeof decider !== 'object' ||
+        !('humanId' in decider) ||
+        typeof decider.humanId !== 'string' ||
+        decider.humanId.length === 0 ||
+        ('displayName' in decider && typeof decider.displayName !== 'string')
+      )
+        return false;
+    }
   }
   const toolDecision = message['toolApprovalDecision'];
   if (toolDecision !== undefined) {
@@ -737,6 +1189,19 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       ))
   )
     return false;
+  const skillInvocations = message['skillInvocations'];
+  if (
+    skillInvocations !== undefined &&
+    (!Array.isArray(skillInvocations) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human' ||
+      skillInvocations.some(
+        (item) =>
+          !isSkillInvocationToken(item, message['body'] as string) ||
+          typeof (item as { content?: unknown }).content !== 'string' ||
+          !['string', 'undefined'].includes(typeof (item as { path?: unknown }).path),
+      ))
+  )
+    return false;
   const questionRequest = message['userQuestionRequest'];
   if (questionRequest !== undefined) {
     if (
@@ -782,11 +1247,18 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (typeof questionResolution !== 'object' || questionResolution === null) return false;
     const resolution = questionResolution as Record<string, unknown>;
     if (
+      resolution['actor'] !== undefined &&
+      (resolution['state'] !== 'answered' || !parseToolApprovalActor(resolution['actor']))
+    )
+      return false;
+    if (
       typeof resolution['requestMessageId'] !== 'string' ||
       message['replyTo'] !== resolution['requestMessageId'] ||
       (resolution['state'] !== 'answered' && resolution['state'] !== 'cancelled') ||
       (resolution['state'] === 'answered' &&
-        ((message['author'] as ChannelMessageAuthor)?.kind !== 'human' ||
+        (((message['author'] as ChannelMessageAuthor)?.kind !== 'human' &&
+          ((message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+            resolution['decidedBy'] !== undefined)) ||
           !Array.isArray(resolution['answers']))) ||
       (resolution['state'] === 'cancelled' &&
         (message['author'] as ChannelMessageAuthor)?.kind !== 'bot')
@@ -823,7 +1295,30 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       stop === null ||
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
-      )
+      ) ||
+      (stop['held'] !== undefined && stop['held'] !== true) ||
+      (stop['cause'] !== undefined &&
+        stop['cause'] !== 'human-stop' &&
+        stop['cause'] !== 'failures' &&
+        stop['cause'] !== 'quota') ||
+      (stop['rests'] !== undefined && !isChannelTurnStopRests(stop['rests'])) ||
+      (stop['engine'] !== undefined && !isChannelTurnStopEngine(stop['engine'])) ||
+      (stop['routingGroup'] !== undefined && stop['routingGroup'] !== true) ||
+      (stop['failures'] !== undefined &&
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
+      (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
+    )
+      return false;
+  } else if (message['modelSwitch'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelModelSwitch(message['modelSwitch'])
+    )
+      return false;
+  } else if (message['voiceCallRecord'] !== undefined) {
+    if (
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'system' ||
+      !isChannelVoiceCallRecord(message['voiceCallRecord'])
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {
@@ -836,7 +1331,9 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         (key) => typeof record[key] !== 'string' || record[key].length === 0,
       ) ||
       typeof record['input'] !== 'string' ||
-      (record['outcome'] !== 'allowed' && record['outcome'] !== 'rejected')
+      (record['outcome'] !== 'allowed' &&
+        record['outcome'] !== 'rejected' &&
+        record['outcome'] !== 'ask-human')
     )
       return false;
   } else if (message['toolAutoApprovalPause'] !== undefined) {
@@ -854,6 +1351,10 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         pause['reason'] !== 'session')
     )
       return false;
+  } else if (
+    message['takeoverResolution'] !== undefined ||
+    message['userQuestionResolution'] !== undefined
+  ) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
     !(
@@ -909,7 +1410,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       typeof causal['parentSourceEventId'] !== 'string' ||
       !Number.isSafeInteger(causal['hop']) ||
       (causal['hop'] as number) < 1 ||
-      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind)
     )
       return false;
   }
@@ -919,6 +1420,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  if (
+    message['voice'] !== undefined &&
+    (!isChannelMessageVoice(message['voice']) ||
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind))
   )
     return false;
   const cleared = message['clearedAttachments'];
@@ -939,6 +1446,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (typeof message['replyTo'] !== 'string' || message['replyTo'].length === 0)
   )
     return false;
+  if (!isChannelQuoteList(message['quotes'])) return false;
   const preview = message['replyToPreview'];
   if (preview !== undefined && preview !== null) {
     if (typeof preview !== 'object') return false;
@@ -1004,11 +1512,16 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
     )
       return false;
-    const { sessionId, expiresAt, replacesMessageId, ...declaration } = privateRequest as Record<
-      string,
-      unknown
-    >;
+    const {
+      sessionId,
+      expiresAt,
+      replacesMessageId,
+      opaque,
+      decidedBy: _decidedBy,
+      ...declaration
+    } = privateRequest as Record<string, unknown>;
     if (
+      (opaque !== undefined && typeof opaque !== 'boolean') ||
       (sessionId === undefined
         ? replacesMessageId === undefined
         : typeof sessionId !== 'string' || sessionId.length === 0) ||
@@ -1031,7 +1544,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     const resolution = privateResolution as Record<string, unknown>;
     if (
       Object.keys(resolution).some(
-        (key) => !['requestMessageId', 'state', 'references'].includes(key),
+        (key) => !['requestMessageId', 'state', 'references', 'decidedBy'].includes(key),
       ) ||
       typeof resolution.requestMessageId !== 'string' ||
       message['replyTo'] !== resolution.requestMessageId ||
@@ -1041,10 +1554,29 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       Array.isArray(resolution.references) ||
       (resolution.state !== 'configured' && Object.keys(resolution.references).length > 0) ||
       !Object.values(resolution.references).every(
-        (ref) =>
-          typeof ref === 'string' && /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(ref),
+        (ref) => typeof ref === 'string' && PRIVATE_REFERENCE.test(ref),
       )
     )
+      return false;
+  }
+  const takeoverRequest = message['takeoverRequest'];
+  if (
+    takeoverRequest !== undefined &&
+    (!isTakeoverRequestCard(takeoverRequest) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot')
+  )
+    return false;
+  const takeoverResolution = message['takeoverResolution'];
+  if (takeoverResolution !== undefined) {
+    if (!isTakeoverResolution(takeoverResolution)) return false;
+    const author = (message['author'] as ChannelMessageAuthor)?.kind;
+    const expected =
+      takeoverResolution.by === 'human'
+        ? 'human'
+        : takeoverResolution.by === 'bot'
+          ? 'bot'
+          : 'system';
+    if (author !== expected || message['replyTo'] !== takeoverResolution.requestMessageId)
       return false;
   }
   const external = message['external'];

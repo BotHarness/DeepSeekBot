@@ -5,16 +5,13 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const script = fileURLToPath(new URL('../android-qa.ps1', import.meta.url));
+const script = fileURLToPath(new URL('../android-qa.mjs', import.meta.url));
 const dirs = [];
-const powershell = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
-const available =
-  process.platform === 'win32' &&
-  spawnSync(powershell, ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major']).status === 0;
 const run = (root, ...args) =>
-  spawnSync(powershell, ['-NoProfile', '-File', script, ...args, '-QueueRoot', root], {
+  spawnSync(process.execPath, [script, ...args, '-QueueRoot', root], {
     encoding: 'utf8',
     timeout: 15000,
+    windowsHide: true,
   });
 const claim = ['claim', '-Owner', 'test-task', '-Batch', 'batch-1', '-Serial', 'emulator-5580'];
 
@@ -22,7 +19,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe.skipIf(!available)('Windows Android QA lease', () => {
+describe('Android QA lease', () => {
   function setup() {
     const root = mkdtempSync(join(tmpdir(), 'bh-android-qa-'));
     dirs.push(root);
@@ -43,11 +40,10 @@ describe.skipIf(!available)('Windows Android QA lease', () => {
     const root = setup();
     const start = () =>
       new Promise((done) => {
-        const child = spawn(
-          powershell,
-          ['-NoProfile', '-File', script, ...claim, '-QueueRoot', root],
-          { stdio: 'ignore' },
-        );
+        const child = spawn(process.execPath, [script, ...claim, '-QueueRoot', root], {
+          stdio: 'ignore',
+          windowsHide: true,
+        });
         child.on('error', () => done(-1));
         child.on('close', done);
       });

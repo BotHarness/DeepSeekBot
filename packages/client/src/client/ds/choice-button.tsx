@@ -1,6 +1,6 @@
+import { Button } from './button.js';
 import { forwardRef, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
 import { color, space, text } from './tokens.stylex.js';
@@ -15,7 +15,13 @@ const styles = stylex.create({
     textAlign: 'start',
     gap: space.x4,
   },
-  copy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0, flexGrow: 1 },
+  copy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+    flexGrow: 1,
+  },
   description: {
     color: color.muted,
     fontSize: text.metaSize,
@@ -46,7 +52,7 @@ export const ChoiceButton = forwardRef<HTMLButtonElement, ChoiceButtonProps>(fun
       aria-label={title}
       disabled={disabled}
       onClick={onClick}
-      {...stylex.props(styles.choice)}
+      xstyle={styles.choice}
     >
       {leading}
       <span {...stylex.props(styles.copy)}>

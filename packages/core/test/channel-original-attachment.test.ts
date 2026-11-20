@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -5,7 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
-import { nativeFileToolDenial, nativeExecutionRoot } from '../src/workspaces/grant-native-tools.js';
+import {
+  nativeFileToolDenial,
+  nativeFileSpaceDenial,
+  nativeExecutionRoot,
+} from '../src/workspaces/grant-native-tools.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 import type { ChannelAttachmentRef } from '../src/attachments/ref.js';
@@ -48,16 +53,27 @@ async function scenario(missing: boolean) {
           const native = (name: string, path = originalPath) =>
             nativeFileToolDenial(core, session as never, name, { file_path: path });
           expect(native('read')).toBeUndefined();
-          expect(() => native('write')).toThrow(/explicit edit-original/);
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'read', { file_path: originalPath }),
+          ).toBeUndefined();
+          expect(native('write')).toMatch(/explicit edit-original/);
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'write', { file_path: originalPath }),
+          ).toMatch(/explicit edit-original/);
           expect(native('write', core.attachments.fileTarget(independent.fileId!).path)).toMatch(
-            /outside/,
+            /grant-protected-path/,
           );
-          expect(native('write', join(dirname(originalPath), 'other.txt'))).toMatch(/outside/);
+          expect(native('write', join(dirname(originalPath), 'other.txt'))).toMatch(
+            /grant-protected-path/,
+          );
           expect(
             core.runtime.originalAttachmentRoot?.('another-session', originalPath, 'read'),
           ).toBeUndefined();
           await call(tools, 'channel_attachment_open', { ...input, access: 'edit-original' });
           expect(native('edit')).toBeUndefined();
+          expect(
+            nativeFileSpaceDenial(core, session as never, 'edit', { file_path: originalPath }),
+          ).toBeUndefined();
           expect(
             nativeExecutionRoot(core, session as never, 'edit', { file_path: originalPath }),
           ).toBe(dirname(originalPath));
@@ -71,7 +87,7 @@ async function scenario(missing: boolean) {
           const messages = core.channels.readMessages(channelId).length;
           if (missing) {
             rmSync(originalPath);
-            expect(() => native('write')).toThrow(/unavailable/);
+            expect(native('write')).toMatch(/unavailable/);
             await expect(
               call(tools, 'channel_attachment_open', { ...input, access: 'edit-original' }),
             ).rejects.toThrow(/unavailable/);
@@ -101,15 +117,22 @@ async function scenario(missing: boolean) {
               access: 'edit-original',
             });
             await call(tools, 'group_leave', { channel_id: groupId });
-            expect(() => native('read')).toThrow(/not a member/);
-            expect(() => native('write')).toThrow(/not a member/);
+            attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+              db
+                .prepare(
+                  "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+                )
+                .run(groupId),
+            );
+            expect(native('read')).toMatch(/bot-channel-access-denied/);
+            expect(native('write')).toMatch(/bot-channel-access-denied/);
             await expect(
               call(tools, 'channel_attachment_open', {
                 ...input,
                 channel_id: groupId,
                 access: 'edit-original',
               }),
-            ).rejects.toThrow(/not a member/);
+            ).rejects.toThrow(/bot-channel-access-denied/);
           }
         } catch (error) {
           errors.push(error);
@@ -127,8 +150,8 @@ async function scenario(missing: boolean) {
     }),
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  channelId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
-  groupId = core.channels.createGroup({ name: 'Source', members: ['ada'] }).id;
+  channelId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
+  groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, { name: 'Source', members: ['ada'] }).id;
   const upload = () =>
     core.attachments.upload({
       name: 'status.txt',
@@ -140,7 +163,7 @@ async function scenario(missing: boolean) {
   independent = await upload();
   expect(original.fileId).not.toBe(independent.fileId);
   for (const target of [channelId, groupId]) {
-    await core.channels.appendMessage(target, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, target, {
       id: 'source',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -148,19 +171,20 @@ async function scenario(missing: boolean) {
       attachments: [original],
     });
   }
-  await core.channels.appendMessage(channelId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id: 'shared',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Shared reference',
     attachments: [original],
   });
-  core.runtime.admitDmMessage({
+  core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId,
     messageId: 'source',
     body: 'Explicitly edit this original',
   });
   await core.runtime.whenIdle();
+  if (errors.length > 0) throw errors[0];
   expect(errors).toEqual([]);
   expect(turns).toBe(1);
   expect(core.runtime.originalAttachmentRoot?.(sessionId, originalPath, 'write')).toBeUndefined();

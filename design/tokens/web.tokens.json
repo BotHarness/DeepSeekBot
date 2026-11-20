@@ -1,0 +1,365 @@
+{
+  "$description": "Tobs Web semantic tokens that do not change with mode or style.",
+  "web": {
+    "font": {
+      "family": {
+        "sans": {
+          "$type": "fontFamily",
+          "$value": [
+            "system-ui",
+            "-apple-system",
+            "PingFang SC",
+            "Segoe UI",
+            "Microsoft YaHei",
+            "sans-serif"
+          ]
+        },
+        "mono": {
+          "$type": "fontFamily",
+          "$value": ["ui-monospace", "SFMono-Regular", "SF Mono", "Menlo", "Consolas", "monospace"]
+        }
+      }
+    },
+    "type": {
+      "caption": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 12,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 400
+        }
+      },
+      "body": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 13,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 20,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 400
+        }
+      },
+      "label": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 13,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 20,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 500
+        }
+      },
+      "title": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 15,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 24,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 600
+        }
+      },
+      "heading": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 18,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 26,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 600
+        }
+      },
+      "display": {
+        "size": {
+          "$type": "dimension",
+          "$value": {
+            "value": 24,
+            "unit": "px"
+          }
+        },
+        "line": {
+          "$type": "dimension",
+          "$value": {
+            "value": 32,
+            "unit": "px"
+          }
+        },
+        "weight": {
+          "$type": "fontWeight",
+          "$value": 600
+        }
+      }
+    },
+    "space": {
+      "1": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "2": {
+        "$type": "dimension",
+        "$value": {
+          "value": 4,
+          "unit": "px"
+        }
+      },
+      "3": {
+        "$type": "dimension",
+        "$value": {
+          "value": 8,
+          "unit": "px"
+        }
+      },
+      "4": {
+        "$type": "dimension",
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        }
+      },
+      "5": {
+        "$type": "dimension",
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "6": {
+        "$type": "dimension",
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "7": {
+        "$type": "dimension",
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "8": {
+        "$type": "dimension",
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      }
+    },
+    "size": {
+      "icon": {
+        "$type": "dimension",
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        }
+      },
+      "icon-large": {
+        "$type": "dimension",
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "icon-slot": {
+        "$type": "dimension",
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        }
+      },
+      "icon-stroke": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1.5,
+          "unit": "px"
+        },
+        "$description": "Icon stroke as rendered on screen, whatever the icon size."
+      },
+      "control-small": {
+        "$type": "dimension",
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        }
+      },
+      "control": {
+        "$type": "dimension",
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "control-large": {
+        "$type": "dimension",
+        "$value": {
+          "value": 32,
+          "unit": "px"
+        }
+      },
+      "row": {
+        "$type": "dimension",
+        "$value": {
+          "value": 28,
+          "unit": "px"
+        }
+      },
+      "row-medium": {
+        "$type": "dimension",
+        "$value": {
+          "value": 36,
+          "unit": "px"
+        }
+      },
+      "row-comfortable": {
+        "$type": "dimension",
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        }
+      },
+      "row-large": {
+        "$type": "dimension",
+        "$value": {
+          "value": 44,
+          "unit": "px"
+        }
+      }
+    },
+    "radius": {
+      "xs": {
+        "$type": "dimension",
+        "$value": "{core.radius.4}"
+      },
+      "sm": {
+        "$type": "dimension",
+        "$value": "{core.radius.6}"
+      },
+      "md": {
+        "$type": "dimension",
+        "$value": "{core.radius.10}"
+      },
+      "lg": {
+        "$type": "dimension",
+        "$value": "{core.radius.14}"
+      },
+      "xl": {
+        "$type": "dimension",
+        "$value": "{core.radius.20}"
+      },
+      "full": {
+        "$type": "dimension",
+        "$value": "{core.radius.full}"
+      }
+    },
+    "edge": {
+      "hairline": {
+        "$type": "dimension",
+        "$value": {
+          "value": 1,
+          "unit": "px"
+        }
+      },
+      "focus": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        }
+      },
+      "focus-offset": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        },
+        "$description": "Gap between a control and its outside focus ring; list rows draw the ring inset instead."
+      }
+    },
+    "motion": {
+      "fast": {
+        "$type": "duration",
+        "$value": {
+          "value": 120,
+          "unit": "ms"
+        }
+      },
+      "base": {
+        "$type": "duration",
+        "$value": {
+          "value": 200,
+          "unit": "ms"
+        }
+      },
+      "slow": {
+        "$type": "duration",
+        "$value": {
+          "value": 320,
+          "unit": "ms"
+        }
+      },
+      "standard": {
+        "$type": "cubicBezier",
+        "$value": [0.2, 0, 0, 1]
+      },
+      "emphasized": {
+        "$type": "cubicBezier",
+        "$value": [0.3, 0, 0, 1]
+      }
+    }
+  }
+}

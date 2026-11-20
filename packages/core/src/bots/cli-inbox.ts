@@ -1,31 +1,7 @@
+export { INBOX_OPTIONS } from './cli-option-spec.js';
+import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const INBOX_OPTIONS = {
-  notifications: { type: 'boolean' },
-  category: { type: 'string' },
-  'watch-seconds': { type: 'string' },
-  channel: { type: 'string' },
-  request: { type: 'string' },
-  sort: { type: 'string' },
-  search: { type: 'string' },
-  unread: { type: 'boolean' },
-  'source-key': { type: 'string' },
-  source: { type: 'string' },
-  section: { type: 'string' },
-  unsectioned: { type: 'boolean' },
-  index: { type: 'string' },
-  archived: { type: 'boolean' },
-  unarchived: { type: 'boolean' },
-  rule: { type: 'string' },
-  server: { type: 'string' },
-  confirm: { type: 'boolean' },
-  until: { type: 'string' },
-  snoozed: { type: 'boolean' },
-  dismissed: { type: 'boolean' },
-  activity: { type: 'string' },
-  'include-archived': { type: 'boolean' },
-} as const;
 
 export const INBOX_COMMANDS = [
   {
@@ -33,25 +9,29 @@ export const INBOX_COMMANDS = [
     description: 'approve persistent read/write for one workspace request (needs --confirm)',
   },
   {
-    command: 'inbox-watch',
-    description: 'observe live inbox changes for a bounded time and return one JSON snapshot',
+    command: 'activity-watch',
+    description: 'observe live Activity changes for a bounded time and return one JSON snapshot',
   },
-  { command: 'inbox', description: 'list Human Inbox items by category, Bot or Channel' },
-  { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
-  { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
-  { command: 'inbox-restore', description: 'bring back one dismissed Human Inbox item' },
+  { command: 'activity', description: 'list Activity items by category, Bot or Channel' },
+  { command: 'activity-status', description: 'read Activity unread count and action flag' },
+  { command: 'activity-dismiss', description: 'dismiss one Activity item' },
+  { command: 'activity-restore', description: 'bring back one dismissed Activity item' },
   {
-    command: 'inbox-allow-once',
-    description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
+    command: 'activity-dismiss-all',
+    description: 'dismiss every Activity item, or every item of one kind (needs --confirm)',
   },
-  { command: 'inbox-ignore', description: 'ignore an informational assignment report' },
   {
-    command: 'inbox-snooze',
-    description: 'hide one Human Inbox item until a later time, or bring it back',
+    command: 'activity-allow-once',
+    description: 'allow one auto-rejected call once anyway, from its Activity item',
+  },
+  { command: 'activity-ignore', description: 'ignore an informational assignment report' },
+  {
+    command: 'activity-snooze',
+    description: 'hide one Activity item until a later time, or bring it back',
   },
   {
     command: 'assignment-context',
-    description: "read an assignment report's context from the Human Inbox",
+    description: "read an assignment report's context from Activity",
   },
   {
     command: 'assignments',
@@ -67,10 +47,44 @@ export const INBOX_COMMANDS = [
     description:
       'read the DSH Subagents an Orchestrator or Assignment Session started, with model and state',
   },
+  {
+    command: 'session-progress',
+    description:
+      "read the goal and current to-do list of up to 30 of a Bot's root Sessions (--session a,b)",
+  },
+  {
+    command: 'session-transcript',
+    description: "read a root Session's history: inputs, replies, reasoning and public tool steps",
+  },
+  {
+    command: 'session-live',
+    description:
+      "read a running root Session's streaming reasoning, reply and tool calls (--after <revision> waits for the next change)",
+  },
+  {
+    command: 'session-tool',
+    description:
+      'read one tool step of a root Session in full: command and output, diff, file lines, matches or links (--call <id>)',
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
+  {
+    command: 'session-stop',
+    description:
+      "stop one of a Bot's running Sessions (its Orchestrator or one Assignment); its other Sessions keep running",
+  },
+  {
+    command: 'session-send',
+    description:
+      "send a message straight into a Bot's current Orchestrator Session, without posting it in a Channel",
+  },
+  {
+    command: 'bot-stop',
+    description:
+      'stop every running Session of one Bot; its Orchestrator stays quiet until a Human writes to it',
+  },
   {
     command: 'session-archive-set',
     description: "archive or unarchive a Bot's assignment Session",
@@ -109,6 +123,8 @@ export interface InboxValues {
   limit?: string;
   cursor?: string;
   session?: string;
+  call?: string;
+  after?: string;
   'source-key'?: string;
   source?: string;
   request?: string;
@@ -141,10 +157,17 @@ function usage(message: string): never {
   throw new CliLiveError('usage', message);
 }
 
+export { isActivityCliCommand as isActivityCommandName } from './cli-command-names.js';
+
+function inboxCommandName(command: string): string {
+  return legacyActivityCommandName(command);
+}
+
 export function isInboxCommand(command: string): boolean {
+  const canonical = canonicalCliCommandName(command);
   return (
-    INBOX_COMMANDS.some((entry) => entry.command === command) ||
-    INBOX_HOST_COMMANDS.some((entry) => entry === command)
+    INBOX_COMMANDS.some((entry) => entry.command === canonical) ||
+    INBOX_HOST_COMMANDS.some((entry) => entry === canonical)
   );
 }
 
@@ -177,13 +200,14 @@ function confirmed(command: string, values: InboxValues): void {
 }
 
 export async function runInboxCommand(
-  command: string,
+  name: string,
   rest: string[],
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
 ): Promise<unknown> {
+  const command = inboxCommandName(name);
   if (command === 'inbox-watch' && values.notifications)
-    usage('Use inbox --notifications with its returned cursor.');
+    usage('Use activity --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
@@ -260,7 +284,7 @@ function prepare(
       if (values.kind !== undefined && values.kind !== 'auto-rejection')
         usage('--kind must be auto-rejection.');
       if (values.snoozed === true && values.dismissed === true)
-        usage('inbox takes --snoozed or --dismissed, not both.');
+        usage('activity takes --snoozed or --dismissed, not both.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
@@ -313,7 +337,7 @@ function prepare(
     case 'inbox-allow-once': {
       const [itemId] = positionals(command, rest, 1, 'exactly one auto-rejection item id');
       if (!itemId!.startsWith('autoreject:'))
-        usage('inbox-allow-once takes an auto-rejection item id (autoreject:…).');
+        usage('activity-allow-once takes an auto-rejection item id (autoreject:…).');
       return { method: 'toolAutoRejectionOverride', args: { itemId } };
     }
     case 'inbox-status':
@@ -326,6 +350,27 @@ function prepare(
         args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
       };
     }
+    case 'inbox-dismiss-all': {
+      positionals(command, rest, 0, '');
+      if (values.confirm !== true)
+        usage('activity-dismiss-all clears many items at once; pass --confirm.');
+      if (
+        values.category !== undefined &&
+        !['action', 'info', 'unread', 'replies'].includes(values.category)
+      )
+        usage('--category must be one of action, info, unread, replies.');
+      return {
+        method: 'humanAttentionDismissAll',
+        args: {
+          ...(values.kind === undefined ? {} : { kind: required(values.kind, 'kind', command) }),
+          ...(values.category === undefined ? {} : { category: values.category }),
+          ...(values.bot === undefined ? {} : { botSlug: required(values.bot, 'bot', command) }),
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
+      };
+    }
     case 'inbox-restore': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {
@@ -336,7 +381,7 @@ function prepare(
     case 'inbox-snooze': {
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       if ((values.until !== undefined) === (values.clear === true))
-        usage('inbox-snooze needs --until <ISO time> or --clear, not both or neither.');
+        usage('activity-snooze needs --until <ISO time> or --clear, not both or neither.');
       let until: string | null = null;
       if (values.until !== undefined) {
         const at = Date.parse(values.until.trim());
@@ -410,6 +455,48 @@ function prepare(
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
+    case 'session-progress': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const sessionIds = required(values.session, 'session', command)
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (sessionIds.length === 0 || sessionIds.length > 30)
+        usage('--session must list 1 to 30 comma-separated Session ids.');
+      return { method: 'sessionProgress', args: { slug, sessionIds } };
+    }
+    case 'session-transcript': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionTranscript',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-live': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const after = values.after === undefined ? undefined : Number(values.after);
+      if (after !== undefined && !Number.isSafeInteger(after))
+        usage('session-live --after needs an integer revision.');
+      return {
+        method: 'sessionLive',
+        args: {
+          slug,
+          sessionId: required(values.session, 'session', command),
+          ...(after === undefined ? {} : { after }),
+        },
+      };
+    }
+    case 'session-tool': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionToolDetail',
+        args: {
+          slug,
+          sessionId: required(values.session, 'session', command),
+          callId: required(values.call, 'call', command),
+        },
+      };
+    }
     case 'channel-assignments': {
       const [channelId] = positionals(command, rest, 1, 'exactly one group channel id');
       return { method: 'channelAssignments', args: { channelId } };
@@ -437,6 +524,52 @@ function prepare(
     case 'session-owner': {
       const [sessionId] = positionals(command, rest, 1, 'exactly one session id');
       return { method: 'sessionOwner', args: { sessionId } };
+    }
+    case 'session-stop': {
+      const activityId =
+        values.activity === undefined ? undefined : required(values.activity, 'activity', command);
+      const [botSlug, sessionId] = positionals(
+        command,
+        rest,
+        activityId === undefined ? 2 : 1,
+        activityId === undefined
+          ? 'a bot id and one of its Session ids'
+          : 'a bot id, with --activity naming the running Session',
+      );
+      return {
+        method: 'sessionStop',
+        args: {
+          botSlug,
+          ...(activityId === undefined ? { sessionId } : { activityId }),
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
+      };
+    }
+    case 'session-send': {
+      const [botSlug, sessionId] = positionals(
+        command,
+        rest,
+        3,
+        'a bot id, its current Orchestrator Session id and the message text',
+      );
+      return {
+        method: 'sessionMessageSend',
+        args: { botSlug, sessionId, text: rest[2] },
+      };
+    }
+    case 'bot-stop': {
+      const [botSlug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'botStop',
+        args: {
+          botSlug,
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
+      };
     }
     case 'session-archive-set': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');

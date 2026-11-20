@@ -8,7 +8,11 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-import { COMPUTER_KEYS, WHEEL_STEP, type ComputerModifier } from '../../host/computer-viewer';
+import {
+  COMPUTER_KEYS,
+  WHEEL_STEP,
+  type ComputerModifier,
+} from '@botharness/host-client/computer-viewer';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';

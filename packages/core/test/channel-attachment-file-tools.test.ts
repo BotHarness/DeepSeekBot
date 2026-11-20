@@ -1,3 +1,5 @@
+import { attachOperationalModule } from '../src/database/owner.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,8 +19,8 @@ async function call(tools: readonly ToolDefinition[], name: string, args: unknow
 describe('Trusted Channel attachment file Tools', () => {
   it('checks exact source association, current membership and destination authority before file access; sends only imported results', async () => {
     const home = realpathSync(createTempRoot('bh-trusted-file-tools-'));
-    const project = join(home, 'project');
-    mkdirSync(project);
+    const project = join(home, 'spaces/local-human/project');
+    mkdirSync(project, { recursive: true });
     let sourceId = '';
     let joinedId = '';
     let hiddenId = '';
@@ -52,7 +54,9 @@ describe('Trusted Channel attachment file Tools', () => {
             ).rejects.toThrow(/not attached/);
             await expect(
               call(tools, 'channel_attachment_save', { ...input, channel_id: hiddenId }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             await expect(
               call(tools, 'channel_attachment_save', {
                 ...input,
@@ -65,13 +69,22 @@ describe('Trusted Channel attachment file Tools', () => {
             expect(saved).toContain('Saved independent working file:');
             expect(readFileSync(join(project, 'working.zip'), 'utf8')).toBe('source bytes');
             await call(tools, 'group_leave', { channel_id: joinedId });
+            attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+              db
+                .prepare(
+                  "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+                )
+                .run(joinedId),
+            );
             await expect(
               call(tools, 'channel_attachment_save', {
                 ...input,
                 channel_id: joinedId,
                 destination_path: 'again.zip',
               }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             writeFileSync(join(project, 'working.zip'), 'processed result');
             const imported = JSON.parse(
               String(
@@ -101,7 +114,9 @@ describe('Trusted Channel attachment file Tools', () => {
                 channel_id: hiddenId,
                 attachments: [imported],
               }),
-            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+            ).rejects.toThrow(
+              /not a member|authorized Channel is unavailable|bot-channel-access-denied/,
+            );
             expect(core.channels.readMessages(sourceId)).toHaveLength(before);
             core.grants.revoke('ada', grantId);
             await expect(
@@ -133,9 +148,15 @@ describe('Trusted Channel attachment file Tools', () => {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
       core.registry.create({ slug: 'bob', displayName: 'Bob' });
       grantId = (await core.grants.create('ada', 'project')).id;
-      sourceId = core.channels.getOrCreateDm('ada', 'Ada')!.id;
-      joinedId = core.channels.createGroup({ name: 'Joined', members: ['ada'] }).id;
-      hiddenId = core.channels.createGroup({ name: 'Hidden', members: ['bob'] }).id;
+      sourceId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!.id;
+      joinedId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Joined',
+        members: ['ada'],
+      }).id;
+      hiddenId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Hidden',
+        members: ['bob'],
+      }).id;
       original = await core.attachments.upload({
         data: (async function* () {
           yield Buffer.from('source bytes');
@@ -149,7 +170,7 @@ describe('Trusted Channel attachment file Tools', () => {
         name: 'other.zip',
       });
       for (const channelId of [sourceId, joinedId, hiddenId]) {
-        await core.channels.appendMessage(channelId, {
+        await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
           id: 'source',
           at: new Date().toISOString(),
           author: { kind: 'human' },
@@ -157,8 +178,15 @@ describe('Trusted Channel attachment file Tools', () => {
           attachments: [original],
         });
       }
+      attachOperationalModule(core.operationalDatabase, 'team').transaction((db) =>
+        db
+          .prepare(
+            "UPDATE channel_human_members SET left_at='revoked' WHERE channel_id=? AND human_id='local-human'",
+          )
+          .run(hiddenId),
+      );
       expect(
-        core.runtime.admitDmMessage({
+        core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
           channelId: sourceId,
           messageId: 'source',
           body: 'Process file',

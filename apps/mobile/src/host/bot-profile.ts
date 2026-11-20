@@ -1,5 +1,15 @@
 import { loadProfileActivity } from './bot-activity';
-import { MethodRefused, type HostClient, type RosterChannel, type RosterView } from './client';
+import { loadSchedules } from '@botharness/host-client/schedules';
+import {
+  loadMemoryFile as loadHostMemoryFile,
+  loadMemorySnapshot,
+} from '@botharness/host-client/memory';
+import {
+  MethodRefused,
+  type HostClient,
+  type RosterChannel,
+  type RosterView,
+} from '@botharness/host-client/client';
 import type {
   BotScheduleSummary,
   MemoryFile,
@@ -7,7 +17,7 @@ import type {
   MemoryStanding,
   ProfileActivity,
   WorkspaceGrantSummary,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export type ProfilePart<T> =
   | { status: 'ready'; value: T; staleError?: string }
@@ -148,7 +158,11 @@ export function pinnedMemory(snapshot: Pick<MemorySnapshot, 'files' | 'standing'
 }
 
 export function profileMemory(snapshot: MemorySnapshot): ProfileMemory {
-  return { status: 'attached', files: snapshot.files, pinned: pinnedMemory(snapshot) };
+  return {
+    status: 'attached',
+    files: snapshot.files,
+    pinned: pinnedMemory(snapshot),
+  };
 }
 
 export function memoryUnavailable(error: unknown): boolean {
@@ -175,12 +189,8 @@ export function dmChannel(client: HostClient, bot: ProfileBotRef): Promise<strin
     .then((result) => result.channel.id);
 }
 
-async function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {
-  return (
-    await client.call<{ snapshot: MemorySnapshot }>('memorySnapshot', {
-      channelId,
-    })
-  ).snapshot;
+function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {
+  return loadMemorySnapshot(client, channelId);
 }
 
 export async function loadMemoryFiles(client: HostClient, bot: ProfileBotRef): Promise<string[]> {
@@ -192,8 +202,7 @@ export async function loadMemoryFile(
   bot: ProfileBotRef,
   path: string,
 ): Promise<MemoryFile | undefined> {
-  const channelId = await dmChannel(client, bot);
-  return (await client.call<{ file?: MemoryFile }>('memoryFile', { channelId, path })).file;
+  return loadHostMemoryFile(client, await dmChannel(client, bot), path);
 }
 
 export async function loadBotActivity(
@@ -266,13 +275,7 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
         },
       ),
     ),
-    settle(
-      client
-        .call<{
-          schedules: BotScheduleSummary[];
-        }>('scheduleList', { slug: bot.slug })
-        .then((result) => result.schedules),
-    ),
+    settle<BotScheduleSummary[]>(loadSchedules(client, bot.slug)),
     settle(
       client
         .call<{

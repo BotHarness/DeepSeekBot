@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Context } from '@deepseek-ai/cordis';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -15,6 +16,7 @@ import { externalPermissionGroups } from '../src/messaging/permission-groups.js'
 import { behaviorPermissions } from '../src/messaging/behavior-permissions.js';
 import { readSenderPermissions } from '../src/messaging/sender-access.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
+import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createTempRoot } from './helpers.js';
@@ -96,7 +98,7 @@ function behaviorFixture() {
     try {
       f.db.transaction((db) => changeSenderAccess(db, botSlug, input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -456,7 +458,7 @@ it('behavior item edits fence stale selections, scope references and in-use dele
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -563,7 +565,7 @@ it('continuous groups combine sources, deny wins, and membership removal preserv
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -666,7 +668,7 @@ it('groups cannot grant chat, cross scopes or transfer old membership/person exc
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -939,8 +941,11 @@ it('one checked account consumer handles unknown DM pairing ahead of normal Inbo
   expect(db.read((db) => db.prepare('SELECT * FROM inbox_admissions').all())).toEqual([]);
   expect(core.externalMessaging.pairing.list('ada')).toHaveLength(2);
   expect(reply).toHaveBeenCalledTimes(2);
-  const methods = createBridgeMethods({ ...core });
-  const bridge = registerBridge(new Context(), methods);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
+  const bridge = registerBridge(
+    new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } }),
+    () => methods,
+  );
   const pending = core.externalMessaging.pairing.list('ada').find((p) => p.actorId === 'ou_alice')!;
   const review = {
     kind: 'approve' as const,
@@ -1078,4 +1083,31 @@ it('an unbound identity cannot exhaust the replacement identity approved-capacit
     capabilities: ['answer'],
   });
   expect(f.pairing.assert('ada', 'replacement', 'ou_user0', 'answer').id).toBe(request.id);
+});
+
+it('pending pairing requests reach the action inbox until reviewed', () => {
+  const f = fixture();
+  const attention = createHumanAttentionQuery(attachOperationalModule(f.owner, 'human-attention'));
+  const actions = () =>
+    attention
+      .list(OWNER_HUMAN_CONTEXT, { category: 'action', sort: 'newest' })
+      .items.filter((item) => item.kind === 'pairing-request');
+  const management = f.pairing.request('binding', event());
+  const conversation = f.pairing.request('binding', event('ou_bob', 'message-2'), 'conversation');
+  expect(actions()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        requestId: management.id,
+        summary: `management · Alice QA · ${management.reference}`,
+      }),
+      expect.objectContaining({
+        requestId: conversation.id,
+        summary: `conversation · Alice QA · ${conversation.reference}`,
+      }),
+    ]),
+  );
+  f.pairing.review('ada', { kind: 'reject', id: management.id, expectedRevision: 1 });
+  expect(actions().map((item) => item.requestId)).toEqual([conversation.id]);
 });

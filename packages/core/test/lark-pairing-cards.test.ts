@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
@@ -42,7 +43,7 @@ async function fixture() {
   let core = createCore({ dshHome: home });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  core.channels.getOrCreateDm('ada', 'Ada');
+  core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
   let receiver: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   let uncertainSend = false;
   const deliveries: { card: MessagingPairingCard; messageId: string; conversationId: string }[] =

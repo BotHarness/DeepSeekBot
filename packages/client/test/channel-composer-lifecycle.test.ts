@@ -1,27 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, useState, type ButtonHTMLAttributes } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { act, createElement, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  Button: ({
-    icon: _icon,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    icon?: unknown;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', props),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
+
   ImageLightbox: () => null,
 }));
 
@@ -32,7 +21,6 @@ import {
   renderRichMentionDraft,
   setRichSelection,
 } from '../src/client/rich-mention-editor.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const ada: BotSummary = {
   slug: 'ada',
@@ -110,7 +98,7 @@ describe('mounted Channel composer', () => {
         new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }),
       ),
     );
-    expect(onChange).toHaveBeenLastCalledWith('before after', [], []);
+    expect(onChange).toHaveBeenLastCalledWith('before after', [], [], []);
     expect(onRemoveAttachment).not.toHaveBeenCalled();
   });
 
@@ -262,6 +250,48 @@ describe('mounted Channel composer', () => {
     expect(input.value).toBe('/effort max');
     expect(onSubmit).not.toHaveBeenCalled();
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('measures the input once per frame however many keys arrive in it', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    function Harness() {
+      const [value, setValue] = useState('');
+      return createElement(ChannelComposer, {
+        value,
+        placeholder: 'Message',
+        sending: false,
+        onChange: setValue,
+        onSubmit: () => undefined,
+      });
+    }
+    await act(async () => root.render(createElement(Harness)));
+    const input = host.querySelector<HTMLTextAreaElement>('textarea')!;
+    let reads = 0;
+    Object.defineProperty(input, 'scrollHeight', {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return 34;
+      },
+    });
+    await act(async () => frames.splice(0).forEach((callback) => callback(0)));
+    reads = 0;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    for (const value of ['a', 'ab', 'abc']) {
+      await act(async () => {
+        setValue.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+    expect(input.value).toBe('abc');
+    expect(reads).toBe(0);
+    expect(frames).toHaveLength(1);
+    await act(async () => frames.splice(0).forEach((callback) => callback(0)));
+    expect(reads).toBe(1);
   });
 
   it('inserts a new line on Enter and sends on Ctrl/⌘+Enter when that send key is chosen', async () => {

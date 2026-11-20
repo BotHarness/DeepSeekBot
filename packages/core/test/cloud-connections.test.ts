@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createCloudProvider, pollCloudPage } from '../src/cloud/provider.js';
 import { Context } from '@deepseek-ai/cordis';
@@ -514,7 +515,7 @@ it('routes cloud work into the existing Source Event and Bot Inbox once, preserv
     await owner.close();
     core.operationalDatabase.close();
   });
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: core.registry,
     channels: core.channels,
     runtime: core.runtime,
@@ -784,7 +785,7 @@ it('keeps cloud work authorization above explicit ordinary-message wake and queu
   expect(port.read((db) => sourceSenderAllowed(db, 'cloud-b', source.source_event_id, true))).toBe(
     true,
   );
-  const group = core.channels.createGroup({
+  const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
     name: 'Shared context',
     members: ['cloud-b', 'other-bot'],
   });

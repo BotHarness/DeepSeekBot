@@ -1,26 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: {
-    children?: ReactNode;
-    disabled?: boolean;
-    onClick?: () => void;
-    'data-plugin-install'?: string;
-    'data-plugin-restart-action'?: boolean;
-  }) =>
-    createElement(
-      'button',
-      {
-        disabled: props.disabled,
-        onClick: props.onClick,
-        'data-plugin-install': props['data-plugin-install'],
-        'data-plugin-restart-action': props['data-plugin-restart-action'] ? '' : undefined,
-      },
-      props.children,
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import type { BridgeCall } from '../src/client/bridge.js';
@@ -106,7 +90,11 @@ describe('PluginUpdatesController', () => {
     const controller = new PluginUpdatesController(call, restart);
     await controller.load();
     await controller.install(NAME, '0.2.0');
-    expect(call).toHaveBeenCalledWith('pluginInstall', { name: NAME, version: '0.2.0' });
+    expect(call).toHaveBeenCalledWith('pluginInstall', {
+      name: NAME,
+      version: '0.2.0',
+      requestId: expect.any(String),
+    });
     expect(controller.source.getSnapshot().rows[NAME]).toEqual({
       status: 'reloading',
       version: '0.2.0',

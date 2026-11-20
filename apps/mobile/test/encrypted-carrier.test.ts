@@ -1,10 +1,10 @@
 import { expect, it, vi } from 'vitest';
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { decideFromPush } from '../src/host/push-actions';
-import { decideApproval } from '../src/host/requests';
-import { redeemPairing } from '../src/host/pairing';
-import { encryptedCarrier } from '../src/host/encrypted-carrier';
-import { parsePairingLink } from '../src/host/pairing';
+import { decideApproval } from '@botharness/host-client/requests';
+import { redeemPairing } from '@botharness/host-client/pairing';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import { parsePairingLink } from '@botharness/host-client/pairing';
 
 it('accepts only a pinned single-loopback SSH v2 pairing without legacy fallback', () => {
   const payload = {
@@ -38,10 +38,12 @@ it('accepts only a pinned single-loopback SSH v2 pairing without legacy fallback
 it('never sends an SSH pairing credential over raw loopback after a local port is replaced', async () => {
   const raw = {
     request: vi.fn(),
-    openSocket: vi.fn((_url: string, events: import('../src/host/carrier').HostSocketEvents) => {
-      queueMicrotask(() => events.closed('channel-disconnected'));
-      return { send: vi.fn(), close: vi.fn() };
-    }),
+    openSocket: vi.fn(
+      (_url: string, events: import('@botharness/host-protocol/carrier').HostSocketEvents) => {
+        queueMicrotask(() => events.closed('channel-disconnected'));
+        return { send: vi.fn(), close: vi.fn() };
+      },
+    ),
   };
   const saved = parseSavedHost({
     hostId: 'host',
@@ -107,7 +109,7 @@ it.each(['https://host.deepseekbot.dev', 'http://192.168.1.20:39101'])(
   },
 );
 
-import { parseSavedHost, serializeSavedHost, withHost } from '../src/host/hosts';
+import { parseSavedHost, serializeSavedHost, withHost } from '@botharness/host-client/hosts';
 it('persists the complete trust record and refuses a silent pin change or removal', () => {
   const host = {
     hostId: 'host',
@@ -132,12 +134,12 @@ it('persists the complete trust record and refuses a silent pin change or remova
   expect(() => withHost({ hosts: [host] }, withoutPin)).toThrow('host-key-mismatch');
 });
 
-import { openNoiseSocket } from '../src/host/encrypted-carrier';
-import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
-import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
+import { openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { randomBytes } from 'node:crypto';
-import { createHostPush } from '../src/host/push';
-import { revokePairing, removeDevice } from '../src/host/pairing';
+import { createHostPush } from '@botharness/host-client/push';
+import { revokePairing, removeDevice } from '@botharness/host-client/pairing';
 
 it('bounds unacknowledged native output even when bufferedAmount is absent', async () => {
   const hostKey = randomBytes(32);
@@ -209,7 +211,10 @@ it.each([400, 500, 502, 503])(
         text: async () => '{}',
         bytes: async () => new Uint8Array(),
       })),
-      openSocket(_url: string, events: import('../src/host/carrier').HostSocketEvents) {
+      openSocket(
+        _url: string,
+        events: import('@botharness/host-protocol/carrier').HostSocketEvents,
+      ) {
         const peer = new ConnectChannel({
           role: 'responder',
           hostId: 'host',
@@ -431,4 +436,91 @@ it.each([
     ),
   ).toBe('failed');
   expect(decide).toHaveBeenCalledOnce();
+});
+
+it('names why the first handshake frame could not be sent', async () => {
+  const closed = vi.fn();
+  const socket = openNoiseSocket({
+    origin: 'http://192.168.1.20:39101',
+    hostId: 'host',
+    encryption: {
+      protocol: 'connect-noise-xk-v1',
+      hostKey: Buffer.from(noisePublicKey(randomBytes(32))).toString('hex'),
+      deviceKey: randomBytes(32).toString('hex'),
+    },
+    message: vi.fn(),
+    closed,
+    raw: {
+      request: vi.fn(),
+      openSocket(_url, events) {
+        queueMicrotask(events.open);
+        return {
+          send() {
+            throw new Error(
+              'The operation couldn’t be completed. (channel-frame-invalid error 1.)',
+            );
+          },
+          close: vi.fn(),
+        };
+      },
+    },
+  });
+  await expect(socket.ready).rejects.toThrow('channel-handshake-failed:channel-frame-invalid');
+  expect(closed).toHaveBeenCalledWith('channel-handshake-failed:channel-frame-invalid');
+});
+
+it('updates same-route admission on the next encrypted dial and never carries its header to a public route', async () => {
+  const origin = 'https://private.example';
+  const encryption = {
+    protocol: 'connect-noise-xk-v1' as const,
+    hostKey: '11'.repeat(32),
+    deviceKey: '22'.repeat(32),
+    privateRelay: { origin, token: '33'.repeat(32) },
+  };
+  const headers: (Record<string, string> | undefined)[] = [];
+  const request = vi.fn(async () => ({
+    status: 200,
+    text: async () =>
+      JSON.stringify({ type: 'server-response', result: { ok: true, value: { bots: [] } } }),
+    bytes: async () => new Uint8Array(),
+  }));
+  const client = createHostClient({
+    hostId: 'host',
+    routes: [origin],
+    credential: 'device.private',
+    encryption,
+    timeoutMs: 30,
+    carrier: {
+      request,
+      openSocket(_url, events, value) {
+        headers.push(value);
+        queueMicrotask(() => events.closed('offline'));
+        return { send() {}, close() {} };
+      },
+    },
+  });
+  try {
+    await expect(client.call('list')).rejects.toThrow();
+    expect(headers[0]?.['X-BotHarness-Admission']).toBe('33'.repeat(32));
+    client.updateRoutes!([origin], {
+      ...encryption,
+      privateRelay: { origin, token: '44'.repeat(32) },
+    });
+    await expect(client.call('list')).rejects.toThrow();
+    expect(headers.at(-1)?.['X-BotHarness-Admission']).toBe('44'.repeat(32));
+    expect(request).not.toHaveBeenCalled();
+    expect(() =>
+      client.updateRoutes!([origin], { ...encryption, deviceKey: 'ff'.repeat(32) }),
+    ).toThrow('host-key-mismatch');
+    client.updateRoutes!(['https://public.example.ts.net'], {
+      protocol: encryption.protocol,
+      hostKey: encryption.hostKey,
+      deviceKey: encryption.deviceKey,
+    });
+    expect(await client.testRoute!('https://public.example.ts.net')).toBe(true);
+    expect(JSON.stringify(request.mock.calls)).not.toContain('44'.repeat(32));
+    expect(JSON.stringify(request.mock.calls)).not.toContain('X-BotHarness-Admission');
+  } finally {
+    client.stop();
+  }
 });

@@ -12,9 +12,9 @@ import {
   unpinnedEntries,
 } from '../src/host/bot-profile';
 import { parseProfileActivity, weekGlance } from '../src/host/bot-activity';
-import { createHostClient } from '../src/host/client';
-import { FakeHost } from './fake-host';
-import hostWire from './fixtures/host-wire.json';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import hostWire from '../../../packages/host-client/test/fixtures/host-wire.json';
 import profileWire from './fixtures/profile-wire.json';
 
 const recordedActivity = hostWire.rpc.profileActivity[0]!.body.result.value;

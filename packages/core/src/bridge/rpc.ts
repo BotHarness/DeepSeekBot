@@ -1,5 +1,43 @@
+import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
+import type {
+  ModelProvidersView,
+  ModelProviderSave,
+  ModelProviderRemoval,
+} from '@botharness/host-client/model-providers';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
+import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
+
+import type { TobCliCommand, TobCliStatus } from '../tob/cli-request.js';
+import type {
+  BotMetadata,
+  BotMetadataResult,
+  AdminDeletionPreview,
+  AdminDeletion,
+} from '../team/bot-administration.js';
+import type { PrivateKind } from '../team/private-contract.js';
+import type { SpaceAudience } from '../workspaces/spaces.js';
+import type { ApprovalCard } from '../team/approval-contract.js';
+import type { ChannelVisibility, ChannelPolicy } from '../team/channel-contract.js';
+import { TeamError, type TeamService } from '../team/service.js';
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { BotImportsService } from '../bots/imports.js';
+import type { GenuiMessageReply, GenuiPrivateView, GenuiViewState } from '../channels/genui.js';
+import type { GenuiDocumentState } from '../channels/genui-document.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
+import type {
+  VoiceProvidersView,
+  VoiceSynthesisView,
+  VoiceTranscriptionView,
+} from '../voice/bridge.js';
+import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
+import type { BotModesView } from './bot-modes.js';
+import type {
+  ProviderHealth,
+  VoiceDefaults,
+  VoiceProviderView,
+  VoiceSpeechThreshold,
+} from '../voice/providers.js';
+import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
 import type { BotCreationReceipt } from '../bots/creation.js';
@@ -7,6 +45,9 @@ import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
+import type { SessionTranscript } from '../runtime/session-transcript.js';
+import type { SessionLiveSnapshot } from '../runtime/session-live.js';
+import type { SessionToolDetail } from '../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../sessions/ownership.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -29,7 +70,15 @@ import type {
 } from '../storage/media-cleanup.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import { LiveRefused } from '../channels/live-frames.js';
-import type { ChannelJournalPage, ChannelJournalRequest } from '../channels/timeline.js';
+import type {
+  ChannelFilesPage,
+  ChannelFilesRequest,
+  ChannelChangeCursor,
+  ChannelChanges,
+  ChannelChangesRequest,
+  ChannelJournalPage,
+  ChannelJournalRequest,
+} from '../channels/timeline.js';
 import type { CompanionLiveFrame } from '../companions/live.js';
 import type { CloudWork, CloudWorkInput } from '../cloud/work.js';
 import {
@@ -62,6 +111,7 @@ import type {
   MarketplaceDigestSummary,
   MarketplaceEntry,
   MarketplaceFileView,
+  MarketplaceInstallSource,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceSection,
@@ -79,6 +129,7 @@ import type {
   ReleaseUpdate,
 } from '../release/service.js';
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
+import type { UpdateCancel, UpdateRun } from '../release/update-runs.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
 import type {
@@ -96,7 +147,12 @@ import type { HumanAssignmentContext } from '../runtime/assignment-human-context
 import type { ThreadReceptionInput } from '../messaging/thread-policy.js';
 import type { GroupReceptionInput } from '../messaging/group-policy.js';
 import type { ExternalSource } from '../messaging/inbound.js';
-import type { MessagingSnapshot, MessagingGrant, OutboxIntent } from '../messaging/outbound.js';
+import type {
+  MessagingSnapshot,
+  MessagingGrant,
+  OutboxIntent,
+  MessagingReadMode,
+} from '../messaging/outbound.js';
 import type { MessagingTarget } from '../messaging/provider.js';
 import type { PersonaBotDeletionPreview, PersonaBotDeletion } from '../bots/deletion.js';
 import type { DataResetPreview, DataResetResult } from '../data-reset/reset.js';
@@ -109,30 +165,45 @@ import type { PrivateAccountSummary, PrivateInputStatus } from '../credentials/c
 
 import type { PersonaBotPatch } from '../bots/persona-bot.js';
 import type { ModelCatalogEntry } from '../models/catalog.js';
+import type { ModelFavorite } from '../models/favorites.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type {
+  AssignmentGroupOption,
   AssignmentModelOption,
   ModelPreset,
+  ModelPresetEngine,
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import type { RoutingGroup, RoutingGroupMember } from '../models/routing-groups.js';
 import type {
   BridgeError,
   BridgeMethods,
   BridgeResult,
   ChannelListItem,
+  ChannelListChanges,
   MessagingAppsView,
   PersonaBotDetail,
   ApprovalTemplateEntry,
   PersonaBotSummary,
+  SharedBotSummary,
   OwnedSessionSummary,
   OwnedSessionBot,
   ProfileActivity,
   ProfileSessionUsage,
+  SkillDetail,
+  SessionProgressEntry,
 } from './methods.js';
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
-import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
+import type {
+  ChannelMessage,
+  ChannelReaction,
+  ChannelRecord,
+  ChannelSkillInvocationToken,
+} from '../channels/channel.js';
+import type { SkillCatalogEntry } from '../skills/catalog.js';
+import type { BotSkill } from '../skills/bot-skills.js';
 import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
@@ -147,6 +218,7 @@ import type {
   DirectBotToolSpec,
 } from '../runtime/bot-runtime.js';
 import type { BotAttentionPage, BotAttentionState } from '../runtime/attention.js';
+import type { TakeoverHandoff } from '../takeover/contracts.js';
 import type {
   BotSchedule,
   BotScheduleChange,
@@ -206,68 +278,38 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
 
 export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
 
-const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
-
-interface RemoteMethodDescriptor {
-  readonly version: 1;
-  readonly methods: readonly {
-    readonly method: string;
-    readonly mode?: 'stream';
-    readonly invocation: { readonly kind: 'direct' };
-  }[];
-}
-
-function markRemoteMethods(prototype: object, methods: readonly string[]): void {
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: methods.map((method) =>
-      Object.freeze({ method, invocation: Object.freeze({ kind: 'direct' }) }),
-    ),
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
-}
-
 export interface BridgeLive {
-  followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame>;
-  followActivity(signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
+  followRoster(human: HumanContext, signal: AbortSignal): AsyncIterable<RosterLiveFrame>;
+  followActivity(human: HumanContext, signal: AbortSignal): AsyncIterable<ActivityLiveFrame>;
   followChannel(
+    human: HumanContext,
     channelId: string,
     limit: number,
     signal: AbortSignal,
     drafts?: DraftDelivery,
   ): AsyncIterable<ChannelLiveFrame>;
-  journalPage(channelId: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  journalPage(
+    human: HumanContext,
+    channelId: string,
+    request: ChannelJournalRequest,
+  ): ChannelJournalPage | undefined;
+  filesPage(
+    human: HumanContext,
+    channelId: string,
+    request: ChannelFilesRequest,
+  ): ChannelFilesPage | undefined;
+  changes(
+    human: HumanContext,
+    channelId: string,
+    request: ChannelChangesRequest,
+  ): ChannelChanges | undefined;
+  changeCursor(human: HumanContext): ChannelChangeCursor | undefined;
   followCompanion(
+    human: HumanContext,
     resume: string,
     lastEventId: string,
     signal: AbortSignal,
   ): AsyncIterable<CompanionLiveFrame>;
-}
-
-function markRemoteStreams(prototype: object, streams: readonly string[]): void {
-  const marked = (prototype as Record<string, RemoteMethodDescriptor | undefined>)[
-    REMOTE_METHOD_DESCRIPTOR
-  ];
-  const descriptor: RemoteMethodDescriptor = {
-    version: 1,
-    methods: [
-      ...(marked?.methods ?? []),
-      ...streams.map((method) =>
-        Object.freeze({
-          method,
-          mode: 'stream' as const,
-          invocation: Object.freeze({ kind: 'direct' as const }),
-        }),
-      ),
-    ],
-  };
-  Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR, {
-    configurable: true,
-    value: Object.freeze(descriptor),
-  });
 }
 
 function toRemoteError(error: BridgeError): RemoteError {
@@ -283,30 +325,330 @@ async function unwrapAsync<T>(result: Promise<BridgeResult<T>>): Promise<T> {
   return unwrap(await result);
 }
 
+export function resolveInvocationHuman(
+  peer: unknown,
+  connection: unknown,
+  team?: TeamService,
+): HumanContext | undefined {
+  if (isAuthenticatedOwner(peer, connection)) return team?.ownerContext() ?? OWNER_HUMAN_CONTEXT;
+  if (peer !== null && typeof peer === 'object' && 'principal' in peer) {
+    const principal = peer.principal;
+    if (
+      principal !== null &&
+      typeof principal === 'object' &&
+      'kind' in principal &&
+      principal.kind === 'botharness-member' &&
+      'humanId' in principal &&
+      typeof principal.humanId === 'string' &&
+      'grantId' in principal &&
+      typeof principal.grantId === 'string'
+    )
+      return team?.resolve({
+        kind: 'botharness-member',
+        humanId: principal.humanId,
+        grantId: principal.grantId,
+      });
+  }
+  return undefined;
+}
+
+type AdminResult<T, M = BotMetadataResult> = T | M;
+
+export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
+
+function presetGroupArgs(
+  orchestratorGroupId: string | null | undefined,
+  assignmentGroups: string[] | undefined,
+  assignmentDefaultGroupId: string | null | undefined,
+  assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
+  orchestratorGroupEffort?: string | null,
+): Record<string, unknown> {
+  return {
+    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+    ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
+    ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+    ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+    ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
+  };
+}
+
 export class BotharnessBridgeService extends TypertRemoteService {
-  private readonly methods: BridgeMethods;
+  private readonly invocationMethods: InvocationBridgeMethods;
+
+  private invocationHuman(): HumanContext {
+    const human = resolveInvocationHuman(
+      this.ctx.invocation?.peer,
+      this.ctx.get('connection'),
+      this.team,
+    );
+    const invocation = this.ctx.invocation;
+    if (invocation && this.team) {
+      try {
+        this.team.assertCall(invocation.peer.principal, invocation.request?.method ?? '');
+      } catch (error) {
+        if (error instanceof TeamError)
+          throw toRemoteError({
+            code: error.code,
+            message: error.code,
+            ...(error.details ? { details: error.details } : {}),
+          });
+        throw error;
+      }
+    }
+    if (human === undefined)
+      throw new RemoteError('forbidden' as RemoteError['code'], 'Authenticated Human required', {});
+    return human;
+  }
+
+  private get methods(): BridgeMethods {
+    return this.invocationMethods(this.invocationHuman());
+  }
 
   constructor(
     ctx: Context,
-    methods: BridgeMethods,
+    methods: InvocationBridgeMethods,
     private readonly privateInputs?: PrivateInputs,
     private readonly live?: BridgeLive,
+    private readonly team?: TeamService,
   ) {
     super(ctx, BRIDGE_SERVICE_KEY, { namespace: BRIDGE_NAMESPACE });
-    this.methods = methods;
+    this.invocationMethods = methods;
+  }
+
+  spaceAudienceDirectory() {
+    return unwrapAsync(this.methods.spaceAudienceDirectory({}));
+  }
+  spaces() {
+    return unwrapAsync(this.methods.spaces({}));
+  }
+  botVisibility(slug: string) {
+    return unwrapAsync(this.methods.botVisibility({ slug }));
+  }
+  botVisibilitySet(
+    slug: string,
+    visibility: import('../team/bot-contract.js').BotVisibility,
+    confirm?: boolean,
+  ) {
+    return unwrapAsync(this.methods.botVisibilitySet({ slug, visibility, confirm }));
+  }
+  botSwitches(
+    slug: string,
+    proactiveDms?: boolean,
+    joinPrincipalChannels?: boolean,
+    speakerContext?: boolean,
+  ) {
+    return unwrapAsync(
+      this.methods.botSwitches({
+        slug,
+        ...(proactiveDms === undefined ? {} : { proactiveDms }),
+        ...(joinPrincipalChannels === undefined ? {} : { joinPrincipalChannels }),
+        ...(speakerContext === undefined ? {} : { speakerContext }),
+      }),
+    );
+  }
+  reachableBots() {
+    return unwrapAsync(this.methods.reachableBots({}));
+  }
+  botProactiveOptOut(slug: string, optOut: boolean) {
+    return unwrapAsync(this.methods.botProactiveOptOut({ slug, optOut }));
+  }
+  roleConflicts(humanId?: string, username?: string) {
+    return unwrapAsync(this.methods.roleConflicts({ humanId, username }));
+  }
+  speakerPolicy(humanId?: string, topic?: string) {
+    return unwrapAsync(this.methods.speakerPolicy({ humanId, topic }));
+  }
+  spaceCreate(name: string, audience: SpaceAudience) {
+    return unwrapAsync(this.methods.spaceCreate({ name, audience }));
+  }
+  spaceUpdate(spaceId: string, name?: string, audience?: SpaceAudience) {
+    return unwrapAsync(this.methods.spaceUpdate({ spaceId, name, audience }));
+  }
+  spaceDelete(spaceId: string, confirm: boolean) {
+    return unwrapAsync(this.methods.spaceDelete({ spaceId, confirm }));
+  }
+  modelsAllowed() {
+    return unwrapAsync(this.methods.modelsAllowed({}));
+  }
+  usageByMember(period: UsageOverviewPeriod) {
+    return unwrap(this.methods.usageByMember({ period }));
+  }
+  privateObjects(humanId?: string, kind?: PrivateKind, username?: string) {
+    return unwrapAsync(this.methods.privateObjects({ humanId, kind, username }));
+  }
+  privateContentOpen(kind: PrivateKind, objectId: string, reason?: string) {
+    return unwrapAsync(this.methods.privateContentOpen({ kind, objectId, reason }));
+  }
+  privateContentPage(viewId: string, before: string) {
+    return unwrapAsync(this.methods.privateContentPage({ viewId, before }));
+  }
+  auditLog(after?: string, limit?: number) {
+    return unwrapAsync(this.methods.auditLog({ after, limit }));
+  }
+  auditVerify() {
+    return unwrapAsync(this.methods.auditVerify({}));
+  }
+  teamMode() {
+    return unwrapAsync(this.methods.teamMode({}));
+  }
+  teamModeSet(enabled: boolean) {
+    return unwrapAsync(this.methods.teamModeSet({ enabled }));
+  }
+  teamOwnerPasswordSet(password: string, current?: string) {
+    return unwrapAsync(this.methods.teamOwnerPasswordSet({ password, current }));
+  }
+  teamInsecureHttpSet(allowed: boolean) {
+    return unwrapAsync(this.methods.teamInsecureHttpSet({ allowed }));
+  }
+  members() {
+    return unwrapAsync(this.methods.members({}));
+  }
+  memberCreate(username: string, displayName: string, roleIds?: string[]) {
+    return unwrapAsync(this.methods.memberCreate({ username, displayName, roleIds }));
+  }
+  permissionCatalog() {
+    return unwrapAsync(this.methods.permissionCatalog({}));
+  }
+  roles() {
+    return unwrapAsync(this.methods.roles({}));
+  }
+  roleCreate(
+    name: string,
+    permissions: string[],
+    models?: import('../team/permissions.js').RoleModels,
+    policy?: import('../team/bot-contract.js').RolePolicy,
+  ) {
+    return unwrapAsync(this.methods.roleCreate({ name, permissions, models, policy }));
+  }
+  roleUpdate(
+    roleId: string,
+    name?: string,
+    permissions?: string[],
+    models?: import('../team/permissions.js').RoleModels,
+    policy?: import('../team/bot-contract.js').RolePolicy,
+  ) {
+    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models, policy }));
+  }
+  roleDelete(roleId: string) {
+    return unwrapAsync(this.methods.roleDelete({ roleId }));
+  }
+  memberRolesSet(humanId: string, roleIds: string[]) {
+    return unwrapAsync(this.methods.memberRolesSet({ humanId, roleIds }));
+  }
+  memberDevices(humanId: string) {
+    const principal = this.ctx.invocation?.peer.principal;
+    return unwrapAsync(
+      this.methods.memberDevices(
+        { humanId },
+        principal?.kind === 'botharness-member' ? principal.grantId : undefined,
+      ),
+    );
+  }
+  memberDeviceRevoke(humanId: string, grantId: string) {
+    return unwrapAsync(this.methods.memberDeviceRevoke({ humanId, grantId }));
+  }
+  ownerTransfer(humanId: string, password: string) {
+    return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
+  }
+  memberPasswordChange(current: string, next: string, signOutOthers?: boolean) {
+    const principal = this.ctx.invocation?.peer.principal;
+    if (principal?.kind === 'botharness-member' && this.team)
+      return this.team.withPasswordCaller(principal, undefined, () =>
+        unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers })),
+      );
+    return unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers }));
+  }
+  memberInvitation(humanId: string) {
+    return unwrapAsync(this.methods.memberInvitation({ humanId }));
+  }
+  memberPairingOffer() {
+    return unwrapAsync(this.methods.memberPairingOffer({}));
+  }
+  memberPasswordReset(humanId: string) {
+    return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
+  }
+  channelRoleDirectory(channelId: string) {
+    return unwrapAsync(this.methods.channelRoleDirectory({ channelId }));
+  }
+  channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
+    return unwrapAsync(this.methods.channelVisibilitySet({ channelId, visibility }));
+  }
+  channelAdminsSet(channelId: string, humanIds: string[]) {
+    return unwrapAsync(this.methods.channelAdminsSet({ channelId, humanIds }));
+  }
+  channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
+    return unwrapAsync(
+      this.methods.channelPolicySet({
+        channelId,
+        policy,
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+  channelMemberCandidates(channelId: string, query?: string) {
+    return unwrapAsync(
+      this.methods.channelMemberCandidates({
+        channelId,
+        ...(query === undefined ? {} : { query }),
+      }),
+    );
+  }
+  channelHumanAdd(channelId: string, humanId: string) {
+    return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));
+  }
+  channelDescriptionSet(channelId: string, description: string) {
+    return unwrapAsync(this.methods.channelDescriptionSet({ channelId, description }));
+  }
+  teamDirectory() {
+    return unwrapAsync(this.methods.teamDirectory({}));
+  }
+  humanDm(humanId: string) {
+    return unwrapAsync(this.methods.humanDm({ humanId }));
+  }
+  humanDmByUsername(username: string) {
+    return unwrapAsync(this.methods.humanDmByUsername({ username }));
+  }
+  memberDeactivate(humanId: string) {
+    return unwrapAsync(this.methods.memberDeactivate({ humanId }));
+  }
+  memberReactivate(humanId: string) {
+    return unwrapAsync(this.methods.memberReactivate({ humanId }));
+  }
+  memberTransferPreview(humanId: string) {
+    return unwrapAsync(this.methods.memberTransferPreview({ humanId }));
+  }
+  memberTransfer(humanId: string, toHumanId: string) {
+    return unwrapAsync(this.methods.memberTransfer({ humanId, toHumanId }));
+  }
+  memberPurgePreview(humanId: string) {
+    return unwrapAsync(this.methods.memberPurgePreview({ humanId }));
+  }
+  memberPurgeConfirm(humanId: string, token: string, username: string) {
+    return unwrapAsync(this.methods.memberPurgeConfirm({ humanId, token, username }));
+  }
+  channelPublicSet(channelId: string, publicValue: boolean) {
+    return unwrapAsync(this.methods.channelPublicSet({ channelId, public: publicValue }));
   }
 
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
-    return this.live.followRoster(signal);
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
+    return this.live.followRoster(this.invocationHuman(), signal);
   }
 
   async *followActivity(signal: AbortSignal): AsyncGenerator<ActivityLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
-      yield* this.live.followActivity(signal);
+      const human = this.invocationHuman();
+      for await (const frame of this.live.followActivity(human, signal))
+        yield this.team?.approvals.project(human, frame) ?? frame;
     } catch (error) {
       if (error instanceof LiveUnavailable)
         throw toRemoteError({ code: 'unavailable', message: error.message });
@@ -320,10 +662,50 @@ export class BotharnessBridgeService extends TypertRemoteService {
     before?: number,
     limit?: number,
   ): ChannelJournalPage {
-    const page = this.live?.journalPage(channelId, { through, before, limit });
+    const page = this.live?.journalPage(this.invocationHuman(), channelId, {
+      through,
+      before,
+      limit,
+    });
     if (page === undefined)
-      throw toRemoteError({ code: 'not-found', message: 'Channel journal page is unavailable' });
-    return page;
+      throw toRemoteError({
+        code: 'not-found',
+        message: 'Channel journal page is unavailable',
+      });
+    return this.team?.approvals.project(this.invocationHuman(), page, channelId) ?? page;
+  }
+
+  channelFilesPage(channelId: string, before?: number, limit?: number): ChannelFilesPage {
+    const page = this.live?.filesPage(this.invocationHuman(), channelId, { before, limit });
+    if (page === undefined)
+      throw toRemoteError({
+        code: 'not-found',
+        message: 'Channel files page is unavailable',
+      });
+    return this.team?.approvals.project(this.invocationHuman(), page, channelId) ?? page;
+  }
+
+  channelChanges(
+    channelId: string,
+    sinceSeq: number,
+    epoch?: string,
+    limit?: number,
+  ): ChannelChanges {
+    const changes = this.live?.changes(this.invocationHuman(), channelId, {
+      sinceSeq,
+      epoch,
+      limit,
+    });
+    if (changes === undefined)
+      throw toRemoteError({ code: 'not-found', message: 'Channel changes are unavailable' });
+    return this.team?.approvals.project(this.invocationHuman(), changes, channelId) ?? changes;
+  }
+
+  channelChangeCursor(): ChannelChangeCursor {
+    const cursor = this.live?.changeCursor(this.invocationHuman());
+    if (cursor === undefined)
+      throw toRemoteError({ code: 'unavailable', message: 'Channel changes are unavailable' });
+    return cursor;
   }
 
   async *followChannel(
@@ -333,9 +715,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     signal: AbortSignal,
   ): AsyncGenerator<ChannelLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
-      yield* this.live.followChannel(channelId, limit, signal, drafts ?? 'full');
+      const human = this.invocationHuman();
+      for await (const frame of this.live.followChannel(
+        human,
+        channelId,
+        limit,
+        signal,
+        drafts ?? 'full',
+      ))
+        yield this.team?.approvals.project(human, frame, channelId) ?? frame;
     } catch (error) {
       if (error instanceof ChannelLiveRefused)
         throw toRemoteError({ code: error.code, message: error.message });
@@ -349,9 +742,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     signal: AbortSignal,
   ): AsyncGenerator<CompanionLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
-      yield* this.live.followCompanion(resume, lastEventId, signal);
+      yield* this.live.followCompanion(this.invocationHuman(), resume, lastEventId, signal);
     } catch (error) {
       if (error instanceof LiveRefused)
         throw toRemoteError({ code: error.code, message: error.message });
@@ -359,25 +755,58 @@ export class BotharnessBridgeService extends TypertRemoteService {
     }
   }
 
-  privateInputStatus(channelId: string, messageId: string): { status: PrivateInputStatus } {
-    this.requirePrivateOwner();
-    return { status: this.privateInputs?.status(channelId, messageId) ?? 'expired' };
+  private requireApproval(channelId: string, messageId: string): HumanContext {
+    if (!this.team) this.requirePrivateOwner();
+    const human = this.invocationHuman();
+    try {
+      this.team?.approvals.requireRequest(human, channelId, messageId);
+    } catch (error) {
+      if (error instanceof TeamError)
+        throw toRemoteError({
+          code: error.code,
+          message: error.code,
+          ...(error.details ? { details: error.details } : {}),
+        });
+      throw error;
+    }
+    return human;
+  }
+
+  privateInputStatus(
+    channelId: string,
+    messageId: string,
+  ): { status: PrivateInputStatus; approval?: ApprovalCard } {
+    if (!this.team) this.requirePrivateOwner();
+    const human = this.invocationHuman();
+    if (
+      this.team &&
+      !this.team.belongs(human, channelId) &&
+      !this.team.approvals.ownsRequest(human, channelId, messageId)
+    )
+      throw toRemoteError({ code: 'channel-not-found', message: 'channel-not-found' });
+    const message = this.team?.approvals.request(channelId, messageId);
+    const approval = message && this.team?.approvals.card(human, channelId, message);
+    return {
+      status: this.privateInputs?.status(channelId, messageId) ?? 'expired',
+      ...(approval ? { approval } : {}),
+    };
   }
 
   async privateInputSubmit(
     channelId: string,
     messageId: string,
     values: Record<string, string>,
-  ): Promise<{ accepted: boolean }> {
-    this.requirePrivateOwner();
-    return {
-      accepted: (await this.privateInputs?.submit(true, { channelId, messageId, values })) ?? false,
-    };
+  ): Promise<{ accepted: boolean; reason?: string }> {
+    const human = this.requireApproval(channelId, messageId);
+    if (this.privateInputs === undefined) return { accepted: false, reason: 'store-unavailable' };
+    return await this.privateInputs.submission(true, { channelId, messageId, values }, human);
   }
 
   async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {
-    this.requirePrivateOwner();
-    return { accepted: (await this.privateInputs?.cancel(true, channelId, messageId)) ?? false };
+    const human = this.requireApproval(channelId, messageId);
+    return {
+      accepted: (await this.privateInputs?.cancel(true, channelId, messageId, human)) ?? false,
+    };
   }
 
   async privateAccountStatus(channelId: string, messageId: string) {
@@ -440,7 +869,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   async privateAccountRevoke(channelId: string, messageId: string) {
     this.requirePrivateOwner();
     return (
-      this.privateInputs?.revoke(true, channelId, messageId) ?? {
+      this.privateInputs?.revoke(true, channelId, messageId, this.invocationHuman()) ?? {
         accepted: false,
         stopped: 0,
         completed: 0,
@@ -450,7 +879,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   private requirePrivateOwner(message = 'Private input requires the authenticated Owner'): void {
-    if (!isAuthenticatedOwner(this.ctx.invocation?.peer, this.ctx.get('connection')))
+    if (resolveInvocationHuman(this.ctx.invocation?.peer, this.ctx.get('connection')) === undefined)
       throw new RemoteError('forbidden' as RemoteError['code'], message, {});
   }
 
@@ -481,8 +910,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
   messagingDefaultsSet(input: MessagingDefaultsInput): Promise<MessagingDefaults> {
     return unwrapAsync(this.methods.messagingDefaultsSet(input));
   }
-  channelBridges(channelId: string): Promise<ChannelBridgeSnapshot> {
-    return unwrapAsync(this.methods.channelBridges({ channelId }));
+  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot> {
+    return unwrapAsync(this.methods.channelBridges({ channelId, ...(mode ? { mode } : {}) }));
   }
   channelIngests(channelId: string): Promise<ConversationIngestSnapshot> {
     return unwrapAsync(this.methods.channelIngests({ channelId }));
@@ -506,15 +935,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{ updated: true }> {
     return unwrapAsync(this.methods.approvalRoute({ slug, pairingId, expectedRevision }));
   }
-  approvalTest(
-    slug: string,
-  ): Promise<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }> {
+  approvalTest(slug: string): Promise<{
+    delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
+  }> {
     return unwrapAsync(this.methods.approvalTest({ slug }));
+  }
+  questionRetry(slug: string, id: string): Promise<{ updated: true }> {
+    return unwrapAsync(this.methods.questionRetry({ slug, id }));
   }
   approvalRetry(
     slug: string,
     id: string,
-  ): Promise<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }> {
+  ): Promise<{
+    delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
+  }> {
     return unwrapAsync(this.methods.approvalRetry({ slug, id }));
   }
   failureAlertsSet(
@@ -524,15 +958,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{ updated: true }> {
     return unwrapAsync(this.methods.failureAlertsSet({ slug, enabled, expectedRevision }));
   }
-  failureAlertsTest(
-    slug: string,
-  ): Promise<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }> {
+  failureAlertsTest(slug: string): Promise<{
+    delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
     return unwrapAsync(this.methods.failureAlertsTest({ slug }));
   }
   failureAlertsRetry(
     slug: string,
     id: string,
-  ): Promise<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }> {
+  ): Promise<{
+    delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
     return unwrapAsync(this.methods.failureAlertsRetry({ slug, id }));
   }
   pairingReview(slug: string, input: PairingReviewInput): Promise<{ pairing: PairingRequest }> {
@@ -556,8 +992,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
   messagingApps(): Promise<MessagingAppsView> {
     return unwrapAsync(this.methods.messagingApps());
   }
-  messagingSnapshot(slug: string): Promise<MessagingSnapshot> {
-    return unwrapAsync(this.methods.messagingSnapshot({ slug }));
+  messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot> {
+    return unwrapAsync(this.methods.messagingSnapshot({ slug, ...(mode ? { mode } : {}) }));
   }
   messagingReachable(
     slug: string,
@@ -565,7 +1001,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
   ): Promise<import('../messaging/provider.js').MessagingReachablePage> {
     return unwrapAsync(
-      this.methods.messagingReachable({ slug, bindingId, ...(cursor ? { cursor } : {}) }),
+      this.methods.messagingReachable({
+        slug,
+        bindingId,
+        ...(cursor ? { cursor } : {}),
+      }),
     );
   }
   messagingPostRequest(
@@ -576,7 +1016,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text: string,
   ): Promise<{ intent: OutboxIntent | null }> {
     return unwrapAsync(
-      this.methods.messagingPostRequest({ slug, bindingId, conversationId, requestId, text }),
+      this.methods.messagingPostRequest({
+        slug,
+        bindingId,
+        conversationId,
+        requestId,
+        text,
+      }),
     );
   }
   messagingPostConversation(
@@ -587,7 +1033,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text: string,
   ): Promise<{ intent: OutboxIntent }> {
     return unwrapAsync(
-      this.methods.messagingPostConversation({ slug, bindingId, conversationId, requestId, text }),
+      this.methods.messagingPostConversation({
+        slug,
+        bindingId,
+        conversationId,
+        requestId,
+        text,
+      }),
     );
   }
   messagingPostLimit(
@@ -597,7 +1049,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit: number | null,
   ): Promise<{ identity: MessagingIdentity }> {
     return unwrapAsync(
-      this.methods.messagingPostLimit({ slug, bindingId, expectedRevision, limit }),
+      this.methods.messagingPostLimit({
+        slug,
+        bindingId,
+        expectedRevision,
+        limit,
+      }),
     );
   }
   messagingTargets(
@@ -649,37 +1106,54 @@ export class BotharnessBridgeService extends TypertRemoteService {
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot> {
     return unwrapAsync(this.methods.onboarding({ slug, action }));
   }
+  acknowledgements(): { items: Record<string, string> } {
+    return unwrap(this.methods.acknowledgements({}));
+  }
+  acknowledge(key: string, value?: string): { key: string; value: string } {
+    return unwrap(this.methods.acknowledge(value === undefined ? { key } : { key, value }));
+  }
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRoute,
+    route: ModelRoute | undefined,
     globalDefault: boolean,
     expectedDefaultRevision?: number,
-  ): Promise<{ revision: number }> {
+    groupId?: string,
+    groupEffort?: string,
+    expectedDefaultGroupRevision?: number,
+  ): Promise<{ revision: number; groupRevision?: number }> {
     return unwrapAsync(
       this.methods.onboardingModel({
         slug,
         expectedRevision,
-        route,
+        ...(route === undefined ? {} : { route }),
         globalDefault,
         expectedDefaultRevision,
+        ...(groupId === undefined ? {} : { groupId }),
+        ...(groupEffort === undefined ? {} : { groupEffort }),
+        ...(expectedDefaultGroupRevision === undefined ? {} : { expectedDefaultGroupRevision }),
       }),
     );
   }
-  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.telemetryEvent({ event, properties }));
+  telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
-  modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
+  modelPlanInherit(slug: string, expectedRevision: number): AdminResult<{ revision: number }> {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
   }
   channelRetry(
     channelId: string,
     messageId: string,
-    recovery?: 'compact' | 'new-session',
+    recovery?: 'continue' | 'compact' | 'new-session',
     failureMessageId?: string,
   ): Promise<{ accepted: true }> {
     return unwrapAsync(
-      this.methods.channelRetry({ channelId, messageId, recovery, failureMessageId }),
+      this.methods.channelRetry({
+        channelId,
+        messageId,
+        recovery,
+        failureMessageId,
+      }),
     );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
@@ -717,15 +1191,107 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelBotStop(
     channelId: string,
     botSlug: string,
-  ): Promise<{ stopped: { botSlug: string; sessionId: string; messageId: string } }> {
-    return unwrapAsync(this.methods.channelBotStop({ channelId, botSlug }));
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: { botSlug: string; sessionId: string; messageId: string };
+  }> {
+    return unwrapAsync(
+      this.methods.channelBotStop({
+        channelId,
+        botSlug,
+        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
+      }),
+    );
   }
-  modelCatalog(): Promise<{
+  sessionMessageSend(
+    botSlug: string,
+    sessionId: string,
+    text: string,
+  ): Promise<{ sourceEventId: string }> {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
+  }
+  sessionStop(
+    botSlug: string,
+    sessionId?: string,
+    channelId?: string,
+    activityId?: string,
+  ): Promise<{
+    stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
+  }> {
+    return unwrapAsync(
+      this.methods.sessionStop({
+        botSlug,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(channelId === undefined ? {} : { channelId }),
+        ...(activityId === undefined ? {} : { activityId }),
+      }),
+    );
+  }
+  botStop(
+    botSlug: string,
+    channelId?: string,
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
+  }> {
+    return unwrapAsync(
+      this.methods.botStop({
+        botSlug,
+        ...(channelId === undefined ? {} : { channelId }),
+        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
+      }),
+    );
+  }
+  modelProviders(): Promise<ModelProvidersView> {
+    return unwrapAsync(this.methods.modelProviders({}));
+  }
+
+  modelProviderAdd(
+    template: string,
+    name: string,
+    key: string,
+    expectedRevision: number,
+    endpoint?: string,
+    model?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(
+      this.methods.modelProviderAdd({ template, name, key, expectedRevision, endpoint, model }),
+    );
+  }
+
+  modelProviderEdit(
+    id: string,
+    expectedRevision: number,
+    name?: string,
+    key?: string,
+  ): Promise<ModelProviderSave> {
+    return unwrapAsync(this.methods.modelProviderEdit({ id, expectedRevision, name, key }));
+  }
+
+  modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
+    return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
+  }
+
+  modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
     defaultRevision?: number;
+    favorites?: ModelFavorite[];
+    routingGroupEngines?: RoutingGroupEngineOptions[];
   }> {
-    return unwrapAsync(this.methods.modelCatalog({}));
+    return unwrapAsync(
+      this.methods.modelCatalog(
+        includeRoutingGroupEngines === true ? { includeRoutingGroupEngines } : {},
+      ),
+    );
+  }
+
+  modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
+    return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
   }
 
   modelPresets(): { presets: ModelPreset[] } {
@@ -734,16 +1300,34 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   modelPresetCreate(
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetCreate({
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
+        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+          orchestratorGroupEffort,
+        ),
       }),
     );
   }
@@ -752,18 +1336,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
     id: string,
     expectedRevision: number,
     name: string,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
     return unwrapAsync(
       this.methods.modelPresetUpdate({
         id,
         expectedRevision,
         name,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
+        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
         ...(assignmentModels === undefined ? {} : { assignmentModels }),
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+          orchestratorGroupEffort,
+        ),
       }),
     );
   }
@@ -773,22 +1375,62 @@ export class BotharnessBridgeService extends TypertRemoteService {
     presetId: string,
     expectedRevision?: number,
     expectedPresetRevision?: number,
-  ): Promise<{ plan: PersonaBotModelPlan }> {
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
-      this.methods.modelPresetApply({ slug, presetId, expectedRevision, expectedPresetRevision }),
+      this.methods.modelPresetApply({
+        slug,
+        presetId,
+        expectedRevision,
+        expectedPresetRevision,
+      }),
     );
   }
 
-  modelPlan(slug: string): Promise<ModelPlanState> {
+  modelGroups(): { groups: RoutingGroup[] } {
+    return unwrap(this.methods.modelGroups({}));
+  }
+
+  modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
+    return unwrap(this.methods.modelGroup({ id }));
+  }
+
+  modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupCreate({ name, members }));
+  }
+
+  modelGroupUpdate(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMember[],
+  ): Promise<{ group: RoutingGroup }> {
+    return unwrapAsync(this.methods.modelGroupUpdate({ id, expectedRevision, name, members }));
+  }
+
+  modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
+    return unwrap(this.methods.modelGroupDelete({ id, expectedRevision }));
+  }
+
+  modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
     return unwrapAsync(this.methods.modelPlan({ slug }));
   }
 
   modelPlanCustomize(
     slug: string,
-    orchestrator: ModelRoute,
+    orchestrator?: ModelRoute,
     expectedRevision?: number,
-  ): Promise<{ plan: PersonaBotModelPlan }> {
-    return unwrapAsync(this.methods.modelPlanCustomize({ slug, orchestrator, expectedRevision }));
+    orchestratorGroupId?: string,
+    orchestratorGroupEffort?: string,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+    return unwrapAsync(
+      this.methods.modelPlanCustomize({
+        slug,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
+        expectedRevision,
+        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
+        ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
+      }),
+    );
   }
 
   modelPlanAssignmentsSet(
@@ -796,13 +1438,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
-  ): Promise<{ plan: PersonaBotModelPlan }> {
+    openAssignmentModels?: boolean,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanAssignmentsSet({
         slug,
         expectedRevision,
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
+        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
+        ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
       }),
     );
   }
@@ -810,30 +1460,49 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanSet(
     slug: string,
     expectedRevision: number,
-    orchestrator: ModelRoute,
+    orchestrator: ModelRoute | undefined,
     assignmentDefault: ModelRoute,
     assignmentModels: AssignmentModelOption[],
-  ): Promise<{ plan: PersonaBotModelPlan }> {
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return unwrapAsync(
       this.methods.modelPlanSet({
         slug,
         expectedRevision,
-        orchestrator,
+        ...(orchestrator === undefined ? {} : { orchestrator }),
         assignmentDefault,
         assignmentModels,
+        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+        ...presetGroupArgs(
+          orchestratorGroupId,
+          assignmentGroups,
+          assignmentDefaultGroupId,
+          assignmentGroupOptions,
+          orchestratorGroupEffort,
+        ),
       }),
     );
   }
 
-  list(query?: string): { bots: PersonaBotSummary[] } {
-    return unwrap(this.methods.list({ query }));
+  list(
+    query?: string,
+    administration?: boolean,
+  ): { bots: Array<PersonaBotSummary | SharedBotSummary | BotMetadata> } {
+    return unwrap(
+      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
+    );
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
     return unwrap(this.methods.activitySnapshot({}));
   }
 
-  get(slug: string): { bot: PersonaBotDetail; profileFingerprint: string } {
+  get(slug: string): AdminResult<{ bot: PersonaBotDetail; profileFingerprint: string }> {
     return unwrap(this.methods.get({ slug }));
   }
 
@@ -849,7 +1518,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     memoryLocation?: string,
     coreMemory?: string,
     operationKey?: string,
-  ): { bot: PersonaBotDetail; channelId?: string; receipt?: BotCreationReceipt } {
+  ): {
+    bot: PersonaBotDetail;
+    channelId?: string;
+    receipt?: BotCreationReceipt;
+  } {
     return unwrap(
       this.methods.create({
         displayName,
@@ -933,7 +1606,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     dataBase64: string,
   ): BotZipUploadStatus {
     return unwrap(
-      this.methods.zipUploadChunk({ uploadKey, sha256, sizeBytes, offset, dataBase64 }),
+      this.methods.zipUploadChunk({
+        uploadKey,
+        sha256,
+        sizeBytes,
+        offset,
+        dataBase64,
+      }),
     );
   }
 
@@ -949,7 +1628,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     description?: string,
   ): { receipt: BotCreationReceipt | null } {
     return unwrap(
-      this.methods.zipImportLookup({ operationKey, sha256, displayName, roles, description }),
+      this.methods.zipImportLookup({
+        operationKey,
+        sha256,
+        displayName,
+        roles,
+        description,
+      }),
     );
   }
 
@@ -961,7 +1646,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     displayName: string,
     roles?: string[],
     description?: string,
-  ): Promise<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }> {
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+  }> {
     return unwrapAsync(
       this.methods.zipImport({
         operationKey,
@@ -1008,7 +1697,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     patch: PersonaBotPatch,
     expectedProfile?: string,
-  ): { bot: PersonaBotDetail } {
+  ): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.update({ slug, patch, expectedProfile }));
   }
 
@@ -1018,29 +1707,40 @@ export class BotharnessBridgeService extends TypertRemoteService {
   dataResetConfirm(token: string): { reset: DataResetResult } {
     return unwrap(this.methods.dataResetConfirm({ token }));
   }
-  deletionPreview(slug: string): { preview: PersonaBotDeletionPreview } {
+  deletionPreview(
+    slug: string,
+  ): AdminResult<
+    { preview: PersonaBotDeletionPreview },
+    BotMetadataResult & { preview: AdminDeletionPreview }
+  > {
     return unwrap(this.methods.deletionPreview({ slug }));
   }
   async deletionConfirm(
     slug: string,
     token: string,
     eraseMemory: boolean,
-  ): Promise<{ deletion: PersonaBotDeletion }> {
+  ): Promise<
+    AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+  > {
     return unwrapAsync(this.methods.deletionConfirm({ slug, token, eraseMemory }));
   }
-  async deletionRetry(slug: string): Promise<{ deletion: PersonaBotDeletion }> {
+  async deletionRetry(
+    slug: string,
+  ): Promise<
+    AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
+  > {
     return unwrapAsync(this.methods.deletionRetry({ slug }));
   }
-  deletionMemoryFolder(slug: string): {
+  deletionMemoryFolder(slug: string): AdminResult<{
     target: { path: string; relativePath: string; kind: 'directory' };
-  } {
+  }> {
     return unwrap(this.methods.deletionMemoryFolder({ slug }));
   }
-  pause(slug: string): { bot: PersonaBotDetail } {
+  pause(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.pause({ slug }));
   }
 
-  resume(slug: string): { bot: PersonaBotDetail } {
+  resume(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.resume({ slug }));
   }
   computerAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
@@ -1058,6 +1758,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   approvalTemplates(slug?: string): {
     templates: ApprovalTemplateEntry[];
     selected?: string | null;
+    globalDefault?: string | null;
+    effective?: string | null;
+    source?: 'global' | 'specific' | 'off';
   } {
     return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
   }
@@ -1148,12 +1851,150 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {
-    return unwrap(this.methods.approvalTemplateDelete({ name }));
+  approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
+    return unwrap(this.methods.approvalTemplateDeletePreview({ name }));
+  }
+
+  approvalTemplateDelete(
+    name: string,
+    confirmed: boolean,
+    revision: string,
+  ): {
+    template: { name: string };
+    clearedBots: string[];
+    inheritedBots: string[];
+    globalDefault: string | null;
+  } {
+    return unwrap(this.methods.approvalTemplateDelete({ name, confirmed, revision }));
+  }
+
+  approvalTemplateGlobalSet(template: string | null): { template: string | null } {
+    return unwrap(this.methods.approvalTemplateGlobalSet({ template }));
   }
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
     return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+  }
+
+  voiceProviders(slug?: string): VoiceProvidersView {
+    return unwrap(this.methods.voiceProviders(slug === undefined ? {} : { slug }));
+  }
+
+  voiceProviderAdd(
+    preset: string,
+    name?: string,
+    baseUrl?: string,
+    model?: string,
+    defaultVoice?: string,
+    key?: string,
+    kind?: string,
+    language?: string,
+  ): Promise<{ provider: VoiceProviderView }> {
+    return unwrapAsync(
+      this.methods.voiceProviderAdd({
+        preset,
+        name,
+        baseUrl,
+        model,
+        defaultVoice,
+        key,
+        kind,
+        language,
+      }),
+    );
+  }
+
+  voiceProviderRemove(id: string): Promise<{ provider: VoiceProviderView; clearedBots: string[] }> {
+    return unwrapAsync(this.methods.voiceProviderRemove({ id }));
+  }
+
+  voiceProviderTest(id: string, voiceId?: string): Promise<ProviderHealth> {
+    return unwrapAsync(this.methods.voiceProviderTest({ id, voiceId }));
+  }
+
+  voiceSynthesize(
+    text: string,
+    slug?: string,
+    providerId?: string,
+    voiceId?: string,
+    markdown?: boolean,
+  ): Promise<VoiceSynthesisView> {
+    return unwrapAsync(this.methods.voiceSynthesize({ text, slug, providerId, voiceId, markdown }));
+  }
+
+  botVoiceSet(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): { slug: string; voice: PersonaBotVoice | null } {
+    return unwrap(this.methods.botVoiceSet({ slug, providerId, voiceId }));
+  }
+
+  voiceTranscribe(
+    audio: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<VoiceTranscriptionView> {
+    return unwrapAsync(this.methods.voiceTranscribe({ audio, slug, providerId, language }));
+  }
+
+  botAsrSet(
+    slug: string,
+    providerId: string | null,
+    language?: string,
+  ): { slug: string; asr: PersonaBotAsr | null } {
+    return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
+  }
+
+  voiceDefaultSet(
+    kind: string,
+    providerId: string | null,
+    voiceId?: string,
+    language?: string,
+  ): { defaults: VoiceDefaults } {
+    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  botModes(slug?: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModes(slug === undefined ? {} : { slug }));
+  }
+
+  botModeDefaultSet(mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeDefaultSet({ mode }));
+  }
+
+  botModeSet(slug: string, mode: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeSet({ slug, mode }));
+  }
+
+  botModeTemplateSave(name: string, modes: string[], id?: string): Promise<BotModesView> {
+    return unwrapAsync(
+      this.methods.botModeTemplateSave({ name, modes, ...(id === undefined ? {} : { id }) }),
+    );
+  }
+
+  botModeTemplateDelete(id: string): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateDelete({ id }));
+  }
+
+  botModeTemplateSet(slug: string, template: string | null): Promise<BotModesView> {
+    return unwrapAsync(this.methods.botModeTemplateSet({ slug, template }));
+  }
+
+  voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
+    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
+  }
+
+  voiceDictation(
+    kind: string,
+    id?: string,
+    pcm?: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
+    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -1192,11 +2033,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.idleCompactionCacheLifetimeSet({ provider, model, seconds }));
   }
 
-  standingLimitsSet(slug: string, soul: number, coreMemory: number): { bot: PersonaBotDetail } {
+  standingLimitsSet(
+    slug: string,
+    soul: number,
+    coreMemory: number,
+  ): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.standingLimitsSet({ slug, soul, coreMemory }));
   }
 
-  botAvatarSet(channelId: string, avatar: string | null): { bot: PersonaBotDetail } {
+  botAvatarSet(channelId: string, avatar: string | null): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.botAvatarSet({ channelId, avatar }));
   }
 
@@ -1232,27 +2077,37 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.partLibraryAdd({ part, name, parent }));
   }
 
-  botBannerSet(channelId: string, banner: unknown): { bot: PersonaBotDetail } {
+  botBannerSet(channelId: string, banner: unknown): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.botBannerSet({ channelId, banner }));
   }
 
-  botAppearanceSet(channelId: string, recipe: unknown): { bot: PersonaBotDetail } {
+  botAppearanceSet(channelId: string, recipe: unknown): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.botAppearanceSet({ channelId, recipe }));
   }
 
-  botPrimaryColorSet(channelId: string, primaryColor: unknown): { bot: PersonaBotDetail } {
+  botPrimaryColorSet(
+    channelId: string,
+    primaryColor: unknown,
+  ): AdminResult<{ bot: PersonaBotDetail }> {
     return unwrap(this.methods.botPrimaryColorSet({ channelId, primaryColor }));
   }
 
-  channels(): { channels: ChannelListItem[] } {
-    return unwrap(this.methods.channels({}));
+  async channels(): Promise<{ channels: ChannelListItem[] }> {
+    return unwrap(await this.methods.channels({}));
   }
 
-  channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {
+  async channelListChanges(sinceSeq: number, epoch?: string): Promise<ChannelListChanges> {
+    return unwrap(await this.methods.channelListChanges({ sinceSeq, epoch }));
+  }
+
+  channelDm(
+    slug: string,
+    displayName?: string,
+  ): { channel: ChannelRecord & { readOnly?: boolean } } {
     return unwrap(this.methods.channelDm({ slug, displayName }));
   }
 
-  channelGet(channelId: string): ChannelManagementResult {
+  channelGet(channelId: string) {
     return unwrap(this.methods.channelGet({ channelId }));
   }
 
@@ -1299,7 +2154,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedChannel?: string,
   ): { channel: ChannelRecord } | ChannelManagementResult {
     return unwrap(
-      this.methods.channelGroupInvite({ channelId, botSlug, operationKey, expectedChannel }),
+      this.methods.channelGroupInvite({
+        channelId,
+        botSlug,
+        operationKey,
+        expectedChannel,
+      }),
     );
   }
 
@@ -1351,7 +2211,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelGroupSendReview({ channelId, enabled }));
   }
 
-  channelGroupWakePolicies(channelId: string): { members: GroupMemberWakePolicy[] } {
+  channelGroupWakePolicies(channelId: string): {
+    members: GroupMemberWakePolicy[];
+  } {
     return unwrap(this.methods.channelGroupWakePolicies({ channelId }));
   }
 
@@ -1377,6 +2239,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  ping() {
+    return unwrap(this.methods.ping({}));
+  }
+
   humanIdentity() {
     return unwrap(this.methods.humanIdentity({}));
   }
@@ -1385,12 +2251,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.composerIdentity({}));
   }
 
-  composerValidate(channelId: string, attachments: ChannelAttachmentRef[], replyTo?: string) {
+  composerValidate(
+    channelId: string,
+    attachments: ChannelAttachmentRef[],
+    replyTo?: string,
+    quotes?: Array<{ messageId: string; text?: string }>,
+  ) {
     return unwrap(
       this.methods.composerValidate({
         channelId,
         attachments,
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(quotes === undefined ? {} : { quotes }),
       }),
     );
   }
@@ -1401,6 +2273,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   humanNameSet(displayName: string | null) {
     return unwrap(this.methods.humanNameSet({ displayName }));
+  }
+
+  humanAvatarSet(avatar: string | null) {
+    return unwrap(this.methods.humanAvatarSet({ avatar }));
+  }
+
+  humanAvatars(humanIds: string[]) {
+    return unwrap(this.methods.humanAvatars({ humanIds }));
+  }
+
+  humanProfileSetupFinish() {
+    return unwrap(this.methods.humanProfileSetupFinish({}));
   }
 
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
@@ -1518,8 +2402,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelReadPosition({ channelId }));
   }
 
-  async channelMarkAllRead(): Promise<{ channels: number }> {
-    return unwrap(await this.methods.channelMarkAllRead({}));
+  async channelMarkAllRead(channelId?: string, botSlug?: string): Promise<{ channels: number }> {
+    return unwrap(await this.methods.channelMarkAllRead({ channelId, botSlug }));
   }
   async channelMarkRead(
     channelId: string,
@@ -1550,9 +2434,38 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageSearch({ text, cursor, limit }));
   }
 
+  async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.channelSkillCatalog({ channelId }));
+  }
+
+  async sessionSkillCatalog(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ skills: SkillCatalogEntry[] }> {
+    return unwrap(await this.methods.sessionSkillCatalog({ slug, sessionId }));
+  }
+  async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
+    return unwrap(await this.methods.botSkills({ slug }));
+  }
+  async skillShow(name: string, owner: string): Promise<{ skill: SkillDetail }> {
+    return unwrap(await this.methods.skillShow({ name, owner }));
+  }
+  async botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
+    return unwrap(await this.methods.botSkillRemove({ slug, name }));
+  }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
+  async tobCli(
+    action: 'start' | 'status' | 'cancel',
+    command?: TobCliCommand,
+    id?: string,
+  ): Promise<TobCliStatus> {
+    return unwrap(
+      await this.methods.tobCli(action === 'start' ? { action, command } : { action, id }),
+    );
+  }
+
   channelSendStatus(channelId: string, messageId: string): ChannelSendStatus {
     return unwrap(this.methods.channelSendStatus({ channelId, messageId }));
   }
@@ -1569,9 +2482,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     grantRequestResolution?: ChannelMessage['grantRequestResolution'],
     assignmentReply?: ChannelMessage['assignmentReply'],
     allBotMention?: AllBotMention,
+    genuiReply?: GenuiMessageReply,
+    skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: ChannelMessage['quotes'],
   ): Promise<{ message: ChannelMessage }> {
     return unwrap(
       await this.methods.channelSend({
+        ...(skillInvocations === undefined ? {} : { skillInvocations }),
+        ...(quotes === undefined ? {} : { quotes }),
         channelId,
         body,
         ...(allBotMention === undefined ? {} : { allBotMention }),
@@ -1583,6 +2501,28 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(channelRefs === undefined ? {} : { channelRefs }),
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
+        ...(genuiReply === undefined ? {} : { genuiReply }),
+      }),
+    );
+  }
+
+  channelGenuiView(channelId: string, messageId: string): GenuiPrivateView {
+    return unwrap(this.methods.channelGenuiView({ channelId, messageId }));
+  }
+  channelGenuiViewSave(
+    channelId: string,
+    messageId: string,
+    snapshotId: string,
+    expectedVersion: number,
+    state: GenuiViewState | GenuiDocumentState,
+  ): GenuiPrivateView {
+    return unwrap(
+      this.methods.channelGenuiViewSave({
+        channelId,
+        messageId,
+        snapshotId,
+        expectedVersion,
+        state,
       }),
     );
   }
@@ -1671,7 +2611,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   humanAttentionStatus(messageCounts?: boolean): HumanAttentionStatus {
     return unwrap(this.methods.humanAttentionStatus({ messageCounts }));
   }
-  channelUnreadCounts(): { channels: Array<{ channelId: string; unreadCount: number }> } {
+  channelUnreadCounts(): {
+    channels: Array<{ channelId: string; unreadCount: number }>;
+  } {
     return unwrap(this.methods.channelUnreadCounts({}));
   }
   humanAssignmentContext(
@@ -1686,6 +2628,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   humanAttentionRestore(itemId: string, sourceKey: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionRestore({ itemId, sourceKey }));
+  }
+  async humanAttentionDismissAll(
+    kind?: string,
+    category?: string,
+    botSlug?: string,
+    channelId?: string,
+  ): Promise<{ accepted: boolean; dismissed: number; read: number; more: boolean }> {
+    return unwrap(
+      await this.methods.humanAttentionDismissAll({ kind, category, botSlug, channelId }),
+    );
   }
   humanAttentionIgnore(sourceEventId: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionIgnore({ sourceEventId }));
@@ -1707,11 +2659,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
   ): { assignments: AssignmentSummary[]; nextCursor?: string } {
     return unwrap(
-      this.methods.assignments({ slug, query, activity, includeArchived, limit, cursor }),
+      this.methods.assignments({
+        slug,
+        query,
+        activity,
+        includeArchived,
+        limit,
+        cursor,
+      }),
     );
   }
 
-  channelAssignments(channelId: string): { assignments: ChannelAssignmentSummary[] } {
+  channelAssignments(channelId: string): {
+    assignments: ChannelAssignmentSummary[];
+  } {
     return unwrap(this.methods.channelAssignments({ channelId }));
   }
 
@@ -1742,7 +2703,41 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
   }
 
-  workspaceOptions(): { workspaces: { id: string; path: string; title: string }[] } {
+  sessionProgress(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<{ sessions: SessionProgressEntry[] }> {
+    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+  }
+
+  sessionTranscript(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+  }
+
+  sessionLive(
+    slug: string,
+    sessionId: string,
+    after?: number,
+  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+    return unwrapAsync(
+      this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
+    );
+  }
+
+  sessionToolDetail(
+    slug: string,
+    sessionId: string,
+    callId: string,
+  ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
+    return unwrapAsync(this.methods.sessionToolDetail({ slug, sessionId, callId }));
+  }
+
+  workspaceOptions(): {
+    workspaces: { id: string; path: string; title: string }[];
+  } {
     return unwrap(this.methods.workspaceOptions({}));
   }
 
@@ -1751,7 +2746,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sourceEventId: string,
     attachmentId: string,
   ): Promise<{ target: MemoryFileTarget }> {
-    return unwrapAsync(this.methods.channelMediaTarget({ channelId, sourceEventId, attachmentId }));
+    return unwrapAsync(
+      this.methods.channelMediaTarget({
+        channelId,
+        sourceEventId,
+        attachmentId,
+      }),
+    );
   }
 
   messageAttachmentTarget(
@@ -1788,7 +2789,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     scope?: { channelId: string; path: string },
   ): Promise<{ grant: WorkspaceGrant; created?: boolean }> {
     return unwrapAsync(
-      this.methods.grantCreate({ slug, workspaceId, ...(scope === undefined ? {} : { scope }) }),
+      this.methods.grantCreate({
+        slug,
+        workspaceId,
+        ...(scope === undefined ? {} : { scope }),
+      }),
     );
   }
 
@@ -1803,7 +2808,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     workspaceId: string,
     acknowledgeReadWrite: boolean,
   ) {
-    this.requirePrivateOwner('Workspace authorization requires the authenticated Owner');
+    this.invocationHuman();
     return unwrapAsync(
       this.methods.grantRequestApprove({
         slug,
@@ -1851,7 +2856,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string,
     messageId: string,
   ): {
-    status: 'pending' | 'expired';
+    approval?: ApprovalCard;
+    status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
     return unwrap(this.methods.toolApprovalStatus({ channelId, messageId }));
@@ -1879,7 +2885,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   userQuestionStatus(
     channelId: string,
     messageId: string,
-  ): { status: 'pending' | 'submitted' | 'answered' | 'expired' } {
+  ): { status: 'pending' | 'submitted' | 'answered' | 'expired'; approval?: ApprovalCard } {
     return unwrap(this.methods.userQuestionStatus({ channelId, messageId }));
   }
 
@@ -1918,13 +2924,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tool: string,
     args?: Record<string, unknown>,
     sessionId?: string,
-  ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
+    sourceEventId?: string,
+  ): Promise<{
+    slug: string;
+    tool: string;
+    sessionId: 'direct';
+    result: unknown;
+  }> {
     return unwrapAsync(
       this.methods.botToolRun({
         slug,
         tool,
         ...(args === undefined ? {} : { args }),
         ...(sessionId === undefined ? {} : { sessionId }),
+        ...(sourceEventId === undefined ? {} : { sourceEventId }),
       }),
     );
   }
@@ -1957,6 +2970,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
     return unwrap(this.methods.memoryFileTarget({ slug, path }));
+  }
+
+  memoryImage(
+    slug: string,
+    path: string,
+    source: string,
+    revision: string,
+    reference?: string,
+  ): { mime: string; dataBase64: string } {
+    return unwrap(
+      this.methods.memoryImage({
+        slug,
+        path,
+        source,
+        revision,
+        ...(reference === undefined ? {} : { reference }),
+      }),
+    );
   }
 
   memorySnapshot(channelId: string): { snapshot: MemoryAcceptedSnapshot } {
@@ -2003,7 +3034,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.memoryWorkingDiff({ channelId, path, kind }));
   }
 
-  memoryRecoveryHistory(channelId: string): { checkpoints: MemoryRecoveryCheckpoint[] } {
+  memoryRecoveryHistory(channelId: string): {
+    checkpoints: MemoryRecoveryCheckpoint[];
+  } {
     return unwrap(this.methods.memoryRecoveryHistory({ channelId }));
   }
 
@@ -2015,7 +3048,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     checkpoint: MemoryRecoveryCheckpoint;
     archivePath: string;
   } {
-    return unwrap(this.methods.memoryRestore({ channelId, checkpointId, expectedCurrentId }));
+    return unwrap(
+      this.methods.memoryRestore({
+        channelId,
+        checkpointId,
+        expectedCurrentId,
+      }),
+    );
   }
 
   memoryRestoreCommit(
@@ -2031,7 +3070,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     saved: MemoryRecoveryCheckpoint;
   } {
     return unwrap(
-      this.methods.memoryRestoreCommit({ channelId, sha, expectedHead, restoreId, name }),
+      this.methods.memoryRestoreCommit({
+        channelId,
+        sha,
+        expectedHead,
+        restoreId,
+        name,
+      }),
     );
   }
 
@@ -2076,8 +3121,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.profileUsage({ channelId, filter }));
   }
 
-  profileActivity(channelId: string, before?: string, weeks?: number): ProfileActivity {
-    return unwrap(this.methods.profileActivity({ channelId, before, weeks }));
+  async profileActivity(
+    channelId: string,
+    before?: string,
+    weeks?: number,
+  ): Promise<ProfileActivity> {
+    return unwrap(await this.methods.profileActivity({ channelId, before, weeks }));
   }
 
   async profileSessionUsage(channelId: string): Promise<ProfileSessionUsage> {
@@ -2161,7 +3210,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     reason?: string,
   ): Promise<{ received: true }> {
     return unwrapAsync(
-      this.methods.marketplaceReport({ id, altcha, ...(reason === undefined ? {} : { reason }) }),
+      this.methods.marketplaceReport({
+        id,
+        altcha,
+        ...(reason === undefined ? {} : { reason }),
+      }),
     );
   }
 
@@ -2227,7 +3280,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     replaces?: string,
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags, replaces }));
+    return unwrapAsync(
+      this.methods.marketplaceUpload({
+        slug,
+        displayName,
+        bio,
+        tags,
+        replaces,
+      }),
+    );
   }
 
   async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
@@ -2281,13 +3342,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     id: string,
     reviewId: string,
     operationKey?: string,
+    source?: MarketplaceInstallSource,
   ): Promise<{
     bot: PersonaBotDetail;
     channelId: string;
     receipt?: BotCreationReceipt;
     listing: MarketplaceEntry;
   }> {
-    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey }));
+    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey, source }));
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
@@ -2298,8 +3360,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.releaseUpdate({ force }));
   }
 
-  async releaseInstall(version: string): Promise<ReleaseInstall> {
-    return unwrapAsync(this.methods.releaseInstall({ version }));
+  async releaseInstall(version: string, requestId?: string): Promise<ReleaseInstall> {
+    return unwrapAsync(
+      this.methods.releaseInstall(requestId === undefined ? { version } : { version, requestId }),
+    );
   }
 
   async releaseRestart(): Promise<ReleaseRestart> {
@@ -2310,12 +3374,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.pluginUpdates({ force }));
   }
 
-  async pluginInstall(name: string, version: string): Promise<PluginInstall> {
-    return unwrapAsync(this.methods.pluginInstall({ name, version }));
+  async pluginInstall(name: string, version: string, requestId?: string): Promise<PluginInstall> {
+    return unwrapAsync(
+      this.methods.pluginInstall(
+        requestId === undefined ? { name, version } : { name, version, requestId },
+      ),
+    );
   }
 
   async pluginRestart(): Promise<PluginRestart> {
     return unwrapAsync(this.methods.pluginRestart({}));
+  }
+
+  updateRun(id?: string): UpdateRun | null {
+    return unwrap(this.methods.updateRun(id === undefined ? {} : { id }));
+  }
+
+  async updateCancel(id: string): Promise<UpdateCancel> {
+    return unwrapAsync(this.methods.updateCancel({ id }));
   }
 
   telemetryStatus(): TelemetryStatus {
@@ -2332,6 +3408,51 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   telemetrySet(enabled: boolean): TelemetryStatus {
     return unwrap(this.methods.telemetrySet({ enabled }));
+  }
+
+  takeoverList(query: {
+    slug?: string;
+    channelId?: string;
+    pendingOnly?: boolean;
+    limit?: number;
+  }): { takeovers: TakeoverHandoff[] } {
+    return unwrap(this.methods.takeoverList(query ?? {}));
+  }
+
+  takeoverStatus(channelId: string, messageId: string): { takeover: TakeoverHandoff } {
+    return unwrap(this.methods.takeoverStatus({ channelId, messageId }));
+  }
+
+  async takeoverRequest(
+    slug: string,
+    input: { channelId?: string; target: string; title: string; message: string; minutes?: number },
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverRequest({ ...input, slug }));
+  }
+
+  async takeoverComplete(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed',
+    surface?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverComplete({ channelId, messageId, outcome, surface }));
+  }
+
+  async takeoverCancel(
+    channelId: string,
+    messageId: string,
+    surface?: string,
+    bot?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(
+      this.methods.takeoverCancel({
+        channelId,
+        messageId,
+        surface,
+        ...(bot === undefined ? {} : { bot }),
+      }),
+    );
   }
 
   scheduleList(slug: string): { schedules: BotSchedule[] } {
@@ -2364,6 +3485,61 @@ export class BotharnessBridgeService extends TypertRemoteService {
 }
 
 markRemoteMethods(BotharnessBridgeService.prototype, [
+  'botVisibility',
+  'botVisibilitySet',
+  'botSwitches',
+  'reachableBots',
+  'botProactiveOptOut',
+  'roleConflicts',
+  'speakerPolicy',
+  'privateObjects',
+  'privateContentOpen',
+  'privateContentPage',
+  'auditLog',
+  'auditVerify',
+  'spaces',
+  'spaceAudienceDirectory',
+  'spaceCreate',
+  'spaceUpdate',
+  'spaceDelete',
+  'teamMode',
+  'modelsAllowed',
+  'usageByMember',
+  'teamModeSet',
+  'teamOwnerPasswordSet',
+  'teamInsecureHttpSet',
+  'members',
+  'memberCreate',
+  'permissionCatalog',
+  'roles',
+  'roleCreate',
+  'roleUpdate',
+  'roleDelete',
+  'memberRolesSet',
+  'memberDevices',
+  'memberDeviceRevoke',
+  'ownerTransfer',
+  'memberPasswordChange',
+  'memberPasswordReset',
+  'memberInvitation',
+  'memberPairingOffer',
+  'channelRoleDirectory',
+  'channelVisibilitySet',
+  'channelAdminsSet',
+  'channelPolicySet',
+  'channelHumanAdd',
+  'channelMemberCandidates',
+  'channelDescriptionSet',
+  'teamDirectory',
+  'humanDm',
+  'humanDmByUsername',
+  'memberDeactivate',
+  'memberReactivate',
+  'memberTransferPreview',
+  'memberTransfer',
+  'memberPurgePreview',
+  'memberPurgeConfirm',
+  'channelPublicSet',
   'privateInputStatus',
   'privateInputSubmit',
   'privateInputCancel',
@@ -2388,6 +3564,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'approvalRoute',
   'approvalTest',
   'approvalRetry',
+  'questionRetry',
   'failureAlertsSet',
   'failureAlertsTest',
   'failureAlertsRetry',
@@ -2408,6 +3585,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messagingSend',
   'tobHome',
   'onboarding',
+  'acknowledgements',
+  'acknowledge',
   'onboardingModel',
   'telemetryEvent',
   'modelPlanInherit',
@@ -2418,11 +3597,24 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botSystemPrompt',
   'botTurnInput',
   'channelBotStop',
+  'sessionStop',
+  'sessionMessageSend',
+  'botStop',
   'modelCatalog',
+  'modelProviders',
+  'modelProviderAdd',
+  'modelProviderEdit',
+  'modelProviderRemove',
+  'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
   'modelPresetApply',
+  'modelGroups',
+  'modelGroup',
+  'modelGroupCreate',
+  'modelGroupUpdate',
+  'modelGroupDelete',
   'modelPlan',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',
@@ -2450,10 +3642,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pause',
   'resume',
   'channels',
+  'ping',
   'humanIdentity',
   'composerIdentity',
   'composerValidate',
   'humanNameSet',
+  'humanAvatarSet',
+  'humanAvatars',
+  'humanProfileSetupFinish',
   'channelHumanNameSet',
   'channelDm',
   'channelGet',
@@ -2487,8 +3683,16 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
+  'tobCli',
+  'channelSkillCatalog',
+  'sessionSkillCatalog',
+  'botSkills',
+  'skillShow',
+  'botSkillRemove',
   'channelSend',
   'channelSendStatus',
+  'channelGenuiView',
+  'channelGenuiViewSave',
   'botAttention',
   'botSourcePolicies',
   'botSourcePolicySet',
@@ -2501,12 +3705,17 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'humanAttentionIgnore',
   'humanAttentionDismiss',
   'humanAttentionRestore',
+  'humanAttentionDismissAll',
   'humanAttentionSnooze',
   'assignments',
   'channelAssignments',
   'assignment',
   'assignmentTimeline',
   'sessionSubagents',
+  'sessionProgress',
+  'sessionTranscript',
+  'sessionLive',
+  'sessionToolDetail',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',
@@ -2536,6 +3745,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionOwner',
   'botSessionIds',
   'memoryFileTarget',
+  'memoryImage',
   'memorySnapshot',
   'memoryFile',
   'memoryHistory',
@@ -2584,10 +3794,29 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
+  'approvalTemplateDeletePreview',
   'approvalTemplateDelete',
+  'approvalTemplateGlobalSet',
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',
+  'voiceProviders',
+  'voiceProviderAdd',
+  'voiceProviderRemove',
+  'voiceProviderTest',
+  'voiceSynthesize',
+  'botVoiceSet',
+  'voiceTranscribe',
+  'botAsrSet',
+  'voiceDefaultSet',
+  'botModes',
+  'botModeDefaultSet',
+  'botModeSet',
+  'botModeTemplateSave',
+  'botModeTemplateDelete',
+  'botModeTemplateSet',
+  'voiceSpeechThresholdSet',
+  'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
@@ -2635,11 +3864,18 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pluginUpdates',
   'pluginInstall',
   'pluginRestart',
+  'updateRun',
+  'updateCancel',
   'telemetryStatus',
   'telemetrySet',
   'gitStatus',
   'gitInstall',
   'scheduleList',
+  'takeoverList',
+  'takeoverStatus',
+  'takeoverRequest',
+  'takeoverComplete',
+  'takeoverCancel',
   'scheduleCreate',
   'scheduleUpdate',
   'scheduleDelete',
@@ -2647,6 +3883,10 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'scheduleRunNow',
   'schedulePreview',
   'channelJournalPage',
+  'channelFilesPage',
+  'channelChanges',
+  'channelChangeCursor',
+  'channelListChanges',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',
@@ -2657,9 +3897,10 @@ markRemoteStreams(BotharnessBridgeService.prototype, [
 
 export function registerBridge(
   ctx: Context,
-  methods: BridgeMethods,
+  methods: InvocationBridgeMethods,
   privateInputs?: PrivateInputs,
   live?: BridgeLive,
+  team?: TeamService,
 ): BotharnessBridgeService {
-  return new BotharnessBridgeService(ctx, methods, privateInputs, live);
+  return new BotharnessBridgeService(ctx, methods, privateInputs, live, team);
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ActivityItem } from '../src/host/activity-sources';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { activityAvatar } from '../src/ui/shell/activity-avatar';
 
 const item = (fields: Partial<ActivityItem>) =>

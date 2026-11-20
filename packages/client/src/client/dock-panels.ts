@@ -10,6 +10,7 @@ import type {
 export type { DockPanelChannel, DockPanelProps, DockPanelInstance } from '../panel-api.js';
 
 import type { ChannelSidebarEntry } from './channel-sidebar.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export const BOT_ONLY_CHANNEL_PANELS: readonly string[] = [
   'botharness-browser',
@@ -99,10 +100,12 @@ export function createDockPanelRegistry(
     for (const listener of listeners) {
       try {
         Promise.resolve(listener()).catch(() => {
-          if (consumerFailures++ < 5) console.warn('botharness panels: consumer_failed');
+          if (consumerFailures++ < 5)
+            reportFailure('panels-consumer-failed', 'panels: consumer_failed');
         });
       } catch {
-        if (consumerFailures++ < 5) console.warn('botharness panels: consumer_failed');
+        if (consumerFailures++ < 5)
+          reportFailure('panels-consumer-failed', 'panels: consumer_failed');
       }
     }
   };

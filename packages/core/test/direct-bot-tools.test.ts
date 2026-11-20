@@ -1,17 +1,22 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { Context } from '@deepseek-ai/cordis';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { Context } from '@deepseek-ai/cordis';
+import { ToolRuntime } from '@deepseek-ai/dsh-tools';
+import { executeNativeTool, installNativeTools } from '../src/runtime/native-agent-compat.js';
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
+import { TAKEOVER_TOOLS } from '../src/takeover/contracts.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { directToolTrace } from '../src/bots/tool-trace.js';
-import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createBotRuntime, DirectBotToolError } from '../src/runtime/bot-runtime.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
 import {
   createDshBotAgentAdapter,
@@ -20,7 +25,7 @@ import {
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
-import { createTestWorkspaceGrants } from './workspace-grant-fixture.js';
+import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const repo = join(import.meta.dirname, '../../..');
 
@@ -29,18 +34,61 @@ function botToolNamesFrom(source: string): string[] {
   return block === null ? [] : [...block[1]!.matchAll(/'([a-z_]+)'/g)].map((name) => name[1]!);
 }
 
-function setup() {
+function setup(
+  suppressAssignmentReports = false,
+  observeDirectToolCleanupFailure?: Parameters<
+    typeof createDshBotAgentAdapter
+  >[0]['observeDirectToolCleanupFailure'],
+) {
   const home = createTempRoot('botharness-direct-tools-');
   const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
   expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
   const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
   );
-  const host = new FakeAgentHost({ kind: 'completed' });
+  const host = suppressAssignmentReports
+    ? new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined })
+    : new FakeAgentHost({ kind: 'completed' });
   const agents = createDshBotAgentAdapter({
     agents: host,
+    ...(observeDirectToolCleanupFailure === undefined ? {} : { observeDirectToolCleanupFailure }),
+    onAgentSetup: (ctx) => {
+      Object.assign(ctx.tools, {
+        execute: async (input: {
+          name: string;
+          arguments: unknown;
+          callId: string;
+          signal: AbortSignal;
+        }) => {
+          const tool = ctx.tools.get(input.name);
+          if (!tool) throw new Error('Missing fixture tool');
+          const native = new Context();
+          const providers = native.plugin({
+            name: 'direct-test-services',
+            apply(c: Context) {
+              c.provide('systemPrompt', {
+                tools: () => () => undefined,
+                section: () => () => undefined,
+                getSectionOrder: () => 1,
+              });
+            },
+          });
+          const runtime = native.plugin(ToolRuntime, {});
+          try {
+            await providers.await();
+            await runtime.await();
+            native.tools.register(tool);
+            await native.inject(['tools'], (c) => installNativeTools(c)).await();
+            return await executeNativeTool(native, { ...input, callId: ToolCallId(input.callId) });
+          } finally {
+            await runtime.dispose();
+            await providers.dispose();
+          }
+        },
+      });
+    },
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
     orchestratorCwd: () => join(home, 'memory'),
     ensureWorkspace: () => undefined,
@@ -56,7 +104,16 @@ function setup() {
     agents,
     now: FIXED_NOW,
   });
-  return { runtime, channels, dm, host, registry, ownership };
+  return {
+    runtime,
+    channels,
+    dm,
+    host,
+    agents,
+    registry,
+    ownership,
+    owner,
+  };
 }
 
 describe('direct Bot tool runner', () => {
@@ -100,7 +157,9 @@ describe('direct Bot tool runner', () => {
           author: { kind: 'bot', slug: 'ada' },
         }),
       );
-      expect(host.sessions).toHaveLength(0);
+      expect(runtime.currentOrchestratorSessionId!('ada')).toBeUndefined();
+      expect(host.received.size).toBe(0);
+      expect(host.disposed).toHaveLength(host.sessions.length);
     } finally {
       await runtime.close();
     }
@@ -123,7 +182,7 @@ describe('direct Bot tool runner', () => {
     }
   });
 
-  it('lists runtime Bot tools while cloud_work has its dedicated direct CLI', () => {
+  it('lists direct Bot tools while cloud and admitted CLI keep their dedicated paths', async () => {
     const { runtime } = setup();
     const listed = runtime.directBotTools!().map((tool) => tool.name);
     expect(listed).toContain('channel_list');
@@ -146,11 +205,25 @@ describe('direct Bot tool runner', () => {
       botTools
         .filter(
           (name) =>
-            !exempt.includes(name) && name !== 'cloud_work' && !PRIVATE_INPUT_TOOLS.has(name),
+            !exempt.includes(name) &&
+            name !== 'cloud_work' &&
+            name !== 'deepseekbot_cli' &&
+            !TURN_ONLY_BOT_TOOLS.has(name) &&
+            !PRIVATE_INPUT_TOOLS.has(name) &&
+            !TAKEOVER_TOOLS.has(name),
         )
         .sort(),
     );
     expect(listed.every((name) => botTools.includes(name))).toBe(true);
+    expect(listed).not.toContain('deepseekbot_cli');
+    await expect(
+      runtime.runDirectBotTool!(
+        'ada',
+        'deepseekbot_cli',
+        { argv: ['approval-templates'] },
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ code: 'tool-not-direct' });
     expect(botTools).toContain('cloud_work');
     expect(exempt).not.toContain('cloud_work');
     expect(readFileSync(join(repo, 'packages/core/src/bots/cli-live.ts'), 'utf8')).toContain(
@@ -179,7 +252,8 @@ describe('direct Bot tool runner', () => {
       body: 'direct hello',
       author: { kind: 'bot', slug: 'ada' },
     });
-    expect(host.sessions).toHaveLength(0);
+    expect(host.received.size).toBe(0);
+    expect(host.disposed).toHaveLength(host.sessions.length);
 
     const calls = runtime.directBotToolCalls!('ada');
     expect(calls.map((call) => [call.tool, call.outcome])).toEqual([
@@ -215,7 +289,7 @@ describe('direct Bot tool runner', () => {
       runtime.runDirectBotTool!('ada', 'channel_list', { limit: 'many' }, signal),
     ).rejects.toMatchObject({ code: 'invalid-args' });
     await expect(
-      runtime.runDirectBotTool!('ada', 'create_assignment', {}, signal),
+      runtime.runDirectBotTool!('ada', 'wait_for_assignment', {}, signal),
     ).rejects.toMatchObject({ code: 'tool-not-direct' });
     await expect(
       runtime.runDirectBotTool!('ada', 'ask_user_question', {}, signal),
@@ -231,6 +305,191 @@ describe('direct Bot tool runner', () => {
     await expect(
       runtime.runDirectBotTool!('ada', 'channel_list', {}, signal),
     ).rejects.toMatchObject({ code: 'bot-paused' });
+  });
+
+  it('records silent direct Assignment notices separately from native reports', async () => {
+    const { runtime, host, owner, dm } = setup(true);
+    const signal = new AbortController().signal;
+    const database = attachOperationalModule(owner, 'direct-assignment-test');
+    try {
+      const created = await runtime.runDirectBotTool!(
+        'ada',
+        'create_assignment',
+        {
+          title: 'Nightly report',
+          description: 'Summarize the nightly build.',
+          instructions: 'Read the build log and summarize failures.',
+          grant_id: TEST_GRANT_ID,
+          key: 'nightly-report',
+        },
+        signal,
+      );
+      expect(created.result).toMatchObject({ outcome: 'created', title: 'Nightly report' });
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      const origin = database.read((db) =>
+        db
+          .prepare(
+            `SELECT e.source_kind, e.channel_id, e.payload_json,
+                    (SELECT COUNT(*) FROM inbox_admissions a WHERE a.source_event_id = e.source_event_id) AS admissions
+               FROM assignments s JOIN source_events e ON e.source_event_id = s.source_event_id
+              WHERE s.session_id = ?`,
+          )
+          .get(sessionId),
+      ) as {
+        source_kind: string;
+        channel_id: string | null;
+        payload_json: string;
+        admissions: number;
+      };
+      expect(origin).toMatchObject({
+        source_kind: 'system-message',
+        channel_id: null,
+        admissions: 0,
+      });
+      expect(JSON.parse(origin.payload_json)).toMatchObject({
+        directBotTool: { tool: 'create_assignment' },
+      });
+      const notices = () =>
+        database.read((db) =>
+          db
+            .prepare(
+              `SELECT e.body, json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS cause,
+                      a.source_policy_wake_mode AS wake, a.attempt_state
+                 FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+                WHERE e.assignment_session_id = ? AND e.source_kind = 'assignment-lifecycle'
+                  AND json_extract(e.payload_json, '$.assignmentLifecycle.cause') IN ('direct-create', 'direct-request')
+                ORDER BY e.rowid`,
+            )
+            .all(sessionId),
+        ) as Array<{ body: string; cause: string; wake: string; attempt_state: string }>;
+      expect(notices()).toEqual([
+        expect.objectContaining({
+          cause: 'direct-create',
+          wake: 'silent',
+          attempt_state: 'pending',
+        }),
+      ]);
+      expect(notices()[0]!.body).toContain('"Read the build log and summarize failures."');
+      expect([...host.received.keys()].filter((id) => id.startsWith('direct-'))).toEqual([]);
+
+      const requested = await runtime.runDirectBotTool!(
+        'ada',
+        'send_assignment_request',
+        { session_id: sessionId, text: `Also list flaky tests.${'x'.repeat(2_100)}` },
+        signal,
+      );
+      expect(requested.result).toMatchObject({ sessionId });
+      expect(notices().map((notice) => notice.cause)).toEqual(['direct-create', 'direct-request']);
+      expect(notices()[1]!.body).toContain('"Also list flaky tests.');
+      expect(notices()[1]!.body).toContain('122 more characters omitted');
+      expect(notices()[1]!.body).not.toContain('x'.repeat(2_000));
+      expect(notices().map((notice) => notice.attempt_state)).toEqual(['pending', 'pending']);
+
+      database.transaction(
+        (db) => {
+          const revision = (
+            db
+              .prepare(
+                `SELECT a.source_policy_revision AS revision FROM inbox_admissions a
+                   JOIN source_events e ON e.source_event_id = a.source_event_id
+                  WHERE e.assignment_session_id = ? LIMIT 1`,
+              )
+              .get(sessionId) as { revision: number }
+          ).revision;
+          db.prepare(
+            `INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
+               body, created_at, handled_at, attempt_state, expects_reply, payload_json)
+             VALUES ('turn-error-notice', 'assignment-lifecycle', 'ada', ?, 'The Assignment Turn ended with an error.',
+               '2026-11-09T00:00:00.000Z', '2026-11-09T00:00:00.000Z', 'handled', 0, ?)`,
+          ).run(
+            sessionId,
+            JSON.stringify({
+              author: { kind: 'system' },
+              assignmentLifecycle: { state: 'error', cause: 'native-turn-error' },
+            }),
+          );
+          db.prepare(
+            `INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
+             VALUES ('turn-error-notice', 'ada', 'assignment-lifecycle', ?, 'silent')`,
+          ).run(revision);
+        },
+        ['source-event'],
+      );
+
+      const admission = runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'human-after-direct',
+        body: 'Status?',
+      });
+      if (!admission.admitted) throw new Error('Not admitted');
+      await admission.settled.catch(() => undefined);
+      const turn = [...host.received.entries()]
+        .filter(([id]) => id !== sessionId)
+        .flatMap(([, messages]) => messages)
+        .flatMap((message) => message.content)
+        .map((part) => ('text' in part ? part.text : ''))
+        .join('\n');
+      expect(turn).toContain('created this Assignment directly through the deepseekbot CLI');
+      expect(turn).toContain(
+        'sent this Assignment a request directly from its Session detail or the deepseekbot CLI',
+      );
+      expect(turn).toContain('The Assignment Turn ended with an error.');
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it('resumes a Human-stopped Assignment when the Human sends it a request directly', async () => {
+    const { runtime, owner, host } = setup(true);
+    const signal = new AbortController().signal;
+    const database = attachOperationalModule(owner, 'direct-resume-test');
+    try {
+      const created = await runtime.runDirectBotTool!(
+        'ada',
+        'create_assignment',
+        {
+          title: 'Nightly report',
+          description: 'Summarize the nightly build.',
+          instructions: 'Read the build log and summarize failures.',
+          grant_id: TEST_GRANT_ID,
+        },
+        signal,
+      );
+      const sessionId = (created.result as { sessionId: string }).sessionId;
+      await runtime.stopSession!('ada', sessionId);
+      const resumed = await runtime.runDirectBotTool!(
+        'ada',
+        'unarchive_assignment',
+        { session_id: sessionId, message: 'Keep going.' },
+        signal,
+      );
+      expect(resumed.result).toMatchObject({
+        outcome: 'unarchived',
+        sessionId,
+        delivery: 'followup',
+      });
+      const notice = database.read((db) =>
+        db
+          .prepare(
+            `SELECT body FROM source_events
+              WHERE assignment_session_id = ? AND source_kind = 'assignment-lifecycle'
+                AND json_extract(payload_json, '$.assignmentLifecycle.cause') = 'direct-request'`,
+          )
+          .get(sessionId),
+      ) as { body: string } | undefined;
+      expect(notice?.body).toContain('sent this Assignment a request directly');
+      expect(notice?.body).toContain('"Keep going."');
+      await vi.waitFor(() =>
+        expect(
+          (host.received.get(sessionId) ?? [])
+            .flatMap((message) => message.content)
+            .map((part) => ('text' in part ? part.text : ''))
+            .join('\n'),
+        ).toContain('Keep going.'),
+      );
+    } finally {
+      await runtime.close();
+    }
   });
 
   it("runs Subagent tools only on one of the Bot's Assignment Sessions", async () => {
@@ -260,3 +519,47 @@ describe('direct Bot tool runner', () => {
     );
   });
 });
+
+it.each([true, false])(
+  'preserves the direct tool outcome when disposal fails (success: %s)',
+  async (success) => {
+    const cleanupFailure = vi.fn();
+    const { runtime, channels, dm, agents, host } = setup(false, cleanupFailure);
+    const release = agents.releaseSession?.bind(agents);
+    if (!release) throw new Error('Missing release owner');
+    const failedCleanup = vi
+      .spyOn(agents, 'releaseSession')
+      .mockImplementation(async (sessionId) => {
+        await release(sessionId);
+        throw new Error('Synthetic disposal rejection');
+      });
+    try {
+      const operation = runtime.runDirectBotTool!(
+        'ada',
+        'bot_send_message',
+        success
+          ? { channel_id: dm.id, body: 'Completed once despite cleanup failure.' }
+          : { body: 'No destination' },
+        new AbortController().signal,
+      );
+      if (success) {
+        expect(await operation).toMatchObject({
+          result: { channelId: dm.id, status: 'committed' },
+        });
+        expect(
+          channels
+            .readMessages(dm.id)
+            .filter((message) => message.body === 'Completed once despite cleanup failure.'),
+        ).toHaveLength(1);
+      } else await expect(operation).rejects.toBeInstanceOf(DirectBotToolError);
+      expect(cleanupFailure).toHaveBeenCalledExactlyOnceWith({
+        sessionId: expect.stringMatching(/^direct-/),
+        durationMs: expect.any(Number),
+      });
+      expect(host.disposed).toHaveLength(host.sessions.length);
+    } finally {
+      failedCleanup.mockRestore();
+      await runtime.close();
+    }
+  },
+);

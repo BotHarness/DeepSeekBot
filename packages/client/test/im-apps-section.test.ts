@@ -1,16 +1,13 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { 'data-tag': '' }, children),
-  Modal: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   closeTopModal: () => undefined,
-  Menu: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
 }));
 
 import type { MessagingApp } from '../../core/src/messaging/outbound.js';
@@ -30,6 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => {
     root.unmount();
   });
@@ -104,18 +102,22 @@ it('shows a load failure', async () => {
   expect(host.textContent).toContain('无法加载应用列表');
 });
 
-it('hands off to DSH settings and shows a notice when it could not be opened', async () => {
-  const manage = vi.fn();
-  await render(async () => [], manage, 'settings-unavailable');
-  expect(host.textContent).toContain('无法打开 DSH 设置中的 IM 机器人页面');
-  const button = [...host.querySelectorAll('button')].find(
-    (candidate) => candidate.textContent === '在 DSH 设置中管理',
-  );
-  act(() => {
-    button?.click();
-  });
-  expect(manage).toHaveBeenCalledOnce();
-});
+it.each([400, 1280])(
+  'opens IM settings and reports an unavailable handoff at %i px',
+  async (width) => {
+    vi.stubGlobal('innerWidth', width);
+    const manage = vi.fn();
+    await render(async () => [], manage, 'settings-unavailable');
+    expect(host.textContent).toContain('无法打开 DSH 设置中的 IM 机器人页面');
+    const button = [...host.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === '在 DSH 设置中管理',
+    );
+    act(() => {
+      button?.click();
+    });
+    expect(manage).toHaveBeenCalledOnce();
+  },
+);
 
 it('closes Bot Settings for DSH settings and reopens at IM apps when it returns', () => {
   const settings = new BotSettings();
@@ -135,12 +137,24 @@ it('closes Bot Settings for DSH settings and reopens at IM apps when it returns'
   imApps.manage();
   expect(settings.getSnapshot().open).toBe(false);
   returned?.();
-  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps' });
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'im-apps',
+    compactList: false,
+    pairPhone: false,
+    joinComputer: false,
+  });
   expect(imApps.takeNotice()).toBeUndefined();
 
   imApps.manage();
   unavailable?.();
-  expect(settings.getSnapshot()).toEqual({ open: true, sectionId: 'im-apps' });
+  expect(settings.getSnapshot()).toMatchObject({
+    open: true,
+    sectionId: 'im-apps',
+    compactList: false,
+    pairPhone: false,
+    joinComputer: false,
+  });
   expect(imApps.takeNotice()).toBe('settings-unavailable');
   expect(imApps.takeNotice()).toBeUndefined();
 });

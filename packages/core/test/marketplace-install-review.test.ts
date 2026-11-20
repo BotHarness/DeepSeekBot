@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { expect, it } from 'vitest';
 
 import type { MarketplaceEntry } from '../src/marketplace/client.js';
@@ -5,6 +10,7 @@ import {
   createMarketplaceInstallReviews,
   installReviewPrompt,
   parseInstallFindings,
+  stageGitRepository,
 } from '../src/marketplace/install-review.js';
 import { ApprovalReviewError } from '../src/workspaces/approval-reviewer.js';
 
@@ -154,4 +160,39 @@ it('drops findings with unknown kinds, paths outside the staged files or repeats
     ),
   ).toEqual([{ kind: 'script', path: 'a.md', note: 'runs curl' }]);
   expect(parseInstallFindings('no json', new Set())).toBeUndefined();
+});
+
+it('keeps a staged clone when Windows will not delete its temp folder (#3294)', async () => {
+  const source = mkdtempSync(join(tmpdir(), 'install-review-source-'));
+  try {
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd: source, stdio: 'pipe' }).toString().trim();
+    git('init', '--quiet');
+    writeFileSync(join(source, 'persona.md'), 'I write things down.');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'init');
+    const head = git('rev-parse', 'HEAD');
+    const removed: string[] = [];
+    const staged = await stageGitRepository({
+      gitUrl: 'https://github.com/owner/helper.git',
+      commit: head,
+      clone: async ({ destination }) => {
+        execFileSync('git', ['clone', '--quiet', source, destination], { stdio: 'pipe' });
+        return { ok: true };
+      },
+      remove: (path) => {
+        removed.push(path);
+        throw Object.assign(new Error('EPERM, Permission denied'), { code: 'EPERM' });
+      },
+    });
+    expect(staged).toEqual({
+      ok: true,
+      gitUrl: 'https://github.com/owner/helper.git',
+      files: [{ path: 'persona.md', data: Buffer.from('I write things down.') }],
+    });
+    expect(removed).toHaveLength(1);
+    rmSync(removed[0]!, { recursive: true, force: true });
+  } finally {
+    rmSync(source, { recursive: true, force: true });
+  }
 });

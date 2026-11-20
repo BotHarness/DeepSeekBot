@@ -22,7 +22,7 @@ Under `$DSH_HOME/botharness/attachments/files/<uuid>/`, `data/<safe filename>` i
 
 Staged transfer cleanup remains separate. Reference-aware cleanup protects file identities from all retained Source Event envelopes, including removed Channels, before removing old unreferenced destinations and their records; automatic retention remains disabled. Future Profile Backup, selected Export and explicit Purge must include current referenced destinations and their records. They must preserve shared identity, never purge a file still reachable from retained facts, and capture current bytes rather than create a version archive. Those products are not added by this slice.
 
-The design is [ADR-0100](adr/0100-file-open-actions-target-real-host-files.md). The runnable verification entry is `scripts/e2e-real-attachment-files.mjs`: prepare through the real composer, save through an actual external editor, verify the original and independent/shared messages, restart the same Profile, then verify missing-file refusal. Its private fixture and login URL stay outside Git; only synthetic screenshots are published.
+The design is [ADR-0100](decisions/workspaces.md#adr-0100). The runnable verification entry is `scripts/e2e-real-attachment-files.mjs`: prepare through the real composer, save through an actual external editor, verify the original and independent/shared messages, restart the same Profile, then verify missing-file refusal. Its private fixture and login URL stay outside Git; only synthetic screenshots are published.
 
 ## Existing-message migration
 
@@ -38,7 +38,7 @@ Schema activation is a one-way upgrade: older hash-only releases cannot consume 
 
 ## Let a PersonaBot process a received file
 
-In the local Bot Channel, expand **Workspace Grants**, add a work folder and expand its row. **Allow Bot to write in this folder** starts off; enable it only for the folder where the Bot should save and produce files. Existing read-only Grants remain read-only. Turning it off blocks future Orchestrator writes without deleting files or changing Assignment permissions. Shell calls still require Human approval or a matching saved rule. A permission change invalidates earlier saved-rule scope.
+In the local Bot Channel, expand **Workspace Grants**, add a work folder and expand its row. **Allow Bot to write in this folder** starts off; enable it only for the folder where the Bot should save and produce files. Existing read-only Grants remain read-only. The same switch governs the Bot's Assignments: while it is off, an Assignment in that folder can read but its native file tools refuse writes as read-only and its Shell runs in DSH's read-only sandbox, so a Shell write needs a DSH approval. Turning it off blocks future writes without deleting files. A new Tob's own files folder starts writable; an earlier read-only Tob Grant stays read-only until you approve the Bot's write request or enable it. Shell calls still require Human approval or a matching saved rule. A permission change invalidates earlier saved-rule scope.
 
 Send an arbitrary-format attachment, such as a ZIP of CSV records, and request a new result. The Orchestrator saves a separate working file through `channel_attachment_save`, uses native file tools and approved Shell calls, explicitly imports the generated file through `channel_attachment_import`, and replies with its independent download. Parent directories must exist and save-as never overwrites an existing destination. Original references remain unchanged; the attachment owner retains the existing 25 MiB transfer limit. Download the returned result to inspect its contents.
 
@@ -46,7 +46,7 @@ To inspect an original, ask the Bot to read the specified attachment. To change 
 
 Refresh the Channel, then download or reopen the original message's attachment to inspect current contents. Explicitly shared references to the same fileId show the edit, even after Host restart; identical independent uploads and the uploader's local source file remain separate. Native access expires at the end of the turn and rechecks current source membership on each operation. Leaving the source Channel or losing the original file prevents further access; a missing original is never recreated from upload bytes. File edits produce no Source Revision, file-change Inbox Admission or automatic wake; any conversational confirmation is an explicit reply. Native checks and Shell approval remain, with no BotHarness lock or file-version archive.
 
-These local slices are #632 and #633. See [ADR-0105](adr/0105-attachments-use-native-file-operations-under-source-authority.md).
+These local slices are #632 and #633. See [ADR-0105](decisions/im-providers.md#adr-0105).
 
 ## Process a Lark ZIP in its original topic
 
@@ -56,4 +56,4 @@ Upload a small CSV ZIP to the authorized Lark group/topic. Reply to that file us
 
 The Bot uses `bridge_read` and `bridge_attachment_save` to save an independent working copy, then native files and approved Shell to process it. It explicitly selects the new result with `channel_attachment_import` and uses `bot_send_message` to return it in the exact original topic under its own identity. Each explicit message has its own identity. File replies use attachments and an empty body; useful text can be sent separately to the same source. Download the received result in Lark and check its contents; **Platform accepted** alone is not delivery or read evidence.
 
-The original stays unchanged. Transfers use the existing 25 MiB limit; revoking source access blocks future provider reads/replies, while a completed independent copy remains under its own Workspace Grant. Restart retains source and file identity and never repeats uncertain sends. This is the #657 temporary-provider slice, not production enablement, Slack support or general message history. See [ADR-0107](adr/0107-external-files-use-trusted-source-capabilities-and-existing-owner.md).
+The original stays unchanged. Transfers use the existing 25 MiB limit; revoking source access blocks future provider reads/replies, while a completed independent copy remains under its own Workspace Grant. Restart retains source and file identity and never repeats uncertain sends. This is the #657 temporary-provider slice, not production enablement, Slack support or general message history. See [ADR-0107](decisions/im-providers.md#adr-0107).

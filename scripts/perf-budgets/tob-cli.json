@@ -1,0 +1,8 @@
+{
+  "maxDirectCliMs": 2000,
+  "maxAddedNativeJourneyMs": 5000,
+  "maxJourneyMs": 7000,
+  "maxStatusCliMs": 2000,
+  "maxCaptureMs": 12000,
+  "rounds": 3
+}

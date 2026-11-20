@@ -1,13 +1,16 @@
 export const PANEL_SCROLLBAR_IDLE_MS = 800;
 export const PANEL_SCROLLBAR_FADE_MS = 200;
 const opacityProperty = '--bh-panel-scrollbar-opacity';
+export const PLUGIN_SCROLLBAR_SCOPE =
+  '.bh-root, .bh-workspace-mount, .bh-dock, .bh-appearance-scope, [data-bh-appearance-owned], [data-panel-scrollbars]';
 
-export function mountPanelScrollbars(root: HTMLElement): () => void {
+export function mountPanelScrollbars(root: HTMLElement, scope?: string): () => void {
   const active = new Map<HTMLElement, { show(): void; finish(): void }>();
-  root.setAttribute('data-panel-scrollbars', '');
+  if (scope === undefined) root.setAttribute('data-panel-scrollbars', '');
   const onScroll = (event: Event) => {
     const node = event.target;
     if (!(node instanceof HTMLElement) || !root.contains(node)) return;
+    if (scope !== undefined && !node.closest(scope)) return;
     const activity = active.get(node);
     if (activity !== undefined) {
       activity.show();
@@ -57,19 +60,20 @@ export function mountPanelScrollbars(root: HTMLElement): () => void {
   return () => {
     root.removeEventListener('scroll', onScroll, true);
     for (const activity of active.values()) activity.finish();
-    root.removeAttribute('data-panel-scrollbars');
+    if (scope === undefined) root.removeAttribute('data-panel-scrollbars');
   };
 }
 
+const scoped = `:is(${PLUGIN_SCROLLBAR_SCOPE})`;
 export const PANEL_SCROLLBAR_CSS = `
-[data-panel-scrollbars], [data-panel-scrollbars] * { --bh-panel-scrollbar-opacity:0; }
-[data-panel-scrollbars]::-webkit-scrollbar-thumb,
-[data-panel-scrollbars] *::-webkit-scrollbar-thumb { background-color:color-mix(in srgb, var(--dsh-scrollbar-thumb) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
-[data-panel-scrollbars]::-webkit-scrollbar-thumb:hover,
-[data-panel-scrollbars] *::-webkit-scrollbar-thumb:hover { background-color:color-mix(in srgb, var(--dsh-scrollbar-thumb-hover) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
-[data-panel-scrollbars]::-webkit-scrollbar-thumb:active,
-[data-panel-scrollbars] *::-webkit-scrollbar-thumb:active { background-color:var(--dsh-scrollbar-thumb-hover); }
+${scoped}, ${scoped} * { --bh-panel-scrollbar-opacity:0; }
+${scoped}::-webkit-scrollbar-thumb,
+${scoped} *::-webkit-scrollbar-thumb { background-color:color-mix(in srgb, var(--tobs-line-strong) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent); }
+${scoped}::-webkit-scrollbar-thumb:hover,
+${scoped} *::-webkit-scrollbar-thumb:hover { background-color:var(--tobs-ink-quiet); }
+${scoped}::-webkit-scrollbar-thumb:active,
+${scoped} *::-webkit-scrollbar-thumb:active { background-color:var(--tobs-ink-quiet); }
 @supports not selector(::-webkit-scrollbar) {
-  [data-panel-scrollbars], [data-panel-scrollbars] * { scrollbar-color:color-mix(in srgb, var(--dsh-scrollbar-thumb) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent) transparent; }
+  ${scoped}, ${scoped} * { scrollbar-color:color-mix(in srgb, var(--tobs-line-strong) calc(var(--bh-panel-scrollbar-opacity) * 100%), transparent) transparent; }
 }
 `;

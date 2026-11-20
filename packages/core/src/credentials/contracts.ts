@@ -1,4 +1,7 @@
+import type { ApprovalDecider } from '../team/approval-contract.js';
 import { z } from 'zod';
+
+import { PRIVATE_FIELD_ID } from './references.js';
 
 export const privateRequestSchema = z
   .strictObject({
@@ -7,7 +10,7 @@ export const privateRequestSchema = z
     fields: z
       .array(
         z.strictObject({
-          id: z.string().regex(/^[a-z][a-z0-9_]{0,47}$/),
+          id: z.string().regex(PRIVATE_FIELD_ID),
           label: z.string().min(1).max(120),
           required: z.boolean(),
         }),
@@ -22,6 +25,8 @@ export const privateRequestSchema = z
 export type PrivateInputDeclaration = z.infer<typeof privateRequestSchema>;
 export type PrivateInputStatus = 'pending' | 'configured' | 'cancelled' | 'expired';
 export interface PrivateInputCard extends PrivateInputDeclaration {
+  opaque?: boolean;
+  decidedBy?: ApprovalDecider;
   sessionId?: string;
   expiresAt?: string;
   replacesMessageId?: string;
@@ -46,12 +51,29 @@ export interface PrivateRevocationResult {
   completed: number;
   uncertain: number;
 }
+export const PRIVATE_SUBMISSION_REFUSALS = [
+  'not-owner',
+  'not-pending',
+  'busy',
+  'invalid-fields',
+  'store-unavailable',
+  'expired',
+  'version-changed',
+  'save-failed',
+  'not-committed',
+] as const;
+export type PrivateSubmissionRefusal = (typeof PRIVATE_SUBMISSION_REFUSALS)[number];
+export interface PrivateSubmissionResult {
+  accepted: boolean;
+  reason?: PrivateSubmissionRefusal;
+}
 export interface PrivateInputResult {
   status: 'configured' | 'cancelled' | 'expired';
   account: string;
   references: Record<string, string>;
 }
 export interface PrivateInputResolution {
+  decidedBy?: ApprovalDecider;
   requestMessageId: string;
   state: 'configured' | 'cancelled' | 'expired';
   references: Record<string, string>;

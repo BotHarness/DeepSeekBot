@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { expect, it } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -46,9 +47,10 @@ it('reconciles committed Registry identity while open and detached without repla
       rootRole: 'orchestrator',
       at: FIXED_NOW().toISOString(),
     });
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     const commit = (id: string) =>
       core.channels.appendMessage(
+        OWNER_HUMAN_CONTEXT,
         dm.id,
         {
           id,
@@ -84,7 +86,7 @@ it('reconciles committed Registry identity while open and detached without repla
     const removed = await read(resumed);
     expect(removed.bots).toEqual([]);
     expect(removed.removedBotIds).toEqual(['ada']);
-    expect(core.channels.readPosition(dm.id)).toBeUndefined();
+    expect(core.channels.readPosition(OWNER_HUMAN_CONTEXT, dm.id)).toBeUndefined();
   } finally {
     for (const reader of readers) await reader.cancel();
     core.companions.close();

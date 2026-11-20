@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 
 vi.mock('../src/client/group-avatar-crop.js', async () => {
@@ -29,6 +29,7 @@ import {
 } from '../src/client/account-profile-settings.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { buttonNamed, typeInto } from './primitive-mocks.js';
 
 const AVATAR = 'data:image/webp;base64,UklGRg==';
@@ -50,6 +51,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   act(() => root.unmount());
   host.remove();
 });
@@ -74,8 +76,9 @@ async function render(
   actions: ReturnType<typeof actionsFor>,
   startSignIn = vi.fn(async () => CODE),
 ) {
+  const uploads = createElement('span', { 'data-uploads-slot': '' });
   await act(async () => {
-    root.render(createElement(AccountProfileSettings, { actions, startSignIn, t }));
+    root.render(createElement(AccountProfileSettings, { actions, startSignIn, uploads, t }));
   });
   await act(async () => {});
 }
@@ -86,33 +89,104 @@ function nameInput(): HTMLInputElement {
   return input;
 }
 
-it('signs a signed-out Human in from the profile and shows it once approved', async () => {
+it('signs a signed-out Human in from the profile and shows it on the Host account event', async () => {
   vi.useFakeTimers();
+  const events = resourceEvents();
   try {
     const startSignIn = vi.fn(async () => CODE);
     const actions = actionsFor({ signedIn: false, author: null });
     await render(actions, startSignIn);
 
     expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
-    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
     expect(startSignIn).toHaveBeenCalledTimes(1);
     expect(host.querySelector('[data-account-profile="signing-in"]')).not.toBeNull();
     expect(host.querySelector('[data-account-sign-in-code]')?.textContent).toBe('NXKC-GQXZ');
 
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    await act(async () => buttonNamed(t('devices.connect.openPage'), host).click());
+    await act(async () => buttonNamed(t('devices.connect.openPage'), document.body).click());
     expect(open).toHaveBeenCalledWith(CODE.verificationUri, '_blank', 'noopener');
 
+    await act(async () => vi.advanceTimersByTimeAsync(30));
+    const idle = actions.marketplaceAccount.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(actions.marketplaceAccount).toHaveBeenCalledTimes(idle);
     actions.marketplaceAccount.mockResolvedValue({
       signedIn: true,
       email: 'vain@example.com',
       author: AUTHOR,
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      events.emit('account');
+      await vi.advanceTimersByTimeAsync(30);
     });
     expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
     expect(nameInput().value).toBe('Vain');
+  } finally {
+    events.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it('leaves the browser step with an explanation when the relay fails after approval', async () => {
+  vi.useFakeTimers();
+  try {
+    const actions = actionsFor({ signedIn: false, author: null });
+    await render(actions);
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
+    expect(host.querySelector('[data-account-sign-in-code]')).not.toBeNull();
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: false,
+      issue: 'relay-unavailable',
+      author: null,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(host.querySelector('[data-account-sign-in-code]')).toBeNull();
+    expect(host.textContent).toContain(t('accountProfile.signInRelay'));
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: true,
+      email: 'vain@example.com',
+      author: AUTHOR,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('keeps the new code when a poll lands while sign-in is starting', async () => {
+  vi.useFakeTimers();
+  try {
+    let release!: (code: typeof CODE) => void;
+    const startSignIn = vi.fn(
+      () =>
+        new Promise<typeof CODE>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const actions = actionsFor({ signedIn: false, issue: 'relay-unavailable', author: null });
+    await render(actions, startSignIn);
+    await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: true,
+      email: 'vain@example.com',
+      author: AUTHOR,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(host.querySelector('[data-account-profile="ready"]')).toBeNull();
+    actions.marketplaceAccount.mockResolvedValue({ signedIn: false, author: null });
+    await act(async () => release(CODE));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_050);
+    });
+    expect(host.querySelector('[data-account-sign-in-code]')?.textContent).toBe('NXKC-GQXZ');
   } finally {
     vi.useRealTimers();
   }
@@ -125,7 +199,7 @@ it('explains when sign-in cannot start', async () => {
       throw new Error('relay-unavailable');
     }),
   );
-  await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+  await act(async () => buttonNamed(t('accountProfile.signIn'), document.body).click());
   expect(host.textContent).toContain(t('accountProfile.signInFailed'));
   expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
 });
@@ -139,11 +213,12 @@ it('says the Market refused a signed-in account instead of offering sign-in agai
 
   expect(host.querySelector('[data-account-profile="error"]')).not.toBeNull();
   expect(host.textContent).toContain(t('market.error.signInRejected'));
-  expect(() => buttonNamed(t('accountProfile.signIn'), host)).toThrow();
-  expect(buttonNamed(t('accountProfile.retry'), host)).toBeDefined();
+  expect(() => buttonNamed(t('accountProfile.signIn'), document.body)).toThrow();
+  expect(buttonNamed(t('accountProfile.retry'), document.body)).toBeDefined();
 });
 
-it('shows the profile and renames it once on Enter then blur', async () => {
+it.each([400, 1280])('renames the profile once on Enter then blur at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   const actions = actionsFor({ signedIn: true, email: 'vain@example.com', author: AUTHOR });
   await render(actions);
 
@@ -179,7 +254,7 @@ it('creates the profile from the email before the first photo, then removes it',
     '/avatar/a.webp',
   );
 
-  await act(async () => buttonNamed(t('accountProfile.photoRemove'), host).click());
+  await act(async () => buttonNamed(t('accountProfile.photoRemove'), document.body).click());
   expect(actions.marketplaceAuthorAvatarSet).toHaveBeenLastCalledWith(null);
   expect(host.querySelector('[data-account-avatar] img')).toBeNull();
 });
@@ -203,4 +278,13 @@ it('validates names like the Market Worker and derives a default from the email'
   expect(validAccountName('维')).toBe(true);
   expect(defaultAccountName('someone@example.com')).toBe('someone');
   expect(defaultAccountName(undefined)).toBe('');
+});
+
+it('shows the uploaded Bots entry only once signed in', async () => {
+  await render(actionsFor({ signedIn: false, author: null }));
+  expect(host.querySelector('[data-uploads-slot]')).toBeNull();
+  act(() => root.unmount());
+  root = createRoot(host);
+  await render(actionsFor({ signedIn: true, email: 'vain@example.com', author: AUTHOR }));
+  expect(host.querySelector('[data-uploads-slot]')).not.toBeNull();
 });

@@ -967,6 +967,7 @@ export function createLocalVideoOwner(options: {
   return {
     handle,
     isPaused: () => paused,
+    controlEpoch: () => botEpoch,
     async runBotOperation<T>(operation: () => Promise<T>): Promise<T> {
       requireActive();
       if (paused)

@@ -1,5 +1,13 @@
 import { TextInput } from '../primitives/system-text';
-import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import {
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import {
   Image,
   Platform,
@@ -23,11 +31,14 @@ import {
   ComposerCircleButton,
   ComposerFieldMaterial,
   composerBar,
+  composerPillShadow,
   composerControl,
   composerPrimary,
 } from './composer-chrome';
 import { ComposerActionButton } from './composer-action';
+import { ComposerPillContext } from './composer-pill';
 import { VoiceButton } from './voice-button';
+import { ComposerHold } from './composer-hold';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
 import { PlusMenuButton } from '../primitives/plus-menu-button';
@@ -150,7 +161,6 @@ export type ComposerInput = ComponentRef<typeof TextInput>;
 
 export function Composer({
   value,
-  placeholder,
   disabled,
   files,
   canAttach,
@@ -165,13 +175,13 @@ export function Composer({
   onCancelDictation,
   footer,
   above,
+  inside,
   selection,
   onSelection,
   inputRef,
   onFocusChange,
 }: {
   value: string;
-  placeholder: string;
   disabled: boolean;
   files: PickedFile[];
   canAttach: boolean;
@@ -186,6 +196,7 @@ export function Composer({
   onCancelDictation(): void;
   footer?: ReactNode;
   above?: ReactNode;
+  inside?: ReactNode;
   selection?: { start: number; end: number } | undefined;
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
@@ -207,26 +218,43 @@ export function Composer({
       ? measuredLine.height
       : theme.type.body.line * theme.fontScale;
   const bar = composerBar(theme);
-  const integratedLeading = Platform.OS === 'ios';
+  const integratedLeading = Platform.OS === 'ios' || Platform.OS === 'android';
   const lineHeight = Math.max(composerControl(theme), textLine);
   const fieldPadding = Math.max(space.x2, (lineHeight - textLine) / 2);
   const fieldLimit = Math.max(textLine + 2 * fieldPadding, viewportHeight / 5);
   const button = composerControl(theme);
   const inset = (bar - button) / 2;
   const corner = bar / 2;
-  const pillHeight = useSharedValue(lineHeight + 2 * inset);
+  const ownPill = useSharedValue(lineHeight + 2 * inset);
+  const sharedPill = useContext(ComposerPillContext);
+  const pillHeight = sharedPill?.height ?? ownPill;
+  const pillRest = useRef(lineHeight + 2 * inset);
+  pillRest.current = lineHeight + 2 * inset;
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
+  const holdPill = useCallback(
+    (node: unknown) => {
+      if (node !== null && sharedPill !== undefined && sharedPill.height.value === 0)
+        sharedPill.height.value = pillRest.current;
+      return () => {
+        sharedPill?.layout(0);
+        if (sharedPill !== undefined) sharedPill.height.value = 0;
+      };
+    },
+    [sharedPill],
+  );
   const settlePill = (next: number) => {
     if (pill.height === 0) pillHeight.value = next;
     else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
+  if (held && !listening) setHeld(false);
   const actions = composerActions({
     text: value,
     files: files.length,
     disabled,
     dictation,
     canDictate,
+    keepDisabledMic: Platform.OS === 'android',
   });
   const canSend = actions.includes('send') && !disabled;
   const send = () => {
@@ -234,7 +262,7 @@ export function Composer({
     haptic('send');
     onSend();
   };
-  const expanded = theme.largeText || wraps;
+  const expanded = theme.largeText || (wraps && value !== '');
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
@@ -300,15 +328,20 @@ export function Composer({
       onBlur={() => onFocusChange?.(false)}
       placeholder={
         held
-          ? t.dictationHoldHint
+          ? Platform.OS === 'android' || Platform.OS === 'ios'
+            ? t.dictationReleaseHint
+            : t.dictationHoldHint
           : dictation === 'starting'
             ? t.dictationStarting
             : listening
               ? t.dictationListening
-              : placeholder
+              : ''
       }
       placeholderTextColor={theme.color.subtle}
-      accessibilityLabel={placeholder}
+      accessibilityLabel={t.messagePlaceholder}
+      accessibilityHint={
+        integratedLeading && canDictate && !disabled ? t.composerInputHint : undefined
+      }
       multiline
       editable={!listening}
       onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
@@ -316,7 +349,12 @@ export function Composer({
         flex: 1,
         ...(expanded
           ? {
-              minHeight: composerFieldHeight(contentHeight, textLine, fieldPadding, fieldLimit),
+              minHeight: composerFieldHeight(
+                value === '' ? 0 : contentHeight,
+                textLine,
+                fieldPadding,
+                fieldLimit,
+              ),
               maxHeight: composerFieldHeight(Infinity, textLine, fieldPadding, fieldLimit),
             }
           : { height: textLine + fieldPadding * 2 }),
@@ -345,6 +383,7 @@ export function Composer({
       <VoiceButton
         key="voice"
         active={listening}
+        disabled={disabled && !listening}
         onStart={() => {
           onDictate();
         }}
@@ -383,9 +422,9 @@ export function Composer({
       {editing ? (
         <DraftEditor
           value={value}
-          placeholder={placeholder}
           canSend={canSend}
           showSend={actions.includes('send')}
+          pinned={inside}
           above={above}
           selection={selection}
           onSelection={onSelection}
@@ -418,7 +457,19 @@ export function Composer({
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}>
         {integratedLeading ? null : leading}
-        <Animated.View style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}>
+        <Animated.View
+          ref={holdPill}
+          onLayout={(event) => sharedPill?.layout(event.nativeEvent.layout.height)}
+          style={[
+            {
+              flex: 1,
+              borderRadius: corner,
+              overflow: 'hidden',
+              boxShadow: composerPillShadow(theme),
+            },
+            pillStyle,
+          ]}
+        >
           <ComposerFieldMaterial cornerRadius={corner} />
           <View
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
@@ -428,6 +479,9 @@ export function Composer({
               setPill({ width, height });
             }}
           >
+            {inside === undefined || editing ? null : (
+              <View style={{ paddingTop: space.x2 }}>{inside}</View>
+            )}
             {files.length > 0 ? (
               <ScrollView
                 horizontal
@@ -451,7 +505,19 @@ export function Composer({
                   paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
                 }}
               >
-                {field}
+                <ComposerHold
+                  enabled={canDictate && !disabled && (!listening || held)}
+                  onStart={() => {
+                    setHeld(true);
+                    onDictate();
+                  }}
+                  onStop={() => {
+                    setHeld(false);
+                    onStopDictation();
+                  }}
+                >
+                  {field}
+                </ComposerHold>
               </HardwareSend>
               {stacked && expand === null && trailing.length === 0 && leadingWidth === 0 ? null : (
                 <View
@@ -498,7 +564,7 @@ export function Composer({
           {footer}
         </View>
       )}
-      {held ? (
+      {held && Platform.OS !== 'android' ? (
         <LockHint
           style={{
             position: 'absolute',

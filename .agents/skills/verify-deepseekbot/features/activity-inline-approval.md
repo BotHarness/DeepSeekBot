@@ -1,5 +1,18 @@
 # Activity Center inline Tool approvals
 
+## Sources
+
+- `packages/client/src/client/{activity-*,inbox-*}.{ts,tsx}`
+- `packages/client/src/client/tool-approval-card.tsx`
+- `packages/core/src/runtime/{human-attention,human-attention-live,inbox-history,inbox-triage}.ts`
+
+## Terms
+
+- Activity
+- Environment
+- Attention Unit
+- Tool Approval Rule
+
 ## Sub-features
 
 - Full page and Dock open Human Inbox directly, without Overview or statistics.
@@ -10,10 +23,12 @@
 - Dock decides the card's own Channel request while another Channel remains selected.
 - Batch controls appear only in explicit Select mode. Needs you, For you and Other unread are independently collapsible sections; initial state is expanded, with browser/Host-origin collapse preferences. History stays in the header menu.
 - Search expands inside the header like the Channel list, uses the Host query across all eligible results (not just loaded rows), and retains section order. Each section paginates independently; failed reads retain existing rows and offer retry.
+- The Environment selector lives in the header on both surfaces. All merges each category across Hosts once, without Host sections. Every item carries its source icon and name at the upper right, including in a single Environment. Equal attention/Channel/message IDs on different Hosts remain independently selectable and route actions to their own Host.
 
 ## How to get to it (user POV)
 
 Enter Bot mode and open Activity Center from the workspace control rail on desktop.
+Use the header Environment selector to switch between All and one Host. With unread messages on both Hosts, verify one Needs you / For you / Other unread heading each, per-item source badges, source navigation and a mixed selection's read acknowledgement against both canonical Host timelines. Stop only a task-owned Host and retain its named unavailable status and cached rows; restore it before testing pagination and query changes.
 This opens Dock even without a selected Channel. The narrow Web shell exposes Activity
 Center in its Bot mode navigation and opens the full page. Wait for responsive navigation
 to finish mounting after resizing. Toggle the other panels off from the rail for a wide
@@ -70,7 +85,7 @@ own runtime checks before claiming them. Human QA remains a separate gate.
 
 ## Three-section and search follow-up
 
-Verify all three headers on page and narrow/wide Dock, light/dark. Collapse each independently, reload and reopen the panel to verify persistence; arrivals must not reopen a collapsed section. Open Search notifications in the header, type a matching query and a no-result query, then close with Escape or the clear button. Verify focus returns to the search trigger and browsing never marks read or consumes approvals. Search matches beyond the first page through Host `humanAttention` query version 1; unread summaries search eligible message bodies before grouping. Verify Bot/Channel filters, default/chronological sort, handled history and per-section pagination, including stale responses after a search switch and failed-page retry. The CLI equivalent is `deepseekbot inbox --category replies --search <text> --sort mentions-first`; an old Host must refuse the versioned query instead of silently returning unfiltered data.
+Verify all three headers on page and narrow/wide Dock, light/dark. Collapse each independently, reload and reopen the panel to verify persistence; arrivals must not reopen a collapsed section. Open Search notifications in the header, type a matching query and a no-result query, then close with Escape or the clear button. Verify focus returns to the search trigger and browsing never marks read or consumes approvals. Search matches beyond the first page through Host `humanAttention` query version 1; unread summaries search eligible message bodies before grouping. Verify Bot/Channel filters, default/chronological sort, handled history and per-section pagination, including stale responses after a search switch and failed-page retry. The CLI equivalent is `deepseekbot activity --category replies --search <text> --sort mentions-first`; an old Host must refuse the versioned query instead of silently returning unfiltered data.
 
 ## Live Activity refresh
 
@@ -134,11 +149,11 @@ Use real ordinary messages, Human mentions/replies and a pending Group join requ
 
 ## Remote Host Activity actions (#2500)
 
-For the narrow-dock layout regression, use the default left Activity panel beside an open conversation at a 1440×1000 viewport, then widen that same panel. Measure each local and remote mention row, summary and action area. At the observed 229px row width, the summary must retain the row's content width and actions must wrap below it without hiding controls; wide rows may keep them alongside. Exercise long Chinese and English content, loading and failed requests, and expanded request details. Details must span the row. Capture matching light/dark before and after states; the offline Chromium layout regression in `packages/client/test/human-inbox-layout.test.tsx` does not replace this real Host journey.
+For the narrow-dock layout regression, use the default left Activity panel beside an open conversation at a 1440×1000 viewport, then widen that same panel. Measure each local and remote mention row, summary and action area. At the observed 229px row width, the summary must retain the row's content width and actions must wrap below it without hiding controls; wide rows may keep them alongside. Exercise long Chinese and English content, loading and failed requests, and expanded request details. Details must span the row. Capture matching light/dark before and after states; the offline Chromium layout regression in `packages/client/test/activity-list-layout.test.tsx` does not replace this real Host journey.
 
-The page and Dock group each paired Remote Host's Needs you, For you and Other unread under its Host name and a Remote mark. HumanInboxView receives a Host-scoped source for identities, commands and request cards. Approvals and questions reuse the existing cards with the shared request module; join requests, snooze and clear use shared attention-actions. Source links open the remote conversation, not an exact historical message. Search, category, history and sorting query each Host. The Bot and Channel pickers contain This Host's identities, so either filter hides remote groups.
+The page and Dock merge selected Hosts into one Needs you, For you and Other unread list per category, without Host headings. Every item shows its source icon and name, including in a single Environment. ActivityListView retains each remote item's Host-scoped source for identities, commands and request cards. Approvals and questions reuse the existing cards with the shared request module; join requests, snooze and clear use shared attention-actions. Source links open the remote conversation, not an exact historical message. Search, category, history and sorting query each Host. The Bot and Channel pickers contain This Host's identities, so either filter excludes remote items. Serving-Host bulk read/clear options are hidden in remote-only scope; remote items remain operable through source-bound row and selection actions. Concurrent operations keep independent busy keys, and completing an old operation cannot close a newly opened detail.
 
-Use two task-local Hosts with different home basenames and ports. Pair B from A through Add remote in the header add menu. Retain the browser profile for baseline and changed captures. Give their built-in Tob different display names and use distinct DM messages to prove same-slug isolation. Use disposable ordinary Bots with deepseek-v4-pro for real pending approvals, questions, joins and group mentions. Never fabricate Inbox rows.
+Use two task-local Hosts with different home basenames and ports. Pair B from A through Add remote in the Environment panel header. Retain the browser profile for baseline and changed captures. Give their built-in Tob different display names and use distinct DM messages to prove same-slug isolation. Use disposable ordinary Bots with deepseek-v4-pro for real pending approvals, questions, joins and group mentions. Never fabricate Inbox rows.
 
 Open Activity from A's rail and narrow page. Inspect all three sections, names and avatars in light/dark. Open B's approval and question details; submit a decision/answer, and verify B's canonical state changes while A has no matching write. Snooze a join, inspect Later, cancel snooze, then accept or decline it. Clear a reply and verify B's dismissed query; failures must stay visible, not look successful. Source links open B's conversation and the narrow Back path returns to Activity. Search and load-more use B's device gateway.
 

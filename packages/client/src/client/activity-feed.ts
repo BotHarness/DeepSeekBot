@@ -1,7 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 import type { BridgeActions } from './actions.js';
-import { store, type ClientStore, type HumanInboxState } from './store.js';
+import { store, type ClientStore, type ActivityListState } from './store.js';
+
+const LIVE_REFRESH_DELAY_MS = 250;
+const LIVE_REFRESH_MAX_WAIT_MS = 1_000;
 
 export const ACTIVITY_SECTIONS = ['action', 'replies', 'unread'] as const;
 export type ActivitySection = (typeof ACTIVITY_SECTIONS)[number] | 'handled';
@@ -21,7 +24,7 @@ const INITIAL_QUERY: ActivityQuery = {
   snoozed: false,
   search: '',
 };
-const empty = (category: ActivitySection): HumanInboxState => ({
+const empty = (category: ActivitySection): ActivityListState => ({
   category,
   sort: category === 'action' ? 'oldest' : 'newest',
   botSlug: undefined,
@@ -102,6 +105,7 @@ export function createActivityFeed(
     const request = (async () => {
       try {
         const items = more ? [...before.items] : [];
+        const ids = new Set(items.map((item) => item.id));
         let cursor = more ? before.nextCursor : undefined;
         const pages = more ? 1 : Math.max(1, Math.ceil(before.items.length / 50));
         for (let page = 0; page < pages; page++) {
@@ -119,13 +123,16 @@ export function createActivityFeed(
           );
           if (version !== generation) return;
           for (const item of result.items)
-            if (!items.some((entry) => entry.id === item.id)) items.push(item);
+            if (!ids.has(item.id)) {
+              ids.add(item.id);
+              items.push(item);
+            }
           cursor = result.nextCursor;
           if (!cursor) break;
         }
         if (version !== generation) return;
         loaded.add(section);
-        const next: HumanInboxState = {
+        const next: ActivityListState = {
           ...before,
           items,
           nextCursor: cursor,
@@ -202,10 +209,34 @@ export function createActivityFeed(
     },
     acquire() {
       if (users++ === 0) {
-        stopLive = observeHumanAttention(() => void refresh());
-        let muted = JSON.stringify([...clientStore.getSnapshot().roster.muted].sort());
+        let liveTimer: ReturnType<typeof setTimeout> | undefined;
+        let liveSince: number | undefined;
+        const stopObserving = observeHumanAttention(() => {
+          liveSince ??= Date.now();
+          clearTimeout(liveTimer);
+          liveTimer = setTimeout(
+            () => {
+              liveTimer = undefined;
+              liveSince = undefined;
+              void refresh();
+            },
+            Math.max(
+              0,
+              Math.min(LIVE_REFRESH_DELAY_MS, liveSince + LIVE_REFRESH_MAX_WAIT_MS - Date.now()),
+            ),
+          );
+        });
+        stopLive = () => {
+          clearTimeout(liveTimer);
+          stopObserving();
+        };
+        let mutedList = clientStore.getSnapshot().roster.muted;
+        let muted = JSON.stringify([...mutedList].sort());
         unsubscribeMute = clientStore.subscribe(() => {
-          const next = JSON.stringify([...clientStore.getSnapshot().roster.muted].sort());
+          const nextList = clientStore.getSnapshot().roster.muted;
+          if (nextList === mutedList) return;
+          mutedList = nextList;
+          const next = JSON.stringify([...nextList].sort());
           if (next === muted) return;
           muted = next;
           generation++;
@@ -262,16 +293,16 @@ export function activitySectionActions(
     };
   return {
     ...actions,
-    refreshHumanInbox: () => feed.refresh(),
-    loadMoreHumanInbox: () => feed.loadMore(section),
+    refreshActivityList: () => feed.refresh(),
+    loadMoreActivityList: () => feed.loadMore(section),
     answerUserQuestion: after(actions.answerUserQuestion),
     decideToolApproval: after(actions.decideToolApproval),
     resolveWorkspaceGrantRequest: after(actions.resolveWorkspaceGrantRequest),
     replyToHumanAssignment: after(actions.replyToHumanAssignment),
     decideGroupJoin: after(actions.decideGroupJoin),
-    dismissHumanInbox: after(actions.dismissHumanInbox),
+    dismissActivityList: after(actions.dismissActivityList),
     allowAutoRejectionOnce: after(actions.allowAutoRejectionOnce),
-    snoozeHumanInbox: after(actions.snoozeHumanInbox),
+    snoozeActivityList: after(actions.snoozeActivityList),
     markRead: after(actions.markRead),
   };
 }

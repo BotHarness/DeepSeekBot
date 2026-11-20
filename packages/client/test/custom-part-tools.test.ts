@@ -2,6 +2,10 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+  ...(await import('./primitive-mocks.js')).dialogPrimitives(),
+}));
 import { CustomPartEditor } from '../src/client/custom-part-editor.js';
 import {
   DEFAULT_ILLUSTRATED_RECIPE,

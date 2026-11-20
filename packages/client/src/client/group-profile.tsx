@@ -1,3 +1,12 @@
+import * as stylex from '@stylexjs/stylex';
+import {
+  ProfileActivitySection,
+  ProfileCard,
+  ProfilePanel,
+  profileStyles,
+} from './ds/profile-panel.js';
+import { hooked } from './ds/hooked.js';
+import { PillButton } from './ds/pill-button.js';
 import {
   PersonaBotAvatar,
   personaBotActivityLabel,
@@ -8,7 +17,6 @@ import {
 import { bridgeSourceLabel } from './bridge-source-label.js';
 import type { ReactElement } from 'react';
 
-import { Pill, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { GroupProfileActivity, GroupProfileAuthorActivity } from './bridge.js';
@@ -43,6 +51,8 @@ function authorName(
   switch (entry.author.kind) {
     case 'bot':
       return botNames.get(entry.author.slug) ?? entry.author.slug;
+    case 'remote-bot':
+      return entry.author.slug;
     case 'human':
       return t('groupProfile.human');
     case 'bridged':
@@ -154,23 +164,21 @@ export function GroupProfileView({
   const preview = personaBotActivityPreview(members);
   const remaining = members.length - preview.length;
   return (
-    <div className="bh-profile-view">
-      <button type="button" className="bh-profile-back" onClick={onClose}>
-        <IconChevronLeftOutlineRegular />
-        <span>{t('profile.close')}</span>
-      </button>
-      <div className="bh-profile-view-identity">
+    <ProfilePanel backLabel={t('profile.close')} onClose={onClose}>
+      <div {...stylex.props(profileStyles.groupIdentity)}>
         <GroupAvatar channel={channel} size="large" />
-        <div className="bh-profile-view-heading">
-          <h2 className="bh-profile-view-name">{channel.name}</h2>
-          <span className="bh-profile-description">
+        <div {...stylex.props(profileStyles.groupHeading)}>
+          <h2 {...hooked('bh-profile-view-name', profileStyles.title)}>{channel.name}</h2>
+          <span {...stylex.props(profileStyles.caption)}>
             {t('groupProfile.botCount', { count: channel.members.length })}
           </span>
         </div>
       </div>
       {members.length === 0 ? null : (
         <section className="bh-group-live-activity">
-          <span className="bh-profile-card-label">{t('groupProfile.liveActivity')}</span>
+          <span {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>
+            {t('groupProfile.liveActivity')}
+          </span>
           <div className="bh-group-live-activity-chips">
             {preview.map((item) => (
               <Tooltip
@@ -193,39 +201,31 @@ export function GroupProfileView({
                   tabIndex={0}
                   data-bot-id={item.personaBotId}
                 >
-                  <Pill className="bh-group-activity-pill">
+                  <PillButton as="span" className="bh-group-activity-pill">
                     <PersonaBotAvatar {...item} size={18} indicator={false} t={t} />
                     <span className="bh-group-activity-chip-name">{item.name}</span>
                     <span className="bh-group-activity-chip-state">
                       {personaBotActivityLabel(item.state ?? 'idle', t)}
                     </span>
-                  </Pill>
+                  </PillButton>
                 </span>
               </Tooltip>
             ))}
             {remaining > 0 ? (
-              <Pill className="bh-group-activity-overflow">
+              <PillButton as="span" className="bh-group-activity-overflow">
                 <span aria-label={t('main.activity.more', { count: remaining })}>+{remaining}</span>
-              </Pill>
+              </PillButton>
             ) : null}
           </div>
         </section>
       )}
-      <section className="bh-profile-section" aria-label={t('profile.activitySection')}>
-        <h2 className="bh-profile-section-title">{t('profile.activitySection')}</h2>
-        <div className="bh-profile-cards">
-          {cards.listGroup().map((card) => {
-            return (
-              <section key={card.id} className="bh-profile-card">
-                <header className="bh-profile-card-head">
-                  <span className="bh-profile-card-label">{card.label}</span>
-                </header>
-                {card.render({ channel, activity, botNames, t, compact: false })}
-              </section>
-            );
-          })}
-        </div>
-      </section>
-    </div>
+      <ProfileActivitySection title={t('profile.activitySection')}>
+        {cards.listGroup().map((card) => (
+          <ProfileCard key={card.id} label={card.label}>
+            {card.render({ channel, activity, botNames, t, compact: false })}
+          </ProfileCard>
+        ))}
+      </ProfileActivitySection>
+    </ProfilePanel>
   );
 }

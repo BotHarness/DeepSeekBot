@@ -7,7 +7,7 @@ vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-import type { PushSettings } from '../src/host/push';
+import type { PushSettings } from '@botharness/host-client/push';
 import {
   ChannelNotifications,
   type ChannelNotificationsPort,
@@ -36,6 +36,7 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 const settled: PushSettings = {
   registered: true,
   enabled: true,
+  delivery: 'push' as const,
   preferences: { approval: true, question: true, 'private-input': true, reply: true },
   quietChannelIds: [],
 };

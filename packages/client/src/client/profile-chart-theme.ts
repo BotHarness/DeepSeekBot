@@ -28,9 +28,9 @@ function resolveChartTokens(): ChartTokens {
     cached,
     uncached: token('--bh-chart-read-dim', cached),
     output: token('--bh-chart-output', cached),
-    foreground: token('--dsw-alias-label-primary', 'currentColor'),
-    muted: token('--dsw-alias-label-tertiary', 'currentColor'),
-    grid: token('--dsw-alias-border-l2', 'currentColor'),
+    foreground: token('--tobs-ink-primary', 'currentColor'),
+    muted: token('--tobs-ink-tertiary', 'currentColor'),
+    grid: token('--tobs-line-edge', 'currentColor'),
   };
 }
 

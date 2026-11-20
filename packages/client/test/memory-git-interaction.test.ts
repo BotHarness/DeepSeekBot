@@ -1,114 +1,41 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  Fragment,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement, Fragment } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
-    Toast: stub,
-    IconCodeOutlineRegular: () => null,
-    HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      variant?: string;
-      size?: string;
-    }) => createElement('button', props, children),
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconAgentPresetOutline16: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconInfoOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconBranchOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
+
     IconChevronDownOutline14: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
+
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
-    IconCopyOutlineRegular: stub,
+
     IconCloseOutline16: stub,
     IconEllipsisOutline16: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
+
     IconFolderOpenOutline16: stub,
     IconNewChatOutline16: stub,
     IconPanelLeftOutline16: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
+
     IconPlusOutline16: stub,
-    IconRefreshOutlineRegular: stub,
-    IconWrapLinesOutlineRegular: stub,
+
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
-    IconSendOutlineRegular: stub,
+
     IconTrashOutline16: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: ({
-      anchor,
-      open,
-      items = [],
-      onSelect,
-      children,
-    }: {
-      anchor: ReactNode;
-      open: boolean;
-      items?: { id: string; label: string }[];
-      onSelect?: (id: string) => void;
-      children?: ReactNode;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor,
-        open
-          ? createElement(
-              'div',
-              { role: 'menu' },
-              ...items.map((item) =>
-                createElement(
-                  'button',
-                  { key: item.id, role: 'menuitem', onClick: () => onSelect?.(item.id) },
-                  item.label,
-                ),
-              ),
-              children,
-            )
-          : null,
-      ),
-    MenuSurface: ({ children }: { children: ReactNode }) =>
-      createElement('div', { role: 'menu' }, children),
-    MenuItemButton: ({ children, onSelect }: { children: ReactNode; onSelect: () => void }) =>
-      createElement('button', { role: 'menuitem', onClick: onSelect }, children),
+
     MarkdownText: stub,
-    Modal: stub,
+
     StateDot: stub,
-    Tag: stub,
-    Tooltip: ({ children, label }: { children: ReactNode; label?: ReactNode }) =>
-      createElement(
-        Fragment,
-        null,
-        children,
-        createElement('span', { hidden: true, 'data-tooltip': '' }, label),
-      ),
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -125,6 +52,7 @@ import { setMemoryView } from '../src/client/memory-view-prefs.js';
 import { store } from '../src/client/store.js';
 import type { MemoryGitGraph } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { openTooltip } from './primitive-mocks.js';
 import { MemoryEntry } from '../src/client/memory-entry.js';
 import { MemoryFilesEntry } from '../src/client/memory-files-entry.js';
 import { MemoryRecovery } from '../src/client/memory-recovery.js';
@@ -137,6 +65,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  setMemoryView('graph');
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
   document.body.append(container);
@@ -712,9 +641,13 @@ describe('Memory Git graph sidebar', () => {
     expect(container.querySelectorAll('.bh-memory-restore-offer')).toHaveLength(1);
     await act(async () => offer?.click());
     expect(actions.memoryRestoreCommit).not.toHaveBeenCalled();
-    expect(container.querySelector('.bh-memory-restore-confirm')?.textContent).toContain(
-      '包含这次提交的改动，不包含之后的提交',
-    );
+    expect(
+      (
+        await openTooltip(
+          container.querySelector<HTMLElement>('.bh-memory-restore-confirm .bh-im-help')!,
+        )
+      ).textContent,
+    ).toContain('包含这次提交的改动，不包含之后的提交');
     await type(
       container.querySelector<HTMLInputElement>('.bh-memory-restore-note input'),
       ' 整理前 ',
@@ -733,8 +666,11 @@ describe('Memory Git graph sidebar', () => {
     expect(onMemoryCommitSelect).toHaveBeenCalledWith(loaded);
     expect(container.querySelector('.bh-memory-restore-confirm')).toBeNull();
     expect(container.textContent).toContain('已恢复到 bbbbbbb');
-    expect(container.textContent).toContain('恢复前的改动已自动存成 ddddddd 这个提交');
-    expect(container.textContent).toContain('恢复前的版本已命名为「整理前」');
+    const restoreDetails = await openTooltip(
+      container.querySelector<HTMLElement>('.bh-memory-restore-done .bh-im-help')!,
+    );
+    expect(restoreDetails.textContent).toContain('恢复前的改动已自动存成 ddddddd 这个提交');
+    expect(restoreDetails.textContent).toContain('恢复前的版本已命名为「整理前」');
     expect(container.querySelector('.bh-memory-entry')?.textContent).not.toContain('draft.md');
   });
 
@@ -819,9 +755,13 @@ describe('Memory Git graph sidebar', () => {
     await act(async () => row?.click());
     expect(onMemoryCommitSelect).toHaveBeenCalledWith(older);
     await act(async () => button('恢复到这个版本')?.click());
-    expect(container.querySelector('.bh-memory-restore-confirm')?.textContent).toContain(
-      '包含这次提交的改动',
-    );
+    expect(
+      (
+        await openTooltip(
+          container.querySelector<HTMLElement>('.bh-memory-restore-confirm .bh-im-help')!,
+        )
+      ).textContent,
+    ).toContain('包含这次提交的改动');
     await act(async () => button('恢复')?.click());
     expect(actions.memoryRestoreCommit).toHaveBeenCalledWith({
       channelId: 'dm-qa',
@@ -1264,7 +1204,7 @@ describe('Memory Git graph sidebar', () => {
     await act(async () => {
       terminology().click();
     });
-    expect(evolution?.querySelector('[role="menu"]')?.textContent).toContain('Git');
+    expect(document.body.querySelector('[role="menu"]')?.textContent).toContain('Git');
     await act(async () => {
       Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
         .find((item) => item.textContent === 'Git')
@@ -1273,7 +1213,7 @@ describe('Memory Git graph sidebar', () => {
     expect(channelSidebarPrefs.getSnapshot().memoryTerminology).toBe('git');
     expect(evolution?.querySelector('.bh-memory-change-badge')?.textContent).toBe('M');
     await act(async () => {
-      if (evolution?.querySelector('[role="menu"]') === null) terminology().click();
+      if (document.body.querySelector('[role="menu"]') === null) terminology().click();
     });
     await act(async () => {
       Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))

@@ -10,6 +10,7 @@ import { afterEach, expect, it } from 'vitest';
 let child: ChildProcess | undefined;
 let control: string | undefined;
 let eventsFile: string | undefined;
+let workloadFile: string | undefined;
 async function stopServer() {
   if (child !== undefined) {
     const exit = once(child, 'exit');
@@ -28,6 +29,10 @@ afterEach(async () => {
   if (eventsFile !== undefined) {
     await unlink(eventsFile);
     eventsFile = undefined;
+  }
+  if (workloadFile !== undefined) {
+    await unlink(workloadFile);
+    workloadFile = undefined;
   }
 });
 
@@ -54,6 +59,7 @@ async function startServer() {
       '--control',
       control,
       ...(eventsFile === undefined ? [] : ['--log', eventsFile]),
+      ...(workloadFile === undefined ? [] : ['--workload', workloadFile]),
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
@@ -189,3 +195,19 @@ it.each([false, true])(
     }
   },
 );
+
+it('replays one recorded workload message by index and rejects a missing index', async () => {
+  workloadFile = join(tmpdir(), `botharness-replay-workload-${randomUUID()}.jsonl`);
+  const table = ['| a |', '| --- |', '| b |'].join('\n');
+  const lines = [
+    JSON.stringify({ index: 0, body: 'first body' }),
+    JSON.stringify({ index: 1, body: table }),
+  ];
+  await writeFile(workloadFile, lines.join('\n') + '\n', { flag: 'wx' });
+  const base = await server();
+  await writeFile(control!, JSON.stringify({ slug: 'qa-bot', runId: 'w-1', workload: 1 }));
+  const sent = await (await post(base, request())).json();
+  expect(JSON.parse(sent.choices[0].message.tool_calls[0].function.arguments).body).toBe(table);
+  await writeFile(control!, JSON.stringify({ slug: 'qa-bot', runId: 'w-2', workload: 2 }));
+  expect((await post(base, request())).ok).toBe(false);
+});

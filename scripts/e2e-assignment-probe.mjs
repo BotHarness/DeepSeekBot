@@ -67,7 +67,7 @@ export function assignmentProbe({ origin, home, freshConnections = false }) {
         const timeout = setTimeout(() => reject(Error('native snapshot timeout')), 20000);
         socket.once('error', (error) => {
           clearTimeout(timeout);
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
         });
         socket.on('message', (raw) => {
           const f = JSON.parse(String(raw));

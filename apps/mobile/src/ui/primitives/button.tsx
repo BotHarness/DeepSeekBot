@@ -1,6 +1,7 @@
 import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
 import {
   ArchiveIcon,
+  TrashIcon,
   CheckIcon,
   CloseIcon,
   PlusIcon,
@@ -17,7 +18,7 @@ import {
 import { Pressable, View } from 'react-native';
 import { controlCase } from '../platform-copy';
 
-import { buttonColors, type ButtonTone } from '../design/controls';
+import { buttonColors, cardDecisionInk, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -34,6 +35,7 @@ export function Button({
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   on = 'raised',
   variant = 'filled',
   symbol,
@@ -45,25 +47,29 @@ export function Button({
   tone?: ButtonTone;
   disabled?: boolean;
   busy?: boolean;
+  selected?: boolean;
   on?: LayerName;
-  variant?: 'filled' | 'text';
+  variant?: 'filled' | 'text' | 'card-text';
   symbol?: ButtonSymbol;
   testID?: string;
 }) {
   const theme = useDesignTheme();
   const colors = buttonColors(theme, tone, on);
   const filled = variant === 'filled';
-  const labelColor = filled
-    ? colors.label
-    : tone === 'danger'
-      ? theme.color.danger
-      : theme.color.fg;
+  const labelColor =
+    variant === 'card-text'
+      ? cardDecisionInk(theme, tone)
+      : filled
+        ? colors.label
+        : tone === 'danger'
+          ? theme.color.danger
+          : theme.color.fg;
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: disabled || busy, busy }}
+      accessibilityState={{ disabled: disabled || busy, busy, selected }}
       disabled={disabled || busy}
       onPress={onPress}
       android_ripple={{ color: pressTint(labelColor) }}
@@ -79,7 +85,7 @@ export function Button({
         borderRadius: radius.round,
         backgroundColor: pressed ? colors.pressed : filled ? colors.fill : undefined,
         overflow: 'hidden',
-        opacity: disabled ? 0.45 : 1,
+        opacity: disabled && !selected ? 0.45 : 1,
       })}
     >
       {busy ? (
@@ -92,6 +98,7 @@ export function Button({
               check: CheckIcon,
               'shield-check': ShieldCheckIcon,
               x: CloseIcon,
+              trash: TrashIcon,
               archive: ArchiveIcon,
               plus: PlusIcon,
               'message-square': MessageIcon,

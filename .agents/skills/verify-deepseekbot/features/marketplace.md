@@ -1,5 +1,24 @@
 # Bot Marketplace
 
+## Sources
+
+- `packages/market/**`
+- `packages/core/src/marketplace/**`
+- `packages/client/src/client/{marketplace,market-panel}.tsx`
+- `apps/mobile/src/marketplace/**`
+- `apps/mobile/src/ui/shell/marketplace-*`
+- `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
+- `apps/mobile/app/marketplace*.tsx`
+
+## Terms
+
+- Bot Marketplace
+- Marketplace Digest
+- Marketplace Ranking
+- Install Receipt
+- Share Draft
+- Listing
+
 ## Sub-features
 
 - Flat borderless cards show the indexed Bot banner (pixel recipe or uploaded image) and a primary Import action. No banner keeps a neutral strip.
@@ -33,6 +52,8 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 
 ## Gotchas
+
+- Install source is an optional named gateway argument (`list`, `hot`, `new`, `rising`, `digest`). A source-bearing `/api/botharness/marketplaceInstall` request must reach the review owner, not fail with `unexpected "source"`. An expired review must still be refused; reaching that refusal proves admission only, not a successful installation. Qualify installation with a real staged review separately.
 
 - The default `verify-app shot` locale is English; Chinese accessible names require `--locale zh`. The fresh Profile welcome dialog must be dismissed before market interaction.
 - Production tie ordering changes only after the Worker and migration `0011_star_tiebreaks.sql` deploy. Old three-field stars cursors receive `invalid-cursor`; reopening/retrying starts from page one. Other cursors remain compatible.

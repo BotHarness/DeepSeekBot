@@ -1,11 +1,14 @@
+import { Button } from './ds/button.js';
 import { Fragment, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeActions } from './actions.js';
 import type { MemoryRecoveryCheckpoint } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-type RecoverySnapshot = { checkpoints: MemoryRecoveryCheckpoint[]; error?: string };
+type RecoverySnapshot = {
+  checkpoints: MemoryRecoveryCheckpoint[];
+  error?: string;
+};
 
 const stores = new WeakMap<BridgeActions, Map<string, ReturnType<typeof createRecoveryStore>>>();
 

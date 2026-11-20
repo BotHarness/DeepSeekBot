@@ -83,6 +83,9 @@ it('lists only the Assignments a Channel started, newest first', async () => {
       undefined,
       'stopped',
     );
+    db.prepare(`UPDATE assignments SET archived_at = ? WHERE session_id = 'd-stopped'`).run(
+      '2026-10-04T00:00:00.000Z',
+    );
   });
   const runtime = createBotRuntime({
     database: owner,
@@ -128,6 +131,7 @@ it('lists only the Assignments a Channel started, newest first', async () => {
         title: 'Cancelled',
         description: 'Cancelled',
         activity: 'stopped',
+        archivedAt: '2026-10-04T00:00:00.000Z',
         createdAt: '2026-09-30T00:00:00.000Z',
         updatedAt: '2026-09-30T00:00:00.000Z',
       },

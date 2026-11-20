@@ -1,10 +1,19 @@
+import { canManageModelProviders } from './team-bridge.js';
+import { currentTeamMode } from './team-state.js';
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { markOriginActions } from './origin-actions.js';
+import { rewriteHasSiblingRules } from './has-sibling-rewrite.js';
 import { createBotPresentation } from './bot-presentation.js';
+import { disposeClientLog, installClientLog, reportFailure } from './diagnostic-log.js';
+import { watchClientLogState } from './diagnostic-log-state.js';
+import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
+import { mountPresenceReporter, presenceSender } from './presence-reporter.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
 import { Wallpaper } from './wallpaper.js';
 import { createWallpaperStore } from './wallpaper-store.js';
 import { mountWallpaper } from './wallpaper-layer.js';
+import { mountPanelScrollbars, PLUGIN_SCROLLBAR_SCOPE } from './ds/panel-scrollbars.js';
 import { panelTargetId } from './appearance-panels.js';
 import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
@@ -20,6 +29,7 @@ import { createElement } from 'react';
 import { bindTobPresentation } from './tob-presentation.js';
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import { registerWorkspaceShortcuts, migrateWorkShortcut } from './workspace-shortcuts.js';
+import { startAccountEnvironments } from './account-environments.js';
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
@@ -34,7 +44,11 @@ import type {} from '@deepseek-ai/dsh-api-workspace-controller/client';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { SessionId } from '@deepseek-ai/dsh-session/types';
 
-import { BOT_MODE_NAMESPACE, type BotModeSettings } from '../bot-mode-settings.js';
+import {
+  BOT_MODE_NAMESPACE,
+  DEFAULT_SETTINGS_PINS,
+  type BotModeSettings,
+} from '@botharness/host-client/shared/bot-mode-settings';
 import {
   fullClientLocator,
   privateInputLocator,
@@ -46,6 +60,7 @@ import { createFileOpenPreferences } from './file-open-preferences.js';
 import { createActions, type BridgeActions } from './actions.js';
 import { ProviderAppSetup } from './provider-app-setup.js';
 import { BotModePrefs, botModePrefsFace } from './bot-mode-prefs.js';
+import type { SettingsPins } from './settings-home.js';
 import {
   BotSessionFolders,
   mountBotFolderProjection,
@@ -60,6 +75,7 @@ import {
 import { subscribeBotColorScheme, readBotColorScheme } from './bot-color-scheme.js';
 import { botIconMarkup } from './bot-icon.js';
 import { installBotNavIcon } from './bot-icon-nav.js';
+import { nativeSettingsNavigation } from './bot-settings-open.js';
 import {
   BOT_SETTINGS_SECTIONS,
   BotSettings,
@@ -67,10 +83,13 @@ import {
   botSettingsSectionSource,
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { createQuickSwitcherLauncher } from './quick-switcher-launcher.js';
 import { searchSettings } from './settings-search.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
+import { TeamSection } from './team-settings.js';
+import { memberPage } from './member-page.js';
 import {
   AboutSection,
   AdvancedSection,
@@ -80,25 +99,22 @@ import {
   AccountSection,
   GeneralSection,
   MessagingSection,
-  ModelsSection,
-  AutoApprovalSection,
+  registerModelSettingsSections,
   PromptsSection,
+  VoiceSection,
 } from './bot-settings-sections.js';
-import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
+import { UpdateRunsController } from './update-runs.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
 import { BotMain } from './bot-main.js';
-import { expectMobileConversation, MobileBotPanel } from './mobile-bot-panel.js';
-import { mobileBotViewport, subscribeMobileBotViewport } from './mobile-viewport.js';
+import { MobileBotPanel } from './mobile-bot-panel.js';
 import { clearConversationDrafts } from './conversation-draft.js';
 import { BotSidebar, createBotPanelEntry } from './bot-sidebar.js';
 import { BotModeSidebar } from './bot-mode-sidebar.js';
-import {
-  botModeSidebarViewport,
-  subscribeBotModeSidebarViewport,
-} from './bot-mode-sidebar-viewport.js';
+import { getWindowClass, subscribeWindowClass } from './ds/window-class.js';
 import { OnboardingEnterHint, OnboardingLauncher } from './onboarding-checklist-view.js';
+import { HostAcknowledgements, installHostAcknowledgements } from './host-acknowledgements.js';
 import {
   createChannelSidebarBuiltinTabs,
   createChannelSidebarBuiltins,
@@ -112,10 +128,13 @@ import {
   mountDesktopNotifications,
 } from './desktop-notifications.js';
 import { openHumanAttentionSource } from './human-attention-source.js';
+import { HumanProfileSetup } from './human-profile-setup.js';
 import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createEnvironmentPanel } from './environment-panel.js';
+import { mountHostSettingsOpener } from './environment-settings-source.js';
 import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
@@ -129,7 +148,9 @@ import {
   loadSessionBotOwner,
   loadHumanAttention,
   botExists,
+  bridgeHost,
 } from './bridge.js';
+import { listBots } from '@botharness/host-client/bots';
 import {
   SessionOwnerLeading,
   SessionReturnAction,
@@ -137,7 +158,11 @@ import {
 } from './session-return-action.js';
 import { mountActivityLive } from './activity-live.js';
 import { installChannelFollow, mountChannelLive, mountRosterLive } from './channel-live.js';
-import { installTypedLive } from './messaging-defaults-live.js';
+import {
+  installTypedLive,
+  observeHumanAttention,
+  observeResource,
+} from './messaging-defaults-live.js';
 import {
   CHANNEL_REMOTE_DESCRIPTOR,
   COMPANION_REMOTE_DESCRIPTOR,
@@ -152,8 +177,9 @@ import {
 } from './live-snapshots.js';
 import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
-import { registerModeShadow } from './mode.js';
+import { registerModeShadow, registerShadowEntry } from './mode.js';
 import { browserSystemMotionSource, mountMotionPolicyAttribute } from './motion-preference.js';
+import { trackDialogInput } from './ds/dialog-input.js';
 import { defaultStorage, loadRosterConfig } from './roster-config.js';
 import { mountDevClientRefresh } from './dev-client-refresh.js';
 import { saveHmrView, takeHmrView } from './hmr-view.js';
@@ -206,7 +232,17 @@ export function installStyles(): () => void {
 }
 
 export function apply(ctx: ClientContext): void {
+  const member = memberPage();
   ctx.effect(() => clearConversationDrafts);
+  ctx.effect(() => {
+    if (typeof window === 'undefined' || member) return () => {};
+    installClientLog({ window, surface: telemetrySurface() });
+    const offStore = watchClientLogState(store);
+    return () => {
+      offStore();
+      disposeClientLog();
+    };
+  }, 'botharness: always-on local diagnostic log');
   const storage = defaultStorage();
   const wallpaper = new Wallpaper(
     createWallpaperStore(typeof indexedDB === 'undefined' ? undefined : indexedDB),
@@ -223,9 +259,11 @@ export function apply(ctx: ClientContext): void {
     const offColors = appearance.subscribe(refreshBotPrimaryColors);
     refreshBotPrimaryColors();
     const offWallpaper = mountWallpaper(wallpaper);
-    const offControl = mountAppearanceControl(appearance, wallpaper);
+    const offScrollbars = mountPanelScrollbars(document.documentElement, PLUGIN_SCROLLBAR_SCOPE);
+    const offControl = member ? () => {} : mountAppearanceControl(appearance, wallpaper);
     return () => {
       offControl();
+      offScrollbars();
       offWallpaper();
       offColors();
       offStyle();
@@ -237,7 +275,17 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
-  remoteHosts(t);
+  if (!member) {
+    remoteHosts(t);
+    ctx.effect(
+      () =>
+        startAccountEnvironments({
+          sources: remoteHosts(t),
+          clientName: t('relationships.clientDefault'),
+        }),
+      'botharness: same-account environments',
+    );
+  }
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,
@@ -247,15 +295,20 @@ export function apply(ctx: ClientContext): void {
     compatibility:
       typeof window === 'undefined'
         ? undefined
-        : (window as unknown as { __botharnessWindowZoomCompatibility?: ZoomCompatibility })
-            .__botharnessWindowZoomCompatibility,
+        : (
+            window as unknown as {
+              __botharnessWindowZoomCompatibility?: ZoomCompatibility;
+            }
+          ).__botharnessWindowZoomCompatibility,
     t,
   });
   ctx.effect(() => () => zoom.dispose(), 'botharness: device-local window zoom');
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
   const profileContext = async (): Promise<{ profileId: string }> => {
-    const response = await fetch('./api/botharness/companion', { credentials: 'same-origin' });
+    const response = await fetch('./api/botharness/companion', {
+      credentials: 'same-origin',
+    });
     if (!response.ok) throw new Error('Companion context unavailable');
     const value: unknown = await response.json();
     if (
@@ -268,8 +321,11 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
-    nativeFiles: createNativeHostFiles(ctx.remote.session),
-    fileOpenPreferences: createFileOpenPreferences({ storage, context: profileContext }),
+    ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
+    fileOpenPreferences: createFileOpenPreferences({
+      storage,
+      context: profileContext,
+    }),
     pickDirectory: () => {
       const picker = ctx.get('uiWorkspace');
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
@@ -285,6 +341,7 @@ export function apply(ctx: ClientContext): void {
       ctx.uiWorkspace.openSession(sessionId as SessionId);
     },
   });
+  markOriginActions(actions);
   const setupRpc = connectionRpc(ctx);
   if (setupRpc) actions.appSetup = new ProviderAppSetup(setupRpc);
   recordRemoteHosts((event, properties) => actions.telemetryEvent(event, properties));
@@ -305,6 +362,7 @@ export function apply(ctx: ClientContext): void {
     },
   });
   ctx.effect(() => {
+    if (member) return () => {};
     void companion.start();
     return () => companion.dispose();
   }, 'botharness: independent Window Companion owner');
@@ -338,14 +396,30 @@ export function apply(ctx: ClientContext): void {
           storage,
           openSession: (id: string) => ctx.uiWorkspace.openSession(id as SessionId),
           roster: store,
-          hooks: { botFolderGroups, botFolderPrefs: prefs.source, botFolderHost },
+          hooks: {
+            botFolderGroups,
+            botFolderPrefs: prefs.source,
+            botFolderHost,
+          },
           setMounted: (node: HTMLElement | null) => botFolderMount?.setMounted(node),
         }),
       },
       BotSessionFolders,
     ),
   );
+  ctx.slots.inject('shell.overlay', () =>
+    ctx.slots.register(
+      {
+        name: 'shell.overlay',
+        id: 'botharness-human-profile-setup',
+        locale: LOCALE_NS,
+        inject: () => ({ call, actions }),
+      },
+      HumanProfileSetup,
+    ),
+  );
   const botSettings = new BotSettings();
+  ctx.effect(() => mountHostSettingsOpener(botSettings.openHost));
   const desktopNotifications = new DesktopNotificationPrefs(storage, browserNotificationApi());
   const shortcutBindings = new ShortcutBindings(storage);
   ctx.slots.inject('shell.overlay', () =>
@@ -380,9 +454,28 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettingsSections = botSettingsSectionSource(ctx);
+  const settingsPins: SettingsPins = {
+    getSnapshot: () => prefs.source.getSnapshot().settingsPins ?? DEFAULT_SETTINGS_PINS,
+    subscribe: (listener) => prefs.source.subscribe(listener),
+    set: (pins) => {
+      prefs.setSettingsPins(pins);
+    },
+  };
   const quickSwitcherSettings: QuickSwitcherSettings = {
-    search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
+    search: (query) =>
+      searchSettings(
+        botSettingsSections
+          .getSnapshot()
+          .filter(
+            ({ id }) =>
+              id !== BOT_SETTINGS_SECTIONS.modelProviders ||
+              canManageModelProviders(currentTeamMode(call)?.viewer),
+          ),
+        query,
+        t,
+      ),
     open: (result) => botSettings.open(result.section, result.target),
+    launcher: createQuickSwitcherLauncher(),
   };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
@@ -390,21 +483,44 @@ export function apply(ctx: ClientContext): void {
         name: 'shell.overlay',
         id: 'botharness-bot-settings',
         locale: LOCALE_NS,
-        inject: () => ({ botSettings, sections: botSettingsSections }),
-        children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
+        inject: () => ({
+          botSettings,
+          call,
+          sections: botSettingsSections,
+          environments: member ? undefined : remoteHosts(t),
+          pins: member ? undefined : settingsPins,
+        }),
+        children: {
+          'botharness.settings.section': { kind: 'list', scope: 'root' },
+        },
       },
       BotSettingsView,
     ),
   );
-  const releaseNotes = new ReleaseNotesController(call, storage);
-  const telemetryNotice = new TelemetryNoticeController(call, storage, () => {
-    botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
-  });
+  const updateRuns = new UpdateRunsController(call);
+  const acknowledgements = new HostAcknowledgements(call, storage);
+  ctx.effect(() => installHostAcknowledgements(acknowledgements), 'botharness: Profile notices');
+  void acknowledgements.load();
+  const releaseNotes = new ReleaseNotesController(
+    call,
+    storage,
+    undefined,
+    updateRuns,
+    acknowledgements,
+  );
+  const telemetryNotice = new TelemetryNoticeController(
+    call,
+    storage,
+    () => {
+      botSettings.open(BOT_SETTINGS_SECTIONS.dataPrivacy);
+    },
+    acknowledgements,
+  );
   const lastView =
     typeof window === 'undefined'
       ? undefined
       : consumeLastView(window as unknown as Record<string, unknown>, storage);
-  let restoreBotMode = hmrView === undefined && lastView?.mode === 'bot';
+  let restoreBotMode = member || (hmrView === undefined && lastView?.mode === 'bot');
   const nativeSessions = {
     refresh: () => ctx.sessions.refresh(),
     subscribe: (listener: () => void) => ctx.sessions.list.subscribe(listener),
@@ -418,7 +534,10 @@ export function apply(ctx: ClientContext): void {
           subscribe(listener: () => void): () => void;
           getSnapshot(): WorkspaceListSnapshot | undefined;
         }
-      | undefined) ?? { subscribe: () => () => {}, getSnapshot: () => undefined };
+      | undefined) ?? {
+      subscribe: () => () => {},
+      getSnapshot: () => undefined,
+    };
     const controller = new AbortController();
     if (typeof document !== 'undefined')
       botFolderMount = mountBotFolderProjection({
@@ -440,10 +559,12 @@ export function apply(ctx: ClientContext): void {
       warn: (message, error) => ctx.logger.warn(message, error),
     });
     let roster = '';
+    let rosterBots: unknown;
     const offRoster = store.subscribe(() => {
-      const next = JSON.stringify(
-        store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]),
-      );
+      const bots = store.getSnapshot().bots;
+      if (bots === rosterBots) return;
+      rosterBots = bots;
+      const next = JSON.stringify(bots.map((bot) => [bot.slug, bot.displayName]));
       if (next === roster) return;
       roster = next;
       visibility.refresh();
@@ -473,8 +594,14 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() =>
     appearance.setTargetSource(() => [
       ...dockPanels.panels().map((panel) => ({ id: panelTargetId(panel.id), label: panel.title })),
-      { id: panelTargetId('memory-details'), label: t('appearance.memoryDetails') },
-      { id: panelTargetId('generated-files'), label: t('generatedFiles.title') },
+      {
+        id: panelTargetId('memory-details'),
+        label: t('appearance.memoryDetails'),
+      },
+      {
+        id: panelTargetId('generated-files'),
+        label: t('generatedFiles.title'),
+      },
     ]),
   );
   const channelSidebar = createChannelSidebarRegistry(dockPanels);
@@ -500,7 +627,7 @@ export function apply(ctx: ClientContext): void {
           () => createElement('div', { ref: setTarget }),
         ),
       ),
-    exitBotMode: () => ctx.layout.selectPanel(null),
+    exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
     quickSwitcherSettings,
   };
@@ -515,7 +642,9 @@ export function apply(ctx: ClientContext): void {
         dockPanels.open(CHANNEL_BODY_PANEL);
         void actions
           .tobHome()
-          .then((tob) => actions.openChannel(tob.channelId))
+          .then((tob) =>
+            typeof tob.channelId === 'string' ? actions.openChannel(tob.channelId) : undefined,
+          )
           .catch(() => {});
       },
     ),
@@ -527,6 +656,9 @@ export function apply(ctx: ClientContext): void {
     }),
   );
   ctx.provide('channelSidebar', channelSidebar);
+  ctx.provide('botharnessResourceObserver', (resource, refresh) =>
+    observeResource(resource, refresh, 10_000, 60_000, true),
+  );
   const profileCards = createProfileCardRegistry();
   ctx.provide('profileCards', profileCards);
   ctx.effect(() => {
@@ -539,6 +671,7 @@ export function apply(ctx: ClientContext): void {
           channelSidebar.register(entry),
         ),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
+        ...(member ? [] : [dockPanels.register(createEnvironmentPanel(t))]),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
@@ -568,10 +701,18 @@ export function apply(ctx: ClientContext): void {
   }, 'botharness: Profile Cards');
 
   ctx.effect(installStyles, 'botharness: client styles');
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : rewriteHasSiblingRules(document)),
+    'botharness: cheap :has() invalidation for host sheets',
+  );
   ctx.effect(mountDevClientRefresh, 'botharness: local development refresh');
   ctx.effect(
     () => prefs.attachSystemMotion(browserSystemMotionSource()),
     'botharness: system motion preference',
+  );
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : trackDialogInput(document)),
+    'botharness: dialog input modality',
   );
   ctx.effect(() => {
     if (typeof document === 'undefined') return () => {};
@@ -660,20 +801,22 @@ export function apply(ctx: ClientContext): void {
       channels: () => store.getSnapshot().channels,
       attentive: () => document.visibilityState === 'visible' && document.hasFocus(),
       subscribe: (listener) => {
-        let prior = store.getSnapshot().humanInbox;
+        let prior = store.getSnapshot().activityList;
         const offStore = store.subscribe(() => {
-          const next = store.getSnapshot().humanInbox;
+          const next = store.getSnapshot().activityList;
           if (next.unreadCount === prior.unreadCount && next.hasAction === prior.hasAction) return;
           prior = next;
           listener();
         });
         const offPrefs = desktopNotifications.subscribe(listener);
+        const offAttention = observeHumanAttention(listener);
         document.addEventListener('visibilitychange', listener);
         window.addEventListener('focus', listener);
         window.addEventListener('blur', listener);
         return () => {
           offStore();
           offPrefs();
+          offAttention();
           document.removeEventListener('visibilitychange', listener);
           window.removeEventListener('focus', listener);
           window.removeEventListener('blur', listener);
@@ -685,7 +828,10 @@ export function apply(ctx: ClientContext): void {
             ?.displayName ??
           (item.botSlug || item.channelName) ??
           '';
-        return t(`desktopNotify.${kind}`, { bot, channel: item.channelName ?? '' });
+        return t(`desktopNotify.${kind}`, {
+          bot,
+          channel: item.channelName ?? '',
+        });
       },
       open: (item) => {
         ctx.layout.selectPanel(PANEL_ID);
@@ -695,6 +841,17 @@ export function apply(ctx: ClientContext): void {
       },
     });
   }, 'botharness: desktop notifications');
+  ctx.effect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined' || member) return () => {};
+    const clientId = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return mountPresenceReporter({
+      document,
+      window,
+      send: presenceSender(clientId),
+    });
+  }, 'botharness: desktop presence');
   ctx.effect(
     () => (typeof EventSource === 'undefined' ? () => {} : mountChannelLive(store, actions)),
     'botharness: Channel live subscription',
@@ -761,7 +918,7 @@ export function apply(ctx: ClientContext): void {
           };
         },
         (error: unknown) => {
-          console.warn('botharness: live Remote stream unavailable', error);
+          reportFailure('live-remote-stream-unavailable', 'live Remote stream unavailable', error);
         },
       );
     return () => {
@@ -840,6 +997,9 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({
             actions,
             startSignIn: startConnectSignIn,
+            call,
+            store,
+            onSaved: () => actions.refreshRoster(),
           }),
         },
         AccountSection,
@@ -854,9 +1014,15 @@ export function apply(ctx: ClientContext): void {
           label: () => t('botSettings.section.general'),
           locale: LOCALE_NS,
           inject: () => ({
+            ...botModePrefsFace(prefs),
             actions,
             closeBotSettings: botSettings.close,
             zoomSurface: zoom.surface,
+            localeSource: {
+              getSnapshot: () => ctx.locale.getSnapshot(),
+              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
+              setLocale: (value: string) => ctx.locale.setLocale(value),
+            },
           }),
         },
         GeneralSection,
@@ -870,16 +1036,13 @@ export function apply(ctx: ClientContext): void {
           order: 5,
           label: () => t('botSettings.section.appearance'),
           locale: LOCALE_NS,
-          children: { 'botharness.settings.layout': { kind: 'list', scope: 'root' } },
+          children: {
+            'botharness.settings.layout': { kind: 'list', scope: 'root' },
+          },
           inject: () => ({
             ...botModePrefsFace(prefs),
             appearance,
             wallpaper,
-            localeSource: {
-              getSnapshot: () => ctx.locale.getSnapshot(),
-              subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
-              setLocale: (value: string) => ctx.locale.setLocale(value),
-            },
           }),
         },
         AppearanceSection,
@@ -915,32 +1078,7 @@ export function apply(ctx: ClientContext): void {
         KeyboardSettings,
       ),
     );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.models,
-          order: 10,
-          label: () => t('botSettings.section.models'),
-          locale: LOCALE_NS,
-          inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
-        },
-        ModelsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.autoApproval,
-          order: 15,
-          label: () => t('botSettings.section.autoApproval'),
-          locale: LOCALE_NS,
-          inject: () => ({ actions, call, store }),
-        },
-        AutoApprovalSection,
-      ),
-    );
+    registerModelSettingsSections(settingsCtx, { t, prefs, actions, call, store });
     settingsCtx.slots.inject('botharness.settings.section', () =>
       settingsCtx.slots.register(
         {
@@ -952,6 +1090,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ actions }),
         },
         PromptsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.voice,
+          order: 17,
+          label: () => t('botSettings.section.voice'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions }),
+        },
+        VoiceSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>
@@ -981,7 +1132,7 @@ export function apply(ctx: ClientContext): void {
           order: 25,
           label: () => t('botSettings.section.imApps'),
           locale: LOCALE_NS,
-          inject: () => ({ imApps, store }),
+          inject: () => ({ imApps, store, call }),
         },
         ImAppsSection,
       ),
@@ -997,6 +1148,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ companion }),
         },
         CompanionsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.team,
+          order: 44,
+          label: () => t('botSettings.section.team'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        TeamSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>
@@ -1042,24 +1206,11 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.plugins,
-          order: 65,
-          label: () => t('botSettings.section.plugins'),
-          locale: LOCALE_NS,
-          inject: () => ({ call }),
-        },
-        PluginsSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.about,
           order: 70,
           label: () => t('botSettings.section.about'),
           locale: LOCALE_NS,
-          inject: () => ({ releaseNotes }),
+          inject: () => ({ releaseNotes, call, updateRuns }),
         },
         AboutSection,
       ),
@@ -1072,7 +1223,9 @@ export function apply(ctx: ClientContext): void {
           order: 25,
           label: () => t('settings.nav'),
           locale: LOCALE_NS,
-          inject: () => ({ openBotSettings: (sectionId?: string) => botSettings.open(sectionId) }),
+          inject: () => ({
+            openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+          }),
         },
         DshBotSettingsItem,
       ),
@@ -1106,10 +1259,14 @@ export function apply(ctx: ClientContext): void {
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openActivityCenter();
         },
-        () => actions.refreshHumanInboxStatus(),
+        () => actions.refreshActivityListStatus(),
         {
           launcher: (translate) =>
-            createElement(OnboardingLauncher, { actions, t: translate, placement: 'row' }),
+            createElement(OnboardingLauncher, {
+              actions,
+              t: translate,
+              placement: 'row',
+            }),
           enterHint: (translate) => createElement(OnboardingEnterHint, { t: translate }),
         },
       ),
@@ -1123,6 +1280,8 @@ export function apply(ctx: ClientContext): void {
         key: PANEL_ID,
         locale: LOCALE_NS,
         inject: () => ({
+          call,
+          botSettings,
           actions,
           companion,
           channelSidebar,
@@ -1137,9 +1296,10 @@ export function apply(ctx: ClientContext): void {
           telemetryNotice,
           workspace,
           ...botModePrefsFace(prefs),
-          exitBotMode: () => ctx.layout.selectPanel(null),
+          exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
+          shortcutBindings,
         }),
       },
       MobileBotPanel,
@@ -1207,84 +1367,98 @@ export function apply(ctx: ClientContext): void {
     ),
   );
 
+  ctx.effect(() => () => nativeSettingsNavigation.close());
   registerModeShadow(
     ctx,
     'sidebar',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar',
-          priority: -1,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-            exitBotMode: () => ctx.layout.selectPanel(null),
-            toggleSidebar: () => ctx.layout.toggleSidebar(),
-            openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
-            quickSwitcherSettings,
-          }),
-        },
-        BotModeSidebar,
+      registerShadowEntry(ctx, 'sidebar', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+              exitBotMode: member ? undefined : () => ctx.layout.selectPanel(null),
+              toggleSidebar: () => ctx.layout.toggleSidebar(),
+              openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+              quickSwitcherSettings,
+            }),
+          },
+          BotModeSidebar,
+        ),
       ),
     store,
     {
-      enabled: botModeSidebarViewport,
-      subscribe: subscribeBotModeSidebarViewport,
+      enabled: () => getWindowClass() === 'expanded' && !nativeSettingsNavigation.getSnapshot(),
+      subscribe: (listener) => {
+        const viewport = subscribeWindowClass(listener);
+        const navigation = nativeSettingsNavigation.subscribe(listener);
+        return () => {
+          viewport();
+          navigation();
+        };
+      },
     },
   );
   registerModeShadow(
     ctx,
     'sidebar.workspaces',
     () =>
-      ctx.slots.register(
-        {
-          name: 'sidebar.workspaces',
-          priority: -100,
-          locale: LOCALE_NS,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            shortcutBindings,
-            ...botModePrefsFace(prefs),
-          }),
-        },
-        BotSidebar,
+      registerShadowEntry(ctx, 'sidebar.workspaces', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'sidebar.workspaces',
+            priority,
+            locale: LOCALE_NS,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              shortcutBindings,
+              ...botModePrefsFace(prefs),
+            }),
+          },
+          BotSidebar,
+        ),
       ),
     store,
     {
-      enabled: () => !mobileBotViewport(),
-      subscribe: subscribeMobileBotViewport,
+      enabled: () => getWindowClass() === 'expanded',
+      subscribe: subscribeWindowClass,
     },
   );
   registerModeShadow(
     ctx,
     'main',
     () =>
-      ctx.slots.register(
-        {
-          name: 'main',
-          key: 'conversation' as MainPanelId,
-          priority: -100,
-          inject: () => ({
-            actions,
-            companion,
-            channelSidebar,
-            dockPanels,
-            profileCards,
-            appearance,
-            nativeChatT,
-            nativeSessions,
-            prefs,
-            workspace,
-          }),
-        },
-        BotMain,
+      registerShadowEntry(ctx, 'main', (priority) =>
+        ctx.slots.register(
+          {
+            name: 'main',
+            key: 'conversation' as MainPanelId,
+            priority,
+            inject: () => ({
+              actions,
+              companion,
+              channelSidebar,
+              dockPanels,
+              profileCards,
+              appearance,
+              nativeChatT,
+              nativeSessions,
+              prefs,
+              workspace,
+            }),
+          },
+          BotMain,
+        ),
       ),
     store,
   );
@@ -1293,19 +1467,13 @@ export function apply(ctx: ClientContext): void {
     trigger: '@',
     name: 'personabot',
     candidates: async (_session, request) => {
-      const result = await call('list', { query: request.query }, request.signal);
-      if (!result.ok) return [];
-      const value = result.value as { bots?: readonly { slug?: unknown; displayName?: unknown }[] };
-      return (value.bots ?? []).flatMap((bot) =>
-        typeof bot.slug === 'string' && bot.slug.length > 0
-          ? [
-              {
-                name: bot.slug,
-                ...(typeof bot.displayName === 'string' ? { description: bot.displayName } : {}),
-              },
-            ]
-          : [],
-      );
+      const bots = await listBots(bridgeHost(call, request.signal), {
+        query: request.query,
+      }).catch(() => []);
+      return bots.map((bot) => ({
+        name: bot.slug,
+        description: bot.displayName,
+      }));
     },
     codec: {
       clipboardText: (ref) => `@${ref}`,
@@ -1330,7 +1498,6 @@ export function apply(ctx: ClientContext): void {
     ctx.effect(
       () =>
         watchPrivateInputNavigation(store, privateLocator, (channelId, messageId) => {
-          expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           void actions.openChannelAtMessage(channelId, messageId).catch(() => {
             ctx.logger.warn('botharness: private input card locator unavailable');
@@ -1352,7 +1519,6 @@ export function apply(ctx: ClientContext): void {
             requestCreation(target.kind === 'new-bot' ? 'bot' : 'channel');
             return;
           }
-          if (target.kind !== 'home') expectMobileConversation();
           ctx.layout.selectPanel(PANEL_ID);
           if (target.kind === 'home') return;
           const opening =

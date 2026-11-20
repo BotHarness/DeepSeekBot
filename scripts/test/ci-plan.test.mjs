@@ -11,11 +11,13 @@ import {
   mobileVerification,
   parseChanges,
   timelinePerf,
+  uiVisual,
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
   rulesTable,
   syncGuide,
+  localCommands,
 } from '../ci-plan.mjs';
 
 const repo = {
@@ -55,6 +57,10 @@ const pr = (...paths) => ({
   event: 'pull_request',
   index,
   changes: paths.map((path) => ({ status: 'modified', path })),
+});
+
+it('runs native capture regressions for a source-patch-only change', () => {
+  expect(plan(pr('docs/research/patches/dsh-desktop-window-capture.patch')).tests).toBe('full');
 });
 
 describe('mobile verification selection', () => {
@@ -198,12 +204,34 @@ describe('mobile verification selection', () => {
 });
 
 describe('CI test plan', () => {
+  it('runs the UI visual checks for Client source, the gallery and full runs', () => {
+    expect(uiVisual('affected', [{ path: 'packages/client/src/client/ds/nav-item.tsx' }])).toBe(
+      true,
+    );
+    expect(uiVisual('affected', [{ path: 'scripts/ui-visual/gallery.tsx' }])).toBe(true);
+    expect(uiVisual('affected', [{ path: 'scripts/check-ui-visual.mjs' }])).toBe(true);
+    expect(uiVisual('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(uiVisual('full', [])).toBe(true);
+  });
+
   it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {
     expect(timelinePerf('affected', [{ path: 'packages/client/src/client/bot-main.tsx' }])).toBe(
       true,
     );
     expect(timelinePerf('affected', [{ path: 'scripts/perf-budgets/timeline.json' }])).toBe(true);
     expect(timelinePerf('affected', [{ path: 'scripts/perf-idle-timeline.mjs' }])).toBe(true);
+    for (const path of [
+      'scripts/perf-genui-opening.mjs',
+      'scripts/perf-genui-opening-observer.mjs',
+      'scripts/perf-genui-provenance.mjs',
+      'scripts/perf-genui-browser-diagnostics.mjs',
+      'scripts/perf-budgets/genui-opening.json',
+    ]) {
+      expect(timelinePerf('affected', [{ path }])).toBe(true);
+    }
+    expect(timelinePerf('affected', [{ path: 'scripts/foreground-timeline-scroll.mjs' }])).toBe(
+      true,
+    );
     expect(timelinePerf('full', [])).toBe(true);
     expect(timelinePerf('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
     expect(timelinePerf('affected', [{ path: 'packages/client/test/a.test.ts' }])).toBe(false);
@@ -444,5 +472,52 @@ describe('CI test plan drift checks', () => {
     expect(synced).toMatch(/\| `pnpm-lock\.yaml` +\| Full suite +\| Yes +\| Lockfile +\|/);
     expect(synced.endsWith('\n\nAfter.\n')).toBe(true);
     expect(syncGuide(synced)).toBe(synced);
+  });
+});
+
+it('verifies mobile when a shared workspace package changes', () => {
+  const files = {
+    'apps/mobile/package.json': JSON.stringify({ name: '@botharness/mobile' }),
+    'apps/mobile/src/session.ts': "import { client } from '@botharness/host-client/client';",
+    'packages/host-client/package.json': JSON.stringify({ name: '@botharness/host-client' }),
+    'packages/host-client/src/client.ts': "import { codec } from '@botharness/host-protocol/wire';",
+    'packages/host-protocol/package.json': JSON.stringify({ name: '@botharness/host-protocol' }),
+    'packages/host-protocol/src/wire.ts': 'export const codec = 1;',
+  };
+  for (const path of ['packages/host-client/src/client.ts', 'packages/host-protocol/src/wire.ts']) {
+    expect(
+      mobileVerification({
+        event: 'pull_request',
+        changes: [{ status: 'modified', path }],
+        index: createIndex(Object.keys(files), (file) => files[file]),
+      }),
+    ).toEqual({ run: true, reason: `${path} is imported by mobile` });
+  }
+});
+
+describe('local test plan commands', () => {
+  it('runs only the related tests for an affected plan', () => {
+    expect(
+      localCommands({ tests: 'affected', related: ['scripts/a.mjs'], docsSite: false }),
+    ).toEqual([
+      [
+        'vitest',
+        'related',
+        '--run',
+        '--passWithNoTests',
+        '--exclude',
+        DOCS_SITE_TEST,
+        'scripts/a.mjs',
+      ],
+    ]);
+  });
+
+  it('runs the full suite and the docs site test when the plan asks for them', () => {
+    expect(localCommands({ tests: 'full', related: [], docsSite: true })).toEqual([
+      ['vitest', 'run', '--exclude', DOCS_SITE_TEST],
+      ['slides:build'],
+      ['vitest', 'run', DOCS_SITE_TEST],
+    ]);
+    expect(localCommands({ tests: 'none', related: [], docsSite: false })).toEqual([]);
   });
 });

@@ -1,13 +1,9 @@
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   parseNotificationPreferences,
-} from '../../../../apps/mobile/src/host/device-notification-preferences.js';
-import {
-  PUSH_KINDS,
-  type PushKind,
-  type PushPreferences,
-} from '../../../../apps/mobile/src/host/push.js';
-import type { HumanAttentionItem } from '../../../../apps/mobile/src/host/wire.js';
+} from '@botharness/host-client/device-notification-preferences';
+import { PUSH_KINDS, type PushKind, type PushPreferences } from '@botharness/host-client/push';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import type { RemoteHost, HostStorage, RemoteConversationTarget } from './remote-hosts.js';
 import {
   noticeBody,
@@ -43,6 +39,7 @@ const kinds: Record<string, PushKind> = {
   'workspace-grant-request': 'approval',
   'auto-rejection': 'approval',
   'group-join-request': 'approval',
+  'pairing-request': 'approval',
   'assignment-waiting-human': 'question',
   'assignment-blocked': 'question',
   'user-question': 'question',
@@ -59,6 +56,7 @@ export function createRemoteNotifications(options: {
   hostName?(hostId: string, fallback: string): string;
   prepareEnable(hostId: string, signal: AbortSignal): Promise<void>;
   diagnostic?(code: NotificationDiagnostic): void;
+  requireOwner?(): void;
 }) {
   const { api, storage } = options;
   let hosts: Record<string, Choice> = {};
@@ -103,7 +101,11 @@ export function createRemoteNotifications(options: {
     new Promise((resolve, reject) => {
       const abort = () => {
         signal.removeEventListener('abort', abort);
-        reject(signal.reason);
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error('notification-activation-cancelled', { cause: signal.reason }),
+        );
       };
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) abort();
@@ -127,6 +129,7 @@ export function createRemoteNotifications(options: {
     choice,
     cancel,
     forget(hostId: string) {
+      options.requireOwner?.();
       cancel(hostId);
       const updated = { ...hosts };
       delete updated[hostId];
@@ -155,6 +158,7 @@ export function createRemoteNotifications(options: {
       patch: { enabled?: boolean; preferences?: Partial<PushPreferences> },
       request?: ControlRequest,
     ) {
+      options.requireOwner?.();
       checkRequest(request);
       cancel(hostId);
       const controller = new AbortController();

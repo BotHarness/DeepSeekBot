@@ -115,7 +115,9 @@ describe('plugin updates', () => {
       applied: false,
     });
     expect(beforeEffect).toHaveBeenCalledOnce();
-    expect(installBundle).toHaveBeenCalledWith(`${NAME}@0.2.0`);
+    expect(installBundle).toHaveBeenCalledWith(`${NAME}@0.2.0`, {
+      requestId: expect.any(String),
+    });
     bundles[1]!.version = '0.2.0';
     expect((await updates.list()).plugins[0]).toEqual({
       name: NAME,
@@ -140,6 +142,7 @@ describe('plugin updates', () => {
     });
     expect(installBundle).toHaveBeenLastCalledWith(
       'https://registry.test/@botharness/vrm-companion/-/vrm-companion-0.2.0.tgz',
+      { requestId: expect.any(String) },
     );
   });
 

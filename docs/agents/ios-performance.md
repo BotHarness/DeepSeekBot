@@ -64,9 +64,9 @@ assuming inspector commands or performance entry types work on every version.
 xcrun xctrace list templates
 xcrun xctrace list devices
 xcrun xctrace record --template 'Time Profiler' --device '<owned-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>.trace'
 xcrun xctrace record --template 'Animation Hitches' --device '<physical-device>' \
-  --attach '<exact-app-pid>' --time-limit 25s --output '<unique-run>-hitches.trace'
+  --attach '<exact-app-pid>' --time-limit 15s --output '<unique-run>-hitches.trace'
 xcrun xctrace export --input '<unique-run>.trace' --toc --output '<unique-run>.toc.xml'
 ```
 
@@ -91,11 +91,32 @@ self CPU time. Audit sampling attribution and overhead before quantitative use. 
 these fields native FPS, exact per-frame cost or measured display drops. Prefer supported
 DevTools exports or a validated sampling-only path when the React hook is unavailable.
 
+### Short captures and hot-path probes
+
+- **Capture seconds, not minutes.** Record one bounded scenario window (a few gestures, about
+  10–20 s), stop the recording as soon as the scenario ends, extract the numbers and delete the
+  trace. Long recordings add heat and background noise, and they can exhaust the phone's writable
+  storage and the Mac's memory. Check the phone's free space before each run.
+- **Big costs first.** Find the largest phase before polishing small ones.
+- **Locate hot paths in code.** Count calls on suspect paths with bounded logs, and inject a
+  deliberate delay (for example a short sleep) into a candidate path to see where the effect is
+  amplified most. Remove both before the A/B; keep instrumentation identical across arms.
+- **Know the device's tool limits.** If `--attach` cannot find the app, launch it under the
+  recording (`--launch -- <bundle-id>`) and wait for the app to be ready before the window
+  starts. On some device/Xcode combinations the `Animation Hitches` template keeps only the first
+  seconds of a recording; check each table's time range, and use the `Time Profiler` template
+  with the `Hitches`, `Display` and `Activity Monitor` instruments when it does.
+- **Separate harness cost.** XCUITest gestures make the app answer accessibility queries on the
+  main thread. Classify those samples (accessibility/XCTest frames) as harness time, report
+  main-thread budgets with and without them, and mark hitches that overlap them.
+
 ## Matched physical-device A/B acceptance
 
 - Freeze the data, gestures, scenario window, settings and dependencies. Warm each binary the
-  same way; alternate **A/B/B/A/A/B**, yielding at least three valid runs per version. Record
-  thermal/power conditions; keep other builds and competing profiling off the measurement host.
+  same way. One matched A/B pair per scenario is enough when it shows a clear difference; repeat
+  in **A/B/B/A/A/B** order only when the result is ambiguous or for a final precision pass,
+  because repeated runs mostly add thermal drift. Record thermal/power conditions; keep other
+  builds and competing profiling off the measurement host.
 - Capture CPU and display traces in controlled runs. Record visual evidence separately, or keep
   recording conditions identical and disclose overhead. Keep Debug/Simulator diagnostic results
   separate from physical Release results; do not pool them.
@@ -123,3 +144,24 @@ The issue/PR reports **Simulator**, **physical Release**, and **Human QA** indep
 PASS / FAIL / UNTESTED, with INVALID samples listed separately. Source tests, CI, Web evidence
 and a video do not replace native performance acceptance. Restore changed settings, revoke only
 test-owned pairings and release only owned resources; preserve the evidence and unresolved failures.
+
+## Mobile performance workload and acceptance
+
+**The bar.** In a Release build on a ProMotion iPhone, a DM holds 120 FPS (8.3 ms frames) while a reply streams, while the user scrolls long history, and while both happen at once ([#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)). No frame may hitch over 16.7 ms. Numbers from a development build or the Simulator are evidence for a change, not proof that the bar is met.
+
+Validate the workload, attribute the cost to the relevant JS, React, native or display layer, and
+run the [matched physical Release comparison](#matched-physical-device-ab-acceptance) after the
+smallest fix. Keep Simulator, physical Release and Human QA results separate, and preserve failed
+or invalid samples.
+
+Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
+Instruments serve different measurement layers. `scripts/rn-profile.mjs` is diagnostic scaffolding:
+its React-hook requirement, fixed-60Hz JS rAF drop estimate and base-duration accumulation are
+not native FPS or exact current-update CPU measurements. Development-build improvement ratios
+must be revalidated in Release. See the AX workflow for commands, supported-tool checks,
+provenance, low-overhead instrumentation and required evidence.
+
+Cover streaming a long reply, scrolling hundreds of messages including tables/code, and both
+at once. Include keyboard, draft, anchor and accessibility regressions when affected. Follow
+[shared device QA](./device-qa.md) for resource ownership and
+[QA evidence](./qa-evidence.md) for retained captures.

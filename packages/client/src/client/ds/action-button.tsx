@@ -1,9 +1,13 @@
+import { Icon } from './icon.js';
+import { Button } from './button.js';
 import type { ActionSymbol } from '../../shared/action-presentation.js';
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactElement, ReactNode, Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
-import { actionColor, color, radius, size, space, text } from './tokens.stylex.js';
+import { joinClass } from './class-name.js';
+import { ink, layer, radius, state, style } from './tobs.stylex.js';
+import { actionColor, color, space, text } from './tokens.stylex.js';
 
 const spin = stylex.keyframes({ to: { transform: 'rotate(360deg)' } });
 const styles = stylex.create({
@@ -14,14 +18,14 @@ const styles = stylex.create({
     animationTimingFunction: 'linear',
   },
   button: {
-    minHeight: size.row,
+    minHeight: style.controlHeight,
     height: 'auto',
     maxWidth: '100%',
     paddingBlock: space.x2,
     paddingInline: space.x4,
     gap: space.x2,
     borderWidth: 0,
-    borderRadius: radius.lg,
+    borderRadius: style.radiusControl,
     whiteSpace: 'normal',
     overflowWrap: 'anywhere',
     textAlign: 'center',
@@ -29,14 +33,38 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
   },
   secondary: {
-    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
+    backgroundColor: layer.well,
+    backgroundImage: {
+      default: 'none',
+      ':hover': `linear-gradient(${state.hover}, ${state.hover})`,
+    },
     color: color.fg,
   },
-  primary: { backgroundColor: color.fg, color: color.base },
-  danger: { backgroundColor: actionColor.danger, color: actionColor.dangerLabel },
-  icon: { display: 'inline-flex', flexShrink: 0, width: space.x5, height: space.x5 },
+  selected: { opacity: { default: 1, ':disabled': 1 } },
+  primary: { backgroundColor: color.accent, color: color.onAccent },
+  pill: { borderRadius: radius.full },
+  pillPrimary: { backgroundColor: ink.primary, color: layer.canvas },
+  pillSecondary: {
+    backgroundColor: { default: actionColor.secondary, ':hover:enabled': actionColor.hover },
+    backgroundImage: 'none',
+  },
+  danger: {
+    backgroundColor: actionColor.danger,
+    color: actionColor.dangerLabel,
+  },
+  icon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    width: space.x5,
+    height: space.x5,
+  },
   label: { minWidth: 0 },
-  group: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
+  group: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
   stack: { flexDirection: 'column', alignItems: 'stretch' },
 });
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style' | 'children'> & {
@@ -45,6 +73,7 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'style'
   tone?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   size?: 'sm' | 'md';
+  pill?: boolean;
 };
 export function ActionButton({
   children,
@@ -53,9 +82,18 @@ export function ActionButton({
   busy = false,
   disabled,
   size: buttonSize = 'sm',
+  pill = false,
   type = 'button',
   ...rest
 }: Props): ReactElement {
+  const appearance = [
+    styles.button,
+    styles[tone],
+    pill && styles.pill,
+    pill && tone === 'primary' && styles.pillPrimary,
+    pill && tone === 'secondary' && styles.pillSecondary,
+    rest['aria-pressed'] === true && styles.selected,
+  ];
   return (
     <Button
       {...rest}
@@ -63,11 +101,11 @@ export function ActionButton({
       size={buttonSize}
       disabled={disabled || busy}
       aria-busy={busy || rest['aria-busy']}
-      {...stylex.props(styles.button, styles[tone])}
+      {...(pill ? { xstyle: appearance } : stylex.props(...appearance))}
     >
       <span aria-hidden="true" {...stylex.props(styles.icon, busy && styles.busy)}>
         {busy || icon === 'refresh' ? (
-          <IconRefreshOutlineRegular size={16} />
+          <Icon name="refresh-cw" size={16} />
         ) : (
           <ChannelSidebarIcon name={icon} />
         )}
@@ -79,9 +117,20 @@ export function ActionButton({
 export function ActionGroup({
   children,
   stack = false,
+  className,
+  groupRef,
 }: {
   children: ReactNode;
   stack?: boolean;
+  className?: string;
+  groupRef?: Ref<HTMLDivElement>;
 }): ReactElement {
-  return <div {...stylex.props(styles.group, stack && styles.stack)}>{children}</div>;
+  return (
+    <div
+      ref={groupRef}
+      className={joinClass(stylex.props(styles.group, stack && styles.stack).className, className)}
+    >
+      {children}
+    </div>
+  );
 }

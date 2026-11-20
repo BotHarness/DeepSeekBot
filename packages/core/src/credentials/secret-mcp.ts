@@ -11,6 +11,7 @@ import {
   secretCommandBaseEnv,
   secretCommandEnvName,
 } from './secret-command.js';
+import { SECRET_PLACEHOLDER } from './references.js';
 
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
 export const rememberedStarts = new Set<symbol>();
@@ -48,7 +49,6 @@ const SHELLS = new Set([
   'nohup',
   'osascript',
 ]);
-const PLACEHOLDER = /\{\{[a-z][a-z0-9_]{0,47}\}\}/;
 
 export interface SecretMcpInput {
   server_name: string;
@@ -74,12 +74,12 @@ export function secretMcpPlan(input: SecretMcpInput): {
     input.env.length === 0 ||
     input.env.length > 16 ||
     new Set(names).size !== names.length ||
-    !input.env.some((entry) => PLACEHOLDER.test(entry.value))
+    !input.env.some((entry) => SECRET_PLACEHOLDER.test(entry.value))
   )
     throw new SecretCommandRefusal(
       'env must hold 1–16 distinct variables and at least one {{field_id}} placeholder',
     );
-  if (command.some((part) => PLACEHOLDER.test(part)))
+  if (command.some((part) => SECRET_PLACEHOLDER.test(part)))
     throw new SecretCommandRefusal(
       'a secret placeholder is allowed only in env values, never in arguments',
     );
@@ -200,18 +200,20 @@ export class SecretMcpServers {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = await Promise.race([
       fiber.await().then(
-        () => fiber.state === 2,
-        () => false,
+        () => (fiber.state === 2 ? 'started' : 'stopped'),
+        () => 'failed' as const,
       ),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), timeoutMs);
+      new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), timeoutMs);
       }),
     ]);
     clearTimeout(timer);
-    if (!started) {
+    if (started !== 'started') {
       await Promise.resolve(fiber.dispose()).catch(() => undefined);
       throw new SecretCommandRefusal(
-        'the MCP server did not start; check the program, its arguments and that it is installed',
+        started === 'timeout'
+          ? `the MCP server did not finish starting within ${Math.round(timeoutMs / 1000)} seconds; check that the launcher can download or find the server and that it speaks MCP over stdio`
+          : 'the MCP server exited or failed during startup; check the program, its arguments, that it is installed, and the environment variables it needs',
       );
     }
     const prefix = `mcp__${plan.serverName}__`;
