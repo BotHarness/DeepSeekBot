@@ -676,7 +676,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 ## 5 · Orchestrator 与 Assignment control plane
 
-DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory 和 Channel files 的工具与提示词。原生回合和直调共用同一套工具定义。
+DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).
 
