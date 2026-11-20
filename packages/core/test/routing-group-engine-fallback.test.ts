@@ -487,50 +487,63 @@ it('keeps the manual engine use switch working after a native turn', async () =>
   );
 });
 
-it.each([undefined, 'high'])(
-  'passes the mixed-group model and effort %s to Codex and falls back to DSH after quota',
-  async (reasoningEffort) => {
-    const member = reasoningEffort === undefined ? CODEX : { ...CODEX, reasoningEffort };
-    const bot = setup({ members: [member], nativeReply: 'Orchid noted.' });
-    await bot.message('first', 'My lucky word is orchid');
-    const sessionId = bot.sessionId();
-    expect(bot.codex).toHaveLength(1);
-    expect(bot.codex[0]?.mismatches).toEqual([]);
-    expect(
-      bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start'),
-    ).toMatchObject({
-      params: { model: CODEX.model },
-    });
-    const turnStart = bot.codex[0]?.sent.find((request) => request['method'] === 'turn/start');
-    expect(turnStart).toMatchObject({ params: { model: CODEX.model } });
-    if (reasoningEffort === undefined) expect(turnStart?.['params']).not.toHaveProperty('effort');
-    else expect(turnStart).toMatchObject({ params: { effort: reasoningEffort } });
-    expect(bot.native.createOptions).toEqual([]);
-    expect(bot.native.resumeOptions).toMatchObject([
-      { resumeSessionId: sessionId, agentOptions: API },
-    ]);
-    expect(bot.native.received.get(sessionId)?.[0]?.content).toContainEqual({
-      type: 'text',
-      text: expect.stringContaining('Continue from where you stopped'),
-    });
-    expect(bot.held()).toBeUndefined();
-    expect(bot.sendStatus('first')).toMatchObject({
-      state: 'handled',
-      replies: [{ body: 'Orchid noted.' }],
-    });
-    expect(
-      bot.channelMessages().filter((message) => message.turnStop || message.sessionFailure),
-    ).toEqual([]);
-    expect(bot.channelMessages().filter((message) => message.modelSwitch)).toMatchObject([
-      { modelSwitch: { sessionId, from: { provider: 'codex' }, to: API, until: RESETS_AT } },
-    ]);
-    expect(bot.dsh.stored.get(sessionId)?.header.cwd).toBe(bot.memoryDirectory);
-    expect(bot.codex[0]?.closed).toBe(true);
-    expect(bot.prepareModelRoute).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', API);
-    expect(bot.host.store.selections()).toEqual([]);
-    expect(bot.host.quota('codex')?.limitedUntil).toBe(RESETS_AT);
-  },
-);
+it('answers the first Human message on DSH when the engine hits quota before output', async () => {
+  const bot = setup({ members: [CODEX], nativeReply: 'Orchid noted.' });
+  await bot.message('first', 'My lucky word is orchid');
+  const sessionId = bot.sessionId();
+  expect(bot.codex).toHaveLength(1);
+  expect(bot.codex[0]?.mismatches).toEqual([]);
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start')).toMatchObject({
+    params: { model: CODEX.model },
+  });
+  expect(bot.native.createOptions).toEqual([]);
+  expect(bot.native.resumeOptions).toMatchObject([
+    { resumeSessionId: sessionId, agentOptions: API },
+  ]);
+  expect(bot.native.received.get(sessionId)?.[0]?.content).toContainEqual({
+    type: 'text',
+    text: expect.stringContaining('Continue from where you stopped'),
+  });
+  expect(bot.held()).toBeUndefined();
+  expect(bot.sendStatus('first')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Orchid noted.' }],
+  });
+  expect(
+    bot.channelMessages().filter((message) => message.turnStop || message.sessionFailure),
+  ).toEqual([]);
+  expect(bot.channelMessages().filter((message) => message.modelSwitch)).toMatchObject([
+    { modelSwitch: { sessionId, from: { provider: 'codex' }, to: API, until: RESETS_AT } },
+  ]);
+  expect(bot.dsh.stored.get(sessionId)?.header.cwd).toBe(bot.memoryDirectory);
+  expect(bot.codex[0]?.closed).toBe(true);
+  expect(bot.prepareModelRoute).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', API);
+  expect(bot.host.store.selections()).toEqual([]);
+  expect(bot.host.quota('codex')?.limitedUntil).toBe(RESETS_AT);
+});
+
+it('passes the model and effort to a mixed-group engine before falling back to DSH', async () => {
+  const member = { ...CODEX, reasoningEffort: 'high' };
+  const bot = setup({ members: [member], nativeReply: 'Orchid noted.' });
+
+  await bot.message('with-effort', 'My lucky word is orchid');
+
+  expect(bot.codex).toHaveLength(1);
+  expect(bot.codex[0]?.mismatches).toEqual([]);
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start')).toMatchObject({
+    params: { model: member.model },
+  });
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'turn/start')).toMatchObject({
+    params: { model: member.model, effort: member.reasoningEffort },
+  });
+  expect(bot.native.resumeOptions).toMatchObject([
+    { resumeSessionId: bot.sessionId(), agentOptions: API },
+  ]);
+  expect(bot.sendStatus('with-effort')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Orchid noted.' }],
+  });
+});
 
 it('continues from the completed engine tool call and result in the same DSH Session', async () => {
   const bot = setup({

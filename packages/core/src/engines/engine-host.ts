@@ -759,11 +759,11 @@ export class EngineHost {
     }
     await this.#releasing.get(sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const mode = workspaceModeFor(request);
     if (target !== undefined && routed === undefined) {
       routed = await this.#routingGroupSelection(botSlug, target);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     }
+    const mode = workspaceModeFor(request);
     const { engine: engineId, choice } = routed ?? this.#directSelection(request);
     const key = sessionKey(choiceKey(engineId, choice), cwd, mode);
     const pending = this.#opening.get(request.sessionId);
