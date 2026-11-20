@@ -9,6 +9,10 @@ function ownerOf(team: TeamService, bot: PersonaBotRecord) {
   return humanContext(bot.ownerHumanId ?? team.ownerContext().humanId);
 }
 
+export function botIsHostOwner(team: TeamService, bot: PersonaBotRecord): boolean {
+  return team.roles.isOwner(ownerOf(team, bot));
+}
+
 export function botModelFilter(
   team: TeamService | undefined,
   bot: PersonaBotRecord | undefined,

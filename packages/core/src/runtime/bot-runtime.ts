@@ -122,8 +122,9 @@ import {
   type ModelSwitch,
   type SubscriptionRest,
   routingTargetRestKey,
+  unavailableRoutingEngine,
 } from '../models/group-fallback.js';
-import type { RoutingTarget } from '../models/routing-groups.js';
+import { isRoutingGroupMember, type RoutingTarget } from '../models/routing-groups.js';
 import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
@@ -379,6 +380,7 @@ export interface OrchestratorAssignmentAccess {
     grantId: string;
     model?: ModelRoute;
     modelGroupId?: string;
+    routingTarget?: RoutingTarget;
     modelGroupEffort?: string;
     mode?: string;
   }): AssignmentCreateOutcome;
@@ -557,6 +559,14 @@ export interface AssignmentAgentRun {
   recoveryEntry?(): Pick<AssignmentDetail, 'title' | 'description'> | undefined;
   failEngineRecovery?(summary: string): Promise<AssignmentReport>;
   modelRoute?: ModelRoute;
+  routingTarget?: RoutingTarget;
+  groupEffort?: string;
+  continueInitialGroupTurn?: true;
+  continuingFromNativeRoute?: true;
+  selectGroupTarget?(
+    attempted: ReadonlySet<string>,
+    error?: unknown,
+  ): Promise<RoutingTarget | undefined>;
   agentPreset?: string;
   report(input: AssignmentReportInput, execution?: { turn: number }): Promise<AssignmentReport>;
   completedTurn?(execution: { turn: number; endSeq: number }): void;
@@ -1080,7 +1090,7 @@ export interface BotRuntimeOptions {
     GroupFallback,
     'choose' | 'start' | 'pick' | 'inherited' | 'inheritedEffort'
   > &
-    Partial<Pick<GroupFallback, 'pickMixedOrchestrator'>>;
+    Partial<Pick<GroupFallback, 'pickMixedOrchestrator' | 'pickMixedAssignment' | 'isMixed'>>;
   sessionRoute?: (botSlug: string, sessionId: string) => ModelRoute | undefined;
   engineFallback?: (botSlug: string, limit: EngineLimitError) => ModelSwitch | undefined;
   beginAssignmentWait?: (botSlug: string, orchestratorSessionId: string) => () => void;
@@ -1332,11 +1342,22 @@ function permissionFromRow(row: AssignmentRow): AssignmentPermissionSnapshot | u
   };
 }
 
-function modelRouteFromRow(row: AssignmentRow): ModelRoute | undefined {
+function assignmentTargetFromRow(row: AssignmentRow): RoutingTarget | undefined {
   if (row.model_route_json === null) return undefined;
-  const route: unknown = JSON.parse(row.model_route_json);
-  if (!isModelRoute(route)) throw new Error(`Invalid Assignment model route: ${row.session_id}`);
-  return route;
+  const target: unknown = JSON.parse(row.model_route_json);
+  if (isModelRoute(target)) return { kind: 'route', route: target };
+  if (isRoutingGroupMember(target) && target.kind === 'engine' && row.model_group_id !== null)
+    return target;
+  throw new Error(`Invalid Assignment model route: ${row.session_id}`);
+}
+
+function modelRouteFromRow(row: AssignmentRow): ModelRoute | undefined {
+  const target = assignmentTargetFromRow(row);
+  return target?.kind === 'route' ? target.route : undefined;
+}
+
+function saveAssignmentTarget(target: RoutingTarget): string {
+  return JSON.stringify(target.kind === 'route' ? target.route : target);
 }
 
 function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
@@ -7466,13 +7487,9 @@ class BotRuntimeImplementation implements BotRuntime {
           });
           return;
         } catch (error) {
-          const rest =
-            target.kind === 'engine'
-              ? error instanceof EngineLimitError
-                ? error.rests[0]
-                : undefined
-              : this.#routeRests?.restingUntil(target.route);
-          if (rest === undefined) throw error;
+          const rest = this.#routingTargetFailure(target, error);
+          if (rest === undefined && !(target.kind === 'engine' && unavailableRoutingEngine(error)))
+            throw error;
           this.#switchingRoutingGroups.add(bot.slug);
           const next = await this.#groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
           if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
@@ -7489,7 +7506,9 @@ class BotRuntimeImplementation implements BotRuntime {
             );
           inputRecorded ||= error instanceof EngineLimitError ? error.inputRecorded : inputAccepted;
           current = {
-            ...this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded),
+            ...(rest === undefined
+              ? current
+              : this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded)),
             ...(target.kind === 'route' && inputAccepted
               ? { continuingFromNativeRoute: true }
               : {}),
@@ -7499,8 +7518,8 @@ class BotRuntimeImplementation implements BotRuntime {
             kind: 'switch',
             from: routingTargetKey(target),
             to: routingTargetKey(next.target),
-            reason: rest.reason ?? 'quota',
-            until: rest.until,
+            reason: rest?.reason ?? 'credential',
+            ...(rest === undefined ? {} : { until: rest.until }),
           });
           if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
           this.#requireExecution?.(bot.slug);
@@ -7510,6 +7529,11 @@ class BotRuntimeImplementation implements BotRuntime {
     } finally {
       this.#switchingRoutingGroups.delete(bot.slug);
     }
+  }
+
+  #routingTargetFailure(target: RoutingTarget, error: unknown): RestingRoute | undefined {
+    if (target.kind === 'route') return this.#routeRests?.restingUntil(target.route);
+    return error instanceof EngineLimitError ? error.rests[0] : undefined;
   }
 
   #mixedGroupContinuation(
@@ -10865,6 +10889,7 @@ class BotRuntimeImplementation implements BotRuntime {
       grantId: string;
       model?: ModelRoute;
       modelGroupId?: string;
+      routingTarget?: RoutingTarget;
       modelGroupEffort?: string;
       mode?: string;
     },
@@ -10898,12 +10923,15 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error('Apply a Model Preset before choosing an Assignment model');
     if (
       input.modelGroupId !== undefined &&
-      (modelGroupId === undefined || input.model === undefined)
+      (modelGroupId === undefined ||
+        (input.model === undefined && input.routingTarget === undefined))
     )
       throw new Error('An Assignment Routing Group needs its chosen member route');
     const modelRoute =
       modelGroupId !== undefined
-        ? { ...input.model! }
+        ? input.routingTarget?.kind === 'route'
+          ? input.routingTarget.route
+          : input.model
         : plan === undefined
           ? undefined
           : selectAssignmentRoute(plan, input.model);
@@ -10940,7 +10968,7 @@ class BotRuntimeImplementation implements BotRuntime {
         (holder.activity === 'idle' || holder.activity === 'error') &&
         holder.stop_state === 'running'
       ) {
-        if (input.model !== undefined)
+        if (input.model !== undefined || input.routingTarget !== undefined)
           throw new Error(
             'An existing keyed Assignment keeps its model; use a new key for a new model choice',
           );
@@ -10972,6 +11000,9 @@ class BotRuntimeImplementation implements BotRuntime {
       }
     }
     if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
+    const target =
+      input.routingTarget ??
+      (modelRoute === undefined ? undefined : { kind: 'route' as const, route: modelRoute });
     const refusal = this.#assignmentCapacityRefusal('created');
     if (refusal !== undefined) return refusal;
     const sessionId = this.#createSessionId();
@@ -11027,7 +11058,7 @@ class BotRuntimeImplementation implements BotRuntime {
             permission.mode,
             permission.approval,
             permission.presetRevision,
-            modelRoute === undefined ? null : JSON.stringify(modelRoute),
+            target === undefined ? null : saveAssignmentTarget(target),
             modelGroupId ?? null,
             modelGroupId === undefined ? null : (input.modelGroupEffort ?? null),
             input.mode ?? null,
@@ -11055,6 +11086,12 @@ class BotRuntimeImplementation implements BotRuntime {
         failEngineRecovery: (summary) =>
           this.#recordEngineRecoveryFailure(bot.slug, sessionId, summary),
         ...(modelRoute === undefined ? {} : { modelRoute }),
+        ...this.#assignmentGroupExecution(
+          bot.slug,
+          sessionId,
+          modelGroupId,
+          input.modelGroupEffort,
+        ),
         ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
         report: async (report, execution) =>
           this.#recordReport(bot.slug, sessionId, report, execution),
@@ -11186,6 +11223,14 @@ class BotRuntimeImplementation implements BotRuntime {
       failEngineRecovery: (summary) =>
         this.#recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
       ...(modelRoute === undefined ? {} : { modelRoute }),
+      ...(input.model === undefined
+        ? this.#assignmentGroupExecution(
+            bot.slug,
+            input.sessionId,
+            row.model_group_id,
+            row.model_effort,
+          )
+        : {}),
       ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
       report: async (report, execution) =>
         this.#recordReport(bot.slug, input.sessionId, report, execution),
@@ -11687,6 +11732,95 @@ class BotRuntimeImplementation implements BotRuntime {
     return assignment;
   }
 
+  #assignmentGroupExecution(
+    botSlug: string,
+    sessionId: string,
+    groupId: string | null | undefined,
+    effort: string | null | undefined,
+  ): Pick<AssignmentAgentRun, 'selectGroupTarget' | 'groupEffort'> {
+    const groups = this.#groupFallback;
+    if (groupId == null || !groups?.pickMixedAssignment) return {};
+    const row = this.#assignmentRow(botSlug, sessionId);
+    if (
+      groups.isMixed?.(groupId) !== true &&
+      (row === undefined || assignmentTargetFromRow(row)?.kind !== 'engine')
+    )
+      return {};
+    return {
+      ...(effort == null ? {} : { groupEffort: effort }),
+      selectGroupTarget: async (attempted, error) => {
+        const row = this.#assignmentRow(botSlug, sessionId);
+        if (
+          row?.stop_state !== 'running' ||
+          row.model_group_id !== groupId ||
+          isArchivedRow(row) ||
+          this.#closed
+        )
+          return undefined;
+        const current = assignmentTargetFromRow(row);
+        const rest =
+          error === undefined || current === undefined
+            ? undefined
+            : this.#routingTargetFailure(current, error);
+        if (
+          error !== undefined &&
+          rest === undefined &&
+          !(current?.kind === 'engine' && unavailableRoutingEngine(error))
+        )
+          throw error instanceof Error ? error : new Error('Assignment failed', { cause: error });
+        this.#requireExecution?.(botSlug);
+        const mixed = await groups.pickMixedAssignment?.(
+          botSlug,
+          groupId,
+          effort ?? undefined,
+          attempted,
+        );
+        const native =
+          mixed === undefined
+            ? await groups.pick(botSlug, groupId, effort ?? undefined)
+            : undefined;
+        const next =
+          native?.kind === 'route'
+            ? { kind: 'target' as const, target: { kind: 'route' as const, route: native.route } }
+            : mixed;
+        if (next?.kind === 'exhausted') throw new RouteRestingError(next.rests, next.subscription);
+        if (next?.kind !== 'target' || attempted.size >= MAX_MIXED_GROUP_ATTEMPTS)
+          throw new RoutingGroupUnavailableError(error);
+        const target = next.target;
+        const serialized = saveAssignmentTarget(target);
+        if (serialized === row.model_route_json) return target;
+        const written = this.#database.transaction(
+          (db) =>
+            db
+              .prepare(
+                `UPDATE assignments SET model_route_json = ?, updated_at = ?
+              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running' AND archived_at IS NULL
+              AND model_group_id = ? AND model_route_json IS ?`,
+              )
+              .run(
+                serialized,
+                this.#now().toISOString(),
+                sessionId,
+                botSlug,
+                groupId,
+                row.model_route_json,
+              ),
+          ['assignments'],
+        );
+        if (written.changes === 0) return undefined;
+        if (current !== undefined && error !== undefined)
+          await this.#appendModelSwitch(botSlug, sessionId, undefined, {
+            kind: 'switch',
+            from: routingTargetKey(current),
+            to: routingTargetKey(target),
+            reason: rest?.reason ?? 'credential',
+            ...(rest === undefined ? {} : { until: rest.until }),
+          });
+        return target;
+      },
+    };
+  }
+
   #assignmentFailed(
     botSlug: string,
     sessionId: string,
@@ -11696,6 +11830,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const current = row === undefined ? undefined : modelRouteFromRow(row);
     if (
       row?.model_group_id == null ||
+      this.#groupFallback?.isMixed?.(row.model_group_id) === true ||
       current === undefined ||
       this.#groupFallback === undefined ||
       this.#routeRests?.restingUntil(current) === undefined
@@ -11777,6 +11912,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (
       row === undefined ||
       groupId == null ||
+      this.#groupFallback?.isMixed?.(groupId) === true ||
       current === undefined ||
       this.#groupFallback === undefined ||
       isArchivedRow(row) ||

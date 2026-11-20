@@ -228,14 +228,19 @@ export class EngineHost {
   }
 
   #turnTarget(request: EngineTurnRequest): EngineTurnRequest['target'] {
-    const role = request.role ?? 'orchestrator';
-    return this.#options.local && role === 'orchestrator' ? request.target : undefined;
+    return this.#options.local ? request.target : undefined;
   }
 
-  async #routingGroupSelection(botSlug: string, target: NonNullable<EngineTurnRequest['target']>) {
+  async #routingGroupSelection(
+    request: EngineTurnRequest,
+    target: NonNullable<EngineTurnRequest['target']>,
+  ) {
     const shared =
       target.reasoningEffort === undefined
-        ? this.#options.routingGroupEffort?.(botSlug)
+        ? (request.groupEffort ??
+          ((request.role ?? 'orchestrator') === 'orchestrator'
+            ? this.#options.routingGroupEffort?.(request.botSlug)
+            : undefined))
         : undefined;
     const models = shared === undefined ? [] : await this.models(target.engine).catch(() => []);
     return { engine: target.engine, choice: routingGroupEngineChoice(target, shared, models) };
@@ -759,7 +764,7 @@ export class EngineHost {
 
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const { botSlug, cwd, sessionId } = request;
+    const { cwd, sessionId } = request;
     const live = this.#live.get(sessionId);
     const target = this.#turnTarget(request);
     let routed: { engine: EngineId; choice: EngineChoice } | undefined;
@@ -772,7 +777,7 @@ export class EngineHost {
         throw error;
       }
       if (target !== undefined) {
-        routed = await this.#routingGroupSelection(botSlug, target);
+        routed = await this.#routingGroupSelection(request, target);
         if (live.closing)
           throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
       }
@@ -784,7 +789,7 @@ export class EngineHost {
     await this.#releasing.get(sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     if (target !== undefined && routed === undefined) {
-      routed = await this.#routingGroupSelection(botSlug, target);
+      routed = await this.#routingGroupSelection(request, target);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     }
     const mode = workspaceModeFor(request);

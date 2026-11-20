@@ -1208,11 +1208,11 @@ printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","
   deepseekbot model-group-create --name "Daily routing" --members-stdin
 ```
 
-`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎可以排在首位。展开后的组仍需包含一个 DSH 模型，供 Assignment 和 Subagent 使用。引擎成员指定推理强度时必须提供模型 ID。Host 根据已登录引擎的模型目录校验新设的强度，拒绝模型不支持的档位。已下架的模型成员仍可编辑。
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎可以排在首位。展开后的组仍需包含一个 DSH 模型。引擎成员指定推理强度时必须提供模型 ID。Host 根据已登录引擎的模型目录校验新设的强度，拒绝模型不支持的档位。已下架的模型成员仍可编辑。
 
 `model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。用 `model-plan-customize <bot> --orchestrator-group <id>` 为 Bot 选择路由组。方案中的 `orchestrator` 保留一条 DSH 路由，`orchestratorGroupId` 记录所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
 
-启用订阅引擎的本地 Host 会在每轮开始时为 Orchestrator 选择混合路由组中第一个未在休息的目标。Host 会检查 DSH 候选路由是否符合所有者的角色权限、凭据是否就绪。订阅引擎沿用订阅登录检查，并使用成员中保存的可选模型 ID。成员明确设置的推理强度优先于组的共享强度。仅当引擎模型支持共享档位时才会使用该档位。角色若只允许指定的 DSH 模型，Host 只会选用这些模型。显式设置的 `engine use` 优先，并沿用自身的 `--fallback` 设置。Assignment 和 Subagent 使用组中的 DSH 路由。
+启用订阅引擎的本地 Host 会在每轮开始时为 Orchestrator 选择混合路由组中第一个未在休息的目标。Host 会检查 DSH 候选路由是否符合所有者的角色权限、凭据是否就绪。订阅引擎沿用订阅登录检查，并使用成员中保存的可选模型 ID。成员明确设置的推理强度优先于组的共享强度。仅当引擎模型支持共享档位时才会使用该档位。模型选择器仅在组内每条路由都获得授权时显示该组。混合路由组仅供本地 Host 所有者使用。Orchestrator 显式设置的 `engine use` 优先，并沿用自身的 `--fallback` 设置。
 
 混合路由组的目标额度用完时，Orchestrator 会在同一个 DSH Session 自动切到下一个就绪的目标，继续处理原请求。继续时会使用 Session 中已记录的工具调用和结果，跳过本次请求已尝试的目标，并拦截对同一 Source Event 已成功发送的重复回复。新引擎线程会收到有长度限制的 Session 上下文。引擎在整个 Host 上休息到自报的重置时间，未报告时间时休息一小时。用 `deepseekbot engine status` 查看引擎的 `quota.limitedUntil`，用 `deepseekbot model-groups` 查看 DSH 路由的休息状态，用 `deepseekbot channel-timeline <channel>` 查看切换通知。只有所有目标都在休息时，Channel 才会显示带 `turnStop.routingGroup` 和 `turnStop.rests` 的额度卡片，休息列表按重置时间排序。首次重置后可发送消息重试，也可在 Bot 方案中指定一个已就绪的路由。
 
@@ -1220,7 +1220,9 @@ printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","
 
 在 `model-preset-create`、`model-preset-update`、`model-plan-set` 和 `model-plan-assignments-set` 上加 `--assignment-models open`，Assignment 可以使用任何模型：Orchestrator 可以在 Bot 所有者角色允许、且提供方已配置 API key 的任何模型上创建 Assignment，Assignment 也可以用这些模型启动 Subagent。Assignment 默认模型仍然必填，没有指定模型时仍用它。`--assignment-models listed` 回到 Assignment 模型列表。`model-plan-assignments-set` 和 `model-preset-update` 不带这个参数时保持原设置；`model-plan-set` 会替换整个方案，不带这个参数时回到列出的模型。此时 `list_assignment_models` 和 `list_bot_subagent_models` 还会返回 `openModels`，列出每个模型的目录名称和推理强度。
 
-`model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的每次请求（不指定模型的 `send_assignment_request`，或恢复的 Session）会先回到休息已结束的前面成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 返回 `assignmentGroups` 及其成员，并给当前正在休息的路由加上 `restingUntil`；`list_bot_subagent_models` 用 `groups` 返回同样的组，`bot_subagent` 接受 `group`，从第一个可用成员启动子 Agent（Subagent 运行期间不会切换模型）。
+`model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的混合路由组请求（不指定模型的 `send_assignment_request`）从第一个可用成员开始，包括已结束休息的靠前成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 在 `assignmentGroups` 中列出 DSH 和订阅引擎成员，并用 `restingUntil` 标出休息中的成员。可通过 `deepseekbot bot-tool <bot> list_assignment_models` 查看。要指定组，在 `deepseekbot bot-tool <bot> create_assignment --args-stdin` 的 JSON 参数中加入 `"group":"<group-id>"`。该 Session 使用选中的混合路由组，而非 Bot 单独配置的 Assignment 引擎。用 `assignment <bot> <session-id>`、`session-transcript` 和 `channel-timeline` 查看结果。
+
+DSH Subagent 从已授权组内的第一个可用 DSH 成员启动。`list_bot_subagent_models` 在 `groups` 中列出这些成员，`bot_subagent` 和 `bot_subagent_fork` 接受组 ID。Subagent 在运行期间保留选中的路由。
 
 在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。Bot 会保留已应用的模型方案。应用预设仍遵循既有 Bot 管理和模型使用权限。
 
