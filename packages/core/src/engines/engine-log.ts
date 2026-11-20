@@ -6,6 +6,7 @@ import { isSessionActivityName } from '../state/tool-activity.js';
 import {
   type ContentBlock,
   createAssistantMessage,
+  createSystemMessage,
   createToolResultMessage,
   createUserMessage,
   ToolCallId,
@@ -50,6 +51,13 @@ export class EngineTurnLog {
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
+    if (session.surface.nodes.length === 0) {
+      session.append(
+        'system/message',
+        { turn: this.#turn, step: this.#step, message: createSystemMessage('') },
+        { surfaceOp: 'append' },
+      );
+    }
     const message = this.input(input);
     const current = events.findLast((event) => event.type === 'session/title');
     if (

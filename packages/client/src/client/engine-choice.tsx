@@ -50,7 +50,6 @@ export interface EngineApi {
 }
 
 const ENGINES = './api/botharness/engines';
-const ROLES: readonly string[] = ['orchestrator', 'assignment'];
 const REASONS: readonly string[] = [
   'host-not-local',
   'not-installed',
@@ -100,12 +99,11 @@ export function parseEngines(value: unknown): EnginesView {
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
         isEngineId(engine) &&
-        typeof role === 'string' &&
-        ROLES.includes(role)
+        (role === 'orchestrator' || role === 'assignment')
         ? [
             {
               botSlug: entry['botSlug'],
-              role: role as EngineRole,
+              role,
               engine,
               ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),
               ...(typeof entry['effort'] === 'string' ? { effort: entry['effort'] } : {}),
