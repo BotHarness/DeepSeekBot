@@ -69,44 +69,50 @@ describe('README status collection', () => {
       '--',
     ]);
   });
-  it('counts merged history and continues past an old-dated commit, excluding future and unmerged commits', async () => {
+  it('counts merged history and continues past an old-dated commit, excluding future and unmerged commits', async ({
+    onTestFinished,
+  }) => {
     const cwd = mkdtempSync(join(tmpdir(), 'readme-history-'));
-    const git = (args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
-    try {
-      git(['init', '-b', 'main']);
-      git(['config', 'user.name', 'README test']);
-      git(['config', 'user.email', 'readme@example.invalid']);
-      const commit = (date, message) =>
-        execFileSync('git', ['commit', '--allow-empty', '-m', message], {
-          cwd,
-          env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
-          stdio: 'ignore',
-        });
-      commit('2026-09-01T00:00:00Z', 'old root');
-      git(['checkout', '-b', 'feature']);
-      commit('2026-10-01T00:00:00Z', 'inside window');
-      commit('2026-09-02T00:00:00Z', 'old date above recent parent');
-      git(['checkout', 'main']);
-      execFileSync('git', ['merge', '--no-ff', 'feature', '-m', 'merge feature'], {
-        cwd,
-        env: {
-          ...process.env,
-          GIT_AUTHOR_DATE: '2026-10-02T00:00:00Z',
-          GIT_COMMITTER_DATE: '2026-10-02T00:00:00Z',
-        },
-        stdio: 'ignore',
-      });
-      commit('2026-10-21T00:00:00Z', 'future');
-      git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
-      git(['checkout', '-b', 'unmerged']);
-      commit('2026-10-03T00:00:00Z', 'not on default branch');
-      const data = await collectStatus({ ...fixture(), git });
-      expect(data.activity.commits).toBe(2);
-    } finally {
+    const git = (args) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', shell: false, windowsHide: true }).trim();
+    onTestFinished(() => {
       if (!cwd.startsWith(join(tmpdir(), 'readme-history-')))
         throw new Error('Unexpected temporary path');
       rmSync(cwd, { recursive: true, force: true });
-    }
+    });
+    git(['init', '-b', 'main']);
+    git(['config', 'user.name', 'README test']);
+    git(['config', 'user.email', 'readme@example.invalid']);
+    const commit = (date, message) =>
+      execFileSync('git', ['commit', '--allow-empty', '-m', message], {
+        cwd,
+        env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+        stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
+      });
+    commit('2026-09-01T00:00:00Z', 'old root');
+    git(['checkout', '-b', 'feature']);
+    commit('2026-10-01T00:00:00Z', 'inside window');
+    commit('2026-09-02T00:00:00Z', 'old date above recent parent');
+    git(['checkout', 'main']);
+    execFileSync('git', ['merge', '--no-ff', 'feature', '-m', 'merge feature'], {
+      cwd,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: '2026-10-02T00:00:00Z',
+        GIT_COMMITTER_DATE: '2026-10-02T00:00:00Z',
+      },
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
+    });
+    commit('2026-10-21T00:00:00Z', 'future');
+    git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    git(['checkout', '-b', 'unmerged']);
+    commit('2026-10-03T00:00:00Z', 'not on default branch');
+    const data = await collectStatus({ ...fixture(), git });
+    expect(data.activity.commits).toBe(2);
   });
   it('rejects shallow history, incomplete search and missing totals', async () => {
     await expect(collectStatus({ ...fixture(), git: () => 'true' })).rejects.toThrow(

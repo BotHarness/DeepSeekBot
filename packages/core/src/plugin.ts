@@ -10,7 +10,7 @@ import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
 import { TeamError } from './team/error.js';
-import { botModelFilter, requireBotModel } from './team/models.js';
+import { botIsHostOwner, botModelFilter, requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -1945,16 +1945,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
-      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
-      describe: (groupId) => {
+      pick: (botSlug, groupId, effort) =>
+        groupFallback.isMixed(groupId)
+          ? groupFallback
+              .pickMixedAssignment(botSlug, groupId, effort)
+              .then((pick) => pick ?? { kind: 'missing' })
+          : groupFallback.pick(botSlug, groupId, effort),
+      describe: (groupId, slug) => {
         const group = core.routingGroups.get(groupId);
-        if (group === undefined) return undefined;
-        try {
-          return { name: group.name, routes: core.routingGroups.routes(groupId) };
-        } catch {
-          return undefined;
-        }
+        const targets = allowedGroupTargets(slug, groupId);
+        if (group !== undefined && targets !== undefined)
+          return { name: group.name, routes: core.routingGroups.routes(groupId), targets };
       },
+      engineRestingUntil: (engine) => engineHost.limit(engine)?.until,
       restingUntil: (route) => routeRests.restingUntil(route),
       inherited: () => core.routingGroups.defaultGroup().groupId,
       inheritedEffort: () => core.routingGroups.defaultGroup().effort,
@@ -1991,7 +1994,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           list: () =>
             (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
               const group = core.routingGroups.get(groupId);
-              if (group === undefined) return [];
+              if (group === undefined || allowedGroupTargets(slug, groupId) === undefined)
+                return [];
               return [
                 {
                   group: groupId,
@@ -2253,6 +2257,23 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const routeRests = createRouteRests();
+  const canUseRoutingEngine = (slug: string): boolean => {
+    const bot = core.registry.get(slug);
+    return localEngines && bot !== undefined && botIsHostOwner(core.team, bot);
+  };
+  function allowedGroupTargets(slug: string, groupId: string) {
+    try {
+      const targets = core.routingGroups.targets(groupId);
+      const allowed = botModelFilter(core.team, core.registry.get(slug));
+      return targets.every((target) =>
+        target.kind === 'route' ? allowed(target.route) : canUseRoutingEngine(slug),
+      )
+        ? targets
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
@@ -2260,18 +2281,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     routes: (groupId) => core.routingGroups.routes(groupId),
     engines: {
       targets: (groupId) => core.routingGroups.targets(groupId),
-      canRoute: (botSlug) => localEngines && engineHost.engineFor(botSlug) === undefined,
-      allowed: (botSlug) => {
-        const bot = core.registry.get(botSlug);
-        return (
-          bot !== undefined &&
-          core.team.roles.modelsAllowed(
-            humanContext(bot.ownerHumanId ?? core.team.ownerContext().humanId),
-          ).all
-        );
-      },
+      allowed: canUseRoutingEngine,
       limit: (engine) => engineHost.limit(engine),
     },
+    allowsGroup: (slug, id) => allowedGroupTargets(slug, id) !== undefined,
     rests: routeRests,
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
@@ -3930,6 +3943,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelPresets: core.modelPresets,
     ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
+    localSubscriptionEngines: localEngines,
     routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,

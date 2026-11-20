@@ -1,3 +1,4 @@
+import { decideGroupJoin } from './channel-management';
 import {
   markAllChannelsRead,
   markChannelRead,
@@ -50,15 +51,7 @@ export async function decideJoinRequest(
   requestId: string,
   accept: boolean,
 ): Promise<void> {
-  const value = record(
-    await client.call('channelGroupJoinDecide', { channelId, requestId, accept }),
-  );
-  const requests = record(value?.['channel'])?.['joinRequests'];
-  const decided = Array.isArray(requests)
-    ? requests.map(record).find((request) => request?.['id'] === requestId)
-    : undefined;
-  if (decided?.['status'] !== (accept ? 'accepted' : 'declined'))
-    throw new HostAnswerInvalid('The computer did not confirm the decision.');
+  await decideGroupJoin(client, { channelId, requestId, accept }, { confirm: true });
 }
 
 export async function loadAssignmentContext(

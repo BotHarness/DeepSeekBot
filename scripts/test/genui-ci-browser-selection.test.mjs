@@ -35,6 +35,8 @@ else writeFileSync(process.env.CAPTURE_FILE, JSON.stringify(process.argv.slice(2
           SYSTEM_PREVIEW_DIAGNOSTIC: String(diagnostic),
         },
         stdio: 'pipe',
+        shell: false,
+        windowsHide: true,
       });
       const args = JSON.parse(readFileSync(capture, 'utf8'));
       expect(args.includes('--genui-preview-browser')).toBe(!diagnostic);

@@ -23,7 +23,13 @@ const env = {
 };
 
 function dshVersion() {
-  const result = spawnSync('dsh', ['--version'], { cwd: root, env, encoding: 'utf8' });
+  const result = spawnSync('dsh', ['--version'], {
+    cwd: root,
+    env,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
   if (result.status !== 0) throw new Error('Installed DSH CLI is unavailable');
   const version = result.stdout.trim();
   assertDshVersion(version);
@@ -51,6 +57,8 @@ function launch(port, build) {
     encoding: 'utf8',
     timeout: 600_000,
     maxBuffer: 2 * 1024 * 1024,
+    shell: false,
+    windowsHide: true,
   });
   if (result.error !== undefined || result.status !== 0) {
     const detail = (result.stderr ?? result.error?.message ?? 'unknown error')
@@ -125,6 +133,7 @@ function creationCli(instance, command, input) {
       timeout: 45_000,
       maxBuffer: 1024 * 1024,
       windowsHide: true,
+      shell: false,
     },
   );
   if (result.error !== undefined || result.status !== 0)
@@ -157,6 +166,7 @@ function verificationCli(instance, as, command = ['spaces', 'audience-directory'
       timeout: 30_000,
       windowsHide: true,
       maxBuffer: 1024 * 1024,
+      shell: false,
     },
   );
   if (result.error) throw new Error('Verification CLI did not settle');
@@ -192,6 +202,7 @@ function gitPreviewCli(instance, gitUrl) {
       encoding: 'utf8',
       timeout: 45000,
       windowsHide: true,
+      shell: false,
     },
   );
   if (result.status !== 0) throw new Error('Git source CLI inspection failed');
@@ -264,7 +275,11 @@ try {
   const gitSource = join(fixtureRoot, 'git-source');
   mkdirSync(gitSource);
   const git = (...args) =>
-    execFileSync('git', ['-C', gitSource, ...args], { encoding: 'utf8', windowsHide: true }).trim();
+    execFileSync('git', ['-C', gitSource, ...args], {
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: false,
+    }).trim();
   git('init', '--quiet');
   git('config', 'user.name', 'Import QA');
   git('config', 'user.email', 'import@example.test');
@@ -359,7 +374,10 @@ try {
     ].map((botSlug) => {
       const path = seed.registry.memoryDirFor(botSlug);
       writeFileSync(join(path, 'switch-kept.txt'), botSlug);
-      execFileSync('git', ['-C', path, 'add', 'switch-kept.txt'], { windowsHide: true });
+      execFileSync('git', ['-C', path, 'add', 'switch-kept.txt'], {
+        windowsHide: true,
+        shell: false,
+      });
       execFileSync(
         'git',
         [
@@ -373,7 +391,7 @@ try {
           '-qm',
           'Memory switch fixture',
         ],
-        { windowsHide: true },
+        { windowsHide: true, shell: false },
       );
       return {
         slug: botSlug,
@@ -382,6 +400,7 @@ try {
         history: execFileSync('git', ['-C', path, 'rev-list', 'HEAD'], {
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         }).trim(),
       };
     });
@@ -542,6 +561,7 @@ try {
         const history = execFileSync('git', ['-C', memory.path, 'rev-list', 'HEAD'], {
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         }).trim();
         if (
           profile.memoryDir !== memory.path ||
@@ -741,6 +761,8 @@ try {
   if (typeof read.bot.memoryDir !== 'string') throw new Error('Memory Repository path unavailable');
   const gitHead = execFileSync('git', ['-C', read.bot.memoryDir, 'rev-parse', 'HEAD'], {
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   }).trim();
   if (gitHead !== head) throw new Error('Git HEAD differs from the public Memory snapshot');
 

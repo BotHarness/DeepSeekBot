@@ -37,7 +37,11 @@ const cli = async (command, args = [], patch) => {
   const child = execFile(
     process.execPath,
     ['packages/deepseekbot/dist/deepseekbot.mjs', command, '--host', url.origin, ...args],
-    { env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') } },
+    {
+      env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') },
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.stdin.end(patch === undefined ? '' : JSON.stringify(patch));
   return new Promise((resolve, reject) => {
@@ -88,7 +92,7 @@ const videoPath = resolve(out, 'source.webm'),
   imagePath = resolve(out, 'before.png');
 const run = (args) =>
   new Promise((r, j) =>
-    execFile('ffmpeg', args, (e) =>
+    execFile('ffmpeg', args, { shell: false, windowsHide: true }, (e) =>
       e ? j(e instanceof Error ? e : new Error(String(e), { cause: e })) : r(),
     ),
   );

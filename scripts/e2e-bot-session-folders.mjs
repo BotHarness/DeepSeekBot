@@ -131,7 +131,7 @@ try {
         String(new URL(instance.url).port),
         '--json',
       ],
-      { cwd: root, encoding: 'utf8', timeout: 180_000, windowsHide: true },
+      { cwd: root, encoding: 'utf8', timeout: 180_000, windowsHide: true, shell: false },
     );
     instance = JSON.parse(restarted);
     writeFileSync(instanceFile, restarted);

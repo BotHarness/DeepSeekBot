@@ -31,7 +31,15 @@ function launch(port) {
   const result = spawnSync(
     process.execPath,
     [helper, '--home', home, '--port', String(port), '--build', '--json'],
-    { cwd: root, env, encoding: 'utf8', timeout: 600_000, maxBuffer: 4 * 1024 * 1024 },
+    {
+      cwd: root,
+      env,
+      encoding: 'utf8',
+      timeout: 600_000,
+      maxBuffer: 4 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    },
   );
   if (result.error !== undefined || result.status !== 0) {
     const detail = (result.stderr ?? result.error?.message ?? 'unknown error')

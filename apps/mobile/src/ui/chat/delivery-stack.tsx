@@ -45,7 +45,8 @@ export function receiptColor(theme: DesignTheme, state: ReceiptState): string {
       return theme.color.subtle;
     case 'missing':
       return theme.color.warning;
-    default:
+    case 'needs-repair':
+    case 'retryable':
       return theme.color.danger;
   }
 }

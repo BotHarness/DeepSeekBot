@@ -26,7 +26,8 @@ export function networkContactAvailabilityLabel(
       return t('networkContact.withdrawn');
     case 'bot-unavailable':
       return t('networkContact.botUnavailable');
-    default:
+    case 'unavailable':
+    case undefined:
       return t('networkContact.unreachable');
   }
 }

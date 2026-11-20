@@ -766,6 +766,56 @@ describe('M10 member usage and role models', () => {
     });
   });
 
+  it('offers nested mixed Routing Groups only to the local Host owner', async () => {
+    const f = teamModelFixture();
+    f.catalog.list.mockResolvedValue([
+      { ...permitted, providerName: 'Provider', modelName: 'Allowed', efforts: [] },
+    ]);
+    const selector = f.team.roles.create(owner, 'Model selector', ['models.use'], {
+      kind: 'all',
+    }).role;
+    f.team.roles.set(owner, f.member.humanId, ['member', selector.roleId]);
+    const mixed = f.deps.routingGroups.create({
+      name: 'Mixed',
+      members: [
+        { kind: 'model', ...permitted },
+        { kind: 'engine', engine: 'codex' },
+      ],
+    });
+    const nested = f.deps.routingGroups.create({
+      name: 'Nested',
+      members: [{ kind: 'group', id: mixed.id }],
+    });
+    f.deps.routingGroups.setDefaultGroup(nested.id, 0);
+    const catalog = await f.methods.modelCatalog({});
+    expect(catalog).toMatchObject({ ok: true, value: { models: [permitted], groups: [] } });
+    expect(JSON.stringify(catalog)).not.toContain(nested.id);
+    expect(await f.ownerMethods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: {
+        defaultGroupId: nested.id,
+        groups: expect.arrayContaining([
+          expect.objectContaining({ id: mixed.id }),
+          expect.objectContaining({ id: nested.id }),
+        ]),
+      },
+    });
+    expect(
+      await f.methods.modelPlanCustomize({
+        slug: 'ada',
+        orchestratorGroupId: nested.id,
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'model-not-allowed' } });
+    expect(
+      await f.ownerMethods.modelPlanCustomize({
+        slug: 'ada',
+        orchestratorGroupId: nested.id,
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'model-not-allowed' } });
+  });
+
   it('keeps every provider-key/credential method out of the import-free member surface', () => {
     for (const method of [
       'providerCredentials',

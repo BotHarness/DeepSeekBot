@@ -1,3 +1,4 @@
+import { setChannelMuted } from '@botharness/host-client/channel-management';
 import { useMemo } from 'react';
 
 import {
@@ -25,7 +26,7 @@ export default function ChannelNotificationScreen({ channelId }: { channelId: st
               return settings;
             },
             async setHostMuted(muted) {
-              await client.call<unknown>('channelMuteSet', { channelId, muted });
+              await setChannelMuted(client, channelId, muted);
               await client.refresh().catch(() => undefined);
             },
           },
