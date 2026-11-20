@@ -175,6 +175,7 @@ export class EngineRefusal extends Error {
       | 'engine-signed-out'
       | 'engine-not-subscription'
       | 'engine-thread-gone'
+      | 'engine-recovery-unavailable'
       | 'engine-failed'
       | 'unknown-model'
       | 'unknown-effort',

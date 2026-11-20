@@ -1,5 +1,6 @@
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { mountCardContextLive } from './channels/card-context-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
@@ -4125,6 +4126,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   const invocationBridgeMethods = createBridgeMethodsForHumans(bridgeDeps);
   const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
+  ctx.effect(
+    () =>
+      mountCardContextLive(ctx, core, toolApproval, userQuestions, (slug, id) => {
+        const request =
+          id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
+        const route =
+          request ??
+          core.registry.get(slug)?.modelPlan?.orchestrator ??
+          defaultModel?.currentSelection();
+        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+      }),
+    'botharness: card and context changes',
+  );
   imCommandServices = {
     botDisplayName: (slug) =>
       core.registry.get(slug)?.displayName ?? core.registry.getHistorical(slug)?.displayName,

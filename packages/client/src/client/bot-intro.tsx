@@ -1,23 +1,39 @@
+import { providerBrand } from '@botharness/host-client/shared/model-brand';
+import type { ModelProvidersView } from '@botharness/host-client/model-providers';
+import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { Button } from './ds/button.js';
+import { ChoiceButton } from './ds/choice-button.js';
+import { ReadFailure } from './ds/read-failure.js';
+import { bridgeHost, type BridgeCall } from './bridge.js';
+import { BOT_SETTINGS_SECTIONS, type BotSettings } from './bot-settings.js';
+import { useSubscriptionEngines } from './engine-choice.js';
+import { engineName } from './session-engine.js';
+import { engineMenuItems } from './model-menu.js';
+import { ModelBrandIcon } from './model-brand.js';
+import { AddModelProvider, ModelProviderSubscriptions } from './model-providers-settings.js';
+import { canManageModelProviders } from './team-bridge.js';
 import {
   useLayoutEffect,
   useState,
   useSyncExternalStore,
+  type Dispatch,
   type ReactElement,
   type ReactNode,
+  type SetStateAction,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
-import { errorMessage, type ModelCatalogEntryView, type ModelRouteView } from './bridge.js';
+import { errorMessage, type ModelCatalogView, type ModelRouteView } from './bridge.js';
 import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { space as tobsSpace } from './ds/tobs.stylex.js';
 import { ConnectionsDialog } from './connections-dialog.js';
 import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
-import { openModelsSettingsAndReturn } from './bot-settings-open.js';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
 import {
@@ -32,7 +48,7 @@ import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
 import { requestTobMessage } from './tob-requests.js';
-import { useTeamMember } from './team-state.js';
+import { refreshTeamMode, useTeamMember, useTeamModeRead } from './team-state.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -234,6 +250,24 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
   },
+  choices: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tobsSpace.x2,
+  },
+  providers: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: tobsSpace.x2,
+  },
+  provider: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: tobsSpace.x1,
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+  },
   advanced: {
     display: 'flex',
     flexDirection: 'column',
@@ -379,7 +413,6 @@ const styles = stylex.create({
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
   },
-  full: { width: '100%' },
   onCard: { backgroundColor: { default: color.modal, ':hover': color.hover } },
   strong: { color: color.fg, fontWeight: text.strong },
   meta: {
@@ -398,30 +431,44 @@ const styles = stylex.create({
 
 export function BotIntro({
   actions,
+  call,
+  botSettings,
   appearance,
   wallpaper,
   t,
 }: {
   actions: BridgeActions;
+  call?: BridgeCall | undefined;
+  botSettings?: Pick<BotSettings, 'open' | 'subscribe' | 'getSnapshot'> | undefined;
   appearance?: Appearance | undefined;
   wallpaper?: Wallpaper | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const member = useTeamMember();
+  const providersOpen = useSyncExternalStore(
+    botSettings?.subscribe ?? noSubscribe,
+    () => botSettings?.getSnapshot().open === true,
+    () => false,
+  );
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
     wallpaper?.getSnapshot(),
   );
   const intro = state.intro;
-  const [model, setModel] = useState<{ save(): Promise<boolean> }>();
+  const [model, setModel] = useState<ModelStepBinding>();
   const [busy, setBusy] = useState(false);
+  const [providerSaving, setProviderSaving] = useState(false);
+  const modelDraft = useState<ModelStepDraft>(EMPTY_MODEL_DRAFT);
+  const navigationBusy = busy || providerSaving;
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneDevice, setPhoneDevice] = useState<string>();
   const [phoneRead, setPhoneRead] = useState(false);
   const startPicks = useState<StartPicks>(NO_PICKS);
   const close = (outcome?: IntroOutcome): Promise<void> => {
+    if (navigationBusy) return Promise.resolve();
     startPicks[1](NO_PICKS);
+    modelDraft[1](EMPTY_MODEL_DRAFT);
     setPhoneOpen(false);
     setPhoneDevice(undefined);
     setPhoneRead(false);
@@ -483,11 +530,17 @@ export function BotIntro({
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
+  const modelAdvanceBlocked = step === 'model' && model?.canAdvance !== true;
   const go = async (next: number) => {
-    if (next > intro.step && step === 'model' && model) {
-      setBusy(true);
-      const saved = await model.save().finally(() => setBusy(false));
-      if (!saved) return;
+    if (navigationBusy) return;
+    if (step === 'model') {
+      if (next > intro.step) {
+        if (model?.canAdvance !== true) return;
+        setBusy(true);
+        const saved = await model.save().finally(() => setBusy(false));
+        if (!saved) return;
+      }
+      if (next !== intro.step) modelDraft[1](EMPTY_MODEL_DRAFT);
     }
     controller.setIntroStep(next);
   };
@@ -511,7 +564,7 @@ export function BotIntro({
     );
   return (
     <Modal
-      open={!intro.hidden}
+      open={!intro.hidden && !(step === 'model' && providersOpen)}
       headless
       title={t('intro.title')}
       onClose={() => void close({ via: 'close' })}
@@ -528,9 +581,9 @@ export function BotIntro({
                 type="button"
                 aria-label={`${index + 1} ${t(`intro.step.${id}`)}`}
                 aria-current={index === intro.step ? 'step' : undefined}
-                disabled={busy}
-                onClick={() => void go(index)}
                 {...stylex.props(styles.stepButton, index === intro.step && styles.stepCurrent)}
+                disabled={navigationBusy || (index > intro.step && modelAdvanceBlocked)}
+                onClick={() => void go(index)}
               >
                 <span
                   {...stylex.props(styles.stepDot, index <= intro.step && styles.stepDotActive)}
@@ -552,6 +605,7 @@ export function BotIntro({
         <IconButton
           aria-label={t('common.close')}
           size="icon"
+          disabled={navigationBusy}
           onClick={() => void close({ via: 'close' })}
         >
           <ChannelSidebarIcon name="x" size={16} />
@@ -578,9 +632,18 @@ export function BotIntro({
         {step === 'model' ? (
           <ModelStep
             actions={actions}
+            call={call}
+            member={member}
             t={t}
+            draft={modelDraft}
             bind={setModel}
-            hide={(hidden) => controller.hideIntro(hidden)}
+            saving={busy}
+            onProviderSavingChange={setProviderSaving}
+            openProviders={
+              botSettings === undefined
+                ? undefined
+                : () => botSettings.open(BOT_SETTINGS_SECTIONS.modelProviders)
+            }
           />
         ) : null}
         {step === 'phone' ? (
@@ -637,14 +700,18 @@ export function BotIntro({
           })}
         </span>
         {last || step === 'phone' ? null : (
-          <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
+          <Button
+            variant="ghost"
+            disabled={navigationBusy}
+            onClick={() => void close({ via: 'skip' })}
+          >
             {t('intro.skip')}
           </Button>
         )}
         {intro.step > 0 ? (
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={navigationBusy}
             onClick={() => void go(intro.step - 1)}
             {...stylex.props(styles.soft)}
           >
@@ -653,9 +720,13 @@ export function BotIntro({
         ) : null}
         {last ? null : (
           <Button
-            variant={step === 'phone' && !phoneRead ? 'outline' : 'primary'}
+            variant={
+              (step === 'phone' && !phoneRead) || (step === 'model' && model?.keyForm)
+                ? 'outline'
+                : 'primary'
+            }
             data-modal-autofocus={step !== 'phone'}
-            disabled={busy}
+            disabled={navigationBusy || modelAdvanceBlocked}
             onClick={() => void go(intro.step + 1)}
           >
             {t(step === 'phone' && !phoneRead ? 'intro.phone.skip' : 'intro.next')}
@@ -811,66 +882,212 @@ function ThemeStep({
   );
 }
 
+interface ModelStepBinding {
+  keyForm: boolean;
+  canAdvance: boolean;
+  save(): Promise<boolean>;
+}
+
+interface ModelStepDraft {
+  route?: ModelRouteView | undefined;
+  subscription?: SubscriptionModel | null;
+  assignment?: ModelRouteView | undefined;
+  advanced: boolean;
+}
+
+const EMPTY_MODEL_DRAFT: ModelStepDraft = { advanced: false };
+
 function ModelStep({
   actions,
+  call,
+  member,
   t,
+  draft: [{ route: draftRoute, subscription, assignment, advanced }, setDraft],
   bind,
-  hide,
+  saving,
+  onProviderSavingChange,
+  openProviders,
 }: {
   actions: BridgeActions;
+  call: BridgeCall | undefined;
+  member: boolean;
   t: BotHarnessTranslate;
-  bind(model: { save(): Promise<boolean> } | undefined): void;
-  hide(hidden: boolean): void;
+  draft: [ModelStepDraft, Dispatch<SetStateAction<ModelStepDraft>>];
+  bind(model: ModelStepBinding | undefined): void;
+  saving: boolean;
+  onProviderSavingChange(saving: boolean): void;
+  openProviders: (() => void) | undefined;
 }): ReactElement {
-  const [models, setModels] = useState<ModelCatalogEntryView[]>([]);
-  const [route, setRoute] = useState<ModelRouteView>();
-  const [assignment, setAssignment] = useState<ModelRouteView>();
-  const [advanced, setAdvanced] = useState(false);
+  const viewerRead = useTeamModeRead(call);
+  const viewer = viewerRead.value?.viewer;
+  const [retryingViewer, setRetryingViewer] = useState(false);
+  const owner = call === undefined ? !member : viewer?.owner;
+  const canConnect = canManageModelProviders(viewer);
+  const engines = useSubscriptionEngines(viewer?.owner === true);
+  const [catalog, setCatalog] = useState<ModelCatalogView>();
   const [planned, setPlanned] = useState<string>();
-  const [initial, setInitial] = useState<string>();
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string>();
-  const load = async (): Promise<void> => {
-    setError(undefined);
-    try {
-      const catalog = await actions.modelCatalog();
-      setModels(catalog.models);
-      const usable = catalog.models.find((model) => model.credential === undefined);
-      const selected =
-        catalog.default ??
-        (usable ? { provider: usable.provider, model: usable.model } : undefined);
-      setRoute((previous) => previous ?? selected);
-      setInitial(catalog.default ? routeKey(catalog.default) : undefined);
-      setLoaded(true);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  };
+  const [connection, setConnection] = useState<'key' | 'subscription'>();
+  const [readError, setReadError] = useState<string>();
+  const [saveError, setSaveError] = useState<string>();
+  const [refresh, setRefresh] = useState(0);
+  const editingKey = canConnect && connection === 'key' && call !== undefined;
+  const reload = () => setRefresh((count) => count + 1);
   const mount = useMountedResource<HTMLDivElement>(() => {
-    void load();
-  }, [actions]);
-  const selected = models.find(
-    (model) => model.provider === route?.provider && model.model === route.model,
-  );
+    let active = true;
+    const stop = observeResource(
+      'model-providers',
+      async () => {
+        try {
+          const next = await actions.modelCatalog();
+          if (active) {
+            setCatalog(next);
+            setReadError(undefined);
+          }
+        } catch (cause) {
+          if (active) setReadError(errorMessage(cause));
+        }
+      },
+      undefined,
+      undefined,
+      true,
+    );
+    return () => {
+      active = false;
+      stop();
+    };
+  }, [actions, refresh]);
+
+  const models = (catalog?.models ?? []).filter((model) => model.credential === undefined);
+  const usableRoute = (route: ModelRouteView | undefined): ModelRouteView | undefined => {
+    if (route === undefined) return undefined;
+    const entry = models.find(
+      (model) => model.provider === route.provider && model.model === route.model,
+    );
+    if (entry === undefined || entry.restingUntil !== undefined) return undefined;
+    return route.reasoningEffort === undefined ||
+      entry.efforts.some(({ id }) => id === route.reasoningEffort)
+      ? route
+      : { provider: route.provider, model: route.model };
+  };
+  const first = models.find((model) => model.restingUntil === undefined);
+  const route =
+    usableRoute(draftRoute) ??
+    usableRoute(catalog?.default) ??
+    (first === undefined ? undefined : { provider: first.provider, model: first.model });
   const tob = onboardingFor(actions).getSnapshot().receipt?.defaultBotSlug;
+  const availableEngines = owner
+    ? (engines.view?.engines.filter((engine) => engine.available) ?? [])
+    : [];
+  const savedEngine = engines.view?.selections.find(
+    (choice) => choice.botSlug === tob && choice.role === 'orchestrator',
+  );
+  const [firstEngine] = availableEngines;
+  const draftEngine = availableEngines.find(({ engine }) => engine === subscription?.engine);
+  const draftEngineModels =
+    draftEngine === undefined ? undefined : engines.models[draftEngine.engine];
+  const draftEngineModel = draftEngineModels?.find(({ id }) => id === subscription?.model);
+  const unavailableSubscription =
+    owner === true &&
+    subscription != null &&
+    engines.view !== undefined &&
+    (draftEngine === undefined ||
+      (subscription.model !== undefined &&
+        draftEngineModels !== undefined &&
+        draftEngineModel === undefined));
+  const validatedSubscription =
+    subscription && draftEngine && (subscription.model === undefined || draftEngineModel)
+      ? {
+          engine: subscription.engine,
+          ...(subscription.model === undefined ? {} : { model: subscription.model }),
+          ...(subscription.effort !== undefined &&
+          draftEngineModel?.efforts.some(({ id }) => id === subscription.effort)
+            ? { effort: subscription.effort }
+            : {}),
+        }
+      : owner
+        ? subscription
+        : undefined;
+  const engineChoice: SubscriptionModel | null =
+    validatedSubscription !== undefined
+      ? validatedSubscription
+      : savedEngine !== undefined &&
+          availableEngines.some((status) => status.engine === savedEngine.engine)
+        ? savedEngine
+        : route === undefined && firstEngine !== undefined
+          ? { engine: firstEngine.engine }
+          : null;
+  const waitingForEngineSelection =
+    owner === true &&
+    call !== undefined &&
+    tob !== undefined &&
+    subscription !== undefined &&
+    (engines.view === undefined ||
+      (draftEngine !== undefined &&
+        subscription?.model !== undefined &&
+        draftEngineModels === undefined));
+  const availableAssignment = usableRoute(assignment);
+  const invalidAssignment =
+    advanced &&
+    assignment !== undefined &&
+    catalog !== undefined &&
+    (availableAssignment === undefined ||
+      availableAssignment.reasoningEffort !== assignment.reasoningEffort);
+  const waitingForCatalog =
+    catalog === undefined && (draftRoute !== undefined || (advanced && assignment !== undefined));
+  const canAdvance =
+    owner === false ||
+    (owner === true &&
+      !unavailableSubscription &&
+      (editingKey ||
+        (!waitingForEngineSelection &&
+          (engineChoice !== null || (!waitingForCatalog && !invalidAssignment)))));
+  const hasUsableProvider = route !== undefined || availableEngines.length > 0;
+  const local =
+    engines.view === undefined
+      ? undefined
+      : engines.view.engines.some(
+          (status) => status.available || status.reason !== 'host-not-local',
+        );
   const split =
     advanced && assignment !== undefined && route !== undefined
       ? routeKey(assignment) !== routeKey(route) ||
         (assignment.reasoningEffort ?? '') !== (route.reasoningEffort ?? '')
       : false;
+
   const save = async (): Promise<boolean> => {
-    if (!route || !selected || selected.credential !== undefined) return true;
-    const plan = split && assignment ? JSON.stringify([route, assignment]) : undefined;
-    const changed =
-      initial !== routeKey(route) ||
-      route.reasoningEffort !== undefined ||
-      (tob !== undefined && plan !== planned);
+    if (!canAdvance) return false;
+    if (!owner || connection === 'key') return true;
+    setSaveError(undefined);
     try {
-      if (initial !== routeKey(route) || route.reasoningEffort !== undefined) {
+      if (engineChoice !== null) {
+        if (
+          tob !== undefined &&
+          (engineChoice.engine !== savedEngine?.engine ||
+            engineChoice.model !== savedEngine?.model ||
+            engineChoice.effort !== savedEngine?.effort)
+        ) {
+          await engines.saveSelection(tob, 'orchestrator', engineChoice);
+          onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: false });
+        }
+        return true;
+      }
+      if (route === undefined) return true;
+      const plan = split && assignment ? JSON.stringify([route, assignment]) : undefined;
+      const initial = catalog?.default;
+      const changedDefault =
+        initial === undefined ||
+        routeKey(initial) !== routeKey(route) ||
+        (initial.reasoningEffort ?? '') !== (route.reasoningEffort ?? '');
+      if (changedDefault) {
         await actions.onboardingModel(undefined, 0, route, true);
         invalidateInheritedModelPlans(actions);
-        setInitial(routeKey(route));
+        setCatalog((previous) =>
+          previous === undefined ? previous : { ...previous, default: route },
+        );
         setPlanned(undefined);
+      }
+      if (tob !== undefined && savedEngine !== undefined && subscription === null) {
+        await engines.saveSelection(tob, 'orchestrator', null);
       }
       if (tob !== undefined && plan !== planned) {
         const revision = (await actions.modelPlanState(tob)).revision ?? 0;
@@ -887,106 +1104,332 @@ function ModelStep({
         } else await actions.inheritModel(tob, revision);
         setPlanned(plan);
       }
-      if (changed)
-        onboardingFor(actions).introEvent('onboarding:model_save', {
-          is_advanced: split,
-        });
+      if (changedDefault || (tob !== undefined && plan !== planned))
+        onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: split });
       return true;
     } catch (cause) {
-      setError(errorMessage(cause));
+      setSaveError(errorMessage(cause));
       return false;
     }
   };
-  const bound = useMountedResource<HTMLSpanElement>(() => {
-    bind({ save });
+  const bindSave = useMountedResource<HTMLSpanElement>(() => {
+    bind({ keyForm: editingKey, canAdvance, save });
     return () => bind(undefined);
-  }, [route, selected, initial, assignment, advanced, planned]);
+  }, [
+    owner,
+    canAdvance,
+    editingKey,
+    connection,
+    route?.provider,
+    route?.model,
+    route?.reasoningEffort,
+    catalog?.default,
+    assignment,
+    advanced,
+    planned,
+    engineChoice?.engine,
+    engineChoice?.model,
+    engineChoice?.effort,
+    savedEngine,
+    subscription,
+    tob,
+  ]);
   const options = models.map((model) => ({
     value: routeKey(model),
     label: model.modelName,
-    hint: model.providerName + (model.credential ? ' · ' + t('onboarding.needsKey') : ''),
+    hint: model.providerName,
+    disabled: model.restingUntil !== undefined,
   }));
-  const parse = ({ key, effort }: { key: string; effort: string }): ModelRouteView => {
-    const [provider, model] = JSON.parse(key) as [string, string];
-    return { provider, model, ...(effort ? { reasoningEffort: effort } : {}) };
+  const parse = ({ key, effort }: { key: string; effort: string }): ModelRouteView | undefined => {
+    const model = models.find((entry) => routeKey(entry) === key);
+    return model === undefined
+      ? undefined
+      : {
+          provider: model.provider,
+          model: model.model,
+          ...(effort ? { reasoningEffort: effort } : {}),
+        };
   };
+  const connected = new Map(
+    models.map(({ provider, providerName }) => [
+      provider,
+      { name: providerName, brand: providerBrand(provider, providerName) },
+    ]),
+  );
+  for (const status of availableEngines) {
+    connected.set(`engine:${status.engine}`, {
+      name: engineName(status.engine),
+      brand: status.engine === 'codex' ? 'openai' : 'claude',
+    });
+  }
   return (
     <div
       ref={mount}
       className={`bh-onboarding-model-form ${stylex.props(styles.modelForm).className ?? ''}`}
     >
-      <span ref={bound} hidden />
-      <h2 {...stylex.props(styles.title)}>{t('intro.model.title')}</h2>
-      <ModelPicker
-        title={t('onboarding.model')}
-        hint={t('intro.model.hint')}
-        choice={{
-          key: route ? routeKey(route) : '',
-          effort: route?.reasoningEffort ?? '',
-        }}
-        catalog={models}
-        options={options}
-        onChange={(choice) => setRoute(parse(choice))}
-        disabled={false}
-        t={t}
-      />
-      {tob !== undefined ? (
-        <details
-          {...stylex.props(styles.advanced)}
-          open={advanced}
-          onToggle={(event) => setAdvanced(event.currentTarget.open)}
-          data-intro-model-advanced
-        >
-          <summary {...stylex.props(styles.advancedSummary)}>
-            <span>{t('intro.model.advanced')}</span>
-            <span {...stylex.props(styles.copy)}>
-              {t(split ? 'intro.model.advancedSplit' : 'intro.model.advancedSame')}
-            </span>
-          </summary>
+      <span ref={bindSave} hidden />
+      <div ref={engines.mount} hidden />
+      <h2 {...stylex.props(styles.title)}>
+        {t(
+          editingKey || !hasUsableProvider
+            ? 'intro.model.connectTitle'
+            : engineChoice !== null
+              ? 'intro.model.tobModel'
+              : owner === false
+                ? 'intro.model.memberTitle'
+                : 'intro.model.title',
+        )}
+      </h2>
+      {editingKey ? (
+        <InlineModelProvider
+          call={call}
+          onSavingChange={onProviderSavingChange}
+          onClose={() => setConnection(undefined)}
+          onAdded={() => {
+            setConnection(undefined);
+            reload();
+          }}
+          t={t}
+        />
+      ) : hasUsableProvider ? (
+        <>
           <ModelPicker
-            title={t('modelPreset.assignment')}
-            hint={t('intro.model.assignmentHint')}
-            choice={{
-              key: routeKey(assignment ?? route ?? { provider: '', model: '' }),
-              effort: (assignment ?? route)?.reasoningEffort ?? '',
-            }}
+            title={t('onboarding.model')}
+            hint={
+              engineChoice !== null
+                ? t('intro.model.subscriptionHint')
+                : owner
+                  ? t('intro.model.hint')
+                  : ''
+            }
+            choice={{ key: route ? routeKey(route) : '', effort: route?.reasoningEffort ?? '' }}
             catalog={models}
             options={options}
-            onChange={(choice) => setAssignment(parse(choice))}
-            disabled={false}
+            onChange={(choice) =>
+              setDraft((previous) => ({ ...previous, route: parse(choice), subscription: null }))
+            }
+            disabled={saving}
+            subscription={
+              (availableEngines.length === 0 && engineChoice === null) || tob === undefined
+                ? undefined
+                : {
+                    choice: engineChoice,
+                    items: engineMenuItems(availableEngines, engines.models, engines.signingIn, t),
+                    models: engines.models,
+                    onChange: (choice) =>
+                      setDraft((previous) => ({ ...previous, subscription: choice })),
+                    signIn: engines.signIn,
+                  }
+            }
             t={t}
           />
-        </details>
+          {owner && engineChoice === null && tob !== undefined ? (
+            <details
+              {...stylex.props(styles.advanced)}
+              open={advanced}
+              onToggle={(event) => {
+                const { open } = event.currentTarget;
+                setDraft((previous) =>
+                  previous.advanced === open ? previous : { ...previous, advanced: open },
+                );
+              }}
+              data-intro-model-advanced
+            >
+              <summary
+                {...stylex.props(styles.advancedSummary)}
+                aria-disabled={saving || undefined}
+                onClick={saving ? (event) => event.preventDefault() : undefined}
+              >
+                <span>{t('intro.model.advanced')}</span>
+                <span {...stylex.props(styles.copy)}>
+                  {t(split ? 'intro.model.advancedSplit' : 'intro.model.advancedSame')}
+                </span>
+              </summary>
+              <ModelPicker
+                title={t('modelPreset.assignment')}
+                hint={t('intro.model.assignmentHint')}
+                choice={{
+                  key: routeKey(assignment ?? route ?? { provider: '', model: '' }),
+                  effort: (assignment ?? route)?.reasoningEffort ?? '',
+                }}
+                catalog={models}
+                options={options}
+                onChange={(choice) =>
+                  setDraft((previous) => ({ ...previous, assignment: parse(choice) }))
+                }
+                disabled={saving}
+                t={t}
+              />
+            </details>
+          ) : null}
+          {canConnect && openProviders !== undefined ? (
+            <div {...stylex.props(styles.choices)}>
+              <ChoiceButton
+                title={t('botSettings.section.modelProviders')}
+                leading={<Icon name="settings" />}
+                description={
+                  <span {...stylex.props(styles.providers)}>
+                    {[...connected].slice(0, 3).map(([id, { name, brand }]) => (
+                      <span key={id} {...stylex.props(styles.provider)}>
+                        <ModelBrandIcon brand={brand} />
+                        {name}
+                      </span>
+                    ))}
+                    {connected.size > 3 ? <span>+{connected.size - 3}</span> : null}
+                  </span>
+                }
+                disabled={saving}
+                onClick={openProviders}
+              />
+            </div>
+          ) : null}
+          {engines.loadFailed ? (
+            <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
+              {t('engine.loadFailed')}
+            </ReadFailure>
+          ) : null}
+        </>
+      ) : catalog === undefined ? (
+        readError === undefined ? (
+          <Note>{t('modelPreset.loading')}</Note>
+        ) : null
+      ) : canConnect ? (
+        <div {...stylex.props(styles.choices)}>
+          <ChoiceButton
+            title={t('intro.model.enterKey')}
+            description={t('intro.model.enterKeyHint')}
+            leading={<Icon name="shield-check" />}
+            disabled={saving}
+            onClick={() => setConnection('key')}
+          />
+          {local === true ? (
+            connection === 'subscription' ? (
+              <ModelProviderSubscriptions engines={engines} t={t} />
+            ) : (
+              <ChoiceButton
+                title={t('intro.model.signIn')}
+                description={t('intro.model.signInHint')}
+                leading={<Icon name="plug" />}
+                disabled={saving}
+                onClick={() => setConnection('subscription')}
+              />
+            )
+          ) : local === false ? (
+            <Note>{t('engine.localOnly')}</Note>
+          ) : null}
+          {engines.loadFailed ? (
+            <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
+              {t('engine.loadFailed')}
+            </ReadFailure>
+          ) : null}
+        </div>
+      ) : viewer !== undefined ? (
+        <Note>{t('intro.model.ownerConnects')}</Note>
       ) : null}
-      {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-      <button
-        type="button"
-        onClick={() => {
-          hide(true);
-          openModelsSettingsAndReturn(() => {
-            hide(false);
-            void load();
-          });
-        }}
-        {...stylex.props(styles.link, styles.starter, styles.full)}
-      >
-        <span {...stylex.props(styles.linkIcon)}>
-          <ChannelSidebarIcon name="settings" size={18} />
-        </span>
-        <span {...stylex.props(styles.linkText)}>
-          <span {...stylex.props(styles.strong)}>{t('failure.openModels')}</span>
-          <span {...stylex.props(styles.meta)}>
-            {selected?.credential || (loaded && models.length === 0)
-              ? t('onboarding.keyHint')
-              : t('onboarding.providerSettingsHint')}
-          </span>
-        </span>
-        <ChannelSidebarIcon name="chevron-right" size={16} />
-      </button>
-      {error ? (
-        <p role="alert" className="bh-error">
-          {error}
-        </p>
+      {call !== undefined && viewerRead.failed ? (
+        <ReadFailure
+          retryLabel={t('team.retry')}
+          busy={retryingViewer}
+          onRetry={() => {
+            setRetryingViewer(true);
+            void refreshTeamMode(call).finally(() => setRetryingViewer(false));
+          }}
+        >
+          {t('intro.model.viewerLoadFailed')}
+        </ReadFailure>
+      ) : null}
+      {readError === undefined ? null : (
+        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
+          {readError}
+        </ReadFailure>
+      )}
+      {!editingKey && owner && unavailableSubscription ? (
+        <Note tone="danger">{t('intro.model.subscriptionUnavailable')}</Note>
+      ) : null}
+      {!editingKey && owner && engineChoice === null && invalidAssignment ? (
+        <div>
+          <Note tone="warning">{t('intro.model.assignmentUnavailable')}</Note>
+          <Button
+            variant="outline"
+            disabled={saving}
+            onClick={() => setDraft((previous) => ({ ...previous, assignment: undefined }))}
+          >
+            {t('intro.model.useMainForAssignment')}
+          </Button>
+        </div>
+      ) : null}
+      {saveError === undefined ? null : <Note tone="danger">{saveError}</Note>}
+    </div>
+  );
+}
+
+function InlineModelProvider({
+  call,
+  onClose,
+  onAdded,
+  onSavingChange,
+  t,
+}: {
+  call: BridgeCall;
+  onClose(): void;
+  onAdded(): void;
+  onSavingChange(saving: boolean): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [view, setView] = useState<ModelProvidersView>();
+  const [failed, setFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const reload = () => {
+    setFailed(false);
+    setRefreshing(true);
+    setRetry((count) => count + 1);
+  };
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const request = new AbortController();
+    void bridgeHost(call, request.signal)
+      .call<ModelProvidersView>('modelProviders')
+      .then(
+        (result) => {
+          if (request.signal.aborted) return;
+          setView(result);
+          setRefreshing(false);
+        },
+        () => {
+          if (!request.signal.aborted) setFailed(true);
+        },
+      );
+    return () => request.abort();
+  }, [call, retry]);
+  return (
+    <div ref={mount}>
+      {view?.revision !== undefined ? (
+        <AddModelProvider
+          call={call}
+          revision={refreshing ? undefined : view.revision}
+          onAdded={onAdded}
+          onClose={onClose}
+          onConflict={reload}
+          onSavingChange={onSavingChange}
+          inline
+          t={t}
+        />
+      ) : (
+        <div {...stylex.props(styles.section)}>
+          {view !== undefined ? (
+            <Note>{t('modelProviders.readOnly')}</Note>
+          ) : failed ? null : (
+            <Note>{t('modelProviders.loading')}</Note>
+          )}
+          <Button variant="outline" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+        </div>
+      )}
+      {failed ? (
+        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
+          {t('modelProviders.readFailed')}
+        </ReadFailure>
       ) : null}
     </div>
   );

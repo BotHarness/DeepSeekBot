@@ -254,6 +254,7 @@ export function mountDevicePairing(
     () => options.team?.bindPairing(pairing) ?? (() => {}),
     'botharness: member device revocation',
   );
+  ctx.effect(() => pairing.stopOfferExpiry, 'botharness: pairing offer expiry');
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   let memberRoutes: () => Promise<string[]> = async () => [];

@@ -1280,6 +1280,8 @@ export function apply(ctx: ClientContext): void {
         key: PANEL_ID,
         locale: LOCALE_NS,
         inject: () => ({
+          call,
+          botSettings,
           actions,
           companion,
           channelSidebar,

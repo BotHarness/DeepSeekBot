@@ -512,6 +512,7 @@ import {
   type FolderListing,
 } from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
+import { readToolApprovalState } from '../workspaces/tool-approval-state.js';
 import type { ChannelUserQuestions } from '../channels/user-questions.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import type { ToolApprovalRuleStore, ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
@@ -4400,14 +4401,20 @@ function buildBridgeMethods(
           const allowed = deps.team.roles.modelsAllowed(human);
           const isAllowed = (route: { provider: string; model: string }) =>
             allowed.all || allowed.routes.includes(`${route.provider}/${route.model}`);
+          const credentialGated = new Set(
+            models.filter((route) => route.credential !== undefined).map(routeKey),
+          );
           return {
             ok: true,
             value: {
               models: models
-                .filter(isAllowed)
+                .filter((route) => route.credential === undefined && isAllowed(route))
                 .map(({ credential: _credential, ...route }) => catalogEntry(route, rests)),
               ...favoritesOf(),
-              ...catalogGroups(rests, isAllowed),
+              ...catalogGroups(
+                rests,
+                (route) => isAllowed(route) && !credentialGated.has(routeKey(route)),
+              ),
             },
           };
         }
@@ -10506,36 +10513,13 @@ function buildBridgeMethods(
       if (asker === undefined) {
         return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
       }
-      const channel = { botSlug: asker };
       const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
       if (request === undefined) {
         return invalidInput('Unknown tool approval request');
       }
-      const assignment =
-        request.role === 'assignment'
-          ? deps.runtime?.getAssignment(channel.botSlug, request.sessionId)
-          : undefined;
-      const execution =
-        assignment === undefined
-          ? undefined
-          : assignment.activity === 'error'
-            ? 'needs-repair'
-            : assignment.activity === 'working'
-              ? ((deps.runtime?.assignmentApprovalWait === undefined
-                  ? assignment.executionWait
-                  : deps.runtime.assignmentApprovalWait(request.sessionId, request.callId)) ??
-                'running')
-              : 'settled';
-      const status = deps.toolApproval?.status(channel.botSlug, messageId) ?? 'expired';
-      const expiresAt =
-        status === 'pending' ? deps.toolApproval?.expiresAt(channel.botSlug, messageId) : undefined;
       return {
         ok: true,
-        value: {
-          status,
-          ...(expiresAt === undefined ? {} : { expiresAt }),
-          ...(execution === undefined ? {} : { execution }),
-        },
+        value: readToolApprovalState(deps, { ...request, botSlug: asker, messageId }),
       };
     },
     async toolApprovalDecide(payload) {

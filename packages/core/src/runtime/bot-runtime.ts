@@ -403,6 +403,7 @@ export interface OrchestratorAssignmentAccess {
 
 export interface OrchestratorAgentRun {
   routingTarget?: RoutingTarget;
+  continuingFromNativeRoute?: true;
   inputAccepted?(): void;
   speakerPolicy?(
     humanId?: string,
@@ -553,6 +554,8 @@ export interface AssignmentAgentRun {
 
   resume?: boolean;
   permission: AssignmentPermissionSnapshot;
+  recoveryEntry?(): Pick<AssignmentDetail, 'title' | 'description'> | undefined;
+  failEngineRecovery?(summary: string): Promise<AssignmentReport>;
   modelRoute?: ModelRoute;
   agentPreset?: string;
   report(input: AssignmentReportInput, execution?: { turn: number }): Promise<AssignmentReport>;
@@ -643,7 +646,12 @@ export interface OrchestratorChannelAccess {
   startHumanDm?(humanId: string): ChannelRecord;
   replySource?(sourceEventId: string): { channelId: string; messageId: string };
   list(input?: ChannelListInput): ChannelListPage;
-  read(input?: { channelId?: string; before?: string; limit?: number }): ChannelMessageView[];
+  read(input?: {
+    channelId?: string;
+    before?: string;
+    limit?: number;
+    observe?: false;
+  }): ChannelMessageView[];
 
   ignore(input: { channelId?: string; messageId: string }): {
     sourceEventId: string;
@@ -6232,6 +6240,9 @@ class BotRuntimeImplementation implements BotRuntime {
               text: '',
               resume: true,
               permission,
+              recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
+              failEngineRecovery: (summary) =>
+                this.#recordEngineRecoveryFailure(bot.slug, sessionId, summary),
               ...(modelRoute === undefined ? {} : { modelRoute }),
               ...(agentPreset === undefined ? {} : { agentPreset }),
               requireContent: () => {
@@ -7477,7 +7488,12 @@ class BotRuntimeImplementation implements BotRuntime {
               'The Routing Group reached its continuation limit for this turn.',
             );
           inputRecorded ||= error instanceof EngineLimitError ? error.inputRecorded : inputAccepted;
-          current = this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded);
+          current = {
+            ...this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded),
+            ...(target.kind === 'route' && inputAccepted
+              ? { continuingFromNativeRoute: true }
+              : {}),
+          };
           this.#failureStreaks.delete(bot.slug);
           await this.#appendModelSwitch(bot.slug, sessionId, channelId, {
             kind: 'switch',
@@ -9437,7 +9453,8 @@ class BotRuntimeImplementation implements BotRuntime {
             ...(input.limit === undefined ? {} : { limit: input.limit }),
           })
           .map((message) => viewOf(channel, message, humans));
-        if (observeReads) this.#observeReadMessages(botSlug, messages, readAdmissions);
+        if (observeReads && input.observe !== false)
+          this.#observeReadMessages(botSlug, messages, readAdmissions);
         return messages;
       },
       query: (input = {}) => {
@@ -11034,6 +11051,9 @@ class BotRuntimeImplementation implements BotRuntime {
         bot,
         text,
         permission,
+        recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
+        failEngineRecovery: (summary) =>
+          this.#recordEngineRecoveryFailure(bot.slug, sessionId, summary),
         ...(modelRoute === undefined ? {} : { modelRoute }),
         ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
         report: async (report, execution) =>
@@ -11162,6 +11182,9 @@ class BotRuntimeImplementation implements BotRuntime {
         text,
       resume: true,
       permission,
+      recoveryEntry: () => this.getAssignment(bot.slug, input.sessionId),
+      failEngineRecovery: (summary) =>
+        this.#recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
       ...(modelRoute === undefined ? {} : { modelRoute }),
       ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
       report: async (report, execution) =>
@@ -11997,22 +12020,37 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
+  #recordEngineRecoveryFailure(botSlug: string, sessionId: string, summary: string) {
+    const owner = this.#ownership.resolve(sessionId);
+    if (
+      this.#closed ||
+      this.#registry.get(botSlug) === undefined ||
+      owner?.botSlug !== botSlug ||
+      owner.rootRole !== 'assignment' ||
+      owner.parentSessionId !== undefined
+    )
+      throw new Error(`Assignment Session ${sessionId} is unavailable`);
+    return this.#recordReport(botSlug, sessionId, { state: 'failed', summary }, undefined, true);
+  }
+
   async #recordReport(
     botSlug: string,
     sessionId: string,
     input: AssignmentReportInput,
     execution?: { turn: number },
+    engineRecoveryFailure = false,
   ): Promise<AssignmentReport> {
     const origin = this.#assignmentRow(botSlug, sessionId)?.source_event_id;
-    if (origin) this.#database.read((db) => requireSourceContent(db, origin));
+    if (origin && !engineRecoveryFailure)
+      this.#database.read((db) => requireSourceContent(db, origin));
     if (execution !== undefined && (!Number.isSafeInteger(execution.turn) || execution.turn < 1))
       throw new Error('Invalid native Assignment Turn');
     const content = requireNonBlank(input.summary, 'Assignment report summary');
     const assignment = this.getAssignment(botSlug, sessionId);
     if (
-      assignment === undefined ||
-      assignment.activity === 'stopping' ||
-      assignment.activity === 'stopped'
+      (assignment === undefined && !engineRecoveryFailure) ||
+      assignment?.activity === 'stopping' ||
+      assignment?.activity === 'stopped'
     )
       throw new Error(`Assignment Session ${sessionId} is unavailable or stopping`);
     const preparation = prepareAssignmentReport(sessionId, content, this.#saveReportSpill);
@@ -12076,7 +12114,7 @@ class BotRuntimeImplementation implements BotRuntime {
               WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
           )
           .run(input.state, summary, at, at, askId, askAt, sessionId, botSlug);
-        if (changed.changes !== 1)
+        if (changed.changes !== 1 && !(engineRecoveryFailure && priorAsk === undefined))
           throw new Error(`Assignment Session ${sessionId} is unavailable or stopping`);
         const sourceRule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-report');
         database
