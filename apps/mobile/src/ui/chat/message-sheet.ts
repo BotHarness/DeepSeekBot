@@ -3,10 +3,9 @@ import {
   type ConversationMessage,
   type MessageAttachment,
 } from '@botharness/host-client/conversation';
-import { t } from '../strings';
+import { dateLocale, t } from '../strings';
 import type { BubbleGroup } from './bubble-shape';
 import type { Rect } from './menu-placement';
-import { separatorLabel } from './message-groups';
 import { messageSource } from './message-source';
 
 export type ActivityMenuLink = { label?: string; onOpen?: () => void };
@@ -103,10 +102,16 @@ export function menuGroups(actions: MessageMenuAction[]): MessageMenuAction[][] 
 }
 
 export function menuTime(iso: string, now: Date): string {
-  const label = separatorLabel(iso, now, t.yesterday);
-  return label !== '' && new Date(iso).toDateString() === now.toDateString()
-    ? `${t.today} ${label}`
-    : label;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return '';
+  const today = at.toDateString() === now.toDateString();
+  const time = new Intl.DateTimeFormat(dateLocale(), {
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(today ? {} : { month: 'short', day: 'numeric' }),
+    ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  }).format(at);
+  return today ? `${t.today} ${time}` : time;
 }
 
 export function menuReactions(target: MessageMenuTarget, readOnly: boolean): boolean {

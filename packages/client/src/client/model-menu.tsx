@@ -20,7 +20,8 @@ import type {
 } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ComboboxOption } from './combobox.js';
-import { FilterPicker } from './ds/filter-picker.js';
+import { FilterPicker, type FilterPickerFilter } from './ds/filter-picker.js';
+import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { EngineId, EngineModelView, EngineStatusView } from './engine-choice.js';
 import { engineName } from './session-engine.js';
@@ -37,6 +38,7 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly preset?: string | undefined;
   readonly hidden?: boolean;
   readonly checked?: boolean | undefined;
+  readonly tag?: string;
   readonly hintBrand?: ModelBrand | undefined;
   readonly hintLabel?: string | undefined;
 }
@@ -357,6 +359,11 @@ export function ModelMenu({
   onSettings,
   busy = false,
   anchorRef,
+  portalContainer,
+  engineFilters,
+  onBrowse,
+  closeOnSelect = efforts === undefined || efforts.length <= 1,
+  manageFavorites = true,
   onClose,
   t,
 }: {
@@ -370,6 +377,11 @@ export function ModelMenu({
   onSettings?: (() => void) | undefined;
   busy?: boolean;
   anchorRef: RefObject<HTMLElement | null>;
+  portalContainer?: Element | null;
+  engineFilters?: Partial<Record<EngineId, Pick<FilterPickerFilter, 'status' | 'onActivate'>>>;
+  onBrowse?: (() => void) | undefined;
+  closeOnSelect?: boolean;
+  manageFavorites?: boolean;
   onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -377,6 +389,8 @@ export function ModelMenu({
   const engines = new Set(
     items.flatMap((item) => (item.engine === undefined ? [] : [item.engine])),
   );
+  for (const engine of ['codex', 'claude'] as const)
+    if (engineFilters?.[engine] !== undefined) engines.add(engine);
   const groups = items.filter((item) => item.group !== undefined);
   const presets = items.filter((item) => item.preset !== undefined);
   const favorites = useModelFavorites();
@@ -386,19 +400,25 @@ export function ModelMenu({
       label={label}
       value={value}
       onSelect={onSelect}
-      closeOnSelect={efforts === undefined || efforts.length <= 1}
+      closeOnSelect={closeOnSelect}
+      onBrowse={onBrowse}
       options={items
         .filter((item) => !item.hidden)
         .map((item) => ({
           value: item.value,
           label: item.name,
           hint: item.hint,
-          ...(item.hintLabel === undefined ? {} : { hintLabel: item.hintLabel }),
+          hintLabel:
+            item.engine === undefined || item.hint === undefined
+              ? item.hintLabel
+              : `${item.hintLabel ?? item.hint} · ${t('engine.externalLabel')}`,
           ...(item.hintBrand === undefined
             ? {}
             : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
           disabled: item.disabled,
-          search: [item.value],
+          search: [item.value, item.tag ?? ''],
+          searchByTerms: item.engine !== undefined,
+          marker: item.tag === undefined ? undefined : <Tag tone="quiet">{item.tag}</Tag>,
           ...(item.engine === undefined
             ? {
                 favorite:
@@ -419,7 +439,7 @@ export function ModelMenu({
               ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
               : item.engine !== undefined
                 ? {
-                    icon: <EngineBrandIcon brand={ENGINE_BRAND[item.engine]} size={16} />,
+                    icon: <EngineBrandIcon brand={item.brand} size={16} />,
                     filter: `engine:${item.engine}`,
                   }
                 : item.model === undefined
@@ -452,6 +472,7 @@ export function ModelMenu({
           key: `engine:${engine}`,
           label: t('engine.subscription', { engine: engineName(engine) }),
           icon: <EngineBrandIcon brand={ENGINE_BRAND[engine]} size={16} />,
+          ...engineFilters?.[engine],
         })),
         ...modelFamilies(models).map((family) => ({
           key: familyKey(family.brand),
@@ -488,7 +509,7 @@ export function ModelMenu({
       }
       busy={busy}
       favorites={
-        favorites.writable
+        manageFavorites && favorites.writable
           ? {
               filter: {
                 key: FAVORITES,
@@ -524,6 +545,7 @@ export function ModelMenu({
       }
       notice={favoriteError}
       anchorRef={anchorRef}
+      portalContainer={portalContainer ?? null}
       onClose={onClose}
     />
   );

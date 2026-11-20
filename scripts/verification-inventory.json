@@ -2774,9 +2774,9 @@
       "path": "scripts/e2e-team-security.mjs",
       "category": "mapped",
       "behaviors": ["team.security-suite", "settings.model-providers"],
-      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell with discovery scoped to the test Profile's member Spaces, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 checks the model provider settings gate for an authenticated member.",
+      "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant.",
       "task": 4197,
-      "sha256": "4d4b6619fa8956e74e890ed6fd4382c43bf87d50c31c5110bd390825402a8b6c"
+      "sha256": "9cf79dc10e93d0d55169cc57c7a127df37a4927e5b17d3a0993f27359e881daf"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

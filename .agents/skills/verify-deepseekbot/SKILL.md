@@ -101,6 +101,8 @@ node scripts/e2e-team-security.mjs --name <n> --scenario B   # only file and She
 
 It sets up roles with Role Policy, members, public and private Bots, folders and Channels, then drives real model turns that try to leak finance figures (A), reach other members' folders, the Host data directory or the Host API through file tools, Shell and grants (B), and cross private Bots, Channels, Human DMs, offboarding and model allowlists (C). Hard boundaries are asserted on Host state and tool results; Role Policy scenarios pass only when no restricted value appears in any reply. Shell checks are enforced only when `team-mode status` reports `isolation: enforced` (Linux with bwrap, slirp4netns and nft); elsewhere B2 reports the known gap. The report lands in `.humanlayer/team-security/<time>/`; publish it with `pnpm evidence:publish`.
 
+B2 requires a completed Shell probe against fixed synthetic files and a verified own-file write and read. If the model refuses, the probe does not complete or the reply times out, the report marks B2 `inconclusive` and the suite exits nonzero. Retry the scenario with `--scenario B2`. An inconclusive run does not satisfy the M15 gate.
+
 ## Evidence
 
 `shot` writes `<label>.png`, `<label>.aria.txt` and `<label>.console.txt` to `.humanlayer/verify/<n>/evidence/`, and `<label>.failure.png` plus `<label>.failure.aria.txt` when a step fails. Its JSON output lists every step it performed.

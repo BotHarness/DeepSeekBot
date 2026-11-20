@@ -17,7 +17,7 @@ The docs site combines authored Astro and TypeScript with content generated from
 
 ## Styling and diagrams
 
-- `apps/docs/src/styles/globals.css` defines Nimbus `--nb-*` tokens, maps them into Tailwind utilities, then provides COSS semantic aliases that point back to Nimbus values. Keep this docs-site COSS system separate from the in-harness Tobs tokens in [ADR-0028](../decisions/desktop-ui.md#adr-0028).
+- `apps/docs/src/styles/globals.css` defines Nimbus `--nb-*` tokens, maps them into Tailwind utilities, then provides COSS semantic aliases that point back to Nimbus values. Brand and status colours come from `design/tokens/tobs-core.generated.css` through `design/tokens.css`. Run `pnpm tokens` after changing Tobs core colours. Nimbus and COSS own the docs-site neutrals, typography and spacing.
 - `prose.css` styles classless Markdown content while leaving component-owned markup alone. Wide tables scroll inside `.nb-table-scroll`; Shiki blocks, focus states, and mobile navigation take their tokens from `globals.css`. `mermaid.css` reserves compact space before rendering, and `apps/docs/src/scripts/mermaid.ts` loads the large Mermaid bundle only when needed.
 - After changing authored docs-site code, run `corepack pnpm --filter docs typecheck` and `corepack pnpm --filter docs build`. Exercise a long docs page on desktop and a narrow viewport: open and close the rail, use its filter and route links, toggle the drawer by pointer and keyboard, and repeat in light and dark themes.
 

@@ -225,18 +225,20 @@ export function claudeModels(list: unknown): EngineModel[] {
     if (id === '') return [];
     const levels = entry['supportedEffortLevels'];
     const description = text(entry['description']);
+    const resolvedModel = text(entry['resolvedModel']);
     return [
       {
         id,
         name: text(entry['displayName']) || id,
         ...(description === '' ? {} : { description }),
+        ...(resolvedModel === '' ? {} : { resolvedModel }),
         efforts:
           entry['supportsEffort'] === false || !Array.isArray(levels)
             ? []
             : levels.flatMap((level) =>
                 typeof level === 'string' && level !== '' ? [engineEffort(level)] : [],
               ),
-        ...(id === 'default' ? { isDefault: true } : {}),
+        ...(entry['isDefault'] === true || id === 'default' ? { isDefault: true } : {}),
       },
     ];
   });

@@ -49,7 +49,7 @@ class TextBubbleView(context: Context) : View(context) {
   var layout: TextBubbleLayout? = null
     set(value) {
       field = value
-      contentDescription = value?.let { "${it.row.body}, ${it.row.time.replace(' ', ' ')}" }
+      contentDescription = value?.row?.body
       reset()
       ripple = value?.let(::rippleFor)
       invalidate()

@@ -36,6 +36,8 @@ export function routingGroupEngineReason(
       return t('engine.signInLabel', { engine: engineName(engine) });
     case 'not-subscription':
       return t('engine.notSubscription');
+    case 'models-unavailable':
+      return t('routingGroups.engineModelsUnavailable');
     case 'login-unknown':
       return t('engine.loginUnknown');
   }

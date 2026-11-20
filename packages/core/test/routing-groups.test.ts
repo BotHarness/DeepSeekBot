@@ -1,13 +1,14 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase, type OperationalDatabaseOwner } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { EngineRefusal } from '../src/engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { createModelPresetStore } from '../src/models/presets.js';
@@ -152,7 +153,10 @@ describe('Routing Group store', () => {
 });
 
 describe('Choosing a Routing Group as a Bot Orchestrator', () => {
-  function setup(validate: ModelCatalog['validate']) {
+  function setup(
+    validate: ModelCatalog['validate'],
+    subscriptionEngines?: Parameters<typeof createBridgeMethods>[1]['subscriptionEngines'],
+  ) {
     const { root, database } = mount();
     const registry = createTestRegistry({ rootDir: root, database });
     const routingGroups = createRoutingGroupStore({
@@ -168,6 +172,7 @@ describe('Choosing a Routing Group as a Bot Orchestrator', () => {
       registry,
       modelPresets: createModelPresetStore({ rootDir: root, database }),
       routingGroups,
+      ...(subscriptionEngines === undefined ? {} : { subscriptionEngines }),
       routeRests: {
         list: () => [{ provider: 'opencode-go', model: 'x', until: '2026-11-22T00:00:00.000Z' }],
       },
@@ -250,6 +255,52 @@ describe('Choosing a Routing Group as a Bot Orchestrator', () => {
     expect(methods.modelGroupDelete({ id, expectedRevision: 1 })).toMatchObject({ ok: true });
   });
 
+  it('validates new engine effort, persists it and lets a saved unavailable member be reordered', async () => {
+    const validateChoice = vi.fn(async (_engine: string, choice: { effort?: string }) => {
+      if (choice.effort !== 'high')
+        throw new EngineRefusal('unknown-effort', 'GPT-5.4 takes effort high');
+    });
+    const { methods } = setup(async () => undefined, {
+      validateChoice,
+      use: vi.fn(),
+      fallsBack: () => false,
+      store: { selection: () => undefined },
+    });
+    const selected = { ...CODEX, reasoningEffort: 'high' };
+    const input = { name: 'Mixed effort', members: [selected, GO] };
+    const created = await methods.modelGroupCreate(input);
+    if (!created.ok) throw new Error('Expected the supported effort to save');
+    const { id, revision } = created.value.group;
+    expect(created.value.group.members).toEqual(input.members);
+    expect(validateChoice).toHaveBeenCalledWith('codex', { model: CODEX.model, effort: 'high' });
+    const invalid = { ...input, members: [{ ...selected, reasoningEffort: 'unknown' }, GO] };
+    await expect(
+      methods.modelGroupCreate({ ...invalid, name: 'Invalid effort' }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    await expect(
+      methods.modelGroupUpdate({ ...invalid, id, expectedRevision: revision }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    validateChoice.mockRejectedValue(new EngineRefusal('unknown-model', 'GPT-5.4 was removed'));
+    await expect(
+      methods.modelGroupUpdate({
+        ...input,
+        members: [GO, selected],
+        id,
+        expectedRevision: revision,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { group: { members: [GO, selected] } },
+    });
+    expect(validateChoice).toHaveBeenCalledTimes(3);
+  });
+
   it('refuses invalid engine members at the Host boundary on create and update', async () => {
     const { methods } = setup(async () => undefined);
     const created = await methods.modelGroupCreate({ name: 'Mixed', members: [CLAUDE, GO] });
@@ -259,6 +310,8 @@ describe('Choosing a Routing Group as a Bot Orchestrator', () => {
     for (const invalid of [
       { ...CODEX, engine: 'unknown' },
       { ...CODEX, model: ' ' },
+      { ...CLAUDE, reasoningEffort: 'high' },
+      { ...CODEX, reasoningEffort: ' ' },
       { ...CODEX, provider: GO.provider },
     ]) {
       const input = { name: 'Invalid', members: [invalid, GO] };

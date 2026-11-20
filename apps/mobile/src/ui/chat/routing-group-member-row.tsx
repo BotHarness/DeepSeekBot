@@ -1,15 +1,15 @@
-import type { routingGroupEnginePresentation } from '@botharness/host-client/model-catalog';
+import type { routingGroupEngineMemberRow } from '@botharness/host-client/model-catalog';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import { Pressable, View } from 'react-native';
 
 import { pressTint, useDesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { SettingsRow } from '../primitives/settings-row';
 import { SwipeRow } from '../primitives/swipe-row';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '../shell/icons';
 import { useStrings } from '../strings';
+import { EngineBrandIcon } from './engine-brand-icon';
 import { ModelBrandIcon } from './model-brand-icon';
-import { ModelEnginePickerRow } from './model-picker-row';
 import { SHEET_GROUP } from './sheet';
 
 export function RoutingGroupMemberRow({
@@ -30,7 +30,7 @@ export function RoutingGroupMemberRow({
   title: string;
   detail: string | undefined;
   brand: ModelBrand | undefined;
-  engineRow: ReturnType<typeof routingGroupEnginePresentation> | undefined;
+  engineRow: ReturnType<typeof routingGroupEngineMemberRow> | undefined;
   engineReason: string | undefined;
   usable: boolean;
   moveUp: (() => void) | undefined;
@@ -39,7 +39,32 @@ export function RoutingGroupMemberRow({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const tone = usable ? 'fg' : 'muted';
+  const tone = usable && engineReason === undefined ? 'fg' : 'muted';
+  const position = `${index + 1}. `;
+  const memberDetail =
+    engineRow === undefined
+      ? detail
+      : [
+          engineRow.detail,
+          engineRow.isDefault
+            ? t.routingGroup.defaultTag.replace(/\p{Ideographic}(?=\p{Ideographic})/gu, '$&\u2060')
+            : undefined,
+          engineReason === undefined
+            ? undefined
+            : `${t.routingGroup.unavailable} · ${engineReason}`,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+  const leading =
+    engineRow !== undefined ? (
+      <EngineBrandIcon
+        brand={engineRow.brand}
+        color={theme.color[tone]}
+        label={t.routingGroup.externalEngine}
+      />
+    ) : brand === undefined ? undefined : (
+      <ModelBrandIcon brand={brand} color={theme.color[tone]} size={theme.type.title.line} />
+    );
   const actions = [
     { key: 'up', label: t.routingGroup.moveUp(name), run: moveUp, Icon: ChevronUpIcon },
     { key: 'down', label: t.routingGroup.moveDown(name), run: moveDown, Icon: ChevronDownIcon },
@@ -91,32 +116,32 @@ export function RoutingGroupMemberRow({
             ]
       }
     >
-      {engineRow === undefined ? (
-        <SettingsRow
-          on={SHEET_GROUP}
-          title={`${index + 1}. ${title}`}
-          accessibilityLabel={[`${index + 1}. ${name}`, detail].filter(Boolean).join(', ')}
-          detail={detail}
-          tone={tone}
-          leading={
-            brand === undefined ? undefined : (
-              <ModelBrandIcon
-                brand={brand}
-                color={theme.color[tone]}
-                size={theme.type.title.line}
-              />
-            )
-          }
-          accessory={accessory}
-        />
-      ) : (
-        <ModelEnginePickerRow
-          row={engineRow}
-          reason={engineReason}
-          position={index + 1}
-          accessory={accessory}
-        />
-      )}
+      <SettingsRow
+        on={SHEET_GROUP}
+        title={position + (engineRow?.title ?? title)}
+        accessibilityLabel={[
+          position + name,
+          memberDetail?.replaceAll('\u2060', ''),
+          engineRow === undefined ? undefined : t.routingGroup.externalEngine,
+        ]
+          .filter(Boolean)
+          .join(', ')}
+        detail={memberDetail}
+        tone={tone}
+        leading={leading}
+        accessory={theme.largeText ? undefined : accessory}
+      />
+      {theme.largeText ? (
+        <View
+          style={{
+            alignItems: 'flex-end',
+            paddingHorizontal: space.x3,
+            backgroundColor: theme.layer[SHEET_GROUP].fill,
+          }}
+        >
+          {accessory}
+        </View>
+      ) : null}
     </SwipeRow>
   );
 }

@@ -173,7 +173,7 @@
     "scripts/e2e-nested-appearance.mjs": 2,
     "scripts/e2e-panel-appearance.mjs": 1,
     "scripts/e2e-personabot-create.mjs": 3,
-    "scripts/e2e-team-security.mjs": 3,
+    "scripts/e2e-team-security.mjs": 2,
     "scripts/e2e-tob-bot-management.mjs": 1,
     "scripts/e2e-tob-channel-management.mjs": 1,
     "scripts/e2e-tob-delegation.mjs": 1,

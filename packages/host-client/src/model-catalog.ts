@@ -4,6 +4,7 @@ import {
   ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS,
   isEngineId,
   isRoutingGroupEngineMember,
+  type RoutingGroupEngineModel,
   type RoutingGroupEngineMember,
   type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
@@ -81,17 +82,45 @@ export function routingGroupEnginePresentation(
 
 export function routingGroupEngineChoices(engines: readonly RoutingGroupEngineOptions[]) {
   return engines.flatMap((status) => {
-    const member: RoutingGroupEngineMember = { kind: 'engine', engine: status.engine };
-    const choices: {
-      member: RoutingGroupEngineMember;
-      status: RoutingGroupEngineOptions;
-      modelName?: string;
-    }[] = [{ member, status }];
-    if (status.available)
-      for (const model of status.models)
-        choices.push({ member: { ...member, model: model.id }, status, modelName: model.name });
-    return choices;
+    if (!status.available) return [];
+    const defaultModel = status.models.find((model) => model.isDefault);
+    return status.models.map((model) => ({
+      member: {
+        kind: 'engine',
+        engine: status.engine,
+        model: model.id,
+      } satisfies RoutingGroupEngineMember,
+      model,
+      isDefault: model === defaultModel,
+    }));
   });
+}
+
+export function routingGroupEngineMemberRow(
+  member: RoutingGroupEngineMember,
+  status: RoutingGroupEngineOptions | undefined,
+  copy: RoutingGroupEngineCopy,
+) {
+  const defaults = status?.available ? status.models.find((model) => model.isDefault) : undefined;
+  const model =
+    member.model === undefined
+      ? defaults
+      : status?.available
+        ? status.models.find(
+            (item) =>
+              item.id === member.model ||
+              (member.model !== undefined && item.aliases?.includes(member.model)),
+          )
+        : undefined;
+  const shown = model === undefined ? member : { ...member, model: model.id };
+  const effort = model?.efforts.find((item) => item.id === member.reasoningEffort)?.name;
+  const row = routingGroupEnginePresentation(shown, copy, model?.name);
+  return {
+    ...row,
+    detail: [row.detail, effort ?? member.reasoningEffort].filter(Boolean).join(' · '),
+    isDefault: model !== undefined && model === defaults,
+    unavailable: status?.available === true && model === undefined,
+  };
 }
 
 export async function loadRoutingGroupEngines(
@@ -110,7 +139,19 @@ export async function loadRoutingGroupEngines(
             const model = record(value);
             const id = model?.['id'];
             const name = model?.['name'];
-            return filled(id) && filled(name) ? [{ id, name }] : [];
+            if (!filled(id) || !filled(name) || model === undefined) return [];
+            const defaultEffort = model['defaultEffort'];
+            const aliases = Array.isArray(model['aliases']) ? model['aliases'].filter(filled) : [];
+            return [
+              {
+                id,
+                name,
+                efforts: catalogEfforts(model['efforts']) ?? [],
+                ...(filled(defaultEffort) ? { defaultEffort } : {}),
+                ...(model['isDefault'] === true ? { isDefault: true } : {}),
+                ...(aliases.length === 0 ? {} : { aliases }),
+              } satisfies RoutingGroupEngineModel,
+            ];
           })
         : [];
       return [{ engine, available: true, models }];
@@ -264,28 +305,31 @@ function filled(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+function catalogEfforts(value: unknown): ModelCatalogEntry['efforts'] {
+  return Array.isArray(value)
+    ? value.flatMap((raw) => {
+        const effort = record(raw);
+        const id = effort?.['id'];
+        return typeof id === 'string'
+          ? [{ id, name: filled(effort?.['name']) ? effort['name'] : id }]
+          : [];
+      })
+    : undefined;
+}
+
 export function modelCatalogEntry(value: unknown): ModelCatalogEntry | undefined {
   const row = record(value);
   const provider = row?.['provider'];
   const model = row?.['model'];
   if (row === undefined || !filled(provider) || !filled(model)) return undefined;
   const credential = row['credential'];
+  const efforts = catalogEfforts(row['efforts']);
   return {
     provider,
     providerName: filled(row['providerName']) ? row['providerName'] : provider,
     model,
     modelName: filled(row['modelName']) ? row['modelName'] : model,
-    ...(Array.isArray(row['efforts'])
-      ? {
-          efforts: row['efforts'].flatMap((value) => {
-            const effort = record(value);
-            const id = effort?.['id'];
-            return typeof id === 'string'
-              ? [{ id, name: filled(effort?.['name']) ? effort['name'] : id }]
-              : [];
-          }),
-        }
-      : {}),
+    ...(efforts === undefined ? {} : { efforts }),
     ...(filled(row['defaultEffort']) ? { defaultEffort: row['defaultEffort'] } : {}),
     ...(credential === 'missing' || credential === 'invalid' ? { credential } : {}),
     ...(filled(row['restingUntil']) ? { restingUntil: row['restingUntil'] } : {}),
