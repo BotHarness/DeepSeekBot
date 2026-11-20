@@ -298,9 +298,14 @@ export class CodexEngineSession implements EngineSession {
   }
 
   #model: string | undefined;
+  #reasoningEffort: string | undefined;
 
   get model(): string | undefined {
     return this.#model;
+  }
+
+  get reasoningEffort(): string | undefined {
+    return this.#choice.effort ?? this.#reasoningEffort;
   }
 
   async account(): Promise<EngineAccount> {
@@ -331,6 +336,7 @@ export class CodexEngineSession implements EngineSession {
       }
     const model = text(result['model']) || text(record(result['thread'])['model']);
     if (model) this.#model = model;
+    this.#reasoningEffort = text(result['reasoningEffort']) || undefined;
     const id = text(record(result['thread'])['id']);
     if (!id) throw new EngineRefusal('engine-failed', 'Codex did not return a thread id');
     this.#threadId = id;

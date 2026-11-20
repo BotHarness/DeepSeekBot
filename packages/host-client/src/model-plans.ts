@@ -1,3 +1,4 @@
+import { isTurnTarget, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import { parseModelCatalog, type ModelCatalogAnswer } from './model-catalog';
 
@@ -86,6 +87,7 @@ export interface ModelPreset extends ModelPlanGroups, ModelPresetEngines {
 }
 
 export interface ModelPlanState {
+  currentTarget?: TurnTarget;
   revision?: number;
   plan?: ModelPlan;
   repair?: {
@@ -298,6 +300,7 @@ export async function loadModelPlanState(host: HostCall, slug: string): Promise<
   const code = repair?.['code'];
   return {
     ...(typeof value['revision'] === 'number' ? { revision: value['revision'] } : {}),
+    ...(isTurnTarget(value['currentTarget']) ? { currentTarget: value['currentTarget'] } : {}),
     ...(plan === undefined ? {} : { plan }),
     ...(repair !== undefined && REPAIRS.some((known) => known === code)
       ? {

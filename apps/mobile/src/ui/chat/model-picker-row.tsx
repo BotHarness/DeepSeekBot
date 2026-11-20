@@ -1,3 +1,5 @@
+import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   modelCatalogGroupMemberLabels,
   type routingGroupEnginePresentation,
@@ -136,6 +138,7 @@ export function ModelEnginePickerRow({
 export function ModelGroupPickerRow({
   group,
   front,
+  currentTarget,
   models,
   groups,
   usable,
@@ -145,6 +148,7 @@ export function ModelGroupPickerRow({
 }: RowActions & {
   group: ModelCatalogGroup;
   front: ModelCatalogEntry | undefined;
+  currentTarget?: TurnTarget | undefined;
   models: readonly ModelCatalogEntry[];
   groups: readonly ModelCatalogGroup[];
   usable: boolean;
@@ -159,19 +163,34 @@ export function ModelGroupPickerRow({
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
+  const executed = currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, models);
   const current =
-    restful !== undefined
-      ? restingLabel(restful)
-      : front === undefined
-        ? frontLabel
-        : t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`);
+    executed !== undefined
+      ? t.modelSettings.groupCurrent(executed.name)
+      : restful !== undefined
+        ? restingLabel(restful)
+        : front === undefined
+          ? frontLabel
+          : t.modelSettings.groupFront(`${front.modelName} · ${front.providerName}`);
   return (
     <SettingsRow
       {...actions}
       on={SHEET_GROUP}
-      accessibilityLabel={[group.name, current, ...members, note].filter(Boolean).join(', ')}
+      accessibilityLabel={[
+        group.name,
+        current,
+        executed?.external ? t.routingGroup.externalEngine : undefined,
+        ...members,
+        note,
+      ]
+        .filter(Boolean)
+        .join(', ')}
       leading={
-        front === undefined || restful !== undefined ? (
+        executed?.external ? (
+          <EngineBrandIcon brand={executed.brand} color={color} />
+        ) : executed !== undefined ? (
+          <ModelBrandIcon brand={executed.brand} size={theme.type.title.line} color={color} />
+        ) : front === undefined || restful !== undefined ? (
           <RowIcon name="model" size={theme.type.title.line} color={color} />
         ) : (
           <ModelBrandIcon
@@ -184,7 +203,11 @@ export function ModelGroupPickerRow({
       title={group.name}
       detail={[
         ...(showCount ? [t.modelSettings.count(group.routes.length)] : []),
-        restful === undefined ? frontLabel : restingLabel(restful),
+        executed !== undefined
+          ? t.modelSettings.groupCurrent(executed.short)
+          : restful === undefined
+            ? frontLabel
+            : restingLabel(restful),
         ...(note === undefined ? [] : [note]),
       ].join(' · ')}
       tone={usable ? 'fg' : 'muted'}

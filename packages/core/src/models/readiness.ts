@@ -1,3 +1,4 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ModelCatalog } from './catalog.js';
 import type { ModelRoute, PersonaBotModelPlan } from './presets.js';
@@ -9,6 +10,7 @@ export interface ModelRouteRepair {
 }
 
 export interface ModelPlanState {
+  currentTarget?: TurnTarget;
   revision?: number;
   plan?: PersonaBotModelPlan;
   repair?: ModelRouteRepair;

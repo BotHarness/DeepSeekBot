@@ -853,7 +853,7 @@ describe('Model entry', () => {
     const card = document.querySelector<HTMLElement>('li[data-model-group]')!;
     expect(card.textContent).toContain('Side');
     expect(card.textContent).toContain('1 models');
-    expect(card.textContent).toContain('Now: Flash · DeepSeek');
+    expect(card.textContent).toContain('Next available: Flash · DeepSeek');
     const high = [...card.querySelectorAll('label')].find((item) => item.textContent === 'High')!;
     await act(async () => high.querySelector('input')!.click());
     const input = card.querySelector<HTMLInputElement>('input[aria-label="When to use Side"]')!;

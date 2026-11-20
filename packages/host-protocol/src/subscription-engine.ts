@@ -7,6 +7,31 @@ export const ENGINE_DEFINITIONS = {
   claude: { displayName: 'Claude Code' },
 } satisfies Record<EngineId, { displayName: string }>;
 
+const ENGINE_EFFORT_NAMES = {
+  none: 'None',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+  max: 'Max',
+};
+
+export type EngineEffortLevel = keyof typeof ENGINE_EFFORT_NAMES;
+
+function isEngineEffortLevel(id: string): id is EngineEffortLevel {
+  return Object.hasOwn(ENGINE_EFFORT_NAMES, id);
+}
+
+export function engineEffortName(
+  id: string,
+  translate?: (level: EngineEffortLevel) => string,
+  catalogName?: string,
+): string {
+  if (isEngineEffortLevel(id)) return translate?.(id) ?? catalogName ?? ENGINE_EFFORT_NAMES[id];
+  return catalogName ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 export function isEngineId(value: unknown): value is EngineId {
   return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
 }

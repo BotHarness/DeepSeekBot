@@ -385,6 +385,20 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('prints the Host’s ordered reply targets in the Session transcript', async () => {
+    const turnTargets = [
+      { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
+      { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    ];
+    const live = await host(() => ({
+      ok: true,
+      value: { items: [{ kind: 'reply', text: 'Done', turnTargets }], omitted: 0, running: false },
+    }));
+    const result = await invoke(['session-transcript', 'ada', '--session', 'orch-1'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.items).toEqual([{ kind: 'reply', text: 'Done', turnTargets }]);
+  });
+
   it("lists, searches and inspects a Bot's Assignments by Title and Description", async () => {
     const live = await host(echo);
     await invoke(['assignments', 'ada'], live.url);

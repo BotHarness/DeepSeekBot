@@ -1,5 +1,5 @@
+import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
 import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
@@ -11,6 +11,7 @@ import {
   type SessionDetailLevel,
   type SessionFoldedReplies,
 } from '@botharness/host-client/shared/bot-mode-settings';
+import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -232,6 +233,7 @@ function LiveClock({ from, t }: { from: string; t: BotHarnessTranslate }): React
 
 interface DetailContext {
   actions: BridgeActions;
+  catalog: readonly ModelCatalogEntry[] | undefined;
   botSlug: string;
   sessionId: string;
   t: BotHarnessTranslate;
@@ -477,6 +479,9 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
+      {visible.some((segment) => segment.kind === 'reply') ? null : (
+        <TurnTargetLabel targets={end?.turnTargets} catalog={context.catalog} t={t} />
+      )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
       )}
@@ -489,6 +494,7 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
+            <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
           </div>
         ) : (
           <ProcessGroup
@@ -597,6 +603,7 @@ export function SessionDetail({
   const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
+  const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -807,6 +814,7 @@ export function SessionDetail({
   const todos = progress?.todos;
   const context: DetailContext = {
     actions,
+    catalog,
     botSlug,
     sessionId,
     t,
@@ -821,7 +829,7 @@ export function SessionDetail({
       <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
     );
   return (
-    <div data-session-detail={sessionId} {...stylex.props(styles.root)}>
+    <div ref={catalogMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
       {chips === null ? null : chipSlot === null ? (
         <div {...stylex.props(styles.chips)}>{chips}</div>
       ) : (

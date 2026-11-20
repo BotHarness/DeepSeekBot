@@ -71,6 +71,27 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
   ],
 });
 
+it('shows the localized engine effort next to the model in an attributed reply', async () => {
+  const current = transcript('orchestrator');
+  const host = await render({
+    sessionTranscript: async () => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.kind === 'reply'
+          ? {
+              ...item,
+              turnTargets: [
+                { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+              ],
+            }
+          : item,
+      ),
+    }),
+  });
+  const path = host.querySelector('[data-transcript="reply"] [data-turn-targets]');
+  expect(path?.textContent).toBe('GPT-6.2-Sol · 高');
+});
+
 function label(node: HTMLElement): string {
   const copy = node.cloneNode(true) as HTMLElement;
   for (const meta of copy.querySelectorAll('[data-transcript-time], [data-transcript-clock]'))

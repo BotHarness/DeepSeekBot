@@ -1,3 +1,4 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import {
   engineAccountKey,
@@ -16,30 +17,16 @@ import { AssignmentSteering } from './assignment-steering.js';
 import { readEngineAccount, requireSubscription } from './engine-account.js';
 import {
   type CodexProcessOptions,
-  type CodexTransport,
   CodexEngineSession,
   spawnCodexTransport,
 } from './codex-engine.js';
-import type { CodexStatus } from './codex-status.js';
-import type { ClaudeQueryFactory } from './claude-engine.js';
-import type { ClaudeStatus, startClaudeLogin } from './claude-status.js';
 import {
   buildEngineContextSeed,
   type EngineContextRecord,
   savedAssignmentRequest,
 } from './engine-context.js';
-import {
-  type EngineSessionPersistence,
-  type EngineSessionStore,
-  type OpenedEngineDshSession,
-  openEngineDshSession,
-} from './engine-dsh-session.js';
-import {
-  type EngineGateway,
-  type EngineGatewayTool,
-  type EngineGrant,
-  engineGatewayResult,
-} from './engine-gateway.js';
+import { type OpenedEngineDshSession, openEngineDshSession } from './engine-dsh-session.js';
+import { type EngineGatewayTool, type EngineGrant, engineGatewayResult } from './engine-gateway.js';
 import {
   ENGINE_GATEWAY_TOOLS,
   type EngineTurnRequest,
@@ -47,7 +34,7 @@ import {
   type EngineToolApproval,
   type EngineToolContext,
   type EngineSessionState,
-  type EngineApprovalRequest,
+  type EngineHostOptions,
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
@@ -80,42 +67,11 @@ export {
   type EngineToolContext,
   type EngineSessionState,
   type EngineApprovalRequest,
+  type EngineHostOptions,
   type EngineSessionDescription,
   type EngineQuotaView,
   type EngineStatusReport,
 } from './engine-host-types.js';
-
-export interface EngineHostOptions {
-  root: string;
-  local: boolean;
-  codexCommand?: string;
-  claudeCommand?: string;
-  env?: Readonly<Record<string, string | undefined>>;
-  gateway: EngineGateway;
-  routingGroupEffort?(botSlug: string): string | undefined;
-  sessions(): EngineSessionStore | undefined;
-  persistence(): EngineSessionPersistence | undefined;
-  sessionIdsForBot?(botSlug: string): readonly string[];
-  changed?(): void;
-  accountsChanged?(): void;
-  accountUses?(id: string): readonly string[];
-  observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
-  approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
-  idleMs?: number;
-  releaseGraceMs?: number;
-  now?: () => number;
-  openCodex?(options: CodexProcessOptions): CodexTransport;
-  detectCodex?(options: { command: string; home: string }): Promise<CodexStatus>;
-  startCodexLogin?(options: {
-    command: string;
-    home: string;
-    signal: AbortSignal;
-    onExit(): void;
-  }): Promise<{ url?: string }>;
-  openClaude?: ClaudeQueryFactory;
-  detectClaude?(options: { command: string; home: string }): Promise<ClaudeStatus>;
-  startClaudeLogin?: typeof startClaudeLogin;
-}
 
 interface TurnScope {
   channelId: string | undefined;
@@ -127,6 +83,7 @@ interface TurnScope {
 interface LiveEngineSession {
   botSlug: string;
   configuration: string;
+  choice: EngineChoice;
   workspaceMode: EngineWorkspaceMode;
   engine: EngineSession;
   account: string;
@@ -469,7 +426,14 @@ export class EngineHost {
         const stop = new AbortController();
         live.stop = stop;
         const signal = AbortSignal.any([request.signal, stop.signal]);
-        const scope: TurnScope = { channelId: request.channelId, execute: request.execute, signal };
+        const scope: TurnScope = {
+          channelId: request.channelId,
+          execute: (...args) => {
+            observeTarget();
+            return request.execute(...args);
+          },
+          signal,
+        };
         live.turn = scope;
         this.#setState(
           request.sessionId,
@@ -482,6 +446,27 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, input);
+        let previousTarget: Extract<TurnTarget, { kind: 'engine' }> | undefined;
+        const observeTarget = () => {
+          const model = live.engine.model ?? live.choice.model;
+          const effort = live.engine.reasoningEffort ?? live.choice.effort;
+          if (
+            previousTarget !== undefined &&
+            model === previousTarget.model &&
+            effort === previousTarget.reasoningEffort
+          )
+            return;
+          const target: TurnTarget = {
+            kind: 'engine',
+            engine,
+            ...(model === undefined ? {} : { model }),
+            ...(effort === undefined ? {} : { reasoningEffort: effort }),
+          };
+          previousTarget = target;
+          if (request.observeTurnTarget !== undefined)
+            request.observeTurnTarget(log.turn, 0, target);
+          else this.#options.observeTurnTarget?.(request.sessionId, log.turn, target);
+        };
         if (live.rebuilt) {
           log.rebuilt();
           live.rebuilt = false;
@@ -504,10 +489,12 @@ export class EngineHost {
             ),
         };
         try {
+          observeTarget();
           const sending = live.engine.send(input, {
             signal,
             verbatimInput: continuation,
             onEvent: (event) => {
+              observeTarget();
               log.accept(event);
               if (event.kind === 'text') outcome.text = event.text;
               if (event.kind === 'tool-call') delete outcome.text;
@@ -524,6 +511,7 @@ export class EngineHost {
               ? undefined
               : await steering.duringTurn({ sending, engine: live.engine, signal, stop, log });
           const end = steered?.end ?? (await sending);
+          observeTarget();
           if (role === 'orchestrator')
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
@@ -937,6 +925,7 @@ export class EngineHost {
       const live: LiveEngineSession = {
         botSlug,
         configuration: key,
+        choice,
         workspaceMode: mode,
         engine: opened,
         account: label,

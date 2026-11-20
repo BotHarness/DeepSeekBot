@@ -4044,6 +4044,24 @@ const ROLE_MODEL_PROVIDERS_MIGRATION: SchemaMigration = {
   },
 };
 
+const SESSION_TURN_TARGET_MIGRATION: SchemaMigration = {
+  id: 'session-turn-targets',
+  module: 'bot-runtime',
+  description: 'Record executed model and engine segments by Session turn',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_turn_targets (
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        turn INTEGER NOT NULL,
+        step INTEGER NOT NULL,
+        request_id TEXT NOT NULL,
+        target_json TEXT NOT NULL CHECK (json_valid(target_json)),
+        PRIMARY KEY (session_id, turn, step)
+      ) WITHOUT ROWID;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4219,4 +4237,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ASSIGNMENT_MODEL_EFFORT_MIGRATION,
   MODELS_CONFIGURE_PERMISSION_MIGRATION,
   ROLE_MODEL_PROVIDERS_MIGRATION,
+  SESSION_TURN_TARGET_MIGRATION,
 ]);

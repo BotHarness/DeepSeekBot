@@ -1,3 +1,5 @@
+import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { useState, type ReactElement, type RefObject } from 'react';
 
 import {
@@ -88,6 +90,7 @@ export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngi
   return {
     defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
     subscription: (source) => t('engine.subscription', { engine: source }),
+    effort: (level) => t(`engine.effort.${level}`),
   };
 }
 
@@ -153,6 +156,7 @@ export function catalogMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
   groups: readonly ModelCatalogGroupView[] = [],
+  executed?: { groupId: string; target: TurnTarget },
 ): ModelMenuItem[] {
   const unusable = (entry: ModelCatalogEntryView) =>
     entry.credential !== undefined || entry.restingUntil !== undefined;
@@ -203,27 +207,36 @@ export function catalogMenuItems(
         groups,
         routingGroupEngineCopy(t),
       );
+      const target =
+        executed?.groupId === group.id ? turnTargetLabel(executed.target, catalog) : undefined;
       const restful = group.restingUntil;
       const currentName =
         entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
       const hint =
-        restful !== undefined
-          ? restingHint(restful, t)
-          : t('modelMenu.groupFront', {
-              model:
-                entry === undefined
-                  ? (front?.model ?? '')
-                  : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
-            });
+        target !== undefined
+          ? t('modelMenu.groupCurrent', { model: target.short })
+          : restful !== undefined
+            ? restingHint(restful, t)
+            : t('modelMenu.groupFront', {
+                model:
+                  entry === undefined
+                    ? (front?.model ?? '')
+                    : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
+              });
       return {
         value: groupMenuKey(group.id),
         label: group.name,
         name: group.name,
         brand: undefined,
         group: group.id,
-        hintBrand: restful === undefined ? brand : undefined,
+        hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
+        ...(target?.external ? { tag: t('engine.externalLabel') } : {}),
         hintLabel: [
-          restful === undefined ? t('modelMenu.groupFront', { model: currentName }) : hint,
+          target !== undefined
+            ? t('modelMenu.groupCurrent', { model: target.name })
+            : restful === undefined
+              ? t('modelMenu.groupFront', { model: currentName })
+              : hint,
           ...members,
         ].join(' · '),
         hint,

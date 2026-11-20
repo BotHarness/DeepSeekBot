@@ -1,7 +1,8 @@
-import type {
-  EngineId,
-  EngineModelView,
-  RoutingGroupEngineMember,
+import {
+  engineEffortName,
+  type EngineId,
+  type EngineModelView,
+  type RoutingGroupEngineMember,
 } from '@botharness/host-protocol/subscription-engine';
 
 export {
@@ -77,18 +78,8 @@ export function requireOfferedEngineChoice(
     );
 }
 
-const EFFORT_NAMES: Record<string, string> = {
-  none: 'None',
-  minimal: 'Minimal',
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  xhigh: 'Extra high',
-  max: 'Max',
-};
-
 export function engineEffort(id: string): EngineEffort {
-  return { id, name: EFFORT_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1) };
+  return { id, name: engineEffortName(id) };
 }
 
 export type EngineEvent =
@@ -135,6 +126,7 @@ export interface EngineSession {
   readonly engine: EngineId;
   readonly ended: boolean;
   readonly model?: string | undefined;
+  readonly reasoningEffort?: string | undefined;
   account(): Promise<EngineAccount>;
   start(resume?: string): Promise<string>;
   send(input: string, options: EngineSendOptions): Promise<EngineTurnEnd>;

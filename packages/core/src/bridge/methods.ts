@@ -4906,6 +4906,8 @@ function buildBridgeMethods(
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
+      const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
+      const executed = currentTarget === undefined ? {} : { currentTarget };
       if (deps.modelReadiness !== undefined && (!deps.team || deps.team.isOwner(human))) {
         try {
           const state = await deps.modelReadiness.inspect(slug);
@@ -4914,6 +4916,7 @@ function buildBridgeMethods(
             ok: true,
             value: {
               ...state,
+              ...executed,
               revision: current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0,
             },
           };
@@ -4924,6 +4927,7 @@ function buildBridgeMethods(
       return {
         ok: true,
         value: {
+          ...executed,
           revision: bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0,
           ...(bot.modelPlan === undefined ? {} : { plan: bot.modelPlan }),
         },
@@ -10029,6 +10033,7 @@ function buildBridgeMethods(
           ...summarizeSessionTranscript({
             sessionId,
             events: log?.events ?? [],
+            segments: deps.runtime?.sessionTurnTargets?.(sessionId) ?? [],
             describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
           }),
         },

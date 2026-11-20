@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Path: () => null,
+  SvgXml: () => null,
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -65,10 +70,14 @@ function mount(target: Parameters<typeof MessageActions>[0]['target']) {
 const byLabel = (label: string) => host?.querySelector<HTMLElement>(`[aria-label="${label}"]`);
 
 describe('Android message menu', () => {
-  const target = { message: bot, anchor: { x: 16, y: 400, width: 200, height: 60 }, group: {} };
+  const target = {
+    message: bot,
+    anchor: { x: 16, y: 400, width: 200, height: 60 },
+    group: { first: true, last: true },
+  };
 
   it('anchors a reaction island and an action card to the tapped bubble', () => {
-    mount({ ...target, group: { first: true, last: true } });
+    mount(target);
     expect(byLabel(t.reactions)?.querySelectorAll('[role="button"]')).toHaveLength(
       MENU_REACTIONS.length,
     );
@@ -83,7 +92,6 @@ describe('Android message menu', () => {
     try {
       mount({
         ...target,
-        group: { first: true, last: true },
         message: { ...bot, at: at.toISOString(), body: '' },
       });
       expect(host?.querySelector('[data-testid="message-menu-time"]')?.textContent).toBe(
@@ -94,9 +102,34 @@ describe('Android message menu', () => {
           minute: '2-digit',
         }).format(at),
       );
+      expect(host?.querySelector('[data-testid="message-menu-turn-targets"]')).toBeNull();
       expect(byLabel(t.copy)).toBeNull();
     } finally {
       vi.useRealTimers();
+    }
+  });
+
+  it('shows the localized execution path in the same header as the time', async () => {
+    const { interfacePreferences } = await import('../src/ui/interface-preferences');
+    interfacePreferences.setLanguage('zh');
+    try {
+      mount({
+        ...target,
+        message: {
+          ...bot,
+          turnTargets: [
+            { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'low' },
+          ],
+        },
+      });
+      const time = host?.querySelector('[data-testid="message-menu-time"]');
+      const path = host?.querySelector('[data-testid="message-menu-turn-targets"]');
+      expect(time?.textContent).toBeTruthy();
+      expect(time?.nextElementSibling).toBe(path);
+      expect(path?.textContent).toBe('GPT-6.2-Sol · 低');
+      expect(path?.getAttribute('aria-label')).toBe('运行于 GPT-6.2-Sol · Codex · 低, 外部引擎');
+    } finally {
+      act(() => interfacePreferences.setLanguage('system'));
     }
   });
 

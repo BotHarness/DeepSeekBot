@@ -1,3 +1,4 @@
+import { recordTurnTarget } from './runtime/turn-targets.js';
 import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
 import { createRouteRests } from './models/route-rest.js';
@@ -1891,6 +1892,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           ? undefined
           : plan.orchestratorGroupEffort;
     },
+    observeTurnTarget: (sessionId, turn, target) => {
+      const owner = core.ownership.resolve(sessionId);
+      if (owner === undefined) return;
+      recordTurnTarget(
+        attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+        sessionId,
+        {
+          turn,
+          step: 0,
+          request: String(turn),
+          target,
+        },
+      );
+    },
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
       core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),
@@ -3589,7 +3604,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'agent/assistant-stream',
     ({ agent, frame }) => {
-      agentAdapter.acceptAssistantStream(agent.session.id, frame);
+      agentAdapter.acceptAssistantStream(agent.session.id, frame, agent);
       sessionLive.accept(agent.session.id, frame);
     },
     { global: true },
@@ -4164,7 +4179,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           request ??
           core.registry.get(slug)?.modelPlan?.orchestrator ??
           defaultModel?.currentSelection();
-        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+        return [
+          route?.provider,
+          route?.model,
+          request?.maxTokens,
+          compactionPolicy(),
+          core.runtime.currentTurnTarget?.(slug),
+        ];
       }),
     'botharness: card and context changes',
   );

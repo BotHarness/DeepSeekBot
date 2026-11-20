@@ -5,6 +5,11 @@ import type { RosterBot } from '@botharness/host-client/client';
 
 const device = vi.hoisted(() => ({ scale: 1 }));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Path: () => null,
+  SvgXml: () => null,
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'ios', Version: 27 },

@@ -48,6 +48,7 @@ export type Loadable<T> =
   | { status: 'failed'; error: string };
 
 export interface BotModel {
+  currentTarget?: import('@botharness/host-protocol/turn-target').TurnTarget;
   revision: number;
   defaultRevision?: number;
   plan?: ModelPlan;
@@ -136,6 +137,7 @@ export async function loadBotModel(
   return {
     revision: state.revision ?? state.plan?.revision ?? 0,
     ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
     ...(state.repair === undefined ? {} : { repair: state.repair.code }),
     models,
     ...(groups === undefined ? {} : { groups }),

@@ -1,3 +1,4 @@
+import { EngineBrandIcon } from './engine-brand-icon';
 import { useHeaderStatus } from './use-header-status';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
@@ -51,7 +52,13 @@ export function ChatTitle({
     <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[name, shownModel?.name, headerStatus.label, connectionLabel]
+      accessibilityLabel={[
+        name,
+        shownModel?.name,
+        shownModel?.external ? t.routingGroup.externalEngine : undefined,
+        headerStatus.label,
+        connectionLabel,
+      ]
         .filter(Boolean)
         .join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
@@ -92,7 +99,19 @@ export function ChatTitle({
               testID="chat-header-model"
               style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1, flexShrink: 0 }}
             >
-              <ModelBrandIcon brand={shownModel.brand} size={modelIcon} color={theme.color.muted} />
+              {shownModel.external ? (
+                <EngineBrandIcon
+                  brand={shownModel.brand}
+                  size={modelIcon}
+                  color={theme.color.muted}
+                />
+              ) : (
+                <ModelBrandIcon
+                  brand={shownModel.brand}
+                  size={modelIcon}
+                  color={theme.color.muted}
+                />
+              )}
               <Text
                 {...barLabelProps}
                 variant="meta"

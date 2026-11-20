@@ -263,7 +263,7 @@ describe('named Claude Code subscription accounts', () => {
         claudeCommand,
         `#!/bin/sh
 [ "$*" = 'auth login --claudeai' ] || exit 1
-echo 'https://claude.ai/oauth/authorize?fixture=1'
+printf '\\033]8;;%s\\007%s\\033]8;;\\007\\n' 'https://claude.ai/oauth/authorize?fixture=1' 'https://claude.ai/oauth/authorize?fixture=1'
 if [ -f "$CLAUDE_CONFIG_DIR/callback-only" ]; then
   read -r unused
   exit 1
@@ -290,7 +290,11 @@ touch "$CLAUDE_CONFIG_DIR/received"
           ok: false,
           error: { code: 'engine-login-not-pending' },
         });
-        await Promise.all([host.login('claude'), host.login('claude', account.id)]);
+        const signIns = await Promise.all([host.login('claude'), host.login('claude', account.id)]);
+        expect(signIns.map(({ url }) => url)).toEqual([
+          'https://claude.ai/oauth/authorize?fixture=1',
+          'https://claude.ai/oauth/authorize?fixture=1',
+        ]);
         await expect(host.login('claude', account.id)).rejects.toMatchObject({
           code: 'engine-account-busy',
         });

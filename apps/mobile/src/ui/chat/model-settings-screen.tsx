@@ -623,6 +623,11 @@ export function ModelsView({
                   <ModelGroupPickerRow
                     group={group}
                     front={front}
+                    currentTarget={
+                      scope.kind === 'bot' && picker === 'orchestrator' && selected
+                        ? value.currentTarget
+                        : undefined
+                    }
                     models={value.models}
                     groups={value.groups ?? []}
                     usable={usable}

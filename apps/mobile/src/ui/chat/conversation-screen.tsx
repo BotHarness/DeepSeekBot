@@ -56,6 +56,8 @@ import {
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
+import { loadModelCatalog } from '@botharness/host-client/model-plans';
+import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 import { visibleDmActivity } from '../../host/dm-activity';
 import {
   collapseRepeatedFailures,
@@ -612,6 +614,27 @@ function ChatConversation({
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
+  const [menuCatalog, setMenuCatalog] = useState<{
+    host: HostClient;
+    models: ModelCatalogEntry[];
+  }>();
+  const menuModels = menuCatalog?.host === client ? menuCatalog?.models : undefined;
+  const needsMenuCatalog =
+    menuModels === undefined &&
+    actionsFor?.message.turnTargets?.some((target) => target.kind === 'dsh');
+  useLayoutEffect(() => {
+    if (!needsMenuCatalog || client === undefined) return;
+    let active = true;
+    void loadModelCatalog(client).then(
+      ({ models }) => {
+        if (active) setMenuCatalog({ host: client, models });
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [client, needsMenuCatalog]);
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const {
@@ -2575,6 +2598,7 @@ function ChatConversation({
             />
             <MessageActions
               target={actionsFor}
+              catalog={menuModels}
               readOnly={botDm || !online}
               onClose={() => setActionsFor(undefined)}
               onReact={(message, emoji, active) => react(message.id, emoji, active)}

@@ -1,3 +1,4 @@
+import { TURN_TARGET_TOPIC } from '../runtime/turn-targets.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { BotHarnessCore } from '../plugin.js';
@@ -113,6 +114,9 @@ export function mountCardContextLive(
     if (topics.includes('assignments')) refreshApprovals();
     if (topics.includes('bot-registry') || topics.includes('session-ownership'))
       refreshContexts('change');
+    for (const topic of topics)
+      if (topic.startsWith(TURN_TARGET_TOPIC))
+        updateSession(topic.slice(TURN_TARGET_TOPIC.length), false);
   });
   const updateSession = (sessionId: string, force: boolean) => {
     const owner = core.ownership.resolve(sessionId);

@@ -1190,6 +1190,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.inputAccepted?.();
       await engines.runTurn({
         botSlug: run.bot.slug,
+        ...(run.observeTurnTarget === undefined
+          ? {}
+          : { observeTurnTarget: run.observeTurnTarget }),
         ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
         ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
         ...(sessionCwd === undefined ? {} : { sessionCwd }),
@@ -1498,7 +1501,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return false;
   }
 
-  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void {
+  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void {
+    if (frame.type === 'start') {
+      const active = this.#runs.get(sessionId);
+      const config = agent?.session.requestHeader()?.config;
+      if (active?.role === 'orchestrator' && config !== undefined)
+        active.run.observeTurnTarget?.(frame.turn, frame.step, {
+          kind: 'dsh',
+          provider: config.provider,
+          model: config.model,
+        });
+    }
     this.#drafts.accept(sessionId, frame);
   }
 
@@ -5538,7 +5551,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 }
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
-  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void;
+  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void;
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;
   ownsModelFreeTobTurn(agent: Agent): boolean;

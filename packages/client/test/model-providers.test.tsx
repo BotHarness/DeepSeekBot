@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+import type { WireTeamMode } from '@botharness/host-protocol/wire';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
   (await import('./primitive-mocks.js')).comboboxPrimitives(),
 );
@@ -196,13 +197,34 @@ function subscriptionTestPage(call: BridgeCall) {
   };
 }
 
+function teamMode(kind: 'owner' | 'member', permissions: string[] = []): WireTeamMode {
+  return {
+    enabled: true,
+    activeMembers: 2,
+    ownerPasswordSet: true,
+    insecureHttpAllowed: false,
+    memberUrls: [],
+    isolation: 'trial',
+    viewer: {
+      kind,
+      humanId: kind,
+      displayName: kind,
+      owner: kind === 'owner',
+      mustChangePassword: false,
+      roleIds: [],
+      permissions,
+      models: { all: true },
+    },
+  };
+}
+
 it('lists named subscription accounts and adds, renames and removes one', async () => {
   let revision = 4;
   const accounts = new Map([['codex-personal', 'Personal']]);
   const call = vi.fn<BridgeCall>(async (method, args) => {
     switch (method) {
       case 'teamMode':
-        return { ok: true, value: { enabled: true, viewer: { kind: 'owner', humanId: 'owner' } } };
+        return { ok: true, value: teamMode('owner') };
       case 'modelProviders':
         return { ok: true, value: { revision: 1, providers: [] } };
       case 'engineAccounts':
@@ -288,7 +310,7 @@ it('adds a named Claude Code account and submits a manual code from its sign-in 
   const call = vi.fn<BridgeCall>(async (method, args) => {
     switch (method) {
       case 'teamMode':
-        return { ok: true, value: { enabled: true, viewer: { kind: 'owner', humanId: 'owner' } } };
+        return { ok: true, value: teamMode('owner') };
       case 'modelProviders':
         return { ok: true, value: { revision: 1, providers: [] } };
       case 'engineAccounts':
@@ -383,13 +405,7 @@ it('shows the signing-in state only for the selected subscription account', asyn
   });
   const call = vi.fn<BridgeCall>(async (method) => {
     if (method === 'teamMode')
-      return {
-        ok: true,
-        value: {
-          enabled: true,
-          viewer: { kind: 'member', humanId: 'manager', permissions: ['modelSources.manage'] },
-        },
-      };
+      return { ok: true, value: teamMode('member', ['modelSources.manage']) };
     if (method === 'engineAccountLogin') {
       await login;
       return { ok: true, value: {} };
@@ -428,14 +444,7 @@ it('shows the signing-in state only for the selected subscription account', asyn
 
 it('omits the subscription write controls for a Team member without modelSources.manage', async () => {
   const call = vi.fn<BridgeCall>(async (method) => {
-    if (method === 'teamMode')
-      return {
-        ok: true,
-        value: {
-          enabled: true,
-          viewer: { kind: 'member', humanId: 'member', permissions: ['roles.manage'] },
-        },
-      };
+    if (method === 'teamMode') return { ok: true, value: teamMode('member', ['roles.manage']) };
     if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
     if (method === 'engineAccounts')
       return {

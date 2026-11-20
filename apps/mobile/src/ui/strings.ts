@@ -7,6 +7,10 @@ import { interfacePreferences } from './interface-preferences';
 import type { PairingFailure } from '@botharness/host-client/pairing';
 import type { PushKind, PushRefusal } from '@botharness/host-client/push';
 import type { AggregatedState } from '@botharness/host-protocol/wire';
+import {
+  engineEffortName,
+  type EngineEffortLevel,
+} from '@botharness/host-protocol/subscription-engine';
 import type { EmailCodeRefusal } from '@botharness/host-client/connect-account';
 
 type ToolGroup = 'shell' | 'browser' | 'files' | 'other';
@@ -20,6 +24,16 @@ function toolGroup(tool: string): ToolGroup {
 
 const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
+
+const engineEffortZh = {
+  none: '无',
+  minimal: '极低',
+  low: '低',
+  medium: '中',
+  high: '高',
+  xhigh: '极高',
+  max: '最高',
+} satisfies Record<EngineEffortLevel, string>;
 
 const en = {
   avatarEditor: {
@@ -740,7 +754,8 @@ const en = {
     favoriteAdd: (name: string) => `Add ${name} to favorites`,
     favoriteRemove: (name: string) => `Remove ${name} from favorites`,
     groups: 'Routing Groups',
-    groupFront: (model: string) => `Now: ${model}`,
+    groupFront: (model: string) => `Next available: ${model}`,
+    groupCurrent: (model: string) => `Current: ${model}`,
     groupNotesHint:
       'Tell the Orchestrator when to use each Routing Group. Saved when you leave the field.',
     groupNote: (name: string) => `Note for ${name}`,
@@ -788,6 +803,7 @@ const en = {
     engineRow: {
       defaultModel: (engine: string) => `${engine} default model`,
       subscription: (source: string) => `${source} subscription`,
+      effort: (level: EngineEffortLevel) => engineEffortName(level),
     },
     engineUnavailable: {
       'host-not-local': 'This computer doesn’t support Subscription Engines.',
@@ -1661,6 +1677,8 @@ const en = {
   copyHint: 'Long-press for Copy.',
   messageActionsHint: 'Long-press to react, copy or share.',
   messageActions: 'Message actions',
+  messageRanOn: (path: string) => `Ran on ${path}`,
+  messageTargetSeparator: ', then ',
   messageSelection: {
     count: (count: number) => `${count} selected`,
     close: 'Stop selecting',
@@ -3503,7 +3521,8 @@ const zh: typeof en = {
     favoriteAdd: (name: string) => `收藏 ${name}`,
     favoriteRemove: (name: string) => `取消收藏 ${name}`,
     groups: '路由组',
-    groupFront: (model: string) => `当前：${model}`,
+    groupFront: (model: string) => `下一个可用：${model}`,
+    groupCurrent: (model: string) => `当前：${model}`,
     groupNotesHint: '告诉主模型什么时候用这个路由组。离开输入框时保存。',
     groupNote: (name: string) => `${name} 的备注`,
     allowedEfforts: '副模型推理强度',
@@ -3548,6 +3567,7 @@ const zh: typeof en = {
     engineRow: {
       defaultModel: (engine: string) => `${engine} 默认模型`,
       subscription: (source: string) => `${source} 订阅`,
+      effort: (level: EngineEffortLevel) => engineEffortZh[level],
     },
     engineUnavailable: {
       'host-not-local': '这台电脑不支持订阅引擎。',
@@ -4352,6 +4372,8 @@ const zh: typeof en = {
   copyHint: '长按可复制。',
   messageActionsHint: '长按可回应、复制或分享。',
   messageActions: '消息操作',
+  messageRanOn: (path: string) => `运行于 ${path}`,
+  messageTargetSeparator: '，随后切换到 ',
   messageSelection: {
     count: (count: number) => `已选择 ${count} 项`,
     close: '退出选择',

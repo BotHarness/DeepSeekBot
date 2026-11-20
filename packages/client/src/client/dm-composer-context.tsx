@@ -1,4 +1,6 @@
-import { observeHostResource } from './messaging-defaults-live.js';
+import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import { observeHostResource, observeResource } from './messaging-defaults-live.js';
 import { useMessageHost } from './message-host.js';
 import { useScopedState } from './scoped-state.js';
 import {
@@ -129,11 +131,13 @@ export function useDmComposerContext({
     companion?.getSnapshot ?? unavailableSnapshot,
     companion?.getSnapshot ?? unavailableSnapshot,
   );
+  const modelHost = useMessageHost()?.client;
   const modelSlug = bot === undefined || bot.deleted ? undefined : bot.slug;
   const modelMount = useMountedResource<HTMLSpanElement>(() => {
     if (modelSlug === undefined) return;
     let active = true;
     let generation = 0;
+    let hasGroup = false;
     const refresh = (): void => {
       const current = ++generation;
       setModelData(undefined);
@@ -149,6 +153,10 @@ export function useDmComposerContext({
               .catch((): ModelPresetView[] => []),
           ]);
           if (!active || current !== generation) return;
+          hasGroup =
+            (state?.plan === undefined
+              ? catalog.defaultGroupId
+              : state.plan.orchestratorGroupId) !== undefined;
           const route = catalog.default;
           const inheritedRoute =
             state?.plan === undefined &&
@@ -186,11 +194,28 @@ export function useDmComposerContext({
     const unsubscribe = subscribeModelPlans(() => {
       if (modelPlanOf(modelSlug, actions) === undefined) refresh();
     }, actions);
+    const stop = observeResource(
+      (change) => change.resource === 'bot-context' && change.slug === modelSlug,
+      async () => {
+        if (!hasGroup) return;
+        const current = generation;
+        const state = await actions.modelPlanState(modelSlug);
+        if (!active || current !== generation) return;
+        setModelData((value) =>
+          value?.slug !== modelSlug ? value : { ...value, state: state ?? value.state },
+        );
+      },
+      undefined,
+      undefined,
+      false,
+      modelHost,
+    );
     return () => {
       active = false;
+      stop();
       unsubscribe();
     };
-  }, [actions, channelId, modelSlug, plan?.revision]);
+  }, [actions, channelId, modelSlug, plan?.revision, modelHost]);
   if (bot === undefined || bot.deleted || channelId === undefined) return;
   const data = modelData?.slug === bot.slug ? modelData : undefined;
   const catalog = data?.catalog;
@@ -339,7 +364,8 @@ export function useDmComposerContext({
           groups={catalog?.groups ?? []}
           presets={data?.presets ?? []}
           sourcePresetId={plan?.sourcePresetId}
-          groupId={plan?.orchestratorGroupId}
+          groupId={plan == null ? catalog?.defaultGroupId : plan.orchestratorGroupId}
+          currentTarget={planState?.currentTarget}
           modelStatus={modelStatus}
           route={route}
           modelBusy={modelBusy || planState === undefined || modelStatus !== 'ready'}
@@ -378,6 +404,7 @@ function DmComposerContextView({
   presets,
   sourcePresetId,
   groupId,
+  currentTarget,
   modelStatus,
   route,
   modelBusy,
@@ -402,6 +429,7 @@ function DmComposerContextView({
   presets: readonly ModelPresetView[];
   sourcePresetId: string | undefined;
   groupId: string | undefined;
+  currentTarget: TurnTarget | undefined;
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
   modelBusy: boolean;
@@ -512,6 +540,11 @@ function DmComposerContextView({
     (entry) => entry.provider === route?.provider && entry.model === route?.model,
   );
   const group = groups.find((entry) => entry.id === groupId);
+  const executed =
+    group === undefined || currentTarget === undefined
+      ? undefined
+      : turnTargetLabel(currentTarget, models);
+  const chipName = executed?.name ?? (group === undefined ? modelLabel : group.name);
   const modelEfforts =
     currentEntry === undefined || group !== undefined
       ? undefined
@@ -525,6 +558,7 @@ function DmComposerContextView({
     modelStatus === 'unavailable' || (modelName ?? route?.model) === undefined
       ? modelLabel
       : modelShortName(modelLabel, brand);
+  const chipLabel = executed?.short ?? group?.name ?? modelChipLabel;
   const workspaceCount = grantError || grants === undefined ? undefined : String(grants.length);
   const workspaceLabel = grantError
     ? t('composerContext.unavailable')
@@ -581,9 +615,23 @@ function DmComposerContextView({
           <ChipButton
             data-composer-chip="model"
             collapseLabel
-            icon={<ModelBrandIcon brand={brand} />}
-            label={modelChipLabel}
-            title={group === undefined ? modelLabel : `${group.name} · ${modelLabel}`}
+            icon={
+              executed?.external ? (
+                <EngineBrandIcon brand={executed.brand} />
+              ) : (
+                <ModelBrandIcon
+                  brand={executed?.brand ?? (group === undefined ? brand : undefined)}
+                />
+              )
+            }
+            label={chipLabel}
+            title={[
+              group?.name === chipName ? undefined : group?.name,
+              chipName,
+              executed?.external ? t('engine.externalLabel') : undefined,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
             ref={modelTrigger}
             onClick={() =>
               modelStatus === 'unavailable' || models.length === 0
@@ -592,7 +640,7 @@ function DmComposerContextView({
             }
             aria-haspopup="dialog"
             aria-expanded={modelMenuOpen}
-            aria-label={`${t('entry.model')} · ${bot.displayName} · ${modelLabel}`}
+            aria-label={`${t('entry.model')} · ${bot.displayName} · ${chipName}`}
           />
         ) : (
           <ChipButton
@@ -633,7 +681,14 @@ function DmComposerContextView({
           label={`${t('entry.model')} · ${bot.displayName}`}
           items={[
             ...presetMenuItems(presets, models, groups, sourcePresetId || undefined, t),
-            ...catalogMenuItems(models, t, groups),
+            ...catalogMenuItems(
+              models,
+              t,
+              groups,
+              groupId === undefined || currentTarget === undefined
+                ? undefined
+                : { groupId, target: currentTarget },
+            ),
           ]}
           value={
             group !== undefined

@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
+import { stripVTControlCharacters } from 'node:util';
 
 import { engineLaunch } from './engine-launch.js';
 import { EngineRefusal, engineEnvironment } from './engine-session.js';
@@ -62,7 +63,7 @@ export interface EngineLoginProcess {
 export type EngineLoginCodeInput = (code: string) => Promise<void>;
 
 export function engineLoginUrl(line: string): string | undefined {
-  return LOGIN_URL.exec(line)?.[0];
+  return LOGIN_URL.exec(stripVTControlCharacters(line))?.[0];
 }
 
 export function startEngineLogin(

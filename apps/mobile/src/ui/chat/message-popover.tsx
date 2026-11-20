@@ -1,3 +1,4 @@
+import { MessageMenuHeader } from './message-turn-targets';
 import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -162,6 +163,7 @@ function ActionIcon({
 
 export function MessageActions({
   target,
+  catalog,
   readOnly = false,
   onClose,
   onReact,
@@ -186,6 +188,7 @@ export function MessageActions({
           <MessageMenu
             key={target.message.id}
             target={target}
+            catalog={catalog}
             readOnly={readOnly}
             onClose={onClose}
             onReact={onReact}
@@ -215,6 +218,7 @@ export function MessageActions({
 
 function MessageMenu({
   target,
+  catalog,
   readOnly,
   onClose,
   onReact,
@@ -226,6 +230,7 @@ function MessageMenu({
   onChooseAttachments,
 }: {
   target: MessageMenuTarget;
+  catalog: MessageActionsProps['catalog'];
   readOnly: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
@@ -258,7 +263,7 @@ function MessageMenu({
   );
   const reactions = menuReactions(target, readOnly);
   const time = menuTime(message.at, new Date());
-  const hasMenu = time !== '' || actions.length > 0;
+  const hasMenu = time !== '' || actions.length > 0 || message.turnTargets !== undefined;
   const sizes = menuSizes(theme, actions.length, reactions);
   const top = insets.top + space.x3;
   const bottom = height - insets.bottom - space.x3;
@@ -272,7 +277,12 @@ function MessageMenu({
     gap: space.x3,
   });
   const islandWidth = Math.min(sizes.islandWidth, screen - space.x4 * 2);
-  const menuWidth = Math.min(sizes.menuWidth, screen - space.x4 * 2);
+  const menuWidth = Math.min(
+    message.turnTargets === undefined
+      ? sizes.menuWidth
+      : Math.max(sizes.menuWidth, sizes.islandWidth),
+    screen - space.x4 * 2,
+  );
   const islands = Platform.OS === 'android';
   const card = {
     position: 'absolute' as const,
@@ -368,7 +378,17 @@ function MessageMenu({
               style={{ maxHeight: maxMenuHeight }}
               onContentSizeChange={(_width, contentHeight) => setMenuHeight(contentHeight)}
             >
-              {time === '' ? null : (
+              {message.turnTargets !== undefined ? (
+                <View
+                  style={{
+                    paddingHorizontal: space.x5,
+                    paddingTop: space.x4,
+                    paddingBottom: space.x2,
+                  }}
+                >
+                  <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
+                </View>
+              ) : time === '' ? null : (
                 <Text
                   testID="message-menu-time"
                   variant="meta"

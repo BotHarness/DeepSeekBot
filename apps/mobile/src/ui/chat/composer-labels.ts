@@ -1,3 +1,4 @@
+import { turnTargetLabel } from '@botharness/host-client/turn-target';
 import {
   currentModel,
   type BotModel,
@@ -14,8 +15,8 @@ import { t } from '../strings';
 export function modelLabel(model: Loadable<BotModel>): string {
   if (model.status === 'loading') return t.contextLoading;
   if (model.status === 'failed') return t.contextUnavailable;
-  const { name, group } = currentModel(model.value);
-  if (name !== undefined) return group === undefined ? name : `${group} · ${name}`;
+  const display = headerModel(model);
+  if (display !== undefined) return display.name;
   return model.value.repair === undefined ? t.noModel : t.contextUnavailable;
 }
 
@@ -25,15 +26,20 @@ export function workspaceLabel(grants: Loadable<WorkspaceGrant[]>): string {
   return t.folderCount(grants.value.length);
 }
 
-export interface HeaderModel {
-  brand: ModelBrand | undefined;
-  short: string;
-  name: string;
-}
+export type HeaderModel = { short: string; name: string } & (
+  | { external: true; brand: ModelBrand }
+  | { external?: false; brand: ModelBrand | undefined }
+);
 
 export function headerModel(model: Loadable<BotModel>): HeaderModel | undefined {
   if (model.status !== 'ready') return undefined;
-  const { route, name } = currentModel(model.value);
+  const { route, name, group } = currentModel(model.value);
+  if (group !== undefined) {
+    const target = model.value.currentTarget;
+    return target === undefined
+      ? { brand: undefined, short: group, name: group }
+      : turnTargetLabel(target, model.value.models);
+  }
   if (route === undefined || name === undefined) return undefined;
   const brand = modelBrand({ provider: route.provider, model: route.model, name });
   return { brand, short: modelShortName(name, brand), name };
