@@ -196,6 +196,7 @@ export function RoleModelsField({
                   />
                   {provider.models.size === 0 ? null : (
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       xstyle={styles.disclosure}
