@@ -43,7 +43,7 @@ const styles = stylex.create({
     paddingBlock: space.x1,
   },
   disclosure: { paddingInline: space.x2 },
-  account: { minHeight: `calc(${style.controlHeight} + ${space.x1} + ${space.x1})` },
+  account: { minHeight: style.controlHeight },
   routes: {
     display: 'flex',
     flexDirection: 'column',
