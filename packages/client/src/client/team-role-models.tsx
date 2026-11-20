@@ -43,6 +43,7 @@ const styles = stylex.create({
     paddingBlock: space.x1,
   },
   disclosure: { paddingInline: space.x2 },
+  account: { minHeight: `calc(${style.controlHeight} + ${space.x1} + ${space.x1})` },
   routes: {
     display: 'flex',
     flexDirection: 'column',
@@ -278,7 +279,7 @@ export function RoleModelsField({
             const account = accountById.get(id);
             const checked = engineAccounts.includes(id);
             return (
-              <div key={id} {...stylex.props(styles.provider, styles.row)}>
+              <div key={id} {...stylex.props(styles.provider, styles.row, styles.account)}>
                 <Checkbox
                   label={
                     account === undefined ? (
