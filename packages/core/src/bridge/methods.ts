@@ -1,14 +1,22 @@
+export type { SkillDetail } from '../features/skills/methods.js';
+import {
+  createSkillsBridgeMethods,
+  type SkillsBridgeMethods,
+  type SkillsBridgeDeps,
+} from '../features/skills/methods.js';
 import {
   createSchedulesBridgeMethods,
   type SchedulesBridgeMethods,
   type SchedulesBridgeDeps,
 } from '../features/schedules/methods.js';
 import {
+  asNonBlank,
   asObject,
   asSlug,
   invalidInput,
   unavailable,
   unknownBot,
+  unknownChannel,
   type BridgeResult,
 } from './method-utils.js';
 export type { BridgeError, BridgeResult } from './method-utils.js';
@@ -413,24 +421,7 @@ import {
   type DataResetPreview,
   type DataResetResult,
 } from '../data-reset/reset.js';
-import {
-  SkillContentTooLargeError,
-  parseSkillOwnerKey,
-  skillOwnerKey,
-  type SkillCatalog,
-  type SkillCatalogEntry,
-  type SkillOwner,
-  type ResolvedSkill,
-  sessionSkills,
-} from '../skills/catalog.js';
-import {
-  BotSkillIgnoredFilesError,
-  BotSkillNotFoundError,
-  listBotSkills,
-  readBotSkill,
-  removeBotSkill,
-  type BotSkill,
-} from '../skills/bot-skills.js';
+import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
 export interface ModelCatalogGroup {
   id: string;
@@ -446,13 +437,6 @@ function routeKey(route: { provider: string; model: string }): string {
   return JSON.stringify([route.provider, route.model]);
 }
 
-export interface SkillDetail {
-  name: string;
-  description: string;
-  owner: SkillOwner;
-  path?: string;
-  content: string;
-}
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -814,7 +798,8 @@ export interface BridgeMethods
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     PromptBridgeMethods,
-    SchedulesBridgeMethods {
+    SchedulesBridgeMethods,
+    SkillsBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1047,11 +1032,6 @@ export interface BridgeMethods
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
-  channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
-  skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
-  botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
   channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
@@ -1429,11 +1409,10 @@ function storageFailure(
   };
 }
 
-export interface BridgeMethodsDeps extends PromptBridgeDeps, SchedulesBridgeDeps {
+export interface BridgeMethodsDeps extends PromptBridgeDeps, SchedulesBridgeDeps, SkillsBridgeDeps {
   team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
-  skills?: SkillCatalog;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
@@ -1915,13 +1894,6 @@ function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
   return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
 }
 
-function unknownChannel(id: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown Channel: ${id}` },
-  };
-}
-
 function dmAdmissionFailure(
   channelId: string,
   botSlug: string | undefined,
@@ -2108,11 +2080,6 @@ const rosterBatchPayload = z.object({
     .refine((ids) => new Set(ids).size === ids.length),
   sectionId: z.union([z.string().min(1), z.null()]).optional(),
 });
-
-function asNonBlank(source: Record<string, unknown>, key: string): string | undefined {
-  const value = source[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
 
 function createFailure(
   slug: string,
@@ -3122,6 +3089,7 @@ function buildBridgeMethods(
   };
 
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
+  const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -7987,164 +7955,7 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
-    async channelSkillCatalog(payload) {
-      const channelId = asNonBlank(asObject(payload), 'channelId');
-      if (channelId === undefined) return invalidInput('channelId is required');
-      const channel = deps.channels.get(channelId);
-      if (channel === undefined) return unknownChannel(channelId);
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const bots = channelSkillBots(channel);
-      try {
-        return { ok: true, value: { skills: await deps.skills.list(bots) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async sessionSkillCatalog(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const cwd = owner.cwdReference;
-      const workspaceIds = new Set(
-        deps.skills
-          .workspaces([slug])
-          .filter((workspace) => cwd !== undefined && workspace.path === cwd)
-          .map((workspace) => workspace.workspaceId),
-      );
-      try {
-        return {
-          ok: true,
-          value: { skills: sessionSkills(await deps.skills.list([slug]), slug, workspaceIds) },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkills(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const memoryDir =
-        deps.registry.get(slug) === undefined ? undefined : deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        return { ok: true, value: { skills: await listBotSkills(memoryDir) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async skillShow(payload) {
-      const source = asObject(payload);
-      const name = asNonBlank(source, 'name');
-      const ownerKey = asNonBlank(source, 'owner');
-      const owner = ownerKey === undefined ? undefined : parseSkillOwnerKey(ownerKey);
-      if (name === undefined || owner === undefined)
-        return invalidInput('name and owner (host, bot:<slug> or workspace:<id>) are required');
-      const missing = (): BridgeResult<never> => ({
-        ok: false,
-        error: { code: 'skill-not-found', message: `Skill not found: ${ownerKey}/${name}` },
-      });
-      try {
-        if (owner.kind === 'bot') {
-          const memoryDir =
-            deps.registry.get(owner.botSlug) === undefined
-              ? undefined
-              : deps.registry.memoryDirFor(owner.botSlug);
-          if (memoryDir === undefined) return unknownBot(owner.botSlug);
-          const skill = await readBotSkill(memoryDir, name);
-          if (skill === undefined) return missing();
-          return {
-            ok: true,
-            value: {
-              skill: {
-                name: skill.name,
-                description: skill.description,
-                owner,
-                path: skill.path,
-                content: skill.content,
-              },
-            },
-          };
-        }
-        if (deps.skills === undefined) return missing();
-        const bots = deps.registry
-          .list()
-          .filter((bot) => bot.paused !== true)
-          .map((bot) => bot.slug);
-        const viewer = bots[0];
-        if (viewer === undefined) return missing();
-        const resolved = await deps.skills.resolve(name, owner, viewer, bots);
-        if (resolved === undefined) return missing();
-        const listed = (await deps.skills.list(bots)).find(
-          (entry) =>
-            entry.name === name && skillOwnerKey(entry.owner) === skillOwnerKey(resolved.owner),
-        );
-        return {
-          ok: true,
-          value: {
-            skill: {
-              name: resolved.name,
-              description: listed?.description ?? '',
-              owner: resolved.owner,
-              ...(resolved.path === undefined ? {} : { path: resolved.path }),
-              content: resolved.content,
-            },
-          },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkillRemove(payload) {
-      const slug = asSlug(payload);
-      const name = asNonBlank(asObject(payload), 'name');
-      if (slug === undefined || name === undefined)
-        return invalidInput('slug and name are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch {
-        return unknownBot(slug);
-      }
-      const memoryDir = deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        const result = await removeBotSkill(memoryDir, name);
-        return { ok: true, value: result };
-      } catch (error) {
-        if (error instanceof BotSkillNotFoundError)
-          return { ok: false, error: { code: 'skill-not-found', message: error.message } };
-        if (error instanceof BotSkillIgnoredFilesError)
-          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      } finally {
-        deps.skills?.invalidateMemory(slug);
-      }
-    },
+    ...skillsMethods,
     channelAllBotPreview(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');

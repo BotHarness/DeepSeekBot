@@ -46,3 +46,15 @@ export function unavailable(): BridgeResult<never> {
 export function invalidInput(message: string): BridgeResult<never> {
   return { ok: false, error: { code: 'invalid-input', message } };
 }
+
+export function asNonBlank(source: Record<string, unknown>, key: string): string | undefined {
+  const value = source[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+export function unknownChannel(id: string): BridgeResult<never> {
+  return {
+    ok: false,
+    error: { code: 'not-found', message: `unknown Channel: ${id}` },
+  };
+}

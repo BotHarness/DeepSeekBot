@@ -36,3 +36,9 @@ export async function unwrap(
     throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
   return result.value;
 }
+
+export function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}

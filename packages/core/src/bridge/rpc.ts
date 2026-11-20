@@ -1,3 +1,4 @@
+import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
 import { toRemoteError, unwrap, unwrapAsync } from './rpc-result.js';
@@ -2434,24 +2435,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageSearch({ text, cursor, limit }));
   }
 
-  async channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
-    return unwrap(await this.methods.channelSkillCatalog({ channelId }));
+  channelSkillCatalog(channelId: string): Promise<{ skills: SkillCatalogEntry[] }> {
+    return skillsRpc.channelSkillCatalog(() => this.methods, channelId);
   }
 
-  async sessionSkillCatalog(
-    slug: string,
-    sessionId: string,
-  ): Promise<{ skills: SkillCatalogEntry[] }> {
-    return unwrap(await this.methods.sessionSkillCatalog({ slug, sessionId }));
+  sessionSkillCatalog(slug: string, sessionId: string): Promise<{ skills: SkillCatalogEntry[] }> {
+    return skillsRpc.sessionSkillCatalog(() => this.methods, slug, sessionId);
   }
-  async botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
-    return unwrap(await this.methods.botSkills({ slug }));
+  botSkills(slug: string): Promise<{ skills: BotSkill[] }> {
+    return skillsRpc.botSkills(() => this.methods, slug);
   }
-  async skillShow(name: string, owner: string): Promise<{ skill: SkillDetail }> {
-    return unwrap(await this.methods.skillShow({ name, owner }));
+  skillShow(name: string, owner: string): Promise<{ skill: SkillDetail }> {
+    return skillsRpc.skillShow(() => this.methods, name, owner);
   }
-  async botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
-    return unwrap(await this.methods.botSkillRemove({ slug, name }));
+  botSkillRemove(slug: string, name: string): Promise<{ name: string; removed: string }> {
+    return skillsRpc.botSkillRemove(() => this.methods, slug, name);
   }
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
