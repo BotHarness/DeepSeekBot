@@ -1945,9 +1945,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
-      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
-      pickMixed: (botSlug, groupId, effort) =>
-        groupFallback.pickMixedAssignment(botSlug, groupId, effort),
+      pick: (botSlug, groupId, effort) =>
+        groupFallback.isMixed(groupId)
+          ? groupFallback
+              .pickMixedAssignment(botSlug, groupId, effort)
+              .then((pick) => pick ?? { kind: 'missing' })
+          : groupFallback.pick(botSlug, groupId, effort),
       describe: (groupId, slug) => {
         const group = core.routingGroups.get(groupId);
         const targets = allowedGroupTargets(slug, groupId);

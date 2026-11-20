@@ -111,12 +111,7 @@ import {
 } from '../engines/engine-tools.js';
 
 export interface AssignmentGroupRoutes {
-  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
-  pickMixed?(
-    botSlug: string,
-    groupId: string,
-    effort?: string,
-  ): Promise<MixedGroupPick | undefined>;
+  pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick | MixedGroupPick>;
   describe(
     groupId: string,
     botSlug: string,
@@ -2556,10 +2551,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (groupId !== undefined) {
             if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
-            const groups = this.#assignmentGroups;
-            const pick =
-              (await groups?.pickMixed?.(run.bot.slug, groupId, groupEffort)) ??
-              (await groups?.pick(run.bot.slug, groupId, groupEffort));
+            const pick = await this.#assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
             if (pick?.kind !== 'route' && pick?.kind !== 'target')
               return JSON.stringify({
                 outcome: 'refused',

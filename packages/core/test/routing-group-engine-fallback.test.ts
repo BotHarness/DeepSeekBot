@@ -324,8 +324,9 @@ function setup(options: {
     defaultModel: { currentSelection: () => API },
     orchestratorRoute: (id) => groupFallback.route(id),
     assignmentGroups: {
-      pick: (slug, id, effort) => groupFallback.pick(slug, id, effort),
-      pickMixed: (slug, id, effort) => groupFallback.pickMixedAssignment(slug, id, effort),
+      pick: async (slug, id, effort) =>
+        (await groupFallback.pickMixedAssignment(slug, id, effort)) ??
+        groupFallback.pick(slug, id, effort),
       describe: (id) => ({
         name: group.name,
         routes: core.routingGroups.routes(id),
