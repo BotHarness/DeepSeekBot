@@ -419,7 +419,8 @@ const portraitStyles = stylex.create({
     width: '100%',
     height: 'auto',
     aspectRatio: '1',
-    padding: space.x1,
+    paddingBlock: space.x1,
+    paddingInline: space.x1,
   },
   image: {
     display: 'block',
