@@ -1,4 +1,4 @@
-import { bubbleTime, type ChatRow } from './message-groups';
+import type { ChatRow } from './message-groups';
 import { BUBBLE_PADDING, AVATAR_CORNER, SPEAKER_AVATAR } from './bubble-shape';
 import { motion, radius, space, swipeReply } from '../design/tokens';
 
@@ -8,7 +8,6 @@ export type NativeTextRow = {
   first: boolean;
   last: boolean;
   body: string;
-  time: string;
   markdown: boolean;
   speaker?: true;
   name?: string;
@@ -31,12 +30,9 @@ export type NativeTextStyle = {
   lastGap: number;
   padX: number;
   padY: number;
-  timeGap: number;
-  stackGap: number;
   open: number;
   join: number;
   tail: number;
-  besideMax: number;
   maxWidth: number;
   paragraphGap: number;
   markdown?: object | undefined;
@@ -81,8 +77,6 @@ export function nativeTouchStyle(
 }
 
 const MARKDOWN = /[*_`#>|[\]~<\\]|^\s*([-+]|\d+[.)])\s|https?:\/\/|www\./m;
-const NBSP = String.fromCharCode(0xa0);
-const DELIVERED = `${NBSP}✓`;
 const UNSUPPORTED_MARKDOWN =
   /^\s*\|.*\|\s*$|!\[|\[[^\]]*\]\(|https?:\/\/|www\.|<[a-zA-Z!/]|\$|^ {0,3}(`{3}|~{3})/m;
 const INDENTED_CODE = /(^|\n[ \t]*\n)( {4}|\t)\S/;
@@ -126,15 +120,12 @@ export function nativeTextRow(row: ChatRow, context: NativeRowContext): NativeTe
   const human = message.author === 'human';
   const markdown = !human;
   if (markdown ? !nativeMarkdown(message.body) : !plainText(message.body)) return undefined;
-  const clock = bubbleTime(message.at);
-  if (clock === '') return undefined;
   return {
     key: row.key,
     human,
     first: row.first,
     last: row.last,
     body: message.body,
-    time: human ? `${clock}${DELIVERED}` : clock,
     markdown,
     ...(human || context.speaker === undefined
       ? {}
@@ -162,12 +153,9 @@ export function nativeTextStyle(
     lastGap: space.x2,
     padX: BUBBLE_PADDING.horizontal,
     padY: BUBBLE_PADDING.vertical,
-    timeGap: space.x3,
-    stackGap: space.x2,
     open: radius.lg,
     join: radius.sm,
     tail: AVATAR_CORNER,
-    besideMax: 60,
     maxWidth: 0.88,
     paragraphGap: space.x3,
     markdown,

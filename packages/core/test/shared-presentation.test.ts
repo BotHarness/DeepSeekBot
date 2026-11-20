@@ -15,15 +15,11 @@ const PNG = Buffer.from(
 );
 
 function git(cwd: string, ...args: string[]): void {
-  execFileSync('git', [
-    '-C',
-    cwd,
-    '-c',
-    'user.name=QA',
-    '-c',
-    'user.email=qa@example.test',
-    ...args,
-  ]);
+  execFileSync(
+    'git',
+    ['-C', cwd, '-c', 'user.name=QA', '-c', 'user.email=qa@example.test', ...args],
+    { shell: false, windowsHide: true },
+  );
 }
 
 function bareRepository(
@@ -34,7 +30,7 @@ function bareRepository(
   const work = join(root, 'work');
   const bare = join(root, 'bot.git');
   mkdirSync(work);
-  execFileSync('git', ['init', '-q', '-b', 'main', work]);
+  execFileSync('git', ['init', '-q', '-b', 'main', work], { shell: false, windowsHide: true });
   writeFileSync(join(work, 'PERSONA.md'), '# Shared Bot\n');
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(work, path)), { recursive: true });
@@ -46,7 +42,7 @@ function bareRepository(
   }
   git(work, 'add', '.');
   git(work, 'commit', '-qm', 'Shared Bot');
-  execFileSync('git', ['clone', '-q', '--bare', work, bare]);
+  execFileSync('git', ['clone', '-q', '--bare', work, bare], { shell: false, windowsHide: true });
   return { root, bare };
 }
 
@@ -56,7 +52,10 @@ async function install(files: Record<string, string | Buffer>, links?: Record<st
     rootDir: join(root, 'bots'),
     initializeMemory: (memoryDir) => ({ ok: ensureMemoryRepository({ memoryDir }).ok }),
     cloneMemory: async (destination) => {
-      execFileSync('git', ['clone', '-q', '--', bare, destination]);
+      execFileSync('git', ['clone', '-q', '--', bare, destination], {
+        shell: false,
+        windowsHide: true,
+      });
       return { ok: true };
     },
   });

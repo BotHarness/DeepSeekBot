@@ -45,7 +45,7 @@ import {
 import type { RosterBot } from '@botharness/host-client/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { spring } from '../design/motion';
-import { doubleTap, lift, mediaBubble, motion, radius, space } from '../design/tokens';
+import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
@@ -55,7 +55,6 @@ import { useStrings, t } from '../strings';
 import {
   BADGE_OVERLAP,
   BUBBLE_PADDING,
-  oneLine,
   singleLine,
   BUBBLE_MAX,
   bubbleCorners,
@@ -72,7 +71,6 @@ import { ReactionChips } from './message-reactions';
 import { ReplyQuote } from './reply-quote';
 import { ReplySwipe } from './reply-swipe';
 import { PopIn, usePopIn } from './pop-in';
-import { bubbleTime } from './message-groups';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
 import { SendFlightsContext } from './send-fly';
@@ -88,96 +86,6 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 }
 
 const PENDING_FEEDBACK_MS = 3_000;
-
-const DELIVERED = '\u00a0✓';
-
-const BESIDE_MAX = 60;
-
-function messageTime(message: ConversationMessage, streaming: boolean): string | undefined {
-  if (streaming) return undefined;
-  if (message.author !== 'human' && message.delivery !== 'committed') return undefined;
-  const clock = bubbleTime(message.at);
-  if (clock === '') return undefined;
-  return message.author === 'human' ? `${clock}${DELIVERED}` : clock;
-}
-
-function MessageTime({
-  time,
-  human,
-  floating = false,
-  onMedia = false,
-  unsent = false,
-}: {
-  time: string;
-  human: boolean;
-  floating?: boolean;
-  onMedia?: boolean;
-  unsent?: boolean;
-}) {
-  const check = unsent && time.endsWith(DELIVERED);
-  const clock = check ? time.slice(0, -DELIVERED.length) : time;
-  return (
-    <Text
-      testID="message-time"
-      accessibilityLabel={check ? clock : undefined}
-      variant="meta"
-      tone={human ? 'onAccent' : 'muted'}
-      numberOfLines={1}
-      style={[
-        { alignSelf: 'flex-end', fontVariant: ['tabular-nums'] },
-        onMedia ? { color: mediaBubble.ink } : null,
-        floating
-          ? {
-              position: 'absolute',
-              right: BUBBLE_PADDING.horizontal,
-              bottom: BUBBLE_PADDING.vertical,
-            }
-          : null,
-      ]}
-    >
-      {clock}
-      {check ? (
-        <Text testID="message-time-unsent" style={{ color: 'transparent' }}>
-          {DELIVERED}
-        </Text>
-      ) : null}
-    </Text>
-  );
-}
-
-function ImageTime({ time, human, unsent }: { time: string; human: boolean; unsent: boolean }) {
-  return (
-    <View
-      testID="message-image-time"
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        right: space.x3,
-        bottom: space.x3,
-        paddingHorizontal: space.x3,
-        paddingVertical: space.x1,
-        borderRadius: radius.round,
-        backgroundColor: mediaBubble.scrim,
-      }}
-    >
-      <MessageTime time={time} human={human} onMedia unsent={unsent} />
-    </View>
-  );
-}
-
-function TimeSpacer({ time }: { time: string }) {
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{ opacity: 0, paddingLeft: space.x3 }}
-    >
-      <Text variant="meta" numberOfLines={1} style={{ fontVariant: ['tabular-nums'] }}>
-        {time}
-      </Text>
-    </View>
-  );
-}
 
 const NO_READERS: readonly string[] = [];
 const NO_REACTIONS: readonly ConversationReaction[] = [];
@@ -244,59 +152,24 @@ export function BubbleBody({
   const backdrop = useContext(SendFlyBackdrop);
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
-  const time = messageTime(message, streaming);
-  const unsent = human && message.delivery !== 'committed';
-  const { fontScale, width: screen } = useWindowDimensions();
-  const [wrapped, setWrapped] = useState<string | undefined>(undefined);
+  const { width: screen } = useWindowDimensions();
   const images = message.attachments.filter((attachment) => attachment.kind === 'image');
   const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
   const album = images.length > 0;
   const hasBody = message.body.trim() !== '';
-  const lastInBubble =
-    time !== undefined && files.length === 0 && message.card === undefined && hasBody;
-  const beside =
-    lastInBubble &&
-    !human &&
-    wrapped !== message.body &&
-    !message.body.includes('\n') &&
-    message.body.length <= BESIDE_MAX;
   const captioned =
     hasBody ||
     streaming ||
     files.length > 0 ||
     message.card !== undefined ||
     message.voice !== undefined;
-  const pillTime = album && !captioned ? time : undefined;
   const width = album ? albumWidth(screen) : undefined;
-  const body =
-    !hasBody && !streaming && message.attachments.length > 0 ? null : beside ? (
-      <View
-        testID="message-body-row"
-        style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}
-      >
-        <View
-          testID="message-body"
-          style={{ flexShrink: 1 }}
-          onLayout={(event) => {
-            if (!oneLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
-              setWrapped(message.body);
-          }}
-        >
-          <MessageBody message={message} streaming={streaming} />
-        </View>
-        <MessageTime time={time} human={human} />
-      </View>
-    ) : (
-      <MessageBody
-        message={message}
-        streaming={streaming}
-        trail={lastInBubble && human ? <TimeSpacer time={time} /> : undefined}
-      />
-    );
   const details = (
     <>
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
-      {body}
+      {!hasBody && !streaming && message.attachments.length > 0 ? null : (
+        <MessageBody message={message} streaming={streaming} />
+      )}
       {message.genuiDocument === undefined ? null : (
         <GenuiDocumentCard
           document={message.genuiDocument}
@@ -310,9 +183,6 @@ export function BubbleBody({
           {t.card}
         </Text>
       ) : null}
-      {time === undefined || beside || pillTime !== undefined ? null : (
-        <MessageTime time={time} human={human} floating={lastInBubble && human} unsent={unsent} />
-      )}
     </>
   );
   return (
@@ -374,11 +244,7 @@ export function BubbleBody({
           width={width!}
           onOpenImage={onOpenImage}
           onImageReady={onImageReady}
-        >
-          {pillTime === undefined ? null : (
-            <ImageTime time={pillTime} human={human} unsent={unsent} />
-          )}
-        </MessageAlbum>
+        />
       ) : null}
       {album ? (
         captioned ? (

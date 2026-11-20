@@ -57,7 +57,7 @@ Rules:
 
 ## Landing page (coss)
 
-`src/pages/index.astro` is the brand surface: it imports root `design/tokens.css` and renders `src/components/landing/Landing.tsx` over **coss ui**, not the Nimbus registry. COSS stays on the landing; docs pages are Nimbus UI and in-harness UI is DSH tokens/primitives (ADR-0028, root `AGENTS.md`).
+`src/pages/index.astro` is the brand surface: it uses the shared colour aliases from `globals.css` and renders `src/components/landing/Landing.tsx` over **coss ui**, not the Nimbus registry. COSS stays on the landing; docs pages are Nimbus UI and the docs-site brand and status colours come from the generated Tobs core palette.
 
 - Add or update a component through the `@coss` registry in `components.json`: `pnpm dlx shadcn@latest add @coss/<name>` — preview with `--dry-run` / `--diff` first. Components land in `src/components/coss/`.
 - Use the installed `coss` and `coss-particles` skills for composition and usage rules; coss.com/ui is the source of truth for a component's API.

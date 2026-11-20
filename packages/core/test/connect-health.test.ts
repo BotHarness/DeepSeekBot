@@ -241,7 +241,7 @@ it('times out a stalled service lookup and prevents its late reply from overwrit
   health.close();
 });
 
-const openssl = spawnSync('openssl', ['version']).status === 0;
+const openssl = spawnSync('openssl', ['version'], { shell: false, windowsHide: true }).status === 0;
 it.skipIf(!openssl)(
   'preserves TLS verification, even when the pinned Host key is correct',
   async () => {
@@ -268,7 +268,7 @@ it.skipIf(!openssl)(
         '-addext',
         'subjectAltName=IP:127.0.0.1',
       ],
-      { cwd: root, encoding: 'utf8' },
+      { cwd: root, encoding: 'utf8', shell: false, windowsHide: true },
     );
     if (generated.status !== 0) throw new Error('test-cert-generation-failed');
     const cert = readFileSync(join(root, 'cert.pem'));

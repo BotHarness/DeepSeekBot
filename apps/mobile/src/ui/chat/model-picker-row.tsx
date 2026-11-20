@@ -5,12 +5,17 @@ import {
   type ModelCatalogGroup,
 } from '@botharness/host-client/model-catalog';
 
+import { View } from 'react-native';
+
+import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, type SettingsRowProps } from '../primitives/settings-row';
 import { SystemSymbol } from '../primitives/system-symbol';
+import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
+import { EngineBrandIcon } from './engine-brand-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { shortModelName } from './model-route-text';
 import { SHEET_GROUP } from './sheet';
@@ -67,36 +72,63 @@ export function ModelPickerRow({
 
 export function ModelEnginePickerRow({
   row,
-  reason,
-  position,
+  isDefault = false,
+  selected,
   ...actions
 }: RowActions & {
   row: ReturnType<typeof routingGroupEnginePresentation>;
-  reason?: string | undefined;
-  position?: number;
+  isDefault?: boolean;
 }) {
   const theme = useDesignTheme();
-  const tone = reason === undefined ? 'fg' : 'muted';
-  const detail = reason === undefined ? row.detail : `${row.detail} · ${reason}`;
-  const order = position === undefined ? '' : `${position}. `;
+  const t = useStrings();
   return (
     <SettingsRow
       {...actions}
+      selected={selected}
       on={SHEET_GROUP}
-      leading={
-        <ModelBrandIcon brand={row.brand} size={theme.type.title.line} color={theme.color[tone]} />
-      }
+      leading={<EngineBrandIcon brand={row.brand} color={theme.color.fg} />}
       trailing={
-        <SystemSymbol
-          name={{ ios: 'puzzlepiece.extension', android: 'extension' }}
-          size={theme.type.meta.line}
-          color={theme.color.muted}
-        />
+        isDefault || selected ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x2,
+            }}
+          >
+            {isDefault ? (
+              <View
+                style={{
+                  backgroundColor: theme.layer[SHEET_GROUP].inset,
+                  borderRadius: radius.round,
+                  paddingHorizontal: space.x2,
+                }}
+              >
+                <Text tone="muted" variant="meta">
+                  {t.routingGroup.defaultTag}
+                </Text>
+              </View>
+            ) : null}
+            {selected ? (
+              <SystemSymbol
+                name={{ ios: 'checkmark', android: 'check' }}
+                size={theme.type.title.line}
+                color={theme.color.accent}
+              />
+            ) : null}
+          </View>
+        ) : undefined
       }
-      title={order + row.title}
-      detail={detail}
-      accessibilityLabel={`${order}${row.name}, ${detail}`}
-      tone={tone}
+      title={row.title}
+      detail={row.detail}
+      accessibilityLabel={[
+        row.name,
+        isDefault ? t.routingGroup.defaultTag : undefined,
+        row.detail,
+        t.routingGroup.externalEngine,
+      ]
+        .filter(Boolean)
+        .join(', ')}
     />
   );
 }

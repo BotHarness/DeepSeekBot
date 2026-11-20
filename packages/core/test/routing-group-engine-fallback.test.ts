@@ -568,6 +568,29 @@ it('answers the first Human message on DSH when the engine hits quota before out
   expect(bot.host.quota('codex')?.limitedUntil).toBe(RESETS_AT);
 });
 
+it('passes the model and effort to a mixed-group engine before falling back to DSH', async () => {
+  const member = { ...CODEX, reasoningEffort: 'high' };
+  const bot = setup({ members: [member], nativeReply: 'Orchid noted.' });
+
+  await bot.message('with-effort', 'My lucky word is orchid');
+
+  expect(bot.codex).toHaveLength(1);
+  expect(bot.codex[0]?.mismatches).toEqual([]);
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'thread/start')).toMatchObject({
+    params: { model: member.model },
+  });
+  expect(bot.codex[0]?.sent.find((request) => request['method'] === 'turn/start')).toMatchObject({
+    params: { model: member.model, effort: member.reasoningEffort },
+  });
+  expect(bot.native.resumeOptions).toMatchObject([
+    { resumeSessionId: bot.sessionId(), agentOptions: API },
+  ]);
+  expect(bot.sendStatus('with-effort')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Orchid noted.' }],
+  });
+});
+
 it('continues from the completed engine tool call and result in the same DSH Session', async () => {
   const bot = setup({
     members: [CODEX],

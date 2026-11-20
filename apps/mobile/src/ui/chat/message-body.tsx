@@ -1,4 +1,4 @@
-import { useContext, useMemo, type ReactNode } from 'react';
+import { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 
 import { botNameColor } from '@botharness/host-client/shared/bot-name-color';
@@ -106,11 +106,9 @@ function Mention({ mention, background }: { mention: WireMention; background: st
 export function MessageBody({
   message,
   streaming,
-  trail,
 }: {
   message: ConversationMessage;
   streaming: boolean;
-  trail?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const human = message.author === 'human';
@@ -134,7 +132,6 @@ export function MessageBody({
             <Skill key={index} skill={run.token.skill} color={theme.color[ink]} />
           ),
         )}
-        {trail}
       </Text>
     );
   if (leading === undefined)

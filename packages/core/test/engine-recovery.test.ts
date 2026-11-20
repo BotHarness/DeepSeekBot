@@ -10,7 +10,11 @@ import { CodexEngineSession, type CodexTransport } from '../src/engines/codex-en
 import { codexLoginUrl, startCodexLogin } from '../src/engines/codex-status.js';
 import { openEngineDshSession } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
-import { EngineHost } from '../src/engines/engine-host.js';
+import {
+  EngineHost,
+  type EngineHostOptions,
+  type EngineTurnRequest,
+} from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
 import { EngineTurnLog } from '../src/engines/engine-log.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
@@ -100,7 +104,10 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function hostWith(next: () => FakeCodex, idleMs?: number) {
+function hostWith(
+  next: () => FakeCodex,
+  options: Pick<EngineHostOptions, 'idleMs' | 'routingGroupEffort'> = {},
+) {
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
   gateways.push(gateway);
@@ -113,7 +120,7 @@ function hostWith(next: () => FakeCodex, idleMs?: number) {
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
     releaseGraceMs: 50,
-    ...(idleMs === undefined ? {} : { idleMs }),
+    ...options,
     observe: (_bot, _session, state) => states.push(state),
     openCodex: () => {
       const codex = next();
@@ -220,7 +227,7 @@ describe('Codex Engine Session stop and timeouts', () => {
 
 describe('Engine Host recovery', () => {
   it('closes the idle engine and resumes the same native ID on the next Inbox batch', async () => {
-    const { host, opened, request } = hostWith(() => fakeCodex(), 20);
+    const { host, opened, request } = hostWith(() => fakeCodex(), { idleMs: 20 });
     try {
       await host.runTurn(request());
       await vi.waitFor(() => expect(opened[0]?.closed).toBe(true));
@@ -587,22 +594,52 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
-  it('refuses a turn queued behind a release instead of running it on the closed Session', async () => {
-    const { host, request } = hostWith(() =>
-      fakeCodex({
-        'turn/start': (_params, codex) => {
-          setTimeout(() => codex.notify('turn/completed', { turn: { status: 'completed' } }), 40);
-          return { result: { turn: { id: 'turn-1' } } };
-        },
-      }),
-    );
-    const first = host.runTurn(request());
-    await vi.waitFor(() => expect(host.isLive('orchestrator-ada')).toBe(true));
-    const queued = host.runTurn(request());
-    await host.release('orchestrator-ada');
-    await first.catch(() => undefined);
-    await expect(queued).rejects.toBeInstanceOf(EngineRefusal);
-  });
+  it.each(['direct', 'routing-group'] as const)(
+    'refuses a %s turn queued behind a release',
+    async (lane) => {
+      const { host, request } = hostWith(
+        () =>
+          fakeCodex({
+            'model/list': () => ({
+              result: {
+                data: [
+                  {
+                    id: 'gpt-6.2-sol',
+                    displayName: 'GPT-6.2-Sol',
+                    supportedReasoningEfforts: [{ reasoningEffort: 'high' }],
+                  },
+                ],
+                nextCursor: null,
+              },
+            }),
+            'turn/start': (_params, codex) => {
+              setTimeout(
+                () => codex.notify('turn/completed', { turn: { status: 'completed' } }),
+                40,
+              );
+              return { result: { turn: { id: 'turn-1' } } };
+            },
+          }),
+        { routingGroupEffort: () => 'high' },
+      );
+      const turn = (): EngineTurnRequest => ({
+        ...request(),
+        ...(lane === 'routing-group'
+          ? { target: { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } }
+          : {}),
+      });
+      const first = host.runTurn(turn()).catch(() => undefined);
+      try {
+        await vi.waitFor(() => expect(host.isLive('orchestrator-ada')).toBe(true));
+        const queued = expect(host.runTurn(turn())).rejects.toBeInstanceOf(EngineRefusal);
+        await host.release('orchestrator-ada');
+        await first;
+        await queued;
+      } finally {
+        await host.close();
+      }
+    },
+  );
 
   it('starts nothing for a turn waiting on a release when the Host shuts down', async () => {
     const { host, opened, request } = hostWith(() =>

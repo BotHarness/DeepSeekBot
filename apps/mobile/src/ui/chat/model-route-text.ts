@@ -30,12 +30,15 @@ export function routeEffortLabel(value: ModelSettingsState, route: ModelRoute | 
     : `${name} · ${effortLabel(value, route)}`;
 }
 
-export function effortChoices(entry: ModelCatalogEntry | undefined) {
+export function effortChoices(
+  entry: Pick<ModelCatalogEntry, 'efforts'> | undefined,
+  defaultLabel = t.modelSettings.effortDefault,
+) {
   const efforts = (entry?.efforts ?? []).filter((item) => item.id !== '');
   return efforts.length === 0
     ? []
     : [
-        { value: '', label: t.modelSettings.effortDefault },
+        { value: '', label: defaultLabel },
         ...efforts.map((item) => ({ value: item.id, label: item.name })),
       ];
 }

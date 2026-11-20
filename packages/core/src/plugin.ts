@@ -1864,6 +1864,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     root: join(dshHome, 'botharness', 'engines'),
     local: localEngines,
     gateway: engineGateway,
+    routingGroupEffort: (slug) => {
+      const plan = core.registry.get(slug)?.modelPlan;
+      return plan === undefined
+        ? core.routingGroups.defaultGroup().effort
+        : plan.orchestratorGroupId === undefined
+          ? undefined
+          : plan.orchestratorGroupEffort;
+    },
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
       core.ownership.rootsFor(slug, 'orchestrator').map((session) => session.sessionId),

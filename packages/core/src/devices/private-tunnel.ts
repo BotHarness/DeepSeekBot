@@ -245,7 +245,12 @@ export function createTunnelOrigin(options: {
 }
 
 const spawnTunnel: SpawnTunnel = (binary, args, env) =>
-  spawnProcess(binary, [...args], { windowsHide: true, env, stdio: ['ignore', 'ignore', 'pipe'] });
+  spawnProcess(binary, [...args], {
+    windowsHide: true,
+    env,
+    stdio: ['ignore', 'ignore', 'pipe'],
+    shell: false,
+  });
 
 export function systemTrustedCertificates(): string[] {
   try {

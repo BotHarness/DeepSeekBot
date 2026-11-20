@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { FlatList, Keyboard, ScrollView, View } from 'react-native';
+import { FlatList, Keyboard, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import {
@@ -60,6 +60,7 @@ import {
   routeEffortLabel,
   routeLabel,
 } from './model-route-text';
+import { ModelPickerFilters } from './model-picker-filters';
 import { ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
 import { RoutingGroupLink, type RoutingGroupLinkItem } from './routing-group-links';
 import { Button } from '../primitives/button';
@@ -471,19 +472,7 @@ export function ModelsView({
           onChangeText={setQuery}
         />
         {families.length > 1 || showFavorites || groups.length > 0 || presetRows.length > 0 ? (
-          <ScrollView
-            horizontal
-            testID="model-family-filters"
-            accessibilityLabel={t.modelSettings.families}
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            style={{ flexGrow: 0 }}
-            contentContainerStyle={{
-              gap: space.x2,
-              paddingHorizontal: space.x5,
-              paddingVertical: space.x2,
-            }}
-          >
+          <ModelPickerFilters>
             {showFavorites ? (
               <Chip
                 testID="model-family-favorites"
@@ -533,7 +522,7 @@ export function ModelsView({
                   );
                 })
               : null}
-          </ScrollView>
+          </ModelPickerFilters>
         ) : null}
         {banner}
         {restNotice === undefined ? null : <SheetCallout tone="warning">{restNotice}</SheetCallout>}

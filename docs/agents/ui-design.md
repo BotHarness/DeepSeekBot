@@ -19,7 +19,7 @@ These apply to every implementation, not only one feature.
 ## Design rules
 
 1. **Structure before explanation.** Use hierarchy, proximity, spacing and grouping to show what belongs together and what matters now. If a paragraph is needed to explain where to look or which control to use, revise the layout or control first. A supporting description is optional, not a required row decoration.
-2. **Recognizable controls and icons.** Use the owning platform or shell's components and familiar symbols. On mobile, follow the native component rules in [Mobile design](../../apps/mobile/DESIGN.md); Web and desktop follow [DSH UI](../../.agents/skills/dsh-ui/SKILL.md). Icons help identify objects, actions and states. Pair unfamiliar or consequential actions with short visible labels. Colour alone must not carry meaning.
+2. **Recognizable controls and icons.** Use the owning platform or shell's components and familiar symbols. On mobile, follow the native component rules in [Mobile design](../../apps/mobile/DESIGN.md); Web and desktop follow [DSH UI](../../.agents/skills/dsh-ui/SKILL.md). Icons help identify objects, actions and states. Give every icon-only action an accessible name on Web, desktop and mobile. Pair unfamiliar or consequential actions with short visible labels. Colour alone must not carry meaning.
 3. **Let the flow explain the task.** Show the current decision and its relevant information together. Give the primary action clear emphasis, acknowledge input immediately, and show progress, success or a recoverable failure where the action happens. Use focused steps for genuinely sequential decisions; keep a simple task in one place.
 4. **Reveal detail when it is useful.** Keep secondary explanations, background and diagnostics behind a clearly labelled disclosure or help entry. Keep information needed for the current decision visible beside its action. Do not add a disclosure just to hide essential instructions or consequences.
 5. **Retain essential text and facts.** Short labels, units, current values, permission scope, privacy limits, irreversible consequences and actionable errors remain explicit. Security comparisons must expose the complete required values before confirmation. Simplicity never means truncating a fingerprint, silently choosing for the user or weakening consent.
@@ -28,7 +28,7 @@ These apply to every implementation, not only one feature.
 
 Desktop style literals, viewport breakpoints and motion are enforced by [UI rules 1, 2 and 6](../../scripts/check-ui-rules.mjs) and the [design token guard](../../scripts/check-design-tokens.mjs).
 
-Desktop icon sources, accessible names, status labels, focus rings and disabled styles are enforced by [UI rules 3–5](../../scripts/check-ui-rules.mjs). Review the rendered names and focus order for composed controls.
+[UI rules 3–5](../../scripts/check-ui-rules.mjs) check recognizable static cases for desktop icon sources, accessible names, status labels, focus rings and disabled styles. During review, inspect runtime spread props, distant wrappers and other cases the checker may miss. Verify rendered names and focus order for composed controls.
 
 Use the shared primitives in the [desktop/Web component catalogue](../../packages/client/src/client/ds/README.md), enforced by [UI rule 7](../../scripts/check-ui-rules.mjs). Review whether differently named components duplicate a catalogue primitive.
 

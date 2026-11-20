@@ -266,10 +266,8 @@ export const RULES = [
     RELEASE,
   ),
   none('.github/workflows/*.yml', 'Other repository workflows'),
-  related(
-    'design/tokens/**',
-    'Tobs design token source, generated into the client and checked by lint',
-  ),
+  related('design/tokens/**', 'Tobs design tokens used by the client, mobile and docs site', true),
+  none('design/tokens.css', 'Shared colour aliases bundled by the docs site', true),
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(

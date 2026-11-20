@@ -115,8 +115,9 @@ export function spawnClaudeProcess(
     env,
     signal: options.signal,
     stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
     ...(target.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+    shell: false,
+    windowsHide: true,
   });
   child.stderr.on('data', (chunk: Buffer) => onStderr(chunk.toString('utf8')));
   child.on('error', () => undefined);
@@ -225,18 +226,20 @@ export function claudeModels(list: unknown): EngineModel[] {
     if (id === '') return [];
     const levels = entry['supportedEffortLevels'];
     const description = text(entry['description']);
+    const resolvedModel = text(entry['resolvedModel']);
     return [
       {
         id,
         name: text(entry['displayName']) || id,
         ...(description === '' ? {} : { description }),
+        ...(resolvedModel === '' ? {} : { resolvedModel }),
         efforts:
           entry['supportsEffort'] === false || !Array.isArray(levels)
             ? []
             : levels.flatMap((level) =>
                 typeof level === 'string' && level !== '' ? [engineEffort(level)] : [],
               ),
-        ...(id === 'default' ? { isDefault: true } : {}),
+        ...(entry['isDefault'] === true || id === 'default' ? { isDefault: true } : {}),
       },
     ];
   });

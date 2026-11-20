@@ -387,7 +387,11 @@ describe('confirmed terminal PersonaBot deletion', () => {
     });
     expect(readFileSync(join(path, 'uncommitted.md'), 'utf8')).toBe('private draft');
     expect(
-      execFileSync('git', ['-C', path, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      execFileSync('git', ['-C', path, 'rev-parse', 'HEAD'], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim(),
     ).not.toBe('');
     expect(f.core.registry.get('a')).toBeUndefined();
     expect(f.core.registry.findByWorkspace(workspace)).toBeUndefined();
@@ -523,7 +527,7 @@ describe('confirmed terminal PersonaBot deletion', () => {
     const latest = f.deletion.preview('a');
     renameSync(path, `${path}-saved`);
     mkdirSync(path);
-    execFileSync('git', ['init', path]);
+    execFileSync('git', ['init', path], { shell: false, windowsHide: true });
     await expect(f.deletion.confirm('a', latest.token, true)).rejects.toThrow('scope changed');
     expect(f.core.registry.get('a')).toBeDefined();
     expect(existsSync(`${path}-saved`)).toBe(true);
@@ -573,7 +577,7 @@ describe('confirmed terminal PersonaBot deletion', () => {
     await refusal.confirm('a', refusal.preview('a').token, true);
     renameSync(path, `${path}-saved`);
     mkdirSync(path);
-    execFileSync('git', ['init', path]);
+    execFileSync('git', ['init', path], { shell: false, windowsHide: true });
     expect(await f.deletion.retry('a')).toMatchObject({ phase: 'incomplete', memoryDir: path });
     expect(existsSync(path)).toBe(true);
     expect(existsSync(`${path}-saved`)).toBe(true);

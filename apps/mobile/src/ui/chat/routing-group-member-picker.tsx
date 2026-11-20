@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { FlatList, Keyboard, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { FlatList, Keyboard } from 'react-native';
 
 import {
   modelCatalogGroupFront,
@@ -12,15 +12,25 @@ import {
 } from '@botharness/host-client/model-catalog';
 import { searchModels } from '@botharness/host-client/model-settings';
 import { sameModel } from '@botharness/host-client/bot-settings';
-import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
+import { modelFamilies } from '@botharness/host-client/shared/model-brand';
+import {
+  ENGINE_DEFINITIONS,
+  ENGINE_IDS,
+  type RoutingGroupEngineOptions,
+} from '@botharness/host-protocol/subscription-engine';
 
 import { space } from '../design/tokens';
+import { Button } from '../primitives/button';
 import { Chip } from '../primitives/chip';
 import { SearchField } from '../primitives/search-field';
 import { SettingsGroupItem } from '../primitives/settings-row';
 import { useStrings } from '../strings';
+import { modelFamilyKey } from './composer-labels';
+import { EffortBar } from './model-effort';
+import { ModelPickerFilters } from './model-picker-filters';
 import { ModelEnginePickerRow, ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
-import { SHEET_GROUP, Sheet, SheetFailed, SheetLoading, SheetNote } from './sheet';
+import { effortChoices } from './model-route-text';
+import { SHEET_GROUP, Sheet, SheetActions, SheetFailed, SheetLoading, SheetNote } from './sheet';
 
 type Choice =
   | { kind: 'model'; entry: ModelCatalogEntry }
@@ -34,9 +44,20 @@ export function routingGroupMemberKey(member: RoutingGroupMember): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? ''])}`;
+      return `engine:${JSON.stringify([member.engine, member.model ?? '', member.reasoningEffort ?? ''])}`;
     case 'model':
       return JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
+  }
+}
+
+function memberOf(choice: Choice): RoutingGroupMember {
+  switch (choice.kind) {
+    case 'engine':
+      return choice.member;
+    case 'group':
+      return { kind: 'group', id: choice.group.id };
+    case 'model':
+      return { kind: 'model', provider: choice.entry.provider, model: choice.entry.model };
   }
 }
 
@@ -60,68 +81,110 @@ export function RoutingGroupMemberPicker({
   onClose(): void;
 }) {
   const t = useStrings();
+  const openedEngineFilter = useRef(false);
   const [query, setQuery] = useState('');
-  const [source, setSource] = useState<'models' | 'engines'>('models');
-  const showEngineError = source === 'engines' && engineReadFailed;
+  const [source, setSource] = useState('all');
+  const [selected, setSelected] = useState<{ key: string; effort: string }>();
+  const taken = useMemo(() => new Set(members.map(routingGroupMemberKey)), [members]);
+  const families = useMemo(
+    () =>
+      modelFamilies(
+        catalog.models.map((entry) => ({
+          provider: entry.provider,
+          model: entry.model,
+          name: entry.modelName,
+        })),
+      ),
+    [catalog.models],
+  );
+  const engineId = ENGINE_IDS.find((engine) => source === `engine-${engine}`);
+  const status = engines?.find((entry) => entry.engine === engineId);
+  const engineError =
+    engineId !== undefined &&
+    (engineReadFailed || (status?.available === false && status.reason === 'models-unavailable'));
   const data = useMemo((): Choice[] => {
-    const taken = new Set(members.map(routingGroupMemberKey));
     const needle = query.trim().toLocaleLowerCase();
-    if (source === 'engines') {
-      const terms = needle.split(/\s+/u);
-      return routingGroupEngineChoices(engines ?? []).flatMap((choice): Choice[] => {
-        if (choice.status.available && taken.has(routingGroupMemberKey(choice.member))) return [];
-        const row = routingGroupEnginePresentation(
-          choice.member,
-          t.routingGroup.engineRow,
-          choice.modelName,
-        );
-        const text = [row.name, row.title, row.detail, choice.member.model]
-          .join(' ')
-          .toLocaleLowerCase();
-        if (!terms.every((term) => text.includes(term))) return [];
-        return [{ kind: 'engine', ...choice, row }];
-      });
-    }
-    return [
-      ...(catalog.groups ?? [])
-        .filter(
-          (group) =>
-            group.id !== selfId &&
-            !taken.has(`group:${group.id}`) &&
-            group.name.toLowerCase().includes(needle),
-        )
-        .map((group): Choice => ({ kind: 'group', group })),
-      ...searchModels(catalog.models, query)
-        .filter(
-          (entry) =>
-            !taken.has(
-              routingGroupMemberKey({
-                kind: 'model',
-                provider: entry.provider,
-                model: entry.model,
-              }),
-            ),
-        )
-        .map((entry): Choice => ({ kind: 'model', entry })),
-    ];
-  }, [catalog, engines, members, query, selfId, source, t.routingGroup.engineRow]);
-  const select = (member: RoutingGroupMember) => {
-    Keyboard.dismiss();
-    onSelect(member);
+    const terms = needle.split(/\s+/u);
+    const groups =
+      source === 'all' || source === 'groups'
+        ? (catalog.groups ?? [])
+            .filter((group) => group.id !== selfId && group.name.toLowerCase().includes(needle))
+            .map((group): Choice => ({ kind: 'group', group }))
+        : [];
+    const models =
+      engineId === undefined && source !== 'groups'
+        ? searchModels(catalog.models, query)
+            .filter((entry) => source === 'all' || modelFamilyKey(entry) === source)
+            .map((entry): Choice => ({ kind: 'model', entry }))
+        : [];
+    const subscriptions =
+      source === 'all' || engineId !== undefined
+        ? routingGroupEngineChoices(engines ?? []).flatMap((choice): Choice[] => {
+            if (engineId !== undefined && choice.member.engine !== engineId) return [];
+            const row = routingGroupEnginePresentation(
+              choice.member,
+              t.routingGroup.engineRow,
+              choice.model.name,
+            );
+            const text = [row.name, row.title, row.detail, choice.member.model]
+              .join(' ')
+              .toLocaleLowerCase();
+            return terms.every((term) => text.includes(term))
+              ? [{ kind: 'engine', ...choice, row }]
+              : [];
+          })
+        : [];
+    return [...groups, ...models, ...subscriptions];
+  }, [catalog, engines, engineId, query, selfId, source, t.routingGroup.engineRow]);
+  const key = (row: Choice) => routingGroupMemberKey(memberOf(row));
+  const effortsOf = (choice: Choice) => {
+    const member = memberOf(choice);
+    if (member.kind === 'group') return [];
+    const efforts = effortChoices(
+      choice.kind === 'engine' ? choice.model : choice.kind === 'model' ? choice.entry : undefined,
+      t.modelSettings.effortDefault,
+    );
+    return (
+      efforts.length === 0 ? [{ value: '', label: t.modelSettings.effortDefault }] : efforts
+    ).filter(
+      ({ value }) =>
+        !taken.has(
+          routingGroupMemberKey(value === '' ? member : { ...member, reasoningEffort: value }),
+        ),
+    );
   };
-  const key = (row: Choice) => {
-    switch (row.kind) {
-      case 'model':
-        return JSON.stringify([row.entry.provider, row.entry.model]);
-      case 'group':
-        return `group:${row.group.id}`;
-      case 'engine':
-        return routingGroupMemberKey(row.member);
-    }
-  };
-  const close = () => {
+  const rows = data.filter((row) =>
+    row.kind === 'group' ? !taken.has(key(row)) : effortsOf(row).length > 0,
+  );
+  const pending = rows.find((row) => key(row) === selected?.key);
+  const select = (choice: Choice, effort = '') => {
     Keyboard.dismiss();
-    onClose();
+    const member = memberOf(choice);
+    onSelect(
+      member.kind === 'group' || effort === '' ? member : { ...member, reasoningEffort: effort },
+    );
+  };
+  const pick = (choice: Choice) => {
+    const options = effortsOf(choice);
+    if (options.length <= 1) {
+      select(choice, options[0]?.value);
+      return;
+    }
+    Keyboard.dismiss();
+    const preferred =
+      choice.kind === 'engine'
+        ? choice.model.defaultEffort
+        : choice.kind === 'model'
+          ? choice.entry.defaultEffort
+          : undefined;
+    setSelected({
+      key: key(choice),
+      effort: options.find((item) => item.value === preferred)?.value ?? options[0]?.value ?? '',
+    });
+  };
+  const chooseSource = (next: string) => {
+    setSource(next);
+    setSelected(undefined);
   };
   return (
     <Sheet
@@ -130,91 +193,118 @@ export function RoutingGroupMemberPicker({
       visible
       avoidKeyboard
       fill
-      onClose={close}
+      onClose={() => {
+        Keyboard.dismiss();
+        onClose();
+      }}
     >
       <SearchField
         testID="routing-group-member-search"
         value={query}
-        onChangeText={setQuery}
-        placeholder={t.routingGroup.searchMembers}
+        onChangeText={(text) => {
+          setQuery(text);
+          setSelected(undefined);
+        }}
+        placeholder={t.modelSettings.search}
         inset={space.x5}
       />
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: space.x2,
-          paddingHorizontal: space.x5,
-          paddingVertical: space.x2,
-        }}
-      >
+      <ModelPickerFilters>
         <Chip
-          testID="routing-member-filter-models"
-          label={t.routingGroup.models}
-          selected={source === 'models'}
-          onPress={() => setSource('models')}
+          testID="routing-member-filter-all"
+          label={t.modelSettings.allFamilies}
+          selected={source === 'all'}
+          onPress={() => chooseSource('all')}
         />
-        <Chip
-          testID="routing-member-filter-engines"
-          label={t.routingGroup.engines}
-          selected={source === 'engines'}
-          onPress={() => {
-            if (source !== 'engines') refreshEngines();
-            setSource('engines');
-          }}
-        />
-      </View>
-      {showEngineError ? (
+        {(catalog.groups ?? []).some((group) => group.id !== selfId) ? (
+          <Chip
+            testID="routing-member-filter-groups"
+            label={t.modelSettings.groups}
+            selected={source === 'groups'}
+            onPress={() => chooseSource(source === 'groups' ? 'all' : 'groups')}
+          />
+        ) : null}
+        {ENGINE_IDS.map((engine) => (
+          <Chip
+            key={engine}
+            testID={`routing-member-filter-${engine}`}
+            label={t.routingGroup.engineRow.subscription(ENGINE_DEFINITIONS[engine].displayName)}
+            selected={source === `engine-${engine}`}
+            onPress={() => {
+              const next = `engine-${engine}`;
+              if (source !== next) {
+                if (openedEngineFilter.current) refreshEngines();
+                openedEngineFilter.current = true;
+              }
+              chooseSource(source === next ? 'all' : next);
+            }}
+          />
+        ))}
+        {families.map(({ brand, title, count }) => {
+          const family = brand ?? 'other';
+          return (
+            <Chip
+              key={family}
+              testID={`routing-member-filter-${family}`}
+              label={title ?? t.modelSettings.otherFamily}
+              count={count}
+              selected={source === family}
+              onPress={() => chooseSource(source === family ? 'all' : family)}
+            />
+          );
+        })}
+      </ModelPickerFilters>
+      {engineError ? (
         <SheetFailed
-          message={t.routingGroup.enginesUnavailable}
+          message={
+            engineReadFailed
+              ? t.routingGroup.enginesUnavailable
+              : t.routingGroup.engineModelsUnavailable
+          }
           onRetry={refreshEngines}
           on={SHEET_GROUP}
         />
       ) : null}
       <FlatList
         nestedScrollEnabled
-        data={data}
+        data={rows}
         keyExtractor={key}
         style={{ flexGrow: 0, flexShrink: 1 }}
         contentContainerStyle={{ paddingTop: space.x3 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         ListEmptyComponent={
-          showEngineError ? (
-            <></>
-          ) : source === 'engines' && engines === undefined ? (
+          engineError ? undefined : engineId !== undefined && engines === undefined ? (
             <SheetLoading />
           ) : (
             <SheetNote>
-              {source === 'engines' && engines?.length === 0
-                ? t.routingGroup.noEngines
-                : t.routingGroup.noOptions}
+              {status?.available === false
+                ? t.routingGroup.engineUnavailable[status.reason]
+                : engineId !== undefined && status === undefined
+                  ? t.routingGroup.noEngines
+                  : t.routingGroup.noOptions}
             </SheetNote>
           )
         }
         renderItem={({ item, index }) => {
           const front =
             item.kind === 'group' ? modelCatalogGroupFront(item.group, catalog.models) : undefined;
+          const active = selected?.key === key(item);
           const row =
             item.kind === 'model' ? (
               <ModelPickerRow
                 entry={item.entry}
-                shortTitle
+                selected={active}
+                control={active ? { kind: 'check' } : undefined}
                 testID={`routing-member-model-${item.entry.provider}-${item.entry.model}`}
-                onPress={() =>
-                  select({ kind: 'model', provider: item.entry.provider, model: item.entry.model })
-                }
+                onPress={() => pick(item)}
               />
             ) : item.kind === 'engine' ? (
               <ModelEnginePickerRow
                 row={item.row}
-                reason={
-                  item.status.available
-                    ? undefined
-                    : t.routingGroup.engineUnavailable[item.status.reason]
-                }
-                testID={`routing-member-engine-${item.member.engine}-${item.member.model ?? 'default'}`}
-                onPress={item.status.available ? () => select(item.member) : undefined}
+                isDefault={item.isDefault}
+                selected={active}
+                testID={`routing-member-engine-${item.member.engine}-${item.member.model}`}
+                onPress={() => pick(item)}
               />
             ) : (
               <ModelGroupPickerRow
@@ -225,13 +315,13 @@ export function RoutingGroupMemberPicker({
                 usable={item.group.restingUntil === undefined}
                 showCount
                 testID={`routing-member-group-${item.group.id}`}
-                onPress={() => select({ kind: 'group', id: item.group.id })}
+                onPress={() => select(item)}
               />
             );
           return (
             <SettingsGroupItem
               first={index === 0}
-              last={index === data.length - 1}
+              last={index === rows.length - 1}
               on={SHEET_GROUP}
             >
               {row}
@@ -239,6 +329,24 @@ export function RoutingGroupMemberPicker({
           );
         }}
       />
+      {pending === undefined || selected === undefined ? null : (
+        <>
+          <EffortBar
+            options={effortsOf(pending)}
+            current={selected.effort}
+            busy={false}
+            onChange={(effort) => setSelected({ ...selected, effort })}
+          />
+          <SheetActions>
+            <Button
+              label={t.routingGroup.addMember}
+              tone="primary"
+              testID="routing-member-confirm"
+              onPress={() => select(pending, selected.effort)}
+            />
+          </SheetActions>
+        </>
+      )}
     </Sheet>
   );
 }

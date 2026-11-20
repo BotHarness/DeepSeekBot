@@ -39,6 +39,8 @@ function python(): string | undefined {
   for (const candidate of ['python3', 'python']) {
     const probe = spawnSync(candidate, ['-c', 'import sys; print(sys.version_info[0])'], {
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     });
     if (probe.status === 0 && probe.stdout.trim() === '3') return candidate;
   }
@@ -104,12 +106,14 @@ describe('local speech service kit', () => {
     if (py === undefined) return;
     const dir = createTempRoot('voice-kit-run-');
     const { script } = runVoiceLocalKit([], { dir });
-    execFileSync(py, ['-m', 'py_compile', script]);
+    execFileSync(py, ['-m', 'py_compile', script], { shell: false, windowsHide: true });
     const port = String(await freePort());
     const run = (...args: string[]) =>
       spawnSync(py, ['-I', script, '--home', dir, '--port', port, ...args], {
         encoding: 'utf8',
         timeout: 20_000,
+        shell: false,
+        windowsHide: true,
       });
     const status = run('status');
     expect(status.status).toBe(0);

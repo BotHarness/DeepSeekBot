@@ -8,7 +8,12 @@ import { ensureMemoryRepository, inspectMemoryRepository } from '../src/memory/r
 import { createTempRoot } from './helpers.js';
 
 function headOf(memoryDir: string): string {
-  return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: memoryDir, encoding: 'utf8' }).trim();
+  return execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: memoryDir,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 }
 
 describe('Memory Repository lifecycle', () => {
@@ -58,7 +63,12 @@ describe('Memory Repository lifecycle', () => {
   it('repairs a repository that exists without a seed commit', () => {
     const memoryDir = join(createTempRoot(), 'memory');
     mkdirSync(memoryDir, { recursive: true });
-    execFileSync('git', ['init', '-b', 'main'], { cwd: memoryDir, encoding: 'utf8' });
+    execFileSync('git', ['init', '-b', 'main'], {
+      cwd: memoryDir,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    });
 
     const repaired = ensureMemoryRepository({ memoryDir });
 
@@ -72,16 +82,44 @@ describe('Memory Repository lifecycle', () => {
     const source = join(root, 'source');
     const memoryDir = join(root, 'memory');
     mkdirSync(source);
-    execFileSync('git', ['init', '-b', 'imported'], { cwd: source });
-    execFileSync('git', ['config', 'user.name', 'QA'], { cwd: source });
-    execFileSync('git', ['config', 'user.email', 'qa@example.invalid'], { cwd: source });
+    execFileSync('git', ['init', '-b', 'imported'], {
+      cwd: source,
+      shell: false,
+      windowsHide: true,
+    });
+    execFileSync('git', ['config', 'user.name', 'QA'], {
+      cwd: source,
+      shell: false,
+      windowsHide: true,
+    });
+    execFileSync('git', ['config', 'user.email', 'qa@example.invalid'], {
+      cwd: source,
+      shell: false,
+      windowsHide: true,
+    });
     writeFileSync(join(source, 'code.ts'), 'export const imported = true;\n');
-    execFileSync('git', ['add', 'code.ts'], { cwd: source });
-    execFileSync('git', ['commit', '-m', 'Imported memory'], { cwd: source });
+    execFileSync('git', ['add', 'code.ts'], { cwd: source, shell: false, windowsHide: true });
+    execFileSync('git', ['commit', '-m', 'Imported memory'], {
+      cwd: source,
+      shell: false,
+      windowsHide: true,
+    });
     ensureMemoryRepository({ memoryDir });
-    execFileSync('git', ['remote', 'add', 'qa', source], { cwd: memoryDir });
-    execFileSync('git', ['fetch', 'qa', 'imported'], { cwd: memoryDir });
-    execFileSync('git', ['switch', '-c', 'imported', 'FETCH_HEAD'], { cwd: memoryDir });
+    execFileSync('git', ['remote', 'add', 'qa', source], {
+      cwd: memoryDir,
+      shell: false,
+      windowsHide: true,
+    });
+    execFileSync('git', ['fetch', 'qa', 'imported'], {
+      cwd: memoryDir,
+      shell: false,
+      windowsHide: true,
+    });
+    execFileSync('git', ['switch', '-c', 'imported', 'FETCH_HEAD'], {
+      cwd: memoryDir,
+      shell: false,
+      windowsHide: true,
+    });
     const head = headOf(memoryDir);
 
     expect(existsSync(join(memoryDir, '.gitattributes'))).toBe(false);

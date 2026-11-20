@@ -38,7 +38,13 @@ export function listBotFiles(memoryDir: string): string[] {
   const output = execFileSync(
     'git',
     ['-c', 'core.quotePath=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-    { cwd: memoryDir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true },
+    {
+      cwd: memoryDir,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+      shell: false,
+    },
   );
   const files = new Set<string>();
   for (const path of output.split('\0')) {
@@ -89,6 +95,7 @@ function git(cwd: string, args: string[]): string {
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 

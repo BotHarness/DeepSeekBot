@@ -199,7 +199,10 @@ describe('pinned cloudflared', () => {
     const source = createTempRoot('botharness-cloudflared-tgz-');
     writeFileSync(join(source, 'cloudflared'), BINARY);
     const archive = join(source, 'cloudflared-darwin-arm64.tgz');
-    execFileSync('tar', ['-czf', archive, '-C', source, 'cloudflared']);
+    execFileSync('tar', ['-czf', archive, '-C', source, 'cloudflared'], {
+      shell: false,
+      windowsHide: true,
+    });
     const bytes = readFileSync(archive);
     const assets = {
       'darwin-arm64': {
