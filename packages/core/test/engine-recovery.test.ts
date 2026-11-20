@@ -1,8 +1,9 @@
 import { chmodSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
-import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { createSystemMessage, createUserMessage } from '@deepseek-ai/dsh-llm';
+import { KNOWN_SESSION_EVENT_TYPES, Session, SessionId } from '@deepseek-ai/dsh-session';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CodexEngineSession, type CodexTransport } from '../src/engines/codex-engine.js';
@@ -11,6 +12,7 @@ import { openEngineDshSession } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
+import { EngineTurnLog } from '../src/engines/engine-log.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
@@ -230,6 +232,63 @@ describe('Engine Host recovery', () => {
     } finally {
       await host.close();
     }
+  });
+
+  it('reopens an engine-first Session after its native continuation', async () => {
+    const fromCli = createRequire(import.meta.resolve('@deepseek-ai/dsh/package.json'));
+    const fromBase = createRequire(fromCli.resolve('@deepseek-ai/dsh-base/package.json'));
+    const fromPersistence = createRequire(
+      fromBase.resolve('@deepseek-ai/dsh-session-persistence-jsonl/package.json'),
+    );
+    const {
+      restoreReleasedV4Artifact,
+    }: {
+      restoreReleasedV4Artifact(artifact: unknown, knownEventTypes: ReadonlySet<string>): unknown;
+    } = await import(fromPersistence.resolve('@deepseek-ai/dsh-session-format-v3-to-v4'));
+
+    const session = Session.create(SessionId('engine-first-reopen'));
+    const engine = new EngineTurnLog(
+      { session, flush: async () => undefined },
+      'codex',
+      'ChatGPT pro',
+      'Write a note and report its path.',
+    );
+    engine.accept({ kind: 'tool-call', callId: 'write', name: 'shell', arguments: '{}' });
+    engine.accept({ kind: 'tool-result', callId: 'write', text: 'note.txt', isError: false });
+    await engine.end({ status: 'failed', message: 'Usage limit reached' });
+
+    session.append('turn/start', { turn: 2 });
+    session.append('step/start', { turn: 2, step: 1 });
+    const head = session.eventAt(session.surface.nodes[0]!);
+    session.append(
+      'system/message',
+      { turn: 2, step: 1, message: createSystemMessage('Native Agent prompt') },
+      head?.type === 'system/message'
+        ? {
+            surfaceOp: { op: 'replace', startSeq: head.seq, endSeq: head.seq },
+            sourceEventSeqs: [head.seq],
+          }
+        : { surfaceOp: 'append' },
+    );
+    session.append('step/end', { turn: 2, step: 1 });
+    session.append('turn/end', { turn: 2, reason: { kind: 'completed' } });
+
+    const events = session.snapshotEvents();
+    expect(() =>
+      restoreReleasedV4Artifact(
+        {
+          header: { ...session.header, delegationDepth: 0 },
+          inheritedEventCount: session.inheritedEventCount,
+          events,
+        },
+        KNOWN_SESSION_EVENT_TYPES,
+      ),
+    ).not.toThrow();
+    expect(
+      events.flatMap((event) =>
+        event.type === 'tool/result' ? [event.data.message.toolCallId] : [],
+      ),
+    ).toEqual(['write']);
   });
 
   it('seeds only a new thread and gives the returning native Session the engine messages', async () => {
