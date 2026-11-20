@@ -1,6 +1,5 @@
 {
   "long-files": [
-    "apps/mobile/src/ui/strings.ts",
     "apps/mobile/test/bot-profile-sheet.test.tsx",
     "apps/mobile/test/cloud-client.test.ts",
     "apps/mobile/test/conversation-navigation.test.tsx",
