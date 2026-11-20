@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 
