@@ -1,4 +1,4 @@
-import { MessageTurnTargets } from './message-turn-targets';
+import { MessageMenuHeader } from './message-turn-targets';
 import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -277,7 +277,12 @@ function MessageMenu({
     gap: space.x3,
   });
   const islandWidth = Math.min(sizes.islandWidth, screen - space.x4 * 2);
-  const menuWidth = Math.min(sizes.menuWidth, screen - space.x4 * 2);
+  const menuWidth = Math.min(
+    message.turnTargets === undefined
+      ? sizes.menuWidth
+      : Math.max(sizes.menuWidth, sizes.islandWidth),
+    screen - space.x4 * 2,
+  );
   const islands = Platform.OS === 'android';
   const card = {
     position: 'absolute' as const,
@@ -373,7 +378,17 @@ function MessageMenu({
               style={{ maxHeight: maxMenuHeight }}
               onContentSizeChange={(_width, contentHeight) => setMenuHeight(contentHeight)}
             >
-              {time === '' ? null : (
+              {message.turnTargets !== undefined ? (
+                <View
+                  style={{
+                    paddingHorizontal: space.x5,
+                    paddingTop: space.x4,
+                    paddingBottom: space.x2,
+                  }}
+                >
+                  <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
+                </View>
+              ) : time === '' ? null : (
                 <Text
                   testID="message-menu-time"
                   variant="meta"
@@ -386,11 +401,6 @@ function MessageMenu({
                 >
                   {time}
                 </Text>
-              )}
-              {message.turnTargets === undefined ? null : (
-                <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x2 }}>
-                  <MessageTurnTargets targets={message.turnTargets} catalog={catalog} />
-                </View>
               )}
               {actions.map((action, index) => (
                 <Fragment key={actionId(action)}>

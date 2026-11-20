@@ -1,4 +1,4 @@
-import { MessageTurnTargets } from './message-turn-targets';
+import { MessageMenuHeader } from './message-turn-targets';
 import {
   BottomSheet,
   Button,
@@ -172,6 +172,7 @@ function SheetContent({
   const t = useStrings();
   const theme = useDesignTheme();
   const { message } = target;
+  const time = menuTime(message.at, new Date());
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
   const icon = theme.type.title.line;
   return (
@@ -185,15 +186,16 @@ function SheetContent({
         accessibilityLabel(menuLabel(target)),
       ]}
     >
-      <Text
-        testID="message-menu-time"
-        modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)]}
-      >
-        {menuTime(message.at, new Date())}
-      </Text>
-      {message.turnTargets === undefined ? null : (
+      {message.turnTargets === undefined ? (
+        <Text
+          testID="message-menu-time"
+          modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)]}
+        >
+          {time}
+        </Text>
+      ) : (
         <RNHostView matchContents={{ vertical: true }}>
-          <MessageTurnTargets targets={message.turnTargets} catalog={catalog} />
+          <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
         </RNHostView>
       )}
       {menuReactions(target, readOnly) ? (

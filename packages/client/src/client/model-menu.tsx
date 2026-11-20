@@ -83,6 +83,7 @@ export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngi
   return {
     defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
     subscription: (source) => t('engine.subscription', { engine: source }),
+    effort: (level) => t(`engine.effort.${level}`),
   };
 }
 

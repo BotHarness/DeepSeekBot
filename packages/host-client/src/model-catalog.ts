@@ -2,6 +2,7 @@ import {
   ENGINE_DEFINITIONS,
   ENGINE_IDS,
   ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS,
+  engineEffortName,
   isEngineId,
   isRoutingGroupEngineMember,
   type RoutingGroupEngineModel,
@@ -51,6 +52,7 @@ export interface ModelCatalogGroup {
 export interface RoutingGroupEngineCopy {
   defaultModel(engine: string): string;
   subscription(source: string): string;
+  effort?: Parameters<typeof engineEffortName>[1];
 }
 
 export function routingGroupEnginePresentation(
@@ -113,11 +115,17 @@ export function routingGroupEngineMemberRow(
           )
         : undefined;
   const shown = model === undefined ? member : { ...member, model: model.id };
-  const effort = model?.efforts.find((item) => item.id === member.reasoningEffort)?.name;
+  const effort = member.reasoningEffort;
+  const catalogName = model?.efforts.find((item) => item.id === effort)?.name;
   const row = routingGroupEnginePresentation(shown, copy, model?.name);
   return {
     ...row,
-    detail: [row.detail, effort ?? member.reasoningEffort].filter(Boolean).join(' · '),
+    detail: [
+      row.detail,
+      effort === undefined ? undefined : engineEffortName(effort, copy.effort, catalogName),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     isDefault: model !== undefined && model === defaults,
     unavailable: status?.available === true && model === undefined,
   };

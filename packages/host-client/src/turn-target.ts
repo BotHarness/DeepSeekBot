@@ -1,22 +1,34 @@
-import { ENGINE_DEFINITIONS } from '@botharness/host-protocol/subscription-engine';
+import {
+  ENGINE_DEFINITIONS,
+  engineEffortName,
+} from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import { routingGroupEnginePresentation, type ModelCatalogEntry } from './model-catalog';
+import {
+  routingGroupEnginePresentation,
+  type ModelCatalogEntry,
+  type RoutingGroupEngineCopy,
+} from './model-catalog';
 import { modelBrand, modelShortName } from './shared/model-brand';
 
-export function turnTargetLabel(target: TurnTarget, catalog: readonly ModelCatalogEntry[] = []) {
+export function turnTargetLabel(
+  target: TurnTarget,
+  catalog: readonly ModelCatalogEntry[] = [],
+  copy?: Pick<RoutingGroupEngineCopy, 'effort'>,
+) {
   if (target.kind === 'engine') {
     const { brand, title, name } = routingGroupEnginePresentation(target, {
       defaultModel: (engine) => engine,
       subscription: (source) => source,
     });
     const engine = ENGINE_DEFINITIONS[target.engine].displayName;
+    const effort = target.reasoningEffort;
+    const effortName =
+      effort === undefined || copy === undefined ? effort : engineEffortName(effort, copy.effort);
     return {
       brand,
       short: title,
-      effort: target.reasoningEffort,
-      name: [name, name === engine ? undefined : engine, target.reasoningEffort]
-        .filter(Boolean)
-        .join(' · '),
+      effort: effortName,
+      name: [name, name === engine ? undefined : engine, effortName].filter(Boolean).join(' · '),
       external: true as const,
     };
   }

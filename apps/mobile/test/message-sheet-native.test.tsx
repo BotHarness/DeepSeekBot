@@ -133,8 +133,20 @@ vi.mock('@expo/ui/swift-ui', () => {
     RNHostView: ({ children }: { children: ReactNode }) => children,
     ScrollView: box('div'),
     Spacer: () => null,
-    Text: ({ children, modifiers }: { children: ReactNode; modifiers?: Modifier[] }) =>
-      createElement('span', { 'data-width': fixedWidth(modifiers) }, children),
+    Text: ({
+      children,
+      modifiers,
+      testID,
+    }: {
+      children: ReactNode;
+      modifiers?: Modifier[];
+      testID?: string;
+    }) =>
+      createElement(
+        'span',
+        { 'data-width': fixedWidth(modifiers), 'data-testid': testID },
+        children,
+      ),
     VStack: box('div'),
   };
 });
@@ -264,7 +276,7 @@ describe('message sheet groups', () => {
 });
 
 describe('iOS message sheet', () => {
-  it('shows the execution path beneath the time in the message action sheet', () => {
+  it('presents the message time and the ordered execution path in one accessible header', () => {
     const message: ConversationMessage = {
       ...bot,
       turnTargets: [
@@ -284,9 +296,16 @@ describe('iOS message sheet', () => {
       ],
     });
     const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
+    const time = host?.querySelector('[data-testid="message-menu-time"]');
+    expect(time?.nextElementSibling).toBe(attribution);
     expect(attribution?.querySelector('[data-testid="external-engine-badge"]')).not.toBeNull();
-    expect(byLabel(`GPT-6.2-Sol · Codex · high, ${t.routingGroup.externalEngine}`)).not.toBeNull();
-    expect(attribution?.textContent).toBe('GPT-6.2-Sol · high→V4.1 Flash');
+    expect(attribution?.getAttribute('aria-label')).toBe(
+      'Ran on GPT-6.2-Sol · Codex · High, External engine, then DeepSeek V4.1 Flash · OpenCode Go',
+    );
+    expect([...attribution!.children].map((segment) => segment.textContent)).toEqual([
+      'GPT-6.2-Sol · High',
+      '→V4.1 Flash',
+    ]);
   });
 
   it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {
@@ -295,6 +314,8 @@ describe('iOS message sheet', () => {
     expect(sheet?.getAttribute('data-open')).toBe('true');
     expect(sheet?.getAttribute('data-fit')).toBe('true');
     expect(byLabel(t.messageActions)).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-time"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-turn-targets"]')).toBeNull();
     expect(MENU_REACTIONS.slice(0, QUICK_REACTIONS.length)).toEqual([...QUICK_REACTIONS]);
     const reactions = byLabel(t.reactions);
     for (const emoji of MENU_REACTIONS) {

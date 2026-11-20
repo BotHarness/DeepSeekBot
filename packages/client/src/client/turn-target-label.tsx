@@ -10,6 +10,7 @@ import type { BridgeActions } from './actions.js';
 import type { SessionTranscriptItem } from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
 import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import { routingGroupEngineCopy } from './model-menu.js';
 
 const styles = stylex.create({
   path: {
@@ -34,10 +35,11 @@ export function TurnTargetLabel({
   t: BotHarnessTranslate;
 }) {
   if (targets === undefined) return null;
+  const copy = routingGroupEngineCopy(t);
   return (
     <span data-turn-targets="" {...stylex.props(styles.path)}>
       {targets.map((target, index) => {
-        const label = turnTargetLabel(target, catalog);
+        const label = turnTargetLabel(target, catalog, copy);
         return (
           <span key={index} title={label.name} {...stylex.props(styles.target)}>
             {index === 0 ? null : <span>→</span>}

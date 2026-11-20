@@ -231,7 +231,7 @@ it('filters subscription sources independently, searches across sources and save
   await act(async () => option(codexKey)!.click());
   expect(effortOption('medium').getAttribute('aria-checked')).toBe('true');
   await act(async () => effortOption('high').click());
-  expect(dialog().textContent).toMatch(/GPT-5.4.*High/u);
+  expect(dialog().textContent).toMatch(/GPT-5.4.*ChatGPT 订阅 · 高/u);
   await act(async () =>
     buttonNamed(t('routingGroups.moveUp', { name: 'GPT-5.4' }), dialog()).click(),
   );
