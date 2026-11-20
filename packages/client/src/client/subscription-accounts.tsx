@@ -158,7 +158,9 @@ export function SubscriptionAccounts({
               const { engine, accountId } = status;
               const brand = engineName(engine);
               const title =
-                status.accountName === undefined ? brand : `${brand} · ${status.accountName}`;
+                status.accountName === undefined || status.accountName === brand
+                  ? brand
+                  : `${brand} · ${status.accountName}`;
               const key = engineModelKey(engine, accountId);
               const canManage =
                 accountId !== undefined && engine === 'codex' && revision !== undefined;
@@ -178,11 +180,16 @@ export function SubscriptionAccounts({
                           <Button
                             variant="outline"
                             disabled={engines.signingIn !== undefined}
+                            aria-label={
+                              engines.signingIn === key
+                                ? undefined
+                                : t('engine.signInLabel', { engine: title })
+                            }
                             onClick={() => engines.signIn(engine, accountId)}
                           >
                             {engines.signingIn === key
                               ? t('engine.signingIn')
-                              : t('engine.signInLabel', { engine: title })}
+                              : t('modelProviders.signIn')}
                           </Button>
                         ) : null}
                         {canManage ? (

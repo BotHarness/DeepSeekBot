@@ -6,6 +6,7 @@ export const zh = {
   'modelProviders.accountHint': '{engine} · {name}',
   'modelProviders.loadingAccounts': '正在读取订阅账号…',
   'modelProviders.renameAccount': '重命名',
+  'modelProviders.signIn': '登录',
   'modelProviders.renameAccountTitle': '重命名 {name}',
   'modelProviders.removeAccountWarning': '移除后会删除此账号在 Host 上的登录信息和会话数据。',
   'modelProviders.accountConflict': '账号已更新。关闭后重新打开再试。',
@@ -79,6 +80,7 @@ export const en = {
   'modelProviders.accountHint': '{engine} · {name}',
   'modelProviders.loadingAccounts': 'Reading subscription accounts…',
   'modelProviders.renameAccount': 'Rename',
+  'modelProviders.signIn': 'Sign in',
   'modelProviders.renameAccountTitle': 'Rename {name}',
   'modelProviders.removeAccountWarning':
     'Removing this account deletes its sign-in and session data on this Host.',
