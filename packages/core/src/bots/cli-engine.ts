@@ -240,7 +240,11 @@ export async function runEngineCommand(
   if (command === 'engine-models') {
     if (rest.length !== 1)
       throw new CliLiveError('usage', 'engine models needs one engine or account ID.');
-    const value = await call(connect, { action: 'models', engine: rest[0] }, true);
+    const value = await call(
+      connect,
+      { action: 'models', engine: rest[0] },
+      values.as !== undefined,
+    );
     if (!Array.isArray(value['models']) || !value['models'].every(isObject)) throw protocolError();
     return value;
   }
@@ -277,7 +281,7 @@ export async function runEngineCommand(
         ...(effort === undefined ? {} : { effort }),
         ...(account === undefined ? {} : { accountId: account }),
       },
-      true,
+      values.as !== undefined,
     );
     if (value['bot'] !== bot || value['role'] !== chosen) throw protocolError();
     return value;
