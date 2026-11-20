@@ -315,7 +315,7 @@ export function ModelPresetsSettings({
         <Button
           xstyle={styles.create}
           size="sm"
-          variant="outline"
+          variant="primary"
           disabled={busy}
           onClick={() => setDialog({ kind: 'create' })}
         >
@@ -430,7 +430,9 @@ export function ModelPresetsSettings({
                     </Note>
                   ) : null}
                 </>
-              ) : null}
+              ) : (
+                <Note>{t('modelPreset.deleteUnused')}</Note>
+              )}
             </ConfirmDialog>
           ) : (
             <PresetEditor

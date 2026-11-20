@@ -127,7 +127,7 @@ export function FormDialog({
           variant="primary"
           disabled={blocked}
           aria-busy={busy || undefined}
-          className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
+          xstyle={danger ? styles.danger : undefined}
         >
           {submitLabel}
         </Button>
@@ -241,7 +241,7 @@ export function DangerTextButton({
       variant="ghost"
       disabled={disabled}
       onClick={onClick}
-      className={stylex.props(styles.dangerQuiet).className ?? ''}
+      xstyle={styles.dangerQuiet}
     >
       {children}
     </Button>
