@@ -43,7 +43,8 @@ const healthy = () => ({
 describe('dirty opening-run provenance', () => {
   it('hashes changed and untracked inputs without reading deleted source paths', () => {
     const root = mkdtempSync(join(tmpdir(), 'genui-provenance-'));
-    const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    const git = (...args) =>
+      execFileSync('git', args, { cwd: root, stdio: 'pipe', shell: false, windowsHide: true });
     try {
       git('init', '-q');
       writeFileSync(join(root, 'deleted.ts'), 'old source');

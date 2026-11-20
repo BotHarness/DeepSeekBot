@@ -151,13 +151,15 @@ test('native Scheduler drops stale commands and transactions after delegate tear
     const build = spawnSync(
       compiler,
       ['-std=c++20', '-fsanitize=address', '-g', '-O1', input, '-o', executable],
-      { encoding: 'utf8', timeout: 30_000 },
+      { encoding: 'utf8', timeout: 30_000, shell: false, windowsHide: true },
     );
     assert.equal(build.status, 0, build.stderr);
     for (const scenario of ['command', 'transaction', 'replace', 'live', 'retained', 'in-flight']) {
       const run = spawnSync(executable, [scenario], {
         encoding: 'utf8',
         env: { ...process.env, ASAN_OPTIONS: 'detect_leaks=0' },
+        shell: false,
+        windowsHide: true,
       });
       assert.equal(run.status, 0, `${scenario}: ${run.stderr.slice(0, 6000)}`);
     }

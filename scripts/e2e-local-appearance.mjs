@@ -36,6 +36,8 @@ const cli = async (command, args = [], patch) => {
     {
       env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') },
       maxBuffer: 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     },
   );
   if (patch !== undefined) child.stdin.end(JSON.stringify(patch));

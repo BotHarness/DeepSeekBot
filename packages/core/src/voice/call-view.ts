@@ -189,6 +189,7 @@ export function callRefusalNotice(code: string | undefined): CallNotice {
       return 'elsewhere';
     case 'unreachable':
       return 'unreachable';
+    case undefined:
     default:
       return 'refused';
   }

@@ -1,7 +1,7 @@
+import { readChannel, setChannelHumanName } from '@botharness/host-client/channel-management';
 import type { HostClient } from '@botharness/host-client/client';
 import {
   createHumanAvatarCache,
-  parseChannelNickname,
   parseHumanAvatars,
   parseHumanIdentity,
   type HumanAvatarCache,
@@ -133,7 +133,7 @@ export async function loadChannelNickname(
   client: HostClient,
   channelId: string,
 ): Promise<string | null> {
-  return parseChannelNickname(await client.call<unknown>('channelGet', { channelId }));
+  return (await readChannel(client, channelId)).nickname;
 }
 
 export async function saveChannelNickname(
@@ -141,9 +141,7 @@ export async function saveChannelNickname(
   channelId: string,
   nickname: string | null,
 ): Promise<string | null> {
-  const value = parseChannelNickname(
-    await client.call<unknown>('channelHumanNameSet', { channelId, nickname }),
-  );
+  const result = await setChannelHumanName(client, channelId, nickname);
   await client.refresh().catch(() => undefined);
-  return value;
+  return result.nickname;
 }

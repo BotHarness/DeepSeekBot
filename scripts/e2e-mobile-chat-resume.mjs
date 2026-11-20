@@ -50,7 +50,14 @@ function drive(label, ...command) {
         lease.udid,
         '--json',
       ],
-      { env, encoding: 'utf8', timeout: 95000, maxBuffer: 16 * 1024 * 1024 },
+      {
+        env,
+        encoding: 'utf8',
+        timeout: 95000,
+        maxBuffer: 16 * 1024 * 1024,
+        shell: false,
+        windowsHide: true,
+      },
     );
   } catch (error) {
     save(`${label}.private.json`, error.stdout || '{}');
@@ -89,7 +96,13 @@ function processId(label) {
         path,
         '--quiet',
       ],
-      { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] },
+      {
+        encoding: 'utf8',
+        timeout: 30000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
+      },
     );
   } catch (error) {
     save(`${label}.private.stderr`, error.stderr || '');

@@ -102,6 +102,8 @@ describe('reusable QQ QA clients', () => {
     const result = spawnSync(process.execPath, ['scripts/dev-qq-test-clients.mjs', 'list'], {
       encoding: 'utf8',
       env: { ...process.env, BOTHARNESS_QQ_TEST_CLIENTS_FILE: options.path },
+      shell: false,
+      windowsHide: true,
     });
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout)[0]).toMatchObject({

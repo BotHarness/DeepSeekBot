@@ -140,7 +140,11 @@ export function missingTools({ which, javaHome }) {
 function findMaestro() {
   const local = join(homedir(), '.maestro/bin/maestro');
   if (existsSync(local)) return local;
-  const found = spawnSync('which', ['maestro'], { encoding: 'utf8' });
+  const found = spawnSync('which', ['maestro'], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
   return found.status === 0 ? found.stdout.trim() : undefined;
 }
 
@@ -154,7 +158,11 @@ function findJavaHome() {
   ]) {
     if (candidate !== undefined && existsSync(join(candidate, 'bin/java'))) return candidate;
   }
-  const found = spawnSync('/usr/libexec/java_home', ['-v', '17+'], { encoding: 'utf8' });
+  const found = spawnSync('/usr/libexec/java_home', ['-v', '17+'], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
   return found.status === 0 ? found.stdout.trim() : undefined;
 }
 
@@ -177,6 +185,8 @@ function run(command, args, options = {}) {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     ...options,
+    shell: false,
+    windowsHide: true,
   });
   if (result.status !== 0)
     throw new Error(
@@ -282,7 +292,9 @@ async function main() {
   const javaHome = findJavaHome();
   const missing = missingTools({
     which: (tool) =>
-      tool === 'maestro' ? maestro !== undefined : spawnSync('which', [tool]).status === 0,
+      tool === 'maestro'
+        ? maestro !== undefined
+        : spawnSync('which', [tool], { shell: false, windowsHide: true }).status === 0,
     javaHome,
   });
   if (missing.length > 0) throw new Error(`missing tools:\n- ${missing.join('\n- ')}`);
@@ -325,6 +337,8 @@ async function main() {
         MAESTRO_DRIVER_STARTUP_TIMEOUT: String(driverStartup),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true,
     });
     let output = '';
     child.stdout.on('data', (chunk) => (output += chunk));
@@ -353,12 +367,12 @@ async function main() {
       udid = run('xcrun', ['simctl', 'create', DEVICE_NAME, sim.deviceType, sim.runtime]).trim();
     } else {
       udid = existing;
-      spawnSync('xcrun', ['simctl', 'shutdown', udid]);
+      spawnSync('xcrun', ['simctl', 'shutdown', udid], { shell: false, windowsHide: true });
       run('xcrun', ['simctl', 'erase', udid]);
     }
     cleanups.push(() => {
       if (options.keep) return;
-      spawnSync('xcrun', ['simctl', 'shutdown', udid]);
+      spawnSync('xcrun', ['simctl', 'shutdown', udid], { shell: false, windowsHide: true });
     });
     run('xcrun', ['simctl', 'boot', udid]);
     run('xcrun', ['simctl', 'bootstatus', udid, '-b'], { timeout: 600_000 });
@@ -374,6 +388,8 @@ async function main() {
       env: { ...process.env, CI: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
+      shell: false,
+      windowsHide: true,
     });
     const appendMetro = (chunk) => writeFileSync(metroLog, chunk, { flag: 'a' });
     metro.stdout.on('data', appendMetro);
@@ -439,7 +455,10 @@ async function main() {
       if (req.method !== 'POST' || payload === undefined) return res.writeHead(404).end();
       const file = join(paths.evidence, `${name}.apns`);
       writeFileSync(file, JSON.stringify(payload, null, 2));
-      const pushed = spawnSync('xcrun', ['simctl', 'push', udid, BUNDLE_ID, file]);
+      const pushed = spawnSync('xcrun', ['simctl', 'push', udid, BUNDLE_ID, file], {
+        shell: false,
+        windowsHide: true,
+      });
       res.writeHead(pushed.status === 0 ? 200 : 500).end();
     });
     const triggerPort = await freePort();

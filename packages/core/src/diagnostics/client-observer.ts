@@ -75,10 +75,9 @@ export function installClientObserver(win: Window & typeof globalThis): void {
       data.delivery = failures >= 4 ? 'failed' : 'pending';
     } finally {
       sending = false;
-      if (disposed) return;
-      if (failures) schedule([0, 250, 1000, 3000][failures] ?? 3000);
-      else if (revision !== delivered) schedule();
     }
+    if (failures) schedule([0, 250, 1000, 3000][failures] ?? 3000);
+    else if (revision !== delivered) schedule();
   };
   const record = (code: string, source: ClientDiagnosticEvent['source'], failure = false): void => {
     if (disposed) return;

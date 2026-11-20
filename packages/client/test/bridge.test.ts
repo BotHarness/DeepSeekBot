@@ -15,7 +15,7 @@ import {
   parseChannelMessages,
   parseChannelMessage,
   parseChannelRecord,
-  parseChannelRecords,
+  loadChannels,
   parseOwnedSessionSummaries,
   parseSessionBotOwner,
   type BridgeCall,
@@ -277,16 +277,16 @@ describe('bridge parsers', () => {
     );
   });
 
-  it('drops malformed channels and keeps botSlug only when present', () => {
+  it('loads Channels and keeps botSlug only when present', async () => {
     const latestMessage = {
       id: 'm-latest',
       at: '2026-09-19T00:03:00.000Z',
       author: { kind: 'bot', slug: 'ada' },
       body: '最新进展',
     };
-    const channels = parseChannelRecords({
-      channels: [GROUP, { ...DM, latestMessage }, { id: 'bad', type: 'nope', name: 'x' }, null],
-    });
+    const channels = await loadChannels(
+      bridgeCall({ channels: () => ({ channels: [GROUP, { ...DM, latestMessage }] }) }),
+    );
 
     expect(channels).toHaveLength(2);
     expect(channels[0]).toMatchObject({ id: 'group-team', type: 'group' });
@@ -2451,6 +2451,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();
@@ -2480,6 +2481,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();
@@ -2509,6 +2511,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();

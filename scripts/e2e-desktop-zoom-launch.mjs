@@ -33,7 +33,7 @@ const app = '/Applications/DeepSeek Harness.app';
 const desktopVersion = execFileSync(
   '/usr/libexec/PlistBuddy',
   ['-c', 'Print :CFBundleShortVersionString', join(app, 'Contents/Info.plist')],
-  { encoding: 'utf8' },
+  { encoding: 'utf8', shell: false, windowsHide: true },
 ).trim();
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 let interrupted = false;
@@ -48,6 +48,8 @@ function ownedPid() {
       execFileSync('lsof', ['-t', `-iTCP:${port}`, '-sTCP:LISTEN'], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
+        windowsHide: true,
       }).trim(),
     );
   } catch {
@@ -56,7 +58,11 @@ function ownedPid() {
   if (!Number.isInteger(pid) || pid <= 0) throw Error('Ambiguous debug listener');
   let cmd;
   try {
-    cmd = execFileSync('ps', ['-p', String(pid), '-o', 'command='], { encoding: 'utf8' });
+    cmd = execFileSync('ps', ['-p', String(pid), '-o', 'command='], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    });
   } catch (error) {
     if (error.status === 1) return null;
     throw error;
@@ -99,7 +105,12 @@ async function launch() {
       `--user-data-dir=${root}/browser`,
       `--remote-debugging-port=${port}`,
     ],
-    { env: { ...process.env, ...devSecretEnvironment() }, stdio: 'ignore' },
+    {
+      env: { ...process.env, ...devSecretEnvironment() },
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
+    },
   );
   await new Promise((resolve, reject) => {
     child.once('error', reject);

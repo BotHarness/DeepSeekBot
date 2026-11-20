@@ -43,7 +43,9 @@ it.each([undefined, 'dm-existing'])(
   'opens the DM background even before a DM id is cached: %s',
   async (dmChannelId) => {
     const fake = new FakeHost();
-    fake.methods.set('channelDm', () => ({ channel: { id: 'dm-created' } }));
+    fake.methods.set('channelDm', () => ({
+      channel: { id: 'dm-created', type: 'dm', name: 'Ada', members: ['ada'] },
+    }));
     const client = createHostClient({
       routes: ['https://studio.tailnet-example.ts.net'],
       credential: fake.credential,

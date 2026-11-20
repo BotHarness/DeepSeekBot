@@ -4,11 +4,12 @@ import {
   parseChannelSplit,
   type ChannelSplit,
 } from './channel-split-layout.js';
-import type {
-  AddPanelPositionOptions,
-  DockviewApi,
-  SerializedDockview,
-  SerializedGridObject,
+import {
+  Orientation,
+  type AddPanelPositionOptions,
+  type DockviewApi,
+  type SerializedDockview,
+  type SerializedGridObject,
 } from 'dockview-react';
 
 import { ACTIVITY_CENTER_PANEL } from './dock-panels.js';
@@ -383,7 +384,12 @@ export function dockPanelGap(
     return undefined;
   };
   return (
-    visit(layout.grid.root as GridNode, layout.grid.orientation === 'HORIZONTAL', 0, 0) ?? {
+    visit(
+      layout.grid.root as GridNode,
+      layout.grid.orientation === Orientation.HORIZONTAL,
+      0,
+      0,
+    ) ?? {
       width: 0,
       height: 0,
     }
@@ -442,7 +448,7 @@ export function pruneChannelDock(
     if (kept.length === 0) return undefined;
     return { ...node, data: kept };
   };
-  const horizontal = layout.grid.orientation === 'HORIZONTAL';
+  const horizontal = layout.grid.orientation === Orientation.HORIZONTAL;
   const root = prune(layout.grid.root as GridNode, horizontal);
   for (const id of Object.keys(layout.panels))
     if (!keep(id) && parked[id] === undefined) parked[id] = { direction: 'right' };
@@ -792,7 +798,7 @@ function movePanelIntoWorkspace(
   };
   const root = walk(
     stored.layout.grid.root as GridNode,
-    stored.layout.grid.orientation === 'HORIZONTAL',
+    stored.layout.grid.orientation === Orientation.HORIZONTAL,
   ) ?? { ...stored.layout.grid.root, type: 'branch' as const, data: [] };
   const panels = Object.fromEntries(
     Object.entries(stored.layout.panels).filter(([id]) => id !== panelId),

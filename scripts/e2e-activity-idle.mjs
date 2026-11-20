@@ -20,7 +20,13 @@ if (!process.argv.includes('--name') || !/^[a-z0-9][a-z0-9-]*$/u.test(name ?? ''
 const paths = verifyPaths(name, root);
 const directory = resolve(paths.dir, 'activity-idle', `attempt-${Date.now()}-${process.pid}`);
 mkdirSync(directory, { recursive: true });
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+const git = (...args) =>
+  execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 const run = {
   version: 1,
   behavior,
@@ -82,6 +88,8 @@ const command = (args) => {
         DEEPSEEKBOT_HOST: url.origin,
         DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   let value;
@@ -104,6 +112,8 @@ const health = async () => {
     cwd: root,
     encoding: 'utf8',
     timeout: 70_000,
+    shell: false,
+    windowsHide: true,
   });
   try {
     const { model: _model, ...safe } = JSON.parse(result.stdout);

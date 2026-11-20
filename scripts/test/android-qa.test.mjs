@@ -12,6 +12,7 @@ const run = (root, ...args) =>
     encoding: 'utf8',
     timeout: 15000,
     windowsHide: true,
+    shell: false,
   });
 const claim = ['claim', '-Owner', 'test-task', '-Batch', 'batch-1', '-Serial', 'emulator-5580'];
 
@@ -43,6 +44,7 @@ describe('Android QA lease', () => {
         const child = spawn(process.execPath, [script, ...claim, '-QueueRoot', root], {
           stdio: 'ignore',
           windowsHide: true,
+          shell: false,
         });
         child.on('error', () => done(-1));
         child.on('close', done);

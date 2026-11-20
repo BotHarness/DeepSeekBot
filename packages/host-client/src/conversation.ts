@@ -1,3 +1,4 @@
+import { openBotDm } from './channel-management';
 import type { HostClient, RemoteSource } from './client';
 import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from './genui/document';
 import { forgetGenuiDocumentViews } from './genui/view';
@@ -1226,11 +1227,11 @@ export function createConversation(options: ConversationOptions): Conversation {
   const ensureChannel = async (): Promise<string> => {
     if (channelId !== undefined) return channelId;
     if (options.botSlug === undefined) throw new Error('The Channel could not be opened.');
-    const result = await options.host.call<{ channel: { id: string } }>('channelDm', {
+    const channel = await openBotDm(options.host, {
       slug: options.botSlug,
       ...(options.displayName === undefined ? {} : { displayName: options.displayName }),
     });
-    channelId = result.channel.id;
+    channelId = channel.id;
     return channelId;
   };
 

@@ -169,7 +169,11 @@ if (mode === '--serve') {
     );
   }
   function processes() {
-    return execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    return execFileSync('ps', ['-axo', 'pid=,command='], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    })
       .split('\n')
       .filter(
         (line) =>

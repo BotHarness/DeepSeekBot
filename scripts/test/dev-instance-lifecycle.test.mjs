@@ -33,7 +33,11 @@ async function jsonWhenReady(file) {
   return parsed;
 }
 function members(pid) {
-  return execFileSync('ps', ['-eo', 'pid=,pgid='], { encoding: 'utf8' })
+  return execFileSync('ps', ['-eo', 'pid=,pgid='], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  })
     .trim()
     .split('\n')
     .map((line) => line.trim().split(/\s+/u).map(Number))
@@ -63,7 +67,7 @@ async function stopRecordedPreparation(home) {
     const rows = execFileSync(
       'ps',
       ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,pgid=,command='],
-      { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+      { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, shell: false, windowsHide: true },
     ).split('\n');
     return rows.flatMap((line) => {
       const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line);
@@ -94,10 +98,12 @@ async function stopRecordedPreparation(home) {
 }
 const workerSource = `const server=require('node:net').createServer();server.listen(0,'127.0.0.1',()=>process.send({pid:process.pid,port:server.address().port}));`;
 function fixtureHost(respawn = false) {
-  const source = `const {spawn}=require('node:child_process');function worker(){const c=spawn(process.execPath,['-e',${JSON.stringify(workerSource)}],{stdio:['ignore','ignore','ignore','ipc']});c.on('message',m=>process.send(m));}worker();${respawn ? "process.on('SIGTERM',()=>{worker();setTimeout(()=>process.exit(0),150)});" : ''}setInterval(()=>{},1000);`;
+  const source = `const {spawn}=require('node:child_process');function worker(){const c=spawn(process.execPath,['-e',${JSON.stringify(workerSource)}],{stdio:['ignore','ignore','ignore','ipc'],shell:false,windowsHide:true});c.on('message',m=>process.send(m));}worker();${respawn ? "process.on('SIGTERM',()=>{worker();setTimeout(()=>process.exit(0),150)});" : ''}setInterval(()=>{},1000);`;
   const child = spawn(process.execPath, ['-e', source], {
     detached: true,
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    shell: false,
+    windowsHide: true,
   });
   child.ownedProcessGroup = true;
   return child;
@@ -114,7 +120,7 @@ describe('Home resource ownership across handoff and interruption', () => {
           '-c',
           'import os,time; pid=os.fork(); (os._exit(0) if pid==0 else print(pid,flush=True)); time.sleep(30)',
         ],
-        { stdio: ['ignore', 'pipe', 'ignore'] },
+        { stdio: ['ignore', 'pipe', 'ignore'], shell: false, windowsHide: true },
       );
       try {
         const [chunk] = await once(parent.stdout, 'data');
@@ -183,6 +189,8 @@ describe('Home resource ownership across handoff and interruption', () => {
         await lease.run(process.execPath, ['-e', "process.stdout.write('prepared')"]);
         child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
           stdio: 'ignore',
+          shell: false,
+          windowsHide: true,
         });
         await once(child, 'spawn');
         lease.started(child, join(home, 'fixture.log'));
@@ -216,7 +224,7 @@ describe('Home resource ownership across handoff and interruption', () => {
         await expect(
           lease.run(process.execPath, [
             '-e',
-            "require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit'}).unref()",
+            "require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'inherit',shell:false,windowsHide:true}).unref()",
           ]),
         ).rejects.toThrow('Preparation left running descendants');
       } finally {
@@ -302,6 +310,8 @@ describe('Home resource ownership across handoff and interruption', () => {
       const code = `import {acquireHome} from ${JSON.stringify(module)};const lease=acquireHome(${JSON.stringify(home)});await lease.run(${JSON.stringify(command)},${JSON.stringify(args)},{cwd:${JSON.stringify(home)}});lease.release();`;
       const launcher = spawn(process.execPath, ['--input-type=module', '-e', code], {
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       let resources = [];
       try {
@@ -365,7 +375,7 @@ it.skipIf(process.platform === 'win32')(
     let pid;
     try {
       const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000);`;
-      const command = `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'});c.unref();const timer=setInterval(()=>{if(require('node:fs').existsSync(${JSON.stringify(marker)}))clearInterval(timer)},10);`;
+      const command = `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore',shell:false,windowsHide:true});c.unref();const timer=setInterval(()=>{if(require('node:fs').existsSync(${JSON.stringify(marker)}))clearInterval(timer)},10);`;
       await expect(lease.run(process.execPath, ['-e', command])).rejects.toThrow(
         'Preparation left running descendants',
       );
@@ -395,7 +405,7 @@ it.skipIf(process.platform === 'win32')(
     const marker = join(home, 'worker.json');
     const module = new URL('../dev-instance-lifecycle.mjs', import.meta.url).href;
     const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,parent:process.ppid}));setInterval(()=>{},1000)`;
-    const command = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'}).unref();setInterval(()=>{},1000)`;
+    const command = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore',shell:false,windowsHide:true}).unref();setInterval(()=>{},1000)`;
     const launcher = spawn(
       process.execPath,
       [
@@ -403,7 +413,7 @@ it.skipIf(process.platform === 'win32')(
         '-e',
         `import {acquireHome} from ${JSON.stringify(module)};const lease=acquireHome(${JSON.stringify(home)});await lease.run(process.execPath,['-e',${JSON.stringify(command)}]);lease.release();`,
       ],
-      { stdio: 'ignore' },
+      { stdio: 'ignore', shell: false, windowsHide: true },
     );
     let pids = [];
     try {

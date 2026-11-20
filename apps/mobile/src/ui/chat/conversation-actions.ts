@@ -1,3 +1,4 @@
+import { setChannelMuted } from '@botharness/host-client/channel-management';
 import { markChannelRead } from '@botharness/host-client/channel-messages';
 import type { HostClient } from '@botharness/host-client/client';
 import type { Inbox } from '@botharness/host-client/inbox';
@@ -48,8 +49,7 @@ export async function runConversationAction(
     await inbox?.refresh();
     return;
   }
-  if (key === 'mute' || key === 'unmute')
-    await client.call('channelMuteSet', { channelId, muted: key === 'mute' });
+  if (key === 'mute' || key === 'unmute') await setChannelMuted(client, channelId, key === 'mute');
   else await client.call('rosterBatch', { action: key, channelIds: [channelId] });
   await client.refresh();
 }

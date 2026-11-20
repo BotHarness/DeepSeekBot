@@ -1,3 +1,4 @@
+import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
 import type { PersonaBotSummary } from '../bridge/methods.js';
 import { dmChannelId, type ChannelSkillInvocationToken } from '../channels/channel.js';
 import { parseSkillOwnerKey, rankSkillEntries, type SkillCatalogEntry } from '../skills/entries.js';
@@ -97,16 +98,17 @@ export async function runSkillCommand(
     usage('skills-list requires exactly one of --bot or --channel.');
   const rpc = await connect();
   const channelId = channel || dmChannelId(bot!);
-  const result = (await rpc('channelSkillCatalog', { channelId })) as {
-    skills: SkillCatalogEntry[];
-  };
+  const skills = await loadSkillCatalog(
+    { call: (method, args = {}) => rpc(method, args) },
+    channelId,
+  );
   const bots = values.query?.trim()
     ? ((await rpc('list', {})) as { bots: PersonaBotSummary[] }).bots
     : [];
   const names = new Map(bots.map((bot) => [bot.slug, [bot.displayName, bot.slug]]));
   return {
     channelId,
-    skills: rankSkillEntries(result.skills, values.query ?? '', (entry) =>
+    skills: rankSkillEntries(skills, values.query ?? '', (entry) =>
       entry.owner.kind === 'host'
         ? []
         : entry.owner.kind === 'workspace'

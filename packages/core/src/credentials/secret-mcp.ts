@@ -13,6 +13,8 @@ import {
 } from './secret-command.js';
 import { SECRET_PLACEHOLDER } from './references.js';
 
+import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
+
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
 export const rememberedStarts = new Set<symbol>();
 export const SECRET_MCP_KEEP = 'BOTHARNESS_MCP_KEEP';
@@ -200,7 +202,7 @@ export class SecretMcpServers {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = await Promise.race([
       fiber.await().then(
-        () => (fiber.state === 2 ? 'started' : 'stopped'),
+        () => (fiber.state === ACTIVE_FIBER_STATE ? 'started' : 'stopped'),
         () => 'failed' as const,
       ),
       new Promise<'timeout'>((resolve) => {

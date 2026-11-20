@@ -285,6 +285,8 @@ try {
         DEEPSEEKBOT_HOST: new URL(instance.url).origin,
         DEEPSEEKBOT_HOST_TOKEN: new URL(instance.url).searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   await sleep(500);
