@@ -1,10 +1,14 @@
 import * as stylex from '@stylexjs/stylex';
+import { useState } from 'react';
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 import { turnTargetLabel } from '@botharness/host-client/turn-target';
 import { ink, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import type { BridgeActions } from './actions.js';
+import type { SessionTranscriptItem } from './bridge.js';
+import { useMountedResource } from './mounted-resource.js';
 import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 
 const styles = stylex.create({
@@ -25,10 +29,11 @@ export function TurnTargetLabel({
   catalog,
   t,
 }: {
-  targets: readonly TurnTarget[];
+  targets: readonly TurnTarget[] | undefined;
   catalog: readonly ModelCatalogEntry[] | undefined;
   t: BotHarnessTranslate;
 }) {
+  if (targets === undefined) return null;
   return (
     <span data-turn-targets="" {...stylex.props(styles.path)}>
       {targets.map((target, index) => {
@@ -47,4 +52,32 @@ export function TurnTargetLabel({
       })}
     </span>
   );
+}
+
+export function useTurnTargetCatalog(
+  actions: BridgeActions,
+  items: readonly SessionTranscriptItem[] | undefined,
+) {
+  const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
+  const needsCatalog =
+    catalog?.host !== actions &&
+    items?.some(
+      (item) =>
+        (item.kind === 'reply' || item.kind === 'turn-end') &&
+        item.turnTargets?.some((target) => target.kind === 'dsh'),
+    );
+  const catalogMount = useMountedResource<HTMLDivElement>(() => {
+    if (!needsCatalog) return;
+    let active = true;
+    void actions.modelCatalog().then(
+      ({ models }) => {
+        if (active) setCatalog({ host: actions, models });
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [actions, needsCatalog]);
+  return { catalog: catalog?.host === actions ? catalog.models : undefined, mount: catalogMount };
 }

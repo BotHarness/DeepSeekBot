@@ -1,6 +1,5 @@
-import { TurnTargetLabel } from './turn-target-label.js';
+import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
 import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
@@ -480,9 +479,8 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
-      {end?.turnTargets === undefined ||
-      visible.some((segment) => segment.kind === 'reply') ? null : (
-        <TurnTargetLabel targets={end.turnTargets} catalog={context.catalog} t={t} />
+      {visible.some((segment) => segment.kind === 'reply') ? null : (
+        <TurnTargetLabel targets={end?.turnTargets} catalog={context.catalog} t={t} />
       )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
@@ -496,9 +494,7 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
-            {segment.item.turnTargets === undefined ? null : (
-              <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
-            )}
+            <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
           </div>
         ) : (
           <ProcessGroup
@@ -607,27 +603,7 @@ export function SessionDetail({
   const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
-  const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
-  const needsCatalog =
-    catalog?.host !== actions &&
-    transcript?.items.some(
-      (item) =>
-        (item.kind === 'reply' || item.kind === 'turn-end') &&
-        item.turnTargets?.some((target) => target.kind === 'dsh'),
-    );
-  const catalogMount = useMountedResource<HTMLDivElement>(() => {
-    if (!needsCatalog) return;
-    let active = true;
-    void actions.modelCatalog().then(
-      ({ models }) => {
-        if (active) setCatalog({ host: actions, models });
-      },
-      () => undefined,
-    );
-    return () => {
-      active = false;
-    };
-  }, [actions, needsCatalog]);
+  const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -838,7 +814,7 @@ export function SessionDetail({
   const todos = progress?.todos;
   const context: DetailContext = {
     actions,
-    catalog: catalog?.host === actions ? catalog.models : undefined,
+    catalog,
     botSlug,
     sessionId,
     t,
