@@ -1,3 +1,4 @@
+import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
 import { toRemoteError, unwrap, unwrapAsync } from './rpc-result.js';
 import type {
@@ -3485,31 +3486,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   scheduleList(slug: string): { schedules: BotSchedule[] } {
-    return unwrap(this.methods.scheduleList({ slug }));
+    return schedulesRpc.scheduleList(this.methods, slug);
   }
-
   scheduleCreate(slug: string, input: BotScheduleInput): { schedule: BotSchedule } {
-    return unwrap(this.methods.scheduleCreate({ ...input, slug }));
+    return schedulesRpc.scheduleCreate(this.methods, slug, input);
   }
-
   scheduleUpdate(slug: string, id: string, change: BotScheduleChange): { schedule: BotSchedule } {
-    return unwrap(this.methods.scheduleUpdate({ ...change, slug, id }));
+    return schedulesRpc.scheduleUpdate(this.methods, slug, id, change);
   }
-
   scheduleDelete(slug: string, id: string): { removed: boolean } {
-    return unwrap(this.methods.scheduleDelete({ slug, id }));
+    return schedulesRpc.scheduleDelete(this.methods, slug, id);
   }
-
   scheduleHistory(slug: string, id: string): { firings: BotScheduleFiring[] } {
-    return unwrap(this.methods.scheduleHistory({ slug, id }));
+    return schedulesRpc.scheduleHistory(this.methods, slug, id);
   }
-
   scheduleRunNow(slug: string, id: string): { firing: BotScheduleFiring } {
-    return unwrap(this.methods.scheduleRunNow({ slug, id }));
+    return schedulesRpc.scheduleRunNow(this.methods, slug, id);
   }
-
   schedulePreview(trigger: BotScheduleTrigger): { occurrences: string[] } {
-    return unwrap(this.methods.schedulePreview({ trigger }));
+    return schedulesRpc.schedulePreview(this.methods, trigger);
   }
 }
 
